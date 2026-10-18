@@ -1,0 +1,306 @@
+{
+  "schemaVersion": "1.0.0",
+  "rulesVersion": "2026-10-18",
+  "status": "prd_seed_not_upload_certification",
+  "workflow": "manual_upload",
+  "checkedAt": "2026-10-18",
+  "timezone": "Asia/Shanghai",
+  "productLimits": {
+    "durationSeconds": [
+      15,
+      30
+    ],
+    "defaultDurationSeconds": 30,
+    "maxOutputFileBytes": 50000000
+  },
+  "encodingProfiles": {
+    "mp4_h264_1080_v1": {
+      "container": "mp4",
+      "videoCodec": "h264",
+      "profile": "high",
+      "pixelFormat": "yuv420p",
+      "fps": 30,
+      "constantFrameRate": true,
+      "progressive": true,
+      "colorSpace": "bt709",
+      "targetVideoBitrate": 8000000,
+      "maxVideoBitrate": 10000000,
+      "closedGop": true,
+      "gopFrames": 15,
+      "faststart": true,
+      "audio": {
+        "when": "source_audio_present",
+        "codec": "aac",
+        "profile": "aac_low",
+        "sampleRate": 48000,
+        "channels": 2,
+        "bitrate": 128000
+      }
+    }
+  },
+  "aspectLayouts": {
+    "landscape": {
+      "width": 1920,
+      "height": 1080,
+      "ratio": "16:9",
+      "safeInsets": {
+        "top": 0.05,
+        "right": 0.05,
+        "bottom": 0.05,
+        "left": 0.05
+      }
+    },
+    "portrait": {
+      "width": 1080,
+      "height": 1920,
+      "ratio": "9:16",
+      "safeInsets": {
+        "top": 0.1,
+        "right": 0.16,
+        "bottom": 0.22,
+        "left": 0.08
+      }
+    },
+    "feed": {
+      "width": 1080,
+      "height": 1350,
+      "ratio": "4:5",
+      "safeInsets": {
+        "top": 0.06,
+        "right": 0.06,
+        "bottom": 0.06,
+        "left": 0.06
+      }
+    },
+    "square": {
+      "width": 1080,
+      "height": 1080,
+      "ratio": "1:1",
+      "safeInsets": {
+        "top": 0.06,
+        "right": 0.06,
+        "bottom": 0.06,
+        "left": 0.06
+      }
+    }
+  },
+  "safeAreaSource": "product_design_recommendation_not_official_pixel_limits",
+  "presets": [
+    {
+      "id": "tiktok",
+      "label": "TikTok",
+      "platform": "tiktok",
+      "placement": "short_video",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "portrait",
+      "optionalAspects": [],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "api_reference_only",
+      "sourceUrls": [
+        "https://developers.tiktok.com/docs/en/content-posting-api-media-transfer-guide"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": null,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": null
+      },
+      "classificationRule": null,
+      "referenceOnlyConstraints": {
+        "scope": "content_posting_api",
+        "fpsMin": 23,
+        "fpsMax": 60,
+        "widthMin": 360,
+        "heightMin": 360,
+        "widthMax": 4096,
+        "heightMax": 4096
+      },
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+      "labelKey": "platforms.tiktok.label",
+      "userNoteKey": "platforms.productRecommendation"
+    },
+    {
+      "id": "instagram_feed",
+      "label": "Instagram Feed",
+      "platform": "instagram",
+      "placement": "feed_composition",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "feed",
+      "optionalAspects": [
+        "square"
+      ],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "historical_announcement_and_official_sample",
+      "sourceUrls": [
+        "https://about.fb.com/news/2022/07/new-ways-to-create-instagram-reels-remix/",
+        "https://github.com/fbsamples/reels_publishing_apis/blob/main/insta_reels_publishing_api_sample/README.md"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": null,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": null
+      },
+      "classificationRule": null,
+      "referenceOnlyConstraints": null,
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Feed composition preset. Instagram's current upload flow determines the final post type and crop.",
+      "labelKey": "platforms.instagram_feed.label",
+      "userNoteKey": "platforms.feedNote"
+    },
+    {
+      "id": "instagram_reels",
+      "label": "Instagram Reels",
+      "platform": "instagram",
+      "placement": "reels",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "portrait",
+      "optionalAspects": [],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "official_sample",
+      "sourceUrls": [
+        "https://github.com/fbsamples/reels_publishing_apis/blob/main/insta_reels_publishing_api_sample/README.md"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": null,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": null
+      },
+      "classificationRule": null,
+      "referenceOnlyConstraints": null,
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+      "labelKey": "platforms.instagram_reels.label",
+      "userNoteKey": "platforms.productRecommendation"
+    },
+    {
+      "id": "x",
+      "label": "X",
+      "platform": "x",
+      "placement": "timeline",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "landscape",
+      "optionalAspects": [],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "manual_upload_help",
+      "sourceUrls": [
+        "https://help.x.com/en/using-x/x-videos"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": 140,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": "512 MB"
+      },
+      "classificationRule": null,
+      "referenceOnlyConstraints": null,
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+      "labelKey": "platforms.x.label",
+      "userNoteKey": "platforms.productRecommendation"
+    },
+    {
+      "id": "youtube",
+      "label": "YouTube",
+      "platform": "youtube",
+      "placement": "regular_video",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "landscape",
+      "optionalAspects": [],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "upload_recommendations",
+      "sourceUrls": [
+        "https://support.google.com/youtube/answer/1722171?hl=en"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": null,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": null
+      },
+      "classificationRule": null,
+      "referenceOnlyConstraints": null,
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+      "labelKey": "platforms.youtube.label",
+      "userNoteKey": "platforms.productRecommendation"
+    },
+    {
+      "id": "youtube_shorts",
+      "label": "YouTube Shorts",
+      "platform": "youtube",
+      "placement": "shorts",
+      "version": "1.0.0",
+      "workflow": "manual_upload",
+      "defaultAspect": "portrait",
+      "optionalAspects": [],
+      "encodingProfile": "mp4_h264_1080_v1",
+      "sourceScope": "shorts_classification_and_encoding",
+      "sourceUrls": [
+        "https://support.google.com/youtube/answer/15424877?hl=en",
+        "https://support.google.com/youtube/answer/1722171?hl=en"
+      ],
+      "checkedAt": "2026-10-18",
+      "officialManualUploadLimits": {
+        "maxDurationSeconds": null,
+        "maxFileSizeBytes": null,
+        "maxFileSizeText": null
+      },
+      "classificationRule": {
+        "eligibleNewUploads": true,
+        "maxDurationSeconds": 180,
+        "aspect": "square_or_vertical",
+        "source": "https://support.google.com/youtube/answer/15424877?hl=en"
+      },
+      "referenceOnlyConstraints": null,
+      "uploadValidation": {
+        "status": "not_run",
+        "testedAt": null,
+        "accountType": null,
+        "entryPoint": null,
+        "artifactHash": null
+      },
+      "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+      "labelKey": "platforms.youtube_shorts.label",
+      "userNoteKey": "platforms.productRecommendation"
+    }
+  ],
+  "uiCopyVersion": "1.1.0"
+}

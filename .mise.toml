@@ -1,0 +1,10 @@
+# Tool versions verified for the repository check, not for the future application.
+# Recheck application/Cloudflare/Waffo compatibility in M0 and record any update.
+[tools]
+node = "24.19.0"
+pnpm = "11.25.0"
+
+[tasks."check:repo"]
+description = "Validate PRD files, seed references, and repository links"
+dir = "{{config_root}}"
+run = "node scripts/check-repo.mjs"

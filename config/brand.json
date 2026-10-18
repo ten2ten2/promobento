@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "selected_brand_pending_domain_setup",
+  "brandName": "PromoBento",
+  "brandSlug": "promobento",
+  "appUrl": "https://promobento.com",
+  "stagingUrl": "https://staging.promobento.com",
+  "tagline": "Turn your product or course into a promo video.",
+  "description": "Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.",
+  "category": "AI Promo Video Maker",
+  "defaultUiLocale": "en",
+  "supportEmail": "support@promobento.com",
+  "legalEntityName": null,
+  "paths": {
+    "help": "/help",
+    "privacy": "/privacy",
+    "terms": "/terms",
+    "refundPolicy": "/refund-policy",
+    "googleOAuthCallback": "/api/auth/google/callback",
+    "waffoWebhook": "/api/payments/waffo/webhook",
+    "waffoSuccessPathTemplate": "/app/billing/orders/{localOrderId}"
+  },
+  "publicPreviewWatermark": {
+    "text": "Made with PromoBento",
+    "renderInPaidExport": false
+  },
+  "checkoutDefaults": {
+    "language": "en",
+    "currency": "USD",
+    "darkModeSource": "resolved_ui_theme_at_session_creation",
+    "darkModeWhenUnknown": false
+  },
+  "domainLookup": {
+    "provider": "Namecheap",
+    "checkedAt": "2026-10-18",
+    "timezone": "Asia/Shanghai",
+    "availableAtCheck": true,
+    "quotedPurchaseAmount": "11.28",
+    "currency": "USD",
+    "registrationTerm": null,
+    "renewalAmount": null,
+    "purchasedInThisTask": false
+  },
+  "deploymentVerification": {
+    "domainControl": "pending",
+    "dnsAndTls": "pending",
+    "supportInbox": "pending",
+    "googleOAuth": "pending",
+    "waffoDomain": "pending",
+    "productionDeployment": "not_performed"
+  }
+}

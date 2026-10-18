@@ -1,0 +1,129 @@
+{
+  "common": {
+    "createVideo": "Create a video",
+    "continue": "Continue",
+    "back": "Back",
+    "save": "Save",
+    "cancel": "Cancel",
+    "retry": "Try again",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "offlineDraft": "Offline draft",
+    "conflict": "Another change was saved. Review it before continuing.",
+    "appearance": "Appearance",
+    "themeSystem": "System",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeControlLabel": "Choose appearance",
+    "themeSaveFailed": "Your appearance changed for this visit, but the preference could not be saved.",
+    "contactSupport": "Contact support",
+    "requestId": "Reference: {{requestId}}"
+  },
+  "marketing": {
+    "headline": "Turn your product or course into a promo video.",
+    "description": "Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.",
+    "softwareTeam": "Software product team",
+    "contentTeam": "Course / digital product team",
+    "englishAtLaunch": "English videos at launch",
+    "previewFree": "Preview your own video for free",
+    "publicWatermark": "Made with PromoBento"
+  },
+  "auth": {
+    "continueWithGoogle": "Continue with Google",
+    "signInToUpload": "Sign in to upload your assets and save your project.",
+    "signInFailed": "We could not complete sign-in. Your selections are still here."
+  },
+  "projects": {
+    "title": "Projects",
+    "newProject": "New project",
+    "copyProject": "Duplicate project",
+    "copyPaymentNotice": "The duplicate is a new project and needs its own project pack.",
+    "empty": "Create a promo video from your screenshots, recordings, or product assets.",
+    "readOnly": "This project is read-only.",
+    "freeRestore": "Buy a project pack to restore editing and export access.",
+    "paidRestore": "Add more versions to restore this project before its files are removed.",
+    "filesRemoved": "This project's files have been removed. Upload your assets to a new project to continue."
+  },
+  "editor": {
+    "videoLanguage": "Video language: English",
+    "videoLanguageHelp": "Provide or confirm English copy. Product names, links, and your original assets stay unchanged.",
+    "confirmFacts": "I have confirmed these details",
+    "generateStoryboard": "Generate storyboard",
+    "manualTemplate": "Fill in the template",
+    "videoStyle": "Video style",
+    "styleClean": "Clean",
+    "styleBold": "Bold",
+    "playPreview": "Play preview",
+    "safeArea": "Show recommended safe area",
+    "versionsRemaining_one": "{{count}} finished video version remaining",
+    "versionsRemaining_other": "{{count}} finished video versions remaining",
+    "unsupportedGlyph": "This font cannot display a character in {{field}}. Choose another supported font or edit the text.",
+    "shortenText": "Shorten the text in {{field}} to keep it inside the safe area.",
+    "ctaLinkHelp": "Copy this link when you publish. Text inside an MP4 is not clickable."
+  },
+  "billing": {
+    "projectPack": "Project pack",
+    "extraVersions": "Extra versions",
+    "projectPrice": "{{price}} per project",
+    "extraVersionsPrice": "{{price}} for an existing paid project",
+    "packIncludes_one": "{{count}} finished video version, with all supported platform formats.",
+    "packIncludes_other": "{{count}} finished video versions, with all supported platform formats.",
+    "buyAndExport": "Buy and export",
+    "buyExtraVersions": "Add more versions",
+    "alsoExport": "Export this version after purchase",
+    "useOneVersion": "Export this video and use 1 version",
+    "paymentPending": "Confirming your payment…",
+    "paymentConfirmed": "Payment confirmed",
+    "paymentIncomplete": "Payment has not been completed.",
+    "sessionExpired": "This checkout session has expired.",
+    "continuePayment": "Continue payment",
+    "paidSnapshotNotice": "We are exporting the version you confirmed. Your new edits are saved as a draft.",
+    "taxNotice": "Applicable taxes are shown at checkout.",
+    "uiThemeNoCharge": "Changing appearance does not use a video version."
+  },
+  "exports": {
+    "queued": "Queued",
+    "preparing": "Preparing assets",
+    "rendering": "Rendering frames",
+    "encoding": "Encoding video",
+    "validating": "Checking files",
+    "ready": "Ready to download",
+    "failed": "We could not finish this export. Retry without an additional charge.",
+    "downloadAll": "Download all files",
+    "archivePreparing": "Preparing your ZIP",
+    "mappingTitle": "Which file to use for each platform",
+    "extraFormatNoCharge": "Add another supported format to this version at no additional charge."
+  },
+  "platforms": {
+    "productRecommendation": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
+    "feedNote": "Feed composition preset. Instagram's current upload flow determines the final post type and crop.",
+    "tiktok": {"label": "TikTok"},
+    "instagram_feed": {"label": "Instagram Feed"},
+    "instagram_reels": {"label": "Instagram Reels"},
+    "x": {"label": "X"},
+    "youtube": {"label": "YouTube"},
+    "youtube_shorts": {"label": "YouTube Shorts"}
+  },
+  "settings": {
+    "appearanceTitle": "Appearance",
+    "appearanceHelp": "Choose a light or dark interface, or follow your system. This does not change your video's colors.",
+    "brandTitle": "Your brand",
+    "membersTitle": "Team members",
+    "supportTitle": "Help and support"
+  },
+  "errors": {
+    "generic": "Something went wrong. Try again or contact support with the reference number.",
+    "unsupportedUiLocale": "English is the only interface language available at launch.",
+    "unsupportedVideoLanguage": "English is the only video language available at launch. No usage was charged.",
+    "invalidTheme": "Choose System, Light, or Dark.",
+    "accessDenied": "You do not have access to this project.",
+    "invalidAsset": "This asset could not be processed. Check the supported formats and try again."
+  },
+  "admin": {
+    "title": "Operations",
+    "orders": "Orders",
+    "jobs": "Jobs",
+    "refunds": "Refunds",
+    "environment": "Environment"
+  }
+}

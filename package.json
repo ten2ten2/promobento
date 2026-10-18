@@ -1,0 +1,14 @@
+{
+  "name": "promobento",
+  "version": "0.0.0",
+  "private": true,
+  "description": "PromoBento PRD and repository tooling; application implementation starts at M0.",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "24.19.0"
+  },
+  "scripts": {
+    "check:repo": "node scripts/check-repo.mjs"
+  }
+}

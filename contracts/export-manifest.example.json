@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.1.0",
+  "exampleOnly": true,
+  "projectId": "proj_fixture",
+  "releaseId": "rel_fixture_01",
+  "snapshotId": "snap_fixture_01",
+  "revisionId": "rev_fixture_01",
+  "contentHash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "rendererVersionId": "renderer_fixture_v1",
+  "rendererImageDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "presetRulesVersion": "2026-10-18",
+  "durationFrames": 900,
+  "fps": 30,
+  "billing": {
+    "versionUnits": 1,
+    "reservationId": "reserve_fixture_01",
+    "state": "reserved"
+  },
+  "state": "rendering",
+  "initialArtifactManifest": [
+    "video_landscape_v1",
+    "video_portrait_v1",
+    "video_feed_v1",
+    "cover_landscape_v1",
+    "cover_portrait_v1",
+    "cover_feed_v1",
+    "mapping_manifest_v1"
+  ],
+  "platformMappings": [
+    {
+      "platformId": "tiktok",
+      "videoArtifact": "video_portrait_v1",
+      "coverArtifact": "cover_portrait_v1"
+    },
+    {
+      "platformId": "instagram_feed",
+      "videoArtifact": "video_feed_v1",
+      "coverArtifact": "cover_feed_v1"
+    },
+    {
+      "platformId": "instagram_reels",
+      "videoArtifact": "video_portrait_v1",
+      "coverArtifact": "cover_portrait_v1"
+    },
+    {
+      "platformId": "x",
+      "videoArtifact": "video_landscape_v1",
+      "coverArtifact": "cover_landscape_v1"
+    },
+    {
+      "platformId": "youtube",
+      "videoArtifact": "video_landscape_v1",
+      "coverArtifact": "cover_landscape_v1"
+    },
+    {
+      "platformId": "youtube_shorts",
+      "videoArtifact": "video_portrait_v1",
+      "coverArtifact": "cover_portrait_v1"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "video_landscape_v1",
+      "kind": "video",
+      "aspect": "landscape",
+      "width": 1920,
+      "height": 1080,
+      "encodingProfile": "mp4_h264_1080_v1",
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "cover_landscape_v1",
+      "kind": "cover",
+      "aspect": "landscape",
+      "width": 1920,
+      "height": 1080,
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "video_portrait_v1",
+      "kind": "video",
+      "aspect": "portrait",
+      "width": 1080,
+      "height": 1920,
+      "encodingProfile": "mp4_h264_1080_v1",
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "cover_portrait_v1",
+      "kind": "cover",
+      "aspect": "portrait",
+      "width": 1080,
+      "height": 1920,
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "video_feed_v1",
+      "kind": "video",
+      "aspect": "feed",
+      "width": 1080,
+      "height": 1350,
+      "encodingProfile": "mp4_h264_1080_v1",
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "cover_feed_v1",
+      "kind": "cover",
+      "aspect": "feed",
+      "width": 1080,
+      "height": 1350,
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "video_square_v1",
+      "kind": "video",
+      "aspect": "square",
+      "width": 1080,
+      "height": 1080,
+      "encodingProfile": "mp4_h264_1080_v1",
+      "state": "not_requested",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "cover_square_v1",
+      "kind": "cover",
+      "aspect": "square",
+      "width": 1080,
+      "height": 1080,
+      "state": "not_requested",
+      "r2Key": null,
+      "sha256": null
+    },
+    {
+      "id": "mapping_manifest_v1",
+      "kind": "manifest",
+      "state": "queued",
+      "r2Key": null,
+      "sha256": null
+    }
+  ],
+  "initialPublishedAt": null,
+  "archive": {
+    "state": "not_requested",
+    "r2Key": null
+  },
+  "createdAt": "2026-10-18T14:00:00Z",
+  "accessExpiresAt": "2027-01-16T14:00:00Z",
+  "language": "en",
+  "direction": "ltr",
+  "videoStyle": "clean"
+}

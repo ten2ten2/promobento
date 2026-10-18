@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "1.0.0",
+  "status": "prd_seed_requires_component_visual_validation",
+  "defaultPreference": "system",
+  "preferences": ["system", "light", "dark"],
+  "htmlAttribute": "data-theme",
+  "cssVariablePrefix": "--ui-",
+  "videoCssVariablePrefix": "--video-",
+  "systemResolution": "css_prefers_color_scheme",
+  "persistence": {
+    "kind": "server_set_cookie",
+    "name": "promobento_theme",
+    "maxAgeSeconds": 31536000,
+    "path": "/",
+    "sameSite": "Lax",
+    "secureInProduction": true,
+    "httpOnly": true,
+    "hostOnly": true
+  },
+  "themes": {
+    "light": {
+      "colorScheme": "light",
+      "colors": {
+        "bg": "#F8FAFC",
+        "surface": "#FFFFFF",
+        "surfaceRaised": "#FFFFFF",
+        "surfaceMuted": "#F1F5F9",
+        "text": "#0F172A",
+        "textMuted": "#475569",
+        "border": "#CBD5E1",
+        "borderControl": "#64748B",
+        "primary": "#6D28D9",
+        "primaryText": "#FFFFFF",
+        "link": "#6D28D9",
+        "focus": "#6D28D9",
+        "danger": "#B91C1C",
+        "success": "#166534",
+        "warning": "#92400E",
+        "selection": "#EDE9FE",
+        "selectionText": "#4C1D95",
+        "disabled": "#E2E8F0",
+        "disabledText": "#64748B"
+      }
+    },
+    "dark": {
+      "colorScheme": "dark",
+      "colors": {
+        "bg": "#0B1020",
+        "surface": "#151D2F",
+        "surfaceRaised": "#202B40",
+        "surfaceMuted": "#263247",
+        "text": "#F8FAFC",
+        "textMuted": "#CBD5E1",
+        "border": "#38455B",
+        "borderControl": "#94A3B8",
+        "primary": "#C4B5FD",
+        "primaryText": "#1E1B4B",
+        "link": "#C4B5FD",
+        "focus": "#C4B5FD",
+        "danger": "#FCA5A5",
+        "success": "#86EFAC",
+        "warning": "#FCD34D",
+        "selection": "#4C1D95",
+        "selectionText": "#F5F3FF",
+        "disabled": "#334155",
+        "disabledText": "#94A3B8"
+      }
+    }
+  },
+  "contrastRules": [
+    {"foreground": "text", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "textMuted", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "link", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "primaryText", "backgrounds": ["primary"], "minimum": 4.5},
+    {"foreground": "danger", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "success", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "warning", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 4.5},
+    {"foreground": "selectionText", "backgrounds": ["selection"], "minimum": 4.5},
+    {"foreground": "borderControl", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 3.0},
+    {"foreground": "focus", "backgrounds": ["bg", "surface", "surfaceRaised", "surfaceMuted"], "minimum": 3.0}
+  ]
+}
