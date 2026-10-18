@@ -1,15 +1,13 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "2.0.0",
   "status": "prd_seed",
+  "scope": "website_ui",
   "engine": "i18next-react-i18next",
   "defaultNamespace": "translation",
   "resourceFormat": "nested_module_keys",
   "defaultUiLocale": "en",
   "fallbackUiLocale": "en",
   "supportedUiLocales": ["en"],
-  "defaultVideoLanguage": "en",
-  "supportedVideoLanguages": ["en"],
-  "videoLanguageField": "language",
   "defaultFormattingLocale": "en-US",
   "defaultSsrTimeZone": "UTC",
   "billingCurrency": "USD",
@@ -21,17 +19,8 @@
       "resourceFile": "locales/en.json"
     }
   },
-  "videoLanguages": {
-    "en": {
-      "label": "English",
-      "direction": "ltr",
-      "fontCoverageValidationRequired": true
-    }
-  },
   "selection": {
-    "showUiLanguageSwitcher": false,
-    "showVideoLanguageSelector": false,
-    "showVideoLanguageInfo": true
+    "showUiLanguageSwitcher": false
   },
   "routing": {
     "defaultLocalePrefix": "",
@@ -42,10 +31,7 @@
   },
   "validation": {
     "unsupportedUiLocaleCode": "UNSUPPORTED_UI_LOCALE",
-    "unsupportedVideoLanguageCode": "UNSUPPORTED_VIDEO_LANGUAGE",
     "httpStatus": 422,
-    "chargeCreditsOnRejection": false,
-    "allowUnicodeCustomerNames": true,
-    "translateCustomerFactsAutomatically": false
+    "chargeCreditsOnRejection": false
   }
 }

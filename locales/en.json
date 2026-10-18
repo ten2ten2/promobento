@@ -24,7 +24,6 @@
     "description": "Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.",
     "softwareTeam": "Software product team",
     "contentTeam": "Course / digital product team",
-    "englishAtLaunch": "English videos at launch",
     "previewFree": "Preview your own video for free",
     "publicWatermark": "Made with PromoBento"
   },
@@ -45,8 +44,6 @@
     "filesRemoved": "This project's files have been removed. Upload your assets to a new project to continue."
   },
   "editor": {
-    "videoLanguage": "Video language: English",
-    "videoLanguageHelp": "Provide or confirm English copy. Product names, links, and your original assets stay unchanged.",
     "confirmFacts": "I have confirmed these details",
     "generateStoryboard": "Generate storyboard",
     "manualTemplate": "Fill in the template",
@@ -114,7 +111,6 @@
   "errors": {
     "generic": "Something went wrong. Try again or contact support with the reference number.",
     "unsupportedUiLocale": "English is the only interface language available at launch.",
-    "unsupportedVideoLanguage": "English is the only video language available at launch. No usage was charged.",
     "invalidTheme": "Choose System, Light, or Dark.",
     "accessDenied": "You do not have access to this project.",
     "invalidAsset": "This asset could not be processed. Check the supported formats and try again."

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — Scope localization to the website
+
+- Clarified that multilingual architecture and the English-first launch apply to the website interface.
+- Removed the English-only video restriction and language-selection or detection-confirmation prerequisites; user copy can freely mix languages.
+- Kept user text separate from website translation resources, with ordinary generation and editing preserving the original language mix.
+- Updated PRD, website-only localization seeds, UI messages and repository checks; retained existing billing and immutable output rules.
+
 ## 2026-10-19 — Concise agent guidance and mise toolchain
 
 - Shortened AGENTS.md to task navigation, development rules, essential invariants, and the agreed direct-main workflow.

@@ -116,10 +116,10 @@ function main() {
   const pkg = json('package.json');
 
   expect(brand.brandName === 'PromoBento' && brand.appUrl === 'https://promobento.com', 'Brand seed mismatch');
-  expect(same(locale.supportedUiLocales, ['en']) && same(locale.supportedVideoLanguages, ['en']), 'Launch allowlists must contain only en');
-  expect(locale.videoLanguageField === 'language', 'Video language field must remain language');
+  expect(locale.scope === 'website_ui' && same(locale.supportedUiLocales, ['en']), 'Localization seed must describe the English-first website UI');
+  expect(!Object.hasOwn(locale, 'supportedVideoLanguages') && !Object.hasOwn(locale, 'defaultVideoLanguage'), 'Website localization must not impose a video language allowlist or default');
   expect(locale.uiLanguages?.en?.resourceFile === 'locales/en.json', 'English resource path must be relative to repository root');
-  expect(locale.selection?.showUiLanguageSwitcher === false && locale.selection?.showVideoLanguageSelector === false, 'Unsupported language controls must remain hidden');
+  expect(locale.selection?.showUiLanguageSwitcher === false, 'Unpublished website language controls must remain hidden');
   expect(same(themes.preferences, ['system', 'light', 'dark']) && themes.defaultPreference === 'system', 'Theme preference mismatch');
   expect(themes.cssVariablePrefix !== themes.videoCssVariablePrefix, 'UI and video tokens must be separate');
 
@@ -139,7 +139,9 @@ function main() {
   }
 
   expect(scene.exampleOnly === true && manifest.exampleOnly === true, 'Contract examples must remain marked exampleOnly');
-  expect(scene.language === 'en' && manifest.language === 'en', 'Contract example language must be en');
+  // Content language is optional descriptive metadata; it never gates creating a video.
+  expect(scene.language === manifest.language, 'Scene and manifest language metadata mismatch');
+  expect(['ltr', 'rtl'].includes(scene.direction), 'Frozen text direction must be ltr or rtl');
   expect(scene.brand.name === 'Sample Product', 'Customer fixture brand must not be replaced by the platform brand');
   expect(scene.projectId === manifest.projectId && scene.revisionId === manifest.revisionId, 'Scene and manifest identity mismatch');
   expect(scene.direction === manifest.direction && scene.videoStyle === manifest.videoStyle, 'Frozen video properties differ between examples');

@@ -70,7 +70,7 @@ Waffo 中创建两个对应的一次性商品，test 与 production 的商品 ID
 
 Waffo 当前成功后由买家点击 Done 返回，且没有 `cancelUrl`。项目页保留继续付款入口，放弃收银台通过本地过期和对账处理，不等待并不存在的取消通知。
 
-Waffo 的 language 是默认语言，买家可在其收银台切换；钱包、银行验证和 Google 登录等第三方界面由提供方控制。已有活动 session 沿用创建时外观，切换站内主题不能触发第二个可付款 session，也不能改变已经持久化的提供商重试请求体。恢复站内后使用站内保存的主题与英语 UI。[官方语言与外观字段](https://docs.waffo.ai/api-reference/endpoints/orders/create-checkout-session)
+Waffo 的 language 设置收银台默认界面语言，与用户视频文案无关，买家可在其支持范围内切换；钱包、银行验证和 Google 登录等第三方界面由提供方控制。已有活动 session 沿用创建时外观，切换站内主题不能触发第二个可付款 session，也不能改变已经持久化的提供商重试请求体。恢复站内后使用站内保存的主题与英语 UI。[官方语言与外观字段](https://docs.waffo.ai/api-reference/endpoints/orders/create-checkout-session)
 
 服务端请求超时意味着结果未知，不意味着订单未创建。先用相同幂等键安全重试或查账，不能立即另造一个可支付订单。Waffo 的幂等缓存窗口不替代本地长期唯一约束。
 

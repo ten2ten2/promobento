@@ -2,7 +2,7 @@
 
 ## 1 交付目标
 
-按本文档组实现可部署的 PromoBento P0，主域为 promobento.com。小型软件产品团队与课程数字产品内容团队同时完成首批闭环；平台预设全部进入第一版。使用 React、TypeScript、mise、Cloudflare 全栈和 Waffo.ai；建立多语言架构但首发仅英语，完整支持 System / Light / Dark。
+按本文档组实现可部署的 PromoBento P0，主域为 promobento.com。小型软件产品团队与课程数字产品内容团队同时完成首批闭环；平台预设全部进入第一版。使用 React、TypeScript、mise、Cloudflare 全栈和 Waffo.ai；网站建立国际化架构并首发英语；用户文案可任意语言混排，无视频语言选择前置条件，完整支持 System / Light / Dark。
 
 当前交付是需求文档和契约示例，不包含已经完成的 SaaS 或生产部署。实施者应保留这个区别，后续用实际代码、样片、测试与部署记录更新进度。
 
@@ -11,7 +11,7 @@
 | 阶段 | 实施内容 | 退出条件 |
 | --- | --- | --- |
 | M0 可行性闭环 | 官方 React Router Workers 工程；mise 精确锁版本；品牌/i18n/主题基础；D1/R2；单场景 Chromium/FFmpeg 容器；Waffo test checkout 与验签 | 在真实预发布 Cloudflare 成功生成一个 30 秒文件；Waffo 测试付款、回调及查询可核验；英语 SSR 与主题 Cookie/CSS 方案可运行 |
-| M1 第一条用户流程 | Google 登录、工作区、上传、事实确认、共享模板、手动编辑、四构图浏览器预览；英文资源与两套 UI tokens | 软件与课程用户各能完成英语个人预览，Light/Dark 均可用，AI 故障可手填 |
+| M1 第一条用户流程 | Google 登录、工作区、上传、事实确认、共享模板、手动编辑、四构图浏览器预览；英文资源与两套 UI tokens | 软件与课程用户各能在英语网站完成自己的文案预览，允许混排，Light/Dark 均可用，AI 故障可手填 |
 | M2 付费与交付 | 项目包、追加包、不可变快照、权益账本、Queues/DO、导出/封面/ZIP、失败恢复 | PAY 核心测试通过，关闭浏览器仍交付，所有平台可下载 |
 | M3 团队与运营 | 成员链接、冲突、评论、审阅、期限清理、后台、退款、来源埋点、两类用途页 | P0 权限与删除测试通过，漏斗可按人群和渠道查看 |
 | M4 上线验收 | 样片、四构图矩阵、性能费用、平台实际上传、真实支付与退款、生产配置 | 有完整证据，未完成的外部验证明确标记，满足生产发布门槛 |
@@ -32,7 +32,7 @@ M0 先解决视频渲染和 Waffo 集成的真实风险，再扩编辑器范围�
 | `packages/billing` | 仅 Waffo 的 adapter、金额转换、订单与事件映射 |
 | `packages/db` | D1 SQL、迁移、条件写与查询封装 |
 | `packages/ui` | 表单和编辑器基础组件 |
-| `packages/i18n` | 请求级 i18next、英语消息目录、locale allowlist、Intl 与消息类型 |
+| `packages/i18n` | 请求级 i18next、英语网站消息目录、UI locale allowlist、Intl 与消息类型 |
 | `packages/brand` | PromoBento 名称、可信环境 URL、站点元数据和支持配置 |
 | `packages/ui/theme` | Light/Dark CSS tokens、System 偏好、Cookie 与可访问主题控件 |
 | `tests/fixtures` | 已授权测试素材与预期事实 |
@@ -70,7 +70,7 @@ M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本�
 | `mise run test:e2e` | 软件和课程两类流程 |
 | `mise run test:render` | 固定素材关键帧、ffprobe 和四构图验收 |
 | `mise run test:billing` | Waffo 签名、幂等、对账、额度、退款；模式明确 |
-| `mise run check:i18n` | 稳定文案 key、插值、复数、英文首发 allowlist 与资源完整性 |
+| `mise run check:i18n` | 稳定文案 key、插值、复数、网站英语首发 allowlist 与资源完整性；用户文案不受该名单限制 |
 | `mise run test:appearance` | System/Light/Dark、SSR 首屏、Cookie、缓存隔离、关键页面与成片样式隔离 |
 | `mise run build` | Web、Workers 和 renderer 镜像构建 |
 | `mise run deploy:preview` | 部署到独立预发布环境 |
@@ -96,7 +96,7 @@ M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本�
 
 Google 同意页、允许来源和回调、Waffo 商店品牌、支持信息与域名验证需要实际配置。平台品牌与真实商户主体分别填写。生产与预发布使用 host-only Cookie，不能设 Domain=.promobento.com 共享账号会话。Access 例外只覆盖经过设计的机器回调路径，Waffo test webhook 仍须验签；完整登录和付款往返按 06 验收。
 
-语言配置见 `config/localization.json`，英语资源种子见 `locales/en.json`，主题初值见 `config/theme-tokens.json`。实施时补齐全部真实界面资源；首发 allowlist 仅 en，视频语言与 uiLocale 分离。主题 Cookie、CSS、SSR 和缓存规则以 10 为准。
+语言配置见 `config/localization.json`，英语资源种子见 `locales/en.json`，主题初值见 `config/theme-tokens.json`。实施时补齐全部真实网站界面资源；UI allowlist 仅 en，不包含视频语言名单或默认值。用户文字、混排与可选内容元数据和 uiLocale 分离，不引入视频语言选择或识别确认流程。主题 Cookie、CSS、SSR 和缓存规则以 10 为准。
 
 Worker bindings 包括 D1、R2、两条队列及 DLQ、DO、AI、可选 Analytics Engine。密钥包括 Google OAuth 客户端凭据、会话签名材料、Waffo 商户私钥与环境验证配置、服务间认证材料。生产 secrets 通过 Cloudflare secret 管理，不能放入前端变量、Docker 镜像或提交仓库。
 
@@ -104,7 +104,7 @@ Waffo 配置需有 mode、merchant ID、store ID、两个商品 ID、API 基址�
 
 ## 7 默认决策与可配置项
 
-不可因开发方便改变：PromoBento / promobento.com、两个首批人群、Waffo、Cloudflare、React、mise、六个平台预设、真实浏览器预览、按项目版本收费、失败与重复保护、私有素材、事实确认、多语言架构但英语首发、System / Light / Dark。
+不可因开发方便改变：PromoBento / promobento.com、两个首批人群、Waffo、Cloudflare、React、mise、六个平台预设、真实浏览器预览、按项目版本收费、失败与重复保护、私有素材、事实确认、网站国际化与英语首发、用户文案语言自由、System / Light / Dark。
 
 可配置但必须留记录：价格、AI 配额、素材处理预算、工作区人数、保留期、并发、模板默认值、模型 ID、平台推荐值与性能预算。变更不得追溯减少已购买的权益，订单保存购买时的政策快照。
 
@@ -112,7 +112,7 @@ P0 暂不实现的网址抓取、自动 TTS、自动字幕、平台自动发布�
 
 ## 8 核心契约要求
 
-配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/scene.example.json` 建立完整 schema 和迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，视频 language、direction 和 videoStyle 按内容版本规则冻结。
+配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/scene.example.json` 建立完整 schema 和迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
 
 最低约束包括总帧连续无重叠、事实均已确认、素材属于当前租户、布局在允许范围内、所有四构图存在、封面时间有效、音轨长度合法、版本快照不可变、相同指纹可复用。带 `exampleOnly` 或 `fixture_placeholder` 的样例只用于契约和本地测试；生产 API 必须拒绝占位素材，不能把示例 hash 当成真实文件验证记录。
 

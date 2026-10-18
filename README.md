@@ -4,7 +4,7 @@
 
 PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可编辑、可按社交平台导出的宣传短片。目标主域为 `promobento.com`。
 
-这是 PromoBento 的初始开发仓库，包含完整 PRD v1.1、配置种子、契约示例、Codex 工作指引和可运行的仓库检查工具。需求说明采用中文，首发产品界面与视频文案采用英语。
+这是 PromoBento 的初始开发仓库，包含完整 PRD v1.1、配置种子、契约示例、Codex 工作指引和可运行的仓库检查工具。需求说明采用中文；网站首发英语并预留网站多语言能力。用户文案可使用任意语言或混排，不需要选择视频语言。
 
 ## 从这里开始
 
@@ -29,7 +29,7 @@ PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可
 | 部署 | Cloudflare Workers、Static Assets、D1、R2、Queues、Durable Objects、Containers、Workers AI |
 | 支付 | Waffo.ai；项目和成片版本计费，详细政策以支付专章为准 |
 | 首发平台预设 | TikTok、Instagram Feed、Instagram Reels、X、YouTube、YouTube Shorts |
-| 语言 | 从首版建立国际化架构；自有界面与生成视频文案首先只开放英语 |
+| 语言 | 网站从首版建立国际化架构，先提供英语界面；用户文案独立于网站语言，可自由混排 |
 | 产品界面主题 | System / Light / Dark；独立于成片的 Clean / Bold 样式 |
 
 本表负责导览。精确规则、可配置配额、验收条件及事实来源见 PRD，不在根 README 维护第二份完整规格。

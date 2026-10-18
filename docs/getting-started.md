@@ -56,7 +56,7 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 - React、TypeScript、Vite、React Router、mise、pnpm。
 - Cloudflare 全栈部署，Waffo.ai 支付。
 - 六个平台预设全部在 P0；真实素材、确认事实、共享浏览器预览与云端渲染。
-- 从首版建立国际化架构；自有 UI 与生成视频文案只开放英语。
+- 网站从首版建立国际化架构，首发英语；用户文案可使用任意语言或混排，不设视频语言选择或识别确认门槛。
 - System / Light / Dark 属于 P0，网站主题与视频内容、计费独立。
 
 当前仓库只有完整规格、配置种子、契约示例和仓库检查工具。
@@ -75,6 +75,6 @@ docs/implementation-decisions.md 和 docs/evidence/。
 
 ## 6 M0 的具体出口
 
-M0 的应用工作至少包括：核对目标 Cloudflare 构建环境与工具版本，初始化受支持的 React Router 工程并锁版本，建立英语 SSR、主题 Cookie/CSS 与配置基础，连接 D1/R2，在目标 Cloudflare 环境通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
+M0 的应用工作至少包括：核对目标 Cloudflare 构建环境与工具版本，初始化受支持的 React Router 工程并锁版本，建立英语网站 SSR、主题 Cookie/CSS 与配置基础，连接 D1/R2，在目标 Cloudflare 环境通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
 
 当前仓库的检查命令与 M0 的真实环境验证分别记录。开发账号尚未配置时，状态保持未验证，不填写虚构的资源 ID 或成功结果。

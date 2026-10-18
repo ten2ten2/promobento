@@ -1,17 +1,17 @@
 # PromoBento 产品需求与实施文档
 
-版本：1.1。更新日期：2026 年 10 月 18 日，Asia/Shanghai。本文档组是开发规格，供产品负责人、设计师和 Codex 实施使用。需求说明采用中文；首发产品面向用户的内容采用英语。
+版本：1.1。更新日期：2026 年 10 月 19 日，Asia/Shanghai。本文档组是开发规格，供产品负责人、设计师和 Codex 实施使用。需求说明采用中文；网站首发英语，用户文案可在同片、同场景或同段混用任意语言。
 
 产品将真实截图、录屏、课程及数字产品素材，制作成可以修改并按平台导出的宣传短片。小型软件产品团队与已有课程或数字产品收入的内容团队同时进入首批范围，使用同一套项目、编辑、付费和渲染系统。
 
-已固定的约束：正式品牌 PromoBento，主域 promobento.com；React 与 TypeScript；mise 管理依赖版本；Cloudflare 全栈部署；Waffo.ai 支付；TikTok、Instagram 信息流、Instagram Reels、X、YouTube、YouTube Shorts 六个平台或展示位置的导出预设；国际化架构从首版建立，界面与视频文案首发只开放英语；全站支持 System / Light / Dark 三种主题偏好。
+已固定的约束：正式品牌 PromoBento，主域 promobento.com；React 与 TypeScript；mise 管理依赖版本；Cloudflare 全栈部署；Waffo.ai 支付；TikTok、Instagram 信息流、Instagram Reels、X、YouTube、YouTube Shorts 六个平台或展示位置的导出预设；网站国际化架构从首版建立，网站首发英语；用户文案不受网站语言限制；全站支持 System / Light / Dark 三种主题偏好。
 
 ## 本次修订
 
 | 用户决定 | 本版落实 |
 | --- | --- |
 | 采用 PromoBento / promobento.com | 统一品牌、主域、首页文案、环境地址、支付回跳、OAuth、支持地址和配置；区分已确定名称与尚未取得域名 |
-| 支持多语言能力，起初只做英语 | 独立的界面语言与视频语言配置、英文资源、服务端 allowlist、未来语言启用流程；移除简体中文首发承诺 |
+| 网站支持多语言能力，首发英语；视频文案可多语言混排 | 网站英文资源、UI allowlist 与未来网站语言启用流程；用户文案不属于网站翻译资源，不增加视频语言选择或确认步骤 |
 | 支持 Light / Dark Mode | System / Light / Dark 首发；浏览器偏好持久化、SSR 首屏、缓存隔离、两套语义色彩和验收 |
 
 主题偏好只改变产品界面。成片的 Clean / Bold 样式、客户品牌色和内容快照独立保存，界面换色不改成片、不扣额度。
@@ -29,9 +29,9 @@
 | [07 获客与实验](07-growth-and-experiments.md) | GPT 引荐入口、事件、指标、付费实验和成本 |
 | [08 Codex 实施说明](08-codex-execution.md) | 目录、依赖、开发命令、实施顺序和完成标准 |
 | [09 来源与决策](09-sources-and-decisions.md) | 官方来源、已定决策、待接入资料和风险处理 |
-| [10 多语言与明暗主题](10-i18n-and-themes.md) | 英语首发、语言扩展、主题偏好、SSR、缓存和验收 |
+| [10 多语言与明暗主题](10-i18n-and-themes.md) | 网站英语首发、网站语言扩展、用户文案边界、主题、SSR、缓存和验收 |
 | [品牌配置](../../config/brand.json) | 正式品牌、环境地址和待验证部署信息 |
-| [语言配置](../../config/localization.json) | 界面与视频语言启用范围、格式化与路由 |
+| [语言配置](../../config/localization.json) | 网站界面语言启用范围、格式化与路由 |
 | [主题色彩配置](../../config/theme-tokens.json) | Light / Dark 语义色彩及对比度验收组合 |
 | [英文文案种子](../../locales/en.json) | 核心界面、格式名称、价格、错误与主题标签 |
 | [平台预设配置](../../config/platform-presets.json) | 可直接转换为代码的规则种子数据 |

@@ -7,7 +7,7 @@
 | 开发语言 | TypeScript，React | Web 界面、共享场景模型、API 与作业控制 |
 | Web 框架 | React Router Framework，Vite，Cloudflare Vite plugin | SSR 公开页面、应用路由、Workers 本地开发 |
 | 样式与组件 | Tailwind CSS，语义 HTML，少量可访问基础组件 | 表单、播放器、编辑器、移动界面 |
-| 国际化 | i18next、react-i18next、Intl、集中英文资源 | 请求级语言上下文、复数、插值、格式化；首发仅 en |
+| 国际化 | i18next、react-i18next、Intl、集中英文网站资源 | 请求级 UI 上下文、复数、插值、格式化；网站首发仅 en |
 | 明暗主题 | CSS 自定义属性、data-theme、prefers-color-scheme、Cookie | System / Light / Dark 首屏与持久化；与视频样式隔离 |
 | 依赖管理 | mise、pnpm、精确锁文件 | 开发与 CI 工具链可复现；容器按自身运行环境锁定，版本选择遵循部署兼容策略 |
 | Web 与 API | Cloudflare Workers 和 Static Assets | 页面、鉴权、项目、计费、资源授权 |
@@ -93,17 +93,19 @@ R2 预签名地址是到期前可使用的 bearer token；不能把临时可写�
 
 SceneDocument 包含 schema 版本、输出语言、品牌快照、事实引用、素材版本、帧率、总帧数、随机 seed、场景和四种构图布局。场景类型固定为 `hook`、`product_showcase`、`screen_demo`、`benefit`、`facts`、`cta`。
 
-视频语言沿用字段 `language`，首发只允许 `en`；它与 `uiLocale` 分离，进入 revision、支付内容快照和视频指纹。页面的 `themePreference` 与 `uiLocale` 不进入 SceneDocument，也不参与导出版本身份。`brand` 保存客户产品品牌；平台的 PromoBento 标识与公开预览水印独立配置，不能批量覆盖客户名称、CTA 或颜色。
+`language` 仅作为可选内容元数据，与网站 `uiLocale` 分离；未知可用 `und`，多语内容可用 `mul`，不要求用户选择，也不限制文案准入。实际用于排版的语言、方向及文字随 revision 和内容快照固定，重试时不重新识别。页面的 `themePreference` 与 `uiLocale` 不进入 SceneDocument，也不参与导出版本身份。`brand` 保存客户产品品牌；平台的 PromoBento 标识与公开预览水印独立配置，不能批量覆盖客户名称、CTA 或颜色。
 
 每个 scene 必须有 `id`、`type`、`startFrame`、`durationFrames`、`text`、`factRefs`、`assetRefs`、`layoutByAspect`。时间使用整数帧，素材裁切使用 0–1 归一化坐标。资产引用不包含外部任意 URL；文本是普通字符串，不能渲染为 HTML。
 
-详细例子见 `contracts/scene.example.json`。类型、长度、范围与引用完整性同时在前端和服务端校验，服务端为最终依据。模型产生的未知类型、未知字段、未确认事实、不可访问 asset ID 必须拒绝，不能宽松合并进项目。
+scene 可按已有 `text` 字段名提供可选 `textMetadata`，覆盖语言和方向；混排不需要统一成单一项目语言。缺少语言元数据或识别失败不阻止生成、编辑、预览和导出；最终使用的文本方向与字体随快照固定。
+
+详细例子见 `contracts/scene.example.json`。英语与 Inter 只是该示例的值，不是全局允许范围。类型、长度、范围与引用完整性同时在前端和服务端校验，服务端为最终依据。模型产生的未知类型、未知字段、未确认事实、不可访问 asset ID 必须拒绝，不能宽松合并进项目。
 
 ### 5.2 共享渲染
 
 预览与编码导出共用同一个 `scene-renderer` 包：`renderFrame(document, frameIndex, aspect)` 的视觉结果取决于不可变文档和帧序号。动画使用纯插值，不依赖真实时钟、网络返回、鼠标状态或未保存随机数。P0 以 DOM、SVG 与 Canvas 为主，不依赖 GPU 或复杂 Three.js 场景。
 
-字体打包进渲染镜像和前端受控资源；字体加载、图片解码和视频 seek 完成后才认定帧就绪。播放页面和渲染页面使用同一基准逻辑。测试比较关键帧、布局、文字、时长和声音，不承诺所有用户浏览器与容器逐像素一致。
+字体及回退顺序由受控资源固定，预览和容器加载同一组所需文件，不依赖客户设备的系统字体。字体加载、图片解码和视频 seek 完成后才认定帧就绪，另查实际缺字、复杂塑形、混排方向和溢出。播放页面和渲染页面使用同一基准逻辑。测试比较关键帧、布局、文字、时长和声音，不承诺所有用户浏览器与容器逐像素一致。
 
 完整渲染逐帧向 FFmpeg 管道输出，按构图顺序处理，不将全部原始帧积存在内存或磁盘。视频片段按目标帧 seek 或使用确定性预解码策略；任何策略必须通过实际录屏音视频对齐验收。
 
@@ -157,7 +159,7 @@ API 通过按项目的 Billing DO 协调成片版本、额度预留、首次目�
 | `sessions` | token_hash、user_id、expires_at | HttpOnly、Secure cookie，只存 token hash |
 | `workspaces` | id、name、owner_id、brand_json | 1 位 Owner，最多 3 名成员 |
 | `memberships` | workspace_id、user_id、role | 组合唯一，所有业务授权入口使用 |
-| `projects` | id、workspace_id、audience_type、language、current_revision、status、expires_at | language 首发 en；统一软删与过期状态，不跨租户关联 |
+| `projects` | id、workspace_id、audience_type、language、current_revision、status、expires_at | language 为可选内容元数据，可省略或为 und/mul，无用户选择前置条件；统一软删与过期状态，不跨租户关联 |
 | `product_facts` | project_id、fact_id、value、confirmed_by、confirmed_at、version | 修改值产生新版本，引用可追溯 |
 | `assets` 与 `asset_versions` | workspace_id、kind、r2_key、sha256、size、codec、status | upload key 与不可变规范化 key 分离 |
 | `asset_refs` | project_id、revision_id、asset_version_id | 清理必须检查有效引用 |
@@ -191,13 +193,13 @@ SSR 与 hydration 使用同一 locale 和时区：尚不知道访客时区时先
 | --- | --- | --- |
 | `GET /api/auth/google/callback` | Google OAuth code、state 及绑定校验 | 登录完成后恢复原任务；路径须与 Google 环境配置一致 |
 | `POST /api/preferences` | uiLocale、themePreference 的允许枚举；同源请求 | 保存界面偏好及 host-only Cookie；非允许值 422，不写项目、不调用 AI |
-| `POST /api/projects` | audience、task、duration、platforms、language（缺省 en） | 项目和初始 revision；未启用 language 为 422，配额错误 429 |
+| `POST /api/projects` | audience、task、duration、platforms | 项目和初始 revision；不要求视频语言参数，混排文案可保存，配额错误 429 |
 | `GET /api/projects/:id` | 已登录或明确分享范围 | 项目、权限、余额、过期日 |
 | `PATCH /api/projects/:id/draft` | baseRevision、changes | 新 revision；冲突 409 |
 | `POST /api/projects/:id/assets/intents` | 文件声明和 idempotency key | 有范围与期限的上传权限 |
 | `POST /api/uploads/:id/complete` | 上传对象与声明 hash | 202 处理 job；校验失败 422 |
 | `POST /api/projects/:id/facts/confirm` | fact IDs、version | 已确认快照；旧值冲突 409 |
-| `POST /api/projects/:id/storyboards` | revision、template、language | 202 生成 job；未启用 language 返回 422 UNSUPPORTED_VIDEO_LANGUAGE，不创建作业 |
+| `POST /api/projects/:id/storyboards` | revision、template、可选文案指令 | 202 生成 job；默认保留各字段语言与混排，不因未选择/未识别视频语言而拒绝 |
 | `POST /api/projects/:id/rewrites` | scene/field、instruction、revision | 有边界的修改候选，不直接覆盖 |
 | `POST /api/projects/:id/preflight` | revision、platforms | blockers、warnings、四种构图结果 |
 | `POST /api/projects/:id/export-snapshots` | revision、coverFrame、platforms | 冻结四种构图与预设，返回 snapshot ID |
