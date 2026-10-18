@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-19 — Concise agent guidance and mise toolchain
+
+- Shortened AGENTS.md to task navigation, development rules, essential invariants, and the agreed direct-main workflow.
+- Made mise the standard tool and task entry point, with a real frozen dependency-install task.
+- Updated toolchain targets to Node 26.12.0 and pnpm 12.14.0, using mise 2026.10.13.
+- Defined deployment support and dependency compatibility as prerequisites for choosing the latest stable release.
+- Separated local tool checks from Workers Builds, workerd, and Container verification; updated repository onboarding for the existing GitHub remote.
+
 ## 2026-10-19 — Repository packaging of PRD v1.1
 
 - Organized the full specification under `docs/prd/` and retained a single root copy of every JSON seed and contract example.

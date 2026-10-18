@@ -14,12 +14,13 @@
 | 场景与导出契约 | 是 | 2 份 JSON 示例 | 示例引用可检查，实际 schema/API 待开发 |
 | Codex 接手与 Git 使用说明 | 是 | README、AGENTS 与接手指南已纳入 | 文档文件链接由仓库检查验证 |
 | 仓库检查工具 | 是 | `scripts/check-repo.mjs` 与任务入口 | 实际命令、版本和范围见 [仓库检查记录](evidence/repository-check.md) |
+| mise 与依赖策略 | 是 | mise 标准入口、精确版本和部署兼容策略 | 当前验证见 [工具链记录](evidence/toolchain-2026-10-19.md)，平台实际构建仍待 M0 |
 
 ## 应用里程碑
 
 | 阶段 | 当前状态 | 需要的证据 |
 | --- | --- | --- |
-| M0 可行性闭环 | 未开始 | 真实 Cloudflare 30 秒视频；Waffo test checkout、验签与查询；英语 SSR 与主题基础 |
+| M0 可行性闭环 | 未开始 | 真实 Workers Builds 工具版本与构建；workerd 中 SSR/Waffo 调用；Container 30 秒视频；Waffo test checkout、验签与查询；英语 SSR 与主题基础 |
 | M1 第一条用户流程 | 未开始 | 两类用户分别使用自己的素材完成预览；手动编辑、四构图、英语和主题可用 |
 | M2 付费与交付 | 未开始 | 权益、并发、幂等、失败恢复；真实导出、封面与平台映射；PAY 验收 |
 | M3 团队与运营 | 未开始 | 权限、邀请、评论、冲突、清理、退款、来源事件和用途页 |
@@ -38,7 +39,7 @@
 | Waffo test / production 商户接入 | 未配置或验证 |
 | Cloudflare 资源、容器运行与付费导出 | 未部署或验证 |
 | 六个平台真实上传 | 未执行 |
-| GitHub remote | 由使用者配置；交付包未绑定远程仓库 |
+| GitHub remote | 已建立 `ten2ten2/promobento`，当前维护目标为 main |
 
 ## 更新规则
 

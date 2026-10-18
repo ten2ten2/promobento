@@ -1,63 +1,44 @@
 # 仓库接手指南
 
-本文说明如何使用当前仓库、将源文件导入 GitHub，以及让 Codex 开始应用开发。产品需求从 [PRD 索引](prd/README.md) 阅读。
+产品需求从 [PRD 索引](prd/README.md) 阅读，当前实现状态见 [实施进度](implementation-status.md)。mise 已确定为工具版本和任务入口。
 
-## 1 解压与根目录
-
-解压仓库 ZIP 后，进入 `promobento/`。根目录直接包含 `README.md`、`AGENTS.md`、`package.json`、`.mise.toml`、`docs/` 和 `scripts/`。不要把整个外层目录再次嵌套成远程仓库里的 `promobento/promobento/`。
-
-交付 ZIP 包含源文件和必要的点文件，不包含 `.git/`、本机路径、凭据、依赖缓存或虚构的应用构建产物。通过命令行 `git add .` 可一并纳入 `.mise.toml` 等文件。
-
-## 2 执行当前仓库检查
-
-当前只需要 Node.js；已验证的版本为 `24.19.0`。检查脚本没有 npm 依赖，因此最直接的方式是：
+## 1 获取现有仓库
 
 ```bash
-node scripts/check-repo.mjs
+git clone https://github.com/ten2ten2/promobento.git
+cd promobento
 ```
 
-如果已经有本仓库固定的 pnpm `11.25.0`，可以使用同一任务入口：
+已有本地克隆时，在保留本地改动的前提下同步远程 main。根目录应直接包含 `README.md`、`AGENTS.md`、`.mise.toml`、`docs/` 和 `scripts/`。
 
-```bash
-pnpm run check:repo
-```
+## 2 准备 mise 工具链
 
-使用 mise 时先查看根 `.mise.toml`，再在你自己的环境中信任并安装其固定工具：
+先通过 [mise 官方安装说明](https://mise.jdx.dev/getting-started.html) 安装当前正式版。仓库配置声明所需的 mise 最低版本，Node/pnpm 采用精确版本。
+
+查看仓库配置后执行：
 
 ```bash
 mise trust
 mise install
+mise run install
 mise run check:repo
 ```
 
-本次交付环境执行了 Node/pnpm 入口；mise CLI 的安装与任务执行状态见 [实际检查记录](evidence/repository-check.md)。配置中的精确版本目前用于仓库工具，应用兼容性需在 M0 核查。
+`mise install` 安装工具，`mise run install` 使用 pnpm 和冻结锁文件安装包依赖。后续任务统一通过 `mise run` 进入；当前的实际执行范围见 [工具链验证](evidence/toolchain-2026-10-19.md)。
 
-根 `package.json` 仅定义真实存在的仓库检查，不是 React 应用入口。`pnpm-lock.yaml` 由当前 pnpm 生成；M0 初始化应用和工作区后再更新依赖与锁文件。
+## 3 版本选择与部署环境
 
-## 3 初始化 Git
+版本规则见 [依赖策略](dependency-policy.md)：先满足目标平台、运行时和框架/SDK 兼容要求，再选择最新正式版并锁定。CI 复现已提交版本；主动升级时才重新解析依赖。
 
-在解压后的仓库根目录运行：
+Cloudflare Workers Builds、workerd 和 renderer 容器是不同环境。`.mise.toml` 不等于 Cloudflare 已配置同版本，M0 必须核对实际构建版本、平台变量、运行时 API 和容器输出。根 `package.json` 当前只包含仓库检查工具，应用依赖尚待 M0 初始化。
 
-```bash
-git init -b main
-git add .
-git commit -m "chore: initialize PromoBento repository with PRD"
-```
+排查环境时可以执行 `mise exec -- node --version` 和 `mise exec -- pnpm --version`，确认进入的是项目工具链。
 
-提交使用你的 Git 作者配置。如果 Git 提示缺少作者信息，按你希望显示在提交中的真实身份，在该仓库配置 `user.name` 与 `user.email` 后重试。无需使用交付环境的作者信息。
+## 4 提交与维护
 
-## 4 推送到 GitHub
+项目当前要求完成修改后直接提交到 remote main；使用正常的快进更新，并保留远程已有工作。先运行受影响的真实检查，再提交实际修改。若远程在工作期间新增提交，先读取并整合相应变更。
 
-创建一个名为 `promobento` 的空仓库。为了让第一次推送保持简单，创建页面上不要同时生成另一份 README 或初始提交。仓库可见性由你的项目安排决定。
-
-将下面的 `YOUR_GITHUB_OWNER` 替换为实际个人或组织名，再在本地执行：
-
-```bash
-git remote add origin https://github.com/YOUR_GITHUB_OWNER/promobento.git
-git push -u origin main
-```
-
-如果你导入的远程仓库已有内容，应先检查其历史与现有文件，再合并本目录，保留已有工作。本次仓库包不包含既定的远程地址。
+PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；`.editorconfig` 与后续 formatter/linter 负责可自动执行的格式规范。状态与验证记录只在相关状态实际变化时更新。
 
 ## 5 交给 Codex 的开工提示词
 
@@ -82,7 +63,8 @@ git push -u origin main
 从 M0 建立真实应用代码与运行命令；先证明 Cloudflare 渲染和 Waffo test 的可行性，
 再推进编辑器、账务、交付、团队和运营。复用已有配置，避免制造两套权威来源。
 
-核查官方兼容性并锁定实际依赖版本，建立 pnpm 工作区、必要迁移、环境示例和测试。
+先核查 Cloudflare 构建、workerd 和 Container 的实际兼容范围，再选择范围内最新正式版并锁定。
+通过 mise 管理工具和任务，建立 pnpm 工作区、必要迁移、环境示例和测试。
 把实际实现与执行证据更新到 docs/implementation-status.md、
 docs/implementation-decisions.md 和 docs/evidence/。
 
@@ -93,6 +75,6 @@ docs/implementation-decisions.md 和 docs/evidence/。
 
 ## 6 M0 的具体出口
 
-M0 的应用工作至少包括：初始化受支持的 Cloudflare React Router 工程并锁版本，建立英语 SSR、主题 Cookie/CSS 与配置基础，连接 D1/R2，在目标 Cloudflare 环境通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
+M0 的应用工作至少包括：核对目标 Cloudflare 构建环境与工具版本，初始化受支持的 React Router 工程并锁版本，建立英语 SSR、主题 Cookie/CSS 与配置基础，连接 D1/R2，在目标 Cloudflare 环境通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
 
 当前仓库的检查命令与 M0 的真实环境验证分别记录。开发账号尚未配置时，状态保持未验证，不填写虚构的资源 ID 或成功结果。

@@ -6,7 +6,8 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| [repository-check.md](repository-check.md) | 本次仓库文件、配置引用与可移植性检查 |
+| [repository-check.md](repository-check.md) | 初始仓库文件、配置引用与可移植性检查 |
+| [toolchain-2026-10-19.md](toolchain-2026-10-19.md) | mise 工具链、精简指引和部署兼容策略的本次验证 |
 
 ## 后续应用证据
 

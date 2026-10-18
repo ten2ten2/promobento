@@ -44,17 +44,19 @@ M0 先解决视频渲染和 Waffo 集成的真实风险，再扩编辑器范围�
 
 ## 4 版本与依赖
 
-mise 管理 Node 和 pnpm；容器内 Node、Chromium、FFmpeg、系统包及字体另通过 Dockerfile、软件清单和镜像 digest 锁定。Node 选择 Cloudflare 构建及 Waffo SDK 兼容的受支持稳定版本，初始化时核查，锁定精确 patch。
+mise 已确定为 Node/pnpm 的工具版本管理与项目任务入口，pnpm 负责包依赖。版本选择顺序为：目标部署平台支持与运行时能力 → 框架/SDK 兼容范围 → 范围内最新正式版 → 精确锁定 → 实际环境验证。详细要求见 [依赖版本与部署兼容策略](../dependency-policy.md)。
 
-React、React Router、Vite、Cloudflare 插件、Wrangler、schema 库和测试框架使用实施当日相互兼容的稳定版本，提交 lockfile。不能把本文编写日期当作最新 patch 列表；实施时将实际版本与原因写入 `docs/implementation-decisions.md`。
+初始化或主动升级时重新核查官方发布与兼容要求；不能把当前环境已安装版本当作最新版本。采用较旧版本必须记录具体兼容限制、来源或复现结果，以及重新评估条件。普通安装复现固定版本，不自动升级依赖。
 
-`.mise.toml` 必须写精确解析后的版本。CI 使用冻结锁文件安装，镜像生产部署使用 digest，禁止依赖浮动 `latest`。Bootstrap 可以从官方当前模板开始，得到可构建结果后立即锁定。
+`.mise.toml`、package 配置和生成的锁文件保持一致；CI 冻结安装。Cloudflare Workers Builds 的工具版本与安装顺序需单独配置和核对，不能假定平台自动识别 mise。Worker 按 workerd、compatibility_date 和 API 能力验证；renderer 的 Node、Chromium、FFmpeg、系统库和字体在目标 Linux 镜像中锁定并实测。
+
+M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本、实际环境、结果和例外写入 `docs/implementation-decisions.md` 与验证记录。当前仓库工具检查通过不代表应用依赖组合已验证。
 
 ## 5 命令边界
 
 ### 5.1 当前仓库可运行的命令
 
-在仓库根目录执行 `node scripts/check-repo.mjs` 或 `pnpm run check:repo`，检查 PRD 文件、相对链接、配置种子与示例之间的引用。`.mise.toml` 也提供同一任务入口 `mise run check:repo`。这项检查不覆盖应用类型检查、实际渲染、支付或部署。当前状态见 [实施进度](../implementation-status.md)。
+在仓库根目录通过 `mise install` 安装固定工具，通过 `mise run install` 冻结安装包依赖，再执行 `mise run check:repo`，检查 PRD 文件、相对链接、配置种子与示例之间的引用。mise 是标准任务入口；底层 Node 脚本只用于定位工具环境问题。这项检查不覆盖应用类型检查、实际渲染、支付或部署。当前状态见 [实施进度](../implementation-status.md)。
 
 ### 5.2 M0–M4 必须实现的应用命令
 

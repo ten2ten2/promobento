@@ -9,7 +9,7 @@
 | 样式与组件 | Tailwind CSS，语义 HTML，少量可访问基础组件 | 表单、播放器、编辑器、移动界面 |
 | 国际化 | i18next、react-i18next、Intl、集中英文资源 | 请求级语言上下文、复数、插值、格式化；首发仅 en |
 | 明暗主题 | CSS 自定义属性、data-theme、prefers-color-scheme、Cookie | System / Light / Dark 首屏与持久化；与视频样式隔离 |
-| 依赖管理 | mise、pnpm、精确锁文件 | 开发、CI 与容器版本一致 |
+| 依赖管理 | mise、pnpm、精确锁文件 | 开发与 CI 工具链可复现；容器按自身运行环境锁定，版本选择遵循部署兼容策略 |
 | Web 与 API | Cloudflare Workers 和 Static Assets | 页面、鉴权、项目、计费、资源授权 |
 | 业务数据库 | Cloudflare D1 | 用户、项目、订单、版本、权益、任务、事件 |
 | 文件 | Cloudflare R2 私有桶 | 原始上传、规范化素材、成片、封面、归档 |
