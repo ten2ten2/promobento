@@ -8,7 +8,7 @@
 | Web 框架 | React Router Framework，Vite，Cloudflare Vite plugin | SSR 公开页面、应用路由、Workers 本地开发 |
 | 样式与组件 | Tailwind CSS、shadcn/ui 的 Base UI 版本、lucide-react；Inter 网站字体 | 统一 UI 源码与语义 tokens；具体方案、布局和组件状态见 [11](11-ui-design-spec.md) |
 | 国际化 | i18next、react-i18next、Intl、集中英文网站资源 | 请求级 UI 上下文、复数、插值、格式化；网站首发仅 en |
-| 明暗主题 | CSS 自定义属性、data-theme、prefers-color-scheme、Cookie | System / Light / Dark 首屏与持久化；与视频样式隔离 |
+| 明暗主题 | CSS 自定义属性、data-theme、prefers-color-scheme、Cookie | 默认 System；单图标切换并记住 Light / Dark，设置可恢复 System；与视频样式隔离 |
 | 依赖管理 | mise、pnpm、精确锁文件 | 开发与 CI 工具链可复现；容器按自身运行环境锁定，版本选择遵循部署兼容策略 |
 | Web 与 API | Cloudflare Workers 和 Static Assets | 页面、鉴权、项目、计费、资源授权 |
 | 业务数据库 | Cloudflare D1 | 用户、项目、订单、版本、权益、任务、事件 |

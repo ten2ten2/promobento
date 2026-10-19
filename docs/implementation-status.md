@@ -19,7 +19,7 @@
 
 ## UI 设计交付
 
-[UI 规范](prd/11-ui-design-spec.md) 已确定视觉与组件方案。`config/ui-tokens.json`、主题状态配色和 [四页参考](design/ui-reference.html) 是设计交付；参考由模板与脚本生成，支持离线审阅。实际检查范围见 [UI 记录](evidence/ui-spec-2026-10-19.md)。这些文件不构成 React/Cloudflare 产品页面实现，应用里程碑保持以下状态。
+[UI 规范](prd/11-ui-design-spec.md) 已确定视觉与组件方案。`config/ui-tokens.json`、主题状态配色和 [四页参考](design/ui-reference.html) 是设计交付；参考由模板与脚本生成，支持离线审阅。主题入口已按最新要求改为太阳/月亮图标，默认跟随系统，点击后记住选择。实际检查范围见 [UI 初始记录](evidence/ui-spec-2026-10-19.md) 与 [图标主题切换记录](evidence/theme-toggle-2026-10-19.md)。这些文件不构成 React/Cloudflare 产品页面实现，应用里程碑保持以下状态。
 
 ## 应用里程碑
 

@@ -31,7 +31,7 @@ PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可
 | 支付 | Waffo.ai；项目和成片版本计费，详细政策以支付专章为准 |
 | 首发平台预设 | TikTok、Instagram Feed、Instagram Reels、X、YouTube、YouTube Shorts |
 | 语言 | 网站从首版建立国际化架构，先提供英语界面；用户文案独立于网站语言，可自由混排 |
-| 产品界面主题 | System / Light / Dark；独立于成片的 Clean / Bold 样式 |
+| 产品界面主题 | 默认跟随系统；太阳/月亮图标一键切换并记住选择，设置可恢复跟随系统；独立于成片样式 |
 | UI 方案 | 中性创作工作台；shadcn/ui + Base UI、Tailwind CSS、Lucide、Inter；视觉数值见 UI 规范 |
 
 本表负责导览。精确规则、可配置配额、验收条件及事实来源见 PRD，不在根 README 维护第二份完整规格。

@@ -14,8 +14,9 @@
     "themeSystem": "System",
     "themeLight": "Light",
     "themeDark": "Dark",
-    "themeControlLabel": "Choose appearance",
-    "themeSaveFailed": "Your appearance changed for this visit, but the preference could not be saved.",
+    "switchToDarkMode": "Switch to dark mode",
+    "switchToLightMode": "Switch to light mode",
+    "themeSaveFailed": "Appearance changed, but we couldn't save your preference. Try again.",
     "contactSupport": "Contact support",
     "requestId": "Reference: {{requestId}}"
   },
@@ -103,7 +104,9 @@
   },
   "settings": {
     "appearanceTitle": "Appearance",
-    "appearanceHelp": "Choose a light or dark interface, or follow your system. This does not change your video's colors.",
+    "appearanceHelp": "Use the sun or moon button to switch modes. We remember your choice on this browser. Your video's colors stay the same.",
+    "useDeviceSetting": "Use device setting",
+    "followingDeviceSetting": "Following device setting",
     "brandTitle": "Your brand",
     "membersTitle": "Team members",
     "supportTitle": "Help and support"

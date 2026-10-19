@@ -10,6 +10,7 @@
 | [toolchain-2026-10-19.md](toolchain-2026-10-19.md) | mise 工具链、精简指引和部署兼容策略的本次验证 |
 | [website-i18n-boundary-2026-10-19.md](website-i18n-boundary-2026-10-19.md) | 网站英语首发与用户混排文案分离的规则检查 |
 | [ui-spec-2026-10-19.md](ui-spec-2026-10-19.md) | UI 规范、设计配置、参考生成及其实际检查 |
+| [theme-toggle-2026-10-19.md](theme-toggle-2026-10-19.md) | 图标主题按钮、默认跟随系统、点击后记忆及恢复系统的本次检查 |
 
 ## 后续应用证据
 

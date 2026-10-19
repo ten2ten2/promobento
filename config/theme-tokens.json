@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "1.2.0",
   "status": "design_spec_seed_requires_browser_validation",
   "defaultPreference": "system",
   "preferences": ["system", "light", "dark"],
@@ -7,6 +7,13 @@
   "cssVariablePrefix": "--ui-",
   "videoCssVariablePrefix": "--video-",
   "systemResolution": "css_prefers_color_scheme",
+  "interaction": {
+    "control": "icon_button",
+    "toggleFrom": "resolvedTheme",
+    "light": {"icon": "moon", "labelKey": "common.switchToDarkMode", "nextPreference": "dark"},
+    "dark": {"icon": "sun", "labelKey": "common.switchToLightMode", "nextPreference": "light"},
+    "systemResetLabelKey": "settings.useDeviceSetting"
+  },
   "persistence": {
     "kind": "server_set_cookie",
     "name": "promobento_theme",
@@ -15,7 +22,9 @@
     "sameSite": "Lax",
     "secureInProduction": true,
     "httpOnly": true,
-    "hostOnly": true
+    "hostOnly": true,
+    "onlyOnUserAction": true,
+    "writeStrategy": "serial_coalesce_latest"
   },
   "themes": {
     "light": {

@@ -1,6 +1,6 @@
 # UI 设计规范
 
-版本：1.0。确定日期：2026-10-19，Asia/Shanghai。适用于 PromoBento P0 网站的公开页面、创建流程、编辑器、交付、设置与后台。本章确定开发应采用的 UI 方案；页面代码与生产验证仍按 M0–M4 实施。
+版本：1.0.1。确定日期：2026-10-19，Asia/Shanghai。适用于 PromoBento P0 网站的公开页面、创建流程、编辑器、交付、设置与后台。本次修订调整主题入口与偏好行为，配色、字体和布局沿用既有方案；页面代码与生产验证仍按 M0–M4 实施。
 
 ## 1 设计方向与规范归属
 
@@ -66,6 +66,8 @@ Light 采用灰白表面，Dark 采用深蓝灰表面。信息层级主要由文
 `ui-tokens.json.themeTokenMap` 明确 shadcn background、foreground、primary、input、ring 等语义到 `--ui-*` 的映射。组件 hover/selected/loading 也使用语义变量，不保留与主题冲突的硬编码色。
 
 主题继续采用 `data-theme="system|light|dark"`、CSS 媒体查询和第 10 章的 Cookie/SSR 方案。System 的深色分支必须覆盖所有组件；不能仅适配显式 Dark。应用与 portal 都能取得 tokens，浮层不能因挂到 body 而恢复成另一套主题。[shadcn 主题](https://ui.shadcn.com/docs/theming)
+
+网站导航与应用顶部用一个 44 × 44 px 的太阳/月亮图标按钮。当前有效 Light 时显示月亮，动作是 Switch to dark mode；当前 Dark 时显示太阳，动作是 Switch to light mode。默认跟随系统，用户点击后立即切换并记住显式选择；后续系统变化不覆盖。头部不放 Appearance 文字或三选菜单，Settings 的 Appearance 组保留 Use device setting 恢复入口；公开页和只读审阅页在页脚提供同名动作。无 JS 首屏的图标及可访问名称、保存失败和连续点击行为按第 10 章验收。
 
 视频画布使用自己的背景、文字、字体和 `--video-*`。UI 模式切换只改变播放器外壳与工具，客户截图、Logo、字幕、视频 Clean/Bold 配色和帧内容保持独立。
 
@@ -135,6 +137,7 @@ CSS 断点采用 640、768、1024、1280、1536 px。行为转换由任务需要
 | 组件 | 视觉与状态 | 交互要求 |
 | --- | --- | --- |
 | Button | Primary、Secondary、Ghost、Destructive；默认/hover/pressed/focus/disabled/loading | Loading 保持按钮宽度并显示动词状态；重复提交受控；禁用原因在附近可读 |
+| Theme button | 单个 Ghost 图标按钮，44 × 44 px；Light 显示月亮，Dark 显示太阳 | 图标表示下一步动作，tooltip 与可访问名称一致；点击按当前有效主题取反并保存；恢复 System 在 Settings 中完成 |
 | Input / Textarea | Label 在外部上方，helper 在下方；错误边框 + 文字 | Placeholder 只做例子；可见 label 与控件关联；不改写用户语言 |
 | Checkbox / Radio | 选中标记 + 边框 + label | 平台多选用 checkbox；互斥时长/样式用 radio；分组有可访问名称 |
 | Select / Combobox | 当前值清楚，菜单使用浮层表面 | 有搜索需要才用 combobox；键盘选择、关闭、返回焦点正确 |
@@ -157,7 +160,7 @@ CSS 断点采用 640、768、1024、1280、1536 px。行为转换由任务需要
 
 首页任务是让两类团队知道输入什么、能得到什么、如何开始和何时付费。
 
-1. 顶部字标、Examples、Pricing、Help、Appearance、登录/项目入口；主要 Create a video 与当前上下文保持一致。
+1. 顶部字标、Examples、Pricing、Help、主题图标、登录/项目入口；主要 Create a video 与当前上下文保持一致。
 2. Hero 使用已确定的英文标题 “Turn your product or course into a promo video.” 和辅助说明；主 CTA 为 Create a video，次 CTA 为 Watch example。
 3. CTA 附近说明免费预览及当前项目包价格/版本数，实际产品价格由服务端目录提供。参考稿的金额仅按 05 展示示例，不作为另一份价格配置。
 4. 右侧或下方显示素材到成片的可理解示例；先看见成片主体，再看平台比例，不放无法证明的收益数字或客户徽标。
@@ -185,7 +188,7 @@ Create 页面承载 02 的前四步，第五步进入编辑器。步骤名称为
 
 ### 10.1 桌面构图
 
-- 顶栏左侧：返回项目、项目名和保存状态。右侧：协作者/审阅、撤销重做、成片版本余额和主要导出行动。空间不足时低频操作进入 More，导出与保存状态保留。
+- 顶栏左侧：返回项目、项目名和保存状态。右侧：主题图标、协作者/审阅、撤销重做、成片版本余额和主要导出行动。空间不足时低频操作进入 More，主题图标、导出与保存状态保留。
 - 场景栏：248 px；按场景顺序显示缩略图、标题和时长。错误和评论显示数量，点击进入对应位置。
 - 中间：播放器、时间位置和播放控件。下方是当前平台预览、安全区开关与四构图入口；保留画布周围呼吸空间。
 - 属性栏：320 px；Content、Media、Layout、Audio 分组。选项目级对象时显示项目/品牌设置，选场景时显示对应字段。
@@ -233,7 +236,7 @@ P0 下载后由用户在对应平台上传，不出现自动 Publish to TikTok /
 
 项目列表采用“缩略图 + 项目名 + 状态 + 更新时间/期限 + 更多操作”；筛选优先 All、Drafts、Processing、Ready。空态引导 Create a video 或明确的 Sample project，不填充虚构客户内容。手机卡片单列，桌面按可用宽度排列。
 
-Settings 使用分组设置页，Appearance、Brand、Members、Orders、Support 按已有权限显示。Review 为指定版本的只读预览，醒目标明审阅范围和期限；创建链接前说明持链接者可观看，原素材与高清文件下载遵循既有权限。Help/政策页使用 760 px 阅读宽度；Admin 复用表单、表格和状态组件，字段详情按权限展开。
+Settings 使用分组设置页，Appearance、Brand、Members、Orders、Support 按已有权限显示。Appearance 显示当前模式、是否跟随设备及 Use device setting 恢复入口；不要求登录或购买才能恢复设备设置。Review 为指定版本的只读预览，醒目标明审阅范围和期限；创建链接前说明持链接者可观看，原素材与高清文件下载遵循既有权限。Help/政策页使用 760 px 阅读宽度；Admin 复用表单、表格和状态组件，字段详情按权限展开。
 
 ## 12 可访问性与内容规则
 
@@ -247,12 +250,12 @@ Settings 使用分组设置页，Appearance、Brand、Members、Orders、Support
 
 本次仓库交付 UI 规范、两份设计配置、生成器与离线参考页。运行 `mise run build:ui-reference` 更新参考，运行 `mise run check:ui-reference` 检查生成物一致性；`mise run check:repo` 检查文档和配置关系。
 
-参考页为英语、四页面和样例状态，可切 System/Light/Dark；不连接用户账号、上传、AI、Waffo 或云端渲染。参考页使用本地系统字体回退以离线打开；正式 Inter 文件加载、Base UI 交互和真实内容排版由应用阶段验收。参考页的页切换与主题切换不是生产路由、Cookie 或 SSR 的实现。
+参考页为英语、四页面和样例状态，通过图标切换 Light/Dark，并可恢复跟随系统；不连接用户账号、上传、AI、Waffo 或云端渲染。参考页使用本地系统字体回退以离线打开；正式 Inter 文件加载、Base UI 交互和真实内容排版由应用阶段验收。参考页的页切换、主题切换与浏览器存储只是离线模拟，不是生产路由、HttpOnly Cookie 或 SSR 的实现。
 
 | ID | 应用验收 | 通过条件 |
 | --- | --- | --- |
 | UI-01 | 首页、创建、编辑器、交付在 390×844、768×1024、1440×900 | 主行动可见、文字不截断、正文无无意义横向滚动 |
-| UI-02 | 两主题与 System 跟随系统 | 颜色使用语义 tokens，控件/浮层/首屏一致 |
+| UI-02 | 首访跟随系统、图标切换、保存重访、恢复设备设置 | 控件/浮层/首屏一致；图标和名称表示下一步动作；点击后记住选择并忽略系统变化；恢复后重新跟随系统；保存失败与连续点击符合 THEME-11 |
 | UI-03 | 所有基础组件状态 | 默认、hover、pressed、focus、disabled、loading、error 有实际样例 |
 | UI-04 | 键盘和弹层 | 无焦点丢失/困在错误位置；Escape、关闭恢复焦点与滚动正确 |
 | UI-05 | 200% 缩放、长名字与伪本地化 | 标签、按钮和对话框可重排，关键内容可访问 |

@@ -19,7 +19,7 @@
 | `/app/projects/:id` | 编辑器 | 分镜、播放器、属性、平台预览、导出入口 |
 | `/app/projects/:id/exports/:releaseId` | 成片交付 | 任务状态、平台文件、封面、复制发布说明、ZIP |
 | `/app/billing/orders/:id` | 支付结果 | 已确认、确认中、失败或过期；回到项目 |
-| `/app/settings` | 设置 | Appearance 的 System / Light / Dark；工作区品牌、成员、邀请、订单、删除与支持 |
+| `/app/settings` | 设置 | Appearance 显示主题偏好，Use device setting 恢复跟随系统；工作区品牌、成员、邀请、订单、删除与支持 |
 | `/review/:token` | 只读审阅 | 当前共享版本动态预览；7 天过期，可撤销 |
 | `/help` | 帮助与支持 | 素材要求、导出、付费问题、站内工单、支持地址 |
 | `/privacy`、`/terms`、`/refund-policy` | 政策 | 与实际保存、价格和退款规则一致 |
@@ -31,7 +31,7 @@ P0 不额外铺六套重复的平台营销页。用途页围绕任务，`/format
 
 首页首屏优先展示用户任务、真实输出和开始操作入口。品牌为 PromoBento，主文案为“Turn your product or course into a promo video.”，辅助文案为“Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.”，两类入口在同一视觉层级。
 
-公开页导航和应用顶部均提供 Appearance 入口，选项为 System、Light、Dark，当前选择有文字和选中状态。手机放入可访问导航菜单；不以只改变图标且含义不明的按钮代替明确选择。首发不展示网站语言切换器；用户文案不增加视频语言选择或识别确认步骤。
+公开页导航和应用顶部使用单个太阳/月亮图标按钮，手机保持可访问且至少 44 px 的点击区域。默认跟随系统；当前有效主题为 Light 时显示月亮，动作和可访问名称为 Switch to dark mode；Dark 时显示太阳，动作为 Switch to light mode。点击后保存显式选择，刷新和再次访问恢复，之后系统变化不覆盖。Settings 的 Appearance 提供 Use device setting 恢复系统；公开页和只读审阅页的页脚提供同名动作，访客不用登录即可恢复。头部不显示三选菜单，也不采用三态点击循环。首发不展示网站语言切换器；用户文案不增加视频语言选择或识别确认步骤。具体首屏与保存规则见 10。
 
 首屏下方提供可播放样片，每例显示输入了什么、视频多长、是否含用户上传配音、能导出哪些构图。价格与预览免费在开始按钮附近可见，不把支付方式藏到编辑完成后才揭示。
 

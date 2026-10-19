@@ -65,18 +65,27 @@ SSR 与首次 hydration 使用同一时区。首次尚未取得浏览器时区�
 
 ## 6 主题交互与持久化
 
-公开页面导航、应用顶部和 Settings 的 Appearance 均提供 System / Light / Dark。选项用文字与选中状态表达，可用键盘操作。手机把入口放入导航菜单；访客、Owner、Editor 和只读审阅者都能使用，不收费。
+公开页面导航和应用顶部使用一个太阳/月亮图标按钮，桌面与手机均保持 44 × 44 px 点击区域，不展示 Appearance 文字或 System / Light / Dark 三选菜单。图标表达下一步动作：当前有效主题为 Light 时显示月亮，可访问名称及 tooltip 为 `Switch to dark mode`；当前为 Dark 时显示太阳，名称及 tooltip 为 `Switch to light mode`。支持 Tab、Enter/Space 和可见焦点；图标本身对读屏隐藏，按钮通过相应的英文动作获得名称。
+
+没有有效偏好时默认跟随系统；首次访问和系统外观变化都不自动保存 Light/Dark。用户点击按钮后，按点击时的 `resolvedTheme` 取反，立即应用并保存显式 Light/Dark；以后系统变化不覆盖这次选择。按钮只在 Light/Dark 之间切换，不做三态循环、长按或隐藏手势。
+
+Settings 的 Appearance 分组显示当前模式与是否跟随设备，并提供 `Use device setting` 恢复 System；已跟随系统时显示该状态。公开页与只读审阅页在页脚提供同名恢复动作，访客不需要进入受登录保护的 `/app/settings`。恢复动作与图标切换共用保存流程。访客、Owner、Editor 和只读审阅者都可使用主题切换及恢复入口，不收费。
 
 | 场景 | 结果 |
 | --- | --- |
-| 首次访问，没有有效偏好 | System，按系统选择 Light 或 Dark；浏览器无偏好时为 Light |
-| 用户选择 Light | 立即使用 Light；后续系统改变外观不覆盖显式选择 |
-| 用户选择 Dark | 立即使用 Dark；后续系统改变外观不覆盖显式选择 |
-| 用户选择 System | 立即跟随系统，系统之后改变时自动更新 |
+| 首次访问，没有有效偏好 | System，按系统选择 Light 或 Dark；浏览器无偏好时为 Light；不写偏好 Cookie |
+| System 下系统改变外观 | 页面及按钮动作同步更新；仍为 System，不写显式偏好 |
+| 当前有效 Light，点击月亮 | 立即切到 Dark 并保存 dark；后续系统变化不覆盖 |
+| 当前有效 Dark，点击太阳 | 立即切到 Light 并保存 light；后续系统变化不覆盖 |
+| 点击 Use device setting | 保存 system，立即按设备外观呈现；以后系统变化继续生效 |
 | 刷新、导航、OAuth 返回、再次访问 | 恢复当前浏览器的有效偏好 |
 | Cookie 不可用或已过期 | 当前页面可用；新请求按 System 回退，不阻断创建付款 |
 
-偏好 P0 按浏览器保存，Cookie 名 `promobento_theme`，值仅为 system/light/dark，Path=/，SameSite=Lax，生产 Secure，host-only，不设置跨子域 Domain。由服务端偏好接口设置 HttpOnly Cookie；客户端从 SSR loader 接收当前偏好，切换后在内存立即更新并提交保存。持久化请求失败时用英语说明，没有因此重载或清空草稿。正式和预发布的主题及会话互不共享。
+偏好 P0 按浏览器保存，Cookie 名 `promobento_theme`，值仅为 system/light/dark，有效期及属性以 `config/theme-tokens.json` 为准：Max-Age=31536000、Path=/、SameSite=Lax，生产 Secure，host-only，不设置跨子域 Domain。由服务端偏好接口设置 HttpOnly Cookie；客户端从 SSR loader 接收当前偏好，切换后在内存立即更新并提交保存。只在用户显式切换或恢复系统时写入；不通过登录、导航、系统变化或后台同步覆盖同浏览器已保存的偏好。正式和预发布的主题及会话互不共享。
+
+同一页面的偏好写入采用单一串行队列，最多一个在途保存请求；快速连续点击立即更新页面，只保留最新待保存值。前一次请求完成后再发送最新值，旧响应不得把 UI 回滚到过时的偏好；最新操作成功后，Cookie 与页面的最终偏好必须一致。不能并发发出多个 Set-Cookie 请求后仅用前端忽略旧响应，因为浏览器仍可能处理较晚到达的旧 Cookie；也不能仅取消旧请求便假定它已不可能写入 Cookie。结果未知时保留未保存状态，在前一写入已结束后按同一队列重试最新值，不把未知结果显示为保存成功。
+
+保存失败时保留当前页面主题及草稿，显示 `common.themeSaveFailed` 的英语提示与重试入口；重试保存最新选择，不重放过时值。刷新前未保存的选择不承诺跨请求恢复；Cookie 不可用时明确提示并继续当前任务。此处的服务端 Cookie 是正式实现要求，离线参考页的浏览器存储仅模拟“记住选择”，不能作为生产持久化、跨导航或 SSR 已完成的证据。
 
 `POST /api/preferences` 支持同源调用，执行 Origin/CSRF 检查与枚举校验。未登录可保存本浏览器主题；已登录可更新自己的 uiLocale 偏好，首发仅 en。接口不接受 workspace、价格、导出语言或视频样式的隐式变更。主题改变不能触发 AI、autosave 项目 revision、重新编码或账务写入。
 
@@ -85,6 +94,8 @@ SSR 与首次 hydration 使用同一时区。首次尚未取得浏览器时区�
 SSR root loader 读取有效 Cookie，输出 `data-theme="system|light|dark"`。Light 和 Dark 使用明确 tokens；System 使用首屏 CSS 媒体查询 `prefers-color-scheme`。同步设置相应 `color-scheme`，适配原生表单、滚动条及浏览器控件。服务器不需要猜测访客系统外观，首屏也不需要等 useEffect 或远程请求再改颜色。[MDN 主题偏好](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-color-scheme)、[React Router 状态管理](https://reactrouter.com/explanation/state-management)
 
 关键主题 CSS 随首屏样式提供；两套 tokens 在同一个版本中交付。hydration 使用服务器给出的 themePreference，System 的当前有效颜色交给 CSS 处理。JS 中只在组件确实需要或新建 checkout 时读取 matchMedia；不得在 React 首次渲染用另一套判断覆盖服务端属性。
+
+主题按钮的图标与可访问名称也由这套首屏 CSS 决定。SSR 可输出一个按钮内的两组“图标 + 隐藏动作文字”，按 `data-theme` 与同一 System 媒体查询只显示正确的一组；另一组使用 `display:none` 同时退出可访问树。不能给按钮写死会覆盖内部动作文字的 `aria-label`，也不能让服务器猜测 System 后先显示错误图标/名称。客户端加载后复用相同语义，tooltip 与当前可执行动作保持一致；禁用或延迟 JS 时首屏仍须正确。
 
 | 响应 | 缓存规则 |
 | --- | --- |
@@ -127,20 +138,22 @@ Waffo 允许买家在收银台切换其支持的语言；这不改变 PromoBento
 | I18N-07 | 测试专用伪本地化目录和约 40% 文本扩展 | 资源和插值可替换，主要布局不被固定英语宽度锁死；伪语言不进入生产 allowlist 或 sitemap |
 | I18N-08 | 并发 SSR 请求与浏览器时区不同 | 无跨请求语言污染，首屏日期一致；视频确认事实不随观看者变化 |
 | I18N-09 | 同片/同段多语文案，不传 language 或语言识别无结果 | 可创建、生成、编辑并进入正常预览/导出流程；无全局视频语言选择或识别确认门槛 |
-| THEME-01 | 首次访问，系统 Light / Dark，禁用或延迟 JS | System 首屏配色正确，无先浅后深闪烁，无 hydration 警告 |
-| THEME-02 | 手动 Light / Dark 后再改变系统主题 | 显式选择优先；System 时才跟随系统变化 |
+| THEME-01 | 无有效偏好首次访问，系统 Light / Dark，禁用或延迟 JS | System 首屏配色、图标与动作名称一致，无先浅后深闪烁或 hydration 警告；不主动写 Cookie |
+| THEME-02 | 在当前 Light/Dark 下点击图标，然后改变系统主题 | 点击按当前有效主题取反并保存；显式选择优先；只在 System 时跟随系统变化 |
 | THEME-03 | 刷新、导航、登录往返、重新访问 | 同浏览器偏好恢复，草稿、播放器与选择不丢失 |
 | THEME-04 | 访客与登录用户、两浏览器不同偏好访问同 URL | 个性化 HTML 不串主题或账户；静态资源仍正常缓存 |
-| THEME-05 | 两主题的表单、菜单、弹窗、错误、禁用和键盘焦点 | 对比度、可访问名称和操作通过；状态不只用颜色 |
+| THEME-05 | 两主题控件及主题按钮的 Tab、Enter/Space、读屏与 tooltip | 对比度、焦点和操作通过；主题按钮为 44 px，太阳/月亮表示下一步动作且只有一个可访问名称，无头部三选菜单 |
 | THEME-06 | Clean / Bold × Light / Dark UI | 同快照 keyframe、内容 hash、release、额度不因 UI 主题变化 |
 | THEME-07 | 390×844、768×1024、1440×900；减少动态效果 | 主题入口可操作，编辑器与内容可读，未重做客户视频动效 |
 | THEME-08 | 无效 Cookie、偏好保存失败、预发布与生产 | 安全回退，主任务可继续；host-only Cookie 不跨环境共享 |
 | THEME-09 | System/Light/Dark 下首次结账，随后切主题重开付款 | 新会话英语与 darkMode 正确；原活动 session/请求体复用，付款快照不变 |
+| THEME-10 | 显式 Light/Dark 后在 Settings 点击 Use device setting，再改变系统主题并重访 | 恢复 System 后立即跟随设备，后续系统变化生效，重访仍为 System；访客同样可恢复 |
+| THEME-11 | 快速连续切换、保存延迟/失败、随后重试或恢复系统 | 页面保留最新意图，保存串行且合并中间值；成功后 Cookie 与最终 UI 一致；失败有英语提示和重试，不清空草稿或虚报已保存 |
 
 两个人群各跑 Light 与 Dark 的关键用户闭环。保留原四构图渲染矩阵，增加有针对性的 UI/视频样式隔离检查；不为了网站两套颜色把全部云端视频测试翻倍。测试伪本地化仅验证网站扩展架构，不证明第二种网站语言已上线；用户混排文本另按真实排版验证。
 
 ## 11 交付与完成定义
 
-P0 交付包括网站英文资源、类型与缺 key 校验、请求级 i18n、已上线网站语言校验、语义 tokens、主题选择器与 Cookie、SSR 首屏和缓存规则，以及上表的实际测试证据。README 和演示中的英语首发只描述网站；正式域、第三方支付和真实平台上传仍按 06 的独立门槛验收。
+P0 交付包括网站英文资源、类型与缺 key 校验、请求级 i18n、已上线网站语言校验、语义 tokens、主题图标按钮与恢复系统入口、Cookie、SSR 首屏和缓存规则，以及上表的实际测试证据。README 和演示中的英语首发只描述网站；正式域、第三方支付和真实平台上传仍按 06 的独立门槛验收。
 
 本文件及 JSON 是实施规格与种子配置，不是已经实现的 UI。可以静态校验资源和色彩对比度，但真实浏览器首屏、主题持久化、Waffo 和视频输出仍需在产品实现后验证。

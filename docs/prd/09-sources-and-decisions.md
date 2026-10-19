@@ -13,7 +13,7 @@
 | GPT 流量快速付费验证 | 真实推荐访问、素材激活、付款、交付分别计量 |
 | 采用 PromoBento / promobento.com 并重新生成 PRD | 正式品牌与主域统一；域名取得和实际环境验证另留真实状态 |
 | 网站支持多语言能力，首发英语；视频文案允许多语混排 | 用户已澄清范围仅为网站国际化：UI 首发 en；用户文案自由，不要求选择或确认视频语言 |
-| 支持 Light / Dark Mode | System / Light / Dark 全站首发，浏览器持久化，与视频样式隔离 |
+| 支持 Light / Dark Mode | 默认跟随系统；单图标切换后记住选择，设置可恢复系统，与视频样式隔离 |
 
 ## 2 本版产品决策
 
@@ -34,7 +34,7 @@
 | D-13 | 输入网址只存背景和 CTA | 把 URL 抓取、截图授权、反爬和 SSRF 留到独立功能设计 |
 | D-14 | 平台推荐与外部硬规则分开 | 避免 API、广告和自然上传规格混淆 |
 | D-15 | i18next / react-i18next 与网站 UI allowlist；网站首发 en | 后续增加完整网站语言；用户文案不进入 UI 翻译字典或语言名单，不增加视频语言选择门槛 |
-| D-16 | System / Light / Dark，Cookie + CSS 原生首屏 | 持久化偏好并减少 SSR 首屏闪烁；有偏好 HTML 绕过共享缓存 |
+| D-16 | 默认 System，太阳/月亮图标切换并持久化；Cookie + CSS 原生首屏 | 用户点击才保存显式选择，设置可恢复系统；有偏好 HTML 绕过共享缓存 |
 | D-17 | 网站主题和界面语言不参与成片版本身份 | 保护已确认视频颜色与账务；视频 language / videoStyle 单独冻结 |
 | D-18 | Waffo 新会话 language=en，并设置 darkMode | 使用真实提供方能力；既有活动 session 不因主题变化重建 |
 | D-19 | 中性工作台、shadcn/ui Base UI、Lucide、Inter 与 UI tokens | UI 规范、来源与四页参考见 [11](11-ui-design-spec.md)；组件和字体在应用引入时锁版本并验证 |

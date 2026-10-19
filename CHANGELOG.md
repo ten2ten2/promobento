@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — Icon theme toggle and remembered choice
+
+- Replaced the three-option header selector with a sun/moon action button: follow the system initially, then remember explicit Light/Dark choices after a click.
+- Kept a Use device setting reset in Appearance and retained the production Cookie, SSR and cache contract, including ordered preference saves.
+- Updated the offline reference with isolated browser-only preference memory and preserved the existing visual design and video samples.
+- Synchronized the specification and English action labels; recorded the scope of the targeted validation.
+
 ## 2026-10-19 — UI specification and visual reference
 
 - Added PRD 11 and advanced the specification set to v1.2, fixing visual direction, typography, spacing, components and responsive layouts.
