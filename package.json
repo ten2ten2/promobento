@@ -9,6 +9,8 @@
     "node": "26.12.0"
   },
   "scripts": {
-    "check:repo": "node scripts/check-repo.mjs"
+    "check:repo": "node scripts/check-repo.mjs",
+    "build:ui-reference": "node scripts/build-ui-reference.mjs",
+    "check:ui-reference": "node scripts/build-ui-reference.mjs --check"
   }
 }

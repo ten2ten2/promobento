@@ -22,6 +22,7 @@ mise trust
 mise install
 mise run install
 mise run check:repo
+mise run check:ui-reference
 ```
 
 `mise install` 安装工具，`mise run install` 使用 pnpm 和冻结锁文件安装包依赖。后续任务统一通过 `mise run` 进入；当前的实际执行范围见 [工具链验证](evidence/toolchain-2026-10-19.md)。
@@ -30,7 +31,7 @@ mise run check:repo
 
 版本规则见 [依赖策略](dependency-policy.md)：先满足目标平台、运行时和框架/SDK 兼容要求，再选择最新正式版并锁定。CI 复现已提交版本；主动升级时才重新解析依赖。
 
-Cloudflare Workers Builds、workerd 和 renderer 容器是不同环境。`.mise.toml` 不等于 Cloudflare 已配置同版本，M0 必须核对实际构建版本、平台变量、运行时 API 和容器输出。根 `package.json` 当前只包含仓库检查工具，应用依赖尚待 M0 初始化。
+Cloudflare Workers Builds、workerd 和 renderer 容器是不同环境。`.mise.toml` 不等于 Cloudflare 已配置同版本，M0 必须核对实际构建版本、平台变量、运行时 API 和容器输出。根 `package.json` 当前包含仓库检查和 UI 参考生成/检查工具，应用依赖尚待 M0 初始化。
 
 排查环境时可以执行 `mise exec -- node --version` 和 `mise exec -- pnpm --version`，确认进入的是项目工具链。
 
@@ -58,8 +59,10 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 - 六个平台预设全部在 P0；真实素材、确认事实、共享浏览器预览与云端渲染。
 - 网站从首版建立国际化架构，首发英语；用户文案可使用任意语言或混排，不设视频语言选择或识别确认门槛。
 - System / Light / Dark 属于 P0，网站主题与视频内容、计费独立。
+- UI 遵循第 11 章与 theme/ui tokens，采用 shadcn/ui 的 Base UI 方案、Lucide、Inter。
 
-当前仓库只有完整规格、配置种子、契约示例和仓库检查工具。
+当前仓库包含完整规格、配置种子、契约示例、仓库工具与离线 UI 参考。
+UI 参考只展示设计与样例状态，不作为实际应用或支付实现。
 从 M0 建立真实应用代码与运行命令；先证明 Cloudflare 渲染和 Waffo test 的可行性，
 再推进编辑器、账务、交付、团队和运营。复用已有配置，避免制造两套权威来源。
 
@@ -72,6 +75,8 @@ docs/implementation-decisions.md 和 docs/evidence/。
 每次汇报列出已实现功能、未实现 P0、实际运行的命令与环境、尚未完成的外部验证。
 不要把静态页面、模拟付款或空测试脚本报告为完整 SaaS 已完成。
 ```
+
+UI 配置或参考模板改动后，执行 `mise run build:ui-reference`，再执行 `mise run check:repo` 和 `mise run check:ui-reference`。视觉要求见 [UI 规范](prd/11-ui-design-spec.md)。
 
 ## 6 M0 的具体出口
 

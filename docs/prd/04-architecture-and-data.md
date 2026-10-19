@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 开发语言 | TypeScript，React | Web 界面、共享场景模型、API 与作业控制 |
 | Web 框架 | React Router Framework，Vite，Cloudflare Vite plugin | SSR 公开页面、应用路由、Workers 本地开发 |
-| 样式与组件 | Tailwind CSS，语义 HTML，少量可访问基础组件 | 表单、播放器、编辑器、移动界面 |
+| 样式与组件 | Tailwind CSS、shadcn/ui 的 Base UI 版本、lucide-react；Inter 网站字体 | 统一 UI 源码与语义 tokens；具体方案、布局和组件状态见 [11](11-ui-design-spec.md) |
 | 国际化 | i18next、react-i18next、Intl、集中英文网站资源 | 请求级 UI 上下文、复数、插值、格式化；网站首发仅 en |
 | 明暗主题 | CSS 自定义属性、data-theme、prefers-color-scheme、Cookie | System / Light / Dark 首屏与持久化；与视频样式隔离 |
 | 依赖管理 | mise、pnpm、精确锁文件 | 开发与 CI 工具链可复现；容器按自身运行环境锁定，版本选择遵循部署兼容策略 |
@@ -91,7 +91,7 @@ R2 预签名地址是到期前可使用的 bearer token；不能把临时可写�
 
 ### 5.1 结构化契约
 
-SceneDocument 包含 schema 版本、输出语言、品牌快照、事实引用、素材版本、帧率、总帧数、随机 seed、场景和四种构图布局。场景类型固定为 `hook`、`product_showcase`、`screen_demo`、`benefit`、`facts`、`cta`。
+SceneDocument 包含 schema 版本、可选内容语言元数据、品牌快照、事实引用、素材版本、帧率、总帧数、随机 seed、场景和四种构图布局。场景类型固定为 `hook`、`product_showcase`、`screen_demo`、`benefit`、`facts`、`cta`。
 
 `language` 仅作为可选内容元数据，与网站 `uiLocale` 分离；未知可用 `und`，多语内容可用 `mul`，不要求用户选择，也不限制文案准入。实际用于排版的语言、方向及文字随 revision 和内容快照固定，重试时不重新识别。页面的 `themePreference` 与 `uiLocale` 不进入 SceneDocument，也不参与导出版本身份。`brand` 保存客户产品品牌；平台的 PromoBento 标识与公开预览水印独立配置，不能批量覆盖客户名称、CTA 或颜色。
 

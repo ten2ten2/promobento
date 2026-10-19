@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
-const counts = { prdDocuments: 0, localFileLinks: 0, seedJson: 0, messages: 0, contrastPairs: 0 };
+const counts = { prdDocuments: 0, localFileLinks: 0, seedJson: 0, messages: 0, contrastPairs: 0, uiTokenMappings: 0 };
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 const text = (path) => readFileSync(join(root, path), 'utf8');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -83,7 +83,7 @@ function main() {
     'README.md', '01-product-prd.md', '02-ux-and-flows.md', '03-platform-presets.md',
     '04-architecture-and-data.md', '05-waffo-billing.md', '06-testing-and-release.md',
     '07-growth-and-experiments.md', '08-codex-execution.md', '09-sources-and-decisions.md',
-    '10-i18n-and-themes.md',
+    '10-i18n-and-themes.md', '11-ui-design-spec.md',
   ];
   for (const chapter of chapters) {
     expect(existsSync(join(root, 'docs/prd', chapter)), 'Missing PRD document: ' + chapter);
@@ -101,7 +101,7 @@ function main() {
   ].filter((path) => extname(path) === '.md');
   for (const file of markdownFiles) checkLinks(file);
 
-  const seedFiles = ['config/brand.json', 'config/localization.json', 'config/theme-tokens.json',
+  const seedFiles = ['config/brand.json', 'config/localization.json', 'config/theme-tokens.json', 'config/ui-tokens.json',
     'config/platform-presets.json', 'locales/en.json', 'contracts/scene.example.json',
     'contracts/export-manifest.example.json'];
   const seeds = Object.fromEntries(seedFiles.map((file) => [file, json(file)]));
@@ -109,6 +109,7 @@ function main() {
   const brand = seeds['config/brand.json'];
   const locale = seeds['config/localization.json'];
   const themes = seeds['config/theme-tokens.json'];
+  const ui = seeds['config/ui-tokens.json'];
   const platforms = seeds['config/platform-presets.json'];
   const messages = seeds['locales/en.json'];
   const scene = seeds['contracts/scene.example.json'];
@@ -122,6 +123,19 @@ function main() {
   expect(locale.selection?.showUiLanguageSwitcher === false, 'Unpublished website language controls must remain hidden');
   expect(same(themes.preferences, ['system', 'light', 'dark']) && themes.defaultPreference === 'system', 'Theme preference mismatch');
   expect(themes.cssVariablePrefix !== themes.videoCssVariablePrefix, 'UI and video tokens must be separate');
+
+  expect(ui.scope === 'website_ui' && ui.reference?.productionFeature === false, 'UI reference must remain separate from the production application and video content');
+  for (const path of [ui.sourceDocument, ui.library?.dependencyPolicy, ui.reference?.template, ui.reference?.output, ui.reference?.generator]) {
+    expect(typeof path === 'string' && existsSync(join(root, path)), 'UI design source or reference is missing: ' + path);
+  }
+  for (const [themeName, theme] of Object.entries(themes.themes)) {
+    for (const [alias, token] of Object.entries(ui.themeTokenMap ?? {})) {
+      expect(typeof theme.colors[token] === 'string', themeName + ': unresolved UI alias ' + alias + ' -> ' + token);
+      counts.uiTokenMappings += 1;
+    }
+  }
+  expect(ui.controls?.height >= ui.controls?.touchTargetMin && ui.controls?.iconButtonSize >= ui.controls?.touchTargetMin,
+    'Default UI controls must provide the declared touch target');
 
   const flatMessages = flattenMessages(messages);
   counts.messages = Object.keys(flatMessages).length;
@@ -182,6 +196,8 @@ function main() {
   const mise = text('.mise.toml');
   expect(pkg.private === true, 'Root tooling package must be private');
   expect(pkg.scripts?.['check:repo'] === 'node scripts/check-repo.mjs', 'Repository check command mismatch');
+  expect(pkg.scripts?.['build:ui-reference'] === 'node scripts/build-ui-reference.mjs' &&
+    pkg.scripts?.['check:ui-reference'] === 'node scripts/build-ui-reference.mjs --check', 'UI reference command mismatch');
   expect(mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1] === pkg.engines?.node, 'Node pin differs between mise and package.json');
   expect('pnpm@' + mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1] === pkg.packageManager, 'pnpm pin differs between mise and package.json');
 }

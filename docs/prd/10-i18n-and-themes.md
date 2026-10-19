@@ -98,7 +98,7 @@ SSR root loader 读取有效 Cookie，输出 `data-theme="system|light|dark"`。
 
 ## 8 语义色彩、可读性与视频隔离
 
-`config/theme-tokens.json` 提供首版 Light/Dark 初值。组件引用 `--ui-bg`、`--ui-surface`、`--ui-text`、`--ui-border-control`、`--ui-primary`、`--ui-focus`、`--ui-danger` 等语义变量，不在业务组件中散落固定白底黑字。两个主题覆盖默认、hover、focus、selected、disabled、loading、empty 和 error 状态。
+`config/theme-tokens.json` 提供首版 Light/Dark 语义色值与交互状态配对；组件尺寸、字体、层级和页面视觉按 [11 UI 设计规范](11-ui-design-spec.md) 与 `config/ui-tokens.json`。组件引用 `--ui-bg`、`--ui-surface`、`--ui-text`、`--ui-border-control`、`--ui-primary`、`--ui-focus`、`--ui-danger` 等语义变量，不在业务组件中散落固定白底黑字。两个主题覆盖默认、hover、focus、selected、disabled、loading、empty 和 error 状态。
 
 网站普通文字目标对比度至少 4.5:1，符合大字定义的文字至少 3:1；识别控件和状态所必需的边界、图形与焦点目标至少 3:1。错误、选中和作业状态同时有文字或形状标识。对比度基于实际前景和背景组合，不只检查色板。源要求和例外分别见 [W3C 文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) 与 [非文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)。
 

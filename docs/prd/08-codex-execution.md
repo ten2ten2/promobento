@@ -31,10 +31,10 @@ M0 先解决视频渲染和 Waffo 集成的真实风险，再扩编辑器范围�
 | `packages/platform-presets` | 版本化平台配置及外部规则元数据 |
 | `packages/billing` | 仅 Waffo 的 adapter、金额转换、订单与事件映射 |
 | `packages/db` | D1 SQL、迁移、条件写与查询封装 |
-| `packages/ui` | 表单和编辑器基础组件 |
+| `packages/ui` | shadcn/ui Base UI 源码封装、表单和编辑器基础组件；Lucide 图标 |
 | `packages/i18n` | 请求级 i18next、英语网站消息目录、UI locale allowlist、Intl 与消息类型 |
 | `packages/brand` | PromoBento 名称、可信环境 URL、站点元数据和支持配置 |
-| `packages/ui/theme` | Light/Dark CSS tokens、System 偏好、Cookie 与可访问主题控件 |
+| `packages/ui/theme` | 由 theme/ui 配置映射的 CSS tokens、System 偏好、Cookie 与可访问主题控件 |
 | `tests/fixtures` | 已授权测试素材与预期事实 |
 | `tests/integration` | 支付、额度、队列、删除、隔离与恢复 |
 | `tests/e2e` | 两类用户的浏览器闭环 |
@@ -95,6 +95,8 @@ M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本�
 | 规划支持邮箱 | `support@promobento.com`，公开 mailto 前实测收件 |
 
 Google 同意页、允许来源和回调、Waffo 商店品牌、支持信息与域名验证需要实际配置。平台品牌与真实商户主体分别填写。生产与预发布使用 host-only Cookie，不能设 Domain=.promobento.com 共享账号会话。Access 例外只覆盖经过设计的机器回调路径，Waffo test webhook 仍须验签；完整登录和付款往返按 06 验收。
+
+UI 视觉与组件用法由 [11](11-ui-design-spec.md) 定义，数值由 `config/ui-tokens.json` 和 `config/theme-tokens.json` 提供。先在 Cloudflare React Router 工程中接入 shadcn/ui 的 Base UI 方案，按实际使用引入源码和最新兼容稳定依赖；统一 tokens 与 portal/SSR 行为，不覆盖既定 Worker 配置。离线参考是设计文档，不是应用实现。
 
 语言配置见 `config/localization.json`，英语资源种子见 `locales/en.json`，主题初值见 `config/theme-tokens.json`。实施时补齐全部真实网站界面资源；UI allowlist 仅 en，不包含视频语言名单或默认值。用户文字、混排与可选内容元数据和 uiLocale 分离，不引入视频语言选择或识别确认流程。主题 Cookie、CSS、SSR 和缓存规则以 10 为准。
 

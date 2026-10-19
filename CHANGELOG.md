@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-19 — UI specification and visual reference
+
+- Added PRD 11 and advanced the specification set to v1.2, fixing visual direction, typography, spacing, components and responsive layouts.
+- Selected shadcn/ui with Base UI, Tailwind CSS, Lucide and Inter for the future application, following the existing compatibility and version-locking policy.
+- Added shared UI tokens, expanded Light/Dark interaction colors and included an offline four-page reference generated from its template and tokens.
+- Added real mise generation/check tasks and updated repository checks, handoff instructions and evidence without marking application milestones complete.
+
 ## 2026-10-19 — Scope localization to the website
 
 - Clarified that multilingual architecture and the English-first launch apply to the website interface.

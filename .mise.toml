@@ -14,3 +14,13 @@ run = "pnpm install --frozen-lockfile"
 description = "Validate PRD files, seed references, and repository links"
 dir = "{{config_root}}"
 run = "node scripts/check-repo.mjs"
+
+[tasks."build:ui-reference"]
+description = "Generate the offline UI reference from design tokens and the template"
+dir = "{{config_root}}"
+run = "node scripts/build-ui-reference.mjs"
+
+[tasks."check:ui-reference"]
+description = "Check that the generated UI reference matches its sources"
+dir = "{{config_root}}"
+run = "node scripts/build-ui-reference.mjs --check"
