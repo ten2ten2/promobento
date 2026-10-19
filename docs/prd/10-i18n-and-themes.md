@@ -111,7 +111,11 @@ SSR root loader 读取有效 Cookie，输出 `data-theme="system|light|dark"`。
 
 `config/theme-tokens.json` 提供首版 Light/Dark 语义色值与交互状态配对；组件尺寸、字体、层级和页面视觉按 [11 UI 设计规范](11-ui-design-spec.md) 与 `config/ui-tokens.json`。组件引用 `--ui-bg`、`--ui-surface`、`--ui-text`、`--ui-border-control`、`--ui-primary`、`--ui-focus`、`--ui-danger` 等语义变量，不在业务组件中散落固定白底黑字。两个主题覆盖默认、hover、focus、selected、disabled、loading、empty 和 error 状态。
 
+网站视觉采用用户确认的「杂志排版」主体与「专业工具」配色：Light 为白底与冷灰面板，Dark 为炭灰背景与深灰面板，主要操作为蓝灰。字标和展示标题使用 Georgia / Times New Roman 系统衬线栈，正文、表单与编辑器使用 Arial / Helvetica / system sans。两套网站字体均独立于客户视频；系统缺字回退或不同设备的字宽差异须按真实内容验收，不据此限制用户语言或强制网站字体成为成片字体。
+
 网站普通文字目标对比度至少 4.5:1，符合大字定义的文字至少 3:1；识别控件和状态所必需的边界、图形与焦点目标至少 3:1。错误、选中和作业状态同时有文字或形状标识。对比度基于实际前景和背景组合，不只检查色板。源要求和例外分别见 [W3C 文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) 与 [非文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)。
+
+浅结构分隔使用 border，输入框等必要可识别边界使用 borderControl；二者不互换。选中面板的标题与辅助文字使用 selectionText，不能直接沿用普通面板的 textMuted。色值与声明配对以 theme tokens 为准，保留既定的文字和非文字对比度门槛。
 
 Dark 需要重新选择表面、文本、边界和状态色，不使用全局 invert/filter。截图、录屏、客户 Logo 与成片画布保持原色；有透明 Logo 时由客户视频设计决定其衬底，不偷偷随网站主题换色。播放器外壳、控制条和安全区工具适配 UI 主题，导出画面只取视频数据。
 

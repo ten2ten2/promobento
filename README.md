@@ -4,7 +4,7 @@
 
 PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可编辑、可按社交平台导出的宣传短片。目标主域为 `promobento.com`。
 
-这是 PromoBento 的初始开发仓库，包含完整 PRD v1.2、UI 规范与可视化参考、配置种子、契约示例、Codex 工作指引和可运行的仓库工具。需求说明采用中文；网站首发英语并预留网站多语言能力。用户文案可使用任意语言或混排，不需要选择视频语言。
+这是 PromoBento 的初始开发仓库，包含完整 PRD v1.3、UI 规范与可视化参考、配置种子、契约示例、Codex 工作指引和可运行的仓库工具。需求说明采用中文；网站首发英语并预留网站多语言能力。用户文案可使用任意语言或混排，不需要选择视频语言。
 
 ## 从这里开始
 
@@ -32,7 +32,7 @@ PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可
 | 首发平台预设 | TikTok、Instagram Feed、Instagram Reels、X、YouTube、YouTube Shorts |
 | 语言 | 网站从首版建立国际化架构，先提供英语界面；用户文案独立于网站语言，可自由混排 |
 | 产品界面主题 | 默认跟随系统；太阳/月亮图标一键切换并记住选择，设置可恢复跟随系统；独立于成片样式 |
-| UI 方案 | 中性创作工作台；shadcn/ui + Base UI、Tailwind CSS、Lucide、Inter；视觉数值见 UI 规范 |
+| UI 方案 | 杂志排版主体＋专业工具配色；品牌与大标题用衬线字体，正文和控件用无衬线字体；shadcn/ui + Base UI、Tailwind CSS、Lucide，数值见 UI 规范 |
 
 本表负责导览。精确规则、可配置配额、验收条件及事实来源见 PRD，不在根 README 维护第二份完整规格。
 
@@ -48,7 +48,7 @@ PromoBento 将真实截图、录屏与课程或数字产品素材，制作成可
 | `docs/getting-started.md` | 克隆仓库、mise 环境准备与 Codex 开工提示词 |
 | `docs/implementation-status.md` | M0–M4 的实现及验证状态 |
 | `docs/implementation-decisions.md` | 仓库结构和工具版本决策 |
-| `docs/evidence/` | 验证记录入口；当前记录的是仓库检查 |
+| `docs/evidence/` | 关键验收记录与历史检查快照；普通检查不要求逐次新增档案 |
 | `scripts/check-repo.mjs` | 无外部依赖的仓库检查工具 |
 | `docs/design/`、`scripts/build-ui-reference.mjs` | 四页 UI 参考模板、生成物与生成器；不连接生产功能 |
 | `.mise.toml`、`package.json`、`pnpm-lock.yaml` | 已锁定的文档工具版本与检查入口 |

@@ -40,7 +40,7 @@ const flatten = (value, keys = []) => Object.entries(value).flatMap(([key, child
   return [`--design-${[...keys, key].map(kebab).join('-')}: ${withUnit(child, [...keys, key])};`];
 });
 const css = [
-  ':root {', `  ${flatten(ui).join('\n  ')}`, '}',
+  ':root {', `  ${flatten(ui).join('\n  ')}`, '  --ui-font-display: var(--design-typography-display-font-family);', '}',
   `:root, :root[data-theme="light"], :root[data-theme="system"] {\n  ${themeBlock('light')}\n}`,
   `:root[data-theme="dark"] {\n  ${themeBlock('dark')}\n}`,
   `@media (prefers-color-scheme: dark) {\n  :root[data-theme="system"] {\n    ${themeBlock('dark')}\n  }\n}`,

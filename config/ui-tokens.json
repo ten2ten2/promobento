@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "status": "design_spec_seed_requires_browser_validation",
   "scope": "website_ui",
   "units": "px",
@@ -12,9 +12,9 @@
     "dependencyPolicy": "docs/dependency-policy.md"
   },
   "typography": {
-    "fontFamily": "\"Inter\", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "fontFamily": "Arial, Helvetica, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
     "monospaceFontFamily": "ui-monospace, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
-    "fontDelivery": "self_hosted_woff2_variable",
+    "fontDelivery": "system_font_stack",
     "weights": {
       "regular": 400,
       "medium": 500,
@@ -23,22 +23,22 @@
     },
     "styles": {
       "hero": {
-        "fontSize": 60,
-        "lineHeight": 66,
-        "fontWeight": 600,
-        "letterSpacing": -1.8
+        "fontSize": 52,
+        "lineHeight": 55,
+        "fontWeight": 400,
+        "letterSpacing": -2.4
       },
       "heroCompact": {
-        "fontSize": 36,
-        "lineHeight": 42,
-        "fontWeight": 600,
-        "letterSpacing": -0.8
+        "fontSize": 44,
+        "lineHeight": 46,
+        "fontWeight": 400,
+        "letterSpacing": -1.8
       },
       "pageTitle": {
-        "fontSize": 28,
-        "lineHeight": 36,
-        "fontWeight": 600,
-        "letterSpacing": -0.5
+        "fontSize": 32,
+        "lineHeight": 38,
+        "fontWeight": 400,
+        "letterSpacing": -0.6
       },
       "sectionTitle": {
         "fontSize": 20,
@@ -63,8 +63,15 @@
         "lineHeight": 16,
         "fontWeight": 400,
         "letterSpacing": 0
+      },
+      "wordmark": {
+        "fontSize": 24,
+        "lineHeight": 32,
+        "fontWeight": 500,
+        "letterSpacing": -1
       }
-    }
+    },
+    "displayFontFamily": "Georgia, \"Times New Roman\", serif"
   },
   "spacing": {
     "0": 0,
@@ -80,22 +87,23 @@
     "24": 96
   },
   "radius": {
-    "sm": 6,
-    "md": 12,
-    "lg": 16,
-    "xl": 24,
+    "none": 0,
+    "sm": 2,
+    "md": 4,
+    "lg": 8,
+    "xl": 12,
     "full": 9999
   },
   "shadow": {
     "light": {
-      "raised": "0 1px 2px rgb(15 23 42 / 0.05)",
-      "floating": "0 8px 24px rgb(15 23 42 / 0.10)",
-      "modal": "0 24px 64px rgb(15 23 42 / 0.18)"
+      "raised": "none",
+      "floating": "0 6px 20px rgb(37 40 45 / 0.08)",
+      "modal": "0 18px 48px rgb(37 40 45 / 0.16)"
     },
     "dark": {
-      "raised": "0 1px 2px rgb(0 0 0 / 0.20)",
-      "floating": "0 8px 24px rgb(0 0 0 / 0.30)",
-      "modal": "0 24px 64px rgb(0 0 0 / 0.40)"
+      "raised": "none",
+      "floating": "0 6px 20px rgb(0 0 0 / 0.24)",
+      "modal": "0 18px 48px rgb(0 0 0 / 0.36)"
     }
   },
   "layout": {
@@ -170,7 +178,7 @@
     "tooltip": 70
   },
   "overlay": {
-    "light": "rgb(15 23 42 / 0.45)",
+    "light": "rgb(37 40 45 / 0.45)",
     "dark": "rgb(0 0 0 / 0.60)"
   },
   "themeTokenMap": {

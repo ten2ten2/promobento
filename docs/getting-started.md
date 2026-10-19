@@ -59,7 +59,7 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 - 六个平台预设全部在 P0；真实素材、确认事实、共享浏览器预览与云端渲染。
 - 网站从首版建立国际化架构，首发英语；用户文案可使用任意语言或混排，不设视频语言选择或识别确认门槛。
 - System / Light / Dark 属于 P0，网站主题与视频内容、计费独立。
-- UI 遵循第 11 章与 theme/ui tokens，采用 shadcn/ui 的 Base UI 方案、Lucide、Inter。
+- UI 遵循第 11 章与 theme/ui tokens：杂志排版主体＋专业工具配色；衬线品牌与标题、无衬线正文和控件，采用 shadcn/ui 的 Base UI 方案与 Lucide。
 
 当前仓库包含完整规格、配置种子、契约示例、仓库工具与离线 UI 参考。
 UI 参考只展示设计与样例状态，不作为实际应用或支付实现。
@@ -68,8 +68,10 @@ UI 参考只展示设计与样例状态，不作为实际应用或支付实现�
 
 先核查 Cloudflare 构建、workerd 和 Container 的实际兼容范围，再选择范围内最新正式版并锁定。
 通过 mise 管理工具和任务，建立 pnpm 工作区、必要迁移、环境示例和测试。
-把实际实现与执行证据更新到 docs/implementation-status.md、
-docs/implementation-decisions.md 和 docs/evidence/。
+实际完成情况和阻塞项变化时更新 docs/implementation-status.md；
+重要选型和取舍变化时更新 docs/implementation-decisions.md。
+普通检查结果写入提交说明或已有 CI；只有关键集成、人工验收、性能成本和重要环境发现
+需要在 docs/evidence/ 留档，不要求每次修改新增记录。
 
 缺少外部账户或凭据时，明确记录受影响的真实验证，继续完成不依赖它的工作。
 每次汇报列出已实现功能、未实现 P0、实际运行的命令与环境、尚未完成的外部验证。

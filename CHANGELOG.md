@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-20 — Editorial layout with a professional tool palette
+
+- Applied the user-approved magazine typography and layout with neutral Light/Dark surfaces and blue-gray action colors across the four-page offline reference.
+- Updated UI specification v1.1 and PRD collection v1.3, shared typography/color tokens, reference generation, and handoff guidance.
+- Kept theme preference behavior and customer video styling independent; application milestones remain unimplemented.
+- Clarified that routine checks belong in commit reports or existing CI, while evidence records cover meaningful acceptance results and environment findings. Existing historical reports remain intact.
+
 ## 2026-10-19 — Icon theme toggle and remembered choice
 
 - Replaced the three-option header selector with a sun/moon action button: follow the system initially, then remember explicit Light/Dark choices after a click.
