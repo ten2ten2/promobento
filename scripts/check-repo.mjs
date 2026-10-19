@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const failures = [];
-const counts = { prdDocuments: 0, localFileLinks: 0, seedJson: 0, messages: 0, contrastPairs: 0, uiTokenMappings: 0 };
+const counts = { prdDocuments: 0, localFileLinks: 0, seedJson: 0, messages: 0, routes: 0, apiContracts: 0, contrastPairs: 0, uiTokenMappings: 0 };
 const expect = (condition, message) => { if (!condition) failures.push(message); };
 const text = (path) => readFileSync(join(root, path), 'utf8');
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -83,7 +83,7 @@ function main() {
     'README.md', '01-product-prd.md', '02-ux-and-flows.md', '03-platform-presets.md',
     '04-architecture-and-data.md', '05-waffo-billing.md', '06-testing-and-release.md',
     '07-growth-and-experiments.md', '08-codex-execution.md', '09-sources-and-decisions.md',
-    '10-i18n-and-themes.md', '11-ui-design-spec.md',
+    '10-i18n-and-themes.md', '11-ui-design-spec.md', '12-routing-and-auth.md',
   ];
   for (const chapter of chapters) {
     expect(existsSync(join(root, 'docs/prd', chapter)), 'Missing PRD document: ' + chapter);
@@ -102,7 +102,7 @@ function main() {
   for (const file of markdownFiles) checkLinks(file);
 
   const seedFiles = ['config/brand.json', 'config/localization.json', 'config/theme-tokens.json', 'config/ui-tokens.json',
-    'config/platform-presets.json', 'locales/en.json', 'contracts/scene.example.json',
+    'config/platform-presets.json', 'config/routes.json', 'config/auth.json', 'locales/en.json', 'contracts/scene.example.json',
     'contracts/export-manifest.example.json'];
   const seeds = Object.fromEntries(seedFiles.map((file) => [file, json(file)]));
   counts.seedJson = seedFiles.length;
@@ -111,6 +111,8 @@ function main() {
   const themes = seeds['config/theme-tokens.json'];
   const ui = seeds['config/ui-tokens.json'];
   const platforms = seeds['config/platform-presets.json'];
+  const routeSeed = seeds['config/routes.json'];
+  const auth = seeds['config/auth.json'];
   const messages = seeds['locales/en.json'];
   const scene = seeds['contracts/scene.example.json'];
   const manifest = seeds['contracts/export-manifest.example.json'];
@@ -142,6 +144,101 @@ function main() {
   for (const key of Object.keys(flatMessages)) {
     if (key.endsWith('_one')) expect(typeof flatMessages[key.slice(0, -4) + '_other'] === 'string', 'Missing plural counterpart: ' + key);
   }
+
+  // Keep documented entry points, provider callbacks and authentication seeds in sync.
+  // These checks do not execute a router, validate a user, or send an email.
+  expect(routeSeed.status === 'prd_seed' && auth.status === 'prd_seed', 'Route/auth seeds must not claim a deployed application');
+  const routes = routeSeed.routes;
+  const byId = new Map(routes.map((route) => [route.id, route]));
+  const signatures = new Set();
+  counts.routes = routes.length;
+  expect(byId.size === routes.length, 'Duplicate route ID');
+  const patternSignature = (route) => route.method + ' ' + route.path.replace(/:[A-Za-z][A-Za-z0-9]*/g, ':param');
+  for (const route of routes) {
+    expect(/^[a-z][a-z0-9_.]*$/.test(route.id), 'Invalid route ID: ' + route.id);
+    expect(route.path === '/' || /^\/(?:[a-z0-9.-]+|:[A-Za-z][A-Za-z0-9]*)(?:\/(?:[a-z0-9.-]+|:[A-Za-z][A-Za-z0-9]*))*$/.test(route.path),
+      'Invalid canonical path: ' + route.path);
+    expect(!route.path.split('/').some((segment) => segment === '.' || segment === '..'), 'Dot segment in route: ' + route.path);
+    expect(['page', 'redirect', 'resource', 'api'].includes(route.kind), 'Unknown route kind: ' + route.id);
+    expect(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'].includes(route.method), 'Unknown route method: ' + route.id);
+    expect(typeof routeSeed.authPolicies[route.auth] === 'string', 'Unknown route auth policy: ' + route.id);
+    expect(['index', 'noindex', 'not_applicable'].includes(route.indexing), 'Unknown indexing policy: ' + route.id);
+    expect(route.kind === 'api' ? route.path.startsWith('/api/') : route.method === 'GET' && !route.path.startsWith('/api/'),
+      'Route kind/method namespace mismatch: ' + route.id);
+    expect(route.indexing !== 'index' || route.kind === 'page' && route.auth === 'public', 'Only public content pages may be indexed: ' + route.id);
+    expect(route.auth === 'public' || route.indexing === 'noindex', 'Protected route cannot be indexed: ' + route.id);
+    expect(route.kind !== 'api' || route.indexing === 'noindex', 'API route must not be indexed: ' + route.id);
+    const signature = patternSignature(route);
+    expect(!signatures.has(signature), 'Duplicate method/path shape: ' + signature);
+    signatures.add(signature);
+  }
+  for (const redirect of routeSeed.redirects) {
+    const source = byId.get(redirect.fromRouteId);
+    const target = byId.get(redirect.toRouteId);
+    expect(source?.kind === 'redirect' && target?.kind === 'page', 'Unresolved redirect endpoint: ' + redirect.fromRouteId);
+    expect(redirect.status === 302 && redirect.cacheControl === 'private, no-store', 'Authenticated default redirects must be temporary and private');
+    expect(Array.isArray(redirect.preserveQuery) && redirect.preserveQuery.every((key) => key === 'workspaceId'), 'Unexpected redirect query passthrough');
+  }
+  expect(routes.filter((route) => route.kind === 'redirect').every((route) =>
+    routeSeed.redirects.filter((redirect) => redirect.fromRouteId === route.id).length === 1), 'Each redirect must have exactly one rule');
+
+  const apiRows = [...text('docs/prd/04-architecture-and-data.md').matchAll(/^\| `(GET|POST|PUT|PATCH|DELETE|HEAD) (\/api\/[^`]+)` \|/gm)]
+    .map((match) => match[1] + ' ' + match[2]);
+  const declaredApis = routes.filter((route) => route.kind === 'api').map((route) => route.method + ' ' + route.path);
+  expect(same(apiRows.sort(), declaredApis.sort()), 'API documentation differs from route seed');
+  counts.apiContracts = apiRows.length;
+  const pageSection = text('docs/prd/02-ux-and-flows.md').split('## 2 首页与首次进入')[0];
+  const pagePaths = new Set(pageSection.split('\n').filter((line) => line.startsWith('| '))
+    .flatMap((line) => [...(line.split('|')[1] ?? '').matchAll(/`(\/[^`]*)`/g)].map((match) => match[1])));
+  const declaredPages = new Set(routes.filter((route) => route.kind !== 'api').map((route) => route.path));
+  expect(same([...pagePaths].sort(), [...declaredPages].sort()), 'Page information architecture differs from route seed');
+
+  expect(brand.routeSource === 'config/routes.json' && auth.routeSource === brand.routeSource, 'Route source must be shared by brand and auth');
+  for (const [key, id] of Object.entries(brand.routeIds)) {
+    const route = byId.get(id);
+    const path = key === 'waffoSuccessPathTemplate' ? route?.path.replace(':orderId', '{localOrderId}') : route?.path;
+    expect(typeof path === 'string' && brand.paths[key] === path, 'Brand callback/path differs from route: ' + key);
+  }
+  expect(same(Object.keys(brand.paths).sort(), Object.keys(brand.routeIds).sort()), 'Every brand path must resolve a route ID');
+  const authMethods = {
+    login: 'GET', verify: 'GET', link: 'GET', googleStart: 'POST', googleCallback: 'GET',
+    emailRequest: 'POST', emailVerify: 'POST', emailResend: 'POST', session: 'GET', logout: 'POST',
+    linkConfirm: 'POST', registrationConfirm: 'POST', cancelFlow: 'DELETE',
+  };
+  expect(same(Object.keys(auth.routes).sort(), Object.keys(authMethods).sort()), 'Authentication route references are incomplete');
+  for (const [key, method] of Object.entries(authMethods)) {
+    expect(byId.get(auth.routes[key])?.method === method, 'Unresolved authentication method/route: ' + key);
+  }
+  expect(byId.get(auth.routes.googleCallback)?.auth === 'oauth_state' && byId.get(brand.routeIds.waffoWebhook)?.auth === 'waffo_signature', 'Provider callbacks must retain protocol authentication');
+  expect(existsSync(join(root, auth.sourceDocument)), 'Authentication source document missing');
+  expect(routes.some((route) => route.kind === 'page' && route.path === auth.flow.returnTo.defaultPath && route.id.startsWith('app.')), 'Default sign-in return path must resolve to an application page');
+  expect(same(auth.methods, ['google', 'email_otp']) && !auth.passwordAuthentication && !auth.magicLinkAuthentication, 'Launch authentication methods differ from PRD');
+  expect(auth.email.transport === 'cloudflare_email_service' && auth.email.requiresWorkersPaid && auth.email.requiresVerifiedSendingDomain, 'Cloudflare email prerequisites are missing');
+  expect(auth.email.production.fromAddress !== auth.email.staging.fromAddress && auth.email.staging.controlledRecipientsOnly && auth.email.localAndCiTransport === 'mock', 'Mail environments must be isolated');
+  expect(auth.email.defaultMessageLocale === brand.defaultUiLocale && auth.email.messageLocaleSource === 'website_ui_locale', 'Authentication mail locale must follow website locale');
+  expect(auth.email.otp.digest === 'HMAC-SHA-256' && auth.email.otp.storePlaintext === false &&
+    auth.email.otp.resendResetsFailedAttempts === false && auth.email.otp.resendInvalidationScope === 'current_flow', 'Unsafe OTP storage or resend seed');
+  expect(auth.email.otp.resendAfterSeconds > 0 && auth.email.otp.expiresAfterSeconds > auth.email.otp.resendAfterSeconds &&
+    auth.flow.expiresAfterSeconds >= auth.email.otp.expiresAfterSeconds && auth.flow.proofExpiresAfterSeconds <= auth.flow.expiresAfterSeconds,
+    'Inconsistent OTP/flow/proof lifetimes');
+  for (const key of ['maxFailedAttemptsPerFlow', 'maxSendsPerFlow']) expect(Number.isInteger(auth.email.otp[key]) && auth.email.otp[key] > 0, 'Missing bounded OTP budget: ' + key);
+  for (const part of [auth.flow, auth.session]) {
+    const cookie = part.cookie;
+    expect(part.randomBytes >= 32 && cookie.name.startsWith('__Host-') && cookie.path === '/' && cookie.httpOnly && cookie.secure && cookie.hostOnly && cookie.sameSite === 'Lax' && !Object.hasOwn(cookie, 'domain'), 'Invalid authentication cookie boundary');
+  }
+  expect(auth.flow.cookie.name !== auth.session.cookie.name && auth.session.storage === 'token_hash_only' &&
+    auth.session.clearThemeCookieOnLogout === false, 'Session/flow/theme responsibilities must remain separate');
+  expect(auth.accountLinking.existingMethodProofRequired && auth.accountLinking.newMethodProofRequired &&
+    auth.accountLinking.explicitConfirmationRequired && !auth.accountLinking.automaticAccountMerge && !auth.accountLinking.allowIdentityTransfer,
+    'Identity linking must preserve proof and ownership boundaries');
+  for (const key of [...Object.values(auth.email.messageKeys), ...Object.values(auth.errorMessageKeys)]) {
+    expect(typeof flatMessages[key] === 'string', 'Unresolved auth/email message key: ' + key);
+  }
+  for (const key of ['subject', 'preheader', 'linkSubject', 'linkPreheader']) {
+    const message = flatMessages[auth.email.messageKeys[key]];
+    expect(typeof message === 'string' && !/\{\{\s*code\s*\}\}/.test(message), 'Code must not appear in email subject or preheader: ' + key);
+  }
+
   const expectedPlatforms = ['tiktok', 'instagram_feed', 'instagram_reels', 'x', 'youtube', 'youtube_shorts'];
   const layouts = ['landscape', 'portrait', 'feed', 'square'];
   expect(same(platforms.presets.map((preset) => preset.id).sort(), [...expectedPlatforms].sort()), 'Six launch platform presets are required');
@@ -212,5 +309,5 @@ if (failures.length) {
 } else {
   console.log('Repository check passed.');
   console.log(JSON.stringify({ node: process.version, ...counts }, null, 2));
-  console.log('Scope: PRD files and seed consistency only; no application, payment, rendering, or deployment tests.');
+  console.log('Scope: PRD files and seed consistency only; no application, authentication, email delivery, payment, rendering, or deployment tests.');
 }

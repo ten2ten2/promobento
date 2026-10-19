@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-20 — Complete URI contracts and email sign-in specification
+
+- Added an authoritative route seed for public pages, authentication, settings, invitations, workspace operations, delivery and SEO resources.
+- Specified Google plus passwordless email codes, explicit identity linking, session revocation, safe return targets and atomic invitation acceptance in PRD 12; advanced the PRD collection to v1.4 and UI specification to v1.2.
+- Selected Cloudflare Email Sending through a native Worker binding, with its current Beta status, domain/plan requirements and real delivery gates recorded.
+- Added authentication configuration and English UI/email messages, and synchronized the API, data model, implementation stages and relevant repository checks.
+- Application authentication and mail delivery remain unimplemented; no live emails or new routine evidence records were produced by this specification change.
+
 ## 2026-10-20 — Editorial layout with a professional tool palette
 
 - Applied the user-approved magazine typography and layout with neutral Light/Dark surfaces and blue-gray action colors across the four-page offline reference.

@@ -2,7 +2,7 @@
 
 ## 1 网站国际化的范围
 
-用户最终澄清：“支持多语言能力，首发英语”针对网站。网站包括公开页面、登录、编辑器操作界面、帮助、政策和后台；先交付英语界面，以后增加其他网站语言。Light / Dark Mode 继续属于 P0。
+用户最终澄清：“支持多语言能力，首发英语”针对网站。网站包括公开页面、登录、编辑器操作界面、帮助、政策和后台；先交付英语界面，以后增加其他网站语言。登录验证码邮件属于产品事务文案，使用同一网站资源体系，首发英语；不依据邮箱后缀、Google 账户语言或用户视频文案选择邮件语言。Light / Dark Mode 继续属于 P0。
 
 视频文案是用户内容，可以在同一视频、场景、标题或段落中混用任意语言，与网站国际化无关。创建、生成、手动编辑、预览和导出均不要求选择一种视频语言，也不要求确认自动识别结果。
 
@@ -69,7 +69,7 @@ SSR 与首次 hydration 使用同一时区。首次尚未取得浏览器时区�
 
 没有有效偏好时默认跟随系统；首次访问和系统外观变化都不自动保存 Light/Dark。用户点击按钮后，按点击时的 `resolvedTheme` 取反，立即应用并保存显式 Light/Dark；以后系统变化不覆盖这次选择。按钮只在 Light/Dark 之间切换，不做三态循环、长按或隐藏手势。
 
-Settings 的 Appearance 分组显示当前模式与是否跟随设备，并提供 `Use device setting` 恢复 System；已跟随系统时显示该状态。公开页与只读审阅页在页脚提供同名恢复动作，访客不需要进入受登录保护的 `/app/settings`。恢复动作与图标切换共用保存流程。访客、Owner、Editor 和只读审阅者都可使用主题切换及恢复入口，不收费。
+Settings 的 `/app/settings/appearance` 显示当前模式与是否跟随设备，并提供 `Use device setting` 恢复 System；已跟随系统时显示该状态。公开页与只读审阅页在页脚提供同名恢复动作，访客不需要进入受登录保护的设置页。恢复动作与图标切换共用保存流程。访客、Owner、Editor 和只读审阅者都可使用主题切换及恢复入口，不收费。
 
 | 场景 | 结果 |
 | --- | --- |
@@ -78,7 +78,7 @@ Settings 的 Appearance 分组显示当前模式与是否跟随设备，并提�
 | 当前有效 Light，点击月亮 | 立即切到 Dark 并保存 dark；后续系统变化不覆盖 |
 | 当前有效 Dark，点击太阳 | 立即切到 Light 并保存 light；后续系统变化不覆盖 |
 | 点击 Use device setting | 保存 system，立即按设备外观呈现；以后系统变化继续生效 |
-| 刷新、导航、OAuth 返回、再次访问 | 恢复当前浏览器的有效偏好 |
+| 刷新、导航、Google/邮箱登录返回、退出、再次访问 | 恢复当前浏览器的有效偏好；退出只撤销认证，不删除主题 Cookie |
 | Cookie 不可用或已过期 | 当前页面可用；新请求按 System 回退，不阻断创建付款 |
 
 偏好 P0 按浏览器保存，Cookie 名 `promobento_theme`，值仅为 system/light/dark，有效期及属性以 `config/theme-tokens.json` 为准：Max-Age=31536000、Path=/、SameSite=Lax，生产 Secure，host-only，不设置跨子域 Domain。由服务端偏好接口设置 HttpOnly Cookie；客户端从 SSR loader 接收当前偏好，切换后在内存立即更新并提交保存。只在用户显式切换或恢复系统时写入；不通过登录、导航、系统变化或后台同步覆盖同浏览器已保存的偏好。正式和预发布的主题及会话互不共享。
@@ -101,7 +101,7 @@ SSR root loader 读取有效 Cookie，输出 `data-theme="system|light|dark"`。
 | --- | --- |
 | 匿名、无会话/主题/语言偏好 Cookie 的公开英语 HTML | 可按公开策略缓存，统一输出 System；不要因匿名访问主动写偏好 Cookie |
 | 有相关 Cookie 的个性化 HTML | private, no-store；绕过共享 HTML 缓存 |
-| `/app`、订单、OAuth callback、私有素材授权、审阅及管理员响应 | 维持鉴权与私有缓存规则；不进入公共 HTML 缓存 |
+| `/create`、`/login` 及子页、`/app` 及子页、认证 API、邀请、私有素材授权、审阅及管理员响应 | private, no-store，并绕过共享缓存；不因尚未登录而公开缓存验证码、身份或草稿状态 |
 | `POST /api/preferences` 与其他 Set-Cookie 响应 | no-store，不缓存用户偏好写入 |
 | 带内容 hash 的 CSS、JS、字体与公共静态资源 | 可 CDN 长缓存；版本更新生成新 URL |
 

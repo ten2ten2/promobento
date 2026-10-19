@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "status": "selected_brand_pending_domain_setup",
   "brandName": "PromoBento",
   "brandSlug": "promobento",
@@ -11,6 +11,16 @@
   "defaultUiLocale": "en",
   "supportEmail": "support@promobento.com",
   "legalEntityName": null,
+  "routeSource": "config/routes.json",
+  "routeIds": {
+    "help": "public.help",
+    "privacy": "public.privacy",
+    "terms": "public.terms",
+    "refundPolicy": "public.refund_policy",
+    "googleOAuthCallback": "auth.google.callback",
+    "waffoWebhook": "billing.waffo.webhook",
+    "waffoSuccessPathTemplate": "app.order"
+  },
   "paths": {
     "help": "/help",
     "privacy": "/privacy",
@@ -46,6 +56,8 @@
     "dnsAndTls": "pending",
     "supportInbox": "pending",
     "googleOAuth": "pending",
+    "emailSendingDomain": "pending",
+    "emailSignIn": "pending",
     "waffoDomain": "pending",
     "productionDeployment": "not_performed"
   }

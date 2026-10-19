@@ -4,7 +4,7 @@
 
 - Read `README.md` and `docs/implementation-status.md`; use `docs/prd/README.md` to find requirements relevant to the task.
 - For initial application implementation, read PRD chapters 01, 04, and 08, then continue from the current unfinished milestone.
-- Chapter 03 owns export formats, 05 billing, 10 localization/themes, and 11 UI design. Apply the user's latest explicit decisions and keep related specifications consistent.
+- Chapter 03 owns export formats, 05 billing, 10 localization/themes, 11 UI design, and 12 URI/authentication rules. Apply the user's latest explicit decisions and keep related specifications consistent.
 - Code-style paths in the PRD are relative to the repository root; Markdown links are relative to their containing file.
 
 ## Toolchain

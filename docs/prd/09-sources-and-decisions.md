@@ -15,6 +15,7 @@
 | 网站支持多语言能力，首发英语；视频文案允许多语混排 | 用户已澄清范围仅为网站国际化：UI 首发 en；用户文案自由，不要求选择或确认视频语言 |
 | 支持 Light / Dark Mode | 默认跟随系统；单图标切换后记住选择，设置可恢复系统，与视频样式隔离 |
 | 杂志排版主体＋专业工具配色 | 已审阅组合预览并授权实施；衬线标题、留白和细分隔线结合冷中性色与蓝灰操作色 |
+| 完善 URI，并提供邮件登录 | [12](12-routing-and-auth.md) 与路由/认证种子补齐入口；保留 Google，新增邮箱验证码登录与显式身份关联 |
 
 ## 2 本版产品决策
 
@@ -39,10 +40,13 @@
 | D-17 | 网站主题和界面语言不参与成片版本身份 | 保护已确认视频颜色与账务；视频 language / videoStyle 单独冻结 |
 | D-18 | Waffo 新会话 language=en，并设置 darkMode | 使用真实提供方能力；既有活动 session 不因主题变化重建 |
 | D-19 | 杂志排版主体＋专业工具配色；衬线展示与无衬线控件；shadcn/ui Base UI、Lucide 与 UI tokens | 用户审阅后确定，视觉数值与四页参考见 [11](11-ui-design-spec.md)；系统字体栈与视频字体独立，组件引入时锁版本并验证 |
+| D-20 | Google + 邮箱验证码，内部 user 与登录 identity 分开 | 让未使用 Google 的用户进入产品；关联验证双方身份，已有 identity 不迁移，不按同邮箱自动合并 |
+| D-21 | Cloudflare Email Sending 的原生 Worker binding | 继续 Cloudflare 技术栈；当前 Beta、发信域与真实额度/送达须在 M0/M4 验证，不能使用仅转发收件的 Routing 代替 |
+| D-22 | 路由配置集中维护，设置拆子页，支持页与订单复用已有入口 | 降低页面、API、回跳与索引规则漂移；注册种子仍需真实 router/guard 实现 |
 
 ## 3 官方来源
 
-以下是公开资料与规格阅读记录，核查日期为 2026 年 10 月 18 日。来源用于说明依赖和外部约束；产品定价、配额、性能、转化及收入预测仍是本项目自己的待测假设。
+以下是公开资料与规格阅读记录。S01–S44 保留原 2026 年 10 月 18 日核查记录；新增认证来源 S45–S50 核查于 2026 年 10 月 20 日，Asia/Shanghai。来源用于说明依赖和外部约束；产品定价、验证码策略、配额、性能、转化及收入预测仍是本项目自己的待测假设。
 
 | 编号 | 来源 | 支持事项 |
 | --- | --- | --- |
@@ -90,6 +94,12 @@
 | S42 | [W3C 文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) | 两套主题的文字可读性目标与例外 |
 | S43 | [W3C 非文字对比度](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html) | 重要控件、状态图形与边界对比 |
 | S44 | [Google 多语言站点](https://developers.google.com/search/docs/specialty/international/managing-multi-regional-sites) | 真实语言页面、URL 与后续 hreflang |
+| S45 | [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) | Email Sending 事务邮件、Beta 与 Workers Paid；区分 Routing |
+| S46 | [Email Sending Workers API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/) | 原生 binding、结构化邮件与 messageId；不引入 Node 邮件 SDK |
+| S47 | [发送限制](https://developers.cloudflare.com/email-service/platform/limits/)、[域名配置](https://developers.cloudflare.com/email-service/configuration/domains/) | 任意收件人发送条件、动态额度、发信域 onboarding |
+| S48 | [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect) | 服务端 callback、身份主键使用 sub |
+| S49 | [Google ID token 校验](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token) | 签名/issuer/audience/expiry，以及第三方邮箱声明的权威性限制 |
+| S50 | [OWASP 一次性验证](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)、[会话管理](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) | 短时单次码、防枚举、会话生命周期；不把密码恢复流程照搬为登录 |
 
 ## 4 外部资料与账户条件
 
@@ -100,6 +110,8 @@
 | Waffo 商户、商品与密钥 | 本文不含账户配置 | 商户负责人提供 test/prod，实施者验证环境隔离 |
 | Waffo 生产审核、税费与结算 | 取决于实际商户 | 正式收款前按实际商品配置完成 |
 | Cloudflare Paid、Containers 配额 | 文档能力已核查，用户账户未验证 | 实施 M0 在目标账户确认 |
+| Cloudflare Email Sending 与邮箱登录 | 原生发送能力及 Beta 状态已核查；目标发信域、账户配额与送达未验证 | M0 完成受控收件及登录闭环，M4 完成真实环境验收；仅阅读官方文档不代表本产品已发信 |
+| Google OAuth 与账号关联 | 协议、URI 与数据模型已规定，实际应用未实现 | M0 核验回调，M1 完成两种方式关联、会话和权限测试 |
 | Linux 容器渲染速度与成本 | 未实测 | 实施 M0 和 M4 留实际样片及账单 |
 | 字体、音乐、Logo、演示素材 | 每份需许可记录 | 首批公开样片和生产模板发布前完成 |
 | Instagram 当前主帮助/API | 本轮部分页面受访问限制 | 平台预设标推荐值，上线前实际上传复核 |

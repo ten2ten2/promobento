@@ -17,11 +17,12 @@
 | 任务与账务协调 | Durable Objects | 作业租约、恢复、资源准入，以及按项目协调 checkout、额度、退款和交付 |
 | 渲染计算 | Cloudflare Containers | Linux、Node、Chromium、FFmpeg、ffprobe |
 | 内容 AI | Cloudflare Workers AI | 仅处理已确认文本与结构化分镜 |
+| 认证邮件 | Cloudflare Email Service 的 Email Sending、Workers binding | 英语验证码邮件；Workers Paid、发信域名与真实送达按 [12](12-routing-and-auth.md) 验收，官方当前为 Beta |
 | 防滥用 | Turnstile、Workers 限流、服务端配额 | 注册、上传和 AI 成本控制 |
 | 观测 | Workers Logs、Analytics Engine、D1 关键事件 | 技术故障、业务漏斗与成本 |
 | 内部后台 | Cloudflare Access 与应用管理员权限 | 运营、退款处理和故障恢复 |
 | 支付外部服务 | Waffo.ai | 托管收银台、服务端付款、退款及对账 |
-| 身份外部服务 | Google OAuth | 用户登录；会话与业务授权仍在本系统 |
+| 登录身份 | Google OIDC 与邮箱一次性验证码 | 共用内部 user、可撤销会话与业务授权；两种方式按 [12](12-routing-and-auth.md) 显式关联 |
 
 Cloudflare 官方提供 React Router SSR 与 Vite 集成；实施阶段从其当前官方模板初始化并锁定兼容版本，不使用过时的框架主版本猜测。[官方框架说明](https://developers.cloudflare.com/workers/framework-guides/web-apps/react-router/)
 
@@ -155,8 +156,12 @@ API 通过按项目的 Billing DO 协调成片版本、额度预留、首次目�
 
 | 实体 | 关键字段 | 约束 |
 | --- | --- | --- |
-| `users` | id、provider、provider_sub、email、ui_locale、created_at | 身份以 provider 与 sub 唯一，email 不直接作为身份主键；ui_locale 默认 en 且受已启用范围约束 |
-| `sessions` | token_hash、user_id、expires_at | HttpOnly、Secure cookie，只存 token hash |
+| `users` | id、display_name、ui_locale、status、created_at、session_version | 内部稳定 ID；ui_locale 默认 en；提供方邮箱不作业务主键或账户合并依据 |
+| `auth_identities` | id、user_id、provider、subject、provider_email、verified_at | provider+subject 唯一；Google 使用验证过的 issuer/sub，email 使用本系统 OTP 验证的比较 key；禁止自动转移 identity |
+| `auth_flows` | id_hash、purpose、return_to、context、expires_at、failed_attempts、proofs、completed_session_id | 绑定短时 host-only Cookie；proof 固定身份/用途/时效，不存原始 Google token；任务来源清洗后保存 |
+| `auth_action_intents` | id、user_id、session_id、action、resource、target、request_id、request_digest、flow_id、expires_at、consumed_at | 敏感操作的服务端上下文；再次验证只能完成该操作，proof 消费与业务变更原子提交 |
+| `email_challenges` | id、flow_id、email_key、purpose、generation、code_hmac、key_version、expires_at、consumed_at、send_state、request_id | 单次原子消费与限次；重发只废止本 flow 旧码，不重置失败次数；不保存明文码 |
+| `sessions` | id、token_hash、user_id、created_at、expires_at、revoked_at、session_version | 高熵不透明 token；仅存 hash，HttpOnly/Secure/host-only Cookie；30 天固定期限，服务端可撤销 |
 | `workspaces` | id、name、owner_id、brand_json | 1 位 Owner，最多 3 名成员 |
 | `memberships` | workspace_id、user_id、role | 组合唯一，所有业务授权入口使用 |
 | `projects` | id、workspace_id、audience_type、language、current_revision、status、expires_at | language 为可选内容元数据，可省略或为 und/mul，无用户选择前置条件；统一软删与过期状态，不跨租户关联 |
@@ -175,7 +180,7 @@ API 通过按项目的 Billing DO 协调成片版本、额度预留、首次目�
 | `payment_inbox` | environment、store_id、event_type、event_id、body_digest、processed_at | 四字段组合唯一，原始字段受限保存 |
 | `refund_requests` | order_id、provider_payment_id、refund_external_id、amount_minor、state | 业务退款号唯一，申请与已退款分离 |
 | `outbox` | id、event_type、entity_id、payload、sent_at、retry_at | 与业务更新同批写入，可重复投递 |
-| `share_links`、`invites` | token_hash、scope、expires_at、revoked_at | 高熵 token、范围与撤销状态 |
+| `share_links`、`invites` | id、token_hash、scope、expires_at、revoked_at；invite 另含 accepted_by、accepted_at | 高熵 token、范围与撤销状态；邀请原子检查名额并单次消费，同用户接受重试幂等 |
 | `comments` | project_id、revision_id、scene_id、author_id、text | 仅成员写入，纯文本，不允许脚本 |
 | `usage_events` 与 `audit_logs` | actor、workspace、event、amount、reason、created_at | 分析与财务事件区分，关键事件不采样 |
 
@@ -187,36 +192,82 @@ SSR 与 hydration 使用同一 locale 和时区：尚不知道访客时区时先
 
 ## 8 本产品 API
 
-以下路径是本产品内部契约，不是 Waffo 或 Cloudflare 的 API。
+以下是 PromoBento 的第一方 API 契约。路径与权限种子统一保存在 [config/routes.json](../../config/routes.json)；页面职责见 02，完整 URI、认证和回跳协议见 [12](12-routing-and-auth.md)。应用尚待实施，不把此清单当作已可调用服务。路径参数使用明确的 `:workspaceId`、`:projectId`、`:releaseId`、`:orderId` 等名称，不改变既定外部回调的真实路径。
 
-| 方法与路径 | 输入要点 | 结果与错误 |
+### 8.1 共同规则
+
+`member` 表示当前有效成员，`owner` 还需要该工作区 Owner 权限；角色、资源存在性和租户关联均由服务端确认。列表请求的 workspaceId 来自经校验的查询参数，创建项目从请求体取得明确 workspaceId；项目、订单、版本与任务操作则从真实资源推导所属工作区，不能用请求附带的 workspaceId 改变归属。
+
+受保护 API 无有效会话返回 JSON 401，有效成员缺少操作角色返回 403，跨租户或不可见资源返回 404；不返回登录页面的 HTML。无效输入 422，版本或业务状态冲突 409，限流 429 并按 12 返回可重试时间。未知 API 返回 JSON 404，不支持的方法返回 405 与 Allow。HTTP 重定向和认证接口的特定状态以 12 为准。
+
+所有有副作用的业务提交接受客户端请求 ID；服务端验证范围并保证同一业务请求幂等。认证请求、验证码重发、验证尝试与回调的重放边界由 12 单独定义，不能用幂等重试绕过尝试次数或重发上限。所有同源浏览器写操作执行 Origin/CSRF 检查；Google callback 和 Waffo webhook 使用各自经过验证的外部协议。
+
+错误使用 `{code, messageKey, params, message, fieldErrors, retryable, requestId}`：code 稳定，messageKey 关联翻译资源，params 为经过过滤的插值参数，message 为安全英语回退。fieldErrors 同样保留 code 与字段路径；前端不解析英文句子判断逻辑，不显示内部密钥、验证码、堆栈或未经处理的供应商错误。
+
+### 8.2 认证与偏好
+
+| 方法与路径 | 输入与权限要点 | 结果与约束 |
 | --- | --- | --- |
-| `GET /api/auth/google/callback` | Google OAuth code、state 及绑定校验 | 登录完成后恢复原任务；路径须与 Google 环境配置一致 |
-| `POST /api/preferences` | uiLocale、themePreference 的允许枚举；同源请求 | 保存界面偏好及 host-only Cookie；非允许值 422，不写项目、不调用 AI |
-| `POST /api/projects` | audience、task、duration、platforms | 项目和初始 revision；不要求视频语言参数，混排文案可保存，配额错误 429 |
-| `GET /api/projects/:id` | 已登录或明确分享范围 | 项目、权限、余额、过期日 |
-| `PATCH /api/projects/:id/draft` | baseRevision、changes | 新 revision；冲突 409 |
-| `POST /api/projects/:id/assets/intents` | 文件声明和 idempotency key | 有范围与期限的上传权限 |
-| `POST /api/uploads/:id/complete` | 上传对象与声明 hash | 202 处理 job；校验失败 422 |
-| `POST /api/projects/:id/facts/confirm` | fact IDs、version | 已确认快照；旧值冲突 409 |
-| `POST /api/projects/:id/storyboards` | revision、template、可选文案指令 | 202 生成 job；默认保留各字段语言与混排，不因未选择/未识别视频语言而拒绝 |
-| `POST /api/projects/:id/rewrites` | scene/field、instruction、revision | 有边界的修改候选，不直接覆盖 |
-| `POST /api/projects/:id/preflight` | revision、platforms | blockers、warnings、四种构图结果 |
-| `POST /api/projects/:id/export-snapshots` | revision、coverFrame、platforms | 冻结四种构图与预设，返回 snapshot ID |
-| `POST /api/billing/checkouts` | projectId、sku、purchaseIntent、snapshotId（仅 top_up_only 可空）、可选 resolvedTheme | 原子复用或创建本地订单与 Waffo URL；resolvedTheme 仅影响新收银台外观，不改变订单身份 |
-| `POST /api/payments/waffo/webhook` | 原始 body 和签名头 | 持久化后 2xx，异步发权益 |
-| `GET /api/billing/orders/:id` | Owner 与订单权限 | 本地权威状态，可触发受限对账 |
-| `POST /api/projects/:id/exports` | snapshotId、platforms | 新预留或复用 release，202 |
-| `POST /api/exports/:id/platforms` | 新增平台 | 同快照补文件，不重复扣额度 |
-| `GET /api/jobs/:id` | 工作区权限 | 实际阶段、错误、进度 |
-| `POST /api/exports/:id/downloads` | artifact IDs 或 archive | 短时授权链接，不生成新视频 |
-| `POST /api/projects/:id/share-links` | revision、有效期 | 可撤销只读链接 |
-| `POST /api/support/tickets` | project/order、reason、message | 站内支持编号 |
-| `DELETE /api/projects/:id` | 删除确认、版本 guard | 软删与取消新任务；退款不自动假定完成 |
+| `POST /api/auth/google/start` | purpose 为 login、link 或 reauth；reauth 必须携带本会话的 actionIntentId；回跳目标与关联上下文由服务端固定 | 同源导航表单 POST 后 303 跳转；login-resolution 的合法后续分支见 12，不接受任意 target userId |
+| `GET /api/auth/google/callback` | Google code、state、nonce、PKCE 与提供方声明按 12 验证；reauth 必须匹配 actor 的既有 identity | 登录、再次验证或进入待关联状态；link/reauth 不降级注册，回调 URI 与环境登记完全一致 |
+| `POST /api/auth/email/challenges` | email、purpose、请求 ID、已校验返回目标与防滥用上下文；reauth 必须携带本会话的 actionIntentId | 创建邮箱验证码挑战；reauth 仅验证该 actor 已有关联方式；普通登录先证明邮箱再决定账号行为，不泄漏账号存在性 |
+| `POST /api/auth/email/challenges/verify` | challengeId、code、请求 ID 位于请求体，并验证浏览器绑定流程 | 原子验证一次性验证码；proof 不晚于 flow 到期，pending 证明保留至对应确认；会话、关联或独立注册后续由 12 确定 |
+| `POST /api/auth/email/challenges/resend` | 已绑定 challengeId 与请求 ID | 执行重发冷却、限额及旧码规则；不能用重发延长无限尝试或重复发信 |
+| `GET /api/auth/session` | 同源、可匿名读取 | 200 返回最小会话投影或 authenticated=false；匿名不初始化 auth flow；不返回原始会话 token、验证码或供应商 token；no-store |
+| `POST /api/auth/logout` | scope 缺省 current，非 current/all 返回 422；all 需有效原会话、匹配 logout_all 的 actionIntentId 与证明，否则 403 返回操作意图 | current 有会话验 Origin/CSRF 后撤销，无有效会话则同源检查后清无效 Cookie 并 204；all 原子消费证明并撤销全部会话；不清主题或项目 |
+| `POST /api/auth/links/confirm` | 有效 flow、两份未过期且匹配身份的 proof、请求 ID 与明确确认；登录发起时原会话须仍有效，匿名双证明不要求已有应用 session | 将 login-resolution 按 12 原子派生并消费为一个关联结果，或完成固定的 link 意图；不按显示邮箱合并账号 |
+| `POST /api/auth/registrations/confirm` | 原始 purpose=login、已验证新身份的有效待决 flow、请求 ID 与明确注册确认 | 未知 Google/邮箱资料提示后的新建确认；按 12 将未消费的 login-resolution 派生为一次注册，拒绝固定 link/reauth 分支，重查 identity 仍未绑定，不带入旧数据 |
+| `DELETE /api/auth/flow` | 当前浏览器绑定的待处理认证流程 | 取消未完成挑战与待关联证明；会话与草稿的保留规则见 12 |
+| `POST /api/preferences` | uiLocale、themePreference 的允许枚举；同源请求；修改账号 uiLocale 须有会话 | 保存界面偏好及 host-only Cookie；非允许值 422，不写项目、不调用 AI |
 
-所有有副作用的提交接受客户端请求 ID；服务端验证范围并保证同一业务请求幂等。错误使用 `{code, messageKey, params, message, fieldErrors, retryable, requestId}`：code 稳定，messageKey 关联翻译资源，params 为经过过滤的插值参数，message 为安全英语回退。fieldErrors 同样保留 code 与字段路径；前端不解析英文句子判断逻辑，不显示内部密钥、堆栈或未经处理的供应商错误。
+### 8.3 工作区、成员与邀请
 
-语言、主题资源与 SSR 的实现规则见 10。Worker 每个请求创建自己的 i18n 上下文，禁止修改模块级共享的当前语言。公共匿名且无偏好 Cookie 的英语页面可按公开策略缓存；有会话或主题/语言 Cookie 的个性化 HTML 使用 private, no-store 并绕过公共缓存。静态资源仍可 CDN 缓存。
+| 方法与路径 | 输入与权限要点 | 结果与约束 |
+| --- | --- | --- |
+| `GET /api/workspaces` | 有效会话 | 只返回当前仍是成员的工作区及角色，用于选择视图；不扩大免费配额 |
+| `GET /api/workspaces/:workspaceId` | member | 当前工作区信息和可读品牌配置；敏感管理字段按角色过滤 |
+| `PATCH /api/workspaces/:workspaceId` | owner、明确品牌/名称字段、版本 guard | 更新该工作区；现有项目的内容与已导出快照不被静默重写；冲突 409 |
+| `DELETE /api/workspaces/:workspaceId` | owner、删除确认、版本 guard、匹配本次删除的 actionIntentId 与证明；缺少证明按 12 返回 403 操作意图 | 原子消费证明并开始删除；202 禁用新业务、撤销邀请/分享并排队清理；账务记录与未完成支付/退款按 05 保留和协调 |
+| `GET /api/workspaces/:workspaceId/members` | member | 成员与角色；仅 Owner 同时取得待处理邀请的管理元数据，不回传原始 token |
+| `DELETE /api/workspaces/:workspaceId/members/:userId` | owner、明确移除确认 | 撤销成员权限；不能移除最后一位 Owner，失败 409；后续请求立即重新验权 |
+| `POST /api/workspaces/:workspaceId/invites` | owner、请求 ID | 201 返回 48 小时、单次使用的 Editor 加入链接；复制交付，不自动给他人发信 |
+| `DELETE /api/workspaces/:workspaceId/invites/:inviteId` | owner；inviteId 确属该工作区 | 204 撤销邀请；不隐式移除已加入成员 |
+| `POST /api/invites/accept` | 有效会话、请求体中的邀请 token、明确加入确认；历史成功重试仍检查当前 membership 与工作区状态 | 原子检查邀请与 3 人名额；成功 200，nextPath 固定为受邀工作区项目列表；已移除/工作区不可用 404，不重建历史 membership；名额冲突 409、失效链接 410；GET 不消费邀请 |
+| `POST /api/workspaces/:workspaceId/owner-transfer` | owner、当前成员中的目标 userId、版本 guard、明确确认、匹配本工作区/目标/请求的 actionIntentId 与证明；缺少证明按 12 返回 403 操作意图 | 原子消费证明、更新 Owner 与双方角色，始终保留 1 位 Owner；目标不合法或版本已变返回 409 |
+
+### 8.4 项目、制作、付款与交付
+
+| 方法与路径 | 输入与权限要点 | 结果与约束 |
+| --- | --- | --- |
+| `GET /api/projects` | member、明确 workspaceId、受限分页参数 | 当前工作区可见项目列表、状态与期限；不返回其他租户数据 |
+| `POST /api/projects` | member、workspaceId、audience、task、duration、platforms | 201 项目和初始 revision；不要求视频语言参数，混排文案可保存；配额错误 429 |
+| `GET /api/projects/:projectId` | member；匿名审阅不使用此接口 | 项目、权限、余额、过期日、可访问草稿检查点与成员评论；相关内容按范围分页 |
+| `PATCH /api/projects/:projectId/draft` | member、baseRevision；changes 或 restoreFromRevisionId 二选一 | 创建新 revision；恢复来源必须属于当前项目且资源有效；已导出版本不变，冲突 409 |
+| `POST /api/projects/:projectId/copies` | member、源项目可见、名称与请求 ID | 在同一工作区创建新草稿；不复制已购权益或重置累计免费额度，不跨租户复制素材；201 或配额错误 429 |
+| `DELETE /api/projects/:projectId` | member、删除确认、版本 guard | 软删与取消新任务；退款不自动假定完成 |
+| `POST /api/projects/:projectId/assets/intents` | member、文件声明、请求 ID | 有范围与期限的上传权限 |
+| `POST /api/uploads/:uploadId/complete` | member、上传对象与声明 hash | 202 处理 job；校验失败 422 |
+| `POST /api/projects/:projectId/facts/confirm` | member、fact IDs、version | 已确认快照；旧值冲突 409 |
+| `POST /api/projects/:projectId/storyboards` | member、revision、template、可选文案指令 | 202 生成 job；默认保留各字段语言与混排，不因未选择/未识别视频语言而拒绝 |
+| `POST /api/projects/:projectId/rewrites` | member、scene/field、instruction、revision | 有边界的修改候选，不直接覆盖 |
+| `POST /api/projects/:projectId/preflight` | member、revision、platforms | blockers、warnings、四种构图结果 |
+| `POST /api/projects/:projectId/export-snapshots` | member、revision、coverFrame、platforms | 冻结四种构图与预设，返回 snapshot ID |
+| `POST /api/billing/checkouts` | owner、projectId、sku、purchaseIntent、snapshotId（仅 top_up_only 可空）、可选 resolvedTheme | 原子复用或创建本地订单与 Waffo URL；resolvedTheme 仅影响新收银台外观，不改变订单身份 |
+| `POST /api/payments/waffo/webhook` | 原始 body 和签名头；独立验证环境与提供方身份 | 持久化后 2xx，异步发权益；不依赖浏览器登录或放宽成匿名可信输入 |
+| `GET /api/billing/orders` | owner、明确 workspaceId、受限分页参数 | 该工作区本地订单与付款/退款状态列表 |
+| `GET /api/billing/orders/:orderId` | 订单所属工作区 owner | 本地权威状态，可触发受限对账 |
+| `POST /api/projects/:projectId/exports` | member、snapshotId、platforms | 新预留或复用 release，202 |
+| `POST /api/exports/:releaseId/platforms` | member、新增平台 | 同快照补文件，不重复扣额度 |
+| `GET /api/jobs/:jobId` | member；按真实 job 推导工作区 | 实际阶段、错误、进度 |
+| `POST /api/exports/:releaseId/downloads` | member、artifact IDs 或 archive | 短时授权链接，不生成新视频 |
+| `POST /api/projects/:projectId/share-links` | member、revision、有效期 | 201 返回可撤销只读链接及管理 ID，范围限于选定版本 |
+| `DELETE /api/projects/:projectId/share-links/:shareLinkId` | member；链接确属该项目 | 204 撤销共享；后续预览与素材授权重新检查有效性 |
+| `POST /api/projects/:projectId/comments` | member、revisionId、可选 sceneId、纯文本、请求 ID | 201 返回成员评论；版本/场景须属于该项目，不向匿名审阅开放写入 |
+| `POST /api/support/tickets` | 有效会话、可选且有权访问的 project/order、reason、message | 返回站内支持编号；访客由 `/help` 使用已验证的公开支持渠道 |
+
+匿名审阅由 `/review/:token` 的专门服务端 loader 验证分享范围，只输出选定版本所需的最小预览投影和短期媒体权限，不能借该 token 调用完整项目 API。邀请预览同理由 `/invite/:token` 的 loader 提供有限信息；只有经过会话与确认的接受接口改变成员关系。页面 loader 不构成另一套公开业务 API。
+
+语言、主题资源与 SSR 的实现规则见 10。Worker 每个请求创建自己的 i18n 上下文，禁止修改模块级共享的当前语言。公共匿名且无偏好 Cookie 的英语页面可按公开策略缓存；有会话或主题/语言 Cookie 的个性化 HTML 使用 `private, no-store` 并绕过公共缓存。认证、邀请、审阅、应用与私有 API 同样不得进入公共缓存；静态资源仍可 CDN 缓存。
 
 ## 9 AI 与成本约束
 

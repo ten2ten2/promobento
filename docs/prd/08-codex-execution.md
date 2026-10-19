@@ -10,13 +10,13 @@
 
 | 阶段 | 实施内容 | 退出条件 |
 | --- | --- | --- |
-| M0 可行性闭环 | 官方 React Router Workers 工程；mise 精确锁版本；品牌/i18n/主题基础；D1/R2；单场景 Chromium/FFmpeg 容器；Waffo test checkout 与验签 | 在真实预发布 Cloudflare 成功生成一个 30 秒文件；Waffo 测试付款、回调及查询可核验；英语 SSR 与主题 Cookie/CSS 方案可运行 |
-| M1 第一条用户流程 | Google 登录、工作区、上传、事实确认、共享模板、手动编辑、四构图浏览器预览；英文资源与两套 UI tokens | 软件与课程用户各能在英语网站完成自己的文案预览，允许混排，Light/Dark 均可用，AI 故障可手填 |
+| M0 可行性闭环 | 官方 React Router Workers 工程；mise 精确锁版本；品牌/i18n/主题与 URI 基础；D1/R2；Google 与 Email Sending 最小登录往返；单场景 Chromium/FFmpeg 容器；Waffo test checkout 与验签 | 真实预发布发码、收件、验证及 session 可用；Cloudflare 生成一个 30 秒文件；Waffo 测试付款、回调及查询可核验；英语 SSR 与主题 Cookie/CSS 方案可运行 |
+| M1 第一条用户流程 | Google/邮箱登录、身份关联与退出、工作区、上传、事实确认、共享模板、手动编辑、四构图浏览器预览；英文资源与两套 UI tokens | 两种登录方式均保留任务与权限；AUTH 核心边界通过；软件与课程用户各能在英语网站完成自己的混排文案预览，Light/Dark 均可用，AI 故障可手填 |
 | M2 付费与交付 | 项目包、追加包、不可变快照、权益账本、Queues/DO、导出/封面/ZIP、失败恢复 | PAY 核心测试通过，关闭浏览器仍交付，所有平台可下载 |
 | M3 团队与运营 | 成员链接、冲突、评论、审阅、期限清理、后台、退款、来源埋点、两类用途页 | P0 权限与删除测试通过，漏斗可按人群和渠道查看 |
 | M4 上线验收 | 样片、四构图矩阵、性能费用、平台实际上传、真实支付与退款、生产配置 | 有完整证据，未完成的外部验证明确标记，满足生产发布门槛 |
 
-M0 先解决视频渲染和 Waffo 集成的真实风险，再扩编辑器范围。各阶段不是承诺固定工期；以退出条件推进。两类人群在 M1 就共同覆盖，不能把内容团队排到所有功能做完以后。
+M0 先解决视频渲染、Waffo 和实际邮件登录的接入风险，再扩编辑器范围。各阶段不是承诺固定工期；以退出条件推进。两类人群在 M1 就共同覆盖，不能把内容团队排到所有功能做完以后。
 
 ## 3 建议代码目录（应用实施时建立）
 
@@ -30,6 +30,7 @@ M0 先解决视频渲染和 Waffo 集成的真实风险，再扩编辑器范围�
 | `packages/scene-renderer` | 共享场景、纯时间函数、布局与预览播放器 |
 | `packages/platform-presets` | 版本化平台配置及外部规则元数据 |
 | `packages/billing` | 仅 Waffo 的 adapter、金额转换、订单与事件映射 |
+| `packages/auth` | Google、邮箱 challenge/proof、身份关联、会话与回跳校验；最小 Cloudflare 邮件适配器 |
 | `packages/db` | D1 SQL、迁移、条件写与查询封装 |
 | `packages/ui` | shadcn/ui Base UI 源码封装、表单和编辑器基础组件；Lucide 图标 |
 | `packages/i18n` | 请求级 i18next、英语网站消息目录、UI locale allowlist、Intl 与消息类型 |
@@ -70,6 +71,7 @@ M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本�
 | `mise run test:e2e` | 软件和课程两类流程 |
 | `mise run test:render` | 固定素材关键帧、ffprobe 和四构图验收 |
 | `mise run test:billing` | Waffo 签名、幂等、对账、额度、退款；模式明确 |
+| `mise run test:auth` | URI、OTP、身份关联、会话、CSRF、回跳、邀请及隔离；默认模拟邮件，真实预发布送达模式明确 |
 | `mise run check:i18n` | 稳定文案 key、插值、复数、网站英语首发 allowlist 与资源完整性；用户文案不受该名单限制 |
 | `mise run test:appearance` | System/Light/Dark、SSR 首屏、Cookie、缓存隔离、关键页面与成片样式隔离 |
 | `mise run build` | Web、Workers 和 renderer 镜像构建 |
@@ -88,19 +90,21 @@ M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本�
 | 用途 | 正式地址 |
 | --- | --- |
 | Google OAuth callback | `https://promobento.com/api/auth/google/callback` |
+| 登录、验证码、注册或关联确认 | `https://promobento.com/login`、`/login/verify`、`/login/link`；验证码不进 URL |
+| 认证邮件发信人 | `PromoBento <login@auth.promobento.com>`；预发布使用 `login@auth-staging.promobento.com` |
 | Waffo successUrl | `https://promobento.com/app/billing/orders/{localOrderId}` |
 | Waffo webhook | `https://promobento.com/api/payments/waffo/webhook` |
 | 帮助与支持 | `https://promobento.com/help` |
 | 政策 | `https://promobento.com/privacy`、`/terms`、`/refund-policy` |
 | 规划支持邮箱 | `support@promobento.com`，公开 mailto 前实测收件 |
 
-Google 同意页、允许来源和回调、Waffo 商店品牌、支持信息与域名验证需要实际配置。平台品牌与真实商户主体分别填写。生产与预发布使用 host-only Cookie，不能设 Domain=.promobento.com 共享账号会话。Access 例外只覆盖经过设计的机器回调路径，Waffo test webhook 仍须验签；完整登录和付款往返按 06 验收。
+Google 同意页、允许来源和回调、Email Sending 发信域名与额度、Waffo 商店品牌、支持信息与域名验证需要实际配置。邮件使用 Workers Paid 和原生 `send_email` binding，具体 Beta 状态、DNS 认证、受控收件验收与真实发送边界见 [12](12-routing-and-auth.md)。平台品牌与真实商户主体分别填写。生产与预发布使用 host-only Cookie，不能设 Domain=.promobento.com 共享账号会话。Access 例外只覆盖经过设计的机器回调路径，Waffo test webhook 仍须验签；完整登录和付款往返按 06/12 验收。
 
 UI 视觉与组件用法由 [11](11-ui-design-spec.md) 定义，数值由 `config/ui-tokens.json` 和 `config/theme-tokens.json` 提供。先在 Cloudflare React Router 工程中接入 shadcn/ui 的 Base UI 方案，按实际使用引入源码和最新兼容稳定依赖；统一 tokens 与 portal/SSR 行为，不覆盖既定 Worker 配置。离线参考是设计文档，不是应用实现。
 
 语言配置见 `config/localization.json`，英语资源种子见 `locales/en.json`，主题初值见 `config/theme-tokens.json`。实施时补齐全部真实网站界面资源；UI allowlist 仅 en，不包含视频语言名单或默认值。用户文字、混排与可选内容元数据和 uiLocale 分离，不引入视频语言选择或识别确认流程。主题 Cookie、CSS、SSR 和缓存规则以 10 为准。
 
-Worker bindings 包括 D1、R2、两条队列及 DLQ、DO、AI、可选 Analytics Engine。密钥包括 Google OAuth 客户端凭据、会话签名材料、Waffo 商户私钥与环境验证配置、服务间认证材料。生产 secrets 通过 Cloudflare secret 管理，不能放入前端变量、Docker 镜像或提交仓库。
+Worker bindings 包括 D1、R2、两条业务队列及 DLQ、DO、AI、认证邮件 `EMAIL` 和可选 Analytics Engine。密钥包括 Google OAuth 客户端凭据、`AUTH_OTP_SECRET` 与独立的 CSRF 认证材料、Waffo 商户私钥与环境验证配置、服务间认证材料；应用会话采用不透明随机 token，仅存 hash。原生邮件 binding 不额外向浏览器暴露邮件 API key。生产 secrets 通过 Cloudflare secret 管理，不能放入前端变量、Docker 镜像或提交仓库。
 
 Waffo 配置需有 mode、merchant ID、store ID、两个商品 ID、API 基址、验证公钥或受控 SDK 环境，以及 webhook 路径。test 与 production 在启动和健康检查时校验不混用。API 接收前端 SKU 标识，不接受任意 merchant、商品 ID 或金额。
 
@@ -114,7 +118,7 @@ P0 暂不实现的网址抓取、自动 TTS、自动字幕、平台自动发布�
 
 ## 8 核心契约要求
 
-配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/scene.example.json` 建立完整 schema 和迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
+配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/scene.example.json` 建立完整 schema 和迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。`config/routes.json` 生成共享路由构建/匹配来源，`config/auth.json` 定义认证策略；仍需实现服务端 guard、flow 状态机、D1 约束、邮件适配和真实测试，不能把 JSON 当已运行鉴权。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
 
 最低约束包括总帧连续无重叠、事实均已确认、素材属于当前租户、布局在允许范围内、所有四构图存在、封面时间有效、音轨长度合法、版本快照不可变、相同指纹可复用。带 `exampleOnly` 或 `fixture_placeholder` 的样例只用于契约和本地测试；生产 API 必须拒绝占位素材，不能把示例 hash 当成真实文件验证记录。
 

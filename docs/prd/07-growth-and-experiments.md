@@ -27,18 +27,20 @@ GPT 来源只是一类获客渠道，不是独立商业模式。ChatGPT 能访�
 
 允许公开页面被 OAI-SearchBot 抓取，并避免在 Cloudflare 防护中无意挑战官方已公布来源；训练爬虫策略独立设置。OpenAI 官方说明 OAI-SearchBot 用于搜索，ChatGPT-User 是用户触发访问，后者不决定搜索收录。[OpenAI 爬虫说明](https://developers.openai.com/api/docs/bots)
 
-登录后项目、上传、订单和审阅页面默认不收录，权限验证不能仅靠 robots.txt。`llms.txt` 可作为帮助索引的补充文档，但不作为被推荐或排名的保证，不为它延迟产品闭环。
+`/robots.txt` 和 `/sitemap.xml` 为固定入口；sitemap 只列实际发布、可索引的英语公共页面及真实样片详情。`/create`、登录/验证码/关联页、邀请、应用、上传、订单、审阅及后台不收录，不进入 sitemap；认证、邀请和审阅响应使用私有缓存规则。robots.txt 不是权限控制，完整 URI 与索引规则见 [12](12-routing-and-auth.md) 和 `config/routes.json`。`/llms.txt` 为 P1 可选帮助索引，首版不注册占位路由，也不作为被推荐或排名的保证。
 
 ## 4 来源与事件模型
 
-每个事件记录 `event_id`、UTC 时间、session/user/workspace/project、`audience_type`、入口页、任务、模板、时长、平台组合、ui_locale、video_language 和环境。theme_preference 与 resolved_theme 可作为界面体验分析维度，不作为定价或人群资格条件。涉及价格时附 SKU 与实验版本，事件不包含客户完整文本、私有媒体 URL 或支付敏感数据。
+每个事件记录 `event_id`、UTC 时间、适用的 user/workspace/project、独立分析会话 ID、`audience_type`、入口页、任务、模板、时长、平台组合、ui_locale、video_language 和环境；尚未发生的字段可省略。认证事件增加 `auth_method=google|email_otp` 和安全结果码，不能使用登录 Cookie 或其 hash 作为分析会话 ID。theme_preference 与 resolved_theme 可作为界面体验分析维度，不作为定价或人群资格条件。涉及价格时附 SKU 与实验版本；不采集邮箱、验证码、OAuth code/token、邀请/审阅 token、带认证 query 的完整 URL、客户完整文本、私有媒体 URL 或支付敏感数据。
 
 获客来源分别保留首触、最近非直接来源和可选自报答案。识别实际 ChatGPT referrer 或可信 UTM，不把全部 direct 访问归为 GPT。无法归因记 unknown；自报“来自 ChatGPT”与有技术引荐证据分开分析。浏览器或跨站支付丢失来源时，通过支付前已保存的本地订单关联，不在结账后猜测。
 
 | 事件 | 触发定义 | 可信来源 |
 | --- | --- | --- |
 | `landing_viewed` | 人类会话打开用途页 | 客户端与服务端去重 |
-| `signup_completed` | OAuth 验证成功并建会话 | 服务端 |
+| `signup_completed` | Google 或邮箱首次验证后，账号和默认工作区原子创建成功；每个 user 仅一次 | 服务端 |
+| `login_completed` | 任一已关联方式验证成功并建立应用会话；关联确认不重复算注册 | 服务端 |
+| `auth_method_linked` | 两种身份证明通过并明确确认关联成功 | 服务端 |
 | `project_created` | 项目成功写入 | 服务端 |
 | `assets_ready` | 至少一个合法规范化视觉素材可用 | 服务端 |
 | `facts_confirmed` | 当前事实集由成员确认 | 服务端 |

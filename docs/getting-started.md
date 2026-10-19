@@ -56,6 +56,7 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 - 软件产品团队与已有课程或数字产品收入的内容团队同时作为首批用户。
 - React、TypeScript、Vite、React Router、mise、pnpm。
 - Cloudflare 全栈部署，Waffo.ai 支付。
+- 按第 12 章实现 Google + 邮箱验证码登录；使用 Cloudflare Email Sending，URI 和认证策略读取 routes/auth 配置，身份关联需明确验证。
 - 六个平台预设全部在 P0；真实素材、确认事实、共享浏览器预览与云端渲染。
 - 网站从首版建立国际化架构，首发英语；用户文案可使用任意语言或混排，不设视频语言选择或识别确认门槛。
 - System / Light / Dark 属于 P0，网站主题与视频内容、计费独立。
@@ -63,7 +64,7 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 
 当前仓库包含完整规格、配置种子、契约示例、仓库工具与离线 UI 参考。
 UI 参考只展示设计与样例状态，不作为实际应用或支付实现。
-从 M0 建立真实应用代码与运行命令；先证明 Cloudflare 渲染和 Waffo test 的可行性，
+从 M0 建立真实应用代码与运行命令；先证明 Cloudflare 渲染、Waffo test 和邮件登录的可行性，
 再推进编辑器、账务、交付、团队和运营。复用已有配置，避免制造两套权威来源。
 
 先核查 Cloudflare 构建、workerd 和 Container 的实际兼容范围，再选择范围内最新正式版并锁定。
@@ -82,6 +83,6 @@ UI 配置或参考模板改动后，执行 `mise run build:ui-reference`，再�
 
 ## 6 M0 的具体出口
 
-M0 的应用工作至少包括：核对目标 Cloudflare 构建环境与工具版本，初始化受支持的 React Router 工程并锁版本，建立英语网站 SSR、主题 Cookie/CSS 与配置基础，连接 D1/R2，在目标 Cloudflare 环境通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
+M0 的应用工作至少包括：核对目标 Cloudflare 构建环境与工具版本，初始化受支持的 React Router 工程并锁版本，建立英语网站 SSR、主题 Cookie/CSS 与路由/认证基础，连接 D1/R2，在目标 Cloudflare 环境验证 Google 与邮箱验证码收发/会话、通过单场景容器生成 30 秒 MP4，并验证 Waffo test checkout、签名和查询。认证邮件使用受控测试收件地址，默认本地/CI 不真实发信；精确出口与其余阶段见 [08](prd/08-codex-execution.md)。
 
 当前仓库的检查命令与 M0 的真实环境验证分别记录。开发账号尚未配置时，状态保持未验证，不填写虚构的资源 ID 或成功结果。
