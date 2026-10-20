@@ -49,7 +49,7 @@ SSR 输出 data-theme=system/light/dark；System 首屏由 prefers-color-scheme 
 
 匿名无会话/主题/语言 Cookie 的公开英语 HTML 可缓存 System；有相关 Cookie 的个性化 HTML private,no-store 并绕过共享缓存。创建、认证、应用、邀请、审阅、后台、私有授权和 Set-Cookie 一律 no-store。公共内容 hash 静态资源可长缓存；不以 Vary:Cookie 代替实际隔离，需两浏览器验证。
 
-网站 tokens 来自 theme/ui 配置；衬线展示与无衬线控件、冷中性表面和蓝灰操作色按 11。系统字体不保证跨设备字宽相同，视频使用独立受控资源。Dark 不全局 invert；普通文本 4.5:1、大字 3:1、必要控件/focus 3:1，按实际前景背景检查。
+网站 tokens 来自 theme/ui 配置，视觉、响应式和可访问性按 [02](02-ux-and-ui.md)。系统字体不保证跨设备字宽相同，视频使用独立受控资源。Dark 不全局 invert；对比度须在两种主题的实际前景背景组合中验证。
 
 视频在独立来源运行冻结样式，不读取 UI tokens、Cookie 或设备配色。Light/Dark 网站均可播放任意深浅作品。prefers-reduced-motion 只减少 UI 动画，不改视频时间线。styleLabel 不能用于在冻结后偷偷切换实际渲染风格。
 
@@ -65,7 +65,7 @@ SSR 输出 data-theme=system/light/dark；System 首屏由 prefers-color-scheme 
 | I18N-04 | 无假语言 SEO，伪本地化/40% 扩展，并发 SSR 无串用 |
 | THEME-01 | 首访 System 无写 Cookie、设备变化、显式选择优先、刷新/登录恢复 |
 | THEME-02 | 两浏览器缓存隔离、延迟/禁 JS 首屏/图标/读屏一致 |
-| THEME-03 | 键盘、44 px、三个视口、200% 缩放、减少 UI 动效 |
+| THEME-03 | 按02验证键盘、触控、视口、缩放与减少UI动效，主题不能隐藏主行动 |
 | THEME-04 | 任意作品风格×Light/Dark 下 keyframe/contentHash/账务不变 |
 | THEME-05 | Cookie 无效、快速点击、迟到 Set-Cookie、失败重试和恢复设备设置 |
 | THEME-06 | Waffo 新会话外观与活动会话复用，未重复 checkout |

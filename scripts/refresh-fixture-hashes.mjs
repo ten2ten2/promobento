@@ -2,20 +2,40 @@
 import {writeFileSync} from 'node:fs';
 import {targets,digest,factContentIdentity,contentIdentity,variantIdentity,outputArtifactIdentity,presets} from './contract-validation.mjs';
 const write=(p,v)=>writeFileSync(new URL('../'+p,import.meta.url),JSON.stringify(v)+'\n');
-const version='2.3.0',projectId='proj_fixture',revisionId='rev_fixture_23';
+const version='2.4.0',projectId='proj_fixture',revisionId='rev_fixture_24';
 const all=targets();
+const resources={schemaVersion:version,kind:'resource_manifest',exampleOnly:true,
+ resources:[
+  {path:'assets/product.png',sha256:digest('fixture-product-image'),byteLength:16,mediaType:'image/png',licenseRef:'rights_customer_product'},
+  {path:'fonts/fixture.woff2',sha256:digest('fixture-font'),byteLength:16,mediaType:'font/woff2',licenseRef:'rights_platform_font'},
+  {path:'audio/fixture.wav',sha256:digest('fixture-audio'),byteLength:16,mediaType:'audio/wav',licenseRef:'rights_platform_audio'}],
+ audioEvents:[{kind:'music',sourceHash:digest('fixture-audio'),licenseRef:'rights_platform_audio',frameStart:0,frameEndExclusive:900}]};
 const fact={schemaVersion:version,kind:'fact_manifest',exampleOnly:true,projectId,revisionId,
- facts:[{factId:'fact_name',version:1,text:'Sample / 示例产品',confirmedBy:'user_fixture',confirmedAt:'2026-10-20T00:00:00Z',evidenceRefs:['asset_fixture']}],
+ facts:[{factId:'fact_name',version:1,text:'Sample / 示例产品',confirmedBy:'user_fixture',confirmedAt:'2026-10-20T00:00:00Z',evidenceRefs:['evidence_product_name']}],
  bindings:all.map((t,i)=>({bindingId:'binding_title_'+i,targetId:t.targetId,frameStart:0,frameEndExclusive:900,expectedText:'Sample / 示例产品',factIds:['fact_name'],coverage:'declared'}))};
+const licenseVersions=Object.fromEntries(resources.resources.map(x=>[x.licenseRef,'1']));
+const usagePolicy={termsVersion:'terms-fixture-1',rightsPolicyVersion:'rights-fixture-1',intendedUse:'commercial_export',
+ licenseVersions:Object.entries(licenseVersions).map(([licenseRef,recordVersion])=>({licenseRef,recordVersion}))};
+const markingProfileVersion='marking-fixture-1';
+const provenance={scope:'contract_only_not_legal_clearance',exampleOnly:true,context:{workspaceId:'workspace_fixture',projectId,intendedUse:'preview',
+ assetBindings:Object.fromEntries(resources.resources.map(x=>[x.sha256,x.licenseRef])),licenseVersions,
+ licenseRegistry:Object.fromEntries(resources.resources.map((x,i)=>[x.licenseRef,{'1':{exampleOnly:true,assetHash:x.sha256,
+  scope:i===0?'customer':'platform',basis:i===0?'customer_declaration':'third_party_license',
+  ...(i===0?{workspaceId:'workspace_fixture',projectId}:{}),evidenceHash:digest('fixture-evidence-'+x.licenseRef),allowedUses:['preview','commercial_export']}}])),
+ usagePolicies:{'rights-fixture-1':{exampleOnly:true,termsVersion:'terms-fixture-1',allowedUses:['commercial_export']}},
+ markingProfiles:{[markingProfileVersion]:{exampleOnly:true,machineMarking:'required',audienceDisclosure:'not_applicable',decisionRef:'fixture-assessment'}},
+ claimKinds:{fact_name:'general'},evidenceRegistry:{evidence_product_name:{exampleOnly:true,workspaceId:'workspace_fixture',projectId,
+  kind:'source',sourceHash:resources.resources[0].sha256,factTextHash:digest(fact.facts[0].text)}}}};
 const composition={schemaVersion:version,kind:'composition',exampleOnly:true,projectId,revisionId,
- durationSeconds:30,fps:30,totalFrames:900,seed:'fixture-23',sourceArchiveHash:digest('fixture-runtime-source'),dependencyManifestHash:digest('fixture-dependencies'),resourceManifestHash:digest('fixture-resources'),layoutRulesHash:digest('fixture-responsive-layout-rules'),factManifestHash:digest(fact),factContentHash:digest(factContentIdentity(fact)),runtimeVersion:'runtime-fixture',rendererImageDigest:'sha256:'+digest('fixture-renderer'),presetRulesVersion:presets.rulesVersion,releaseEligible:true,
- variants:all.map(t=>({targetId:t.targetId,presetId:t.presetId,aspectId:t.aspectId,presetVersion:t.version,entrypoint:'src/'+t.aspectId+'.html',sourceHash:digest('fixture-code-'+t.aspectId),targetOverrideHash:null,resourceManifestHash:digest('fixture-resources'),audioHash:digest('fixture-silent-audio-spec'),variantHash:'0'.repeat(64),coverFrame:240,qaReportHash:digest('fixture-only-qa-'+t.targetId)})),
+ durationSeconds:30,fps:30,totalFrames:900,seed:'fixture-24',sourceArchiveHash:digest('fixture-runtime-source'),dependencyManifestHash:digest('fixture-dependencies'),resourceManifestHash:digest(resources),layoutRulesHash:digest('fixture-responsive-layout-rules'),factManifestHash:digest(fact),factContentHash:digest(factContentIdentity(fact)),runtimeVersion:'runtime-fixture',rendererImageDigest:'sha256:'+digest('fixture-renderer'),presetRulesVersion:presets.rulesVersion,releaseEligible:true,
+ variants:all.map(t=>({targetId:t.targetId,presetId:t.presetId,aspectId:t.aspectId,presetVersion:t.version,entrypoint:'src/'+t.aspectId+'.html',sourceHash:digest('fixture-code-'+t.aspectId),targetOverrideHash:null,resourceManifestHash:digest(resources),audioHash:digest(resources.audioEvents),variantHash:'0'.repeat(64),coverFrame:240,qaReportHash:digest('fixture-only-qa-'+t.targetId)})),
  styleLabel:'自定义云墨 Shader',textMetadata:[{language:'mul',direction:'ltr',label:'mixed original text'}]};
 for(const v of composition.variants)v.variantHash=digest(variantIdentity(composition,v));
-const snapshot={schemaVersion:version,kind:'release_snapshot',exampleOnly:true,projectId,revisionId,snapshotId:'snapshot_fixture',compositionHash:digest(composition),contentHash:digest(contentIdentity(composition)),presetRulesVersion:presets.rulesVersion,durationSeconds:30,fps:30,totalFrames:900,variants:structuredClone(composition.variants),initialTargetIds:['tiktok:portrait'],factManifestHash:composition.factManifestHash,rendererImageDigest:composition.rendererImageDigest};
+const snapshot={schemaVersion:version,kind:'release_snapshot',exampleOnly:true,projectId,revisionId,snapshotId:'snapshot_fixture',compositionHash:digest(composition),contentHash:digest(contentIdentity(composition)),presetRulesVersion:presets.rulesVersion,durationSeconds:30,fps:30,totalFrames:900,variants:structuredClone(composition.variants),initialTargetIds:['tiktok:portrait'],factManifestHash:composition.factManifestHash,rendererImageDigest:composition.rendererImageDigest,usagePolicy,markingProfileVersion};
 const edit={schemaVersion:version,kind:'edit_request',exampleOnly:true,requestId:'edit_fixture',baseRevision:revisionId,comments:[{targetId:'tiktok:portrait',frameIndex:240,normalizedPoint:{x:.52,y:.38},comment:'Make the camera orbit around this interface. Preserve other shots.',editScope:'shot'}]};
-const manifest={schemaVersion:version,kind:'export_manifest',exampleOnly:true,projectId,revisionId,snapshotId:snapshot.snapshotId,releaseId:'release_fixture',snapshotHash:digest(snapshot),compositionHash:digest(composition),state:'rendering',initialTargetIds:[...snapshot.initialTargetIds],artifacts:['video','cover','mapping'].map(kind=>({id:kind+'_fixture',targetId:'tiktok:portrait',kind,artifactFingerprint:digest(outputArtifactIdentity(composition,composition.variants[0],kind)),sha256:null,state:'pending'}))};
-for(const [name,data] of Object.entries({composition,'release-snapshot':snapshot,'edit-request':edit,'fact-manifest':fact,'export-manifest':manifest}))write('contracts/'+name+'.example.json',data);
+const manifest={schemaVersion:version,kind:'export_manifest',exampleOnly:true,projectId,revisionId,snapshotId:snapshot.snapshotId,releaseId:'release_fixture',snapshotHash:digest(snapshot),compositionHash:digest(composition),markingProfileVersion,state:'rendering',initialTargetIds:[...snapshot.initialTargetIds],artifacts:['video','cover','mapping'].map(kind=>({id:kind+'_fixture',targetId:'tiktok:portrait',kind,artifactFingerprint:digest(outputArtifactIdentity(composition,composition.variants[0],kind,markingProfileVersion)),sha256:null,state:'pending'}))};
+for(const [name,data] of Object.entries({composition,'release-snapshot':snapshot,'edit-request':edit,'fact-manifest':fact,'export-manifest':manifest,'resource-manifest':resources}))write('contracts/'+name+'.example.json',data);
+write('tests/contracts/provenance-fixtures.json',provenance);
 const envelope={protocolVersion:version,sessionId:'render_fixture',requestId:'seek_fixture',sequence:2,revisionId,targetId:'tiktok:portrait'};
 write('tests/contracts/protocol-fixtures.json',{scope:'contract_only_not_runtime',valid:{
  create_project_request:{schemaVersion:version,kind:'create_project_request',exampleOnly:true,requestId:'req_create',workspaceId:'workspace_fixture',audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true},

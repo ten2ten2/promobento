@@ -12,4 +12,4 @@ Confirm related documents/configuration/contracts are consistent, resource autho
 
 ## Remaining implementation
 
-Update docs/implementation-status.md when real capability changes. Link only relevant current evidence under docs/evidence; do not create routine process diaries.
+Update docs/implementation-status.md when real capability changes. Follow chapter 06 evidence rules: link relevant current reports under docs/evidence only for material runtime verification; put routine check results in this description or CI.

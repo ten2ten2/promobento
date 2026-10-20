@@ -1,6 +1,6 @@
 # URI、登录与账号
 
-本章定义当前路由和认证契约，不是线上登录或邮件已实现声明。配置数值来自 [auth.json](../../config/auth.json)，URI/方法/最低权限来自 [routes.json](../../config/routes.json)，UI 来自 [11](11-ui-design-spec.md)，网站偏好来自 [10](10-i18n-and-themes.md)。
+本章定义当前路由和认证契约，不是线上登录或邮件已实现声明。配置数值来自 [auth.json](../../config/auth.json)，URI/方法/最低权限来自 [routes.json](../../config/routes.json)，UI 来自 [02](02-ux-and-ui.md)，网站偏好来自 [10](10-i18n-and-themes.md)。
 
 ## 1 身份、页面与工作区
 
@@ -14,9 +14,9 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 新账号原子创建一个默认 workspace/Owner membership。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表/Brand/Members/Orders 使用 workspaceId query；省略时服务端选仍有权限的最近或默认工作区，并返回规范化链接。失效选择不能静默写另一个工作区。详情从真实项目/订单推导工作区，不信浏览器“当前工作区”。已无工作区的登录用户看到空态及 Account/Help，不因列表访问再创建默认工作区。
 
-免费试用资格以稳定内部 user_id 为唯一归属，跨其工作区和已关联 Google/邮箱累计一次，且只绑定一个 trial 项目。创建请求 `requestTrial` 默认为 false；仅目标工作区当前 Owner 可显式用自己的 user_id 原子领取，不能指定/代领其他成员 user_id。多工作区并发最多一个领取成功；领取不可用时仍可保存空 draft 并返回 `trialStatus=unavailable`，该稿须先购 US$39 项目包才能上传、处理、取方向或运行 AI。不得要求空稿先生成或冻结快照才能购买创作权益。
+试用资格归稳定内部 user_id，跨其工作区及已关联 Google/邮箱累计。领取只允许当前 Owner 显式使用自己的身份，不能代领其他成员资格；Editor 在已获授权的共享项目中使用现有额度。领取事务、`requestTrial`/`trialStatus`、空 draft 先购创作和完整权益按 [05](05-waffo-billing.md) 与 [14](14-production-contracts.md)，认证不另授予商品或创建免费余额。
 
-Editor 可在被授权共享项目中使用项目现有试用/已购次数，不为每位成员另增额度。邀请、工作区切换、Owner 转移、项目复制或删除、重新登录和新增登录方式都不重置/转移领取记录；试用领取不替代当前成员权限。设备/IP/全局控制仅作反滥用层，不能替代 user_id 的原子资格。独立账号流程仍按本章身份规则，不凭邮箱相似性强行合并；独立注册也不保证获得试用，仍须经过领取与反滥用校验。
+邀请、工作区切换、Owner 转移、项目复制或删除、重新登录及新增登录方式不重置或转移领取历史，仍须校验当前成员权限。设备/IP/全局控制只是反滥用层，不能代替稳定 user_id 的资格检查。独立账号按本章流程创建，不凭邮箱相似性强行合并；独立注册不保证获赠试用，仍须经过05规定的领取和反滥用校验。
 
 ## 2 跳转、HTTP 与隐私
 

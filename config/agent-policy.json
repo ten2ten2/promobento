@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.3.0",
+  "schemaVersion": "2.4.0",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,

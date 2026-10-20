@@ -3,13 +3,13 @@
   "status": "design_spec_seed_requires_browser_validation",
   "scope": "website_ui",
   "units": "px",
-  "sourceDocument": "docs/prd/11-ui-design-spec.md",
+  "sourceDocument": "docs/prd/02-ux-and-ui.md",
   "library": {
     "components": "shadcn/ui",
     "primitives": "@base-ui/react",
     "icons": "lucide-react",
     "styling": "Tailwind CSS",
-    "dependencyPolicy": "docs/dependency-policy.md"
+    "dependencyPolicy": "docs/prd/08-codex-execution.md"
   },
   "typography": {
     "fontFamily": "Arial, Helvetica, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",

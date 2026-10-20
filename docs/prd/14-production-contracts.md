@@ -1,10 +1,10 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章是产品规格 v2.3 的跨模块契约依据。现行结构协议仅接受 `2.3.0`，定义在 `contracts/production.schema.json`；帧协议类型在 `contracts/render-protocol.d.ts`；预算与输入分别在 `config/agent-policy.json`、`config/input-capabilities.json`。结构验证、语义验证与资源授权必须同时成立，不接受已撤销的协议版本、字段形态或商品别名。现行可选创作字段仍可省略；可选不等于历史兼容。参考检查不是D1原子性、隔离沙箱或生产服务。
+本章定义产品规格 v2.4 的跨模块契约。唯一结构协议为 `2.4.0`，见 `contracts/production.schema.json`；帧协议见 `contracts/render-protocol.d.ts`。结构、语义和资源授权须同时通过；可选创作字段以Schema为准。参考检查不是D1、渲染或生产服务。
 
-生产入口显式执行带 `{production:true}` 的语义验证，并拒绝 `exampleOnly:true` 的请求、快照和资源清单。离线Reference允许标注的样例以验证关联和状态；其默认测试上下文不是生产授权路径，不应直接当作上线服务复用。
+生产入口显式使用 `{production:true}`，拒绝 `exampleOnly:true` 的清单及登记证据。校验context必须由可信服务从数据库和真实执行结果构建，不能接受请求体或Agent自报的授权、素材观察记录或检查结果。离线样例只验证结构和关联。
 
-[01](01-product-prd.md)定义产品，[03](03-platform-presets.md)定义输出，[05](05-waffo-billing.md)定义付款退款，[10](10-i18n-and-themes.md)定义语言主题，[11](11-ui-design-spec.md)定义UI，[12](12-routing-and-auth.md)定义认证，[13](13-agent-native-production.md)定义创作方法。API唯一登记在 `config/routes.json`，Agent请求/响应通过 `contracts/agent-api.json` 引用Schema；[08](08-codex-execution.md)是唯一实施顺序。
+[01](01-product-prd.md)定义产品，[02](02-ux-and-ui.md)定义界面，[03](03-platform-presets.md)定义输出，[05](05-waffo-billing.md)定义交易，[09](09-sources-and-decisions.md)定义许可原则，[13](13-agent-native-production.md)定义创作。路由唯一登记在 `config/routes.json`，Agent请求/响应由 `contracts/agent-api.json` 引用Schema；实施顺序见[08](08-codex-execution.md)。
 
 ## 1 唯一版本模型
 
@@ -30,7 +30,11 @@
 
 CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed、sourceArchiveHash、dependencyManifestHash、resourceManifestHash、layoutRulesHash、factManifestHash、factContentHash、runtimeVersion、rendererImageDigest、presetRulesVersion、releaseEligible与variants；可选styleLabel自由值，内容语言元数据可省略。每个variant冻结targetOverrideHash，无覆盖项时明确为null；有覆盖时hash指向实际执行的不可变适配内容。网站Cookie/uiLocale/theme不进入manifest。
 
-资源清单列逻辑路径、字节SHA-256、大小、媒体类型、不可变存储引用、来源许可和字体/塑形配置。字体以实际客户文字逐码位/字素簇验证支持、塑形及明确回退；仅等待 `document.fonts.ready` 不算成功，不允许静默 tofu/系统字体漂移。确认可商用的字体/音源与使用的子集或回退映射须冻结进 resourceManifest，署名义务无法履行的采样不得进入 P0 成片。源码包只包括实际执行源码及锁定依赖引用，不包含manifest自身、QA输出、临时URL、运行日志等自引用/可变材料。实际业务字段声明不足不等于授权通过；必须核对资源归属。
+`resource_manifest`列实际素材的path、sha256、byteLength、mediaType和稳定licenseRef；audioEvents覆盖实际音频事件的sourceHash、licenseRef与帧范围，必须找到对应资源；variant.audioHash等于其清单audioEvents的canonical摘要，无声音时固定为空数组的摘要。asset broker按hash解析不可变存储引用，构建/渲染器提供实际访问的资源和声音记录，与清单核对，不能以Agent自己的清单证明无遗漏。字体子集、塑形和回退配置作为锁定源码/资源冻结；按实际文字验证字素簇、塑形及回退，`document.fonts.ready`不能证明无缺字。源码包不含自身manifest、QA输出、临时URL或运行日志。
+
+`licenseRef`是服务端为素材固定的权利登记ID，不是“OFL”“CC0”或“已获授权”声明。可信登记记录按不可变版本保留依据及evidenceHash、素材字节hash、适用用途；依据可为平台创作、第三方许可或客户保存的授权声明。客户记录必须匹配workspace/project/素材字节，平台已登记来源才可共享。登记存在表示已保存依据，不证明声明真实或拥有版权。免费首次使用前，broker执行 `resourceRightsErrors` 的preview范围检查；商业冻结、编码和发布再按commercial_export检查，未知、缺依据或范围不符均BLOCK。P0平台内置素材须符合09的成片授权条件。
+
+证据更新只新增外部登记版本，不改同一素材的licenseRef；可信assetBindings拒绝任意换绑。resourceManifestHash保留稳定ID而不含声明版本、许可核对日期或证据内容，避免证据更新变成付费内容变化。错误绑定的修正走免费correction，不能以新hash补收一次成片。
 
 `targetId = presetId + ':' + aspectId`。服务器依据**快照固定的**rulesVersion读取合法配对、presetVersion、尺寸、安全区与编码；当前六平台七target。比例分别存在不代表配对有效，例如TikTok:square拒绝。加载不到固定规则版本则 PRESET_VERSION_UNAVAILABLE，不用当前配置代替。
 
@@ -49,27 +53,29 @@ CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed
 | 身份 | 精确定义与用途 |
 | --- | --- |
 | factManifestHash | 完整FactManifest的canonical SHA-256，含确认主体/时间及绑定覆盖证据 |
-| factContentHash | factContentIdentity：去掉projectId/revisionId/exampleOnly，各fact去confirmedBy/confirmedAt，各binding去coverage，其余保留 |
+| factContentHash | factContentIdentity：去掉projectId/revisionId/exampleOnly，各fact去confirmedBy/confirmedAt/evidenceRefs，各binding去coverage，其余保留 |
 | compositionHash | 完整CompositionManifest的canonical SHA-256；用于源包关联与帧会话精确身份 |
 | contentHash | contentIdentity：去projectId/revisionId/exampleOnly/releaseEligible/factManifestHash/styleLabel；variants去qaReportHash并按targetId排序；实际源码、事实内容、依赖、声音、seed、时序、封面、runtime/renderer与规则版本保留 |
 | variantHash | variantIdentity：目标sourceHash、layoutRulesHash/targetOverrideHash、锁依赖、目标resourceManifestHash/audioHash、factContentHash、seed/总帧/fps与固定layout |
-| videoFingerprint | outputArtifactIdentity(video)：kind+artifactIdentity，后者为variantHash、runtimeVersion、rendererImageDigest、固定encoding与layout |
-| coverFingerprint | outputArtifactIdentity(cover)：kind+artifactIdentity+coverFrame+固定jpg_v1编码标识；改封面帧不能复用旧JPG，但可复用未变视频 |
+| videoFingerprint | outputArtifactIdentity(video)：kind+artifactIdentity+markingProfileVersion；artifactIdentity包含variantHash、runtimeVersion、rendererImageDigest、固定encoding与layout |
+| coverFingerprint | outputArtifactIdentity(cover)：kind+artifactIdentity+markingProfileVersion+coverFrame+jpg_v1；改封面帧不能复用旧JPG，可复用未变视频 |
 | mappingFingerprint | outputArtifactIdentity(mapping)：kind+targetId+规则版本+videoFingerprint+coverFingerprint+mapping_v1；对应固定、无临时URL的目标映射 |
 
-source/variant资源hash必须覆盖所有实际绘制依赖；不能遗漏字体、纹理或外部数据。QA声明、确认时间、任意样式标签不应单独触发新版本收费；实际视觉由源码/参数hash体现。相同的预设展示名不造成重复视频，映射文件因目标不同可以不同。
+source/variant资源hash覆盖所有实际绘制依赖。QA、确认、许可/事实证据版本、标记策略和样式标签不单独产生新的成片次数。标记策略改变产物指纹及最终字节，不改变contentHash；必要重标记以免费correction绑定原release，不覆写旧收据。不同target的映射文件仍各自保存。
 
 `contentHash`只是同一项目的计费身份，不能用于跨租户授权。规则/运行版本属于内容身份；用户主动采用新配置会形成新稿，平台安全兼容修复则走免费correction。哈希自指字段不得加入被哈希对象；改变规范化方式需新版本并保留已购执行能力。
 
 ## 4 Snapshot、Release与账务身份
 
-不同snapshotId可能只是同一内容的重新确认，不应重复扣次。已交付release的授权若因退款撤销，普通请求重放不能恢复其下载；同内容的purchase_and_export在创建checkout前返回RELEASE_RESTORATION_REVIEW_REQUIRED并转review_required，按05核查既有消费与恢复授权，不把新grant伪装成从未使用。此边界不阻止普通未使用/未发布失败退款后的新购买、新内容或$39的top_up_only创作购买。`UNIQUE(project_id,content_hash)`确定release；首次成功交付最多消费一个成片版本。重复请求仍执行当前权限检查，同幂等键不同请求摘要409，不因“相同内容”跳过幂等约束。
+`UNIQUE(project_id,content_hash)`确定release；重新确认snapshot不重复扣次。已撤销授权不能通过重放恢复，需恢复审查时返回RELEASE_RESTORATION_REVIEW_REQUIRED，按05处理。请求仍检查当前权限，同幂等键不同摘要409。
 
 发现同内容既有release时返回原release及其**原始snapshot/批次**，不能把本次新snapshot重贴到原输出。若另选平台，用独立补平台请求；不修改initialTargetIds。首次预留固定首批MP4、JPG与映射文件的逻辑集合；每个target均有video/cover/mapping记录，允许共享实际对象。全部就绪、预留/grant有效、项目未删除才原子ready+consume+published_at。
 
 中间文件不下载；最终失败释放预留，可在同release重新预留，consume仍按release唯一，release操作按reservation唯一。补平台不再预留成片次数，不改变已交付状态；ZIP随后派生，失败免费重试不决定首次消费。完整Q2与输出字节绑定、发布前完成，不能用付款前报告冒充成片检测。
 
-快照保存全部目标源包、精确compositionHash、contentHash、事实/renderer和首次目标；manifest关联其真实snapshotHash与revision。ready artifact必须有实际sha256、正确输出指纹和冻结target；首次ready缺任一逻辑输出不可发布。短期签名URL不入内容或产物身份。
+快照保存全部目标源包、compositionHash、contentHash、事实/renderer、首次目标、usagePolicy及markingProfileVersion。usagePolicy固定termsVersion、rightsPolicyVersion、intendedUse=commercial_export和每个licenseRef的recordVersion，须可解析为可信历史记录；表示拟交付适用范围，付款和05规定的条件满足后才授予使用权。导出通过真实snapshotHash关联此收据，不复制一套授权规则。ready artifact必须有实际sha256、正确指纹和冻结target；首批逻辑输出不全不能发布。短期URL不入身份。
+
+AI标记和观众披露分开：可信markingProfile按09及实际用途分别确定machineMarking、audienceDisclosure为required或有依据的not_applicable，并保存decisionRef。不得把所有动画或普通TTS都认作深度合成。付费视频/封面和免费ready预览都需markingEvidenceRef指向真实最终字节的检查结果，绑定输出ID、sha256、策略版本、workspace/project/revision；导出另绑定artifactFingerprint。ready预览的screenshotAssetId不得为空，可信检查记录须将assetId与实际sha256、上述作用域以及target/帧区间一同绑定，不能换成另一个已存输出。mapping不是媒体，不能用其标记代替视频/封面。C2PA只是技术选择；文件含标签或用户勾选不构成检测通过，真实标记、检测、转码后的表现按适用规则验收。
 
 订单授予、退款冻结、晚成功付款、素材失效、保留和恢复按 [05](05-waffo-billing.md)。普通界面注销不取消已付款交付。付费snapshot/runtime/镜像在其正常期、宽限与在途任务仍引用时必须可运行；安全停用走有审计的免费兼容修复。
 
@@ -100,11 +106,11 @@ init30秒、单帧5秒为初始待测上限，实际配置见agent-policy。when
 | 普通参数本地编辑/重播 | 0且不限编辑次数 | 无模型、不启动高清交付编码；素材替换、ASR、云预览和QA独立计入云预算、去抖与缓存；没有editables要明确选择AI修改 |
 | render_export | 首批发布1个成片版本 | 按05/§4去重；重试、补平台、重下、ZIP、系统修复不重复收费 |
 
-有效付费商品仅为 `single_export` $19（1版本、0整片、0AI修改）、`project_pack` $39（新增5整片、15轮AI修改、3版本）、`project_upgrade` $20（有效$19订单同时最多一份在途/有效升级，增加5整片、15轮AI修改、2版本）、`extra_pack` $12（完整项目包或升级后，新增2整片、10轮AI修改、3版本）。完整销售条款与目录来自agent-policy和05，无隐藏预算充值。免费样片及已经消耗的免费次数不从购买新增权益扣除；升级仅授予目录规定的增量，不能把已消耗的首个成片版本再补回。升级及依赖的追加订单全部退款结清、没有未知付款或未结退款后，按05释放有效槽以允许新订单；初始购买亦须整条依赖结清。历史付款回调不能复活退款权益，历史消费和试用记录始终保留。
+商品、权益增量、退款范围和依赖结清由05及agent-policy定义。本章只规定跨系统幂等和消费边界，不维护第二套价格表。
 
-`create_project_request.requestTrial` 可省略并按false处理；只有当前Owner可请求绑定其已认证user_id，不能传其他user_id或workspace余额作为试用来源。原子创建project、请求幂等结果与trial_claims；一个user跨工作区最多一个试用项目。已用完仍创建无免费权益草稿并返回trialStatus=unavailable，不暗中付费；未请求为not_requested，成功绑定为granted。两个并发请求最多一个granted，重复requestId返回同一project。删除/复制/转移Owner/重新登录/关联登录方式不重置该user的累计记录。其他草稿不获得免费素材处理、方向、整片或改稿；试用耗尽可先购买$39的top_up_only，再开启创作。
+`create_project_request.requestTrial` 缺省false；仅Owner可绑定其已认证user_id。project、幂等结果与trial_claims原子创建，一个user跨工作区最多一个试用项目；并发最多一个granted，重复requestId返回同一project。已用完仍建无权益草稿并返回unavailable，未请求为not_requested。删除/复制/转移Owner/关联身份不重置累计记录。未获试用的草稿须先按05购创作权益，不能消耗免费云资源。
 
-试用项目仅有1次成功整片与2轮成功AI修改，三方向和内部工具在操作预算内；账号/设备/IP和全局限额按配置叠加，设备/IP不能替代稳定user_id主键。每次生成/改稿前展示“可用候选交付扣次、之后纯审美拒绝不退次”，不是用户Accept才扣。系统失败/无效输出/取消且没有已交付可用结果则释放；已成功结果经证实技术缺陷可append-only补偿一次，关联原consume保留真实成本。免费预览采用隔离交互iframe；内部QA片段受预算与访问授权控制，不作为可下载的免费高清成片，预览标识不构成绝对防录屏承诺。
+账号/设备/IP和全局限额叠加，设备/IP不能替代user_id。成功计量以可用候选交付为准；未交付的失败释放，已确认技术缺陷通过关联原consume的append-only补偿保留真实成本。免费预览和内部QA片段受访问授权、用途及费用限制，不提供可下载的免费高清交付。
 
 额度预留、run和outbox同事务。`UNIQUE(workspace_id,project_id,operation_id,kind)`；请求幂等另绑定actor/route/requestId/摘要。内部attempt/工具重试不另预留成功次数；不同操作竞争最后额度必须原子仲裁。
 
@@ -144,7 +150,7 @@ init30秒、单帧5秒为初始待测上限，实际配置见agent-policy。when
 
 ## 8 事实与QA授权
 
-FactManifest记录事实版本、原文、来源、确认人/时间。商业文本/旁白绑定factIds、expectedText、合法target和半开帧区间；expectedText必须等于一条已确认事实text。AI重写商业句子要先确认新版本，不能只引用一个真数字就附带新收益保证。装饰不伪造factId；空价格字段不补造。
+FactManifest记录事实版本、原文、evidenceRefs、确认人/时间。商业文本/旁白绑定factIds、expectedText、target和半开帧区间；expectedText须等于已确认text。evidenceRefs从可信证据登记解析并绑定workspace/project、来源字节hash和确认文案hash；缺失、越界或张冠李戴均BLOCK。可信检查按13识别general/testimonial/outcome/promotion；后三类必须有实际来源证据，客户声明不能单独替代。此机制检查来源与确认链，不自动认证真实性。AI改写商业句子须确认新版本，不能凭真数字附带新保证；装饰不伪造factId，空价格不补造。
 
 报告区分“已确认引用”“运行时文本对照”“实际像素/语音覆盖”。用户口播/选用录屏原声的商业主张必须先有用户确认的逐段转写稿并绑定已确认 factIds；手填/经验证 ASR 都可，未经确认不能猜测语音事实，也不能把未知词级对齐当成功。信息流目标以静音可理解和真实帧字幕为 Q1/Q3 审查项。缺字、缺少合法授权或商业事实不一致按 BLOCK，节奏稀疏、三秒钩子不足或调色雷同按 REVIEW/INFO 而非伪硬规范。源码/资产/事实hash变化使关联检查失效。Canvas/Shader/纹理的商业文字若不可提取，声明覆盖不足并以REVIEW要求当前成员审看指定区间；清单不能证明整片没有新承诺，平台不出真实性担保证书。
 
@@ -164,7 +170,7 @@ FactManifest记录事实版本、原文、来源、确认人/时间。商业文�
 
 图片/录屏/文本/Logo/上传声音的P0边界来自输入配置，不偷偷开放HTML/SVG上传、HEVC、长视频、网页抓取或全部TTS语种。目标standard-3仅为试验起点，不承诺GPU；M0b按08在真实Cloudflare验证同源30秒复杂片、字体/seek/Canvas/WebGL/FFmpeg、网络限制、销毁重建和跨job残留，没有结果不开放客户不可信代码。
 
-源码、媒体、音轨、正式QA和snapshot按有效引用、免费正常7天/付费正常90天及各自7天只读宽限保留。临时截图默认72小时且不长于项目正常期；已接受版本或活动作业引用按对应内容保留。等待用户最长24小时。主动删除以墓碑/取消/孤儿清理，24小时内清理不再合法引用的数据；72小时不是例外。财务必要记录独立且配置实际法定周期；常规日志不留prompt全文/源码/token。
+素材、成片、快照和缓存的保存与删除按04/05执行。有效作业引用须可运行；主动删除先墓碑/取消再清理，晚到产物回收。必要交易、授权和侵权证据与完整客户媒体分离，不能借不可变快照永久保留素材；常规日志不留prompt全文/源码/token。
 
 性能分别测排队、方向、首帧、主预览、全目标准备、patch和编码交付；无基准目标保持null，不用硬超时当SLA。样本包含两用户组、15/30秒、复杂运动、两模型配置、空队列与4容器混合；报告人数、p50/p95、失败/人工介入/费用，不宣传未经测量95%。
 

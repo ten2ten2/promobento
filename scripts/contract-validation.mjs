@@ -79,7 +79,7 @@ export const targets = (rules = presets) => rules.presets.flatMap(p => [p.defaul
 export function factContentIdentity(f) {
   const {projectId, revisionId, exampleOnly, ...rest} = f;
   return {...rest,
-    facts: rest.facts.map(({confirmedBy, confirmedAt, ...fact}) => fact),
+    facts: rest.facts.map(({confirmedBy, confirmedAt, evidenceRefs, ...fact}) => fact),
     bindings: rest.bindings.map(({coverage, ...binding}) => binding)};
 }
 export function contentIdentity(c) {
@@ -102,14 +102,63 @@ export function artifactIdentity(c, v, rules = presets) {
     rendererImageDigest:c.rendererImageDigest, encoding:target.encoding, layout:target.layout};
 }
 /** The cache key for an output includes all choices that can change that output. */
-export function outputArtifactIdentity(c, v, kind, rules = presets) {
+export function outputArtifactIdentity(c, v, kind, markingProfileVersion, rules = presets) {
+  if (typeof markingProfileVersion !== 'string' || !markingProfileVersion) throw Error('MARKING_PROFILE_REQUIRED');
   const render = artifactIdentity(c, v, rules);
-  if (kind === 'video') return {kind, render};
-  if (kind === 'cover') return {kind, render, coverFrame:v.coverFrame, encoding:'jpg_v1'};
+  if (kind === 'video') return {kind, render, markingProfileVersion};
+  if (kind === 'cover') return {kind, render, markingProfileVersion, coverFrame:v.coverFrame, encoding:'jpg_v1'};
   if (kind === 'mapping') return {kind, targetId:v.targetId, presetRulesVersion:c.presetRulesVersion,
-    videoFingerprint:digest(outputArtifactIdentity(c,v,'video',rules)),
-    coverFingerprint:digest(outputArtifactIdentity(c,v,'cover',rules)), encoding:'mapping_v1'};
+    videoFingerprint:digest(outputArtifactIdentity(c,v,'video',markingProfileVersion,rules)),
+    coverFingerprint:digest(outputArtifactIdentity(c,v,'cover',markingProfileVersion,rules)), encoding:'mapping_v1'};
   throw Error('INVALID_ARTIFACT_KIND');
+}
+const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
+const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+/** Run at the asset broker before first use, including preview. Context comes from trusted storage, never a request body. */
+export function resourceRightsErrors(resource, context = {}) {
+  const errors = validateSchema(resource, schema.$defs.resource);
+  if (errors.length) return errors;
+  const fail = (ok, code) => { if (!ok) errors.push(code); };
+  fail(!!context.workspaceId && !!context.projectId, 'RESOURCE_SCOPE_REQUIRED');
+  fail(['preview','commercial_export'].includes(context.intendedUse), 'RESOURCE_USE_REQUIRED');
+  fail(own(context.assetBindings, resource.sha256) === resource.licenseRef, 'RESOURCE_LICENSE_BINDING_MISMATCH');
+  const version = own(context.licenseVersions, resource.licenseRef);
+  const record = own(own(context.licenseRegistry, resource.licenseRef), version);
+  fail(!!record, 'LICENSE_RECORD_UNAVAILABLE');
+  if (!record) return errors;
+  if (context.production) fail(record.exampleOnly !== true, 'FIXTURE_LICENSE_IN_PRODUCTION');
+  fail(record.assetHash === resource.sha256, 'LICENSE_ASSET_MISMATCH');
+  fail(record.scope === 'platform' || (record.scope === 'customer' && !!context.workspaceId && !!context.projectId
+    && record.workspaceId === context.workspaceId && record.projectId === context.projectId), 'LICENSE_SCOPE_MISMATCH');
+  fail(['platform_created','third_party_license','customer_declaration'].includes(record.basis)
+    && !(record.scope === 'platform' && record.basis === 'customer_declaration') && hash(record.evidenceHash), 'LICENSE_BASIS_MISSING');
+  fail(record.allowedUses?.includes(context.intendedUse), 'LICENSE_USE_NOT_ALLOWED');
+  return errors;
+}
+/** This checks stored decisions and byte bindings; it does not detect AI content or certify a legal conclusion. */
+function markingErrors(output, context) {
+  const errors = [], fail = (ok, code) => { if (!ok) errors.push(code); };
+  const profile = own(context.markingProfiles, output.markingProfileVersion);
+  fail(!!profile && !!profile.decisionRef, 'MARKING_PROFILE_UNAVAILABLE');
+  if (!profile) return errors;
+  if (context.production) fail(profile.exampleOnly !== true, 'FIXTURE_MARKING_IN_PRODUCTION');
+  for (const field of ['machineMarking','audienceDisclosure']) fail(['required','not_applicable'].includes(profile[field]), 'MARKING_DECISION_REQUIRED');
+  const evidence = own(context.markingEvidence, output.markingEvidenceRef);
+  fail(!!evidence, 'MARKING_EVIDENCE_REQUIRED');
+  if (!evidence) return errors;
+  if (context.production) fail(evidence.exampleOnly !== true, 'FIXTURE_MARKING_IN_PRODUCTION');
+  fail(hash(output.sha256) && evidence.sha256 === output.sha256 && evidence.outputId === output.id
+    && evidence.profileVersion === output.markingProfileVersion, 'MARKING_BYTES_MISMATCH');
+  fail(!!context.workspaceId && evidence.workspaceId === context.workspaceId && evidence.projectId === output.projectId
+    && evidence.revisionId === output.revisionId, 'MARKING_SCOPE_MISMATCH');
+  if (output.artifactFingerprint) fail(evidence.artifactFingerprint === output.artifactFingerprint, 'MARKING_FINGERPRINT_MISMATCH');
+  else {
+    fail(typeof output.screenshotAssetId === 'string' && evidence.assetId === output.screenshotAssetId, 'MARKING_ASSET_MISMATCH');
+    fail(evidence.targetId === output.targetId && evidence.frameStart === output.frameStart
+      && evidence.frameEndExclusive === output.frameEndExclusive, 'MARKING_PREVIEW_IDENTITY_MISMATCH');
+  }
+  for (const field of ['machineMarking','audienceDisclosure']) fail(evidence[field] === (profile[field] === 'required' ? 'verified' : 'not_applicable'), 'MARKING_CHECK_INCOMPLETE');
+  return errors;
 }
 export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
@@ -130,6 +179,22 @@ export function semanticErrors(v, context = {}) {
   const rules = context.presetConfig ?? presets;
   const all = targets(rules), allowed = new Map(all.map(t => [t.targetId, t]));
   const composition = context.composition;
+  if (v.kind === 'resource_manifest') {
+    fail(new Set(v.resources.map(x => x.path)).size === v.resources.length, 'DUPLICATE_RESOURCE_PATH');
+    for (const resource of v.resources) {
+      fail(safePath(resource.path), 'UNSAFE_RESOURCE_PATH');
+      if (context.production || context.licenseRegistry) errors.push(...resourceRightsErrors(resource, context));
+    }
+    for (const event of v.audioEvents) {
+      fail(event.frameEndExclusive > event.frameStart && (!composition || event.frameEndExclusive <= composition.totalFrames), 'AUDIO_EVENT_INTERVAL_INVALID');
+      fail(v.resources.some(x => x.sha256 === event.sourceHash && x.licenseRef === event.licenseRef), 'AUDIO_RESOURCE_NOT_COVERED');
+    }
+    // The renderer/broker supplies its observed inventory. An Agent's own manifest cannot establish completeness.
+    if (context.observedResources) for (const actual of context.observedResources) {
+      fail(v.resources.some(x => x.path === actual.path && x.sha256 === actual.sha256), 'RESOURCE_NOT_DECLARED');
+    }
+    if (context.observedAudioEvents) fail(canonical(context.observedAudioEvents) === canonical(v.audioEvents), 'AUDIO_INVENTORY_MISMATCH');
+  }
   if (v.kind === 'edit_request') {
     fail(v.comments.reduce((n, comment) => n + [...comment.comment].length, 0) <= 4000, 'COMMENTS_TOO_LONG');
     for (const comment of v.comments) {
@@ -187,6 +252,58 @@ export function semanticErrors(v, context = {}) {
     fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
     if ('factContentHash' in v) fail(v.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
   }
+  if (v.kind === 'release_snapshot') {
+    fail(new Set(v.usagePolicy.licenseVersions.map(x => x.licenseRef)).size === v.usagePolicy.licenseVersions.length, 'DUPLICATE_LICENSE_VERSION');
+  }
+  if (context.production && v.markingProfileVersion) {
+    const profile = own(context.markingProfiles, v.markingProfileVersion);
+    fail(!!profile && !!profile.decisionRef && ['machineMarking','audienceDisclosure'].every(field => ['required','not_applicable'].includes(profile[field])), 'MARKING_PROFILE_UNAVAILABLE');
+    if (profile) fail(profile.exampleOnly !== true, 'FIXTURE_MARKING_IN_PRODUCTION');
+  }
+  const delivery = ['composition','release_snapshot','export_manifest','preview_result'].includes(v.kind);
+  if (context.production && delivery) {
+    const source = v.kind === 'composition' ? v : composition;
+    fail(!!source && source.exampleOnly !== true, 'PRODUCTION_COMPOSITION_REQUIRED');
+    const frozen = v.kind === 'release_snapshot' ? v : context.snapshot;
+    if (v.kind === 'export_manifest') fail(!!frozen && frozen.exampleOnly !== true, 'PRODUCTION_SNAPSHOT_REQUIRED');
+    const commercial = ['release_snapshot','export_manifest'].includes(v.kind);
+    const usage = commercial ? 'commercial_export' : 'preview';
+    let licenseVersions = context.licenseVersions;
+    if (commercial && frozen) {
+      const policy = own(context.usagePolicies, frozen.usagePolicy?.rightsPolicyVersion);
+      fail(!!policy && policy.termsVersion === frozen.usagePolicy?.termsVersion
+        && policy.allowedUses?.includes(frozen.usagePolicy?.intendedUse), 'USAGE_POLICY_UNAVAILABLE');
+      if (policy) fail(policy.exampleOnly !== true, 'FIXTURE_POLICY_IN_PRODUCTION');
+      licenseVersions = Object.fromEntries((frozen.usagePolicy?.licenseVersions ?? []).map(x => [x.licenseRef,x.recordVersion]));
+    }
+    if (source) {
+      const hashes = new Set([source.resourceManifestHash,...source.variants.map(x => x.resourceManifestHash)]);
+      const references = new Set();
+      for (const resourceHash of hashes) {
+        const manifest = own(context.resourceManifests, resourceHash);
+        fail(!!manifest, 'RESOURCE_MANIFEST_UNAVAILABLE');
+        if (!manifest) continue;
+        fail(digest(manifest) === resourceHash, 'RESOURCE_MANIFEST_HASH_MISMATCH');
+        for (const variant of source.variants.filter(x => x.resourceManifestHash === resourceHash)) {
+          fail(Array.isArray(manifest.audioEvents) && variant.audioHash === digest(manifest.audioEvents), 'AUDIO_MANIFEST_HASH_MISMATCH');
+        }
+        const observation = own(context.resourceObservations, resourceHash);
+        if (v.kind === 'release_snapshot' || source.releaseEligible || v.state === 'ready') {
+          fail(Array.isArray(observation?.resources) && Array.isArray(observation?.audioEvents), 'RESOURCE_OBSERVATION_REQUIRED');
+        }
+        errors.push(...semanticErrors(manifest, {...context,composition:source,projectId:source.projectId,intendedUse:usage,
+          licenseVersions,observedResources:observation?.resources,observedAudioEvents:observation?.audioEvents}));
+        for (const resource of manifest.resources ?? []) references.add(resource.licenseRef);
+      }
+      if (commercial && frozen) fail(canonical([...references].sort()) === canonical(Object.keys(licenseVersions).sort()), 'FROZEN_LICENSE_SET_MISMATCH');
+      fail(!!context.factManifest && context.factManifest.exampleOnly !== true, 'PRODUCTION_FACT_MANIFEST_REQUIRED');
+      if (context.factManifest) {
+        fail(source.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
+        fail(source.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
+        errors.push(...semanticErrors(context.factManifest, {...context,composition:source,projectId:source.projectId}));
+      }
+    }
+  }
   if (v.kind === 'release_snapshot' && composition) {
     fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
     fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
@@ -202,6 +319,7 @@ export function semanticErrors(v, context = {}) {
       fail(v.snapshotId === context.snapshot.snapshotId && v.snapshotHash === digest(context.snapshot), 'EXPORT_SNAPSHOT_MISMATCH');
       fail(canonical([...v.initialTargetIds].sort()) === canonical([...context.snapshot.initialTargetIds].sort()), 'EXPORT_INITIAL_TARGET_MISMATCH');
       fail(v.projectId === context.snapshot.projectId && v.revisionId === context.snapshot.revisionId, 'EXPORT_SNAPSHOT_IDENTITY_MISMATCH');
+      fail(v.markingProfileVersion === context.snapshot.markingProfileVersion, 'EXPORT_MARKING_PROFILE_MISMATCH');
     }
   }
   if (v.kind === 'export_manifest') {
@@ -212,19 +330,43 @@ export function semanticErrors(v, context = {}) {
       if (composition) {
         const variant = composition.variants.find(x => x.targetId === a.targetId);
         fail(!!variant, 'ARTIFACT_SOURCE_UNAVAILABLE');
-        if (variant && allowed.has(a.targetId)) fail(a.artifactFingerprint === digest(outputArtifactIdentity(composition,variant,a.kind,rules)), 'ARTIFACT_FINGERPRINT_MISMATCH');
+        if (variant && allowed.has(a.targetId)) fail(a.artifactFingerprint === digest(outputArtifactIdentity(composition,variant,a.kind,v.markingProfileVersion,rules)), 'ARTIFACT_FINGERPRINT_MISMATCH');
       }
       if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
       fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
+      if (a.state === 'ready' && a.kind !== 'mapping' && (context.production || context.markingEvidence)) {
+        errors.push(...markingErrors({...a,projectId:v.projectId,revisionId:v.revisionId,markingProfileVersion:v.markingProfileVersion},context));
+      }
     }
     if (v.state === 'ready') for (const id of v.initialTargetIds) {
       for (const kind of ['video','cover','mapping']) fail(v.artifacts.some(a => a.targetId === id && a.kind === kind && a.state === 'ready' && a.sha256), 'INITIAL_BATCH_INCOMPLETE');
     }
   }
+  if (v.kind === 'preview_result' && v.state === 'ready') {
+    fail(typeof v.screenshotAssetId === 'string' && v.screenshotAssetId.length > 0, 'READY_PREVIEW_WITHOUT_ASSET');
+    fail(hash(v.sha256), 'READY_PREVIEW_WITHOUT_HASH');
+    if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId},context));
+  }
   if (v.kind === 'fact_manifest') {
     fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
     const facts = new Map(v.facts.map(f => [f.factId, f]));
     fail(facts.size === v.facts.length, 'DUPLICATE_FACT');
+    if (context.production || context.evidenceRegistry) for (const fact of v.facts) {
+      const claimKind = own(context.claimKinds, fact.factId);
+      fail(['general','testimonial','outcome','promotion'].includes(claimKind), 'FACT_CLASSIFICATION_REQUIRED');
+      let sourceEvidence = false;
+      for (const ref of fact.evidenceRefs) {
+        const evidence = own(context.evidenceRegistry, ref);
+        fail(!!evidence, 'FACT_EVIDENCE_UNAVAILABLE');
+        if (!evidence) continue;
+        if (context.production) fail(evidence.exampleOnly !== true, 'FIXTURE_EVIDENCE_IN_PRODUCTION');
+        fail(!!context.workspaceId && evidence.workspaceId === context.workspaceId && evidence.projectId === v.projectId, 'FACT_EVIDENCE_SCOPE_MISMATCH');
+        fail(hash(evidence.sourceHash) && evidence.factTextHash === digest(fact.text), 'FACT_EVIDENCE_TEXT_MISMATCH');
+        fail(['source','customer_declaration'].includes(evidence.kind), 'FACT_EVIDENCE_BASIS_MISSING');
+        sourceEvidence ||= evidence.kind === 'source';
+      }
+      if (claimKind !== 'general') fail(sourceEvidence, 'FACT_SOURCE_EVIDENCE_REQUIRED');
+    }
     for (const b of v.bindings) {
       fail(allowed.has(b.targetId), 'FACT_TARGET_INVALID');
       fail(b.frameEndExclusive > b.frameStart && (!composition || b.frameEndExclusive <= composition.totalFrames), 'FACT_INTERVAL_INVALID');
@@ -308,7 +450,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.3.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    const result = {schemaVersion:'2.4.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }

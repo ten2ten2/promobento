@@ -1,4 +1,4 @@
-# Tool versions and tasks. See docs/dependency-policy.md.
+# Tool versions and tasks. See docs/prd/08-codex-execution.md.
 min_version = "2026.10.13"
 
 [tools]
