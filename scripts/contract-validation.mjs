@@ -61,16 +61,38 @@ export function validateSchema(value, rule = schema, at = '$', depth = 0) {
   }
   return errors;
 }
-export const targets = () => presets.presets.flatMap(p => [p.defaultAspect, ...p.optionalAspects].map(aspectId => ({targetId: p.id + ':' + aspectId, presetId: p.id, aspectId, version: p.version, layout: presets.aspectLayouts[aspectId]})));
+export const targets = (rules = presets) => rules.presets.flatMap(p => [p.defaultAspect, ...p.optionalAspects].map(aspectId => ({targetId: p.id + ':' + aspectId, presetId: p.id, aspectId, version: p.version, layout: rules.aspectLayouts[aspectId], encoding: rules.encodingProfiles[p.encodingProfile]})));
+/** Billing identities exclude attestations and transport identities, never user-visible text. */
+export function factContentIdentity(f) {
+  const {projectId, revisionId, exampleOnly, ...rest} = f;
+  return {...rest,
+    facts: rest.facts.map(({confirmedBy, confirmedAt, ...fact}) => fact),
+    bindings: rest.bindings.map(({coverage, ...binding}) => binding)};
+}
 export function contentIdentity(c) {
-  const {projectId, revisionId, exampleOnly, releaseEligible, ...rest} = c;
-  return {...rest, variants: rest.variants.map(({qaReportHash, ...v}) => v)};
+  const {projectId, revisionId, exampleOnly, releaseEligible, factManifestHash, styleLabel, ...rest} = c;
+  return {...rest, variants: rest.variants.map(({qaReportHash, ...v}) => v).sort((a, b) => a.targetId.localeCompare(b.targetId, 'en'))};
+}
+export function variantIdentity(c, v, rules = presets) {
+  const target = targets(rules).find(t => t.targetId === v.targetId);
+  if (!target) throw Error('INVALID_TARGET_PAIR');
+  return {sourceHash:v.sourceHash, dependencyManifestHash:c.dependencyManifestHash,
+    resourceManifestHash:v.resourceManifestHash, audioHash:v.audioHash,
+    factContentHash:c.factContentHash, seed:c.seed, totalFrames:c.totalFrames, fps:c.fps,
+    layout:target.layout};
+}
+export function artifactIdentity(c, v, rules = presets) {
+  const target = targets(rules).find(t => t.targetId === v.targetId);
+  if (!target) throw Error('INVALID_TARGET_PAIR');
+  return {variantHash:digest(variantIdentity(c,v,rules)), runtimeVersion:c.runtimeVersion,
+    rendererImageDigest:c.rendererImageDigest, encoding:target.encoding, layout:target.layout};
 }
 export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
   if (errors.length) return errors;
   const fail = (ok, message) => { if (!ok) errors.push(message); };
-  const all = targets(), allowed = new Map(all.map(t => [t.targetId, t]));
+  const rules = context.presetConfig ?? presets;
+  const all = targets(rules), allowed = new Map(all.map(t => [t.targetId, t]));
   const composition = context.composition;
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
@@ -84,7 +106,10 @@ export function semanticErrors(v, context = {}) {
       fail(x.coverFrame < v.totalFrames, 'COVER_OUT_OF_RANGE');
     }
     if (v.releaseEligible || v.kind === 'release_snapshot') fail(all.every(t => ownTargets.has(t.targetId)), 'VARIANTS_NOT_READY');
-    fail(v.presetRulesVersion === presets.rulesVersion, 'PRESET_VERSION_UNAVAILABLE');
+    fail(v.presetRulesVersion === rules.rulesVersion, 'PRESET_VERSION_UNAVAILABLE');
+    if (v.kind === 'composition') for (const variant of v.variants) {
+      if (allowed.has(variant.targetId)) fail(variant.variantHash === digest(variantIdentity(v, variant, rules)), 'VARIANT_HASH_MISMATCH');
+    }
   }
   if (v.initialTargetIds) for (const id of v.initialTargetIds) fail(allowed.has(id), 'INVALID_INITIAL_TARGET');
   if (v.targetId) fail(allowed.has(v.targetId), 'INVALID_TARGET');
@@ -94,6 +119,10 @@ export function semanticErrors(v, context = {}) {
     if (v.revisionId) fail(v.revisionId === composition.revisionId, 'REVISION_MISMATCH');
     if (v.baseRevision) fail(v.baseRevision === composition.revisionId, 'STALE_BASE');
     if (v.frameIndex !== undefined) fail(v.frameIndex < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
+    if (v.frameStart !== undefined) fail(v.frameStart < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
+    if (v.targetId && !['agent_request','edit_request'].includes(v.kind)) fail(composition.variants.some(x => x.targetId === v.targetId), 'TARGET_SOURCE_UNAVAILABLE');
+    if (v.frameStart !== undefined) fail(v.frameStart < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
+    if (v.targetId && !['agent_request','edit_request'].includes(v.kind)) fail(composition.variants.some(x => x.targetId === v.targetId), 'TARGET_SOURCE_UNAVAILABLE');
     if (v.frameEndExclusive !== undefined) fail(v.frameEndExclusive <= composition.totalFrames && v.frameEndExclusive > v.frameStart, 'INTERVAL_OUT_OF_RANGE');
   }
   if (v.command === 'init') {
@@ -102,10 +131,21 @@ export function semanticErrors(v, context = {}) {
     if (composition) {
       fail(v.frameCount === composition.totalFrames, 'RENDER_FRAME_COUNT_MISMATCH');
       fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
+      fail(v.seed === composition.seed, 'RENDER_SEED_MISMATCH');
+      fail(v.seed === composition.seed, 'RENDER_SEED_MISMATCH');
     }
   }
-  if (context.factManifest && 'factManifestHash' in v) fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
+  if (context.factManifest && 'factManifestHash' in v) {
+    fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
+    if ('factContentHash' in v) fail(v.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
+  }
   if (v.kind === 'release_snapshot' && composition) {
+    fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
+    fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
+    fail(v.presetRulesVersion === composition.presetRulesVersion, 'SNAPSHOT_RULES_MISMATCH');
+    fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
+    fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
+    fail(v.presetRulesVersion === composition.presetRulesVersion, 'SNAPSHOT_RULES_MISMATCH');
     fail(v.compositionHash === digest(composition), 'COMPOSITION_HASH_MISMATCH');
     fail(v.contentHash === digest(contentIdentity(composition)), 'CONTENT_HASH_MISMATCH');
     fail(canonical(v.variants) === canonical(composition.variants), 'FROZEN_VARIANT_CHANGED');
@@ -115,10 +155,37 @@ export function semanticErrors(v, context = {}) {
     if (composition) fail(v.compositionHash === digest(composition), 'EXPORT_COMPOSITION_MISMATCH');
     if (context.snapshot) {
       fail(v.snapshotId === context.snapshot.snapshotId && v.snapshotHash === digest(context.snapshot), 'EXPORT_SNAPSHOT_MISMATCH');
-      fail(v.initialTargetIds.every(id => context.snapshot.initialTargetIds.includes(id)), 'EXPORT_INITIAL_TARGET_MISMATCH');
+      fail(canonical([...v.initialTargetIds].sort()) === canonical([...context.snapshot.initialTargetIds].sort()), 'EXPORT_INITIAL_TARGET_MISMATCH');
+      fail(v.projectId === context.snapshot.projectId && v.revisionId === context.snapshot.revisionId, 'EXPORT_SNAPSHOT_IDENTITY_MISMATCH');
+    }
+  }
+  if (v.kind === 'export_manifest') {
+    const ids = v.artifacts.map(a => a.id);
+    fail(new Set(ids).size === ids.length, 'DUPLICATE_ARTIFACT');
+    for (const a of v.artifacts) {
+      fail(allowed.has(a.targetId), 'ARTIFACT_TARGET_INVALID');
+      if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
+      fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
+    }
+    if (v.state === 'ready') for (const id of v.initialTargetIds) {
+      for (const kind of ['video','cover','mapping']) fail(v.artifacts.some(a => a.targetId === id && a.kind === kind && a.state === 'ready' && a.sha256), 'INITIAL_BATCH_INCOMPLETE');
+    }
+  }
+  if (v.kind === 'export_manifest') {
+    const ids = v.artifacts.map(a => a.id);
+    fail(new Set(ids).size === ids.length, 'DUPLICATE_ARTIFACT');
+    for (const a of v.artifacts) {
+      fail(allowed.has(a.targetId), 'ARTIFACT_TARGET_INVALID');
+      if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
+      fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
+    }
+    if (v.state === 'ready') for (const id of v.initialTargetIds) {
+      for (const kind of ['video','cover','mapping']) fail(v.artifacts.some(a => a.targetId === id && a.kind === kind && a.state === 'ready' && a.sha256), 'INITIAL_BATCH_INCOMPLETE');
     }
   }
   if (v.kind === 'fact_manifest') {
+    fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
+    fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
     const facts = new Map(v.facts.map(f => [f.factId, f]));
     fail(facts.size === v.facts.length, 'DUPLICATE_FACT');
     for (const b of v.bindings) {
@@ -130,9 +197,17 @@ export function semanticErrors(v, context = {}) {
     }
   }
   if (v.kind === 'patch_result') for (const path of v.changedFiles) fail(safePath(path), 'UNSAFE_PATCH_PATH');
-  if (v.kind === 'quality_report') for (const f of v.findings) {
+  if (v.kind === 'quality_report') {
+    if (composition) fail(v.sourceHash === composition.sourceArchiveHash && v.factManifestHash === composition.factManifestHash, 'STALE_QA_PROVENANCE');
+    for (const f of v.findings) {
+    fail(f.frameEndExclusive > f.frameStart && (!composition || f.frameEndExclusive <= composition.totalFrames), 'QA_INTERVAL_INVALID');
     fail(!(f.level === 'BLOCK' && f.waiver), 'BLOCK_NOT_WAIVABLE');
-    if (f.waiver) fail(f.waiver.revisionId === v.revisionId && f.waiver.targetId === v.targetId, 'STALE_WAIVER');
+    if (f.waiver) {
+      fail(f.waiver.revisionId === v.revisionId && f.waiver.targetId === v.targetId, 'STALE_WAIVER');
+      fail(Number.isFinite(Date.parse(f.waiver.expiresAt)), 'INVALID_WAIVER_EXPIRY');
+      if (context.now !== undefined) fail(Date.parse(f.waiver.expiresAt) > context.now, 'EXPIRED_WAIVER');
+    }
+    }
   }
   return errors;
 }
@@ -140,11 +215,11 @@ export function safePath(path) {
   return typeof path === 'string' && path.length <= 512 && !path.includes('\\') && !path.includes('%') && !/[:\x00-\x1f]/u.test(path) && !path.startsWith('/') && path.split('/').every(p => p && p !== '.' && p !== '..');
 }
 const edges = {
-  queued: {start: 'active', cancel: 'cancelled', fail: 'failed'},
-  active: {ask_user: 'awaiting_user', candidate: 'validating', budget_limit: 'paused_budget', cancel: 'cancelled', fail: 'failed'},
+  queued: {start: 'active', cancel: 'cancelled', fail: 'failed', expire: 'failed'},
+  active: {ask_user: 'awaiting_user', candidate: 'validating', budget_limit: 'paused_budget', cancel: 'cancelled', fail: 'failed', expire: 'failed'},
   awaiting_user: {resume: 'queued', cancel: 'cancelled', expire: 'failed'},
   paused_budget: {resume: 'queued', cancel: 'cancelled', expire: 'failed'},
-  validating: {pass: 'succeeded', repair: 'active', budget_limit: 'paused_budget', cancel: 'cancelled', fail: 'failed'}
+  validating: {pass: 'succeeded', repair: 'active', budget_limit: 'paused_budget', cancel: 'cancelled', fail: 'failed', expire: 'failed'}
 };
 export function transition(state, event, guard = {}) {
   const next = edges[state]?.[event];
@@ -177,5 +252,5 @@ export class RevisionReference {
   }
 }
 export function matchesFrameReady(command, response, manifestHash, disposed = false) {
-  return !disposed && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
+  return !disposed && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
 }
