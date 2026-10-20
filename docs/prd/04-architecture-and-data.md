@@ -16,7 +16,8 @@
 | 调度 | Cloudflare Queues | 素材处理和成片作业的至少一次投递 |
 | 任务与账务协调 | Durable Objects | 作业租约、恢复、资源准入，以及按项目协调 checkout、额度、退款和交付 |
 | 渲染计算 | Cloudflare Containers | Linux、Node、Chromium、FFmpeg、ffprobe |
-| 内容 AI | Cloudflare Workers AI | 仅处理已确认文本与结构化分镜 |
+| AI 与模型路由 | Workers AI（轻量文本）+ 基准测试后的 Coding Model Provider | 一主 Agent + 工具调用；导演/动画代码/修复与预算配置 |
+| 创作沙箱 | 独立 Agent Runner（Container/Sandbox 方案经真实验收选择） | 不可信 Composition 编译、浏览器寻帧与局部审片，不能接触生产密钥 |
 | 认证邮件 | Cloudflare Email Service 的 Email Sending、Workers binding | 英语验证码邮件；Workers Paid、发信域名与真实送达按 [12](12-routing-and-auth.md) 验收，官方当前为 Beta |
 | 防滥用 | Turnstile、Workers 限流、服务端配额 | 注册、上传和 AI 成本控制 |
 | 观测 | Workers Logs、Analytics Engine、D1 关键事件 | 技术故障、业务漏斗与成本 |
@@ -32,33 +33,29 @@ P0 不额外引入 Supabase、Vercel、Redis、独立云厂商、Vectorize 或 W
 
 ```mermaid
 flowchart TD
-  A[React 编辑器与预览] --> B[Workers API]
-  B --> C[D1 项目与账务]
-  B --> D[R2 私有素材]
-  B --> E[Workers AI 分镜]
-  B --> F[Waffo 收银台]
-  F --> G[Webhook 与对账]
+  A[React Studio + 隔离预览] --> B[Workers API]
+  B --> C[D1/R2: 项目、授权素材与版本]
+  B --> D[Agent Orchestrator + Model Router]
+  D --> E[独立 Agent Runner: 编译与审片]
+  E --> F[不可变 Composition Revision]
+  F --> C
+  B --> G[Waffo + Billing DO]
   G --> C
-  C --> H[Outbox 与 Queues]
-  H --> I[DO 作业控制]
-  I --> J[Container 渲染]
-  J --> D
-  I --> C
+  C --> H[Outbox/Queues]
+  H --> I[Job DO + 资源准入]
+  I --> J[隔离 Renderer: Chromium/FFmpeg/QA]
+  J --> C
 ```
 
-业务入口提交任务后立即返回任务 ID。浏览器轮询任务状态，间隔从 2 秒逐渐增至 10 秒，后台标签页降低频率；可在以后升级 SSE，不依赖长连接保证交付。Workers HTTP 请求不承担 Chromium 渲染或 FFmpeg 编码。
+Director 从用户确认的事实与素材生成创意方向和镜头计划，Coding Agent 在**独立沙箱**自由设计 SVG/Canvas/WebGL/Three.js/自定义运动，真实浏览器抽帧并制作声音；通过受控 seek Bridge 保障预览与 MP4 渲染使用同一 Composition 版本。未经 QA 的静态假视频不能冒充结果。
 
-D1 保存业务结果，DO 负责某个作业的当前执行，容器只是可丢弃计算环境。任何成片或订单都不能只存在进程内存或临时磁盘。
+Workers API 负责鉴权和协调，不执行 Agent 输出的 HTML/JS。D1/R2 保存不可变内容、源包和交付文件，Queues/DO 提供任务租约、资源预算、幂等与恢复。云容器只是可丢弃的执行环境，支付/权益协调保留原有原子性。
 
-## 3 与 huashu 仓库的关系
+## 3 与 huashu-motion 的关系
 
-本轮阅读的 huashu-motion 基线提交为 `3e927801e78b587878fb7dbb65d616326df00c21`，package.json 版本为 0.1.0。上游是本地 coding agent 工作流，不包含本 PRD 的多租户、计费、云作业和账户系统。参考其导演流程、分镜组织、素材定位、局部编辑思路与按时间渲染方法，选择性移植适用的 MIT 代码并保留来源。
+参考基准为 [huashu-motion@5f2608c](https://github.com/alchaincyf/huashu-motion/commit/5f2608c2e12abcf518f74dde86093b19f7f88603)（2026-10-19）。复用 Director、20 种运动语言的知识库、ABC 作曲与音效、`om check` / `om qa`、Studio 点选反馈和 `om learn` 的**方法与适宜代码**；具体 PORT/ADAPT/REBUILD 列表见 [13 第 2 节](13-agent-native-production.md)。
 
-P0 成片使用自有 React 场景组件和纯时间函数。上游的 CLI、不受限 agent 执行、macOS 配音路径不作为生产服务的默认执行入口。huashu-art-motion 的参数化图形与高亮场景可作为后续组件来源，首版只接实际用得上的已核查组件，不导入全部艺术样例。
-
-必须遵守上游第三方清单：项目自身代码及文档的 MIT 不覆盖所有附带资产；GSAP 有单独许可，作者“豆子花叔”形象不授权用作本产品素材。P0 默认不打包 GSAP，以自有插值和 SVG、Canvas、DOM 绘制实现指定动效；如将来采用 GSAP，需先确认具体使用获得相应许可。此决定不等于宣称所有商业 GSAP 用途被禁止。
-
-来源：[上游提交](https://github.com/alchaincyf/huashu-motion/commit/3e927801e78b587878fb7dbb65d616326df00c21)、[第三方清单](https://github.com/alchaincyf/huashu-motion/blob/3e927801e78b587878fb7dbb65d616326df00c21/THIRD_PARTY.md)、[GSAP 官方条款](https://gsap.com/community/standard-license/)。
+可依法移植的 MIT 自有逻辑须保留上游 commit、NOTICE 与测试；本地 CLI、JSONL inbox、macOS 配音/CDP 路径不能直接充当云服务。SaaS 多租户/支付/任务/沙箱全由本项目设计。GSAP 有独立许可，P0 不默认打包；作者形象、演示片、采样、字体不得未经审核商业打包。**不使用 GSAP 不代表限制 Agent 创作自定义运镜。**
 
 ## 4 素材处理
 
@@ -88,39 +85,25 @@ R2 预签名地址是到期前可使用的 bearer token；不能把临时可写�
 
 删除与过期清理由素材引用关系决定。被另一有效项目或已导出版本引用的规范化对象不能提前删除；跨工作区不做可泄露存在性的全局去重。
 
-## 5 场景与渲染
+## 5 自由 Composition 与渲染
 
-### 5.1 结构化契约
+### 5.1 源码是真正的视频工程
+每个 revision 冻结 Composition 的 HTML/CSS/TS/JS、SVG/Canvas/WebGL/Three.js 等自定义源码、受控依赖、字体、素材 hash、品牌事实、音轨、30 fps 时间元数据与平台 Variants。元数据只规定技术接入、确定性寻帧与合法输出，**不能规定固定六场景 enum、Clean/Bold 风格或仅允许某几种动效**。
 
-SceneDocument 包含 schema 版本、可选内容语言元数据、品牌快照、事实引用、素材版本、帧率、总帧数、随机 seed、场景和四种构图布局。场景类型固定为 `hook`、`product_showcase`、`screen_demo`、`benefit`、`facts`、`cta`。
+以 [v2.2 Composition 示例](../../contracts/composition.example.json) 为起点；原 `contracts/scene.example.json` 仍作为 v1.x 迁移 fixture，但不再是 v2.2 的主创作契约。网站 `uiLocale` 和主题不进入成片；用户文案可任意语言混排，无全局视频语言选择门槛。
 
-`language` 仅作为可选内容元数据，与网站 `uiLocale` 分离；未知可用 `und`，多语内容可用 `mul`，不要求用户选择，也不限制文案准入。实际用于排版的语言、方向及文字随 revision 和内容快照固定，重试时不重新识别。页面的 `themePreference` 与 `uiLocale` 不进入 SceneDocument，也不参与导出版本身份。`brand` 保存客户产品品牌；平台的 PromoBento 标识与公开预览水印独立配置，不能批量覆盖客户名称、CTA 或颜色。
+### 5.2 共享确定性帧桥接
+Composition Bridge 提供 `seekFrame(frameIndex, presetId)`、`frameReady`、可选镜头标记、可编辑参数和画面命中。任意目标帧由冻结源码、seed、音轨和合法平台 Variant 决定；Agent 可使用 DOM、Canvas、3D 或完全自定义算法，但不得依赖未锁定网络、墙上时钟、未保存随机数或当前用户 Cookie。
 
-每个 scene 必须有 `id`、`type`、`startFrame`、`durationFrames`、`text`、`factRefs`、`assetRefs`、`layoutByAspect`。时间使用整数帧，素材裁切使用 0–1 归一化坐标。资产引用不包含外部任意 URL；文本是普通字符串，不能渲染为 HTML。
+预览在**独立来源**的隔离 iframe 中运行，通过校验 origin/nonce 的受限消息桥接获取选中元素，不在主站运行自由代码。Linux 容器内使用同一 Composition/版本化字体资源逐帧送入 FFmpeg，真正验证 WebGL、视频寻帧、色彩和多语言字形；顺序、逆序与冷启动 seek 不应因历史播放状态而输出不同帧。音画按唯一整数帧时钟同步并进行响度/true-peak 检验。
 
-scene 可按已有 `text` 字段名提供可选 `textMetadata`，覆盖语言和方向；混排不需要统一成单一项目语言。缺少语言元数据或识别失败不阻止生成、编辑、预览和导出；最终使用的文本方向与字体随快照固定。
+### 5.3 固定输出与不可变快照
+时长仅允许 15 秒（450 帧）或 30 秒（900 帧），30 fps。平台预设严格沿用 [03](03-platform-presets.md) 与根 config 的六项，不开放自由画幅、分辨率和帧率。Agent 可为合法预设**重新编排镜头和构图**，不能仅靠机械裁切或伪造素材内容。
 
-详细例子见 `contracts/scene.example.json`。英语与 Inter 只是该示例的值，不是全局允许范围。类型、长度、范围与引用完整性同时在前端和服务端校验，服务端为最终依据。模型产生的未知类型、未知字段、未确认事实、不可访问 asset ID 必须拒绝，不能宽松合并进项目。
+成片快照冻结源码及其依赖 hash、资产、字体、内容事实、实际文本与排版语言方向、混音、全部平台 Variant、预设版本及渲染镜像 digest。同一内容/布局/编码/镜像指纹可跨平台复用已导出文件。真实执行应用按 renderer 版本路由；已购快照不因日常部署被更换，必要修复有审计且不收额外版本费。
 
-### 5.2 共享渲染
-
-预览与编码导出共用同一个 `scene-renderer` 包：`renderFrame(document, frameIndex, aspect)` 的视觉结果取决于不可变文档和帧序号。动画使用纯插值，不依赖真实时钟、网络返回、鼠标状态或未保存随机数。P0 以 DOM、SVG 与 Canvas 为主，不依赖 GPU 或复杂 Three.js 场景。
-
-字体及回退顺序由受控资源固定，预览和容器加载同一组所需文件，不依赖客户设备的系统字体。字体加载、图片解码和视频 seek 完成后才认定帧就绪，另查实际缺字、复杂塑形、混排方向和溢出。播放页面和渲染页面使用同一基准逻辑。测试比较关键帧、布局、文字、时长和声音，不承诺所有用户浏览器与容器逐像素一致。
-
-完整渲染逐帧向 FFmpeg 管道输出，按构图顺序处理，不将全部原始帧积存在内存或磁盘。视频片段按目标帧 seek 或使用确定性预解码策略；任何策略必须通过实际录屏音视频对齐验收。
-
-音频处理使用同一时序与混音定义。旁白和配乐的增益、淡入淡出、ducking 区间在文档中冻结；导出用 FFmpeg 显式混音，预览使用相同参数。产品音量目标为整片约 -16 LUFS、true peak 不高于 -1 dBTP；这是内部听感目标，不是平台统一硬性规则。
-
-### 5.3 输出不可变性
-
-创建成片版本时固定内容 revision、视频 language、文本方向、素材 hash、字体文件、四种布局、视频样式、模板版本、renderer 镜像 digest、平台预设版本和音频参数。任何派生文件都只读取这个快照，不再查询当前草稿。renderer 不读取用户 Cookie、系统外观或界面主题变量。
-
-`artifact_fingerprint` 由内容 hash、布局、编码配置和 renderer digest 生成。多个平台的指纹相同可共用文件；不同平台的独立布局改变指纹。重新下载只签发权限，不启动渲染。
-
-`default` 容器调度的镜像属于应用级配置。因此，每个生产 renderer 版本必须有独立、可调用的 Worker/Container 应用，`renderer_versions` 注册表保存版本 ID、镜像 digest、调用绑定、字体与前端资源清单；dispatcher 按快照版本路由。旧应用和资源保留到所有关联项目、宽限期及在途任务结束，不能只存旧 digest 却覆盖唯一可执行应用。
-
-系统兼容性或安全修复产生有审计原因的修复版本，与用户改稿区分。不能继续运行的旧镜像通过有记录的免费兼容迁移处理并验收关键帧，原成片文件仍不可变。客户已经购买的版本不会仅因日常部署自动换成另一种视觉结果。
+### 5.4 QA 和精确改稿
+源码与依赖检查、浏览器关键帧抽样、完整 MP4 单帧闪帧/硬切/静止/运动曲线与音效同步构成质量门禁。静止展示内容的正常阅读段不应误封；自动修复受预算控制。Studio 点选携带 revision、平台、帧、坐标和截图，Agent 生成 scoped patch 候选 revision、真实比对局部影响，失败/拒绝时保留原有内容和购买权益。详见 [13](13-agent-native-production.md) 与 [点选请求示例](../../contracts/edit-request.example.json)。
 
 ## 6 Cloudflare 作业机制
 
@@ -168,7 +151,12 @@ API 通过按项目的 Billing DO 协调成片版本、额度预留、首次目�
 | `product_facts` | project_id、fact_id、value、confirmed_by、confirmed_at、version | 修改值产生新版本，引用可追溯 |
 | `assets` 与 `asset_versions` | workspace_id、kind、r2_key、sha256、size、codec、status | upload key 与不可变规范化 key 分离 |
 | `asset_refs` | project_id、revision_id、asset_version_id | 清理必须检查有效引用 |
-| `project_revisions` | id、project_id、base_revision、document_json、content_hash | 内容不可变，保存有乐观锁 |
+| `project_revisions` | id、project_id、base_revision、composition_ref、content_hash | 不可变源码版本与乐观锁；旧 document_json 仅用于迁移读取 |
+| `creative_briefs` 与 `treatments` | project_id、revision_id、facts_hash、brief_json、treatment_hash、evidence_refs | 已确认事实与创作方案分离 |
+| `composition_sources`、`composition_variants` | revision_id、source_key、source_hash、dependency_hash、preset_id、variant_hash | 自由源码、合法预设、授权素材冻结 |
+| `agent_runs` 与 `agent_steps` | workspace_id、project_id、revision_id、tool_trace、budget_used、status | 按租户隔离、可审计、可恢复 |
+| `edit_requests`、`quality_reports` | revision_id、frame_index、preset_id、screenshot_ref、patch_hash、qa_hash | 画面点选与真实 QA 证据 |
+| `creative_memory`（P1） | workspace_id、kind、provenance、confidence、revoked_at | 用户可控、可删除，不跨工作区混合 |
 | `export_releases` | id、project_id、revision_id、snapshot_json、fingerprint、initial_artifact_manifest、published_at、state | 同项目同快照唯一，首次目标冻结，追加平台不改变首次交付边界 |
 | `renderer_versions` | id、image_digest、worker_binding、asset_manifest、status、retire_after | 按实际可执行应用路由，旧版本保留到引用失效 |
 | `export_artifacts` | release_id、artifact_fingerprint、kind、r2_key、sha256、status | 文件指纹唯一，记录平台映射 |
@@ -269,13 +257,13 @@ SSR 与 hydration 使用同一 locale 和时区：尚不知道访客时区时先
 
 语言、主题资源与 SSR 的实现规则见 10。Worker 每个请求创建自己的 i18n 上下文，禁止修改模块级共享的当前语言。公共匿名且无偏好 Cookie 的英语页面可按公开策略缓存；有会话或主题/语言 Cookie 的个性化 HTML 使用 `private, no-store` 并绕过公共缓存。认证、邀请、审阅、应用与私有 API 同样不得进入公共缓存；静态资源仍可 CDN 缓存。
 
-## 9 AI 与成本约束
+## 9 Agent、模型路由与预算
 
-Workers AI 模型只接收确认文本和受控素材描述；P0 不把原始客户录屏发送给内容模型。模型 ID 存配置，实施时从 Cloudflare 当前可用的结构化文本模型选择并固定，必须跑两类用户的基准任务后采用。官方 JSON Mode 不能代替应用层校验。[Workers AI JSON Mode](https://developers.cloudflare.com/workers-ai/features/json-mode/)
+Workers AI 可以处理受控文本整理，自由动画创作需要经过真实样片基准测试的 Coding Model。优先**一个主 Agent + 工具调用**完成 understand、direct、code、composeSound、preview、inspect、QA、patch，不强制多个昂贵独立模型会话。模型 ID、工具、依赖、运行预算、超时、失败原因与真实成本记录入系统。
 
-每次整片生成限制输入与输出 token 预算，设置 45 秒超时；无效输出最多一次内部修复，总成本记在同一用户操作上。服务端限制同时运行的 AI 操作，免费与付费额度分账。模型失败可以手动完成模板，不把 AI 可用性作为用户已购导出的唯一依赖。
+每次创作设置 tokens、容器 CPU/时间、修复轮数和并发上限，平台内部失败不谎报成功或重复扣已购成片权益。Agent 输出与网页抓取内容均为不可信数据；沙箱不接触 Waffo、Cloudflare 管理密钥和其他工作区私有资产。保留原 [05](05-waffo-billing.md) 已有价格/余额/退费语义，新 AI 创作额度和套餐调整先做定价实验，不能静默更改已购权益。
 
-免费操作和新付费订单在全站预算熔断时可暂停。已经成功收款的导出必须有预留容量和恢复队列，不能因为免费流量耗尽预算就无限期搁置。
+新增 Agent/Studio API 先按 [13](13-agent-native-production.md) 定义行为；在实施时需同步 [路由种子](../../config/routes.json)、[12 URI 与认证](12-routing-and-auth.md) 和 API 检查。现有 storyboard URI 若复用，应调度新 Composition Orchestrator，而非旧固定枚举场景生成。
 
 ## 10 数据保存与删除
 

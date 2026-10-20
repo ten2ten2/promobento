@@ -95,6 +95,9 @@ GPT 来源只是一类获客渠道，不是独立商业模式。ChatGPT 能访�
 
 关注是否有人为下一次功能更新、下一期招生或新数字产品购买新项目；同项目 US$12 追加是编辑需求，不能直接当作月度订阅意愿。订阅功能以真实重复购买和更新频率为依据。
 
+### 6.1 v2.2 创作质量与成本指标
+试运营除来源、激活、付款和交付外，增加 `creative_direction_selected`、`agent_revision_count`、`user_patch_accept_rate`、`qa_blocking_failures`、`normal_speed_review`、`usable_video_confirmed` 作为待实现分析事件。分别统计模型 token、创作沙箱 CPU、编码容器费用和客户满意度；不将虚构的 QA 通过或未授权用户素材公开展示。
+
 ## 7 成本模型与护栏
 
 单项目实际可变成本为：支付成功与失败费用，加退款与提现分摊，加 AI、素材规范化、最多三个成片版本及其多构图文件、存储、归档、下载和人工支持。

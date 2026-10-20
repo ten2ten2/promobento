@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "2.2.0",
+  "exampleOnly": true,
+  "status": "contract_seed_not_runtime",
+  "compositionKind": "agent_authored_source",
+  "revisionId": "fixture_revision_001",
+  "durationSeconds": 30,
+  "fps": 30,
+  "totalFrames": 900,
+  "source": {
+    "entrypoint": "composition/index.html",
+    "bundleHash": "fixture_placeholder_not_executable",
+    "deterministicSeekRequired": true,
+    "note": "Example only; Agent can write unrestricted artwork code inside an isolated sandbox. Not a type/scene whitelist."
+  },
+  "provenance": {
+    "factsHash": "fixture_placeholder",
+    "assetsHash": "fixture_placeholder",
+    "dependencyHash": "fixture_placeholder"
+  },
+  "selectedPlatformPresetIds": [
+    "tiktok",
+    "youtube"
+  ],
+  "variants": [
+    {
+      "platformPresetId": "tiktok",
+      "layoutId": "portrait",
+      "workHash": "fixture_portrait"
+    },
+    {
+      "platformPresetId": "youtube",
+      "layoutId": "landscape",
+      "workHash": "fixture_landscape"
+    }
+  ],
+  "markers": [
+    {
+      "id": "opening",
+      "startFrame": 0,
+      "endFrameExclusive": 175
+    },
+    {
+      "id": "product",
+      "startFrame": 175,
+      "endFrameExclusive": 750
+    },
+    {
+      "id": "cta",
+      "startFrame": 750,
+      "endFrameExclusive": 900
+    }
+  ],
+  "audio": {
+    "mode": "composed",
+    "scorePath": "audio/score.abc",
+    "cuesPath": "audio/cues.json",
+    "soundtrackHash": "fixture_placeholder"
+  },
+  "textMetadata": {
+    "scope": "optional_field_level",
+    "allowsMixedLanguages": true
+  },
+  "proof": {
+    "renderStatus": "NOT_TESTED",
+    "audioStatus": "NOT_TESTED",
+    "qaStatus": "NOT_TESTED"
+  }
+}

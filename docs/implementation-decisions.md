@@ -92,3 +92,11 @@
 ## 后续记录格式
 
 新增实际决策时使用以下字段：决策 ID、日期、适用阶段、问题、所采用方案、原因、实际版本或配置、影响的 PRD/代码、验证证据、未解决限制。不要把未经执行的选项写成已验证结论。
+
+## REPO-009 — v2.2 Agent-Native 视频创作规格整合
+
+- 日期：2026-10-20。基线：`alchaincyf/huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603`；以 [PRD 13](prd/13-agent-native-production.md) 为设计依据，实际源码移植须继续审核。
+- 产品硬边界：只允许 15 秒/30 秒（30 fps），只用已登记的六个平台预设。导演、镜头数量、视觉风格、动画代码和实现技术不受原六场景/三结构/两样式枚举限制。
+- 既定业务边界保留：Google + 邮箱验证码、网站 en 首发而用户视频文案任意混排、Cloudflare、Waffo、mise、UI 主题、工作区与账务原子性。
+- 原有 `contracts/scene.example.json` 仅为 v1.x 迁移用例；新增 Composition 与 EditRequest 示例均是非运行证据。创作 Agent、ABC/SFX、视频 QA、Studio 改稿和沙箱还未实施。
+- 许可处理：PORT/ADAPT/REBUILD 分开；GSAP、字体、音色采样和作者形象另核，不从上游直接无审核打包。

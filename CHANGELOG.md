@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-20 — Integrate v2.2 Agent-Native video production
+
+- Added PRD 13 and Codex execution guide to align with huashu-motion Director, free-code animation, ABC/SFX, actual frame QA, point-to-edit Studio, and source-aware learning; pinned upstream study to 5f2608c and license audit.
+- Reconciled existing product/UX/format/architecture/billing/testing/growth/execution/decisions/UI specifications, plus navigation and project status. Removed legacy fixed four/six-scene, three-structure, two-style and code-prohibition ceilings.
+- Added Composition and edit-request example contracts with repository checks; retained old SceneDocument fixture as legacy migration sample.
+- Preserved strict 15/30 seconds at 30fps, six existing platform presets, current Waffo terms, Google+email-code login, website English first and video copy with mixed languages.
+- Specification only: no real Agent app, cloud sandbox, rendering, payment or production validation is claimed.
+
+
 ## 2026-10-20 — Complete URI contracts and email sign-in specification
 
 - Added an authoritative route seed for public pages, authentication, settings, invitations, workspace operations, delivery and SEO resources.

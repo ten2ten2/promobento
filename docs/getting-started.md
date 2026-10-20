@@ -1,6 +1,6 @@
 # 仓库接手指南
 
-产品需求从 [PRD 索引](prd/README.md) 阅读，当前实现状态见 [实施进度](implementation-status.md)。mise 已确定为工具版本和任务入口。
+产品需求从 [PRD 索引](prd/README.md) 和 [第 13 章 Agent 创作规格](prd/13-agent-native-production.md) 阅读，当前实现状态见 [实施进度](implementation-status.md)。mise 已确定为工具版本和任务入口。
 
 ## 1 获取现有仓库
 
@@ -48,7 +48,7 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 ```text
 请在当前仓库实现 PromoBento P0。
 
-先完整阅读根 AGENTS.md、README.md、docs/prd/README.md 和相关 PRD 专章，
+先完整阅读根 AGENTS.md、README.md、docs/prd/README.md、docs/prd/13-agent-native-production.md 和相关 PRD 专章，
 以 docs/prd/08-codex-execution.md 的 M0–M4 顺序推进。
 
 已确定的决策：
@@ -57,14 +57,15 @@ PRD 维护业务需求，AGENTS.md 保留简短的开发入口和关键约束；
 - React、TypeScript、Vite、React Router、mise、pnpm。
 - Cloudflare 全栈部署，Waffo.ai 支付。
 - 按第 12 章实现 Google + 邮箱验证码登录；使用 Cloudflare Email Sending，URI 和认证策略读取 routes/auth 配置，身份关联需明确验证。
-- 六个平台预设全部在 P0；真实素材、确认事实、共享浏览器预览与云端渲染。
+- 视频仍固定 15/30 秒、30 fps、原六个平台预设；Agent 镜头数/风格/运动/代码自由创作。
+- 真实素材、确认事实、自由代码 Composition、ABC/SFX 音频、真实 QA、点选改稿、共享浏览器预览与云端渲染均为 P0 视频目标。
 - 网站从首版建立国际化架构，首发英语；用户文案可使用任意语言或混排，不设视频语言选择或识别确认门槛。
 - System / Light / Dark 属于 P0，网站主题与视频内容、计费独立。
 - UI 遵循第 11 章与 theme/ui tokens：杂志排版主体＋专业工具配色；衬线品牌与标题、无衬线正文和控件，采用 shadcn/ui 的 Base UI 方案与 Lucide。
 
 当前仓库包含完整规格、配置种子、契约示例、仓库工具与离线 UI 参考。
 UI 参考只展示设计与样例状态，不作为实际应用或支付实现。
-从 M0 建立真实应用代码与运行命令；先证明 Cloudflare 渲染、Waffo test 和邮件登录的可行性，
+从 M0 建立真实应用代码与运行命令；先交付自由动画、配乐/音效、QA、15/30 秒 MP4 垂直切片，并行证明 Cloudflare 渲染、Waffo test 和邮件登录的可行性，
 再推进编辑器、账务、交付、团队和运营。复用已有配置，避免制造两套权威来源。
 
 先核查 Cloudflare 构建、workerd 和 Container 的实际兼容范围，再选择范围内最新正式版并锁定。

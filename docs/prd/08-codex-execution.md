@@ -8,15 +8,17 @@
 
 ## 2 实施顺序
 
+创作引擎以 [13 Agent-Native 视频规格](13-agent-native-production.md) 为当前目标。M0 必须先证明原创自由动画、配乐、实际 MP4 和 QA；Cloudflare、邮件与 Waffo 的外部可行性验证并行，不得以一个六场景模板演示冒充创作闭环。
+
 | 阶段 | 实施内容 | 退出条件 |
 | --- | --- | --- |
-| M0 可行性闭环 | 官方 React Router Workers 工程；mise 精确锁版本；品牌/i18n/主题与 URI 基础；D1/R2；Google 与 Email Sending 最小登录往返；单场景 Chromium/FFmpeg 容器；Waffo test checkout 与验签 | 真实预发布发码、收件、验证及 session 可用；Cloudflare 生成一个 30 秒文件；Waffo 测试付款、回调及查询可核验；英语 SSR 与主题 Cookie/CSS 方案可运行 |
-| M1 第一条用户流程 | Google/邮箱登录、身份关联与退出、工作区、上传、事实确认、共享模板、手动编辑、四构图浏览器预览；英文资源与两套 UI tokens | 两种登录方式均保留任务与权限；AUTH 核心边界通过；软件与课程用户各能在英语网站完成自己的混排文案预览，Light/Dark 均可用，AI 故障可手填 |
-| M2 付费与交付 | 项目包、追加包、不可变快照、权益账本、Queues/DO、导出/封面/ZIP、失败恢复 | PAY 核心测试通过，关闭浏览器仍交付，所有平台可下载 |
-| M3 团队与运营 | 成员链接、冲突、评论、审阅、期限清理、后台、退款、来源埋点、两类用途页 | P0 权限与删除测试通过，漏斗可按人群和渠道查看 |
-| M4 上线验收 | 样片、四构图矩阵、性能费用、平台实际上传、真实支付与退款、生产配置 | 有完整证据，未完成的外部验证明确标记，满足生产发布门槛 |
+| M0 创作可行性 + 平台最小验证 | Director/Treatment → Coding Agent → 自由 Composition → 浏览器关键帧 → ABC/SFX → FFmpeg 15/30s → QA；并行验证 Workers Builds/workerd、Google/Email Sending 最小登录及 Waffo test | 至少一个全新运镜、真实音轨与 450/900 帧 MP4、正常速度人工观看听音，费用与错误证据齐全；外部账户阻塞单列 |
+| M1 Agent Studio 与第一条用户流程 | 两类入口、上传/事实确认、独立来源预览、点选评论、Canvas/WebGL 截图兜底、scoped patch、revision 和平台 Variants；Google/邮箱认证与网站 UI | 两类用户都能生成、修改指定镜头、回滚、预览四构图；AUTH 关键案例实际通过，故障保留旧草稿 |
+| M2 云沙箱、账务与交付 | 创作和渲染隔离、预算/重试、Queues/DO、Waffo 订单与不可变版本、六平台 MP4/封面/ZIP、QA 门禁 | 不可信代码不能读取主站凭据或跨租户数据；账务与导出幂等可恢复，所有文件真实可下载 |
+| M3 团队与运营 | 工作区权限、邀请、冲突、评论、存储保留/删除、退款、归因事件、公开用途页 | 隔离与权限测试通过；真实团队可完成公开发布需求 |
+| M4 生产上线验收 | 创意样片、人工视听审片、性能费用、真实平台上传、付款退款、生产安全和回滚 | 样片与完整业务有实际证据；未验证项不标完成 |
 
-M0 先解决视频渲染、Waffo 和实际邮件登录的接入风险，再扩编辑器范围。各阶段不是承诺固定工期；以退出条件推进。两类人群在 M1 就共同覆盖，不能把内容团队排到所有功能做完以后。
+以上为计划而非运行状态；`docs/implementation-status.md` 才是已实现进度索引。按实际关键风险安排子步骤，不因云端账号未配置停止可以独立验证的创作垂直切片。
 
 ## 3 建议代码目录（应用实施时建立）
 
@@ -27,7 +29,12 @@ M0 先解决视频渲染、Waffo 和实际邮件登录的接入风险，再扩�
 | `apps/jobs` | Queues consumer、DO、Cron 与 outbox dispatcher |
 | `apps/renderer` | Container Dockerfile、Chromium、FFmpeg、job agent 与健康检查 |
 | `packages/contracts` | zod 或同类 schema、业务类型、错误码、API 契约 |
-| `packages/scene-renderer` | 共享场景、纯时间函数、布局与预览播放器 |
+| `packages/composition-runtime` | 自由源码工程、确定性寻帧 Bridge、iframe 隔离预览与可选 editables |
+| `packages/creative-director` | 产品理解、创意方向、节奏、运动语言与镜头连续性 |
+| `packages/audio-engine` | ABC 作曲、授权音效/采样、同步时钟与混音 |
+| `packages/quality-engine` | 源码/浏览器抽帧/视频/音频 QA 与诊断证据 |
+| `packages/agent-orchestrator` | 一主 Agent、工具调用、模型路由、预算、局部修复 |
+| `apps/agent-runner` | 受控隔离沙箱，编译源码、真实寻帧、返回审片证据 |
 | `packages/platform-presets` | 版本化平台配置及外部规则元数据 |
 | `packages/billing` | 仅 Waffo 的 adapter、金额转换、订单与事件映射 |
 | `packages/auth` | Google、邮箱 challenge/proof、身份关联、会话与回跳校验；最小 Cloudflare 邮件适配器 |
@@ -114,19 +121,19 @@ Waffo 配置需有 mode、merchant ID、store ID、两个商品 ID、API 基址�
 
 可配置但必须留记录：价格、AI 配额、素材处理预算、工作区人数、保留期、并发、模板默认值、模型 ID、平台推荐值与性能预算。变更不得追溯减少已购买的权益，订单保存购买时的政策快照。
 
-P0 暂不实现的网址抓取、自动 TTS、自动字幕、平台自动发布不显示可点击的假入口。未来功能可在文档里列 P1；生产页面只承诺已可用能力。
+P0 尚未完成验收的网址抓取、增强自动 TTS、逐词字幕与平台自动发布不得提供可点击的假入口；自由动画、程序化作曲/SFX、QA 和点选改稿必须真实实现后才能宣传。未来功能可在文档里列 P1；生产页面只承诺已可用能力。
 
 ## 8 核心契约要求
 
-配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/scene.example.json` 建立完整 schema 和迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。`config/routes.json` 生成共享路由构建/匹配来源，`config/auth.json` 定义认证策略；仍需实现服务端 guard、flow 状态机、D1 约束、邮件适配和真实测试，不能把 JSON 当已运行鉴权。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
+配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/composition.example.json` 建立自由代码 Composition 协议；`contracts/scene.example.json` 只作旧场景迁移 fixture，不可设为代码创作白名单；还需完成 schema 与迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。`config/routes.json` 生成共享路由构建/匹配来源，`config/auth.json` 定义认证策略；仍需实现服务端 guard、flow 状态机、D1 约束、邮件适配和真实测试，不能把 JSON 当已运行鉴权。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
 
-最低约束包括总帧连续无重叠、事实均已确认、素材属于当前租户、布局在允许范围内、所有四构图存在、封面时间有效、音轨长度合法、版本快照不可变、相同指纹可复用。带 `exampleOnly` 或 `fixture_placeholder` 的样例只用于契约和本地测试；生产 API 必须拒绝占位素材，不能把示例 hash 当成真实文件验证记录。
+最低约束包括 450/900 帧且 30 fps、事实均已确认、素材属于当前租户、选择的 Variants 属于现有平台预设且支持同版补齐合法构图、封面时间有效、音轨长度合法、版本快照不可变、相同指纹可复用。带 `exampleOnly` 或 `fixture_placeholder` 的样例只用于契约和本地测试；生产 API 必须拒绝占位素材，不能把示例 hash 当成真实文件验证记录。
 
 服务端回调测试必须使用原始请求字节与真实提供商规范；内部 `BillingAdapter` 方法是本产品接口，不能假设 Waffo SDK 拥有同名方法。协议调整时更新适配层和契约测试，避免散布到页面代码。
 
 ## 9 实施中必须先证明的事项
 
-第一，Container 的真实 Linux 字体、视频解码、seek、截图和编码在目标规格可用。第二，Waffo SDK 或其官方 REST 认证在 workerd 可用，签名时间单位正确。第三，D1 额度和 outbox 的条件写可以通过实际并发与中断测试。第四，所有首发构图能够呈现两类素材而不切掉关键信息。
+第一，Agent 能实际生成非模板动画源码、ABC/音效、真实抽帧和可播放 MP4。第二，Container 的真实 Linux 字体、视频解码、seek、截图和编码在目标规格可用。第三，Waffo SDK 或其官方 REST 认证在 workerd 可用，签名时间单位正确。第四，D1 额度和 outbox 的条件写可以通过实际并发与中断测试。第五，创作与渲染沙箱的权限、资源预算在真实平台验证；所有合法预设的复杂动画不能丢失关键信息。
 
 这些应在对应阶段用最小垂直切片解决。不能为了规避难点改变支付商、部署厂商，或把真实导出换成浏览器录屏下载而不说明。
 

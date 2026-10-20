@@ -83,7 +83,7 @@ function main() {
     'README.md', '01-product-prd.md', '02-ux-and-flows.md', '03-platform-presets.md',
     '04-architecture-and-data.md', '05-waffo-billing.md', '06-testing-and-release.md',
     '07-growth-and-experiments.md', '08-codex-execution.md', '09-sources-and-decisions.md',
-    '10-i18n-and-themes.md', '11-ui-design-spec.md', '12-routing-and-auth.md',
+    '10-i18n-and-themes.md', '11-ui-design-spec.md', '12-routing-and-auth.md', '13-agent-native-production.md',
   ];
   for (const chapter of chapters) {
     expect(existsSync(join(root, 'docs/prd', chapter)), 'Missing PRD document: ' + chapter);
@@ -103,7 +103,7 @@ function main() {
 
   const seedFiles = ['config/brand.json', 'config/localization.json', 'config/theme-tokens.json', 'config/ui-tokens.json',
     'config/platform-presets.json', 'config/routes.json', 'config/auth.json', 'locales/en.json', 'contracts/scene.example.json',
-    'contracts/export-manifest.example.json'];
+    'contracts/export-manifest.example.json', 'contracts/composition.example.json', 'contracts/edit-request.example.json'];
   const seeds = Object.fromEntries(seedFiles.map((file) => [file, json(file)]));
   counts.seedJson = seedFiles.length;
   const brand = seeds['config/brand.json'];
@@ -116,6 +116,8 @@ function main() {
   const messages = seeds['locales/en.json'];
   const scene = seeds['contracts/scene.example.json'];
   const manifest = seeds['contracts/export-manifest.example.json'];
+  const composition = seeds['contracts/composition.example.json'];
+  const editRequest = seeds['contracts/edit-request.example.json'];
   const pkg = json('package.json');
 
   expect(brand.brandName === 'PromoBento' && brand.appUrl === 'https://promobento.com', 'Brand seed mismatch');
@@ -277,6 +279,19 @@ function main() {
     expect(expectedPlatforms.includes(mapping.platformId), 'Unknown platform in manifest ' + mapping.platformId);
     expect(artifactIds.has(mapping.videoArtifact) && artifactIds.has(mapping.coverArtifact), 'Unresolved artifacts for ' + mapping.platformId);
   }
+
+  // v2.2 Composition is the source model. Keep the v1.x scene fixture as a migration test only.
+  expect(composition.schemaVersion === '2.2.0' && composition.exampleOnly && composition.compositionKind === 'agent_authored_source', 'v2.2 composition seed mismatch');
+  expect(same(platforms.productLimits.durationSeconds, [15, 30]) && platforms.productLimits.defaultDurationSeconds === 30, 'v2.2 duration must remain 15/30 seconds');
+  expect([15, 30].includes(composition.durationSeconds) && composition.fps === 30 && composition.totalFrames === composition.durationSeconds * 30, 'v2.2 frame count invalid');
+  expect(composition.source?.deterministicSeekRequired && typeof composition.source.entrypoint === 'string', 'v2.2 composition runtime metadata missing');
+  expect(composition.textMetadata?.allowsMixedLanguages === true && !Object.hasOwn(composition, 'language') && !Object.hasOwn(composition, 'uiLocale') && !Object.hasOwn(composition, 'themePreference'), 'v2.2 video text must be independent from website UI locale/theme');
+  expect(composition.selectedPlatformPresetIds.every((id) => expectedPlatforms.includes(id)) && composition.variants.every((v) => expectedPlatforms.includes(v.platformPresetId) && Object.hasOwn(platforms.aspectLayouts, v.layoutId)), 'v2.2 variant not in existing platform presets');
+  expect(editRequest.exampleOnly && editRequest.revisionId === composition.revisionId && expectedPlatforms.includes(editRequest.targetPresetId), 'v2.2 edit request identity/preset mismatch');
+  expect(Number.isInteger(editRequest.frameIndex) && editRequest.frameIndex >= 0 && editRequest.frameIndex < composition.totalFrames, 'v2.2 edit frame out of range');
+  expect([editRequest.normalizedPoint?.x, editRequest.normalizedPoint?.y].every((n) => typeof n === 'number' && n >= 0 && n <= 1), 'v2.2 edit coordinates must be normalized');
+  expect(['selected', 'shot', 'variant', 'all-variants'].includes(editRequest.editScope), 'v2.2 unknown edit scope');
+  expect(composition.proof?.renderStatus === 'NOT_TESTED' && editRequest.proof?.patchStatus === 'NOT_TESTED', 'v2.2 seeds must not claim test completion');
 
   for (const [name, theme] of Object.entries(themes.themes)) {
     for (const rule of themes.contrastRules) {
