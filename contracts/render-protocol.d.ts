@@ -21,7 +21,17 @@ export interface HitTarget {
   elementId?: string; sourcePath?: string; line?: number;
   bounds?: { x: number; y: number; width: number; height: number };
 }
-export interface EditableProperty { id: string; label: string; type: 'text' | 'number' | 'color' | 'asset'; value: string | number }
+export type EditableProperty = ({
+  id: string; label: string; group?: string;
+  /** Changing this value may reflow beats, but never extends the fixed 450/900 frames. */
+  affectsTiming?: boolean;
+} & (
+  | { type: 'text' | 'color' | 'asset'; value: string }
+  | { type: 'number'; value: number; min?: number; max?: number; step?: number }
+  | { type: 'boolean'; value: boolean }
+  | { type: 'enum'; value: string; choices: string[] }
+  | { type: 'data'; value: ReadonlyArray<Record<string, string | number | boolean | null>> }
+));
 export interface CompositionBridge {
   init(input: Init): Promise<void>;
   seekFrame(input: Seek): Promise<FrameReady>;

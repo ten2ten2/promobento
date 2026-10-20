@@ -101,6 +101,18 @@ export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
   if (errors.length) return errors;
   const fail = (ok, message) => { if (!ok) errors.push(message); };
+  if (v.kind === 'run_result') {
+    const t = v.treatment, a = v.audioPlan, outer = context.composition?.totalFrames;
+    if (t) {
+      if (outer) fail(t.totalFrames === outer, 'TREATMENT_DURATION_MISMATCH');
+      for (const beat of t.beats) fail(beat.frameEndExclusive > beat.frameStart && beat.frameEndExclusive <= t.totalFrames, 'TREATMENT_INTERVAL_INVALID');
+    }
+    if (a) {
+      if (outer) fail(a.totalFrames === outer, 'AUDIO_PLAN_DURATION_MISMATCH');
+      if (t) fail(a.totalFrames === t.totalFrames, 'CREATIVE_PLAN_DURATION_MISMATCH');
+      for (const cue of a.events) fail(cue.frameEndExclusive > cue.frameStart && cue.frameEndExclusive <= a.totalFrames, 'AUDIO_EVENT_INTERVAL_INVALID');
+    }
+  }
   const rules = context.presetConfig ?? presets;
   const all = targets(rules), allowed = new Map(all.map(t => [t.targetId, t]));
   const composition = context.composition;

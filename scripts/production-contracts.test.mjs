@@ -71,3 +71,24 @@ test('exact protocol failure accepted',()=>assert.ok(matchesProtocolFailure(prot
 for(const key of ['sequence','sessionId','requestId','revisionId','targetId','protocolVersion'])test('stale failure '+key,()=>{const x=clone(protocol.render_error);x[key]=typeof x[key]==='number'?999:'other';assert.equal(matchesProtocolFailure(protocol.render_seek,x),false);});
 test('disposed failure ignored',()=>assert.equal(matchesProtocolFailure(protocol.render_seek,protocol.render_error,true),false));
 test('unknown failure code rejected',()=>{const x=clone(protocol.render_error);x.code='ARBITRARY';assert.equal(matchesProtocolFailure(protocol.render_seek,x),false);});
+
+test('creative plan: optional direction fields and bounded events', () => {
+  const x={
+    schemaVersion:'2.2.1',kind:'run_result',runId:'run1',operationId:'op1',
+    baseRevision:c.revisionId,state:'succeeded',phase:'final',generation:1,
+    candidateRevisionId:c.revisionId,
+    usage:{inputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
+    directions:[{id:'dir1',label:'Fit',logline:'Explain product',keyframeIds:['kf1'],look:'clear UI',palette:[{color:'#336699',usage:'accent'}],whyItFits:'real footage'}],
+    treatment:{totalFrames:900,beats:[{frameStart:0,frameEndExclusive:450,event:'introduce'},{frameStart:450,frameEndExclusive:900,event:'show CTA'}]},
+    audioPlan:{totalFrames:900,events:[{kind:'music',frameStart:0,frameEndExclusive:900,licenseRef:'CC0-cleared'}]}
+  };
+  assert.deepEqual(semanticErrors(x,{composition:c}),[]);
+  x.treatment.beats[1].frameEndExclusive=901;
+  assert.ok(semanticErrors(x,{composition:c}).includes('TREATMENT_INTERVAL_INVALID'));
+  x.treatment.beats[1].frameEndExclusive=900;
+  x.audioPlan.events[0].frameEndExclusive=901;
+  assert.ok(semanticErrors(x,{composition:c}).includes('AUDIO_EVENT_INTERVAL_INVALID'));
+  x.audioPlan.events[0].frameEndExclusive=900;
+  x.audioPlan.totalFrames=450;
+  assert.ok(semanticErrors(x,{composition:c}).includes('CREATIVE_PLAN_DURATION_MISMATCH'));
+});
