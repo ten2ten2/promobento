@@ -26,13 +26,13 @@
 
 CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed、sourceArchiveHash、dependencyManifestHash、resourceManifestHash、factManifestHash、factContentHash、runtimeVersion、rendererImageDigest、presetRulesVersion、releaseEligible与variants；可选styleLabel自由值，内容语言元数据可省略。网站Cookie/uiLocale/theme不进入manifest。
 
-资源清单列逻辑路径、字节SHA-256、大小、媒体类型、不可变存储引用、来源许可和字体/塑形配置。源码包只包括实际执行源码及锁定依赖引用，不包含manifest自身、QA输出、临时URL、运行日志等自引用/可变材料。实际业务字段声明不足不等于授权通过；必须核对资源归属。
+资源清单列逻辑路径、字节SHA-256、大小、媒体类型、不可变存储引用、来源许可和字体/塑形配置。字体以实际客户文字逐码位/字素簇验证支持、塑形及明确回退；仅等待 `document.fonts.ready` 不算成功，不允许静默 tofu/系统字体漂移。确认可商用的字体/音源与使用的子集或回退映射须冻结进 resourceManifest，署名义务无法履行的采样不得进入 P0 成片。源码包只包括实际执行源码及锁定依赖引用，不包含manifest自身、QA输出、临时URL、运行日志等自引用/可变材料。实际业务字段声明不足不等于授权通过；必须核对资源归属。
 
 `targetId = presetId + ':' + aspectId`。服务器依据**快照固定的**rulesVersion读取合法配对、presetVersion、尺寸、安全区与编码；当前六平台七target。比例分别存在不代表配对有效，例如TikTok:square拒绝。加载不到固定规则版本则 PRESET_VERSION_UNAVAILABLE，不用当前配置代替。
 
 候选可以只覆盖当前目标；releaseEligible前必须有该规则版本全部合法target的源分支/资源/字体/音轨/coverFrame与Q0/Q1、必要片段及事实复核。相同画幅只有源码、资源、声音、参数经验证等价才可共享，不按比例自动去重。releaseEligible是准备资格，不是完整高清编码通过证明。
 
-准备平台是显式prepare_targets操作，按原revision/target去重和独立系统预算，不扣额外成功次数。它不能原地追加不可变revision；产出新的候选revision并CAS确认，保留原稿。改变原主目标风格或事实必须重新向用户确认，不能伪装成无变化准备。
+准备平台是显式prepare_targets操作，响应式语义布局优先，并仅对 Q1 失败镜头做 Agent 定点适配；按原revision/target去重和独立系统预算，不扣额外成功次数。每新增构图的模型、CPU、字幕/字体、QA 和人工返工成本应计量，不允许把费用隐藏到免费准备过程。它不能原地追加不可变revision；产出新的候选revision并CAS确认，保留原稿。改变原主目标风格或事实必须重新向用户确认，不能伪装成无变化准备。
 
 `POST .../export-snapshots`只冻结已经准备好的revision，缺目标/报告409 VARIANTS_NOT_READY；不会在请求内暗中做昂贵生成。付款冻结所有来源，首次只编码所选目标；后补平台仅运行被冻结源包，不再调用模型。系统缺陷以独立correction关联原release、免费且有审计，原文件不覆盖。
 
@@ -67,6 +67,8 @@ source/variant资源hash必须覆盖所有实际绘制依赖；不能遗漏字�
 
 订单授予、退款冻结、晚成功付款、素材失效、保留和恢复按 [05](05-waffo-billing.md)。普通界面注销不取消已付款交付。付费snapshot/runtime/镜像在其正常期、宽限与在途任务仍引用时必须可运行；安全停用走有审计的免费兼容修复。
 
+创作计划的最小机器合同：`run_result.directions` 可含语言、look、palette、rhythm、sound、risk、whyItFits；`run_result.treatment` 保存总帧、半开区间节奏事件和连续性/关键帧；`run_result.audioPlan` 保存总帧、事件范围、许可与可选已确认转写稿 hash；`patch_result` 可含影响摘要、Agent 解读和同线程 followUpOf。其详细字段和向后兼容性以 `production.schema.json` 为准，跨字段时长验证由可信层执行。这些创作记录本身是可追溯证据，**不单独改变 contentHash**；只有真正修改已执行源码、参数、事实、音频、资源或合法目标布局才产生新计费内容。
+
 ## 5 RenderProtocol
 
 协议类型在 `contracts/render-protocol.d.ts`，结构与Schema一致。可信控制器解析revision/target/固定规则后建立短期session；源码不能指定任意尺寸、改预设、写源包或调用支付/模型服务。生命周期created→initializing→idle→seeking→ready；后续ready→seeking，活动态可failed/disposed。
@@ -75,7 +77,7 @@ source/variant资源hash必须覆盖所有实际绘制依赖；不能遗漏字�
 
 init30秒、单帧5秒为初始待测上限，实际配置见agent-policy。whenFrameReady只是资源屏障，不证明画面或事实正确；可信控制器检查来源/身份、资源解码、字体/视频seek/Shader、会话期限后取帧。客户端上传图片不能冒充权威帧；不相信生成代码自报pass。
 
-`seekFrame(n)`按绝对时间n/30，最后帧N−1、文件长度N/30；不依赖自由运行墙钟、未保存随机数或播放历史。仿真固定步长或预烘焙。冷/顺/逆向路径一致性需要真实目标环境验证；WebGL不可用返回CAPABILITY_UNAVAILABLE并提供兼容建议，未经同意不变静态图片。
+`seekFrame(n)`按绝对时间n/30，最后帧N−1、文件长度N/30；不依赖自由运行墙钟、未保存随机数或播放历史。生产时间轴按绝对时间构建/采样，tween 起点在构建时确定，不允许状态性 onUpdate 隐藏历史依赖；仿真可从已知初态固定步长回放或预烘焙，但其结果须和 seek 顺序无关。`renderSeek` 仍只接受整数帧；运动模糊子帧仅由可信 Renderer 内部选择并测量 1/4/8 倍开销，不给不可信源码控制快门的权限。冷/顺/逆向路径一致性需要真实目标环境验证；WebGL不可用返回CAPABILITY_UNAVAILABLE并提供兼容建议，未经同意不变静态图片。
 
 独立预览origin按任务隔离，不带主站Cookie；精确origin/source window/不可预测nonce/消息schema校验，不授予top-navigation、popup、download、form等无关iframe能力。origin=null不能直接放行，需单独已验证设计。只读审阅提供最小媒体投影，不授予源码下载或Agent执行；资产broker权限按任务限制且可撤销。
 
@@ -127,7 +129,7 @@ $39/$12与原有次数/3个版本不变；有效可售SKU只在agent-policy和05
 
 FactManifest记录事实版本、原文、来源、确认人/时间。商业文本/旁白绑定factIds、expectedText、合法target和半开帧区间；expectedText必须等于一条已确认事实text。AI重写商业句子要先确认新版本，不能只引用一个真数字就附带新收益保证。装饰不伪造factId；空价格字段不补造。
 
-报告区分“已确认引用”“运行时文本对照”“实际像素/语音覆盖”。源码/资产/事实hash变化使关联检查失效。Canvas/Shader/纹理的商业文字若不可提取，声明覆盖不足并以REVIEW要求当前成员审看指定区间；清单不能证明整片没有新承诺，平台不出真实性担保证书。
+报告区分“已确认引用”“运行时文本对照”“实际像素/语音覆盖”。用户口播/选用录屏原声的商业主张必须先有用户确认的逐段转写稿并绑定已确认 factIds；手填/经验证 ASR 都可，未经确认不能猜测语音事实，也不能把未知词级对齐当成功。信息流目标以静音可理解和真实帧字幕为 Q1/Q3 审查项。缺字、缺少合法授权或商业事实不一致按 BLOCK，节奏稀疏、三秒钩子不足或调色雷同按 REVIEW/INFO 而非伪硬规范。源码/资产/事实hash变化使关联检查失效。Canvas/Shader/纹理的商业文字若不可提取，声明覆盖不足并以REVIEW要求当前成员审看指定区间；清单不能证明整片没有新承诺，平台不出真实性担保证书。
 
 | 等级 | 内容 | 谁可豁免 |
 | --- | --- | --- |
