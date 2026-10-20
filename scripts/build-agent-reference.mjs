@@ -11,7 +11,10 @@ export function generateReference(){
  const dark=`html[data-theme=dark]{color-scheme:dark;${vars(theme.themes.dark)}}@media(prefers-color-scheme:dark){html[data-theme=system]{color-scheme:dark;${vars(theme.themes.dark)}}}`;
  const legal=targets(rules).map(t=>({id:t.targetId,aspect:t.aspectId,width:t.layout.width,height:t.layout.height,safe:t.layout.safeInsets,label:rules.presets.find(p=>p.id===t.presetId).label+' · '+t.layout.ratio}));
  const options=legal.map(t=>`<option value="${escape(t.id)}">${escape(t.label)}</option>`).join('');
- const boot=JSON.stringify({targets:legal,quota:policy.quota.project_v1}).replace(/</g,'\\u003c');
+ const offers=Object.fromEntries(Object.entries(policy.quota).filter(([,q])=>Number.isSafeInteger(q?.priceMinor)).map(([sku,q])=>[sku,{priceMinor:q.priceMinor,versionUnits:q.versionUnits,creative_generate:q.creative_generate,agent_patch:q.agent_patch}]));
+ const trial={creative_generate:policy.quota.free.creative_generate,agent_patch:policy.quota.free.agent_patch,directionCards:policy.quota.free.directionCardsPerCreativeRun};
+ const editLimits={maxComments:policy.patch.maxCommentsPerRound,maxCharacters:policy.patch.maxTotalCommentCodePoints};
+ const boot=JSON.stringify({targets:legal,offers,trial,editLimits}).replace(/</g,'\\u003c');
  return read(ui.reference.template).replace('@@TOKENS@@',base+dark).replace('@@TARGET_OPTIONS@@',options).replace('@@BOOT@@',boot);
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

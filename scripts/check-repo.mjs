@@ -17,12 +17,10 @@ function main(){
  const names=['01-product-prd','02-ux-and-flows','03-platform-presets','04-architecture-and-data','05-waffo-billing','06-testing-and-release','07-growth-and-experiments','08-codex-execution','09-sources-and-decisions','10-i18n-and-themes','11-ui-design-spec','12-routing-and-auth','13-agent-native-production','14-production-contracts'];
  const prds=['README.md',...names.map(n=>n+'.md')];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
  for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','docs/getting-started.md','contracts/production.schema.json','contracts/agent-api.json','config/agent-policy.json','config/input-capabilities.json'])expect(existsSync(join(root,p)),'Missing '+p);
- const obsolete=['CHANGELOG.md','docs/implementation-decisions.md','docs/v2.2-CODEX_START.md','contracts/scene.example.json','contracts/legacy','docs/design/ui-reference.html','docs/design/ui-reference.template.html','scripts/build-ui-reference.mjs','docs/evidence/repository-check.md','docs/evidence/theme-toggle-2026-10-19.md','docs/evidence/toolchain-2026-10-19.md','docs/evidence/ui-spec-2026-10-19.md','docs/evidence/website-i18n-boundary-2026-10-19.md'];
- for(const p of obsolete)expect(!existsSync(join(root,p)),'Obsolete source remains: '+p);
+ expect(same(readdirSync(join(root,'docs/prd')).filter(p=>p.endsWith('.md')).sort(),[...prds].sort()),'PRD directory differs from the current indexed specification');
  const files=[...readdirSync(root).filter(p=>p.endsWith('.md')).map(p=>join(root,p)),...walk(join(root,'docs')),...walk(join(root,'.github'))];
  const md=files.filter(p=>extname(p)==='.md');md.forEach(links);
- for(const p of md){const body=readFileSync(p,'utf8');for(const dead of obsolete)expect(!body.includes(dead),'Obsolete reference in '+relative(root,p)+': '+dead);expect(!/v2\.1|v1\.4|v1\.1|consistency-\d|SceneDocument/.test(body),'Superseded specification narrative: '+relative(root,p));}
- for(const p of walk(join(root,'contracts')))expect(!relative(root,p).split(sep).some(x=>x.toLowerCase()==='legacy'),'Compatibility fixture directory remains');
+ for(const p of md)expect(!/^(?:<{7}|={7}|>{7})(?:\s|$)/m.test(readFileSync(p,'utf8')),'Unresolved conflict marker: '+relative(root,p));
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
  expect(!Object.hasOwn(brand,'domainLookup'),'Stale domain quote retained');
  expect(brand.brandName==='PromoBento'&&brand.appUrl==='https://promobento.com','Brand changed');

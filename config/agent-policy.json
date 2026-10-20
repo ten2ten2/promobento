@@ -1,1 +1,201 @@
-{"schemaVersion":"2.2.1","status":"prd_seed","sourceDocument":"docs/prd/14-production-contracts.md","enabled":false,"requiresModelAndCostCalibration":true,"limits":{"globalContainers":4,"workspaceContainers":2,"workspaceComposer":1,"workspaceRenderer":1,"activeSecondsPerAttempt":600,"heartbeatSeconds":15,"leaseReviewAfterSeconds":60,"maxInternalRepairs":2,"maxRenderAttempts":3,"initTimeoutMs":30000,"frameTimeoutMs":5000,"awaitingUserHours":24,"temporaryPreviewHours":72},"cost":{"unit":"usd_micros","priceVersion":null,"maxMicrosPerCreativeRun":null,"maxMicrosPerPatch":null,"maxMicrosPerTargetPreparation":null,"unknownUsage":"reserve_worst_case_until_reconciled","currencyUsesInteger":true},"quota":{"free":{"projects":2,"creative_generate":2,"agent_patch":3},"project_v1":{"priceMinor":3900,"versionUnits":3,"creative_generate":5,"agent_patch":15},"extra_versions_v1":{"priceMinor":1200,"versionUnits":3,"creative_generate":2,"agent_patch":10},"creativeConsumeAt":"usable_candidate_delivered","renderConsumeAt":"initial_batch_published","prepare_targets":0,"internal_repair":0,"rejectionAfterDeliveryRefundsQuota":false},"retention":{"freeDays":7,"paidDays":90,"graceDays":7},"states":["queued","active","awaiting_user","paused_budget","validating","succeeded","failed","cancelled"],"performance":{"directionP95Seconds":null,"firstKeyframeP95Seconds":null,"completePreviewP95Seconds":null,"patchP95Seconds":null,"allTargetsPreparedP95Seconds":null,"status":"calibration_required"}}
+{
+  "schemaVersion": "2.3.0",
+  "status": "prd_seed",
+  "sourceDocument": "docs/prd/14-production-contracts.md",
+  "enabled": false,
+  "requiresModelAndCostCalibration": true,
+  "limits": {
+    "globalContainers": 4,
+    "workspaceContainers": 2,
+    "workspaceComposer": 1,
+    "workspaceRenderer": 1,
+    "activeSecondsPerAttempt": 600,
+    "heartbeatSeconds": 15,
+    "leaseReviewAfterSeconds": 60,
+    "maxInternalRepairs": 2,
+    "maxRenderAttempts": 3,
+    "initTimeoutMs": 30000,
+    "frameTimeoutMs": 5000,
+    "awaitingUserHours": 24,
+    "temporaryPreviewHours": 72
+  },
+  "cost": {
+    "unit": "usd_micros",
+    "priceVersion": null,
+    "hardBudgetScope": "operation_including_all_child_calls_and_attempts",
+    "maxMicrosPerCreativeRun": null,
+    "maxMicrosPerPatch": null,
+    "maxMicrosPerTargetPreparation": null,
+    "maxMicrosPerAssetProcessing": null,
+    "maxMicrosPerCloudPreview": null,
+    "maxMicrosPerQualityReview": null,
+    "maxMicrosPerRenderRelease": null,
+    "dailySoftAlertMicros": null,
+    "maxDailyFreeMicros": null,
+    "dailyBudgetTimezone": "UTC",
+    "maxMicrosPerUserWindow": null,
+    "maxMicrosPerProjectWindow": null,
+    "usageWindowHours": 24,
+    "usageWindowMode": "rolling_all_actual_and_unsettled_costs",
+    "maxMicrosPerUserFailureWindow": null,
+    "maxMicrosPerProjectFailureWindow": null,
+    "failureWindowHours": 24,
+    "failureWindowMode": "rolling_from_immutable_cost_ledger",
+    "unknownUsage": "reserve_worst_case_until_reconciled",
+    "currencyUsesInteger": true,
+    "quotaReleaseResetsSpend": false,
+    "retryOrNewOperationResetsCumulativeFailureSpend": false,
+    "purchaseOrRefundResetsCumulativeFailureSpend": false,
+    "unmeasuredLimitBehavior": "keep_execution_disabled"
+  },
+  "patch": {
+    "maxCommentsPerRound": 5,
+    "maxTotalCommentCodePoints": 4000,
+    "maxInputTokensPerRound": null,
+    "maxOutputTokensPerRound": null,
+    "oversizedRequest": "reject_without_truncation",
+    "consumePerRound": 1,
+    "requiresTokenCalibration": true
+  },
+  "quota": {
+    "free": {
+      "scope": "internal_user_lifetime",
+      "projects": 1,
+      "versionUnits": 0,
+      "creative_generate": 1,
+      "agent_patch": 2,
+      "directionCardsPerCreativeRun": 3,
+      "claimRequestField": "requestTrial",
+      "claimAtProjectCreationOnly": true,
+      "claimActorRole": "owner",
+      "claimUsesActorUserId": true,
+      "bindToSingleProject": true,
+      "membersShareProjectQuota": true,
+      "unavailableClaimCreatesUnfundedDraft": true,
+      "workspaceOrLoginChangeResetsTrial": false,
+      "copyOrDeletionResetsTrial": false,
+      "purchaseResetsTrial": false,
+      "unusedQuotaTransfersToOtherProjects": false,
+      "assetProcessing": {
+        "maximumUniqueVisualAssets": 12,
+        "maximumUniqueLogos": 1,
+        "maximumUniqueRecordings": 3,
+        "maximumRecordingSeconds": 180,
+        "maximumUniqueVoiceTracks": 1,
+        "maximumUniqueMusicTracks": 1,
+        "maximumSecondsPerAudioTrack": 60,
+        "maximumTimedMediaSegments": 5,
+        "maximumTimedMediaSeconds": 300,
+        "maximumUniqueProcessedBytes": 209715200
+      }
+    },
+    "single_export": {
+      "priceMinor": 1900,
+      "versionUnits": 1,
+      "creative_generate": 0,
+      "agent_patch": 0,
+      "assetProcessingSegments": 0,
+      "assetProcessingSeconds": 0,
+      "allowedPurchaseIntents": [
+        "purchase_and_export"
+      ],
+      "requiresConfirmedAllTargetSnapshot": true,
+      "isInitialPurchase": true
+    },
+    "project_pack": {
+      "priceMinor": 3900,
+      "versionUnits": 3,
+      "creative_generate": 5,
+      "agent_patch": 15,
+      "assetProcessingSegments": 20,
+      "assetProcessingSeconds": 1200,
+      "allowedPurchaseIntents": [
+        "top_up_only",
+        "purchase_and_export"
+      ],
+      "defaultPurchaseIntent": "top_up_only",
+      "isInitialPurchase": true
+    },
+    "project_upgrade": {
+      "priceMinor": 2000,
+      "versionUnits": 2,
+      "creative_generate": 5,
+      "agent_patch": 15,
+      "assetProcessingSegments": 20,
+      "assetProcessingSeconds": 1200,
+      "allowedPurchaseIntents": [
+        "top_up_only",
+        "purchase_and_export"
+      ],
+      "defaultPurchaseIntent": "top_up_only",
+      "requiredInitialSku": "single_export",
+      "maximumPendingOrEffectiveUpgradesPerInitialPurchase": 1,
+      "allowNewUpgradeAfterSettledFullRefundChain": true,
+      "preserveHistoricalConsumption": true
+    },
+    "extra_pack": {
+      "priceMinor": 1200,
+      "versionUnits": 3,
+      "creative_generate": 2,
+      "agent_patch": 10,
+      "assetProcessingSegments": 20,
+      "assetProcessingSeconds": 1200,
+      "allowedPurchaseIntents": [
+        "top_up_only",
+        "purchase_and_export"
+      ],
+      "defaultPurchaseIntent": "top_up_only",
+      "requiresEffectiveCreativePurchase": [
+        "project_pack",
+        "project_upgrade"
+      ]
+    },
+    "purchaseSlots": {
+      "maximumPendingOrEffectiveInitialPurchasesPerProject": 1,
+      "unpaidReleaseRequiresConfirmedUnpayableState": true,
+      "paidReleaseRequiresSettledFullRefundChain": true,
+      "unknownPaymentOrUnsettledRefundBlocksRelease": true,
+      "repurchaseRequiresNewOrderAndPayment": true,
+      "regrantOriginalPaymentAfterRefund": false
+    },
+    "unfundedDraft": {
+      "allowUploadOrAssetProcessing": false,
+      "allowDirectionsOrAi": false,
+      "allowAuthorizedImmutableAssetRead": true,
+      "initialPurchaseSku": "project_pack",
+      "initialPurchaseIntent": "top_up_only"
+    },
+    "assetProcessingDeduplication": "project_input_hash_processing_version_and_parameters",
+    "assetReplacementOrDeletionResetsUsage": false,
+    "creativeConsumeAt": "usable_candidate_delivered",
+    "renderConsumeAt": "initial_batch_published",
+    "prepare_targets": 0,
+    "internal_repair": 0,
+    "rejectionAfterDeliveryRefundsQuota": false,
+    "localParameterEdits": "unlimited_without_cloud_work",
+    "cloudPreviewAndQaRequireIndependentBudgets": true
+  },
+  "retention": {
+    "freeDays": 7,
+    "paidDays": 90,
+    "graceDays": 7
+  },
+  "states": [
+    "queued",
+    "active",
+    "awaiting_user",
+    "paused_budget",
+    "validating",
+    "succeeded",
+    "failed",
+    "cancelled"
+  ],
+  "performance": {
+    "directionP95Seconds": null,
+    "firstKeyframeP95Seconds": null,
+    "completePreviewP95Seconds": null,
+    "patchP95Seconds": null,
+    "allTargetsPreparedP95Seconds": null,
+    "status": "calibration_required"
+  }
+}

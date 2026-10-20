@@ -8,11 +8,15 @@ P0 提供 Google 与邮箱验证码登录；登录/注册共入口，无密码�
 
 业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；不可信 Composition 预览必须使用另一个受限 origin，不能共享应用会话。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
 
-/create 先选任务/15或30秒/平台，上传和生成前登录。/login 共用 Google/邮箱；/login/verify 验证码，/login/link 待注册/关联确认。/app→/app/projects、/app/settings→/app/settings/account 为 302/private,no-store；Account、Appearance、Brand、Members、Orders 使用已注册页面。Help 复用 /help；搜索资源只含真实 robots/sitemap，不提供空 /llms.txt 或未实现页面。
+/create 先选任务/15或30秒/平台，素材上传、预处理、方向卡和生成前均须 Google/邮箱登录；匿名阶段只保留低成本的选项和公开自有样片，不接收/处理客户素材或生成方向。/login 共用 Google/邮箱；/login/verify 验证码，/login/link 待注册/关联确认。/app→/app/projects、/app/settings→/app/settings/account 为 302/private,no-store；Account、Appearance、Brand、Members、Orders 使用已注册页面。Help 复用 /help；搜索资源只含真实 robots/sitemap，不提供空 /llms.txt 或未实现页面。
 
 GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF，不建账号、不发码。已绑定账号的 flow 只在原有效会话恢复，不能覆盖/泄漏另一账号；不匹配取消或重新开始。匿名 GET /api/auth/session 只返回 authenticated=false，不创建 flow。无有效 challenge/proof 的 verify/link HTML 302 回登录并用安全 flash code 提示，对应 API 409；邮箱和证明不进 URL。
 
 新账号原子创建一个默认 workspace/Owner membership。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表/Brand/Members/Orders 使用 workspaceId query；省略时服务端选仍有权限的最近或默认工作区，并返回规范化链接。失效选择不能静默写另一个工作区。详情从真实项目/订单推导工作区，不信浏览器“当前工作区”。已无工作区的登录用户看到空态及 Account/Help，不因列表访问再创建默认工作区。
+
+免费试用资格以稳定内部 user_id 为唯一归属，跨其工作区和已关联 Google/邮箱累计一次，且只绑定一个 trial 项目。创建请求 `requestTrial` 默认为 false；仅目标工作区当前 Owner 可显式用自己的 user_id 原子领取，不能指定/代领其他成员 user_id。多工作区并发最多一个领取成功；领取不可用时仍可保存空 draft 并返回 `trialStatus=unavailable`，该稿须先购 US$39 项目包才能上传、处理、取方向或运行 AI。不得要求空稿先生成或冻结快照才能购买创作权益。
+
+Editor 可在被授权共享项目中使用项目现有试用/已购次数，不为每位成员另增额度。邀请、工作区切换、Owner 转移、项目复制或删除、重新登录和新增登录方式都不重置/转移领取记录；试用领取不替代当前成员权限。设备/IP/全局控制仅作反滥用层，不能替代 user_id 的原子资格。独立账号流程仍按本章身份规则，不凭邮箱相似性强行合并；独立注册也不保证获得试用，仍须经过领取与反滥用校验。
 
 ## 2 跳转、HTTP 与隐私
 
@@ -84,7 +88,7 @@ Google identity 取经过验证的 issuer/sub，email identity 取本系统 OTP 
 
 确认时重查双方 proof、期限、账号、适用 session 和 identity 唯一性，再原子关联并轮换/签发会话。客户端不能用新 email/provider/userId 替代已验证对象；重发不延长 proof。新 identity 仍未绑定但无法/不愿连原账号时，可明确选择 Create a separate account，说明项目和订单不带入、原方式仍进原账号、P0 不合并成型账号；已绑定 identity 只能进原账号。并发关联/注册只有一个提交，其余全部回滚，不留孤立 user/workspace。得到原账号证明前不展示其工作区、账单或其他身份。
 
-P0 只添加方式与撤销会话，不提供自助解绑、任意换邮箱或合并已有账号；支持人员不能凭一封邮件/付款截图改身份归属。关联不改变 user、project、workspace 和订单 ID。
+P0 只添加方式与撤销会话，不提供自助解绑、任意换邮箱或合并已有账号；支持人员不能凭一封邮件/付款截图改身份归属。关联不改变 user、project、workspace 和订单 ID，也不增加或重置试用领取资格、使用次数或系统预算。
 
 ## 6 Google、session 与敏感操作
 
@@ -146,6 +150,7 @@ Owner 复制 /invite/:token，48h 单次、可撤销，不自动发邮件。GET�
 | AUTH-07 | 发码滥用、共享 IP、格式/大小写/IDNA、换邮箱、未知发送结果，额度不可绕过 |
 | AUTH-08 | 最后名额、重复/过期/撤销邀请、移除后重放和分享越权，无 Owner 丢失 |
 | AUTH-09 | 实际 Cloudflare 与受控 Gmail/Outlook/自定义域接收，记录接受/到达并在实际期限内成功登录 |
+| AUTH-10 | 同 user 跨工作区/关联登录方式并发仅一次试用；Owner 自领、Editor 共享、邀请/删除/转移不重置；领取失败仍可建空稿先购 |
 | URI-01 | 所有注册路径、默认跳转、深链接、404/405/410、robots/sitemap，无空语言或假 200 |
 
 安全依据：[一次性验证/防枚举](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)、[会话管理](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。数字是产品策略不是厂商保证；真实集成验收与配置/参考测试分开记录。

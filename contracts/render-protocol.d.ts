@@ -4,7 +4,7 @@ export type FrameCount = 450 | 900;
 export type TargetId = string; // Validate presetId:aspectId against the frozen rules version.
 export type Sha256 = string;
 export interface Envelope {
-  protocolVersion: '2.2.1'; sessionId: string; requestId: string; sequence: number;
+  protocolVersion: '2.3.0'; sessionId: string; requestId: string; sequence: number;
   revisionId: string; targetId: TargetId;
 }
 export interface Init extends Envelope {

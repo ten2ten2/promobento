@@ -5,6 +5,17 @@ const ROOT = new URL('../', import.meta.url);
 export const load = path => JSON.parse(readFileSync(new URL(path, ROOT), 'utf8'));
 export const schema = load('contracts/production.schema.json');
 export const presets = load('config/platform-presets.json');
+/** Configuration gate only; this does not enforce live account/project rolling ledgers. */
+export function hasCalibratedCostLimits(policy) {
+  const cost = policy?.cost, patch = policy?.patch;
+  if (!cost || !patch || !['maxMicrosPerUserWindow','maxMicrosPerProjectWindow'].every(key => Object.hasOwn(cost,key))) return false;
+  const limits = Object.entries(cost).filter(([key]) => key.startsWith('maxMicros') || ['dailySoftAlertMicros','maxDailyFreeMicros'].includes(key));
+  return limits.every(([,value]) => Number.isSafeInteger(value) && value > 0)
+    && cost.usageWindowHours === 24 && cost.usageWindowMode === 'rolling_all_actual_and_unsettled_costs'
+    && typeof cost.priceVersion === 'string' && cost.priceVersion.length > 0
+    && Number.isSafeInteger(patch.maxInputTokensPerRound) && patch.maxInputTokensPerRound > 0
+    && Number.isSafeInteger(patch.maxOutputTokensPerRound) && patch.maxOutputTokensPerRound > 0;
+}
 export const canonical = value => {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
   if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('NON_FINITE'); return JSON.stringify(value); }
@@ -13,15 +24,16 @@ export const canonical = value => {
   throw Error('NOT_JSON');
 };
 export const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
-const supported = new Set(['$schema', '$id', '$defs', '$ref', 'title', 'description', 'type', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'uniqueItems', 'enum', 'const', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'anyOf', 'oneOf']);
+const supported = new Set(['$schema', '$id', '$defs', '$ref', 'title', 'description', 'type', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'maxItems', 'uniqueItems', 'enum', 'const', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'anyOf', 'oneOf']);
 // Fail closed on unsupported schema vocabulary. CI/app must also validate with a full Draft 2020-12 implementation.
 export function validateSchema(value, rule = schema, at = '$', depth = 0) {
   if (depth > 64) throw Error('MAX_DEPTH');
   for (const key of Object.keys(rule)) if (!supported.has(key)) throw Error('UNSUPPORTED_SCHEMA_KEYWORD:' + key);
   if (rule.$ref) {
     if (!rule.$ref.startsWith('#/$defs/')) throw Error('REMOTE_SCHEMA_REF');
-    const target = schema.$defs[rule.$ref.slice(8)];
-    if (!target) throw Error('UNKNOWN_SCHEMA_REF');
+    const name = rule.$ref.slice(8);
+    if (!Object.hasOwn(schema.$defs,name)) throw Error('UNKNOWN_SCHEMA_REF');
+    const target = schema.$defs[name];
     return validateSchema(value, target, at, depth + 1);
   }
   if (rule.oneOf || rule.anyOf) {
@@ -49,12 +61,13 @@ export function validateSchema(value, rule = schema, at = '$', depth = 0) {
   }
   if (Array.isArray(value)) {
     if (rule.minItems !== undefined && value.length < rule.minItems) add('minItems');
+    if (rule.maxItems !== undefined && value.length > rule.maxItems) add('maxItems');
     if (rule.uniqueItems && new Set(value.map(canonical)).size !== value.length) add('uniqueItems');
     if (rule.items) value.forEach((x, i) => errors.push(...validateSchema(x, rule.items, at + '[' + i + ']', depth + 1)));
   } else if (value && typeof value === 'object') {
     for (const key of rule.required ?? []) if (!Object.hasOwn(value, key)) add('missing ' + key);
     for (const [key, x] of Object.entries(value)) {
-      if (rule.properties?.[key]) errors.push(...validateSchema(x, rule.properties[key], at + '.' + key, depth + 1));
+      if (rule.properties && Object.hasOwn(rule.properties,key)) errors.push(...validateSchema(x, rule.properties[key], at + '.' + key, depth + 1));
       else if (rule.additionalProperties === false) add('unknown ' + key);
       else if (rule.additionalProperties && typeof rule.additionalProperties === 'object') errors.push(...validateSchema(x, rule.additionalProperties, at + '.' + key, depth + 1));
     }
@@ -76,7 +89,8 @@ export function contentIdentity(c) {
 export function variantIdentity(c, v, rules = presets) {
   const target = targets(rules).find(t => t.targetId === v.targetId);
   if (!target) throw Error('INVALID_TARGET_PAIR');
-  return {sourceHash:v.sourceHash, dependencyManifestHash:c.dependencyManifestHash,
+  return {sourceHash:v.sourceHash, layoutRulesHash:c.layoutRulesHash, targetOverrideHash:v.targetOverrideHash,
+    dependencyManifestHash:c.dependencyManifestHash,
     resourceManifestHash:v.resourceManifestHash, audioHash:v.audioHash,
     factContentHash:c.factContentHash, seed:c.seed, totalFrames:c.totalFrames, fps:c.fps,
     layout:target.layout};
@@ -116,6 +130,21 @@ export function semanticErrors(v, context = {}) {
   const rules = context.presetConfig ?? presets;
   const all = targets(rules), allowed = new Map(all.map(t => [t.targetId, t]));
   const composition = context.composition;
+  if (v.kind === 'edit_request') {
+    fail(v.comments.reduce((n, comment) => n + [...comment.comment].length, 0) <= 4000, 'COMMENTS_TOO_LONG');
+    for (const comment of v.comments) {
+      fail(comment.comment.trim().length > 0, 'EMPTY_COMMENT');
+      fail(allowed.has(comment.targetId), 'INVALID_COMMENT_TARGET');
+      if (composition) fail(comment.frameIndex < composition.totalFrames, 'COMMENT_FRAME_OUT_OF_RANGE');
+    }
+  }
+  if (v.kind === 'checkout_request') {
+    const catalog = load('config/agent-policy.json').quota[v.sku];
+    fail(catalog?.allowedPurchaseIntents?.includes(v.purchaseIntent), 'PURCHASE_INTENT_NOT_ALLOWED');
+    fail(v.purchaseIntent === 'purchase_and_export' ? !!v.snapshotId : !Object.hasOwn(v, 'snapshotId'), 'SNAPSHOT_INTENT_MISMATCH');
+    fail(v.sku === 'project_upgrade' ? !!v.upgradeFromOrderId : !Object.hasOwn(v, 'upgradeFromOrderId'), 'UPGRADE_SOURCE_MISMATCH');
+  }
+  if (v.kind === 'create_project_request' && v.requestTrial && context.role !== undefined) fail(context.role === 'owner', 'TRIAL_OWNER_REQUIRED');
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
   const ownTargets = new Set((v.variants ?? []).map(x => x.targetId));
@@ -257,6 +286,188 @@ export class RevisionReference {
     if (this.accepted.has(requestId)) {if (this.accepted.get(requestId) !== sig) throw Error('IDEMPOTENCY_CONFLICT'); return candidate;}
     if (this.current !== base) throw Error('STALE_BASE');
     this.current = candidate; this.accepted.set(requestId, sig); return candidate;
+  }
+}
+/** Account-scoped trial allocation reference. Authorization/transactions remain live-service work. */
+export class TrialReference {
+  constructor() { this.claims = new Map(); this.projects = new Map(); this.requests = new Map(); }
+  create(request, actor) {
+    if (!actor?.authorized || !['owner', 'editor'].includes(actor.role) || !actor.userId) throw Error('FORBIDDEN');
+    const errors = semanticErrors(request, {role: actor.role});
+    if (request.kind !== 'create_project_request' || errors.length) throw Error(errors.join(',') || 'INVALID_PROJECT_REQUEST');
+    const key = canonical([actor.userId, request.workspaceId, request.requestId]), requestHash = digest(request);
+    const previous = this.requests.get(key);
+    if (previous) { if (previous.requestHash !== requestHash) throw Error('IDEMPOTENCY_CONFLICT'); return structuredClone(previous.result); }
+    const projectId = 'project_ref_' + (this.projects.size + 1);
+    let trialStatus = 'not_requested';
+    if (request.requestTrial) {
+      trialStatus = this.claims.has(actor.userId) ? 'unavailable' : 'granted';
+      if (trialStatus === 'granted') this.claims.set(actor.userId, projectId);
+    }
+    const free = load('config/agent-policy.json').quota.free;
+    this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
+      deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
+      agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
+    const result = {schemaVersion:'2.3.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    this.requests.set(key, {requestHash, result});
+    return structuredClone(result);
+  }
+  deleteProject(projectId) { const project = this.projects.get(projectId); if (project) project.deleted = true; }
+  hasTrialCloudAccess(projectId) { const project = this.projects.get(projectId); return !!project && !project.deleted && !!project.trialOwnerUserId; }
+}
+
+/** All attempts/targets/children of one operation share this single integer-micros budget. */
+export class OperationBudgetReference {
+  constructor(operationId, limitMicros) {
+    if (!Number.isSafeInteger(limitMicros) || limitMicros <= 0) throw Error('UNCALIBRATED_BUDGET');
+    this.operationId = operationId; this.limitMicros = limitMicros; this.spentMicros = 0; this.calls = new Map(); this.events = [];
+  }
+  get reservedMicros() { return [...this.calls.values()].filter(x => x.state !== 'settled').reduce((n, x) => n + x.maximumCostMicros, 0); }
+  get remainingMicros() { return Math.max(0, this.limitMicros - this.spentMicros - this.reservedMicros); }
+  reserve({operationId, callId, attemptId, targetId, maximumCostMicros, requestHash}) {
+    if (operationId !== this.operationId) throw Error('OPERATION_BUDGET_MISMATCH');
+    if (!Number.isSafeInteger(maximumCostMicros) || maximumCostMicros <= 0) throw Error('INVALID_COST_RESERVATION');
+    const signature = canonical({operationId, attemptId, targetId, maximumCostMicros, requestHash});
+    const old = this.calls.get(callId);
+    if (old) { if (old.signature !== signature) throw Error('IDEMPOTENCY_CONFLICT'); return structuredClone(old); }
+    if ([...this.calls.values()].some(call => call.exceededReservation)) throw Error('USAGE_OVERRUN');
+    if (maximumCostMicros > this.remainingMicros) throw Error('BUDGET_EXHAUSTED');
+    const call = {signature, maximumCostMicros, state:'reserved', actualCostMicros:null};
+    this.calls.set(callId, call); this.events.push(Object.freeze({type:'reserve',callId,maximumCostMicros})); return structuredClone(call);
+  }
+  settle(callId, actualCostMicros) {
+    const call = this.calls.get(callId);
+    if (!call) throw Error('NO_COST_RESERVATION');
+    if (call.state === 'settled') {
+      if (actualCostMicros !== call.actualCostMicros) throw Error('USAGE_RECONCILIATION_CONFLICT');
+      return structuredClone(call);
+    }
+    if (actualCostMicros === null) {
+      if (call.state !== 'unknown') this.events.push(Object.freeze({type:'unknown',callId}));
+      call.state = 'unknown'; return structuredClone(call);
+    }
+    if (!Number.isSafeInteger(actualCostMicros) || actualCostMicros < 0) throw Error('INVALID_ACTUAL_USAGE');
+    call.state = 'settled'; call.actualCostMicros = actualCostMicros; this.spentMicros += actualCostMicros;
+    this.events.push(Object.freeze({type:'settle',callId,actualCostMicros}));
+    call.exceededReservation = actualCostMicros > call.maximumCostMicros;
+    return structuredClone(call);
+  }
+}
+
+/** Verified-payment/entitlement reference, not a Waffo webhook, database or checkout implementation. */
+export class CheckoutReference {
+  constructor(projectId, frozenSnapshots = []) {
+    this.projectId = projectId; this.snapshots = new Map(frozenSnapshots.map(x => [x.snapshotId, structuredClone(x)]));
+    this.orders = new Map(); this.requests = new Map(); this.slots = new Map(); this.grants = new Map();
+    this.exportIntents = new Map(); this.releases = new Map();
+  }
+  get catalog() {
+    return Object.fromEntries(Object.entries(load('config/agent-policy.json').quota).filter(([, value]) => value && typeof value === 'object' && Number.isSafeInteger(value.priceMinor)));
+  }
+  effective(grant, seen = new Set()) {
+    if (!grant?.active || seen.has(grant.orderId)) return false;
+    seen.add(grant.orderId);
+    return !grant.dependsOnOrderId || this.effective(this.grants.get(grant.dependsOnOrderId), seen);
+  }
+  hasCreativePurchase() { return [...this.grants.values()].some(g => this.effective(g) && ['project_pack', 'project_upgrade'].includes(g.sku)); }
+  assertEligibility(request, orderId) {
+    const item = this.catalog[request.sku];
+    if (!item) throw Error('UNKNOWN_SKU');
+    if (item.isInitialPurchase && [...this.grants.values()].some(g => this.effective(g) && this.catalog[g.sku].isInitialPurchase && g.orderId !== orderId)) throw Error('INITIAL_PURCHASE_EXISTS');
+    if (request.sku === 'project_upgrade') {
+      const source = this.grants.get(request.upgradeFromOrderId);
+      if (!this.effective(source) || source.sku !== 'single_export') throw Error('VALID_SINGLE_EXPORT_REQUIRED');
+      if ([...this.grants.values()].some(g => this.effective(g) && g.upgradeFromOrderId === request.upgradeFromOrderId && g.orderId !== orderId)) throw Error('ALREADY_UPGRADED');
+    }
+    if (request.sku === 'extra_pack' && !this.hasCreativePurchase()) throw Error('CREATIVE_PROJECT_REQUIRED');
+    if (request.sku === 'extra_pack' && request.dependsOnOrderId && !this.effective(this.grants.get(request.dependsOnOrderId))) throw Error('CREATIVE_PROJECT_REQUIRED');
+  }
+  open(request, {ownerAuthorized, recoverable = true} = {}) {
+    if (!ownerAuthorized) throw Error('FORBIDDEN');
+    const errors = semanticErrors(request);
+    if (request.kind !== 'checkout_request' || errors.length) throw Error(errors.join(',') || 'INVALID_CHECKOUT');
+    if (request.projectId !== this.projectId || !recoverable) throw Error('PROJECT_UNAVAILABLE');
+    const signature = digest(request), previous = this.requests.get(request.requestId);
+    if (previous) {
+      if (previous.signature !== signature) throw Error('IDEMPOTENCY_CONFLICT');
+      return structuredClone(this.orders.get(previous.orderId));
+    }
+    if (request.purchaseIntent === 'purchase_and_export') {
+      const snapshot = this.snapshots.get(request.snapshotId);
+      if (!snapshot || snapshot.projectId !== this.projectId || semanticErrors(snapshot).length) throw Error('VARIANTS_NOT_READY');
+      const delivered = this.releases.get(snapshot.contentHash);
+      if (delivered && !this.effective(this.grants.get(delivered.orderId))) throw Error('RELEASE_RESTORATION_REVIEW_REQUIRED');
+    }
+    this.assertEligibility(request);
+    const item = this.catalog[request.sku];
+    const slotKey = item.isInitialPurchase ? 'initial_purchase' : request.sku === 'project_upgrade' ? 'upgrade:' + request.upgradeFromOrderId : 'extra_pack';
+    if (this.slots.has(slotKey)) throw Error('CHECKOUT_IN_PROGRESS');
+    const orderId = 'order_ref_' + (this.orders.size + 1);
+    const creativeSource = request.sku === 'extra_pack' ? [...this.grants.values()].find(g => this.effective(g) && ['project_pack','project_upgrade'].includes(g.sku)) : null;
+    const order = {orderId, ...structuredClone(request), priceMinor:item.priceMinor, entitlementSnapshot:structuredClone(item),
+      dependsOnOrderId:request.upgradeFromOrderId ?? creativeSource?.orderId ?? null,
+      slotKey, paymentVerified:false, refundVerified:false, state:'checkout_open'};
+    this.orders.set(orderId, order); this.slots.set(slotKey, orderId); this.requests.set(request.requestId, {signature, orderId});
+    return structuredClone(order);
+  }
+  grantVerifiedPayment(orderId) {
+    const order = this.orders.get(orderId);
+    if (!order) throw Error('UNKNOWN_ORDER');
+    order.paymentVerified = true;
+    if (this.grants.has(orderId)) return structuredClone(this.grants.get(orderId));
+    if (order.refundVerified) { order.state = 'paid'; return null; }
+    if (this.slots.get(order.slotKey) !== orderId) { order.state = 'review_required'; order.reviewReason = 'CHECKOUT_SLOT_CHANGED'; return null; }
+    try { this.assertEligibility(order, orderId); }
+    catch (error) { order.state = 'review_required'; order.reviewReason = error.message; return null; }
+    const item = order.entitlementSnapshot;
+    const grant = {orderId, sku:order.sku, active:true, versionUnits:item.versionUnits,
+      creative_generate:item.creative_generate, agent_patch:item.agent_patch,
+      upgradeFromOrderId:order.upgradeFromOrderId ?? null,
+      dependsOnOrderId:order.dependsOnOrderId,
+      boundContentHash:order.sku === 'single_export' ? this.snapshots.get(order.snapshotId).contentHash : null};
+    this.grants.set(orderId, grant); order.state = 'paid';
+    if (order.purchaseIntent === 'purchase_and_export') this.exportIntents.set(orderId, {snapshotId:order.snapshotId, contentHash:this.snapshots.get(order.snapshotId).contentHash});
+    if (order.sku === 'extra_pack') this.slots.delete(order.slotKey);
+    return structuredClone(grant);
+  }
+  descendantsClosed(orderId, seen = new Set()) {
+    if (seen.has(orderId)) return false;
+    seen.add(orderId);
+    return [...this.orders.values()].filter(order => order.dependsOnOrderId === orderId).every(order =>
+      (order.refundVerified || order.state === 'canceled') && this.descendantsClosed(order.orderId, new Set(seen)));
+  }
+  releaseClosedSlots() {
+    for (const [slotKey,orderId] of this.slots) {
+      const order = this.orders.get(orderId);
+      if ((order?.refundVerified || order?.state === 'canceled') && this.descendantsClosed(orderId)) this.slots.delete(slotKey);
+    }
+  }
+  revokeGrant(orderId) {
+    const order = this.orders.get(orderId); if (!order) throw Error('UNKNOWN_ORDER');
+    const grant = this.grants.get(orderId); if (grant) grant.active = false;
+    order.refundVerified = true; this.releaseClosedSlots();
+  }
+  closeUnpaid(orderId, providerConfirmedUnpaid) {
+    const order = this.orders.get(orderId);
+    if (!order || !providerConfirmedUnpaid || order.paymentVerified) throw Error('PAYMENT_STATUS_UNRESOLVED');
+    order.state = 'canceled'; this.releaseClosedSlots();
+  }
+  available(kind) {
+    const granted = [...this.grants.values()].filter(g => this.effective(g)).reduce((n,g) => n + g[kind], 0);
+    const consumed = kind === 'versionUnits' ? [...this.releases.values()].filter(r => this.effective(this.grants.get(r.orderId))).length : 0;
+    return granted - consumed;
+  }
+  publish(releaseId, contentHash) {
+    if (this.releases.has(contentHash)) {
+      const existing = this.releases.get(contentHash);
+      if (!this.effective(this.grants.get(existing.orderId))) throw Error('RELEASE_RESTORATION_REVIEW_REQUIRED');
+      return structuredClone(existing);
+    }
+    const grant = [...this.grants.values()].find(g => this.effective(g)
+      && (!g.boundContentHash || g.boundContentHash === contentHash)
+      && [...this.releases.values()].filter(r => r.orderId === g.orderId).length < g.versionUnits);
+    if (!grant) throw Error('NO_VERSION_RIGHT');
+    const release = {releaseId, contentHash, orderId:grant.orderId}; this.releases.set(contentHash, release); return structuredClone(release);
   }
 }
 export function matchesFrameReady(command, response, manifestHash, disposed = false) {

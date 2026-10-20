@@ -1,6 +1,8 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章是跨模块契约的现行依据。结构版本 `2.2.1` 在 `contracts/production.schema.json`；帧协议类型在 `contracts/render-protocol.d.ts`；预算与输入分别在 `config/agent-policy.json`、`config/input-capabilities.json`。结构验证、语义验证与资源授权必须同时成立。参考检查不是D1原子性、隔离沙箱或生产服务。
+本章是产品规格 v2.3 的跨模块契约依据。现行结构协议仅接受 `2.3.0`，定义在 `contracts/production.schema.json`；帧协议类型在 `contracts/render-protocol.d.ts`；预算与输入分别在 `config/agent-policy.json`、`config/input-capabilities.json`。结构验证、语义验证与资源授权必须同时成立，不接受已撤销的协议版本、字段形态或商品别名。现行可选创作字段仍可省略；可选不等于历史兼容。参考检查不是D1原子性、隔离沙箱或生产服务。
+
+生产入口显式执行带 `{production:true}` 的语义验证，并拒绝 `exampleOnly:true` 的请求、快照和资源清单。离线Reference允许标注的样例以验证关联和状态；其默认测试上下文不是生产授权路径，不应直接当作上线服务复用。
 
 [01](01-product-prd.md)定义产品，[03](03-platform-presets.md)定义输出，[05](05-waffo-billing.md)定义付款退款，[10](10-i18n-and-themes.md)定义语言主题，[11](11-ui-design-spec.md)定义UI，[12](12-routing-and-auth.md)定义认证，[13](13-agent-native-production.md)定义创作方法。API唯一登记在 `config/routes.json`，Agent请求/响应通过 `contracts/agent-api.json` 引用Schema；[08](08-codex-execution.md)是唯一实施顺序。
 
@@ -13,9 +15,11 @@
 | composition_sources / composition_variants | revision关联源码、锁定依赖、runtime；UNIQUE(revision_id,target_id)；源码/资源/声音按实际hash引用 |
 | agent_runs / agent_run_steps | 一次用户操作及内部步骤；attempt不是队列投递次数，generation是写入栅栏 |
 | agent_candidates / agent_patches | base/candidate revision、scope、read/write set、验证状态；状态在关联记录，不更新源码内容 |
-| creative_reservations / creative_ledger | 整片/局部成功次数预留、消费、释放、补偿，与成片版本账本分开 |
+| creative_reservations / creative_ledger | 整片/AI改稿轮成功次数预留、消费、释放、补偿，与成片版本账本分开 |
+| trial_claims | 以user_id唯一绑定一次试用project；跨workspace、复制、删除、身份关联不重置；只允许Owner绑定自己 |
+| cost_events / cost_reservations | workspace/project/operation/attempt/target/子调用、模型/价格版本与实际用量；用户次数回退不删除实际开销 |
 | export_snapshots / export_releases | snapshot是确认收据；release是按项目及内容身份去重的实际交付/版本消费实体 |
-| comments / edit_requests | revision、target、frame、可选point/element/screenshot；不强制scene存在 |
+| comments / edit_requests | 一轮请求固定baseRevision，comments为1至5条，每条target/frame与可选point/element/screenshot；合计最多4,000个Unicode code points，不强制scene存在 |
 | fact_manifests / quality_reports | 与真实源码、资源、事实和检查版本绑定，不能新源码配旧报告 |
 
 所有关联从数据库真实资源推导workspace，以组合外键/同事务条件避免跨项目ID拼接。候选接受时重查会员、项目正常期、非墓碑、baseRevision、If-Match（两者同时提供要一致）、read/write set、资源和QA，再CAS切换指针并标记接受、写outbox。同基线两候选只能一个成功，另一409保留；不自动合并不可信代码。
@@ -24,7 +28,7 @@
 
 ## 2 Manifest、目标与冻结准备
 
-CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed、sourceArchiveHash、dependencyManifestHash、resourceManifestHash、factManifestHash、factContentHash、runtimeVersion、rendererImageDigest、presetRulesVersion、releaseEligible与variants；可选styleLabel自由值，内容语言元数据可省略。网站Cookie/uiLocale/theme不进入manifest。
+CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed、sourceArchiveHash、dependencyManifestHash、resourceManifestHash、layoutRulesHash、factManifestHash、factContentHash、runtimeVersion、rendererImageDigest、presetRulesVersion、releaseEligible与variants；可选styleLabel自由值，内容语言元数据可省略。每个variant冻结targetOverrideHash，无覆盖项时明确为null；有覆盖时hash指向实际执行的不可变适配内容。网站Cookie/uiLocale/theme不进入manifest。
 
 资源清单列逻辑路径、字节SHA-256、大小、媒体类型、不可变存储引用、来源许可和字体/塑形配置。字体以实际客户文字逐码位/字素簇验证支持、塑形及明确回退；仅等待 `document.fonts.ready` 不算成功，不允许静默 tofu/系统字体漂移。确认可商用的字体/音源与使用的子集或回退映射须冻结进 resourceManifest，署名义务无法履行的采样不得进入 P0 成片。源码包只包括实际执行源码及锁定依赖引用，不包含manifest自身、QA输出、临时URL、运行日志等自引用/可变材料。实际业务字段声明不足不等于授权通过；必须核对资源归属。
 
@@ -32,7 +36,9 @@ CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed
 
 候选可以只覆盖当前目标；releaseEligible前必须有该规则版本全部合法target的源分支/资源/字体/音轨/coverFrame与Q0/Q1、必要片段及事实复核。相同画幅只有源码、资源、声音、参数经验证等价才可共享，不按比例自动去重。releaseEligible是准备资格，不是完整高清编码通过证明。
 
-准备平台是显式prepare_targets操作，响应式语义布局优先，并仅对 Q1 失败镜头做 Agent 定点适配；按原revision/target去重和独立系统预算，不扣额外成功次数。每新增构图的模型、CPU、字幕/字体、QA 和人工返工成本应计量，不允许把费用隐藏到免费准备过程。它不能原地追加不可变revision；产出新的候选revision并CAS确认，保留原稿。改变原主目标风格或事实必须重新向用户确认，不能伪装成无变化准备。
+准备平台是显式prepare_targets操作，响应式语义布局优先，并仅对 Q1 失败镜头做 Agent 定点适配；按原revision/target去重和独立系统预算，不扣额外成功次数。同operation下全部target、attempt和子调用共同受美元上限约束，不能为每个目标重开一份无限预算。共享源码、布局规则、依赖、资源及每个target的覆盖项必须进入冻结身份，不能只保存一个可变规则名称。每新增构图的模型、CPU、字幕/字体、QA 和返工成本应计量，报告一次通过率与修复开销，不假设派生成本为零。它不能原地追加不可变revision；产出新的候选revision并CAS确认，保留原稿。改变原主目标风格或事实必须重新向用户确认，不能伪装成无变化准备。
+
+目标Q1覆盖整片关键时点、转场和高风险动态片段，绑定真实布局、安全区、字体与资源；允许低清取帧优化，不要求付款前全部高清编码。付款页静态图用于浏览，不能替代时序QA或七个目标的可执行来源。相同画幅只在实际绘制、字幕、音频与安全区条件等价时复用，不把“7个目标”承诺成恒定“4份视频”。
 
 `POST .../export-snapshots`只冻结已经准备好的revision，缺目标/报告409 VARIANTS_NOT_READY；不会在请求内暗中做昂贵生成。付款冻结所有来源，首次只编码所选目标；后补平台仅运行被冻结源包，不再调用模型。系统缺陷以独立correction关联原release、免费且有审计，原文件不覆盖。
 
@@ -46,7 +52,7 @@ CompositionManifest包含project/revision、15/30秒、30fps/450或900帧、seed
 | factContentHash | factContentIdentity：去掉projectId/revisionId/exampleOnly，各fact去confirmedBy/confirmedAt，各binding去coverage，其余保留 |
 | compositionHash | 完整CompositionManifest的canonical SHA-256；用于源包关联与帧会话精确身份 |
 | contentHash | contentIdentity：去projectId/revisionId/exampleOnly/releaseEligible/factManifestHash/styleLabel；variants去qaReportHash并按targetId排序；实际源码、事实内容、依赖、声音、seed、时序、封面、runtime/renderer与规则版本保留 |
-| variantHash | variantIdentity：目标sourceHash、锁依赖、目标resourceManifestHash/audioHash、factContentHash、seed/总帧/fps与固定layout |
+| variantHash | variantIdentity：目标sourceHash、layoutRulesHash/targetOverrideHash、锁依赖、目标resourceManifestHash/audioHash、factContentHash、seed/总帧/fps与固定layout |
 | videoFingerprint | outputArtifactIdentity(video)：kind+artifactIdentity，后者为variantHash、runtimeVersion、rendererImageDigest、固定encoding与layout |
 | coverFingerprint | outputArtifactIdentity(cover)：kind+artifactIdentity+coverFrame+固定jpg_v1编码标识；改封面帧不能复用旧JPG，但可复用未变视频 |
 | mappingFingerprint | outputArtifactIdentity(mapping)：kind+targetId+规则版本+videoFingerprint+coverFingerprint+mapping_v1；对应固定、无临时URL的目标映射 |
@@ -57,7 +63,7 @@ source/variant资源hash必须覆盖所有实际绘制依赖；不能遗漏字�
 
 ## 4 Snapshot、Release与账务身份
 
-不同snapshotId可能只是同一内容的重新确认，不应重复扣次。`UNIQUE(project_id,content_hash)`确定release；首次成功交付最多消费一个成片版本。重复请求仍执行当前权限检查，同幂等键不同请求摘要409，不因“相同内容”跳过幂等约束。
+不同snapshotId可能只是同一内容的重新确认，不应重复扣次。已交付release的授权若因退款撤销，普通请求重放不能恢复其下载；同内容的purchase_and_export在创建checkout前返回RELEASE_RESTORATION_REVIEW_REQUIRED并转review_required，按05核查既有消费与恢复授权，不把新grant伪装成从未使用。此边界不阻止普通未使用/未发布失败退款后的新购买、新内容或$39的top_up_only创作购买。`UNIQUE(project_id,content_hash)`确定release；首次成功交付最多消费一个成片版本。重复请求仍执行当前权限检查，同幂等键不同请求摘要409，不因“相同内容”跳过幂等约束。
 
 发现同内容既有release时返回原release及其**原始snapshot/批次**，不能把本次新snapshot重贴到原输出。若另选平台，用独立补平台请求；不修改initialTargetIds。首次预留固定首批MP4、JPG与映射文件的逻辑集合；每个target均有video/cover/mapping记录，允许共享实际对象。全部就绪、预留/grant有效、项目未删除才原子ready+consume+published_at。
 
@@ -67,7 +73,9 @@ source/variant资源hash必须覆盖所有实际绘制依赖；不能遗漏字�
 
 订单授予、退款冻结、晚成功付款、素材失效、保留和恢复按 [05](05-waffo-billing.md)。普通界面注销不取消已付款交付。付费snapshot/runtime/镜像在其正常期、宽限与在途任务仍引用时必须可运行；安全停用走有审计的免费兼容修复。
 
-创作计划的最小机器合同：`run_result.directions` 可含语言、look、palette、rhythm、sound、risk、whyItFits；`run_result.treatment` 保存总帧、半开区间节奏事件和连续性/关键帧；`run_result.audioPlan` 保存总帧、事件范围、许可与可选已确认转写稿 hash；`patch_result` 可含影响摘要、Agent 解读和同线程 followUpOf。其详细字段和向后兼容性以 `production.schema.json` 为准，跨字段时长验证由可信层执行。这些创作记录本身是可追溯证据，**不单独改变 contentHash**；只有真正修改已执行源码、参数、事实、音频、资源或合法目标布局才产生新计费内容。
+创作计划的最小机器合同：`run_result.directions` 可含语言、look、palette、rhythm、sound、risk、whyItFits；`run_result.treatment` 保存总帧、半开区间节奏事件和连续性/关键帧；`run_result.audioPlan` 保存总帧、事件范围、许可与可选已确认转写稿 hash；`patch_result` 可含影响摘要、Agent 解读和同线程 followUpOf。其现行字段和允许省略项以 `production.schema.json` 为准，跨字段时长验证由可信层执行。这些创作记录本身是可追溯证据，**不单独改变 contentHash**；只有真正修改已执行源码、参数、事实、音频、资源或合法目标布局才产生新计费内容。
+
+商品结构使用 `checkout_request`：requestId/projectId/sku/purchaseIntent，导出意图额外提供snapshotId，升级额外提供upgradeFromOrderId。purchaseIntent必须显式传入；`top_up_only` 禁止snapshotId且不创建导出任务，`purchase_and_export` 必须绑定已准备、已确认的全部目标快照。单片商品 `single_export` 仅允许后者；`project_pack`、`project_upgrade`、`extra_pack` 允许两种意图，UI默认仅增权益。升级源字段只允许升级商品。客户端不能指定金额、币种、权益或支付回跳。资格、并发槽、付款与退款按05执行；结构合法不代表订单已获授权。
 
 ## 5 RenderProtocol
 
@@ -86,17 +94,25 @@ init30秒、单帧5秒为初始待测上限，实际配置见agent-policy。when
 | 操作 | 用户计量 | 内部边界 |
 | --- | --- | --- |
 | creative_generate | 可用主目标候选交付时1次整片 | 方向、选择、构建、配乐、QA、最多2轮内部修复共用同operation |
-| agent_patch | 可用修改候选交付时1次局部 | 单镜头或明确全局改稿先显示影响/预算，不按调用或源码行数拆次 |
+| agent_patch | 可用修改候选交付时1轮AI修改 | 一次提交1至5条同base评论、总计≤4,000个Unicode code points；先显示合并影响，不按评论、调用或源码行数拆次 |
 | prepare_targets | 0 | 同创作内容补全冻结来源，revision/target去重并限预算；用户新风格请求不是免费准备 |
 | internal_repair | 0 | 属于原run，不递归新收费operation，修复与总费用有上限 |
-| 普通参数编辑/重播 | 0 | 无模型，不启动高清交付编码；没有editables要明确选择AI修改 |
+| 普通参数本地编辑/重播 | 0且不限编辑次数 | 无模型、不启动高清交付编码；素材替换、ASR、云预览和QA独立计入云预算、去抖与缓存；没有editables要明确选择AI修改 |
 | render_export | 首批发布1个成片版本 | 按05/§4去重；重试、补平台、重下、ZIP、系统修复不重复收费 |
 
-$39/$12与原有次数/3个版本不变；有效可售SKU只在agent-policy和05定义，无隐藏预算充值。每次生成/改稿前展示“可用候选交付扣次、之后纯审美拒绝不退次”，不是用户Accept才扣。系统失败/无效输出/取消且没有已交付可用结果则释放；已成功结果经证实技术缺陷可append-only补偿一次，关联原consume保留真实成本。
+有效付费商品仅为 `single_export` $19（1版本、0整片、0AI修改）、`project_pack` $39（新增5整片、15轮AI修改、3版本）、`project_upgrade` $20（有效$19订单同时最多一份在途/有效升级，增加5整片、15轮AI修改、2版本）、`extra_pack` $12（完整项目包或升级后，新增2整片、10轮AI修改、3版本）。完整销售条款与目录来自agent-policy和05，无隐藏预算充值。免费样片及已经消耗的免费次数不从购买新增权益扣除；升级仅授予目录规定的增量，不能把已消耗的首个成片版本再补回。升级及依赖的追加订单全部退款结清、没有未知付款或未结退款后，按05释放有效槽以允许新订单；初始购买亦须整条依赖结清。历史付款回调不能复活退款权益，历史消费和试用记录始终保留。
+
+`create_project_request.requestTrial` 可省略并按false处理；只有当前Owner可请求绑定其已认证user_id，不能传其他user_id或workspace余额作为试用来源。原子创建project、请求幂等结果与trial_claims；一个user跨工作区最多一个试用项目。已用完仍创建无免费权益草稿并返回trialStatus=unavailable，不暗中付费；未请求为not_requested，成功绑定为granted。两个并发请求最多一个granted，重复requestId返回同一project。删除/复制/转移Owner/重新登录/关联登录方式不重置该user的累计记录。其他草稿不获得免费素材处理、方向、整片或改稿；试用耗尽可先购买$39的top_up_only，再开启创作。
+
+试用项目仅有1次成功整片与2轮成功AI修改，三方向和内部工具在操作预算内；账号/设备/IP和全局限额按配置叠加，设备/IP不能替代稳定user_id主键。每次生成/改稿前展示“可用候选交付扣次、之后纯审美拒绝不退次”，不是用户Accept才扣。系统失败/无效输出/取消且没有已交付可用结果则释放；已成功结果经证实技术缺陷可append-only补偿一次，关联原consume保留真实成本。免费预览采用隔离交互iframe；内部QA片段受预算与访问授权控制，不作为可下载的免费高清成片，预览标识不构成绝对防录屏承诺。
 
 额度预留、run和outbox同事务。`UNIQUE(workspace_id,project_id,operation_id,kind)`；请求幂等另绑定actor/route/requestId/摘要。内部attempt/工具重试不另预留成功次数；不同操作竞争最后额度必须原子仲裁。
 
-预算快照记录输入/输出tokens、provider/model/价格版本、CPU/执行/片段/音频用量、修复次数与整数USD micros。每次外部调用前预留最坏费用，结束结算实际usage，未知按上限待对账，不让未知结果触发免费无界重试。用户次数与供应商成本分账。
+预算快照及费用台账关联workspace/project/operation/attempt/target/子调用，并按04关联actor_user_id及trial_owner_user_id，记录输入、缓存与输出tokens、provider/model/价格版本、CPU/执行/片段/音频/存储操作用量、修复次数与整数USD micros。每次模型或受计费工具调用前，在同operation累计已用和在途预留之外原子预留最坏费用，结束结算实际usage；结果未知继续按上限占用待对账，不让未知结果触发免费无界重试。子模型、冷审、ASR、方向和多目标共用该operation上限，不因attempt改变而重置。用户次数退还不回滚已花系统费用；重新发起还受账号/项目累计预算控制。提供方真实费用超出预留时记录超额并停止新调用，不能截掉账单隐藏超支。
+
+每次新调用还须原子核对账号与项目的通用滚动24小时费用窗口：`maxMicrosPerUserWindow` / `maxMicrosPerProjectWindow`、`usageWindowHours=24`、`usageWindowMode=rolling_all_actual_and_unsettled_costs`。统计窗口内全部成功及失败的实际云费用，并占用全部未结算最坏预留；成功的图片处理、云预览和QA也消耗这一窗口，不得只查失败预算。通用窗口与失败专属窗口、UTC免费总硬上限和原operation预算同时满足；新operation、付款、退款或用户次数退回均不清零。已确认付费交付的必要费用和容量须预留，新的非交付调用不能将其耗尽。两项通用上限未标定时保持null及enabled=false；参考校准检查不代替真实D1/DO的跨operation原子累计验收。
+
+合并改稿在排队和额度预留前校验comments数量及Unicode code points总量，超限明确返回422，不静默截断。供应商token上限和美元预算独立校准，不能假设一个Unicode字符等于一个token。方法包缓存以实际供应商和固定版本计量；每个可用结果成本包括失败、内部修复和目标验证，不只统计成功的最后一次模型调用。
 
 暂停保存工作、释放物理容器，24小时窗口内可访问未过期候选；resume仅在原权限、base仍有效、窗口内且原预算剩余时继续同run。上限耗尽409 BUDGET_EXHAUSTED，前端不能提高。可以缩小需求发起受全局限流的新操作或使用现有可用稿；没有批准SKU不提供“付款续跑”。到期释放未消费预留，已消费不因关页返还。
 
@@ -117,7 +133,8 @@ $39/$12与原有次数/3个版本不变；有效可售SKU只在agent-policy和05
 | ready候选→accept→accepted | §1 CAS、权限与QA同时验证；同请求同候选幂等 |
 | ready候选→reject→rejected | 不改当前稿，不返已交付成功次数 |
 | revision→freeze→snapshot | 所有合法target来源和报告齐全；只冻结，不生成/付款 |
-| snapshot→verified_payment→entitled/rendering | 05原子grant+intent+outbox，关闭网页仍交付 |
+| checkout(top_up_only)→verified_payment→entitled | 05原子grant+outbox；无snapshot、无导出intent、不创建rendering |
+| snapshot(purchase_and_export)→verified_payment→entitled/rendering | 05原子grant+导出intent+outbox，关闭网页仍交付 |
 | partial→retry→rendering | 仅失败指纹最多3个真实编码attempt |
 | all-valid→publish→ready | 原子批次发布/consume，退款或删除先发生则阻止发布 |
 
@@ -147,7 +164,7 @@ FactManifest记录事实版本、原文、来源、确认人/时间。商业文�
 
 图片/录屏/文本/Logo/上传声音的P0边界来自输入配置，不偷偷开放HTML/SVG上传、HEVC、长视频、网页抓取或全部TTS语种。目标standard-3仅为试验起点，不承诺GPU；M0b按08在真实Cloudflare验证同源30秒复杂片、字体/seek/Canvas/WebGL/FFmpeg、网络限制、销毁重建和跨job残留，没有结果不开放客户不可信代码。
 
-源码、媒体、音轨、正式QA和snapshot按有效引用与免费7天/付费90天+7天宽限保留。临时截图默认72小时且不长于项目正常期；已接受版本或活动作业引用按对应内容保留。等待用户最长24小时。主动删除以墓碑/取消/孤儿清理，24小时内清理不再合法引用的数据；72小时不是例外。财务必要记录独立且配置实际法定周期；常规日志不留prompt全文/源码/token。
+源码、媒体、音轨、正式QA和snapshot按有效引用、免费正常7天/付费正常90天及各自7天只读宽限保留。临时截图默认72小时且不长于项目正常期；已接受版本或活动作业引用按对应内容保留。等待用户最长24小时。主动删除以墓碑/取消/孤儿清理，24小时内清理不再合法引用的数据；72小时不是例外。财务必要记录独立且配置实际法定周期；常规日志不留prompt全文/源码/token。
 
 性能分别测排队、方向、首帧、主预览、全目标准备、patch和编码交付；无基准目标保持null，不用硬超时当SLA。样本包含两用户组、15/30秒、复杂运动、两模型配置、空队列与4容器混合；报告人数、p50/p95、失败/人工介入/费用，不宣传未经测量95%。
 
