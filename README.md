@@ -16,4 +16,4 @@
 | 品牌、图标与分享卡片 | [素材与接入](public/brand/README.md)、[品牌配置](config/brand.json) |
 | 网站政策正文与接入 | [内容维护](content/pages/README.md)：Terms、Privacy、Refund 英文草稿及待补事实 |
 
-维护现行规则及其消费者；交付和远端更新按 AGENTS 执行。
+修改规则时同步相关配置、代码和说明；提交要求见 AGENTS。

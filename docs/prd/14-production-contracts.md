@@ -1,14 +1,12 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章定义产品规格 v2.6 的跨系统不变量；协议为 `2.6.0`。字段类型只在 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts) 和 [创作运行时](../../contracts/composition-runtime.d.ts) 定义；本章补充身份、状态、授权和执行语义。参考检查不是生产服务。
+本章规定产品规格 v2.6 / 协议 `2.6.0` 各服务必须遵守的版本、状态、授权和执行规则。字段类型见 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts)和[创作运行时](../../contracts/composition-runtime.d.ts)。
 
-生产入口显式使用 `{production:true}`，拒绝 `exampleOnly:true` 的清单及登记证据。校验context必须由可信服务从数据库和真实执行结果构建，不能接受请求体或Agent自报的授权、素材观察记录或检查结果。离线样例只验证结构和关联。
-
-职责按 [PRD 索引](README.md) 划分：routes 注册 URI，agent-api 绑定请求/响应，05 定义交易，09 定义许可原则，13 定义创作方法，08 定义实施顺序；消费方引用，不复制另一套规则。
+生产校验显式使用 `{production:true}`，拒绝 `exampleOnly:true` 的清单及证据。校验 context 由可信服务读取数据库和真实执行结果构建，不能使用请求体或 Agent 自报的权限、素材记录和检查结果。
 
 ## 1 唯一版本模型
 
-| 实体 | 不变量 |
+| 实体 | 必须成立的规则 |
 | --- | --- |
 | projects | workspace_id、current_revision_id、generation、deleted_at；当前草稿指针必须指向本项目 |
 | project_revisions | 唯一内容版本实体；id/project/parent/content_hash/manifest_key/created_by；一旦写入内容不可变 |
@@ -23,7 +21,7 @@
 | fact_manifests | 保存事实内容、当前确认及证据引用；创作内容与确认记录分别计算摘要 |
 | quality_reports / quality_associations / quality_waivers | 报告保存检查结果；关联绑定当前 revision；豁免保存成员对指定 REVIEW 的确认，三者分别不可变 |
 
-所有关联从数据库真实资源推导workspace，以组合外键/同事务条件避免跨项目ID拼接。候选接受时重查会员、项目正常期、非墓碑、baseRevision、If-Match（两者同时提供要一致）、read/write set、资源和QA，再CAS切换指针并标记接受、写outbox。同基线两候选只能一个成功，另一409保留；不自动合并不可信代码。
+所有对象的 workspace 从数据库归属推导，外键与事务条件必须拒绝跨项目 ID 拼接。接受候选时重新检查成员权限、项目期限、删除状态、baseRevision、If-Match、读写集合、资源和 QA；baseRevision 与 If-Match 同时提供时必须一致。再通过 CAS（仅在当前版本仍等于基线时写入）切换草稿、标记接受并写 outbox。同一基线的两个候选只能接受一个，另一个返回 409 并保留，不能自动合并不可信代码。
 
 恢复使用 `PATCH /api/projects/:projectId/draft` 的 restoreFromRevisionId，与changes互斥，创建新revision，可复用源包；不改订单或余额。素材清理后409 SOURCE_UNAVAILABLE。源包相同而revisionId/检查记录变化不必然是新的付费内容。
 
@@ -31,7 +29,7 @@
 
 ### 数据库约束清单
 
-首个实际迁移与并发测试按以下编号核对；字段和事务随实现提交，当前不放空 migrations 或用字符串匹配代替数据库验证。
+首个数据库迁移须同时提交以下约束的并发测试；文档或 SQL 文本检查不能代替真实数据库执行。
 
 | ID | 必须在数据库或同一原子事务中成立 |
 | --- | --- |
@@ -102,7 +100,7 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 发现同内容既有release时返回原release及其**原始snapshot/批次**，不能把本次新snapshot重贴到原输出。若另选平台，用独立补平台请求；不修改initialTargetIds。首次预留固定首批MP4、JPG与映射文件的逻辑集合；每个target均有video/cover/mapping记录，允许共享实际对象。全部就绪、预留/grant有效、项目未删除才原子ready+consume+published_at。
 
-中间文件不下载；最终失败释放预留，可在同 release 重试，consume 按 release 唯一，release 操作按 reservation 唯一。补平台不预留成片次数，不改变已交付状态；ZIP 派生失败免费重试，不决定首次消费。完整 Q2 发布前执行，video/cover 的 `qualityEvidenceRef` 解析到可信登记，绑定实际输出 ID、target、sha256、artifactFingerprint、QA 策略及检查版本；mapping 不借此冒充媒体检查。付款前报告不能替代成片检测。
+同一 release 同时最多有一个有效预留；并发请求复用它，只有旧预留释放后才可建立新的预留。中间文件不下载；最终失败释放预留，可在同 release 重试，consume 按 release 唯一，release 操作按 reservation 唯一。补平台不预留成片次数，不改变已交付状态；ZIP 派生失败免费重试，不决定首次消费。完整 Q2 发布前执行，video/cover 的 `qualityEvidenceRef` 解析到可信登记，绑定实际输出 ID、target、sha256、artifactFingerprint、QA 策略及检查版本；mapping 不借此冒充媒体检查。付款前报告不能替代成片检测。
 
 快照保存全部目标来源、compositionHash、contentHash、事实/renderer、首次目标、usagePolicy、markingProfileVersion、qaProfileVersion、`confirmedAt` 和 `qualityAssociations`。冻结当下验证全部关联与豁免，固定实际使用的证据；自然到期的审核确认不会事后抹掉已购冻结收据。新冻结仍检查当前时间/成员权限，既有交付仍检查当前项目、有效权益及实际撤销。usagePolicy 固定条款/权利版本、商业导出用途及各 licenseRef 的历史记录，付款及05的条件满足后才授予使用权。ready artifact 必须有实际 sha256、正确指纹和冻结 target；首批输出不全不能发布。短期 URL 不入身份。
 
@@ -151,7 +149,7 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | 普通参数本地编辑/重播 | 0且不限编辑次数 | 无模型、不启动高清交付编码；素材替换、ASR、云预览和QA独立计入云预算、去抖与缓存；没有editables要明确选择AI修改 |
 | render_export | 首批发布1个成片版本 | 按05/§4去重；重试、补平台、重下、ZIP、系统修复不重复收费 |
 
-商品与试用状态见 05，数值只取 agent-policy。试用 claim、项目和幂等结果原子创建，只允许 Owner 绑定本人 user_id；跨工作区、删除、复制、转移或身份关联不重置累计资格。账号、设备/IP 和全局限额叠加，后两者不替代 user_id。未交付的失败释放次数，已确认技术缺陷以关联原 consume 的追加补偿处理，真实费用保留。免费预览/内部片段仍受授权和预算限制。
+商品、试用资格和次数返还见[05](05-waffo-billing.md)，数值取 agent-policy。账号、设备/IP 和全局限制同时生效，设备/IP 不能替代内部 user_id。免费预览和内部片段同样需要授权及预算；退次数不能删除真实费用。
 
 额度预留、run和outbox同事务。`UNIQUE(workspace_id,project_id,operation_id,kind)`；请求幂等另绑定actor/route/requestId/摘要。内部attempt/工具重试不另预留成功次数；不同操作竞争最后额度必须原子仲裁。
 
@@ -216,18 +214,16 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 ## 9 资源、输入与保存
 
-所有计算类别共同受 agent-policy 的全局/工作区/任务并发上限约束。同容器工具复用令牌，新开实例原子申请，不能持有全部令牌等待子任务；暂停/等用户释放实例，付费交付预留容量并优先。
-
-实例是信任边界；每job/generation由服务端派生实例名，Composer与Renderer都执行不可信代码，不因镜像固定就信任。独立目录/Linux用户不是多租户强隔离，不复用带客户文件的长期进程。默认禁公网，受限资产broker只读素材和有限输出；无主站/支付/模型/D1/R2管理凭据。离线依赖与生命周期脚本审核，不限制合法艺术算法。
+算力调度与任务隔离统一按[04](04-architecture-and-data.md#3-队列资源与隔离)。实例名称由服务端按 job/generation 派生；固定镜像不代表其中的创作代码可信。
 
 输入范围取 input-capabilities，不因内部工具支持而扩大公开上传、抓取或 TTS 能力。M0b 的目标实例、功能与隔离矩阵按 06/08 在真实 Cloudflare 验证；实例名称不证明 GPU 或兼容性，未通过不开放客户不可信代码。
 
 素材、成片、快照和缓存的保存与删除按04/05执行。有效作业引用须可运行；主动删除先墓碑/取消再清理，晚到产物回收。必要交易、授权和侵权证据与完整客户媒体分离，不能借不可变快照永久保留素材；常规日志不留prompt全文/源码/token。
 
-性能按 06/08 分阶段测排队、方向、首帧、主预览、准备、改稿和交付，报告样本、p50/p95、失败/人工介入及费用；未测目标保持 null，不把硬超时当 SLA。检查结果与真实实施状态分开记录。
+性能与真实环境验收按[06](06-testing-and-release.md#4-支付性能与平台门槛)，实施顺序按08。
 
 ## 10 协议与发布版本
 
-当前没有生产购买数据，删除未发布的旧开发规格时同步其消费者即可。首次生产冻结后，以发布登记固定 Schema/validator、identity 算法、平台执行配置、QA/marking 策略、runtime 与镜像 digest；加载时验证登记摘要，不能只按版本名取当前文件。仍被有效购买或在途作业引用的版本保持可执行，安全停用走有审计的免费修复。
+未发布且已替换的开发规格直接删除，并更新相关代码和文档。首次生产冻结后，发布登记须固定 Schema/validator、identity 算法、平台执行配置、QA/marking 策略、runtime 与镜像 digest。加载时验证登记摘要，不能按旧版本名取当前文件；仍被有效购买或在途作业引用的版本须保持可执行，安全停用按原订单免费修复并记录原因。
 
 平台执行规则改变必须更换 rulesVersion；仓库检查与实际 Git 基线比较，不能用同一次提交里互相匹配的版本表和文件证明不可变。正文来源日期或文案修正不强制改执行版本。跨版本解析按 discriminator 和明确协议版本分派，未知版本返回可定位错误，不尝试把任意旧请求当作当前结构。生产登记和旧版重放的真实实现、数据库迁移与恢复属于 M2，当前参考测试不宣称已具备这些服务。

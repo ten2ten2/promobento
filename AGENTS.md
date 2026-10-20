@@ -1,30 +1,24 @@
-# PromoBento — agent guide
+# PromoBento 协作说明
 
-## Start
+## 接手
 
-Read `README.md`, `docs/implementation-status.md` and `docs/prd/README.md`, then the chapters relevant to the task. The current product specification is v2.6 and the protocol is 2.6.0. Chapter 08 owns the implementation sequence; chapter 14 owns cross-system contracts. Follow the actual unfinished stage.
+先读 `README.md`、`docs/implementation-status.md` 和 `docs/prd/README.md`，再读任务涉及的章节。当前 PRD 为 **v2.6**，协议为 **2.6.0**；实施顺序见 08，跨系统契约见 14。从实际未完成的阶段继续，不把规划当作已有功能。
 
-## Toolchain and checks
+## 实现与维护
 
-Run `bash scripts/agent-setup.sh` in a new environment. Use mise for tools/tasks and pnpm for packages. Follow chapter 08, preserve exact pins and frozen lockfiles, and run affected checks. Regenerate the offline Studio after its inputs change. CI runs repository and contract checks for `main` pushes and pull requests.
+- 保持 15/30 秒、30 fps、既有平台预设、两类首发用户、Google/邮箱登录、Cloudflare 和 Waffo。网站语言或主题不能改变客户视频原文、成片或计费。
+- 创作代码只能在隔离环境运行。权限、任务取消、版本确认、冻结交付、账本幂等与预算按 04/05/14 实现，不能只靠前端检查；购买创作额度与购买并导出分别处理。
+- JSON 解析、规范化、摘要、身份计算和完整 Ajv 校验统一导入 `packages/contracts`。入站原始文本先经 `parseCanonicalJson` 解析。创作模块和可信宿主分别使用 `contracts/composition-runtime.d.ts`、`contracts/render-protocol.d.ts`。
+- 素材第一次处理前就核验许可，包含免费预览；事实确认与证据按 13/14 的相应阶段检查。授权证据、AI 标记和成片使用权按 09/14/05 处理，不能把仓库 MIT 当作所有素材的许可。
+- 按 PRD 索引分工维护规则。删除过时开发说明及其无用引用；保留素材来源、用户版本、购买证据和仍被购买/任务引用的已发布契约、配置及可执行环境。不得借文档清理改写 Git 历史或删除用户数据。
+- 配置或契约变更时同步使用它们的代码和文档。模板、tokens 或品牌素材变化后重新生成离线 Studio。应用命令随真实实现加入，不创建返回成功的空脚本。
 
-Import canonical JSON, hashing, identities and the full Ajv validator from `packages/contracts`; do not copy implementations into services. Parse original JSON text/bytes with `parseCanonicalJson` before validation. Runtime authors use `contracts/composition-runtime.d.ts`; trusted hosts use `contracts/render-protocol.d.ts`.
+## 验证与提交
 
-Add application commands when their implementations exist. Report actual tools and unrun checks. Contract tests and a CI workflow do not establish real rendering, D1, cloud, email or payment behavior.
+新环境先运行 `bash scripts/agent-setup.sh`。mise 管理工具和任务，pnpm 管理依赖；保持精确版本与冻结 lockfile，具体命令见 08。
 
-## Boundaries
+运行受影响的检查，报告实际工具版本、结果和未运行项。契约测试或 CI 通过不代表浏览器、媒体、数据库、模型、认证、云隔离和支付已经可用。缺外部凭据时继续不受影响的工作，并列明未验证的集成。
 
-- Preserve 15/30 seconds at 30 fps and existing platform target pairs. Agent-authored animation is free-form but runs only in isolated environments, never the main origin or credentialed service.
-- Keep user video text unrestricted and mixed-language. Website locale/theme cannot alter output or billing. Preserve Google/email authentication, Cloudflare, Waffo and the two initial user groups.
-- Use one `project_revisions` model and CAS acceptance. Freeze all legal target source variants before purchase-and-export; encode later. Creation-only purchases grant credits without a snapshot or export. Never invoke an Agent to invent a missing paid variant.
-- Use the catalog in `config/agent-policy.json` and chapter 05. Claim one lifetime trial per internal user across workspaces; linking, copies, deletion and payment do not reset consumption. Single export grants no extra AI work; upgrades grant only the entitlement difference.
-- Reuse exports by `(project_id, content_hash)`, not snapshot ID alone. Preserve purchase integrity, idempotent ledgers, refunds and tenant/resource authorization; retain personal data only for the purposes and periods in chapter 04. Cloud access revocation does not itself revert copyright or revoke unrelated output licenses.
-- Freeze source, dependencies, resources, facts, the actual mixed WAV and the selected render profile. Public seeking uses integer frames; subframe sampling belongs to trusted Renderer sessions. Bind Q0/Q1 to exact inputs and approved checker policy, and Q2 to actual output bytes. QA, marking or sampling policy changes alone do not consume another video version.
-- Audit asset rights before first processing, including free previews. Repository MIT does not cover every bundled asset. Resolve rights and factual evidence from trusted tenant-scoped records, and verify applicable AI marking on actual output bytes under chapters 09/14.
-- Maintain current specifications and request structures. Remove superseded development material and its consumers. Preserve required asset provenance, user versions, purchase evidence and any published schema, identity algorithm, configuration or executable still referenced by a retained purchase.
+实际能力变化时更新实施状态。常规检查结果写提交或 CI；需要留存的真实验收记录按 06 管理，不创建过程日记。
 
-## Handoff
-
-Run affected checks and update current implementation status without fictitious pass records. Missing external credentials do not block unrelated work; list the exact unverified integrations. Do not create routine evidence diaries or empty success scripts.
-
-Commit completed changes directly to remote `main` unless instructed otherwise. Preserve remote work and use fast-forward updates with an expected-head check; do not rewrite Git history.
+除非用户另有要求，完成后直接快进提交到 remote `main`。更新前核对预期远端提交；若远端前移，先读新增改动、整合并重新检查。禁止强推，并核对最终提交的 CI 结果。

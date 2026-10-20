@@ -827,7 +827,7 @@ test('a new outcome claim cannot inherit the old general classification or bypas
   const nextKey=factVersionKey(x.fact.projectId,fact),context={...x.context,requireFactConfirmation:true};
   assert.equal(context.claimKinds[oldKey],'general');
   assert.ok(semanticErrors(x.fact,context).includes('FACT_CLASSIFICATION_REQUIRED'));
-  context.claimKinds[fact.factId]='general'; // A legacy unversioned lookup must not authorize this version.
+  context.claimKinds[fact.factId]='general'; // An unversioned lookup must not authorize this version.
   assert.ok(semanticErrors(x.fact,context).includes('FACT_CLASSIFICATION_REQUIRED'));
   context.claimKinds[nextKey]='outcome';
   const missingSource=semanticErrors(x.fact,context);

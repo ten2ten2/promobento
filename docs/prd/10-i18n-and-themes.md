@@ -1,29 +1,29 @@
 # 网站国际化与主题
 
-**网站首发英语，客户视频文字允许任意语言混排。** 本章定义当前语言、主题、Cookie、SSR 和缓存规则；作品样式由 Composition 决定。
+**网站首发英语，客户视频文字允许任意语言混排。** 本章定义网站语言、主题、Cookie、服务端渲染（SSR）和缓存规则；作品样式单独保存在 Composition 中。
 
 ## 1 网站与视频分别管理
 
 | 概念 | 字段 | 当前规则 |
 | --- | --- | --- |
-| 网站语言 | uiLocale | en；完整新语言上线后才扩 allowlist |
+| 网站语言 | uiLocale | en；新语言完整上线后才加入允许列表 |
 | 客户文案 | 文本/已确认事实 | Unicode 原文和混排，不需语言选择或识别确认 |
-| 文字元数据 | language/direction | 可省略，und/mul 可用，只辅助排版 |
+| 文字元数据 | language/direction | 可省略，und/mul 可用，仅辅助排版 |
 | 主题偏好 | themePreference | system/light/dark，默认 system；不进入视频 hash |
 | 有效外观 | resolvedTheme | light/dark，仅影响 UI 和新 checkout 外观 |
-| 作品标记 | styleLabel | 自由描述标签，不是渲染分支或封闭枚举 |
+| 作品标记 | styleLabel | 自由描述标签，不用于选择固定渲染模板 |
 
 [localization](../../config/localization.json) 仅配置 website_ui；验证码邮件按网站消息体系英语首发，不据邮箱后缀、Google 资料或视频文案猜语言。未开放 uiLocale 返回 422 UNSUPPORTED_UI_LOCALE，但用户视频不会触发语言未上线错误。
 
 ## 2 消息与用户原文
 
-i18next/react-i18next 使用请求级实例，SSR/hydration 共享消息、locale 和初始时区，不修改模块级当前语言。导航、按钮、标签、空态、错误、aria、帮助短消息和邮件进入 `locales/*.json`；完整政策、About 和帮助文章放在 `content/pages/<locale>/*.md`，维护规则见[页面内容](../../content/pages/README.md)。客户正文不进入翻译目录。命名插值、复数、Intl、缺 key/参数检查由 CI 验；UI 错误可安全英语回退并提供 requestId，不泄露内部 key/堆栈。该回退不用于逐段替换或混合语言法律正文。
+每个请求使用独立的 i18next/react-i18next 实例，SSR 与客户端接管页面时使用相同消息、locale 和初始时区，避免并发请求串用语言。导航、按钮、标签、空态、错误、aria、帮助短消息和邮件进入 `locales/*.json`；完整政策、About 和帮助文章放在 `content/pages/<locale>/*.md`，维护规则见[页面内容](../../content/pages/README.md)。客户正文不进入翻译目录。CI 检查变量插值、复数、Intl、缺失消息和参数。界面出错可显示安全的英语提示及 requestId，不泄露内部 key 或堆栈；法律正文不逐段混用语言来回退。
 
 资源和用户文字安全输出为纯文本，链接使用受控组件，不把输入 HTML 当脚本。金额明确 USD；首次未知时区显示标注 UTC，hydration 后可转换 UI 日期，但已确认视频报价、币种、日期不换算或重写。
 
-生成/改稿默认保留各字段原语言与混排，只按明确指令翻译指定范围；翻译不扩承诺，也不按语言加价。网站根 lang=en/dir=ltr，文字块方向独立；RTL 与数字/URL/品牌名正确隔离，不倒转字符串或镜像素材。识别失败不能阻止正常创作。
+生成和改稿保留各字段的原语言及混排，仅按明确指令翻译指定范围；翻译不扩大原有承诺，不按语言加价。网站根 lang=en/dir=ltr，文字块方向独立；RTL 与数字/URL/品牌名正确隔离，不倒转字符串或镜像素材。识别失败不能阻止正常创作。
 
-检查实际字形、字体覆盖/塑形、换行、安全区、CJK/RTL/组合字符；加载成功不证明全部字可画。动效不能拆坏组合字符，连写可优先整块/行。问题定位具体字段并给字体/布局修复，不禁整种语言。实际文本、方向、字体/回退和资源随版本冻结，重试/补目标不重新识别或换字体。
+检查实际字形、字体覆盖和连写、换行、安全区，以及 CJK、RTL 和组合字符；字体加载成功不等于没有缺字。动画不能拆坏组合字符，连写文字可整块或整行处理。问题定位具体字段并给字体/布局修复，不禁整种语言。实际文本、方向、字体/回退和资源随版本冻结，重试/补目标不重新识别或换字体。
 
 事实原文和摘要保留原始 Unicode。排版换行由布局或独立分行信息表达，不改已确认正文；文字比较不能笼统删除零宽字符或折叠大小写。ZWJ/ZWNJ 可能改变文字连接和含义，详见 [Unicode 连接控制说明](https://unicode.org/reports/tr39/#Joining_Controls)。需要修改实际文字时按事实确认流程处理，显示效果不能绕过这一步。
 
@@ -45,7 +45,7 @@ i18next/react-i18next 使用请求级实例，SSR/hydration 共享消息、local
 
 一个浏览器页面维护单一串行写队列，最多一在途，只保留最新待写值；最终 Cookie 与最后意图一致。取消 fetch/忽略旧响应不意味着迟到 Set-Cookie 不生效。未知结果标未保存，前一请求收尾后重试最新值；失败保留 UI/草稿并提示重试。Cookie 不可用时当前任务可继续，刷新按 System，不谎称已持久化。
 
-偏好 POST 校验 Origin/CSRF/枚举；匿名只改本浏览器主题，登录用户只改自己已上线 UI 语言，不接受工作区、金额或输出风格。主题不触发模型、草稿保存、编码或账本。离线参考的 localStorage 不是生产 Cookie 实现。
+偏好 POST 校验 Origin/CSRF/枚举；匿名只改本浏览器主题，登录用户只改自己已上线 UI 语言，不接受工作区、金额或输出风格。切换主题不调用模型、不保存作品、不编码，也不改账务。离线参考页使用 localStorage，只演示交互。
 
 ## 5 SSR、缓存与视觉隔离
 
@@ -59,7 +59,7 @@ SSR 输出 data-theme=system/light/dark；System 首屏由 prefers-color-scheme 
 
 ## 6 外部界面与验收
 
-新 Waffo session 使用 language=en、合法 resolvedTheme→darkMode，缺提示 Light；活动 session/未知结果请求体不因换主题重建。钱包、银行、Google 页面只用真实提供方能力，返回站内恢复偏好；支付详细协议见 05。
+Waffo 新会话的语言、外观和活动会话复用按[05](05-waffo-billing.md#5-创建-checkout)处理。钱包、银行和 Google 页面仅使用提供方实际支持的外观选项，返回本站后恢复网站偏好。
 
 | ID | 必须验收 |
 | --- | --- |

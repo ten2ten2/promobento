@@ -1,10 +1,10 @@
 # URI、登录与账号
 
-本章定义当前路由和认证契约，不是线上登录或邮件已实现声明。配置数值来自 [auth.json](../../config/auth.json)，URI/方法/最低权限来自 [routes.json](../../config/routes.json)，UI 来自 [02](02-ux-and-ui.md)，网站偏好来自 [10](10-i18n-and-themes.md)。
+本章定义路由、登录和账号安全。数值来自[auth.json](../../config/auth.json)，路径、方法和最低权限来自[routes.json](../../config/routes.json)，界面见[02](02-ux-and-ui.md)，网站偏好见[10](10-i18n-and-themes.md)。本文中 `flow` 指一次验证流程，`proof` 指验证成功后短时有效、只能按用途消费的证明，`identity` 指绑定到内部账号的登录方式。实际集成进度见[实施状态](../implementation-status.md)。
 
 ## 1 身份、页面与工作区
 
-P0 提供 Google 与邮箱验证码登录；登录/注册共入口，无密码、忘记密码、magic link 或强制网站语言步骤。OTP 不宣称 MFA。内部 user_id 稳定，登录 identity 与项目/订单主键分离，只有双方验证和明确确认才能关联。
+P0 提供 Google 与邮箱验证码登录，登录和注册共用入口。不提供密码、magic link 或额外的网站语言步骤，邮箱验证码也不称为多因素认证。内部 user_id 稳定，identity 与项目/订单 ID 分离；关联两种登录方式须分别验证，并由用户确认。
 
 业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；不可信 Composition 预览使用 [预览配置](../../config/preview.json) 中的受限 origin，不能共享应用会话。预览配置、隔离域和资产代理未验证前不开放真实预览，具体限制按 14。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
 
@@ -16,9 +16,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 新账号原子创建一个默认 workspace/Owner membership。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表/Brand/Members/Orders 使用 workspaceId query；省略时服务端选仍有权限的最近或默认工作区，并返回规范化链接。失效选择不能静默写另一个工作区。详情从真实项目/订单推导工作区，不信浏览器“当前工作区”。已无工作区的登录用户看到空态及 Account/Help，不因列表访问再创建默认工作区。
 
-试用资格归稳定内部 user_id，跨其工作区及已关联 Google/邮箱累计。领取只允许当前 Owner 显式使用自己的身份，不能代领其他成员资格；Editor 在已获授权的共享项目中使用现有额度。领取事务、`requestTrial`/`trialStatus`、空 draft 先购创作和完整权益按 [05](05-waffo-billing.md) 与 [14](14-production-contracts.md)，认证不另授予商品或创建免费余额。
-
-邀请、工作区切换、Owner 转移、项目复制或删除、重新登录及新增登录方式不重置或转移领取历史，仍须校验当前成员权限。设备/IP/全局控制只是反滥用层，不能代替稳定 user_id 的资格检查。独立账号按本章流程创建，不凭邮箱相似性强行合并；独立注册不保证获赠试用，仍须经过05规定的领取和反滥用校验。
+试用资格使用稳定的内部 user_id，领取、成员共享、复制和退款规则统一见[05](05-waffo-billing.md#11-一次试用及空草稿)。认证、关联登录方式或创建工作区不会另送额度。独立账号不凭邮箱相似性强行合并，也不因此保证赠送试用；仍须通过领取和反滥用校验。设备/IP 限流不能代替账号资格检查。
 
 ## 2 跳转、HTTP 与隐私
 
@@ -38,7 +36,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 事实、转写、展示授权、持久 export/snapshot 的 URI 与机器契约统一见 [04 §5](04-architecture-and-data.md#5-第一方-api)。读取 exportManifest 不依赖原浏览器、临时 job 或下载 URL，仍查当前成员、实际归属及保存期限；GET 不准备目标、创建订单或签发下载。路径/body 的 project、asset、release、snapshot ID 不一致即拒绝，上传完成从 uploadId 的服务端记录推导归属，不接受客户端换项目。
 
-事实/转写确认只代表当前有效用户对精确版本和来源的明确操作，actor 与时间由服务端写入；记录版本冲突返回 409，不自动覆盖。展示授权的 grant/revoke 均须该项目 Owner、Origin/CSRF 和当前授权版本，默认未授予，拒绝或撤回不降低制作/付款/下载权限。`support.tickets.create` 的 session 只是入口：普通支持核验所附资源可见性，refund 分支必须再验原订单工作区的当前 Owner 才建立退款申请；支持人员不能凭请求字段改变订单归属或退款金额。具体交易与撤回处理按 04/05。
+事实、转写和展示同意按[04](04-architecture-and-data.md)核验当前用户、资源及版本，服务端记录操作者与时间；冲突返回 409。展示同意只允许 Owner 授予或撤回，校验 Origin/CSRF 和授权版本，拒绝或撤回不降低制作、付款和下载权限。`support.tickets.create` 的 session 只是入口：普通支持核验所附资源可见性，refund 分支必须再验原订单工作区的当前 Owner 才建立退款申请；支持人员不能凭请求字段改变订单归属或退款金额。具体交易与撤回处理按 04/05。
 
 sitemap 只含已经发布的 index 页与样例 slug，须同时检查路由索引策略和内容发布状态，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
 
@@ -67,9 +65,9 @@ sitemap 只含已经发布的 index 页与样例 slug，须同时检查路由索
 
 邮箱原文与 key 分离：去首尾空白，域名 IDNA ASCII 小写，本地部分保留大小写，不删点或 +tag，不猜别名。受控解析器拒绝 CR/LF、多收件人和超长头。普通邮箱与国际化域名可用，Unicode 本地部分在传输 SMTPUTF8 实测前提示具体格式问题；与视频任意语言无关。
 
-只持久化 HMAC-SHA-256(secret, 明确编码的 challengeId/purpose/generation/emailKey/code) 摘要和密钥版本；普通 hash 不足。原码仅生成/发送的受限内存使用，常量时间比较，密钥独立 Worker Secret。challenge 至少 32 字节随机，本身不是授权，必须匹配 HttpOnly flow Cookie。
+只保存 HMAC-SHA-256(secret, 明确编码的 challengeId/purpose/generation/emailKey/code) 摘要和密钥版本，不保存普通无密钥 hash。原码仅生成/发送的受限内存使用，常量时间比较，密钥独立 Worker Secret。challenge 至少 32 字节随机，本身不是授权，必须匹配 HttpOnly flow Cookie。
 
-验证次数、一次消费、identity 唯一性、首次 user/workspace 和 session 用条件写/事务收敛，不留消费码但账号半建。同码并发最多一个结果。响应丢失后仅当 Cookie 对应该 flow 完成记录中的有效 session/user 且 requestId 一致可恢复；不能接受另一账号 Cookie。未收到对应会话 Cookie 则 AUTH_RESTART_REQUIRED，按原配额重新发码进已创建账号，不再消费原码或创建工作区；不得为恢复持久化明文 session token。
+错误次数、验证码消费、identity 唯一性及首次账号/工作区/会话创建使用条件写或事务，不能出现码已消费而账号只创建一半的情况。同码并发只产生一个结果。响应丢失后仅当 Cookie 对应该 flow 完成记录中的有效 session/user 且 requestId 一致可恢复；不能接受另一账号 Cookie。未收到对应会话 Cookie 则 AUTH_RESTART_REQUIRED，按原配额重新发码进已创建账号，不再消费原码或创建工作区；不得为恢复持久化明文 session token。
 
 发送超时是未知，不无界重发；该码剩余期限仍可验证，冷却后用户可申请新码。明确拒绝可取消 challenge，路径不能按账号存在性变化。真实投递事件与受控收件检查区别接受、投递、退信及到达。
 
@@ -116,9 +114,9 @@ POST logout 的 scope 默认 current，非法值 422。current 有 session 正�
 
 ## 7 邀请与审阅
 
-Owner 复制 /invite/:token，48h 单次、可撤销，不自动发邮件。GET、预取和扫描只展示有限信息，登录后仍明确 Join workspace，先显示当前身份，可切账号。
+Owner 复制 /invite/:token 邀请链接，48 小时有效、限一次接受、可撤销，不自动发邮件。GET、预取和扫描只展示有限信息；登录后显示当前身份，用户可切账号，并须明确点击 Join workspace。
 
-接受事务校验 token/撤销/期限/工作区/成员/3人上限；最后名额只一个新成员成功。已是成员不重复占位；已成功接受后同用户仍有权限时幂等返回，后来被移除/工作区不可用返回 404，不恢复资格。其他用户不能重放消费。nextPath 固定 /app/projects?workspaceId=<acceptedWorkspaceId>，不自动回 create/新建项目；默认工作区、个人项目和 Owner 不被邀请覆盖。转移/删除按对应 reauth proof，始终保留一个 Owner。
+接受事务校验 token/撤销/期限/工作区/成员/3人上限；最后名额只一个新成员成功。已是成员不重复占位；已成功接受后同用户仍有权限时幂等返回，后来被移除/工作区不可用返回 404，不恢复资格。其他用户不能重放消费。nextPath 固定 /app/projects?workspaceId=<acceptedWorkspaceId>，不自动回 create/新建项目；默认工作区、个人项目和 Owner 不被邀请覆盖。转移/删除按对应 reauth proof，工作区始终保留一个 Owner。
 
 审阅默认 7 天且不晚于项目期限，只看指定版本及必要媒体。独立 review loader 不转调成员完整项目 API；不能拿 token 读账务、源码或其他版本。撤销立即停止新授权，已有短期媒体授权按其独立期限，只读同范围。
 
@@ -159,4 +157,4 @@ Owner 复制 /invite/:token，48h 单次、可撤销，不自动发邮件。GET�
 | AUTH-10 | 同 user 跨工作区/关联登录方式并发仅一次试用；Owner 自领、Editor 共享、邀请/删除/转移不重置；领取失败仍可建空稿先购 |
 | URI-01 | 所有注册路径、默认跳转、深链接、404/405/410、robots/sitemap，无空语言或假 200 |
 
-安全依据：[一次性验证/防枚举](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)、[会话管理](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。数字是产品策略不是厂商保证；真实集成验收与配置/参考测试分开记录。
+安全依据：[一次性验证/防枚举](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)、[会话管理](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。上述期限和次数是产品策略。实际登录、发信和会话验收与配置检查分别记录。

@@ -2,7 +2,7 @@
 
 本目录维护完整文章，UI 短消息继续使用 `locales/*.json`。当前有三篇英文政策草稿；后续 About、帮助文章沿用此结构，不先创建空页面或翻译目录。
 
-**当前正文均为 draft，effectiveAt 为空。** 经营主体、供应商及部分保留规则尚未确定，正文中的 `REQUIRED` 是待补事实。仓库检查覆盖本地链接、锚点及静态模板登记的一致性；页面渲染器和正式发布校验尚未实现，这些检查不证明事实已经核实或政策已经上线。实际服务能力见[实施状态](../../docs/implementation-status.md)。
+**当前三篇正文均为草稿，尚未发布。** `effectiveAt` 为空，`REQUIRED` 标记待补事实；页面实现进度见[实施状态](../../docs/implementation-status.md)。
 
 ## 1 页面与章节
 
@@ -14,13 +14,13 @@
 
 不另开 AIGC 页面。固定章节链接为 `/terms#acceptable-use`、`/terms#ai-models` 和 `/privacy#ai-processing`；完整退款规则只在退款页维护。路由来自 [routes](../../config/routes.json)，注册路由不代表草稿可以发布。
 
-业务规则分别由 [04 数据处理](../../docs/prd/04-architecture-and-data.md)、[05 购买与授权](../../docs/prd/05-waffo-billing.md)和 [09 素材与合规](../../docs/prd/09-sources-and-decisions.md)负责。正文是这些规则的对外表达；规则变化时同步审阅相关页面，不能只改配置数字而改变既有购买承诺。
+业务规则分别由 [04 数据处理](../../docs/prd/04-architecture-and-data.md)、[05 购买与授权](../../docs/prd/05-waffo-billing.md)和 [09 素材与合规](../../docs/prd/09-sources-and-licensing.md)负责。正文是这些规则的对外表达；规则变化时同步审阅相关页面，不能只改配置数字而改变既有购买承诺。
 
 ## 2 内容和配置的边界
 
 Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supportEmail}}`、`{{links.privacy}}`。品牌、主体、邮箱、链接和少量政策数字可以替换；完整条款、退款条件及许可范围保留在各语言正文中。
 
-[public-context.example.json](../../config/public-context.example.json) 只是构建期合并结果的示例，不是第二套运行时配置或事实源。接入时从下面的权威来源生成公开上下文，不向浏览器传入密钥、供应商账户或其他内部字段。
+[public-context.example.json](../../config/public-context.example.json) 展示构建时需要的公开变量。接入时从下表来源生成，不在示例文件里另外维护同一份配置，也不传入密钥或内部账户资料。
 
 | 字段 | 来源及维护方式 |
 | --- | --- |
@@ -41,24 +41,15 @@ Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supp
 每页包含 `title`、`description`、`status`、`version`、`effectiveAt`、`updatedAt`；有固定章节链接的页面另有 `anchors`。语言和页面标识由受控目录及文件名取得。
 
 - 文章布局用 title 渲染唯一 H1，正文从 H2 开始；description 用于页面和搜索描述，可使用同一白名单中的品牌变量。
-- version 是独立的政策版本，不跟随 PRD 或应用版本。effectiveAt 表示生效日期，草稿为空；updatedAt 表示正文修订日期，不随部署自动改变。本次草稿日期使用 UTC。
+- version 是独立的政策版本，不跟随 PRD 或应用版本。effectiveAt 是生效日期，草稿为空；updatedAt 是正文修订日期，不随部署自动改变。
 - anchors 的键为稳定 ID，值为该语言的准确 H2 文本。渲染器须找到唯一对应标题并设置 ID；这不是 Markdown 原生自动生效的语法。
 - 普通 Markdown 预览器可能生成带编号的标题锚点。正式页面须验证三个固定章节链接，不能仅凭预览器显示正常判定完成。
 
 ## 4 多语言
 
-英文使用根路径和 `content/pages/en`，不复制 `/en`。未来简体中文采用下列映射；语言标识与 URL 大小写分别由各自用途决定。
+英文使用根路径和 `content/pages/en`，不复制 `/en`。未来语言目录与 URL 前缀一致，例如 `content/pages/zh-hans/terms.md` 对应 `/zh-hans/terms`；内部标识仍为 `zh-Hans`。完整路由、翻译和搜索元数据规则见 [10](../../docs/prd/10-i18n-and-themes.md)。
 
-| 用途 | 简体中文值 |
-| --- | --- |
-| 内部语言标识、lang、hreflang | `zh-Hans` |
-| URL 前缀 | `/zh-hans` |
-| 内容目录 | `content/pages/zh-hans` |
-| 条款路径 | `/zh-hans/terms` |
-
-新语言须按 [10](../../docs/prd/10-i18n-and-themes.md) 完成 UI、帮助/政策、邮件、元数据和无障碍文案，再加入语言 allowlist。法律译文额外记录 `sourceVersion`，保留固定 anchor ID；新政策生效前审阅所有已启用语言，缺失或过期译文不得用于取得对新版本的接受。
-
-未发布语言的页面返回真实 404，可提供用户主动打开英文版的链接。不在语言路径下以 200 状态静默返回英文或混合语言法律正文。只对真实已发布译文生成导航、双向 hreflang、canonical 和 sitemap；目标功能页无对应译文时明确跨语言跳转，不拼接不存在的 URL。
+法律译文另记录 `sourceVersion`，保留固定 anchor ID。新政策生效前审阅所有已启用语言；缺失或过期译文不得用于取得对新版本的接受。未发布语言返回 404，可提供用户主动打开英文版的链接，不静默混入英文法律正文。
 
 ## 5 发布与版本记录
 
@@ -68,7 +59,7 @@ Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supp
 
 接受服务条款、隐私告知、依法需要的即时履行确认及可选展示/营销同意分别记录。普通接受 Terms 或首次使用，不自动代替数字内容撤回权所需的独立确认，也不构成对所有数据处理的一揽子同意。
 
-正式发布时须拒绝 draft、缺少生效日期、空必填值、未知或类型错误的变量、未替换占位符、REQUIRED 编辑标记、失效锚点，以及不对应生效版本的译文。仓库允许保留待补事实的草稿；静态检查不能替代这一步或实际服务核验。
+发布校验须拒绝 draft、缺少生效日期、空必填值、未知或类型错误的变量、未替换占位符、REQUIRED 编辑标记、失效锚点和过期译文。仓库可以保留草稿；现有链接、锚点和变量检查不能替代发布校验或事实核验。
 
 ## 6 发布前待确认与核验
 
@@ -87,4 +78,4 @@ Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supp
 | 购买、退款及到期 | 成功成果计次、失败释放、缺陷修复、升级/追加依赖、退款确认状态及退款诱发的清理宽限与 05 一致；不由余额状态自动回转版权或撤销无关许可。 |
 | 页面和记录 | 模板变量、锚点、链接、全文 SSR、缓存及语言策略通过验收；发布快照和按目的区分的接受/同意记录可追溯。 |
 
-Waffo 的 [Terms 模板](https://docs.waffo.ai/mor/account-reviews/tos)、[Privacy 模板](https://docs.waffo.ai/mor/account-reviews/privacy-policy)和 [AIGC 要求](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)用于校验披露范围；实际法律及供应商依据统一在 09 维护。模板、公开供应商政策和内容草稿都不能证明本服务特定合同、账户设置或生产能力已落实。
+披露范围参考 Waffo 的 [Terms 模板](https://docs.waffo.ai/mor/account-reviews/tos)、[Privacy 模板](https://docs.waffo.ai/mor/account-reviews/privacy-policy)和 [AIGC 要求](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)；法律与供应商依据见 09。模板中的承诺仍须由实际合同、账户设置和服务能力支持。

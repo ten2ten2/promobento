@@ -7,9 +7,8 @@ for(const name of ['composition','release-snapshot','edit-request','fact-manifes
 for(const [name,value]of Object.entries(load('tests/contracts/protocol-fixtures.json').valid)) failures.push(...semanticErrors(value,{composition:c,rendererSession:name==='render_sample'||name==='render_sample_ready'}).map(e=>name+': '+e));
 const routes=load('config/routes.json'),api=load('contracts/agent-api.json'),signatures=new Set();
 for(const r of routes.routes){const signature=r.method+' '+r.path.replace(/:[A-Za-z][A-Za-z0-9]*/g,':param');expect(!signatures.has(signature),'Duplicate route shape: '+r.id);signatures.add(signature);}
-for(const a of api.endpoints){const r=routes.routes.find(r=>r.id===a.routeId);expect(r&&r.path===a.path&&r.method===a.method&&r.auth===a.auth,'API/route mismatch: '+a.routeId);for(const ref of [a.requestDef,a.responseDef].filter(Boolean))expect(!!schema.$defs[ref],'Missing API schema: '+ref);}
-const rows=[...read('docs/prd/04-architecture-and-data.md').matchAll(/^\| `(GET|POST|PUT|PATCH|DELETE|HEAD) (\/api\/[^`]+)` \|/gm)].map(m=>m[1]+' '+m[2]).sort();
-expect(JSON.stringify(rows)===JSON.stringify(routes.routes.filter(r=>r.kind==='api').map(r=>r.method+' '+r.path).sort()),'API registry/PRD mismatch');
+expect(new Set(api.endpoints.map(a=>a.routeId)).size===api.endpoints.length,'Duplicate API contract route');
+for(const a of api.endpoints){const r=routes.routes.find(r=>r.id===a.routeId);expect(r?.kind==='api'&&r.path===a.path&&r.method===a.method&&r.auth===a.auth,'API/route mismatch: '+a.routeId);for(const ref of [a.requestDef,a.responseDef].filter(Boolean))expect(!!schema.$defs[ref],'Missing API schema: '+ref);}
 expect(!routes.routes.some(r=>/\/(storyboards|rewrites)$/.test(r.path)),'Unregistered creation model route');
 const p=load('config/agent-policy.json');
 const paidSkus=Object.keys(p.quota).filter(k=>Number.isSafeInteger(p.quota[k]?.priceMinor)).sort();
@@ -37,4 +36,4 @@ for(const term of ['purchaseIntent','requestTrial'])expect(billing.includes(term
 expect(schema.$defs.createProjectRequest.properties.requestTrial.type==='boolean'&&!schema.$defs.createProjectRequest.required.includes('requestTrial'),'Trial request must remain an explicit optional boolean');
 // The shared Ajv factory compiles every definition, including those with no fixture.
 const rootRefs=schema.oneOf.map(x=>x.$ref);expect(new Set(rootRefs).size===rootRefs.length,'Duplicate root union definition');
-if(failures.length){console.error(failures.join('\n'));process.exitCode=1;}else console.log('Production contracts passed: current protocol, linked examples, fixed targets, API/docs, account trial, SKU/intent, bounded edit rounds, budgets and frozen identities. Scope: reference contracts, not live services.');
+if(failures.length){console.error(failures.join('\n'));process.exitCode=1;}else console.log('Production contracts passed: current protocol, linked examples, fixed targets, API registry/schema, account trial, SKU/intent, bounded edit rounds, budgets and frozen identities. Scope: reference contracts, not live services.');

@@ -4,7 +4,7 @@
 
 ## 文档导航
 
-| 文档 | 唯一负责的规则 |
+| 文档 | 负责内容 |
 | --- | --- |
 | [01 产品与范围](01-product-prd.md) | 用户、P0/P1、输入和产品边界 |
 | [02 UX 与 UI](02-ux-and-ui.md) | 用户流程、状态反馈、视觉、组件与可访问性 |
@@ -14,13 +14,13 @@
 | [06 测试与发布](06-testing-and-release.md) | 回归范围、真实发布门槛与证据规则 |
 | [07 获客与实验](07-growth-and-experiments.md) | 归因、漏斗、完整单位经济与试运营实验 |
 | [08 实施与交付](08-codex-execution.md) | 接手、里程碑、工具链、命令及交付 |
-| [09 素材许可、合规与来源](09-sources-and-decisions.md) | 来源准入、上游许可、法务依据及待确认事项 |
+| [09 素材许可、合规与来源](09-sources-and-licensing.md) | 来源准入、上游许可、法务依据及待确认事项 |
 | [10 网站语言与主题](10-i18n-and-themes.md) | 网站语言、主题、混排与 SSR/缓存隔离 |
 | [12 URI 与认证](12-routing-and-auth.md) | 身份、权限、认证流程与 URI 语义 |
 | [13 导演、声音与改稿](13-agent-native-production.md) | 自由创作方法、宣传真实性、音画和编辑工作流 |
 | [14 生产契约与状态](14-production-contracts.md) | 类型、状态、hash、预算、授权证据与跨系统不变量 |
 
-文档说明行为，配置保存机器数值，Schema 定义传输结构，共享契约库实现结构校验和摘要，14 定义跨字段语义；routes 是页面/API 注册表。网站完整正文是这些规则的对外表达，构建上下文示例不是第二套权威配置。消费章节引用负责来源，不另维护价格、期限或里程碑。冲突须同步修复全部消费者。
+各章说明上表范围内的规则，其他章节引用即可。价格、次数、尺寸等数值在配置中维护；页面和 API 清单在 routes 中维护；数据结构见 Schema，字段之间的约束见 14。修改规则时同步相关代码、配置和对外页面，不再复制一套价格、期限或接口表。
 
 ## 配置与机器契约
 
@@ -32,7 +32,7 @@
 | [预览策略](../../config/preview.json)、[可选内容审核](../../config/content-safety.json) | 本地完整回放、可信捕获和隔离待验项；默认关闭的提示词审核适配 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
-| [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 唯一视觉数值 |
+| [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
 | [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、完整 Ajv 校验与身份计算的唯一实现 |
 | [JSON Schema](../../contracts/production.schema.json)、[创作 API](../../contracts/composition-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 结构、确定性创作和可信 Renderer 桥接；类型不等于运行时已经实现 |
 | [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
@@ -41,6 +41,4 @@
 | [Studio参考](../design/agent-studio-reference.html) | 无真实服务的当前设计示意 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |
 
-新环境使用 [agent-setup.sh](../../scripts/agent-setup.sh) 准备精确工具链。成本事件、草稿编辑、项目可用动作及作业进度已纳入 Schema 和参考检查；后端、数据库和浏览器的真实执行仍按08逐阶段交付。
-
-代码样式路径相对仓库根目录，Markdown链接相对所在文件。来源/许可与真实验收按09和[06证据规则](06-testing-and-release.md#5-发布与证据)管理；仅测试用占位数据不得进入生产。
+新环境运行 [agent-setup.sh](../../scripts/agent-setup.sh)，实施顺序见 08，已完成能力见[实施进度](../implementation-status.md)。代码样式路径相对仓库根目录，Markdown 链接相对所在文件。
