@@ -27,14 +27,17 @@
 | skills/huashu-motion/SKILL.md | 一主 Agent 制作与改稿流程 |
 | references/director.md、rhythm.md、colour.md、library/ | 产品理解、节奏、色彩、运动语言检索；均相对该 skill 路径 |
 | references/product-demo-continuity.md | 产品真实操作与焦点连续性 |
+| references/experience.md、verification.md、visual-direction.md、craft.md、talking-head.md | 上游实测坑、独立冷审、画面与课程讲师视频；先筛适用性而非全部设为 P0 |
+| references/grammars.md、formats.md、product-fit.md | 参数化画面语言、构图与受众证据边界；课程案例必须由本项目实测 |
+| runtime/clip/**（排除作者 toon 形象）、runtime/camera-rig.js、cli/lib/frames.js、render-om.js、beats.js、swatch.js | Canvas grammar、绝对时间相机、按 PTS 抽帧、子帧性能、节奏/配色诊断；许可审核后逐文件选择 |
 | cli/lib/check.js、qa.js | 源码/帧/视频诊断参考，不照搬阈值作风格禁令 |
 | cli/lib/score.js、sound.js、composer.js、dsp.js | ABC、合成器、音效与混音的候选适配来源 |
 | studio/studio.js、cli/lib/inbox.js | 点选与源码定位；云端状态/授权需重新实现 |
 | runtime/om-engine.js、cli/lib/learn.js | 寻帧运行和用户可控经验的方法参考 |
 
-PORT 仅用于审核后的可移植自有逻辑，保留来源、许可、修改和差异测试；ADAPT 改写本地 CLI/文件/浏览器路径；REBUILD 覆盖多租户、云作业、账务、资源代理和安全边界。正式采用时记录实际文件和测试，不用整包 vendor 代替审核。
+PORT 仅用于审核后的可移植自有逻辑，保留来源、许可、修改和差异测试；ADAPT 改写本地 CLI/文件/浏览器路径；REBUILD 覆盖多租户、云作业、账务、资源代理和安全边界；SKIP 表示不采用或不允许的第三方部分。正式采用时记录实际文件和测试，不用整包 vendor 代替审核。
 
-[上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md) 与 [GSAP 许可](https://gsap.com/community/standard-license/) 分别核对。未获得适用许可确认前不默认打包 GSAP；作者角色、演示媒体、字体和音色采样逐项授权。MIT 仓库声明不能覆盖所有附带材料。导出作品的归属要求必须能履行，工程 ZIP 更需重新分发权限。
+[上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md) 与 [GSAP 许可](https://gsap.com/community/standard-license/) 分别核对。**生产默认 GSAP-free 的按绝对时间采样运行时**，避免把特定本地 CLI/可视化构建许可作为 SaaS 的必需运行依赖；GSAP 可在受隔离的本地研究中做作品质量基线，不打包、托管或交付其运行库。若未来要在生产使用 GSAP，须先取得适用于 PromoBento 产品形态的书面许可结论并经过架构重新评审，不因 AI 生成代码本身被允许就推断可视化编辑服务也获允许。作者角色、演示媒体、字体和音色采样逐项授权。MIT 仓库声明不能覆盖所有附带材料。导出作品的归属要求必须能履行，工程 ZIP 更需重新分发权限。
 
 ## 3 实施核对入口
 

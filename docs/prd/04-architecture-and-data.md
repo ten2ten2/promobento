@@ -34,13 +34,13 @@ flowchart TD
 
 ## 2 素材、源码和数据发送
 
-准入来自 01 和 [输入配置](../../config/input-capabilities.json)。检验魔数/解码而非扩展名，限制文件大小、像素、时长、线程和内存；图片方向/色彩规范化，录屏生成 H.264 代理，音频规范化 48 kHz。原始媒体与规范化 asset_version 都不可变。用户上传 HTML/SVG 与 Agent 在沙箱编写 HTML/SVG 严格区分。
+准入来自 01 和 [输入配置](../../config/input-capabilities.json)。检验魔数/解码而非扩展名，限制文件大小、像素、时长、线程和内存；图片方向/色彩规范化，音频规范化 48 kHz。录屏可以生成 H.264 预览代理，但必须先验证目标 Chromium 构建支持的解码器；不支持则用经验证的兼容代理/预览抽帧，不能假设开源 Chromium 自带 H.264/AAC 解码。正式 Renderer 对实际使用的视频区间默认以 FFmpeg 按 PTS 确定性抽帧并复用受限缓存（含变帧率），不是无条件抽取所有上传帧；缺帧、PTS 不连续或资源越界明确失败。原始媒体与规范化 asset_version 都不可变。用户上传 HTML/SVG 与 Agent 在沙箱编写 HTML/SVG 严格区分。
 
 上传 intent 绑定 workspace/project、临时 key、长度、用途和截止；complete 验实际字节 hash 后创建正式版本，不能覆盖已购引用。账号、项目和素材归属从数据库获取，不信客户端自报。只向已批准 provider 发送用户用途所需的最小素材摘要/必要帧；记录用途、provider 和数据范围，不将完整录屏、私有源码或敏感 prompt 写常规日志。
 
 `project_revisions` 是唯一版本实体。CompositionManifest、ReleaseSnapshot、FactManifest、EditRequest/PatchResult、RenderProtocol 使用正式 Schema 和 14 的语义。源码可自由实现 DOM/SVG/Canvas/WebGL/3D/Shader，镜头及风格无固定枚举。绝对帧时钟、受控资源准备、冷/正/逆向 seek、精确消息身份与截图可信来源由 14 定义。
 
-付款前准备全部合法目标来源；高清文件延后编码，补平台不再调用模型。预览与导出读取相同 runtime、源包、字体、音轨和冻结规则；网站主题、Cookie、浏览器语言不改变成片。
+付款前准备全部合法目标来源；高清文件延后编码，补平台不再调用模型。预览与导出读取相同 runtime、源包、字体、音轨和冻结规则，输出帧需在冷/顺/逆向路径上可复现；预览允许使用不同媒体代理，但不能隐藏与最终抽帧/解码的内容差异。网站主题、Cookie、浏览器语言不改变成片。
 
 ## 3 队列、资源与隔离
 
