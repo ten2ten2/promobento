@@ -1,7 +1,7 @@
-/** Contract only. A browser/sandbox runtime has not been implemented by these types. */
+/** Contract only; these types are not a browser or sandbox implementation. */
 export type DurationSeconds = 15 | 30;
 export type FrameCount = 450 | 900;
-export type TargetId = string; // Server validates presetId:aspectId against pinned preset rules.
+export type TargetId = string; // Validate presetId:aspectId against the frozen rules version.
 export type Sha256 = string;
 export interface Envelope {
   protocolVersion: '2.2.1'; sessionId: string; requestId: string; sequence: number;
@@ -30,5 +30,7 @@ export interface CompositionBridge {
   getEditables?(): EditableProperty[];
   getMarkers?(): Array<{ id: string; frame: number; label: string }>;
 }
-/** Caller must serialize seek, validate exact envelope/nonce/origin, and discard late responses. */
+/** Wire failures carry the exact command envelope; reject late/disposed responses. */
+export type RenderResponse = FrameReady | ProtocolFailure;
+/** Serialize seek; validate envelope, nonce, origin and manifest before taking a frame. */
 export type RenderState = 'created' | 'initializing' | 'idle' | 'seeking' | 'ready' | 'failed' | 'disposed';

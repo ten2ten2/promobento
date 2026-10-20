@@ -87,6 +87,16 @@ export function artifactIdentity(c, v, rules = presets) {
   return {variantHash:digest(variantIdentity(c,v,rules)), runtimeVersion:c.runtimeVersion,
     rendererImageDigest:c.rendererImageDigest, encoding:target.encoding, layout:target.layout};
 }
+/** The cache key for an output includes all choices that can change that output. */
+export function outputArtifactIdentity(c, v, kind, rules = presets) {
+  const render = artifactIdentity(c, v, rules);
+  if (kind === 'video') return {kind, render};
+  if (kind === 'cover') return {kind, render, coverFrame:v.coverFrame, encoding:'jpg_v1'};
+  if (kind === 'mapping') return {kind, targetId:v.targetId, presetRulesVersion:c.presetRulesVersion,
+    videoFingerprint:digest(outputArtifactIdentity(c,v,'video',rules)),
+    coverFingerprint:digest(outputArtifactIdentity(c,v,'cover',rules)), encoding:'mapping_v1'};
+  throw Error('INVALID_ARTIFACT_KIND');
+}
 export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
   if (errors.length) return errors;
@@ -121,8 +131,6 @@ export function semanticErrors(v, context = {}) {
     if (v.frameIndex !== undefined) fail(v.frameIndex < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
     if (v.frameStart !== undefined) fail(v.frameStart < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
     if (v.targetId && !['agent_request','edit_request'].includes(v.kind)) fail(composition.variants.some(x => x.targetId === v.targetId), 'TARGET_SOURCE_UNAVAILABLE');
-    if (v.frameStart !== undefined) fail(v.frameStart < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
-    if (v.targetId && !['agent_request','edit_request'].includes(v.kind)) fail(composition.variants.some(x => x.targetId === v.targetId), 'TARGET_SOURCE_UNAVAILABLE');
     if (v.frameEndExclusive !== undefined) fail(v.frameEndExclusive <= composition.totalFrames && v.frameEndExclusive > v.frameStart, 'INTERVAL_OUT_OF_RANGE');
   }
   if (v.command === 'init') {
@@ -132,7 +140,6 @@ export function semanticErrors(v, context = {}) {
       fail(v.frameCount === composition.totalFrames, 'RENDER_FRAME_COUNT_MISMATCH');
       fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
       fail(v.seed === composition.seed, 'RENDER_SEED_MISMATCH');
-      fail(v.seed === composition.seed, 'RENDER_SEED_MISMATCH');
     }
   }
   if (context.factManifest && 'factManifestHash' in v) {
@@ -140,9 +147,6 @@ export function semanticErrors(v, context = {}) {
     if ('factContentHash' in v) fail(v.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
   }
   if (v.kind === 'release_snapshot' && composition) {
-    fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
-    fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
-    fail(v.presetRulesVersion === composition.presetRulesVersion, 'SNAPSHOT_RULES_MISMATCH');
     fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
     fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
     fail(v.presetRulesVersion === composition.presetRulesVersion, 'SNAPSHOT_RULES_MISMATCH');
@@ -164,18 +168,11 @@ export function semanticErrors(v, context = {}) {
     fail(new Set(ids).size === ids.length, 'DUPLICATE_ARTIFACT');
     for (const a of v.artifacts) {
       fail(allowed.has(a.targetId), 'ARTIFACT_TARGET_INVALID');
-      if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
-      fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
-    }
-    if (v.state === 'ready') for (const id of v.initialTargetIds) {
-      for (const kind of ['video','cover','mapping']) fail(v.artifacts.some(a => a.targetId === id && a.kind === kind && a.state === 'ready' && a.sha256), 'INITIAL_BATCH_INCOMPLETE');
-    }
-  }
-  if (v.kind === 'export_manifest') {
-    const ids = v.artifacts.map(a => a.id);
-    fail(new Set(ids).size === ids.length, 'DUPLICATE_ARTIFACT');
-    for (const a of v.artifacts) {
-      fail(allowed.has(a.targetId), 'ARTIFACT_TARGET_INVALID');
+      if (composition) {
+        const variant = composition.variants.find(x => x.targetId === a.targetId);
+        fail(!!variant, 'ARTIFACT_SOURCE_UNAVAILABLE');
+        if (variant && allowed.has(a.targetId)) fail(a.artifactFingerprint === digest(outputArtifactIdentity(composition,variant,a.kind,rules)), 'ARTIFACT_FINGERPRINT_MISMATCH');
+      }
       if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
       fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
     }
@@ -184,7 +181,6 @@ export function semanticErrors(v, context = {}) {
     }
   }
   if (v.kind === 'fact_manifest') {
-    fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
     fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
     const facts = new Map(v.facts.map(f => [f.factId, f]));
     fail(facts.size === v.facts.length, 'DUPLICATE_FACT');
@@ -253,4 +249,10 @@ export class RevisionReference {
 }
 export function matchesFrameReady(command, response, manifestHash, disposed = false) {
   return !disposed && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
+}
+
+/** Ignore stale failures just as strictly as stale frame-ready events. */
+export function matchesProtocolFailure(command, response, disposed = false) {
+  if (disposed || validateSchema(command).length || validateSchema(response).length || response.event !== 'error') return false;
+  return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId'].every(k => command[k] === response[k]);
 }

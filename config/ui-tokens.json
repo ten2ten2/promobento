@@ -203,14 +203,12 @@
     "ring": "focus"
   },
   "reference": {
-    "template": "docs/design/ui-reference.template.html",
-    "output": "docs/design/ui-reference.html",
-    "generator": "scripts/build-ui-reference.mjs",
+    "template": "docs/design/agent-studio-reference.template.html",
+    "output": "docs/design/agent-studio-reference.html",
+    "generator": "scripts/build-agent-reference.mjs",
+    "checker": "scripts/check-agent-reference.mjs",
     "screens": [
-      "home",
-      "create",
-      "editor",
-      "delivery"
+      "studio"
     ],
     "productionFeature": false
   }

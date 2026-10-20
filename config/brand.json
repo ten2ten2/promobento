@@ -6,7 +6,7 @@
   "appUrl": "https://promobento.com",
   "stagingUrl": "https://staging.promobento.com",
   "tagline": "Turn your product or course into a promo video.",
-  "description": "Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.",
+  "description": "Use your real assets. Direct the motion, refine any frame, and export for your channels.",
   "category": "AI Promo Video Maker",
   "defaultUiLocale": "en",
   "supportEmail": "support@promobento.com",
@@ -39,17 +39,6 @@
     "currency": "USD",
     "darkModeSource": "resolved_ui_theme_at_session_creation",
     "darkModeWhenUnknown": false
-  },
-  "domainLookup": {
-    "provider": "Namecheap",
-    "checkedAt": "2026-10-18",
-    "timezone": "Asia/Shanghai",
-    "availableAtCheck": true,
-    "quotedPurchaseAmount": "11.28",
-    "currency": "USD",
-    "registrationTerm": null,
-    "renewalAmount": null,
-    "purchasedInThisTask": false
   },
   "deploymentVerification": {
     "domainControl": "pending",

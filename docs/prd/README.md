@@ -1,38 +1,45 @@
-# PromoBento 产品需求与实施文档
+# PromoBento 现行产品规格
 
-版本：v2.2 · consistency-1（2026-10-20，Asia/Shanghai）；机器契约版本2.2.1，不新增产品大版本。本目录是规范，不是已经部署的SaaS。
-
-固定15/30秒、30fps、六个平台预设；Agent可自由创作镜头数量、风格、运镜和代码。网站英语首发，用户视频文案可任意语言混排。Google+邮箱验证码、Cloudflare、Waffo、mise与既定网站视觉不变。
+产品规格 v2.2；结构协议版本 2.2.1。此目录只维护现行规则，不要求实施者阅读已替代的方案。文件和参考测试不代表应用已经上线；[实际进度](../implementation-status.md)单独维护。
 
 ## 文档导航
 
-| 文档 | 职责 |
+| 文档 | 负责事项 |
 | --- | --- |
-| [产品需求](01-product-prd.md) | 产品需求 |
-| [界面与流程](02-ux-and-flows.md) | 界面与流程 |
-| [平台预设](03-platform-presets.md) | 平台预设 |
-| [技术、数据与统一API](04-architecture-and-data.md) | 技术、数据与统一API |
-| [Waffo、权益与退款](05-waffo-billing.md) | Waffo、权益与退款 |
-| [测试与发布](06-testing-and-release.md) | 测试与发布 |
-| [获客与实验](07-growth-and-experiments.md) | 获客与实验 |
-| [实施顺序](08-codex-execution.md) | 实施顺序 |
-| [来源与决策](09-sources-and-decisions.md) | 来源与决策 |
-| [网站国际化、混排文案与主题](10-i18n-and-themes.md) | 网站国际化、混排文案与主题 |
-| [网站视觉与组件](11-ui-design-spec.md) | 网站视觉与组件 |
-| [URI、Google与邮箱认证](12-routing-and-auth.md) | URI、Google与邮箱认证 |
-| [AI导演与自由视频创作](13-agent-native-production.md) | AI导演与自由视频创作 |
-| [生产契约与本轮一致性修订](14-production-contracts.md) | 生产契约与本轮一致性修订 |
+| [01 产品与范围](01-product-prd.md) | 产品与范围 |
+| [02 界面与流程](02-ux-and-flows.md) | 界面与流程 |
+| [03 平台与编码](03-platform-presets.md) | 平台与编码 |
+| [04 架构与完整API](04-architecture-and-data.md) | 架构与完整API |
+| [05 交易、权益与退款](05-waffo-billing.md) | 交易、权益与退款 |
+| [06 验收与发布](06-testing-and-release.md) | 验收与发布 |
+| [07 获客与实验](07-growth-and-experiments.md) | 获客与实验 |
+| [08 实施顺序与命令](08-codex-execution.md) | 实施顺序与命令 |
+| [09 现行决策与来源](09-sources-and-decisions.md) | 现行决策与来源 |
+| [10 网站语言与主题](10-i18n-and-themes.md) | 网站语言与主题 |
+| [11 UI设计与组件](11-ui-design-spec.md) | UI设计与组件 |
+| [12 URI与认证](12-routing-and-auth.md) | URI与认证 |
+| [13 导演、声音与改稿](13-agent-native-production.md) | 导演、声音与改稿 |
+| [14 生产契约与状态](14-production-contracts.md) | 生产契约与状态 |
 
-## 权威来源与执行
+## 权威关系
 
-先读01、03、05、10、12理解产品与交易边界，再读13的创作方法、14的版本/状态/费用/运行协议，按08的M0a/M0b–M4推进。14消除新旧跨章冲突，但不削减05已购权益或12认证保护。任何规格冲突先同步修复，不由实现者猜测收费、准入或权限。
+01定义产品范围；03与平台配置定义输出；05定义交易；10定义语言/主题；11定义视觉；12与路由配置定义认证/URI；13定义创作方法；14定义Composition、版本、状态、指纹、预算与跨系统语义；08是唯一里程碑入口。发现冲突时修复全部受影响来源，不通过暗设优先级长期保留两种规则。
 
-[统一路由](../../config/routes.json) 是所有页面和第一方API的方法/路径/入口权限来源；[Agent API契约](../../contracts/agent-api.json) 引用 [JSON Schema](../../contracts/production.schema.json)；[RenderProtocol类型](../../contracts/render-protocol.d.ts) 规定逐帧会话。[平台配置](../../config/platform-presets.json) 保持原版本与数值。
+时长严格15/30秒，30fps、450/900帧，固定六平台七target；Agent镜头数/风格/代码自由，安全与授权不自由。网站英语、视频混排、Google+邮箱、React/Cloudflare/Waffo/mise、$39/$12及版本权益保持。详情以各权威章为准，不在索引维护第二套数值表。
 
-[Agent预算与额度](../../config/agent-policy.json) 的enabled为false，需模型/成本及M0真机标定后启用；[输入能力矩阵](../../config/input-capabilities.json) 区分公开计划和未实现状态。Google/OTP规则仍由 [认证配置](../../config/auth.json) 定义。网站 [UI配置](../../config/ui-tokens.json)、[主题](../../config/theme-tokens.json)、[国际化](../../config/localization.json) 与 [英语资源](../../locales/en.json) 继续共用原来源。
+## 配置与机器契约
 
-[Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json)、[FactManifest](../../contracts/fact-manifest.example.json)、[EditRequest](../../contracts/edit-request.example.json)、[ExportManifest](../../contracts/export-manifest.example.json) 是互相关联的2.2.1 fixtures，exampleOnly不代表真实渲染。旧 [场景fixture](../../contracts/scene.example.json) 与 [旧导出fixture](../../contracts/legacy/export-manifest.example.json) 仅用于v1.x迁移，不作为创作白名单。
+| 文件 | 用途 |
+| --- | --- |
+| [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区与来源 |
+| [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
+| [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态与公开能力边界 |
+| [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
+| [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 唯一视觉数值 |
+| [JSON Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts) | 结构规范，不替代语义和授权 |
+| [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
+| [Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json) | 可关联的非生产示例 |
+| [事实](../../contracts/fact-manifest.example.json)、[改稿](../../contracts/edit-request.example.json)、[输出](../../contracts/export-manifest.example.json) | 内容与请求/交付示例 |
+| [Studio参考](../design/agent-studio-reference.html) | 无真实服务的当前设计示意 |
 
-[Agent Studio离线参考](../design/agent-studio-reference.html) 展示候选、准备平台、预算暂停、冲突、QA阻塞；无实际视频/模型/支付。[既有四页参考](../design/ui-reference.html) 保留网站视觉基线。
-
-[Codex入口](../v2.2-CODEX_START.md)、[接手指南](../getting-started.md)、[实施状态](../implementation-status.md)、[决策记录](../implementation-decisions.md) 与 [根AGENTS](../../AGENTS.md) 分别承担任务、运行、进度和变更说明。普通检查随提交/CI报告，关键集成证据按 [既有记录规则](../evidence/README.md) 管理，不新建重复证据库。
+代码样式路径相对仓库根目录，Markdown链接相对所在文件。来源/许可与真实验收按09和[证据规则](../evidence/README.md)管理；仅测试用占位数据不得进入生产。

@@ -1,15 +1,15 @@
-## Why
+## Purpose
 
-Describe the concrete problem and link the relevant PRD requirement or implementation milestone.
-
-## What changes
-
-Explain the resulting behavior and any product or architecture decisions that changed.
+Describe the behavior changed and the current PRD or milestone it implements.
 
 ## Validation
 
-List the commands actually run, their results, and the environment. Link meaningful evidence under docs/evidence when appropriate. State checks that were not run and why; distinguish repository checks, local tests, provider sandbox tests, and production validation.
+List actual commands, environment, results and checks not run. Distinguish specification/reference tests from real browser, D1, model, cloud, email, payment and video verification.
 
-## Remaining work
+## Scope and safety
 
-List unresolved P0 behavior or external setup that affects this change. Update docs/implementation-status.md and docs/implementation-decisions.md where applicable.
+Confirm related documents/configuration/contracts are consistent, resource authorization and purchased rights remain intact, and no obsolete references or unreviewed assets were introduced.
+
+## Remaining implementation
+
+Update docs/implementation-status.md when real capability changes. Link only relevant current evidence under docs/evidence; do not create routine process diaries.

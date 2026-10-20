@@ -1,332 +1,89 @@
 # UI 设计规范
 
-版本：1.2。确定日期：2026-10-20，Asia/Shanghai。适用于 PromoBento P0 网站的公开页面、登录、创建流程、编辑器、交付、设置与后台。本次修订补齐邮箱验证码、Google 登录和登录方式关联的界面规则；沿用用户确认的「杂志排版」主体、「专业工具」配色与主题偏好行为。页面代码与生产验证仍按 M0–M4 实施。
+适用于公开网站、登录、创建、Studio、交付、设置与后台。**杂志排版的层级和留白，结合专业工具的冷中性色、蓝灰操作色。** 当前参考见 [Agent Studio](../design/agent-studio-reference.html)，是离线设计示例，不是生产功能。
 
-## 1 设计方向与规范归属
+## 1 唯一视觉来源
 
-界面采用**杂志排版的层级与留白，配合专业工具的冷中性色和蓝灰强调色**。品牌字标与展示标题使用衬线字体，正文与操作控件使用无衬线字体。首页用非对称的文案与作品分栏、细分隔线和开放式内容区建立层次；进入编辑器后保留同一配色与字标，提高信息密度，让素材、文字与预览成为视觉中心。
+[ui-tokens](../../config/ui-tokens.json) 定义字体、尺寸、间距、层级和动效，[theme-tokens](../../config/theme-tokens.json) 定义颜色与配对。02 定义用户流程，05 定义权益，10 定义语言/主题，12 定义认证，14 定义版本/执行。参考由当前模板与配置生成，不另写一份有冲突的颜色/平台/配额配置。
 
-- 同一操作区域只保留一个主要 CTA。主页引导创建，编辑器引导预览与导出，交付页引导下载。
-- 两类首批用户共用组件、导航和编辑器；用途入口、素材例子和必要字段提示区分人群，视觉层级相同。
-- 项目、素材与购买摘要可使用薄边框、小圆角的容器；用途说明、流程与普通正文优先采用留白和细分隔线，展示区域让作品占据主要空间。
-- 品牌字标写作 PromoBento，采用 display 字体、24 px、500 字重，周围至少 12 px 留白。首版使用文字字标；视频中的客户品牌按其自己的快照展示。
-- 衬线标题用于公开页、页面开篇与作品展示；表单标签、按钮、数据、场景列表、属性面板和编辑器操作保持无衬线字体。编辑器沿用品牌视觉，但按持续编辑所需的尺寸与密度排版。
-- 主按钮采用实色蓝灰、小圆角；选中状态用下划线、边界或标记配合浅蓝灰底。普通内容区不使用投影；彩色状态提示只出现在需要表达状态的位置。
-- 内容使用真实产品截图、课程交付物或明确标注的 Sample 内容。示意稿不构成客户背书、实际支付或成片生成证据。
+品牌为 PromoBento 文字字标，display 字体 24/32 px、500 字重、至少 12 px 留白。公开标题使用 Georgia / Times New Roman / serif；正文和控件使用 Arial / Helvetica / system sans，编辑器与数据不滥用衬线/斜体。每个操作区域一个主要 CTA，两人群入口同级；作品是视觉中心，事实不能用装饰暗示未经证明的收益。
 
-| 权威源 | 负责内容 |
-| --- | --- |
-| 本章 | 视觉方向、页面构图、组件用法与 UI 验收 |
-| [02 界面与流程](02-ux-and-flows.md) | 操作步骤、状态、权限和异常处理 |
-| [05 支付](05-waffo-billing.md) | 价格、额度、订单、版本及扣费语义 |
-| [10 网站国际化与主题](10-i18n-and-themes.md) | 网站语言、主题偏好、SSR 与缓存；视频内容独立 |
-| [12 URI 与身份认证](12-routing-and-auth.md) | 页面与接口 URI、登录、会话、登录方式关联及邀请安全边界 |
-| [theme-tokens.json](../../config/theme-tokens.json) | Light / Dark 颜色及颜色配对 |
-| [ui-tokens.json](../../config/ui-tokens.json) | 字体层级、尺寸、间距、圆角、阴影、层级与动效 |
-| [可视化参考](../design/ui-reference.html) | 四个核心页面的可切换参考状态，由模板和 tokens 生成 |
+## 2 组件、颜色与排版
 
-tokens 是开发数值的来源；本章解释其用途。参考页展示构图和状态，不能覆盖业务规则。修改规范时同步来源配置与参考模板，再生成参考页；不手工维护第二套颜色。发生冲突时保持 03 的格式、05 的账务和 10 的语言/主题规则，并修复本章或参考稿。
+采用 React/TypeScript、React Router、Tailwind CSS variables、shadcn/ui Base UI、@base-ui/react 和静态导入的 Lucide；组件源码按需进入 packages/ui。不混用不同 primitives 示例，不让脚手架覆盖 Cloudflare/Vite 配置；SSR 不访问 window/document。版本选择和实际 hydration 验证见 [依赖策略](../dependency-policy.md)。
 
-## 2 组件与样式方案
+Light 为白底/冷灰表面/深蓝灰操作，Dark 为炭灰/深灰表面/浅蓝灰操作。所有具体色值从 tokens 生成；选中区文字使用 selectionText，必要输入边界用 borderControl，轻分隔用 border。错误/成功/警告配对语义背景且同时有文字/图标；危险实心按钮使用 dangerText。普通内容无常驻投影，菜单/对话框使用指定阴影，portal 继承主题。
 
-| 层次 | 确定方案 | 实施规则 |
-| --- | --- | --- |
-| 页面 | React、TypeScript、React Router | 沿用 Cloudflare SSR 工程 |
-| CSS | Tailwind CSS + CSS 自定义属性 | 语义颜色与尺寸由 tokens 映射，按需构建 CSS |
-| 基础组件 | shadcn/ui 的 Base UI 版本 | 引入所需组件源码，由项目维护 |
-| 交互 primitives | `@base-ui/react` | 对话框、菜单、选择器、Tabs 等采用同一体系 |
-| 图标 | `lucide-react` | 静态导入使用到的图标 |
-| 网站字体 | Georgia / Times New Roman 展示字体；Arial / Helvetica / system sans 操作字体 | 首版采用系统字体栈，无新增网站字体下载；不决定视频字体 |
+普通文本目标 4.5:1、大字 3:1，必要控件/focus 3:1，验实际背景。禁用原因仍可读，不以低对比度文字承载关键解释。网站系统字体不等于跨设备字宽保证，客户原文不因缺字而改写；视频字体/资源独立冻结。
 
-shadcn/ui 当前的新项目默认方案为 Base UI。本项目尚无应用组件，因此直接采用这套方案；初始化仍显式记录 Base UI 选择，避免未来默认值改变。组件组合采用当前 Base UI API，不能混用旧 Radix 示例的 props。shadcn 提供的是项目需要维护的源码，组件按需落到 `packages/ui`；项目卡片、素材列表、事实确认和导出摘要属于业务组件。[官方默认方案](https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default)、[Base UI 概览](https://base-ui.com/react/overview/about)
-
-先建立 Cloudflare 官方 React Router 工程，再按 existing-project 流程接入组件。保留 Cloudflare 与 React Router 的 Vite 配置，不让 UI 脚手架覆盖 Worker 配置。React Router 工程采用 TypeScript 和 CSS variables；若生成 `components.json`，RSC 配置为 false。浏览器 DOM 操作放在客户端生命周期，服务端渲染不读取 window/document。[Cloudflare React Router](https://developers.cloudflare.com/workers/framework-guides/web-apps/react-router/)、[shadcn React Router](https://ui.shadcn.com/docs/installation/react-router)
-
-本次确定选型，不提前安装尚无应用使用的包。实际引入时按 [依赖策略](../dependency-policy.md) 选目标平台兼容范围内的最新正式版，记录 CLI/registry、组件源码和包版本，精确锁定并运行真实 SSR/hydration 检查。已有 mise 工具链不因 UI 文档修改而升级。
-
-## 3 色彩、主题与状态
-
-Light 采用白底、冷灰面板与深蓝灰操作色，Dark 采用炭灰背景、深灰面板与浅蓝灰操作色。下表的基础色来自用户确认的组合预览；交互状态按相同色系派生。信息层级主要由文字、空间和边框表达，阴影用于菜单和对话框。
-
-| 语义 | Light | Dark | 使用位置 |
+| 用途 | 字体 | 字号/行高 | 字重 |
 | --- | --- | --- | --- |
-| bg | #FFFFFF | #161819 | 页面背景 |
-| surface | #F7F8F9 | #202326 | 面板、项目与素材容器 |
-| surfaceRaised | #FFFFFF | #282D32 | 下拉菜单、弹层 |
-| text | #25282D | #E5E8EC | 正文、标题 |
-| textMuted | #656D75 | #ACB4BF | 辅助说明、元数据 |
-| primary / primaryText | #253E5B / #FFFFFF | #B8CCE5 / #182D44 | 主要操作 |
-| primaryHover / primaryActive | #1E334D / #182A40 | #CCDCF0 / #A2BCD9 | 主要操作的 hover / pressed |
-| border | #DCE0E4 | #3B4148 | 结构分隔 |
-| borderControl | #7A838D | #7E8995 | 需要边界识别的输入控件 |
-| focus | #253E5B | #B8CCE5 | 键盘焦点 |
-| selection / selectionText | #E9EEF3 / #253E5B | #293443 / #E5E8EC | 选中场景、选项 |
+| Hero | display | 52/55；小屏 44/46 | 400 |
+| Page title | display | 32/38 | 400 |
+| Section title | sans | 20/28 | 600 |
+| Body/input | sans | 16/24 | 400 |
+| Label/button | sans | 14/20 | 500 |
+| Small metadata | sans | 12/16 | 400 |
 
-成功、警告、错误、信息提示分别使用 `success`、`warning`、`danger`、`info` 及其 `*Bg` 配对；始终有文字和图标。危险实心按钮使用 `dangerText`，不能直接套用普通按钮的文字颜色。其 hover/active 和各语义背景均已写入 theme tokens。
+关键价格、错误和操作不放 12 px 小字。数字使用等宽数字；错误正文换行，不能省略处理方式。长项目名可截断但可访问全文。图标默认 20 px、紧凑 16 px、特征 24 px，strokeWidth 1.75；纯图标按钮有唯一读屏名。
 
-结构边框可以较轻；控件的可识别边界使用 borderControl。正文与背景的目标对比度为 4.5:1，控件边界及焦点为 3:1；检查实际组件组合。选中容器内的标题和辅助文字均使用 selectionText，不能将 textMuted 直接叠在 selection 上；普通 hover/pressed 表面使用各自的 surfaceHover/surfaceActive 配对。禁用控件仍显示原因或旁边的可读说明，不能让低对比度提示承担关键解释。
+## 3 尺寸、响应式与浮层
 
-`ui-tokens.json.themeTokenMap` 明确 shadcn background、foreground、primary、input、ring 等语义到 `--ui-*` 的映射。组件 hover/selected/loading 也使用语义变量，不保留与主题冲突的硬编码色。
+tokens 中 4 px 间距体系、页面边距 16/24/32、最大公开宽 1200、创建宽 960、表单 640、正文 760。控件默认高 44、桌面紧凑 36、主营销 CTA 48；触摸点击面积仍至少 44×44。textarea 初始 112。圆角 0/2/4/8/12，作品内容不强制裁成圆角；焦点环 2+2 px。
 
-主题继续采用 `data-theme="system|light|dark"`、CSS 媒体查询和第 10 章的 Cookie/SSR 方案。System 的深色分支必须覆盖所有组件；不能仅适配显式 Dark。应用与 portal 都能取得 tokens，浮层不能因挂到 body 而恢复成另一套主题。[shadcn 主题](https://ui.shadcn.com/docs/theming)
+断点 640/768/1024/1280/1536。公开首页文案/作品非对称双栏，窄屏上下；创建宽屏主表单+摘要，手机单列；应用导航宽 224。Studio ≥1280 为 248 标记栏+弹性画布+320 属性栏，768–1279 属性侧面板，<768 预览/时间+底部属性/AI 面板，不缩小整套桌面界面。
 
-网站导航与应用顶部用一个 44 × 44 px 的太阳/月亮图标按钮。当前有效 Light 时显示月亮，动作是 Switch to dark mode；当前 Dark 时显示太阳，动作是 Switch to light mode。默认跟随系统，用户点击后立即切换并记住显式选择；后续系统变化不覆盖。头部不放 Appearance 文字或三选菜单，Settings 的 Appearance 组保留 Use device setting 恢复入口；公开页和只读审阅页在页脚提供同名动作。无 JS 首屏的图标及可访问名称、保存失败和连续点击行为按第 10 章验收。
+站点头 72、应用头 64、Studio 头 56、工具条 48，文字放大可自然增高。画布 contain，不因 UI 容器拉伸或裁切内容。手机面板最大 85dvh，普通对话框最大 480，核对购买 640；软键盘和底栏需给正文/当前字段留安全空间。
 
-视频画布使用自己的背景、文字、字体和 `--video-*`。UI 模式切换只改变播放器外壳与工具，客户截图、Logo、字幕、Agent 自由创作的视觉风格与帧内容保持独立。
+根层级 base 0、sticky 20、dropdown 30、sheet 40、dialog 50、toast 60、tooltip 70。对话框里的菜单属于其浮层上下文，不因全局 dropdown 数字落到遮罩下。关闭按栈恢复焦点，背景滚动锁定在 iOS 实测。hover 120 ms、普通状态 180、面板 240；减少动态取消 UI 位移，不改视频时序。
 
-## 4 字体、字号与图标
+## 4 页面与组件行为
 
-网站采用两组系统字体栈，生产与离线参考使用相同声明：`typography.displayFontFamily` 为 Georgia、Times New Roman、serif；`typography.fontFamily` 为 Arial、Helvetica，再回退到 ui-sans-serif/system-ui 和系统无衬线字体。展示标题默认 400，操作标签 500，紧凑分组标题 600；700 留给确需强调的短内容。网站不新增字体下载，也不把系统字体文件复制进仓库或分发。
+Button 显示真实 loading/disabled 原因且保持尺寸；Input 有外部 label，错误关联字段；Tabs/Select 可键盘切换，平台预览与导出选择是不同控件。镜头列表可任意数量或没有标记，提供拖拽之外的键盘移动。进度只用真实阶段/帧数，未知不能用固定倒计时。状态、错误和付费条件不能只藏 tooltip/toast。
 
-系统字体栈保留各设备的字体回退，不能承诺跨平台完全相同的字宽和换行。应用验收需检查实际字体、目标浏览器的布局与缺字；无相应字体的测试环境只能验证其回退效果。用户项目名和自由输入保留原文，字体缺字回退不触发语言选择。视频继续使用独立的、受控并随渲染版本固定的字体；网站系统字体策略不改变预览与容器的成片一致性要求。
+首页按 02 的主文案和两用途呈现，CTA 附免费预览/当前价格说明，真实值来自服务端目录。样片来源和演示品牌明确，无虚构评价/Logo。手机主标题、创建按钮和免费说明可读，作品向下自然延伸。
 
-| 文字样式 | 字体 | 字号 / 行高 px | 字重 | 用途 |
-| --- | --- | --- | --- | --- |
-| Wordmark | Display | 24 / 32 | 500 | PromoBento 文字字标 |
-| Hero | Display | 52 / 55 | 400 | 宽屏首页主标题，字距 -2.4 px |
-| Hero compact | Display | 44 / 46 | 400 | 小屏首页，字距 -1.8 px；允许自然换行 |
-| Page title | Display | 32 / 38 | 400 | 项目列表、创建、交付的页面开篇 |
-| Section title | Sans | 20 / 28 | 600 | 页面分组、面板标题 |
-| Body | Sans | 16 / 24 | 400 | 正文、说明与输入内容 |
-| Label | Sans | 14 / 20 | 500 | 按钮、表单标签、工具条 |
-| Small | Sans | 12 / 16 | 400 | 次要时间与辅助元数据 |
+创建步骤为 Setup、Assets、Details、Creative direction。可返回编辑且状态保留，事实确认默认未选；无固定视频样式白名单、无视频语言步骤。方向预览必须基于用户素材的真实可运行关键帧，直接生成不强制三选一。
 
-- 输入文字默认 16 px；关键价格、错误与行动说明不放在 12 px 的小字里。
-- 价格、额度、时长和进度采用等宽数字；正文保持普通比例字体。URL 和错误编号可使用配置中的 monospace 字体。
-- 英语标签用 sentence case；长项目名允许截断，但详情/编辑入口能访问完整名称。正文和错误信息换行，不靠省略号隐藏处理方法。
-- 正文阅读宽度不超过 760 px，常规表单正文建议 640 px；营销标题限制自然行长，避免把一个单词拆开。展示标题可少量使用斜体强调，不将大面积衬线或斜体延伸到数据与编辑控件。
-- Lucide 图标默认 20 px、1.75 stroke；密集工具条 16 px，功能说明 24 px。图标按钮必须有可访问名称，关键行动保留文字。装饰图标对读屏隐藏；品牌平台名称以文字显示，不把通用图标冒充官方商标。[Lucide React](https://lucide.dev/guide/react/getting-started)
+## 5 认证与设置
 
-## 5 尺寸、间距与层级
+登录使用约 480 px 单列，Google 的 Continue with Google 和邮箱 Email address / Send sign-in code。邮箱 autocomplete=email，禁自动首字母/拼写；无密码/找回密码页。验证码为单个 text/inputmode=numeric/autocomplete=one-time-code，支持整段粘贴与前导零，填满仍明确 Verify and continue。
 
-所有数值以 ui tokens 为准，常规尺寸由 4 px 基础间距组成。少量 44 px 控件等有明确可用性用途的尺寸独立列出。
+数字、冷却、尝试和实际到期取 auth 配置及服务器，不在 UI 维护另一套计时规则。请求被接受不写“已送达”，重发倒计时不逐秒读屏；异常持久展示，保留创建选项与输入。关联页只在有授权 proof 时展示目标资料，显式完成双方验证及确认，同邮箱不自动合并。独立账号创建须说明项目订单不带入；邀请 GET 不加入，登录后仍明确 Join workspace。
 
-| 项目 | 确定数值与规则 |
-| --- | --- |
-| 间距序列 | 0、4、8、12、16、24、32、48、64、80、96 px |
-| 页面左右留白 | 小屏 16，中等 24，宽屏 32 px |
-| 公开页内容宽度 | 最大 1200 px，居中 |
-| 创建流程宽度 | 最大 960 px；常规表单字段区建议 640 px |
-| 模块纵向间距 | 小屏 48、宽屏 80 px；应用内分组一般 24/32 px |
-| 控件高度 | 默认 44，密集桌面 36，首页主要 CTA 48 px |
-| 触控目标 | 至少 44 × 44 CSS px；小图标通过按钮留白获得点击面积 |
-| 多行输入 | 初始最小高度 112 px，可按内容增高 |
-| 圆角 | 0 px 作品展示，2 px 小元素/主要按钮，4 px 输入与普通控件，8 px 必要容器/浮层；需要独立包围的大型预览外壳可用 12 px，full 用于头像 |
-| 焦点环 | 2 px outline + 2 px offset；不能被父级裁切 |
-| 普通对话框 | 最大 480 px；购买/版本核对最大 640 px，窄屏留 16 px 边距 |
-| 手机底部面板 | 最大 85dvh，内容内部可滚动，保留关闭和当前操作 |
-| 动效 | hover/focus 120 ms，普通状态 180 ms，面板 240 ms；减少动态效果时取消位移与装饰动画 |
+Account 只展示真实已关联方式、添加 Google/邮箱、当前/全部退出；不提供未实现的解绑/密码/MFA。全部退出、Owner 转移和工作区删除按 12 重新验证对应操作。Brand/Members/Orders 按角色显示，Support 指向 Help，不造重复设置页面。
 
-普通内容与面板的 raised 阴影为 none，floating 用于菜单，modal 用于对话框；两主题分别取配置值，不用阴影代替边框。编辑器常驻三栏主要靠分隔线，不为每个字段增加投影。展示图可方角，圆角属于网站外壳而非客户视频的固定裁切。
+## 6 Studio 和交付
 
-根级层级按 base 0、sticky 20、dropdown 30、sheet 40、dialog 50、toast 60、tooltip 70 分配。Portal 位于统一浮层宿主；应用内容根使用 isolation:isolate。Dialog/Sheet 内的菜单、Select、Popover 继承当前弹层上下文并位于父层内容之上，不无条件套用根级 dropdown=30；关闭按弹层栈顺序恢复焦点。采用当前 Base UI 官方的 portal/backdrop 样式并验证 iOS 滚动，不能在 SSR 期间创建不存在的 DOM 容器。[Base UI Quick start](https://base-ui.com/react/overview/quick-start)、[Dialog](https://base-ui.com/react/components/dialog)
+顶栏保存、撤销、协作、版本余额和主要行动，镜头可任意数量；画布、时间位置、目标预览、安全区、Content/Media/Layout/Audio/AI Edit 共同组成编辑器。点选携带帧/target/revision/坐标；无 DOM 也支持可信取帧兜底。AI 候选比较后 Accept/Reject，冲突和未保存状态明确，不能直接覆盖当前稿。
 
-## 6 响应式布局
-
-CSS 断点采用 640、768、1024、1280、1536 px。行为转换由任务需要决定，不能仅把桌面三栏等比缩小。
-
-| 区域 | 宽屏 | 中等宽度 | 小屏 |
-| --- | --- | --- | --- |
-| 公开页 | 1200 px 容器，12 栏栅格 | 8 栏，24 px 外边距 | 4 栏，单列为主，16 px 外边距 |
-| 首页 Hero | 非对称双栏，衬线文案与成片示例并列，细线标注输入与输出 | 宽度不足时示例置于文案下 | 标题、CTA、价格提示、样片依次排列 |
-| 创建页 | ≥1024 px：主表单 + 约 280–300 px 摘要 | 表单与摘要上下排列 | 单列步骤；当前输入与 Continue 都可访问 |
-| 应用列表/设置 | ≥1024 px：224 px 导航 + 内容 | 导航折叠到菜单 | 内容单列，次级筛选折叠 |
-| 编辑器 | ≥1280 px：248 px 场景栏 + 弹性画布 + 320 px 属性栏 | 768–1279 px：场景入口与画布常驻，属性用侧面板；空间不足时场景也折叠 | <768 px：预览 + Scenes/Properties 底部入口；场景抽屉、属性底部面板 |
-| 交付文件 | 版本摘要与平台文件列表并列 | 摘要在上、文件列表在下 | 每个平台文件单独分组，下载按钮可直接点击 |
-
-站点导航高 72 px，应用列表顶部 64 px，编辑器顶部 56 px；文字放大或内容换行时允许自然增高。编辑器工具条基准 48 px。画布按可用区域等比 contain，四种构图不拉伸、不裁掉客户内容。
-
-窄屏保持页面纵向滚动；仅场景条或明确的 Tabs 区允许局部横向滚动。固定底栏计入安全区与正文底部留白；软键盘弹出后当前字段、错误和继续操作不能被遮挡。200% 缩放时重排为较窄布局，不要求用户缩小浏览器。
-
-## 7 基础组件规范
-
-| 组件 | 视觉与状态 | 交互要求 |
+| 状态 | 主要行动 | 说明 |
 | --- | --- | --- |
-| Button | Primary、Secondary、Ghost、Destructive；默认/hover/pressed/focus/disabled/loading | Loading 保持按钮宽度并显示动词状态；重复提交受控；禁用原因在附近可读 |
-| Theme button | 单个 Ghost 图标按钮，44 × 44 px；Light 显示月亮，Dark 显示太阳 | 图标表示下一步动作，tooltip 与可访问名称一致；点击按当前有效主题取反并保存；恢复 System 在 Settings 中完成 |
-| Input / Textarea | Label 在外部上方，helper 在下方；错误边框 + 文字 | Placeholder 只做例子；可见 label 与控件关联；不改写用户语言 |
-| Sign-in code input | 单个带可见 label 的文本输入框；复用 Input 的焦点与错误样式 | 支持数字键盘、整段粘贴和一次性验证码自动填充；保留前导零，不拆成多个焦点 |
-| Checkbox / Radio | 选中标记 + 边框 + label | 平台多选用 checkbox；互斥时长/样式用 radio；分组有可访问名称 |
-| Select / Combobox | 当前值清楚，菜单使用浮层表面 | 有搜索需要才用 combobox；键盘选择、关闭、返回焦点正确 |
-| Tabs / Segmented control | 选中有形状或下划线，辅以颜色 | 键盘可切换；平台预览与“选择导出平台”是不同控制，不混淆范围 |
-| Card | 8 px 圆角，16/24 px 内边距，薄边框、无常驻投影，预览比例固定 | 仅在需要独立容器时使用；项目主链接与更多菜单分离，不嵌套可点击元素 |
-| Scene item | 缩略图、序号、类型、时长、标题与错误数量 | 选中有边框/标记；拖拽之外提供键盘移动；重排后保留选中项 |
-| Upload zone | 虚线边框、支持范围和 Browse files | 拖拽、键盘、手机文件选择均可用；上传/处理/失败状态对应真实文件 |
-| Status badge | 文字 + 可选图标；语义色成对使用 | Draft、Processing、Ready、Failed 等取真实状态；不只显示色点 |
-| Inline alert | 字段错误、页面提示、阻止项与建议项分级 | 能跳到具体场景/字段；付款与导出问题不能只短暂显示 toast |
-| Dialog / Sheet | 标题、说明、关闭、底部操作；背景遮罩 | 焦点管理、Escape、关闭恢复焦点；有业务保留要求时按 02/05 处理，不默默丢草稿 |
-| Tooltip | 小型文字提示，4 px 圆角 | 辅助解释，键盘可访问；不承载唯一的必填提示或付费条件 |
-| Toast | 简短结果，状态类型可识别 | 保存成功等轻提示可消失；可恢复错误提供持久入口，不模拟支付成功 |
-| Progress / Skeleton | 固定预览比例，减少布局跳动 | 确定进度才显示百分比；未知进度显示阶段；尊重 reduced-motion |
-| Slider | 显示实际值，拖拽之外可键盘调节 | 音量/时间有单位与可访问名称；裁切区间保持起止点关系 |
-| File row / Table | 文件名、格式、状态和下载操作对齐 | 小屏转为带字段标签的行卡；文件名可换行，不能把下载藏入 hover |
+| 来源尚未全目标准备 | Prepare platform layouts | 先准备和验证，不创建付款 |
+| 未购买且准备完成 | Buy & export — $39 | 原快照、3 个版本、本次 1 个、期限/税费 |
+| 不同内容且有余额 | Export new version | 新 contentHash，确认成功交付后消费 |
+| 活动付款/未知付款 | Continue payment / View payment status | 只用原订单原快照，不诱导重复付 |
+| 同内容已预留或执行 | View export status | 不重复开任务/扣次 |
+| 同内容已交付 | Download files / Add platform files | 余额 0 也保留，不再创作/收费 |
+| 新内容无余额 | Add 3 versions — $12 | 默认仅加额度，购买导出须明确选 |
+| 非 Owner 需购买 | Ask owner / Copy project link | 不自动外发消息 |
 
-表单错误在用户离开字段或提交时给出，输入过程中不反复打断；修改后按实际校验清除。成功颜色不表示商业事实已经被 AI 验证；事实由用户确认。
+创作成功次数与成片版本分别显示，不统称 credits。普通变量不调用模型；候选交付消费与接受不重复消费清楚展示。Q0/Q1 来源准备与 Q2 编码后校验区分，参考里的 Candidate ready 不代表全部目标或付款已就绪。
 
-## 8 首页规范
+交付页展示实际版本/期限/阶段；初批失败不下载零散文件，ready 后逐目标 MP4/JPG/映射，补目标保持原文件可下。ZIP 准备/失败是独立状态。无自动 Publish 承诺。项目列表用真实缩略图、名称、状态、时间/期限与菜单，空态引导创建或明确 Sample，不填假用户数据。
 
-首页任务是让两类团队知道输入什么、能得到什么、如何开始和何时付费。
+## 7 主题、可访问性与检查
 
-1. 顶部字标、Examples、Pricing、Help、主题图标、登录/项目入口；主要 Create a video 与当前上下文保持一致。
-2. Hero 使用已确定的英文标题 “Turn your product or course into a promo video.” 和辅助说明，采用轻字重衬线排版，可对短语作斜体强调；主 CTA 为 Create a video，次 CTA 为 Watch example。组合预览中的展示文案不自动替代正式产品定位与消息资源。
-3. CTA 附近说明免费预览及当前项目包价格/版本数，实际产品价格由服务端目录提供。参考稿的金额仅按 05 展示示例，不作为另一份价格配置。
-4. 右侧或下方显示素材到成片的可理解示例；先看见成片主体，再看平台比例，不放无法证明的收益数字或客户徽标。
-5. Software product team 与 Course / digital product team 两个用途入口同级，优先使用带下划线选中态的文字入口或平铺内容区；下接样片、三步说明、六平台预设、价格与 FAQ。区块以留白、细分隔线和文字层级组织。
-6. 手机首屏保留主标题、CTA、免费预览说明；样片自然向下延伸，不把全部信息压成极小卡片。
+主题按钮及 Cookie/SSR 行为以 10 为准。Settings 和公开/审阅页脚均有 Use device setting；视频样式与 UI 完全隔离。键盘可完成创建、编辑、核对付款和下载，Skip to content、可见焦点、live region、Escape/关闭恢复焦点均可用。
 
-公开示例可免登录。上传或生成之前进入 `/login`，选择 Google 或邮箱验证码登录；成功后恢复之前的选择。外部支付商标与合作说明只使用真实允许的内容。
-
-### 8.1 登录与邮箱验证码
-
-`/login` 统一承接登录与首次创建账号。使用最大约 480 px 的单列表单，页面开篇用 Display 标题，说明、标签和操作用 Sans；通过留白和细分隔线分组，不增加装饰性大卡片。顶部保留字标和主题图标，页脚可访问 Help、政策与 Use device setting。
-
-Google 使用 Continue with Google 次级按钮；邮箱区域使用 Email address 可见标签与 Send sign-in code 主按钮。邮箱输入支持 `type="email"`、`autocomplete="email"`，关闭首字母大写与拼写检查。提交前说明将发送登录验证码；不要求填写密码，不设置单独的注册、忘记密码或视频语言步骤。
-
-`/login/verify` 显示刚输入的邮箱、验证码输入框、Verify and continue，以及 Change email 与重发入口。数字验证码以字符串处理；输入框使用 `type="text"`、`inputmode="numeric"`、`autocomplete="one-time-code"`，支持整段粘贴和前导零。填满位数后仍由用户明确提交，不因自动填充直接跳转。默认值为 6 位、10 分钟有效、60 秒重发冷却、本轮累计最多 5 次错误；数值由 [认证配置](../../config/auth.json) 和服务端状态提供，UI 不维护独立限制。重发不清空本轮错误次数，刷新页面不重置服务端冷却。
-
-| 状态 | 呈现与操作 |
+| ID | 应用验收 |
 | --- | --- |
-| 请求已接受 | 引导查看该邮箱；不声称邮件已经送达，不披露邮箱是否已有账号 |
-| 发送中 / 验证中 | 保持操作按钮尺寸，显示 Sending code / Verifying；阻止重复提交，保留上下文 |
-| 等待重发 | 显示服务端允许重发的剩余时间；倒计时不逐秒向读屏播报，可重发时再宣告 |
-| 无效或过期 | 持久显示关联到输入框的错误，保留重试与符合冷却规则的重发入口；过期码不能继续提交 |
-| 本轮尝试耗尽 / 请求过频 | 显示服务端返回的等待或重新开始操作；不让刷新、改客户端时钟或反复点击绕过限制 |
-| 邮件服务或网络故障 | 显示可重试说明与 Help 入口；已填邮箱、创建选项和允许的返回目标保留 |
+| UI-01 | 首页/创建/Studio/交付在三个视口主行动可见，无正文无意义横滚 |
+| UI-02 | 基础组件默认/hover/pressed/focus/disabled/loading、浮层栈和 iOS 滚动 |
+| UI-03 | Theme 首屏、持久化、失败与快速点击按 10；不改作品或订单 |
+| UI-04 | 单输入 OTP、登录/关联/邀请所有 pending/失败/冲突可恢复，不显示虚假成功 |
+| UI-05 | 自由创意、任意标记、点选兜底、候选对比/CAS、预算/QA 与全部目标准备 |
+| UI-06 | contentHash 去重行动、Owner/Editor 边界、过期/已清理/部分文件/ZIP 状态 |
+| UI-07 | 44 px、200% 缩放、键盘/读屏、RTL 混排/缺字与减少动态 |
 
-邮箱和验证码不进入 URL、分析事件或应用写入的浏览器持久存储。失败信息通过字段描述或适当的 live region 宣告；允许关闭、返回和更换邮箱，不把用户困在倒计时页面。登录失败与从 Google 返回时保留创建或邀请上下文；登录和退出不改写主题偏好。
-
-网站认证界面与事务邮件使用同一网站语言策略，首发英语。邮件主题和预览文字不含验证码；正文提供验证码、有效时间、用途和“未发起可忽略”的说明，区分登录与添加邮箱方式。模板从英语消息资源读取，验证码只在发送时插入正文；视频文案的语言与此独立。
-
-### 8.2 登录方式关联与邀请
-
-`/login/link` 只在已经验证一种身份、有待决的新建或关联流程时出现；不能作为公开邮箱查询入口。未知 Google identity 显示通用的 Create account / Connect existing account 选择，不透露邮箱查重结果。关联时按 [第 12 章](12-routing-and-auth.md) 完成已有方式的近期验证及新方式验证，再显示有权查看的目标账号，由 Confirm and add sign-in method 确认。相同邮箱不自动合并账号。取消、验证失败或身份已属于另一账号时，显示可继续的登录入口；不迁移项目、工作区或账单，不承诺自动解决账号冲突。
-
-Google profile 中的相同邮箱只能按第 12 章作为资料提示，不能锁定邮箱身份、授予已有账号权限，或用非权威 email 查询并披露邮箱账号状态。已验证的新身份符合第 12 章规定的关联提示条件时，页面提供 Connect existing account 与 Create a separate account：前者要求证明原方式及明确确认；后者说明会新建独立账号和工作区，其他账号的项目与订单不会带入，原登录方式仍进入原账号，P0 不合并两个已成型账号，再确认后提交。只有新身份在最终事务中仍未绑定其他用户时才能选择新建；不能静默创建第二个工作区，也不能将身份冲突包装成可新建账号。无关联提示的全新邮箱 identity 则沿用验证码验证后创建一个账号与默认工作区的流程。
-
-邀请页展示实际工作区和当前登录身份，并提供 Join workspace 与 Use another account。未登录时先进入统一登录，返回后仍需明确确认；打开链接、预取或邮件扫描不绘制为已加入。邀请过期、撤销、名额已满和已经加入分别给出实际状态，具体 URI 与权限按第 12 章；已登录成员不因重复打开邀请而新增成员名额。
-
-## 9 创建流程规范
-
-Create 页面承载 02 的前四步，第五步进入编辑器。步骤名称为 Setup、Assets、Details、Style；步骤条显示当前步骤与已完成状态，可返回编辑，不伪造业务完成。
-
-| 步骤 | 主要内容 | 主要行动与反馈 |
-| --- | --- | --- |
-| Setup | 两类任务、15/30 秒、六个平台 | Continue；默认值可修改，平台始终可见 |
-| Assets | 截图/录屏/Logo，处理状态与必要裁切 | Upload assets / Continue；至少一份合法视觉素材即可继续 |
-| Details | 产品名、受众、卖点、CTA，价格/日期/优惠等选填字段 | 确认事实勾选默认未选；错误指向具体字段 |
-| Creative direction | 可选展示 Fit/Amplify/Unexpected 的真实关键帧，或直接按用户镜头要求制作 | Direct & create；展示创作额度与真实阶段，不用固定 Clean/Bold 限制动画 |
-
-桌面摘要显示当前素材缩略图、时长与平台；手机摘要折叠为可展开区。步骤切换保留输入和处理状态，错误摘要提供返回字段的入口。含价格/日期/承诺的内容遵循事实确认规则。
-
-网站文案为英语；用户输入可以同段多语混排。流程中不放 Video language 选择器，也不增加语言识别确认。UI 的系统字体栈不强制成为视频字体。
-
-## 10 编辑器规范
-
-### 10.1 桌面构图
-
-- 顶栏左侧：返回项目、项目名和保存状态。右侧：主题图标、协作者/审阅、撤销重做、成片版本余额和主要导出行动。空间不足时低频操作进入 More，主题图标、导出与保存状态保留。
-- 镜头/标记栏：248 px；显示任意数量的镜头关键帧、位置或连续镜头，评论定位到精确帧。
-- 中间：播放器、时间位置和播放控件。下方是当前平台预览、安全区开关与四构图入口；保留画布周围呼吸空间。
-- 属性及 AI Edit 面板：320 px；Content、Media、Layout、Audio 分组，点选后允许发起含平台/帧/坐标/截图的定点 Agent 改稿；已有可编辑变量不调用 AI。
-- 保留标记栏与播放时间线，不限制镜头数量，但 P0 不强求完整 NLE；自由代码预览必须跨域隔离，离线四页参考只是 UI 设计样例而非 Studio 功能证明。
-
-### 10.2 状态与行动文案
-
-AI 使用次数显示在 Generate / Rewrite 对应位置；成片版本余额显示在导出附近，二者不能统一写成含义不清的 credits。
-
-| 当前状态 | 主要行动 | 必须说明 |
-| --- | --- | --- |
-| 尚未购买 | Buy & export — $39 | 确认面板展示实际内容快照、3 个成片版本、此次用 1 个、保留期与税费 |
-| 已有版本余额，准备新内容 | Export new version | 本次用 1 个，成功交付后剩余数量；提交前确认 |
-| 尚未完成且仍可继续的支付会话 | Continue payment | 展示该订单的原内容快照；新草稿另存 |
-| 付款确认中或需要核查 | View payment status | 保留查询与核查提示，不引导重复付款 |
-| 额度耗尽 | Add 3 versions — $12 | 默认仅增加额度；同时导出必须明确选择 |
-| 同一版本已交付 | Download files / Add platform files | 重下与同版补平台沿用既有权益，不重复扣版本 |
-| 当前操作需要购买，且用户不是 Owner | Ask owner / Copy project link | 沿用站内申请/复制机制，不自动外发消息；Editor 仍可使用已有权益导出 |
-
-以上金额和份数来自 05，真实按钮由订单/权益状态与服务端目录决定。关闭付款页面不被绘制成失败付款或付款成功；站内状态以服务端核实结果为准。
-
-先判断当前快照和任务，再判断是否需要购买。当前快照已预留或正在导出时显示 View export status，重复操作复用原任务；已经交付时，即使余额为 0 也保留 Download files / Add platform files。只有导出不同的新内容且额度不足时，才以追加包为主要入口。
-
-Saving、Saved、Offline draft、Conflict 靠近项目名。字段保存不遮住整个编辑器。冲突有明确查看与处理入口；AI 改写展示修改范围、前后差异和 Accept/Discard，不能直接覆盖原文。
-
-### 10.3 手机构图
-
-预览在上方，场景选择和属性编辑通过底部入口打开。打开面板时保留当前场景、播放位置和输入；面板内部允许滚动。撤销、播放、平台和导出都可操作；不把手机用户送到只能查看的页面。
-
-## 11 交付、项目与辅助页面
-
-交付页顶部显示固定版本、缩略图、时长、创建时间和状态；正在导出旧快照且存在新草稿时明确提示。版本切换先区分已交付版本与当前草稿。
-
-| 交付状态 | 呈现与行动 |
-| --- | --- |
-| 付款确认中 | 订单状态和查询中提示；View payment status，不要求立即重复支付 |
-| 排队/准备/渲染/编码/校验 | 当前阶段；有真实数据才显示进度 |
-| 首批文件失败 | 明确失败阶段与 Retry failed files；不放出未发布的零散中间文件 |
-| Ready | 各平台 MP4、封面、Copy posting instructions；同文件映射避免让用户误以为重复收费 |
-| 补平台进行中 | 原有文件继续可下载，新文件显示自己的状态 |
-| ZIP 准备中或失败 | 成片文件保持 Ready；Download all 暂显示准备/免费重试 |
-| 项目过期/素材清理 | 显示实际期限与允许操作；素材已清理时不出售无法完成的恢复 |
-
-P0 下载后由用户在对应平台上传，不出现自动 Publish to TikTok / YouTube 的承诺。可复制的发布说明和外链不改变素材权限。
-
-项目列表采用“缩略图 + 项目名 + 状态 + 更新时间/期限 + 更多操作”；筛选优先 All、Drafts、Processing、Ready。空态引导 Create a video 或明确的 Sample project，不填充虚构客户内容。手机卡片单列，桌面按可用宽度排列。
-
-Settings 按以下 URI 分组，工作区设置与订单按已有权限显示。支持入口复用 `/help`，不再同时维护一份独立的 Settings Support 页面。
-
-| 入口 | 内容与操作 |
-| --- | --- |
-| `/app/settings/account` | Account 与 Sign-in methods，展示已关联方式及状态；提供 Add Google sign-in / Add email sign-in、Sign out、Sign out all devices |
-| `/app/settings/appearance` | 当前模式、是否跟随设备，以及 Use device setting 恢复入口 |
-| `/app/settings/brand` | 工作区品牌资料；品牌内容仍独立于网站主题 |
-| `/app/settings/members` | 成员、角色、邀请与撤销，按 Owner / Editor 权限显示 |
-| `/app/billing/orders` | 订单列表与订单详情入口，使用服务端核实的付款状态 |
-
-添加登录方式须完成第 12 章的验证与确认；已关联方式展示实际状态，不因相同邮箱推断关联完成。P0 不提供移除登录方式的入口，不引入密码或 MFA 设置。Sign out 为明确的表单操作；Sign out all devices 使用确认对话框，说明包括当前设备在内都需重新登录，完成后再显示实际结果。会话到期时说明需要重新登录，并保留允许恢复的当前任务；不能把尚未成功的退出或关联绘制成已完成。
-
-Appearance 的恢复动作也保留在公开页和审阅页页脚，不要求登录或购买。Review 为指定版本的只读预览，醒目标明审阅范围和期限；创建链接前说明持链接者可观看，原素材与高清文件下载遵循既有权限。Help/政策页使用 760 px 阅读宽度；Admin 复用表单、表格和状态组件，字段详情按权限展开。
-
-## 12 可访问性与内容规则
-
-键盘能完成创建、切场景、编辑、付款前确认与下载；所有可点击元素有可访问名称和可见焦点。提供 Skip to content。活动菜单/对话框控制焦点与滚动，关闭后恢复焦点，错误通过关联描述和适当的 live region 宣告。
-
-主要操作触控区域至少 44 px。支持 200% 文本/页面缩放、减少动态效果、长项目名和网站伪本地化。将来网站语言扩展使用 CSS logical properties；当前 UI 仍为英语，用户文案始终按原文保存和排版。
-
-主题变化、进入表单、显示错误不能造成客户画布样式变化或草稿丢失。动画仅表达 hover、进入/退出和重排关系；不让持续装饰动效抢占编辑器注意力，不用固定倒计时假装渲染进度。
-
-## 13 交付物与实施验收
-
-本次仓库交付 UI 规范、两份设计配置、生成器与离线参考页。运行 `mise run build:ui-reference` 更新参考，运行 `mise run check:ui-reference` 检查生成物一致性；`mise run check:repo` 检查文档和配置关系。
-
-参考页为英语、四页面和样例状态，通过图标切换 Light/Dark，并可恢复跟随系统；不连接用户账号、上传、AI、Waffo 或云端渲染。现有四页参考不覆盖登录、验证码、登录方式关联和真实邮件收发，本章的认证 UI 与消息种子属于实施要求。参考页与网站规范采用同一系统字体栈；实际字形取决于测试环境可用字体。Base UI 交互、目标设备字体回退与真实内容排版由应用阶段验收。参考页的页切换、主题切换与浏览器存储只是离线模拟，不是生产路由、HttpOnly Cookie 或 SSR 的实现。
-
-| ID | 应用验收 | 通过条件 |
-| --- | --- | --- |
-| UI-01 | 首页、创建、编辑器、交付在 390×844、768×1024、1440×900 | 主行动可见、文字不截断、正文无无意义横向滚动 |
-| UI-02 | 首访跟随系统、图标切换、保存重访、恢复设备设置 | 控件/浮层/首屏一致；图标和名称表示下一步动作；点击后记住选择并忽略系统变化；恢复后重新跟随系统；保存失败与连续点击符合 THEME-11 |
-| UI-03 | 所有基础组件状态 | 默认、hover、pressed、focus、disabled、loading、error 有实际样例 |
-| UI-04 | 键盘和弹层 | 无焦点丢失/困在错误位置；Escape、关闭恢复焦点与滚动正确 |
-| UI-05 | 200% 缩放、长名字与伪本地化 | 标签、按钮和对话框可重排，关键内容可访问 |
-| UI-06 | 手机创建与编辑 | 文件选择、改字、焦点、预览、付款、下载均可完成；键盘不遮住当前任务 |
-| UI-07 | 真实视频与网站主题组合 | UI 换色不改帧内容、客户素材、字体、导出样式或版本身份 |
-| UI-08 | 免费/有余额/耗尽/活动订单/不同角色 | CTA 与服务端权益一致，次数与版本清楚区分 |
-| UI-09 | 事实、保存与 AI 修改 | 不预勾事实确认；错误定位字段；冲突与改写有明确确认路径 |
-| UI-10 | 付款延迟、失败、补平台与 ZIP | 状态真实；不重复扣费；文件可见性符合 05 |
-| UI-11 | SSR/hydration 与 portals | 无服务器 DOM 访问，首屏一致，浮层继承主题，手机遮罩/滚动正确 |
-| UI-12 | UI 与文案分离 | 网站英语，混排文字可直接输入，创建与导出无语言选择/识别确认 |
-| UI-13 | 视觉方向与实际字体 | 明暗配色采用共享 tokens；品牌/展示用 Display，操作/编辑用 Sans；系统字体回退后标题、控件和用户文本仍可读，缺字按具体内容定位 |
-| UI-14 | Google / 邮箱登录、验证码与任务恢复 | 390 px 窄屏、键盘、整段粘贴、自动填充及前导零可用；重复提交、重发、过期、尝试耗尽与邮件故障遵循服务端状态；错误可读且不泄露账号存在性；两种登录成功或失败后均保留允许的创建 / 邀请上下文与主题偏好 |
-| UI-15 | 关联、邀请与退出 | 关联要求证明双方身份及明确确认；独立新建说明数据不会带入，要求确认且只允许未绑定身份；取消或冲突不改动已有数据；邀请预览不自动加入，重复接受不重复占位；退出及全部设备退出按实际服务端结果展示，后退 / 重开受保护页面需重新验证会话 |
-
-应用实现后以实际页面和业务状态验证；参考页与静态色彩检查不替代上述应用验收，也不改变 M0 的 Cloudflare/Waffo 可行性出口。当前完成范围与阻塞以 [实施进度](../implementation-status.md) 为准。普通样式修改的构建与检查结果进入 CI 或提交说明，关键外部集成、人工验收与实测才按 [验证记录约定](../evidence/README.md) 留存。
-
-## 14 官方依据与资产记录
-
-以下官方资料核查于 2026-10-19。组件行为和许可来自官方资料；本章的颜色、尺寸、布局与取舍是 PromoBento 的产品设计决定。
-
-- [shadcn Base UI 默认方案](https://ui.shadcn.com/docs/changelog/2026-07-base-ui-default)、[CLI](https://ui.shadcn.com/docs/cli)、[主题](https://ui.shadcn.com/docs/theming)：基础方案与引入方式。
-- [Base UI 快速开始](https://base-ui.com/react/overview/quick-start)、[组件组合](https://base-ui.com/react/handbook/composition)、[MIT 许可](https://raw.githubusercontent.com/mui/base-ui/master/LICENSE)：交互 primitives、portal 与源码许可。
-- [Cloudflare React Router](https://developers.cloudflare.com/workers/framework-guides/web-apps/react-router/)、[shadcn React Router](https://ui.shadcn.com/docs/installation/react-router)、[Tailwind Vite](https://tailwindcss.com/docs/installation/using-vite)：沿用既定 SSR 工程接入样式。
-- [Lucide React](https://lucide.dev/guide/react/getting-started)、[Lucide 许可](https://lucide.dev/license)：图标按需导入，保留 ISC 及相关 Feather MIT 声明。
-
-实际引入第三方源码、字体或图标时保存版本、来源和对应许可。网站当前仅声明系统字体栈，无字体文件分发；将来若引入字体资产，需单独记录来源与许可。离线参考中的示例产品界面为本项目绘制的演示内容，不使用真实客户资料或未取得许可的品牌背书。
+`build:agent-reference` 从当前模板、tokens、预设和配额生成参考，`check:agent-reference` 验同步性。参考仅静态样例和本地交互，没有登录、模型、真实视频或支付；生成通过不等于浏览器/应用验收。

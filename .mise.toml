@@ -1,4 +1,4 @@
-# Repository toolchain. Deployment compatibility is governed by docs/dependency-policy.md.
+# Tool versions and tasks. See docs/dependency-policy.md.
 min_version = "2026.10.13"
 
 [tools]
@@ -6,36 +6,31 @@ node = "26.12.0"
 pnpm = "12.14.0"
 
 [tasks.install]
-description = "Install package dependencies from the committed lockfile"
+description = "Install dependencies from the committed lockfile"
 dir = "{{config_root}}"
 run = "pnpm install --frozen-lockfile"
 
 [tasks."check:repo"]
-description = "Validate PRD files, seed references, and repository links"
+description = "check:repo: current specifications and references only"
 dir = "{{config_root}}"
 run = "node scripts/check-repo.mjs"
 
-[tasks."build:ui-reference"]
-description = "Generate the offline UI reference from design tokens and the template"
-dir = "{{config_root}}"
-run = "node scripts/build-ui-reference.mjs"
-
-[tasks."check:ui-reference"]
-description = "Check that the generated UI reference matches its sources"
-dir = "{{config_root}}"
-run = "node scripts/build-ui-reference.mjs --check"
-
 [tasks."check:contracts"]
-description = "Validate v2.2 schemas, fixture graph, routes and product invariants"
+description = "check:contracts: current specifications and references only"
 dir = "{{config_root}}"
 run = "node scripts/check-production-contracts.mjs"
 
 [tasks."test:contracts"]
-description = "Run contract counterexamples and state/quota reference tests"
+description = "test:contracts: current specifications and references only"
 dir = "{{config_root}}"
 run = "node --test scripts/production-contracts.test.mjs"
 
+[tasks."build:agent-reference"]
+description = "build:agent-reference: current specifications and references only"
+dir = "{{config_root}}"
+run = "node scripts/build-agent-reference.mjs"
+
 [tasks."check:agent-reference"]
-description = "Check the offline Agent Studio design reference"
+description = "check:agent-reference: current specifications and references only"
 dir = "{{config_root}}"
 run = "node scripts/check-agent-reference.mjs"

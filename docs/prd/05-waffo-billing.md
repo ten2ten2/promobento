@@ -1,159 +1,110 @@
 # Waffo 支付与权益
 
-## 1 支付产品决定
+本章定义当前商品、订单、退款和成片权益。创作操作计量由 [14](14-production-contracts.md) 补充，不能覆盖本章购买保障。真实收款需通过商户、域名、签名、订单查询和收款退款验收。
 
-支付提供商固定为 Waffo.ai，使用其 Pancake 商户服务。P0 仅售一次性项目包与追加包，不提供自动续费、套餐订阅、可提现余额或跨项目通用充值。
+## 1 商品和购买意图
 
-| 内部 SKU | 目录价 | 购买条件 | 授予项目权益 |
+P0 使用 Waffo Pancake，一次性项目包及追加包，无自动续费、提现余额或跨项目通用充值。目录币种 USD；实际支付方式取商户已开通能力。
+
+| SKU | 目录价 | 条件 | 授予当前项目 |
 | --- | --- | --- | --- |
-| `project_v1` | USD 39.00 | 有有效素材与可预览快照，项目未购买初始包 | 3 个成片版本、5 次整片分镜、15 次局部改写、20 段及 1,200 秒素材处理预算 |
-| `extra_versions_v1` | USD 12.00 | 已购买项目包，项目未清理且有可恢复素材 | 3 个成片版本、2 次整片分镜、10 次局部改写、20 段及 1,200 秒素材处理预算 |
+| `project_v1` | US$39 | 有有效素材及确认快照，未购买初始包 | 3 个成片版本、5 次整片创作、15 次局部改稿、20 段及 1,200 秒素材处理预算 |
+| `extra_versions_v1` | US$12 | 已购、未清理且资源可恢复 | 3 个成片版本、2 次整片创作、10 次局部改稿、20 段及 1,200 秒素材处理预算 |
 
-同项目所有有效未用权益共用正常使用期限，按仍有效购买中最大的提供商成功付款时间加 90 天计算；不按回调到达顺序覆盖。追加付款同时延长旧余额，退款按仍有效购买重算。`access_expires_at` 与 `media_delete_after` 分开保存，正常到期后媒体宽限为 7 天。无自动扣款。免费次数与已购次数分别记录，删除项目不能返还已消耗的免费额度。
+SKU 是稳定商品 ID，不随文档修订重命名。素材处理预算是累计处理权益，不放宽 01/输入配置对同时保留素材数、单段格式/时长和总上传的限制。免费项目次数见 01 与 agent-policy；删除项目不返还已用免费次数。
 
-订单包含 `purchase_intent`：初始包固定 `purchase_and_export`，必须有已确认 snapshot；追加包默认 `top_up_only`，snapshot 可空，不启动导出。追加包可明确选择 `purchase_and_export`，付款后导出其指定快照。
+订单保存 `purchase_intent`：初始包固定 `purchase_and_export`，必须有已确认 snapshot；追加默认 `top_up_only`，可无 snapshot，不触发编码。用户明确选择 `purchase_and_export` 的追加包只导出其已确认快照。test/production 商品 ID、商户和密钥分离。
 
-Waffo 中创建两个对应的一次性商品，test 与 production 的商品 ID 独立配置。币种 P0 为 USD。具体支付方式使用该商户、商品类型和币种实际支持的选项，界面不提前承诺尚未开通的渠道。
+有效项目正常截止取仍有效购买中最大成功付款时间加 90 天，延迟回调不得使日期倒退；追加延长未用余额，退款按有效购买重算。`access_expires_at` 与 `media_delete_after` 分开，正常到期后 7 天只读宽限。
 
-## 2 成片版本计费语义
+## 2 内容身份、快照与消费
 
-一个版本冻结内容原文及可选语言元数据、Composition 源码与依赖 hash、素材、录屏选段、音轨、15/30 秒时长、全部合法target的Variant（原四构图，含Feed方形选项）、封面、作品风格、renderer 和平台预设版本。平台勾选集合不是新版本身份，因此补选平台不重复扣额度。界面语言、System / Light / Dark 和 Waffo 收银台外观不参与成片版本身份，不改价格或 USD 币种。
+收费身份为 `UNIQUE(project_id, content_hash)` 的 release，**不是 snapshotId 或 revisionId**。`contentHash` 算法以 14 与参考测试为准；同内容恢复、重新 QA、重排目标记录顺序、仅修改非渲染 styleLabel 不产生新消费。新请求若内容已存在，返回原 release 及原购买快照，不用当前草稿重新装配已购文件；请求键相同但 body 不同仍按幂等协议返回 409。
 
-普通草稿修改不扣成片额度。首次导出一个新快照时，原子预留 1 个版本。相同快照的重复点击返回已有 release 或 job；不同快照需要新的额度。不能使用主题相似度或 AI 判断决定用户的收费边界。
+snapshot 是不可变的确认收据，保存完整 Composition、事实证明、全部合法 target 的来源、依赖、音轨、封面、规则和 renderer。新 snapshot 可指向同一内容身份而不产生第二次扣费。只有改变实际内容指纹并导出才消费新版本；不用 AI 相似度判断收费，也不以“换了宣传主题”为由拒绝合法项目编辑。
 
-首次预留固定 `initial_artifact_manifest`，包括首批所选平台的 MP4、封面与映射清单。全部校验成功且 reservation 有效、grant 未冻结或撤销、项目未删除时，原子写 `ready + consume + published_at` 并开放下载。并发补平台不扩大首批清单，在首次交付后继续生成；release 一旦已交付，不因补平台退回未交付。ZIP 是随后生成的派生下载，免费重试，不决定首次消费时点。
+提交新内容导出时原子预留 1 个版本，固定 `initialTargetIds` 和初批文件清单；每个所选目标有 video、cover、mapping 三种逻辑产物。全部通过编码和内容 QA，且 reservation 有效、grant 未冻结、项目未删除，才原子写 ready、consume、published_at 并开放下载。等价逻辑文件可复用物理对象，ZIP 随后派生，不决定消费时点。
 
-部分平台失败只重试失败文件；在首次整批交付前，中间文件不开放下载。最终失败释放预留，同一版本重试可以再次预留，成功消费仍按 release 唯一。下载接口检查批次发布状态，不能仅依据单个文件 ready。
+部分失败只重试失败文件；首次完整发布前不下载零散结果。最终失败释放预留，同 release 重试可新建 reservation，但 consume 按 release 唯一。每个 reservation 的释放幂等，同 release 同时最多一个有效预留。队列重复投递不增加消费。
 
-已交付版本补选平台不需要新预留。新平台失败不影响已有文件，系统继续免费恢复失败文件；不能因此再次收费或自动撤销已交付版本。重复下载、ZIP、授权链接刷新、系统兼容性修复不扣新版本。
+补平台只运行该 snapshot 已冻结来源，不调用 Agent，不扩大首次清单、不新预留或消费，不把已交付 release 退回未交付。补平台失败保留原文件并免费恢复。重新下载、ZIP、授权刷新和系统兼容修复均不另收成片版本。
 
-每次预留使用独立 `reservation_id`，同 release 同时至多一个有效预留；`consume` 按 release 唯一，`release` 按 reservation 唯一。重试不会通过重复账本行创造余额。
+## 3 独立状态
 
-## 3 本地状态模型
-
-订单、退款、项目权益和渲染各自有状态，不能挤进一个 `paid` 布尔值。
-
-| 实体 | 状态 | 重要说明 |
+| 实体 | 当前状态值 | 边界 |
 | --- | --- | --- |
-| 订单 | `created`、`checkout_open`、`awaiting_confirmation`、`paid`、`expired`、`canceled`、`review_required` | 已确认支付不被旧 pending 事件降级；过期记录仍允许通过权威对账纠正 |
-| 退款 | `requested`、`processing`、`succeeded`、`failed` | 退款申请成功不等于钱已经退回 |
-| 成片版本 | `draft_snapshot`、`reserved`、`rendering`、`ready`、`failed`、`canceled` | ready 首次发生时消费额度并开放下载 |
-| 权益预留 | `reserved`、`consumed`、`released` | 每个转换有唯一操作 ID 和审计记录 |
+| 订单 | created / checkout_open / awaiting_confirmation / paid / expired / canceled / review_required | 提供方付款事实不能被旧 pending 消息降级 |
+| 退款 | requested / processing / succeeded / failed | 申请成功不等于资金已退回 |
+| 导出 release | reserved / rendering / ready / failed / cancelled | 与 exportManifest Schema 同名；snapshot 单独保存，不是 release 状态 |
+| 权益预留 | reserved / consumed / released | 唯一操作与审计，不靠 paid 布尔值代替 |
 
-前端付款返回页只读取服务端状态，不负责创建权益。用户付款后关闭页面，回调和 outbox 仍应推进已确认快照的导出。
+订单的 `canceled` 和创作/导出的 `cancelled` 属于各自当前协议，不混用序列化字段。付款返回页只读取权威状态；用户关页不取消已付交付。
 
-## 4 Waffo 的公开接口映射
+## 4 提供方适配与来源
 
-以下保留既有2026-10-18提供方协议参考，本次一致性修订不改变认证/订单/退款协议；实施时重新核实版本并以测试环境校验。
+以下是用于实现的提供方协议参考，不是本仓库已完成集成的声明。实施时核对官方 SDK/文档和实际账户并冻结适配版本；具体签名与单位不得由其他支付商经验推断。
 
-| 任务 | 官方能力 | 实施要求 |
-| --- | --- | --- |
-| TypeScript SDK | `@waffo/pancake-ts` | 在 Cloudflare workerd 验证签名与请求；不假定 Node 环境测试即可证明兼容 |
-| 创建收银台 | `POST /v1/actions/checkout/create-session` | 服务端 Merchant API Key 模式，记录 `orderMerchantExternalId` |
-| 收银台语言与外观 | `language`、`darkMode` | 新会话默认 language=en；darkMode 来自校验后的有效主题，不影响订单幂等或价格 |
-| 写操作幂等 | `X-Idempotency-Key` | 显式传入，SDK 不自动生成；本地仍永久按业务 ID 去重 |
-| 一次性付款成功 | `order.completed` | 验签、匹配订单与商户、持久化，然后幂等授予权益 |
-| 查询订单及支付 | Waffo GraphQL Orders & Payments | 以业务订单号与 provider ID 对账 |
-| 申请退款 | `POST /v1/actions/refund-ticket/create-ticket` | 使用唯一退款业务号；等待执行结果 |
+| 任务 | 接入契约 |
+| --- | --- |
+| SDK | `@waffo/pancake-ts`，在 workerd 验证，不以 Node 单测替代 |
+| Checkout | `POST /v1/actions/checkout/create-session`；服务端 Merchant API Key、orderMerchantExternalId |
+| 提供方幂等 | 显式 X-Idempotency-Key，本地长期唯一约束独立保留 |
+| 付款事件 | order.completed 仅触发核验，不能直接凭浏览器返回授予 |
+| 查询 | Orders & Payments 查询业务订单与 provider payment |
+| 退款 | `POST /v1/actions/refund-ticket/create-ticket`；独立退款业务号，查询执行结果 |
 
-来源：[Checkout](https://docs.waffo.ai/api-reference/endpoints/orders/create-checkout-session)、[API 与幂等](https://docs.waffo.ai/api-reference/introduction)、[Webhook](https://docs.waffo.ai/api-reference/webhooks)、[对账](https://docs.waffo.ai/api-reference/endpoints/graphql/orders-and-payments)、[退款](https://docs.waffo.ai/api-reference/endpoints/refunds/create-refund-ticket)。
+来源：[API/幂等](https://docs.waffo.ai/api-reference/introduction)、[Checkout](https://docs.waffo.ai/api-reference/endpoints/orders/create-checkout-session)、[Webhook](https://docs.waffo.ai/api-reference/webhooks)、[订单查询](https://docs.waffo.ai/api-reference/endpoints/graphql/orders-and-payments)、[退款](https://docs.waffo.ai/api-reference/endpoints/refunds/create-refund-ticket)。
 
-## 5 创建订单与付款快照
+## 5 创建 checkout
 
-1. Owner 选择购买意图，服务端重新验证权限、项目可恢复状态和 SKU 条件；需要导出时还校验当前 revision、素材和事实。
-2. `purchase_and_export` 仅在全部合法target可执行源包与音轨/QA准备完成后固化内容，返回用于确认的 snapshot ID，展示封面、时长、平台与价格；`top_up_only` 仅显示新增权益和期限，不隐式消费版本。
-3. 通过项目 Billing DO 与 D1 活动槽原子 get-or-create 同项目同 SKU 活动订单，保存意图、目录价、币种、商品 ID、workspace、project、snapshot 和政策版本。金额与权益从服务端配置读取；先完成活动槽争用，再调用提供商，不能各建一笔订单后才查重复。
-4. 只有意图与 snapshot 一致才无提示复用会话。若活动订单关联旧稿，返回原订单与原快照供明确继续或返回草稿，不修改旧订单也不用新稿封面。创建新会话前按提供商能力确认旧会话不可支付，或等安全过期并对账；不能仅本地 canceled 就认为外部无法收费。提供商请求使用持久化的高熵幂等键，重试复用该键。
-5. Waffo 请求使用 Merchant API Key；提供 `orderMerchantExternalId` 和受控 metadata。不要用浏览器 Store Slug 模式创建依赖这些字段的商业订单，因为该模式会忽略相关服务端字段。
-6. `successUrl` 从可信环境 `appUrl` 与 `/app/billing/orders/{localOrderId}` 组合为绝对 HTTPS 地址；正式值为 `https://promobento.com/app/billing/orders/{localOrderId}`，localOrderId 必须服务端生成并校验。会话有效期设为 1,800 秒，这是本产品决定。
-7. 首次创建会话时传 `language: "en"`。显式 Dark 对应 `darkMode: true`，Light 对应 false；System 由前端将当时的有效主题作为 `resolvedTheme` 提示发送，服务端仅接受 light/dark，缺少时用 false。外观提示不允许改变商品、金额、回跳域或购买意图。
+1. 验 Owner、项目可恢复、SKU 条件、意图；需要导出时校验事实和全部 target 来源/QA，缺项返回 VARIANTS_NOT_READY，不创建 checkout。
+2. 显示不可变 snapshot、封面、时长、首次目标、价格、税费、权益和保存期；只增额度不隐式消费版本。
+3. Billing DO 与 D1 活动槽先原子 get-or-create 同项目/SKU 的活动订单，保存意图、价格/政策、币种、商品 ID、项目及快照，再调用提供方，不能先并发创建多个可付订单。
+4. 意图和 snapshot 一致才无提示复用；不一致显示原订单/快照，让用户明确继续。创建另一会话前确认原会话不可支付，或安全过期并对账；本地 canceled 不证明外部不能收钱。
+5. 服务端 Merchant API Key 请求携带业务订单号和受控 metadata，不以浏览器 Store Slug 模式替代需要的服务端字段。持久化高熵幂等键和请求体，未知结果只用同键重试/查询，不能马上另建订单。
+6. successUrl 取可信 appUrl 与 `/app/billing/orders/{localOrderId}`，正式为 promobento.com；ID 服务端生成。会话 1,800 秒是内部策略，不使用任意 Host/前端 origin。
+7. 新会话 language=en，darkMode 仅取合法 resolvedTheme，未知默认 Light。已存在会话和未知结果重试请求体不因主题切换改变，更不能因此重复创建订单。
 
-Waffo 当前成功后由买家点击 Done 返回，且没有 `cancelUrl`。项目页保留继续付款入口，放弃收银台通过本地过期和对账处理，不等待并不存在的取消通知。
+提供方返回行为按实测适配：当前设计不依赖 cancelUrl 或取消 webhook；买家未点击 Done、关页、支付拒绝或 session 过期都由本地状态及权威查询处理。付款期间编辑另存草稿，交付读取原 snapshot，不用新封面冒充原购买内容。
 
-Waffo 的 language 设置收银台默认界面语言，与用户视频文案无关，买家可在其支持范围内切换；钱包、银行验证和 Google 登录等第三方界面由提供方控制。已有活动 session 沿用创建时外观，切换站内主题不能触发第二个可付款 session，也不能改变已经持久化的提供商重试请求体。恢复站内后使用站内保存的主题与英语 UI。[官方语言与外观字段](https://docs.waffo.ai/api-reference/endpoints/orders/create-checkout-session)
+## 6 签名、金额与事件核验
 
-服务端请求超时意味着结果未知，不意味着订单未创建。先用相同幂等键安全重试或查账，不能立即另造一个可支付订单。Waffo 的幂等缓存窗口不替代本地长期唯一约束。
+提供方适配需验证出站 RSA-SHA256/秒级时间戳、入站原始 body 与 X-Waffo-Signature/毫秒时间戳及签名覆盖格式。参考协议给出的 45 分钟重试容忍窗口不能替代业务去重；实施测试用原始字节及官方测试向量锁定，不能混淆两种时间单位。
 
-付款期间新编辑进入其他草稿 revision；订单指向原快照，后台自动导出也只读取原快照。额外包购买可以仅增加额度，或在确认面板选择同时导出一个已冻结的新版本。
+限制 body 大小，验签，核对环境/store/事件，可靠写 inbox+outbox 后再 2xx（内部目标 10 秒）；数据库失败返回可重试错误。Inbox 唯一键为 environment/store/eventType/eventId，订单及 provider payment ID 另有唯一约束，不同包装事件也不能重复授予。测试事件不能授予生产权益。
 
-## 6 签名与回调处理
+order.completed 核对本地订单、provider 商品、币种、价格快照、付款 ID；不匹配进入 review_required，不按付款邮箱猜用户。金额是整数最小单位，提供方 display-format 字符串等明确转换，不用浮点。目录、税额、渠道实付、商户净结算分别保存；不强行要求含税实付等于 3,900/1,200 美分。
 
-出站按 Waffo 官方 Merchant API 认证使用 RSA-SHA256，请求时间戳单位为秒。入站使用原始请求 body 验证 `X-Waffo-Signature`；其时间戳单位为毫秒，签名涵盖时间戳与原始文本。官方推荐 45 分钟重试容忍窗口，真正去重依据事件与业务唯一键，不能套用其他支付商的短窗口。[官方认证入口](https://docs.waffo.ai/api-reference/introduction)、[Webhook 认证](https://docs.waffo.ai/api-reference/webhooks)
+价格页说明税费由 checkout 展示；商户明确含税/另税分类。P0 不自行优惠、换汇或接受前端价格覆盖。金额/币种/商品不一致人工核查，不能静默改账。
 
-处理顺序为：读取原始 body 并限制大小；验签；校验环境、商户 store 与支持的事件；持久化 inbox 和待处理 outbox；可靠写入成功后返回 2xx，目标在 10 秒内完成。数据库失败返回可重试错误，不先返回成功再寄希望于进程内任务。
+## 7 原子授予、对账和迟到付款
 
-Inbox 唯一键包含 environment、store_id、eventType、eventId。处理成功购买还需订单与 provider payment ID 的业务唯一约束，即使提供商重复包装成不同事件也不能重复发额度。测试回调打到生产端不能授予生产权益；验签 SDK 自动识别环境不等于本应用允许两个环境混用。
+单一事务标 paid、记录付款、授予 grant、更新期限、处理 inbox；purchase_and_export 同事务创建导出 intent+outbox，top_up_only 不产生导出。任一步失败可识别恢复，不留 paid 无权益。回调、返回页、Cron 并发收敛到一份 grant/首次导出；发送失败由 outbox 补发，渲染失败不改写付款事实。
 
-`order.completed` 只表示进入付款核验处理。系统匹配业务订单、商品、币种、价格快照和付款 ID；无法匹配进入 review_required，不猜测所属用户。金额字段按实际文档单位转换，不能将支付邮箱作为项目归属凭证。
+返回页查询提供方同订单最多每 15 秒一次；Cron 每 5 分钟扫描，24 小时仍未知转人工核查，不当作提供方交易终止。迟到成功按事实恢复权益。两笔误重复初始包成功付款，默认经核实原路退款第二笔，不自动转成未选择商品。素材已清理后迟到付款先确认交易，再提供重新上传恢复或退款，不虚构可导出内容。
 
-## 7 税费与金额核对
+## 8 退款与权益仲裁
 
-本地保存 `catalog_amount_minor`、`currency`、`provider_product_id`、商品版本或价格快照、税处理模式、实际支付金额与退款金额。目录价与税额、渠道实际收款、商户结算净额是不同概念。
+产品退款政策在适用商户条款和消费者权利范围内执行：初始包付款 7 天内且无成功交付版本可申请全额退款；系统持续无法交付或确认重复扣款进入全额退款。已交付的技术缺陷先免费修复，无法修复再退款。追加包新增版本未使用时可在 7 天内申请退款。
 
-价格页显示目录价和适用税费的结账说明，最终金额由 Waffo 收银台显示；商户配置需要明确含税或另计税的处理。后端以已配置 SKU 以及 Waffo 权威订单价格快照核对交易，而不是无条件要求回调实付金额等于 3,900 或 1,200 美分。
+用户提交退款申请，核验后用唯一 refundTicketMerchantExternalId 和原币种 display-format requestedAmount.amount 发起；processing 期间不能声称到账，成功由真实事件或权威对账确认。
 
-测试必须覆盖有效税务场景、零税场景、金额被篡改、币种错误及金额字符串单位。P0 不自行优惠、换汇或接纳未知价格覆盖；发现报价与已配置商品不一致，保留记录并人工核查，不静默改账。
+退款接受和首次交付经同一 Billing DO/事务仲裁。冻结 grant 的 available/reserved，暂停关联发布；冻结先发生则晚到 worker 不消费/发布，发布先发生按已交付政策判断。退款失败解除冻结并恢复同一 reservation/release；成功撤销未用权益并取消相关预留。消费按有效 grant 成功购买时间顺序分配，保留明确关联。
 
-## 8 原子授予与首次导出
+部分退款、已消费额度、多追加包由管理员明确处理，不用模糊比例自动退款。客户 P0 申请整笔退款。初始包全退而存在有效追加单时，列出关联订单，Owner 明确确认后对符合条件的未用追加各自幂等退款；已用或无法一起处理转人工核查，不能留仍付费却无法使用的权益。
 
-核验成功后的单个原子业务批次包含：订单标记 paid、记录 provider payment、写入权益 grant、更新项目期限、标记 inbox 已处理。仅当购买意图为 `purchase_and_export` 时，同批创建已确认快照的导出 intent 与 outbox；`top_up_only` 只增加权益和期限，没有渲染任务或额度消费。
+没有有效购买才回到受限状态，失败退款或有效追加仍保有权益。期限按有效购买重算；媒体清理不早于通知后 7 天，也不早于其他有效购买正常截止+宽限。告知期只允许查看/按政策下载，不恢复已撤销编辑/AI/导出。退款回调不立即销毁媒体，财务审计可按权限查询。
 
-若任意步骤失败，重试必须从可识别状态恢复，不能只把订单置为 paid 后丢失 grant。消费队列前再次检查 entitlement 与 snapshot，导出 intent 的业务 ID 保证首次导出只启动一次。
+## 9 商户上线、费用与测试
 
-不同 webhook、支付返回页和 Cron 对同订单并行执行，必须收敛到一份 grant 和一份首次导出。创建 outbox 后发送失败由 dispatcher 补发。原始支付记录不能因渲染失败被改写成未支付。
+真实收款前准备 merchant/store/product ID、test/production 密钥/公钥、Webhook、税务分类、结算币种、支持渠道、政策、真实主体/结算资料、域名验证及商店审核。品牌不能代替 legalEntityName。预发布只给精确机器回调路径必要 Access 例外，仍验签/环境/商户；不得公开整个预发布应用。
 
-## 9 对账与特殊情况
+来源：[域名验证](https://docs.waffo.ai/settings/domain-verification)、[AI 产品审核](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)、[费用](https://docs.waffo.ai/mor/fees)。不将公开费用参考视为当前商户合同；按实账记录成功/失败支付、税、退款、提现分摊、AI、素材、全部目标准备/编码、存储、交付和人工支持，贡献不等于净利润。
 
-支付返回页可触发受限对账：同订单最多每 15 秒一次提供商查询，客户端可更频繁读取本地状态。Cron 每 5 分钟扫描待确认订单，超过 24 小时仍未知进入人工核查；该时长是产品运营策略，不是提供商交易一定终止的证明。
+验收包括成功、拒付/重试、关页、不点 Done、过期、丢回调查询、重复乱序、不同包装事件、错误签名、环境混用、税/单位/币种/商品篡改、并发 checkout/最后版本预留、付款后队列故障、清理与迟到付款、误双付款、退款申请/成功/失败/重复、退款与发布竞态、追加只增权益或明确同时导出。测试/赠送/真实交易在报表中分开。
 
-关闭收银台、失败尝试和 session 过期不保证收到 webhook。通过官方查询确认订单与付款记录；收到比本地过期更晚的真实成功付款仍应按事实恢复权益。
+## 10 创作次数与冻结来源
 
-同项目若因边缘故障出现两笔初始项目包成功付款，第二笔进入重复付款处理，不能默默收钱却不给交付。默认对可确认的误重复购买发起一次原路退款，记录状态和原因；不自动把它转换成用户未选择的其他商品。
+creative_generate 与 agent_patch 先预留，可用候选交付时分别消费一次。方向、作曲、构建、最多两轮内部修复不拆次数；此前系统失败/取消释放，交付后审美拒绝不返次，证实技术缺陷可幂等补偿。prepare_targets 为同内容的免费准备，受独立成本预算与去重约束，不新增隐含 SKU；详见 14。
 
-如果素材在长期延迟支付到来之前已被清理，先确认交易，禁止虚构可导出的项目；提供重新上传恢复或退款处理。支付入口在过期清理后必须关闭，正常用户不会被引导为已不存在的文件付款。
-
-## 10 退款政策与实现
-
-P0 在价格页与退款页公开以下产品政策，并以适用商户条款和消费者权利为边界：初始项目包在付款后 7 天内、尚无成片版本成功交付时可以申请全额退款；系统持续无法交付或可确认的重复扣款进入全额退款处理。已经交付但存在技术缺陷，先提供免费修复，无法修复再处理退款。追加包未使用所增成片额度时可在 7 天内申请退款。
-
-用户提交的是退款申请。服务端在核验后使用官方退款接口，`requestedAmount.amount` 采用 display-format 字符串，币种匹配原付款，并传 `refundTicketMerchantExternalId`。请求完成仍可能处于 processing；通过实际退款事件或权威对账确认 succeeded，界面不能提前写“退款到账”。
-
-退款接受与首次交付通过同一项目 Billing DO 和原子状态提交仲裁。冻结覆盖 grant 的 available 与 reserved，关联在途任务暂停发布，可暂存私有结果。冻结先发生时，旧 worker 不能再消费或发布；交付先发生时，按已交付条件重新判断退款资格。退款失败解除冻结并恢复同一 reservation 或 release，退款成功撤销未消费权益并取消相关预留。消费按有效 grant 的成功购买时间顺序分配，保留 grant 与 reservation 关联。
-
-已消费额度、多个追加包和部分退款需要管理员明确处置。P0 客户自助提出整笔订单退款；部分退款保留后台人工流程，不自动按模糊比例计算。初始包全退且存在有效追加订单时，处理页面列出关联订单；默认把仍符合退款条件的未用追加订单一并纳入，Owner 明确确认明细后各订单建立独立幂等退款。已使用或无法一并处理的情况进入人工核查，不能留下仍付费却无法使用的追加权益。
-
-只有不存在有效购买时，项目才回到受限状态。退款失败或仍有效的追加购买继续享有对应权益；已撤销的 grant 不能触发新导出。历史交易与退款记录仍可查询。
-
-项目期限根据仍有效购买的最晚成功时间重算。媒体清理截止不早于通知后 7 天，也不短于其他有效购买正常截止后的宽限期；这个媒体告知期只允许查看或按政策下载已有文件，不恢复已撤销的编辑、AI 和导出权限。不得在退款回调中立即销毁素材。
-
-## 11 Waffo 商户与上线配置
-
-部署真实收款前准备 merchant/store/product ID、test 与 production 密钥及公钥配置、Webhook 地址、商品税务分类、付款与结算币种、支持邮箱、政策页、商户主体与结算资料，并完成域名控制验证及必要商店审核。
-
-对外商店及商品品牌为 PromoBento；`legalEntityName` 仍使用真实商户主体，不用产品品牌代替。正式 webhook 为 `https://promobento.com/api/payments/waffo/webhook`；帮助、隐私、条款、退款页和支持地址统一取品牌配置。当前主域已选定，控制权、DNS/TLS、支持邮箱与 Waffo 生产域名验证均未在本次文档任务中完成。
-
-预发布的 Waffo test webhook 必须能被提供方服务端访问：只对精确回调路径配置适当 Access/挑战例外，继续强制验签、环境、商户和事件校验。不得把整个预发布应用公开，也不能把浏览器已登录 Access 当作测试 webhook 连通证明。OAuth callback 同样按实际登录链路测试，保留 state/PKCE 与会话校验。
-
-这些是提供商和真实收款环境的接入条件；开发可以先用 test mode 完成。不能写“未审核账号一定能生产收款”。Waffo 对 AI 产品可能有额外审核要求，应如实说明本产品使用 AI 生成脚本、用户真实素材与自由源码Composition与确定性逐帧合成，不假称接入不存在的真人或视频生成模型。
-
-来源：[域名验证](https://docs.waffo.ai/settings/domain-verification)、[AI 产品审核说明](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)。提供商审核分类以实际商户审核为准。
-
-## 12 成本口径
-
-Waffo 公开详细费用表当前列出卡及数字钱包成功交易 3.9% 加 US$0.50，也列出特定失败尝试、退款与提款费用。经营报表必须按实际渠道和商户结算记录计算，不能只扣一次成功交易费就声称得到净利润。[官方费用表](https://docs.waffo.ai/mor/fees)
-
-每笔订单分别记录：实收、税款、成功与失败支付费用、退款、退款费用、提现分摊、AI、素材处理、成片渲染、存储、交付和人工支持。费用表是截至 2026 年 10 月 18 日的参考，最终使用实际商户费用与账单。
-
-## 13 必须通过的支付验收
-
-成功支付；关闭收银台；会话过期；支付拒绝后重试；用户不点击 Done；回调丢失后对账；重复与乱序回调；无效签名；测试与生产混用；两标签页重复购买；最后一个额度的并发预留；收款后队列故障；素材清理与晚到付款；退款申请、成功、失败和重复结果。
-
-真实付款模式只能在已核验商品、域名、签名、环境与一笔完整收款退款流程后开启。测试交易和赠送订单在所有收入和转化报表中单独标识。
-
-## 14 v2.2 创作次数与冻结补齐
-
-原商品价、成片版本、素材处理预算、正常期/宽限与退款条件不变。旧“整片分镜”次数映射creative_generate，“局部改写”映射agent_patch。预留在前，可用候选交付时消费一次；方向、作曲、内部修复不拆成多次，候选交付前无结果的系统失败/取消释放；交付后审美拒绝不退成功次数，技术缺陷补偿幂等。系统实际费用和客户成功次数分别记账，计量/状态详见 [14生产契约](14-production-contracts.md)§6–7。
-
-付款snapshot须冻结所有合法target可执行源码、字体、素材、事实、音轨、封面与QA；可延迟高清MP4编码，但付款后补平台不再调用Agent。缺失来源时返回VARIANTS_NOT_READY并不创建checkout。系统兼容修复生成独立有审计correction，不覆盖已购原版。源码/渲染指纹与账本release分别管理；同一内容换平台不新扣版本。
-
-新增JSON Schema及release/export样例在contracts目录。旧导出manifest仅在legacy回归中读取，不再作为新Composition交付契约。所有新增Agent操作遵守本章原有权益、冻结和退款仲裁，不新增未批准SKU。
+付款后补平台不再次创作。系统缺陷/兼容性修复建立链接到原 release 的独立 correction revision 和文件，保留原收据及输出，不覆盖原版、不消费新版本。正式契约与测试只使用当前 Schema 和关联样例，不能用非执行的示例 hash 或参考测试冒充生产结果。

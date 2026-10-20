@@ -1,6 +1,6 @@
-# 仓库接手指南
+# 接手指南
 
-先读 [AGENTS](../AGENTS.md)、[实施状态](implementation-status.md)、[PRD索引](prd/README.md)，以及 [13](prd/13-agent-native-production.md) 的创作方法和 [14](prd/14-production-contracts.md) 的机器/业务协议。
+先读根 [AGENTS](../AGENTS.md)、[PRD索引](prd/README.md)和[实际进度](implementation-status.md)，按[08](prd/08-codex-execution.md)的真实未完成阶段推进。
 
 ```bash
 git clone https://github.com/ten2ten2/promobento.git
@@ -11,20 +11,11 @@ mise run install
 mise run check:repo
 mise run check:contracts
 mise run test:contracts
-mise run check:ui-reference
 mise run check:agent-reference
 ```
 
-已有克隆先保留本地改动再同步main。mise管理工具和任务，pnpm冻结安装；不手改lockfile或用本地旧Node替换部署兼容版本。具体 [依赖政策](dependency-policy.md) 不变，Workers Builds、workerd、renderer镜像分别验证，不能以本地Node替代Cloudflare验收。
+已有工作区先保留未提交改动并同步remote main，不覆盖他人的提交。工具策略见[依赖政策](dependency-policy.md)；固定版本未安装时，能执行的兼容本地检查可先跑，但要明确实际Node版本和缺少的完整工具链验证。
 
-## Codex任务
+交给Codex的任务：阅读01/03/04/05/08/10/12/13/14；保留15/30秒、固定平台、自由创作、Cloudflare/Waffo/双登录与混排；从M0a真实原创动画、声音和MP4开始，同时准备M0b真实Cloudflare能力/隔离验证。不要把离线Studio、JSON或本地内存参考测试标为生产实现。
 
-使用 [v2.2任务入口](v2.2-CODEX_START.md)，按照 [08](prd/08-codex-execution.md) 的M0a/M0b–M4推进。15/30秒、30fps、原平台预设固定；镜头与动画代码自由。Google+邮箱验证码、现有Waffo权益、Cloudflare、网站en/视频混排、原网站主题/视觉均保留。
-
-先实现真实自由创作与音频/QA，再做Cloudflare最小真机准入，不以静态图/JSON/离线参考冒充视频。没有外部账号可继续无生产数据的本地开发，但M0b保持未验证。所有API输入和路由与config/schema同步，不建立第二套release/restore URI或revision表。
-
-文档/契约检查已是可执行工具，不是空成功脚本。未来dev/build/test:auth/test:billing/deploy任务随真实实现加入。框架/模型/供应商版本主动变更时核实兼容性；普通安装复现锁文件。
-
-## 提交与证据
-
-完成修改直接快进remote main，先核对远端HEAD，发生并发先读并整合。运行受影响检查，明确测试环境/失败/未运行事项；不得编造生产成功。更新 [决策](implementation-decisions.md) 和 [进度](implementation-status.md) 的实际变化；常规检查不要求新增过程日记，关键集成和人工/性能验收遵循 [证据规则](evidence/README.md)。
+普通结果记录在提交或CI；当前状态变化更新实施进度。修改文档、配置、测试与UI引用时同步消费者。经检查的改动直接正常快进推送main；远端前移时读取整合后重试，不使用强制覆盖。

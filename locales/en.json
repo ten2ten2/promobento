@@ -22,7 +22,7 @@
   },
   "marketing": {
     "headline": "Turn your product or course into a promo video.",
-    "description": "Use your real screenshots, recordings, and assets. Edit your storyboard and export for your social channels.",
+    "description": "Use your real assets. Direct the motion, refine any frame, and export for your channels.",
     "softwareTeam": "Software product team",
     "contentTeam": "Course / digital product team",
     "previewFree": "Preview your own video for free",
@@ -123,18 +123,27 @@
   },
   "editor": {
     "confirmFacts": "I have confirmed these details",
-    "generateStoryboard": "Generate storyboard",
-    "manualTemplate": "Fill in the template",
-    "videoStyle": "Video style",
-    "styleClean": "Clean",
-    "styleBold": "Bold",
+    "creativeDirection": "Creative direction",
+    "directAndCreate": "Direct and create",
+    "aiEdit": "AI edit",
+    "describeChange": "Describe the change",
+    "acceptCandidate": "Accept candidate",
+    "rejectCandidate": "Keep current draft",
+    "prepareTargets": "Prepare platform layouts",
+    "preparingTargets": "Preparing platform layouts…",
     "playPreview": "Play preview",
     "safeArea": "Show recommended safe area",
     "versionsRemaining_one": "{{count}} finished video version remaining",
     "versionsRemaining_other": "{{count}} finished video versions remaining",
     "unsupportedGlyph": "This font cannot display a character in {{field}}. Choose another supported font or edit the text.",
     "shortenText": "Shorten the text in {{field}} to keep it inside the safe area.",
-    "ctaLinkHelp": "Copy this link when you publish. Text inside an MP4 is not clickable."
+    "ctaLinkHelp": "Copy this link when you publish. Text inside an MP4 is not clickable.",
+    "creativeQuotaNotice": "One successful operation is used when a usable candidate is delivered. Internal retries do not use additional successful operations. Rejecting a usable candidate for style alone does not restore the operation.",
+    "budgetPaused": "Work is saved. Resume only within the remaining budget for this operation.",
+    "targetsRequired": "Prepare and review all supported platform layouts before payment. Later platform files use these frozen sources.",
+    "candidateReady": "Candidate ready to review",
+    "qaBlocked": "Repair the blocking issue before continuing.",
+    "reviewRequired": "Review the highlighted frames before confirming."
   },
   "billing": {
     "projectPack": "Project pack",
@@ -154,7 +163,8 @@
     "continuePayment": "Continue payment",
     "paidSnapshotNotice": "We are exporting the version you confirmed. Your new edits are saved as a draft.",
     "taxNotice": "Applicable taxes are shown at checkout.",
-    "uiThemeNoCharge": "Changing appearance does not use a video version."
+    "uiThemeNoCharge": "Changing appearance does not use a video version.",
+    "sameContentNoCharge": "This content already has an export version. Reuse it without another version charge."
   },
   "exports": {
     "queued": "Queued",
@@ -172,12 +182,24 @@
   "platforms": {
     "productRecommendation": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
     "feedNote": "Feed composition preset. Instagram's current upload flow determines the final post type and crop.",
-    "tiktok": {"label": "TikTok"},
-    "instagram_feed": {"label": "Instagram Feed"},
-    "instagram_reels": {"label": "Instagram Reels"},
-    "x": {"label": "X"},
-    "youtube": {"label": "YouTube"},
-    "youtube_shorts": {"label": "YouTube Shorts"}
+    "tiktok": {
+      "label": "TikTok"
+    },
+    "instagram_feed": {
+      "label": "Instagram Feed"
+    },
+    "instagram_reels": {
+      "label": "Instagram Reels"
+    },
+    "x": {
+      "label": "X"
+    },
+    "youtube": {
+      "label": "YouTube"
+    },
+    "youtube_shorts": {
+      "label": "YouTube Shorts"
+    }
   },
   "settings": {
     "accountTitle": "Account",
@@ -202,7 +224,11 @@
     "unsupportedUiLocale": "English is the only interface language available at launch.",
     "invalidTheme": "Choose System, Light, or Dark.",
     "accessDenied": "You do not have access to this project.",
-    "invalidAsset": "This asset could not be processed. Check the supported formats and try again."
+    "invalidAsset": "This asset could not be processed. Check the supported formats and try again.",
+    "staleBase": "The current draft changed. Review it before applying your changes.",
+    "variantsNotReady": "Prepare all supported platform layouts before continuing.",
+    "budgetExhausted": "This operation has reached its budget. Your saved work is still available.",
+    "sourceUnavailable": "The source files required for this version are unavailable."
   },
   "admin": {
     "title": "Operations",
