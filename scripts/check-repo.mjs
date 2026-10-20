@@ -49,6 +49,12 @@ function main(){
  expect(locale.uiLanguages?.en?.resourceFile==='locales/en.json'&&locale.selection?.showUiLanguageSwitcher===false,'UI resource/switcher');
  expect(same(themes.preferences,['system','light','dark'])&&themes.defaultPreference==='system'&&themes.cssVariablePrefix!==themes.videoCssVariablePrefix,'Theme/video separation');
  expect(ui.scope==='website_ui'&&ui.reference?.productionFeature===false,'Reference is not production');
+ const fonts=ui.typography?.fontSources;expect(ui.typography?.fontDelivery==='self_hosted_latin_subset'&&same(ui.typography?.subsets,['latin'])&&ui.typography?.fontDisplay==='swap','UI font delivery');
+ for(const role of ['display','body','mono']){
+  const font=fonts?.[role],stack=role==='display'?ui.typography.displayFontFamily:role==='body'?ui.typography.fontFamily:ui.typography.monospaceFontFamily;
+  expect(typeof font?.family==='string'&&stack?.startsWith('"'+font.family+'"'),'UI font stack '+role);
+  expect(font?.license==='OFL-1.1'&&font?.cssImports?.length===font?.weights?.length&&font?.weights?.every((weight,i)=>font.cssImports[i]===font.package+'/latin-'+weight+'.css'),'UI font sources '+role);
+ }
  for(const p of [ui.sourceDocument,ui.library?.dependencyPolicy,ui.reference?.template,ui.reference?.output,ui.reference?.generator,ui.reference?.checker])expect(typeof p==='string'&&existsSync(join(root,p)),'UI source missing '+p);
  expect(ui.controls.height>=ui.controls.touchTargetMin&&ui.controls.iconButtonSize>=ui.controls.touchTargetMin,'UI touch target');
  for(const [name,theme]of Object.entries(themes.themes)){

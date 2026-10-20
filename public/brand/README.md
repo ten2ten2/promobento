@@ -1,6 +1,6 @@
 # PromoBento 品牌素材
 
-来自项目所有者提供的 `promobento-icons.zip`。保留原始图形、PNG/ICO 和已转曲的分享图，仅整理 SVG 的内部版本标题。素材路径由 [brand.json](../../config/brand.json) 登记，英文文案由 [en.json](../../locales/en.json) 提供。
+来自项目所有者提供的 `promobento-icons-2.zip`。与已入库素材比对后，只替换改动的 SVG 和分享图，未变化的 PNG/ICO 保留。素材路径由 [brand.json](../../config/brand.json) 登记，英文文案由 [en.json](../../locales/en.json) 提供。
 
 ## 文案分工
 
@@ -28,7 +28,7 @@
 | `brand/mark-dark.svg`、`brand/mark-white.svg` | 透明底单色标志，按背景选择 | 各自为矢量源 |
 | `manifest.webmanifest` | 名称、启动 URL、颜色与安装图标元数据 | 图标路径指向同目录文件 |
 
-保留 maskable 图案的安全区，不使用普通安装图标直接替换。`icon.svg` 与 `brand/mark.svg` 保持一致。分享图中的字标和口号已转路径，无需加载字体；来源包注明 Fredoka / SIL OFL，仓库未包含字体文件。
+保留 maskable 图案的安全区，不使用普通安装图标直接替换。`icon.svg` 与 `brand/mark.svg` 保持一致。分享图中的字标和口号已转成 SVG 路径，分别采用 Schibsted Grotesk Bold 与 Geist Sans Regular，不需要额外下载字体才能显示分享图。使用的字体为 SIL OFL 1.1；网站字体的自托管计划见 [UI tokens](../../config/ui-tokens.json)，当前仓库不含字体文件。
 
 ## 网站接入
 

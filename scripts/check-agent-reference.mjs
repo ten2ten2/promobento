@@ -27,4 +27,5 @@ for(const id of ['state','offer','also-export','purchase','comments','comment-co
 if(/\b(?:src|href)\s*=\s*["']https?:/i.test(html)||/\b(?:fetch|WebSocket|XMLHttpRequest)\s*\(/.test(html))failures.push('Offline reference makes an external request');
 if(/@@[A-Z_]+@@/.test(html))failures.push('Unresolved template token');
 if(!html.includes('--rail:'+ui.layout.editorSceneWidth+'px')||!html.includes('--inspector:'+ui.layout.editorInspectorWidth+'px'))failures.push('Reference dimensions differ from tokens');
+if(!html.includes('--font-mono:'+ui.typography.monospaceFontFamily)||!html.includes('--wordmark-weight:'+ui.typography.styles.wordmark.fontWeight)||!html.includes('--section-weight:'+ui.typography.styles.sectionTitle.fontWeight))failures.push('Reference typography differs from tokens');
 if(failures.length){console.error(failures.join('\n'));process.exitCode=1;}else console.log('Current Studio reference passed source, target, catalog, trial, edit-limit, JavaScript syntax, token and offline-boundary checks. Browser rendering is a separate test.');

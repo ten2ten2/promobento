@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "1.2.0",
   "status": "design_spec_seed_requires_browser_validation",
   "scope": "website_ui",
   "units": "px",
@@ -12,9 +12,55 @@
     "dependencyPolicy": "docs/prd/08-codex-execution.md"
   },
   "typography": {
-    "fontFamily": "Arial, Helvetica, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
-    "monospaceFontFamily": "ui-monospace, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
-    "fontDelivery": "system_font_stack",
+    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"PingFang SC\", \"Hiragino Sans\", \"Noto Sans CJK SC\", \"Microsoft YaHei\", \"Noto Sans Arabic\", sans-serif",
+    "monospaceFontFamily": "\"Geist Mono\", ui-monospace, SFMono-Regular, Consolas, \"Liberation Mono\", monospace",
+    "fontDelivery": "self_hosted_latin_subset",
+    "fontSources": {
+      "display": {
+        "family": "Schibsted Grotesk",
+        "package": "@fontsource/schibsted-grotesk",
+        "weights": [
+          700
+        ],
+        "cssImports": [
+          "@fontsource/schibsted-grotesk/latin-700.css"
+        ],
+        "license": "OFL-1.1"
+      },
+      "body": {
+        "family": "Geist Sans",
+        "package": "@fontsource/geist-sans",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "cssImports": [
+          "@fontsource/geist-sans/latin-400.css",
+          "@fontsource/geist-sans/latin-500.css",
+          "@fontsource/geist-sans/latin-600.css"
+        ],
+        "license": "OFL-1.1"
+      },
+      "mono": {
+        "family": "Geist Mono",
+        "package": "@fontsource/geist-mono",
+        "weights": [
+          400,
+          500
+        ],
+        "cssImports": [
+          "@fontsource/geist-mono/latin-400.css",
+          "@fontsource/geist-mono/latin-500.css"
+        ],
+        "license": "OFL-1.1"
+      }
+    },
+    "subsets": [
+      "latin"
+    ],
+    "nonLatinText": "system_fallback_in_font_stack",
+    "fontDisplay": "swap",
     "weights": {
       "regular": 400,
       "medium": 500,
@@ -25,20 +71,20 @@
       "hero": {
         "fontSize": 52,
         "lineHeight": 55,
-        "fontWeight": 400,
-        "letterSpacing": -2.4
+        "fontWeight": 700,
+        "letterSpacing": -1.8
       },
       "heroCompact": {
         "fontSize": 44,
         "lineHeight": 46,
-        "fontWeight": 400,
-        "letterSpacing": -1.8
+        "fontWeight": 700,
+        "letterSpacing": -1.5
       },
       "pageTitle": {
         "fontSize": 32,
         "lineHeight": 38,
-        "fontWeight": 400,
-        "letterSpacing": -0.6
+        "fontWeight": 700,
+        "letterSpacing": -0.8
       },
       "sectionTitle": {
         "fontSize": 20,
@@ -67,11 +113,11 @@
       "wordmark": {
         "fontSize": 24,
         "lineHeight": 32,
-        "fontWeight": 500,
-        "letterSpacing": -1
+        "fontWeight": 700,
+        "letterSpacing": -0.8
       }
     },
-    "displayFontFamily": "Georgia, \"Times New Roman\", serif"
+    "displayFontFamily": "\"Schibsted Grotesk\", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif"
   },
   "spacing": {
     "0": 0,

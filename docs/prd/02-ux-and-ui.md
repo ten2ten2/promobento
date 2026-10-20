@@ -17,7 +17,7 @@
 
 ## 2 视觉系统与基础组件
 
-[UI tokens](../../config/ui-tokens.json) 是字体、字号、尺寸、间距、层级和动效数值的唯一来源；[主题 tokens](../../config/theme-tokens.json) 是界面颜色与配对的唯一来源。品牌可组合兔子标志与 PromoBento 文字字标，字标取 `typography.styles.wordmark`，四周至少保留 `spacing.3`。品牌图形的橙、奶油与可可色仅用于素材，不替换界面主题；图标、分享图和使用说明见[品牌素材](../../public/brand/README.md)。公开标题用 display 字体，正文、控件和编辑器用 sans；不在编辑器与数据中过度使用衬线或斜体。每个操作区域只有一个主要 CTA，两个人群入口同层级，视觉不能暗示未经证明的效果或收益。
+[UI tokens](../../config/ui-tokens.json) 是字体、字号、尺寸、间距、层级和动效数值的唯一来源；[主题 tokens](../../config/theme-tokens.json) 是界面颜色与配对的唯一来源。品牌可组合兔子标志与 PromoBento 文字字标，字标取 `typography.styles.wordmark`，四周至少保留 `spacing.3`。品牌图形的橙、奶油与可可色仅用于素材，不替换界面主题；图标、分享图和使用说明见[品牌素材](../../public/brand/README.md)。公开标题用 display 字体，正文、控件和编辑器用 sans；不在编辑器与数据中过度使用衬线或斜体。网站拉丁字形计划通过 Fontsource 静态资源自托管：Schibsted Grotesk 700 用于主标题和字标，Geist Sans 400/500/600 用于正文与 UI，Geist Mono 400/500 用于时间码、价格和对齐数字。实际建站时按 UI tokens 的 `typography.fontSources.cssImports` 导入所需 Latin 字重，使用 `font-display: swap`，不依赖第三方运行时字体 CDN。CJK/RTL 文字保留系统字体回退。离线 Studio 不内嵌字体，不能代替生产字体与多语言排版的浏览器验收。每个操作区域只有一个主要 CTA，两个人群入口同层级，视觉不能暗示未经证明的效果或收益。
 
 | 用途 | token 与使用要求 |
 | --- | --- |
