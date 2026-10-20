@@ -1,65 +1,38 @@
 # PromoBento 产品需求与实施文档
 
-版本：2.2（01–12 继承 v1.4 的业务、认证、语言与 UI 规则，第 13 章为新视频创作规格）。更新日期：2026 年 10 月 20 日，Asia/Shanghai。本文档组是开发规格，供产品负责人、设计师和 Codex 实施使用。需求说明采用中文；网站首发英语，用户文案可在同片、同场景或同段混用任意语言。
+版本：v2.2 · consistency-1（2026-10-20，Asia/Shanghai）；机器契约版本2.2.1，不新增产品大版本。本目录是规范，不是已经部署的SaaS。
 
-产品将真实截图、录屏、课程及数字产品素材，制作成可以修改并按平台导出的宣传短片。小型软件产品团队与已有课程或数字产品收入的内容团队同时进入首批范围，使用同一套项目、编辑、付费和渲染系统。
-
-已固定的约束：正式品牌 PromoBento，主域 promobento.com；React 与 TypeScript；mise 管理依赖版本；Cloudflare 全栈部署；Waffo.ai 支付；TikTok、Instagram 信息流、Instagram Reels、X、YouTube、YouTube Shorts 六个平台或展示位置的导出预设；网站国际化架构从首版建立，网站首发英语；用户文案不受网站语言限制；全站支持 System / Light / Dark 三种主题偏好。
-
-## 本次修订
-
-| 用户决定 | 本版落实 |
-| --- | --- |
-| 采用 PromoBento / promobento.com | 统一品牌、主域、首页文案、环境地址、支付回跳、OAuth、支持地址和配置；区分已确定名称与尚未取得域名 |
-| 网站支持多语言能力，首发英语；视频文案可多语言混排 | 网站英文资源、UI allowlist 与未来网站语言启用流程；用户文案不属于网站翻译资源，不增加视频语言选择或确认步骤 |
-| 支持 Light / Dark Mode | 默认跟随系统；太阳/月亮图标切换并记住选择，设置可恢复系统；SSR 首屏、缓存隔离和主题验收 |
-| 杂志排版主体＋专业工具配色 | 衬线品牌与标题、无衬线正文和控件、冷中性色与蓝灰操作色；四页参考沿用该方向，保留 Base UI 组件方案与主题行为 |
-| 完善 URI，增加邮件登录 | 补齐登录、设置、邀请、默认跳转、协作 API 和 SEO 资源；Google + 邮箱验证码、显式关联、Cloudflare Email Sending 与真实验收门槛；UI v1.2 增加认证规范 |
-
-主题偏好只改变产品界面。成片可使用 Agent 自由设计的视觉风格；网站换色不改视频，也不扣额度。视频仍仅 15/30 秒、30 fps，画幅仅使用原六个平台预设。
+固定15/30秒、30fps、六个平台预设；Agent可自由创作镜头数量、风格、运镜和代码。网站英语首发，用户视频文案可任意语言混排。Google+邮箱验证码、Cloudflare、Waffo、mise与既定网站视觉不变。
 
 ## 文档导航
 
-| 文档 | 解决的问题 |
+| 文档 | 职责 |
 | --- | --- |
-| [01 产品需求](01-product-prd.md) | 域名、定位、两类用户、范围、价格、功能和成功条件 |
-| [02 界面与流程](02-ux-and-flows.md) | 页面、创建流程、编辑、支付、协作和异常状态 |
-| [03 平台预设](03-platform-presets.md) | 六个平台预设、比例重排、编码、安全区和规则维护 |
-| [04 技术与数据](04-architecture-and-data.md) | Cloudflare 架构、渲染、数据模型、接口和隔离 |
-| [05 Waffo 支付](05-waffo-billing.md) | 真实支付接口、订单、权益、回调、对账和退款 |
-| [06 测试与发布](06-testing-and-release.md) | 可执行验收矩阵、真实环境验证、发布和回滚 |
-| [07 获客与实验](07-growth-and-experiments.md) | GPT 引荐入口、事件、指标、付费实验和成本 |
-| [08 Codex 实施说明](08-codex-execution.md) | 目录、依赖、开发命令、实施顺序和完成标准 |
-| [09 来源与决策](09-sources-and-decisions.md) | 官方来源、已定决策、待接入资料和风险处理 |
-| [10 多语言与明暗主题](10-i18n-and-themes.md) | 网站英语首发、网站语言扩展、用户文案边界、主题、SSR、缓存和验收 |
-| [11 UI 设计规范](11-ui-design-spec.md) | 视觉系统、组件、四个关键页面、移动端与 UI 验收 |
-| [12 URI 与认证](12-routing-and-auth.md) | 完整 URI、返回规则、邮件验证码、Google、身份关联、会话、邀请和邮件接入 |
-| [13 Agent-Native 视频创作](13-agent-native-production.md) | 上游参考、自由动画代码、AI 导演、ABC/SFX、逐帧 QA、云沙箱、点选改稿与验收 |
-| [v2.2 Codex 任务入口](../v2.2-CODEX_START.md) | 实施顺序、自由创作验收、许可与真实证据要求 |
-| [路由配置](../../config/routes.json) | 稳定 route ID、页面/API 方法、身份要求、索引与默认跳转 |
-| [认证配置](../../config/auth.json) | 邮件传输、验证码期限与限额、Cookie、身份关联和消息引用 |
-| [UI 数值配置](../../config/ui-tokens.json) | 字体、间距、圆角、尺寸、层级与 shadcn 语义映射 |
-| [UI 可视化参考](../design/ui-reference.html) | 四页离线参考，可切主题与样例状态 |
-| [品牌配置](../../config/brand.json) | 正式品牌、环境地址和待验证部署信息 |
-| [语言配置](../../config/localization.json) | 网站界面语言启用范围、格式化与路由 |
-| [主题色彩配置](../../config/theme-tokens.json) | Light / Dark 语义色彩及对比度验收组合 |
-| [英文文案种子](../../locales/en.json) | 核心界面、格式名称、价格、错误与主题标签 |
-| [平台预设配置](../../config/platform-presets.json) | 可直接转换为代码的规则种子数据 |
-| [自由 Composition 示例](../../contracts/composition.example.json) | 新动画源码工程、30 fps 与平台 Variant 种子，不代表运行通过 |
-| [点选改稿请求示例](../../contracts/edit-request.example.json) | 原 revision、帧号、画布坐标与截图的请求契约种子 |
-| [旧场景迁移示例](../../contracts/scene.example.json) | v1.x 结构化分镜兼容 fixture，不再限制 v2.2 动画类型 |
-| [导出清单示例](../../contracts/export-manifest.example.json) | 导出版本、文件与平台映射示例 |
+| [产品需求](01-product-prd.md) | 产品需求 |
+| [界面与流程](02-ux-and-flows.md) | 界面与流程 |
+| [平台预设](03-platform-presets.md) | 平台预设 |
+| [技术、数据与统一API](04-architecture-and-data.md) | 技术、数据与统一API |
+| [Waffo、权益与退款](05-waffo-billing.md) | Waffo、权益与退款 |
+| [测试与发布](06-testing-and-release.md) | 测试与发布 |
+| [获客与实验](07-growth-and-experiments.md) | 获客与实验 |
+| [实施顺序](08-codex-execution.md) | 实施顺序 |
+| [来源与决策](09-sources-and-decisions.md) | 来源与决策 |
+| [网站国际化、混排文案与主题](10-i18n-and-themes.md) | 网站国际化、混排文案与主题 |
+| [网站视觉与组件](11-ui-design-spec.md) | 网站视觉与组件 |
+| [URI、Google与邮箱认证](12-routing-and-auth.md) | URI、Google与邮箱认证 |
+| [AI导演与自由视频创作](13-agent-native-production.md) | AI导演与自由视频创作 |
+| [生产契约与本轮一致性修订](14-production-contracts.md) | 生产契约与本轮一致性修订 |
 
-## 仓库路径约定
+## 权威来源与执行
 
-本目录保存 PRD v2.2（原 01–12 的 v1.4 最新决定保留，第 13 章覆盖旧固定场景创作假设）。`config/`、`locales/`、`contracts/` 和 `docs/implementation-decisions.md` 等代码格式路径均相对于仓库根目录；本页可点击链接已按文档当前位置调整。应用实现状态见 [实施进度](../implementation-status.md)，仓库使用说明见 [根 README](../../README.md)。M0–M4 中的应用命令是待实施要求，当前可执行的命令见 [仓库接手指南](../getting-started.md)。
+先读01、03、05、10、12理解产品与交易边界，再读13的创作方法、14的版本/状态/费用/运行协议，按08的M0a/M0b–M4推进。14消除新旧跨章冲突，但不削减05已购权益或12认证保护。任何规格冲突先同步修复，不由实现者猜测收费、准入或权限。
 
-## 阅读和执行方式
+[统一路由](../../config/routes.json) 是所有页面和第一方API的方法/路径/入口权限来源；[Agent API契约](../../contracts/agent-api.json) 引用 [JSON Schema](../../contracts/production.schema.json)；[RenderProtocol类型](../../contracts/render-protocol.d.ts) 规定逐帧会话。[平台配置](../../config/platform-presets.json) 保持原版本与数值。
 
-先读 01、02、03、10、11、12、13 明确产品行为、UI、URI、认证与创作引擎，再依次实现 04、05、06。07 定义埋点与试运营，不能等上线后补。08 是实施顺序，不是另一个功能范围。09 中的账户资料与实测门槛在实际部署收款前完成，不妨碍先实现其余功能。
+[Agent预算与额度](../../config/agent-policy.json) 的enabled为false，需模型/成本及M0真机标定后启用；[输入能力矩阵](../../config/input-capabilities.json) 区分公开计划和未实现状态。Google/OTP规则仍由 [认证配置](../../config/auth.json) 定义。网站 [UI配置](../../config/ui-tokens.json)、[主题](../../config/theme-tokens.json)、[国际化](../../config/localization.json) 与 [英语资源](../../locales/en.json) 继续共用原来源。
 
-需求标为 P0 的内容构成第一版完整闭环；P1 和 P2 不能替代 P0 验收。价格、配额、性能和转化目标属于待验证的产品决策，不能对外表述为已经实现的表现。
+[Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json)、[FactManifest](../../contracts/fact-manifest.example.json)、[EditRequest](../../contracts/edit-request.example.json)、[ExportManifest](../../contracts/export-manifest.example.json) 是互相关联的2.2.1 fixtures，exampleOnly不代表真实渲染。旧 [场景fixture](../../contracts/scene.example.json) 与 [旧导出fixture](../../contracts/legacy/export-manifest.example.json) 仅用于v1.x迁移，不作为创作白名单。
 
-正式产品名和主域已经由用户确定为 PromoBento / promobento.com。2026 年 10 月 18 日注册商查询返回可注册、购买报价 USD 11.28；这不是已购买或已验证记录，续费与结算金额以实际注册为准。生产部署前完成域名取得、DNS/TLS、支持渠道和 Waffo 域名验证。配置集中管理，不把浏览器请求中的 Host 当作支付回跳地址来源。
+[Agent Studio离线参考](../design/agent-studio-reference.html) 展示候选、准备平台、预算暂停、冲突、QA阻塞；无实际视频/模型/支付。[既有四页参考](../design/ui-reference.html) 保留网站视觉基线。
 
-如文档存在矛盾，用户最新明确指令优先；细项以 03 的格式规则、05 的账务规则、10 的语言与主题规则为准；11 定义网站 UI 视觉与组件用法，12 定义 URI 与认证，**13 定义自由 Composition、导演、声音、视频 QA、Agent Studio 与沙箱创作规则**。修复相关文档后再继续实施，不凭实现方便静默减少首批人群、平台预设或支付保障。
+[Codex入口](../v2.2-CODEX_START.md)、[接手指南](../getting-started.md)、[实施状态](../implementation-status.md)、[决策记录](../implementation-decisions.md) 与 [根AGENTS](../../AGENTS.md) 分别承担任务、运行、进度和变更说明。普通检查随提交/CI报告，关键集成证据按 [既有记录规则](../evidence/README.md) 管理，不新建重复证据库。

@@ -1,64 +1,27 @@
 # Changelog
 
-## 2026-10-20 — Integrate v2.2 Agent-Native video production
+## 2026-10-20 — v2.2 consistency-1 / production contracts
 
-- Added PRD 13 and Codex execution guide to align with huashu-motion Director, free-code animation, ABC/SFX, actual frame QA, point-to-edit Studio, and source-aware learning; pinned upstream study to 5f2608c and license audit.
-- Reconciled existing product/UX/format/architecture/billing/testing/growth/execution/decisions/UI specifications, plus navigation and project status. Removed legacy fixed four/six-scene, three-structure, two-style and code-prohibition ceilings.
-- Added Composition and edit-request example contracts with repository checks; retained old SceneDocument fixture as legacy migration sample.
-- Preserved strict 15/30 seconds at 30fps, six existing platform presets, current Waffo terms, Google+email-code login, website English first and video copy with mixed languages.
-- Specification only: no real Agent app, cloud sandbox, rendering, payment or production validation is claimed.
+- Closed language/style/code contradictions without reducing Agent creative freedom or changing15/30-second platform outputs.
+- Added canonical Composition/Release/Fact/Edit/Render schemas, scoped Agent APIs, one revision identity and guarded candidate acceptance.
+- Froze all legal preset/aspect source variants before checkout; later platform delivery encodes existing sources only.
+- Defined creative-operation reservation/consumption, internal-repair handling, resource budgets, state transitions and M0b Cloudflare gates; retained original Waffo prices and transaction protections.
+- Added executable schema/semantic/reference tests and an explicitly offline Agent Studio design reference. No production Agent, Cloudflare, auth, payment or real video implementation is claimed.
+- Corrected the duplicate REPO-009 identifier. Existing authentication/platform/theme configuration and dependency pins remain intact.
 
+## Earlier changes (immutable history)
 
-## 2026-10-20 — Complete URI contracts and email sign-in specification
+The complete original entries, dates and historical validation scope remain available in [the preceding commit's changelog](https://github.com/ten2ten2/promobento/blob/750edd1084a1470dfd785f9b9083e6eb14d2e6ad/CHANGELOG.md).
 
-- Added an authoritative route seed for public pages, authentication, settings, invitations, workspace operations, delivery and SEO resources.
-- Specified Google plus passwordless email codes, explicit identity linking, session revocation, safe return targets and atomic invitation acceptance in PRD 12; advanced the PRD collection to v1.4 and UI specification to v1.2.
-- Selected Cloudflare Email Sending through a native Worker binding, with its current Beta status, domain/plan requirements and real delivery gates recorded.
-- Added authentication configuration and English UI/email messages, and synchronized the API, data model, implementation stages and relevant repository checks.
-- Application authentication and mail delivery remain unimplemented; no live emails or new routine evidence records were produced by this specification change.
+| Date | Change |
+| --- | --- |
+| 2026-10-20 | Integrate v2.2 Agent-Native video production |
+| 2026-10-20 | Complete URI contracts and email sign-in specification |
+| 2026-10-20 | Editorial layout with a professional tool palette |
+| 2026-10-19 | Icon theme toggle and remembered choice |
+| 2026-10-19 | UI specification and visual reference |
+| 2026-10-19 | Scope localization to the website |
+| 2026-10-19 | Concise agent guidance and mise toolchain |
+| 2026-10-19 | Repository packaging of PRD v1.1 |
 
-## 2026-10-20 — Editorial layout with a professional tool palette
-
-- Applied the user-approved magazine typography and layout with neutral Light/Dark surfaces and blue-gray action colors across the four-page offline reference.
-- Updated UI specification v1.1 and PRD collection v1.3, shared typography/color tokens, reference generation, and handoff guidance.
-- Kept theme preference behavior and customer video styling independent; application milestones remain unimplemented.
-- Clarified that routine checks belong in commit reports or existing CI, while evidence records cover meaningful acceptance results and environment findings. Existing historical reports remain intact.
-
-## 2026-10-19 — Icon theme toggle and remembered choice
-
-- Replaced the three-option header selector with a sun/moon action button: follow the system initially, then remember explicit Light/Dark choices after a click.
-- Kept a Use device setting reset in Appearance and retained the production Cookie, SSR and cache contract, including ordered preference saves.
-- Updated the offline reference with isolated browser-only preference memory and preserved the existing visual design and video samples.
-- Synchronized the specification and English action labels; recorded the scope of the targeted validation.
-
-## 2026-10-19 — UI specification and visual reference
-
-- Added PRD 11 and advanced the specification set to v1.2, fixing visual direction, typography, spacing, components and responsive layouts.
-- Selected shadcn/ui with Base UI, Tailwind CSS, Lucide and Inter for the future application, following the existing compatibility and version-locking policy.
-- Added shared UI tokens, expanded Light/Dark interaction colors and included an offline four-page reference generated from its template and tokens.
-- Added real mise generation/check tasks and updated repository checks, handoff instructions and evidence without marking application milestones complete.
-
-## 2026-10-19 — Scope localization to the website
-
-- Clarified that multilingual architecture and the English-first launch apply to the website interface.
-- Removed the English-only video restriction and language-selection or detection-confirmation prerequisites; user copy can freely mix languages.
-- Kept user text separate from website translation resources, with ordinary generation and editing preserving the original language mix.
-- Updated PRD, website-only localization seeds, UI messages and repository checks; retained existing billing and immutable output rules.
-
-## 2026-10-19 — Concise agent guidance and mise toolchain
-
-- Shortened AGENTS.md to task navigation, development rules, essential invariants, and the agreed direct-main workflow.
-- Made mise the standard tool and task entry point, with a real frozen dependency-install task.
-- Updated toolchain targets to Node 26.12.0 and pnpm 12.14.0, using mise 2026.10.13.
-- Defined deployment support and dependency compatibility as prerequisites for choosing the latest stable release.
-- Separated local tool checks from Workers Builds, workerd, and Container verification; updated repository onboarding for the existing GitHub remote.
-
-## 2026-10-19 — Repository packaging of PRD v1.1
-
-- Organized the full specification under `docs/prd/` and retained a single root copy of every JSON seed and contract example.
-- Added the root README, AGENTS.md, onboarding instructions, implementation status, and decision/evidence records.
-- Added executable repository checks, exact documentation-tool pins, an actual package-manager lockfile, and Git/editor defaults.
-- Updated PRD navigation and distinguished current checks from future application commands.
-- Preserved product scope, billing rules, platform defaults, English launch, and System/Light/Dark requirements.
-
-This entry records repository preparation. Application milestones M0–M4 have not been implemented by this packaging change.
+Historical document/tool work never implied application milestones had been implemented.

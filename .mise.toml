@@ -24,3 +24,18 @@ run = "node scripts/build-ui-reference.mjs"
 description = "Check that the generated UI reference matches its sources"
 dir = "{{config_root}}"
 run = "node scripts/build-ui-reference.mjs --check"
+
+[tasks."check:contracts"]
+description = "Validate v2.2 schemas, fixture graph, routes and product invariants"
+dir = "{{config_root}}"
+run = "node scripts/check-production-contracts.mjs"
+
+[tasks."test:contracts"]
+description = "Run contract counterexamples and state/quota reference tests"
+dir = "{{config_root}}"
+run = "node --test scripts/production-contracts.test.mjs"
+
+[tasks."check:agent-reference"]
+description = "Check the offline Agent Studio design reference"
+dir = "{{config_root}}"
+run = "node scripts/check-agent-reference.mjs"

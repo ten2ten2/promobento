@@ -1,11 +1,11 @@
 # PromoBento v2.2 — Agent-Native Video Production Specification
 
-> **版本**：v2.2（2026-10-20）  
+> **版本**：v2.2 / consistency-1（2026-10-20；机器契约 2.2.1）  
 > **状态**：可供 Codex 实施的升级规格，**不是已实现、已部署或已验收声明**  
 > **并入仓库**：现有 `docs/prd/README.md`（v1.4 业务/网站契约）及本章 01–12；早期 v1.1/v2.1 仅为变更背景，不覆盖最新认证、语言、路由决定  
 > **上游核对基准**：`alchaincyf/huashu-motion` 主分支提交 [`5f2608c`](https://github.com/alchaincyf/huashu-motion/commit/5f2608c2e12abcf518f74dde86093b19f7f88603)（提交时间 2026-10-19）；仓库中 Skill 声明版本 `0.1.1`。**后续采用上游代码时必须重新核对版本、许可和行为，不静默跟随 main 更新。**
 
-> **权威边界**：本章负责创作、声音、视频 QA 与 Agent Studio；03 负责平台/时长、05 负责已购权益、10 负责网站国际化和用户文案自由混排、11 负责 UI、12 负责 URI/认证。新增 Agent API 必须同步登记到 `config/routes.json` 与 12 章后才能上线；本文 API 是规划，不是已开放路由。
+> **权威边界**：本章负责创作、声音、视频 QA 与 Agent Studio；03 负责平台/时长、05 负责已购权益、10 负责网站国际化和用户文案自由混排、11 负责 UI、12 负责 URI/认证。跨模块类型、状态、额度与冻结协议以 [14](14-production-contracts.md) 为准；Agent API 已登记到 `config/routes.json` 和 `contracts/agent-api.json`，仍不是已部署端点。
 
 ## 0. 最终决策：先把片子拍好，再把工作流做成可靠的 SaaS
 
@@ -151,43 +151,19 @@ composition/
 
 `composition.json` **不得用固定 6 类场景 enum 约束画面**；所有源码、依赖、预处理结果、字体、音乐源和许可证据均在不可变 revision 中用 hash 标识。公开导出源工程（后续功能）必须具备剔除密钥、租户隐私及未授权素材的许可检查。
 
-### 4.2 最小桥接接口（TypeScript 提案）
+### 4.2 正式帧协议
 
-```ts
-type DurationSeconds = 15 | 30;
-type Aspect = "9:16" | "4:5" | "1:1" | "16:9"; // 输出仍须通过预设 ID 校验
+类型在 `contracts/render-protocol.d.ts`，JSON Schema 在 `contracts/production.schema.json`，生命周期和鉴权在14§5。init显式绑定revision/target/manifest/runtime与可信解析的宽高；seek/ready回显sessionId/requestId/sequence/frameIndex，串行seek，dispose后迟到响应无效。`HitTarget`和`EditableProperty`已定义，不再留未定义接口占位。
 
-interface RenderRequest {
-  revisionId: string;
-  frameIndex: number;       // [0, 449] or [0, 899]
-  presetId: string;         // validated server-side
-  presetVersion: string;
-  seed: string;
-}
-interface CompositionBridge {
-  init(input: { assets: Readonly<Record<string, string>>; seed: string }): Promise<void>;
-  seekFrame(frameIndex: number): Promise<void>;
-  whenFrameReady(): Promise<void>;  // image/video/font/3D/text rasterization barriers
-  inspect?(at: { frameIndex: number; x01: number; y01: number }): Promise<HitTarget | null>;
-  getEditables?(): EditableProperty[];
-  getMarkers?(): Array<{ id: string; frame: number; name: string }>;
-}
-```
-
-- Source 可以使用浏览器能支持的绘图技术，也允许 Agent 新增自定义数学、运镜算法。使用经过审核且锁定的依赖；不是“列出的动画 API 才能使用”。
-- `seekFrame(n)` 必须由 `n / 30` 对应的**绝对时间**决定目标帧；不可依赖 `Date.now()`、自由运行的 `requestAnimationFrame`、未设种子的随机、上一次 seek 或 UI 播放历史。需要物理仿真时用可复现固定步长/预烘焙轨迹。
-- 独立视频源需要按时间 seek/解码并等待 ready；字体载入、图像解码、Shader 编译等也必须有超时与失败状态。不得截图尚未准备好的帧。
-- 对实际 GPU/浏览器版本差异允许经标定的像素容差，但同一不可变镜像 + 资源快照必须可追溯、可回放、可定位差异。
-- 时间范围是 0..449/899（索引从 0 开始），最后一帧时间是 `(frameCount-1)/fps`；MP4 容器时长是完整的 15/30 秒。**不要把末帧时间与文件总时长混为一谈**。
+Agent仍可自创绘图技术、曲线或固定步长/预烘焙仿真；依赖必须审查锁定，帧不能依赖墙上时钟、随机数或播放历史。图片/字体/视频seek/Shader就绪有有界超时；ready只是屏障，不是美学和事实正确性的证明。fresh/forward/reverse按同镜像容差实测。末帧时间(N-1)/30，文件时长N/30；不混淆两者。
 
 ### 4.3 平台 Variants
 
-同一内容 revision 可为已选平台预设保留多个 `composition_variant`（源代码入口或配置分支），重排标题、镜头、焦点、读字、UI 包装位置。平台选择由服务器解析 `presetId + presetVersion → width,height,codec,safeZone`，前端、Agent 和源代码均无权自报输出宽高。
+草稿允许Agent为不同合法target自由重做镜头、标题、读取窗口与素材包装；目标为 `presetId:aspectId`，严格验证配对，不能将所有四种比例都授予每个平台。同一成片不同target总时长相同、商业事实一致。
 
-- 需要重新排镜可重新生成目标 Variant；视觉/信息身份保持一致，必要时不同平台允许不同镜头衔接，但**总时长相同**。
-- 相同版本追加既有或新选中的预设只产生派生文件，不变更买断内容 revision，也不重复扣相同版本权益。
-- `artifact_fingerprint` 结合源代码 hash、资源/字体 hash、音频 hash、variant、renderer 镜像 digest、预设版本、编码参数。
-- 平台预设只有明确批准与实际上传验收后才能修改。新增任意比例/时长不属于 v2.2。
+**先冻结所有合法target的可执行源包/音轨/封面/依赖，再付款；高清MP4可按选择延迟编码。** 未准备齐全时返回VARIANTS_NOT_READY，不在checkout或快照冻结请求内偷偷生成。补平台只执行原snapshot，不再调模型，也不改变初次发布清单或重复收版本费。用户更改镜头进入新稿；系统兼容修复是独立有审计免费correction而非覆盖原版。
+
+结构和内容hash、target映射、配置版本、预检与延迟编码规则统一见14§3–4。不得自动跟随更新的预设/renderer；新任意时长和画幅仍不属于v2.2。
 
 ---
 
@@ -220,7 +196,7 @@ Master timeline: integer video frames @30fps, duration 450/900 frames
 - 优先评估移植上游 **ABC 解析/乐器合成/DSP/音效调度**的纯函数，不把其随附示范音色一键商业打包。
 - 真乐器采样：每个采样包建立 `license_id`、来源、校验和、商业可用范围、是否要求署名、能否公开下载；缺失或条款不满足时走合成器兜底。
 - 上游 `23` 种音效是初始参考库，可进一步增减或让 Agent 程序化制作新音效；数量不是产品承诺或白名单。
-- 可选口播遵循 `none / user recording / licensed TTS`。**首发生成视频文案仍是英语**；接入新语种/配音需和字体/字幕独立验收。TTS 或 ASR 是否在首发开放取决于真实集成与许可，不得提前在价格页承诺未打通能力。
+- 可选口播遵循 `none / user recording / licensed TTS`。**英语首发仅指网站，用户视频文案可任意混排**；TTS声线/语言能力和字体/字幕须独立验收，不据此限制用户文本。TTS 或 ASR 是否在首发开放取决于真实集成与许可，不得提前在价格页承诺未打通能力。
 - 实际 FFmpeg 混音必须统一采用冻结音频事件与参数，支持 BGM ducking、淡入淡出、响度与 true-peak 检查。先沿用 PromoBento v1.1 的 **约 −16 LUFS / ≤ −1 dBTP 内部目标**，其他平台目标需独立测试后版本化调整，不机械套用上游 −14 LUFS。
 - **音效/配乐和视频的最终作品必须同步预览和审核**。频谱/响度检测能自动发现部分问题，但不能证明音乐“好听”；试运营以人工听音样本与用户反馈补足。
 
@@ -255,7 +231,7 @@ Master timeline: integer video frames @30fps, duration 450/900 frames
 - **运动曲线**：按每秒帧差绘制变化/节奏；平坦只是可能单调的警示，并非所有慢片违规。
 - **历史依赖**：目标 `frameIndex` 从 fresh 浏览器直接 seek 与从头播放后 seek 两张帧图对比；同一工况存在超容差差异时阻止冻结或标记必须修复。
 
-上游当前 `qa.js` 基于 `96×54` 灰度帧与固定阈值做异常启发式判断，**这些阈值不能无测试地作为商业 P0 强制失败门槛**；建立全静音/高动效/纯色遮罩/阅读停留/图表高密四类夹具，评估误报漏报再锁定阈值。正式规则分为 `BLOCK`, `REVIEW`, `INFO`，人工或用户豁免必须有范围、原因、授权和截止条件。
+上游当前 `qa.js` 基于 `96×54` 灰度帧与固定阈值做异常启发式判断，**这些阈值不能无测试地作为商业 P0 强制失败门槛**；建立全静音/高动效/纯色遮罩/阅读停留/图表高密五类夹具，评估误报漏报再锁定阈值。正式规则分为 `BLOCK`, `REVIEW`, `INFO`，人工或用户豁免必须有范围、原因、授权和截止条件。
 
 ### 6.3 不能省略的正常速度 QA
 
@@ -267,20 +243,7 @@ Master timeline: integer video frames @30fps, duration 450/900 frames
 
 ### 7.1 统一的 EditRequest
 
-```ts
-interface EditRequest {
-  projectId: string;
-  revisionId: string;        // immutable base revision
-  targetPresetId: string;    // validated, not free-form aspect size
-  frameIndex: number;        // integer
-  normalizedPoint?: { x: number; y: number }; // 0..1, in output canvas coordinates
-  selectedElementId?: string;
-  hitRegionId?: string;
-  screenshotAssetId: string; // server-scoped, access-controlled
-  comment: string;
-  editScope: "selected" | "shot" | "variant" | "all-variants";
-}
-```
+传输字段以 `contracts/production.schema.json` 的 `editRequest` 定义为唯一来源：`schemaVersion,kind,requestId,baseRevision,targetId,frameIndex,comment,editScope`，可选 `normalizedPoint,selectedElementId,screenshotAssetId`。projectId从路径及实际资源推导；不再维护旧的revisionId/targetPresetId重复请求类型。screenshotAssetId缺失时由可信渲染服务按同一revision/target/frame补取，用户截图只作辅助证据，不能单凭其内容证明实际成片。
 
 1. 浏览器播放器在点击时冻结准确 `frameIndex`，携带 `revisionId`、预设、坐标、当前画面截图和可选 DOM/Canvas/WebGL 命中信息。
 2. 先尝试 `data-pb-id`、可编辑对象映射、source map/AST 与 hit region；WebGL 优先 raycast。**没有可解析对象也必须允许截图区域+时间定位的 AI 反馈**。由于预览处于隔离的跨域 iframe，主站**不得**直接读取其 DOM；命中检测由预览内的受限 Bridge 执行，仅通过校验 origin、会话 nonce 和消息 schema 的 `postMessage` / 可信 API 传回最小化结构化信息。
@@ -349,12 +312,12 @@ interface EditRequest {
 
 - **高能力模型**：方向取舍、自由代码生成、复杂镜头修复、音画审片；**轻量模型**：提取、标签、文案、普通重写；**无需模型**：参数更新、合法性检查、音频混合、ffprobe、绝大多数 QA 数值检测。
 - 不预设“某个模型一定最好”。M0 收集同一批任务对至少两种模型/配置的有效视频生成率、修改完成率、费用、时间与盲审质量；模型 ID 走后台配置。
-- 先构建一个**可测量的 Agent Run Budget**：输入/输出 token、执行分钟、采样片段、自动修复次数、音频合成分钟、上限金额。超限保存工作，用户可继续/付费追加/退出，不 silently truncate 成片。
+- 先构建一个**可测量的 Agent Run Budget**：输入/输出 token、执行分钟、采样片段、自动修复次数、音频合成分钟、上限金额。超限保存工作并释放容器；只在原预算仍有余额且权限/base有效时恢复。没有批准的新SKU时不提供“付费继续”假入口，不静默截短成片。
 - 自动修复预算可从“最多 2 次候选修复”作为**初始待测值**开始，真实压测后调；失败不无限递归，不通过用户付费权益为平台故障重复收费。
 
 ### 9.3 状态与重试原则
 
-`agent_runs` 主状态使用 `queued/active/awaiting_user/validating/succeeded/failed/cancelled`，阶段和 attempt 独立记录。所有修改建立在 immutable base hash 上，长时间执行后重读权限/版本号。Queue 至少一次交付，因此创建版本、扣额、提交渲染、完成回调均必须幂等；超时/重启不会重复发放权益或覆盖已经确认的 revision。
+`agent_runs` 主状态使用 `queued/active/awaiting_user/paused_budget/validating/succeeded/failed/cancelled`，阶段和 attempt 独立记录；触发/原子写/恢复和终态以14§7为唯一表，预算与成功次数以14§6和agent-policy为准。所有修改建立在 immutable base hash 上，长时间执行后重读权限/版本号。Queue 至少一次交付，因此创建版本、扣额、提交渲染、完成回调均必须幂等；超时/重启不会重复发放权益或覆盖已经确认的 revision。
 
 ---
 
@@ -411,11 +374,11 @@ Version-pinned Renderer Container (Chromium + FFmpeg)
 
 | Entity | 必备字段（示例） |
 | --- | --- |
-| `creative_briefs` | `project_id,duration_seconds,platform_ids,language,confirmed_facts_hash,reference_hash` |
+| `creative_briefs` | `project_id,duration_seconds,target_ids,optional_text_metadata,confirmed_facts_hash,reference_hash` |
 | `creative_directions` | `run_id,label,logline,style_ref,treatment_hash,keyframe_refs,choice_state` |
-| `composition_revisions` | `project_id,parent_revision,base_hash,source_archive_hash,dependencies_hash,renderer_digest,audio_hash,created_by,status` |
+| `project_revisions`（唯一版本实体） | `project_id,parent_revision_id,content_hash,manifest_key,created_by`；候选状态另外保存，不变更源包 |
 | `composition_variants` | `revision_id,preset_id,preset_version,layout_code_hash,safe_zone_test,output_fingerprint` |
-| `agent_runs` + `agent_run_steps` | `workspace_id,status,phase,model_id,tool,token_count,seconds,cost_usd,error_code,budget_id` |
+| `agent_runs` + `agent_run_steps` | `workspace_id,status,phase,model_id,tool,token_count,seconds,cost_micros,error_code,budget_id` |
 | `audio_projects` + `audio_cues` | `revision_id,score_hash,bpm,marks,voice_refs,cues,license_refs,mix_hash` |
 | `quality_reports` | `revision_id,variant_id,level,check_type,frame_from,frame_to,element_id,raw_evidence_ref,waiver` |
 | `edit_requests` + `agent_patches` | `base_revision,preset,frame,point,comment,scope,diff_hash,new_revision,validation_state` |
@@ -424,57 +387,28 @@ Version-pinned Renderer Container (Chromium + FFmpeg)
 
 所有主键、数据访问、素材下载、图片预览和 patch 事件必须按 `workspace_id` 做服务端鉴权。源代码快照和敏感素材加密/访问边界与 R2 资产策略一致。模型 trace 不保存完整敏感 prompt 和客户源码至常规日志。
 
-### 11.2 API 按资源设计（设计稿，实施时与当前 URI 合并）
+### 11.2 统一的Agent API
 
-```
-POST   /api/projects/:id/directions             # create/list candidates via run
-POST   /api/projects/:id/agent-runs              # start agent work with budget/idempotency
-GET    /api/projects/:id/agent-runs/:runId       # progress/errors/summary
-GET    /api/projects/:id/compositions/:rev       # immutable metadata + signed assets
-POST   /api/projects/:id/previews                # request scoped still/clip
-POST   /api/projects/:id/edit-requests           # comment at frame and coordinate
-POST   /api/projects/:id/patches/:patchId/apply  # accept candidate after checks
-POST   /api/projects/:id/revisions/:rev/restore # new draft pointing to old content
-POST   /api/projects/:id/releases                # freeze entitled version & selected presets
-GET    /api/projects/:id/quality-reports/:rev    # QA reports by preset
-```
+方法/路径/权限只维护在 `config/routes.json`，请求和响应schema绑定在 `contracts/agent-api.json`，完整API导览见04。新接口覆盖agent-runs创建/读取/恢复/取消、compositions、previews、edit-requests、patch读取/接受/拒绝与quality-reports。全部参数使用`:projectId/:revisionId`等语义名，没有第二套`:id/:rev`地址。
 
-每个写操作包含 `idempotencyKey`，修改带 `baseRevision` / `If-Match`，授权失败不泄露资源存在性。支付/导出相关 API 不接受 agent sandbox 直接调用，只通过可信业务层。
+未发布过的storyboards/rewrites已从路由删除，不保留双栈；方向作为同一次creative_generate run的数据和阶段。冻结沿用export-snapshots，渲染沿用exports，恢复沿用PATCH draft；**不新增releases或另一个restore端点**。
+
+mutation使用Idempotency-Key与requestId（同时存在必须一致），按actor/route/project/workspace和请求摘要去重；baseRevision/If-Match保护CAS。详情不向review token开放；认证/CSRF/错误仍按12。非法宽高/预算/用户自报workspace不得绕过14语义验证。
 
 ### 11.3 创作权益与成片权益分离，定价先实验
 
 - 一次可见的用户 AI 编辑操作在执行前展示预估/上限创作额度；普通属性变更无模型消耗，不扣 AI 额度。
 - 已确认的“成片版本”冻结源代码、镜头、时长、音轨与各平台 Variant。相同已购版本跨多个**既有平台预设**导出仍沿用 v1.1 的“只消耗一个版本额度”语义。
-- 已付费订单不能因为内网重试/编码器崩溃/重复 Queue 投递重复扣版本额度；模型出错未生成可用输出的用户权益处理需可审核，但运营成本如实入账。
+- 已付费订单不能因为内网重试/编码器崩溃/重复 Queue 投递重复扣版本额度；无可用候选时不消费成功次数；可用候选交付后审美拒绝仍计次，系统缺陷补偿幂等。内部修复和平台源包准备不额外扣次，真实费用另入账；详见14。
 - 原试运营 `$39` 与 `$12` 可以保留作**待核实假设**，在首轮真实 Agent Run 成本、沙箱开销、客户修改次数与退款率出现后再提出另一次定价决策。不要在升级引擎时擅自修改原合同或已购账户权益。
 
 ---
 
 ## 12. 实施顺序：垂直闭环优先，门槛驱动
 
-### M0 — Creative Engine PoC：不做假片
+统一遵循08的M0a/M0b–M4，不再维护另一套M3结束的上线定义。M0a交付真实自由动画、15/30秒、ABC/SFX、check/qa与正常速度视听；M0b用同一复杂源包在实际Cloudflare目标实例证明字体、seek/WebGL能力、FFmpeg、回收、跨job隔离。缺云权限不能将本地成功升级成M0云端通过；可继续无生产资料的Studio研究。
 
-任务：固定上游 commit 的审计、Director 规则、最难镜头、自由 Composition、真实帧截取、Score+SFX、check/qa 初版、单平台 MP4。无用户支付；环境可先在受控本地容器测试，但必须给出 Cloudflare 环境迁移与风险报告。
-
-**退出条件**：两种时长都跑通；同一素材至少两支真正不同语言的作品；至少一支包含 Agent 编写的**库中没有的新镜头运动**；音效对齐、真实可播放；并有失败日志与验收文件。只画静态样片或固定六场景视为失败。
-
-### M1 — Agent Studio & Patch
-
-任务：浏览器预览、逐帧定位、点选评论/截图、HTML/Canvas/WebGL 兜底、patch/版本树、普通属性直改、改稿回归、导演画面审片、音频重编排。
-
-**退出条件**：用户改动时间局部成功，未授权改变区域回归可查；拒绝 patch 不污染原版；不同平台预设可重新构图并继续按 15/30 秒出片。
-
-### M2 — Cloud Security & Reliable Render
-
-任务：Sandbox、可信 Orchestrator、R2 不可变归档、网络封禁、预览独立域、模型调用预算、并发和恢复、版权清单、正式音视频 QA 和版本锁定。
-
-**退出条件**：跨租户访问、密钥读取、网络出口、恶意依赖、prompt injection、队列重投、沙箱崩溃和旧 revision 恢复均有真实测试报告。
-
-### M3 — SaaS 端到端与试运营
-
-任务：现有站点、两类入口、邮箱 + Google、协作、Waffo、项目包/追加包、平台预设导出、运营面板、分析与告警。P1 的工作区创作经验与“工程源码 ZIP”可在 M3 后按复购数据决定上架。
-
-**退出条件**：至少软件及课程两类真实用户都能自行上传/生成/改稿/支付/导出；账务幂等、退款、保留/删除按 v1.1 用例完成。目标已付费有效输入的自动重试后成功率≥95%仅作为试运营门槛，记录样本数与置信限制；未经测量不得宣称达到。
+M1完成点选、坐标兜底、scoped patch、CAS/回滚和多target预览；M2完成全局预算、源包冻结、原子账务、可靠云渲染及免费补平台；M3团队与运营；M4生产收款退款、真实上传、发信、域名、安全/费用和回滚证据。工作区经验和工程ZIP仍P1。任何阶段不得把固定六镜头/占位媒体当成自由创作完成。
 
 ---
 
@@ -548,7 +482,7 @@ docs/
   STUDIO_PATCH_FLOW.md
   EXECUTION_SECURITY.md
   MODEL_EVALS.md
-  EVIDENCE_INDEX.md
+  evidence/README.md
 ```
 
 ### 对仓库当前 PRD v1.4 专章的修正映射
@@ -556,13 +490,13 @@ docs/
 | 原章节 | 动作 | 不得误改 |
 | --- | --- | --- |
 | 01 产品需求 §5/§6 | P0 场景枚举、结构样式变为**参考**；增自由动画编码/导演/音频/点选 | §5 的两类客户、购买权益与已确认事实流程继续有效；时长固定 |
-| 02 界面/流程 §3/§4 | 三方向真实预览、音效同步、Agent Studio、源码定点与版本对比 | 不强迫所有用户学代码；协作/评论继续受权限控制 |
+| 02 界面/流程 §3/§4 | 三方向真实预览、音效同步、Agent Studio、源码定点与版本对比/CAS | 不强迫所有用户学代码；协作/评论继续受权限控制 |
 | 03 平台预设 §2–§8 | 保留原 6 平台规格；加代码 Variant 多构图验收 | 不增加任意输出比例/分辨率/帧率 |
 | 04 技术 §3/§5/§6/§9 | 与 huashu 关系、自由 Composition、Sandbox、Orchestrator、QA、音频 | 原 R2/D1/DO/Queues 账务/隔离/重试语义不能丢 |
 | 05 Waffo/权益 | 区分 AI 创作成本与成片权益，并给定价实验建议 | 原已买项目权益不能被技术升级静默缩水 |
 | 06 测试/发布 | 本文第 13 节的真实资产、视频/音频/安全/费用证据 | 禁止把仿真日志写作真实部署证据 |
 | 07 GPT 获客实验 | 增加“真人改稿次数/满意度、真实可发布视频”的实验 | 保留原站点获客词、两类入口、隐私限制 |
-| 10 语言主题 | 继续英语首发、站点 System/Light/Dark | UI 主题不改变成片，语言上线逐项验收 |
+| 10 语言主题 | 网站英语首发、用户文案自由混排、站点System/Light/Dark | 不限制视频语言或风格枚举；主题不改变成片 |
 
 ---
 
@@ -572,7 +506,7 @@ docs/
 >
 > 将 `alchaincyf/huashu-motion` 锁定在本方案已核对的 commit 起点，先做 `UPSTREAM_ADOPTION.md`，逐文件判定 PORT/ADAPT/REBUILD/许可与测试。不得直接搬运 GSAP、受限制的作者角色、未审查的字体/采样。
 >
-> **先实现 M0 的真实创作垂直切片**：Director/Treatment → 自由源码 → 可渲染关键帧 → ABC/音效 → `check`/`qa` → 15/30 秒合规 MP4。运行每项测试并留下机器可核验的证据。不要用无关截图、纯 JSON、固定 SceneDocument 渲染或模拟视频替代结果。M0 通过后做 M1 点选改稿/版本，再做 M2 云端隔离与恢复，最后 M3 SaaS 付费闭环。
+> **先实现 M0 的真实创作垂直切片**：Director/Treatment → 自由源码 → 可渲染关键帧 → ABC/音效 → `check`/`qa` → 15/30 秒合规 MP4。运行每项测试并留下机器可核验的证据。不要用无关截图、纯 JSON、固定 SceneDocument 渲染或模拟视频替代结果。按08执行M0b真实Cloudflare准入、M1点选/版本、M2可靠交付、M3团队运营和M4生产验收，不跳过云门槛。
 >
 > 实施中先同步修订原 PRD 对应章节，再提交模块实现；每个里程碑列出代码变更、真实运行命令、测试结果、缺陷、成本与剩余风险。不可声称未完成的 Cloudflare/Waffo 生产验收已通过。没有环境权限/商户密钥时完成可在本机验证的部分并清楚标出外部阻塞，不编造生产成功记录。
 
@@ -596,3 +530,7 @@ docs/
 - [GSAP Standard License](https://gsap.com/community/standard-license/)
 
 **本文属于设计与实施依据；所有可运行、成片质量、在线隔离、支付/退款、成本与性能结论需在项目环境中按第 13 节实测，不能把官方示范视频或本方案示例当作 PromoBento 的真实上线证据。**
+
+## 17. consistency-1 实施补齐
+
+正式Schema、单一版本实体、target配对与冻结、AI成功次数/预算、帧身份、状态机、事实覆盖与M0b准入统一见 [14](14-production-contracts.md)。生成前UI须说明计次边界；普通可编辑变量免费，系统修复不重复计次。新Agent Studio离线参考位于 `docs/design/agent-studio-reference.html`，只提供布局/状态示意，不模拟已调用模型或真实视频；结构检查不替代真实浏览器视觉验收。

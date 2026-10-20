@@ -1,144 +1,49 @@
 # Codex 实施说明
 
-## 1 交付目标
+v2.2 consistency-1。先读AGENTS、PRD索引、01/03/05/10/12/13/14。目标是可运营产品，不是返回成功的脚本或演示页。用户明确要求直接维护remote main时使用快进和预期SHA保护，不覆盖他人新提交。
 
-按本文档组实现可部署的 PromoBento P0，主域为 promobento.com。小型软件产品团队与课程数字产品内容团队同时完成首批闭环；平台预设全部进入第一版。使用 React、TypeScript、mise、Cloudflare 全栈和 Waffo.ai；网站建立国际化架构并首发英语；用户文案可任意语言混排，无视频语言选择前置条件，完整支持 System / Light / Dark。
+## 1 里程碑与退出条件
 
-当前交付是需求文档和契约示例，不包含已经完成的 SaaS 或生产部署。实施者应保留这个区别，后续用实际代码、样片、测试与部署记录更新进度。
-
-## 2 实施顺序
-
-创作引擎以 [13 Agent-Native 视频规格](13-agent-native-production.md) 为当前目标。M0 必须先证明原创自由动画、配乐、实际 MP4 和 QA；Cloudflare、邮件与 Waffo 的外部可行性验证并行，不得以一个六场景模板演示冒充创作闭环。
-
-| 阶段 | 实施内容 | 退出条件 |
+| 阶段 | 实施 | 退出条件 |
 | --- | --- | --- |
-| M0 创作可行性 + 平台最小验证 | Director/Treatment → Coding Agent → 自由 Composition → 浏览器关键帧 → ABC/SFX → FFmpeg 15/30s → QA；并行验证 Workers Builds/workerd、Google/Email Sending 最小登录及 Waffo test | 至少一个全新运镜、真实音轨与 450/900 帧 MP4、正常速度人工观看听音，费用与错误证据齐全；外部账户阻塞单列 |
-| M1 Agent Studio 与第一条用户流程 | 两类入口、上传/事实确认、独立来源预览、点选评论、Canvas/WebGL 截图兜底、scoped patch、revision 和平台 Variants；Google/邮箱认证与网站 UI | 两类用户都能生成、修改指定镜头、回滚、预览四构图；AUTH 关键案例实际通过，故障保留旧草稿 |
-| M2 云沙箱、账务与交付 | 创作和渲染隔离、预算/重试、Queues/DO、Waffo 订单与不可变版本、六平台 MP4/封面/ZIP、QA 门禁 | 不可信代码不能读取主站凭据或跨租户数据；账务与导出幂等可恢复，所有文件真实可下载 |
-| M3 团队与运营 | 工作区权限、邀请、冲突、评论、存储保留/删除、退款、归因事件、公开用途页 | 隔离与权限测试通过；真实团队可完成公开发布需求 |
-| M4 生产上线验收 | 创意样片、人工视听审片、性能费用、真实平台上传、付款退款、生产安全和回滚 | 样片与完整业务有实际证据；未验证项不标完成 |
+| M0a 本地创作切片 | 固定上游核对→Director/Treatment→新镜头源码→真实关键帧→ABC/SFX→MP4/QA | 15/30秒和两类素材、非模板运镜、正常速度视听、实际费用/失败证据 |
+| M0b 云端最小准入 | 同一源包在Cloudflare构建/workerd/Container；字体/seek/WebGL/FFmpeg/回收隔离；并行最小Google/邮箱/Waffo测试 | 有实际平台证据，缺账户不标通过；本地成功不能替代 |
+| M1 Agent Studio | 上传事实、方向、实时隔离预览、点选/坐标兜底、候选patch、CAS/恢复、声音和四构图 | 两类用户自助完成、旧稿不损坏，移动端与UI/混排可用 |
+| M2 契约与可靠交付 | 完整Schema/语义/权限、D1唯一性、run/预算/队列、冻结全部target、Waffo权益和延迟编码 | 编码/消费/补平台/退款/删除/旧镜像并发恢复实际通过 |
+| M3 团队与运营 | 成员邀请/审阅/冲突、保留清理、费用/来源/质量面板、用途页 | 工作区隔离、真人完整发布、清楚成本和行为漏斗 |
+| M4 生产上线 | 性能/安全/真实平台上传/收款退款/域名/发信/回滚 | 06及12外部门槛有真实结果，无虚构成功 |
 
-以上为计划而非运行状态；`docs/implementation-status.md` 才是已实现进度索引。按实际关键风险安排子步骤，不因云端账号未配置停止可以独立验证的创作垂直切片。
+M0b未通过可继续不含生产用户资料的界面/本地研究，但不开放不可信客户代码或收费承诺。不能等Studio全做完才验证目标环境能力。
 
-## 3 建议代码目录（应用实施时建立）
+## 2 目录与唯一契约
 
-| 路径 | 内容 |
+Web/API/jobs/agent-runner/renderer保持独立责任。packages按实际代码建立：contracts、composition-runtime、creative-director、audio-engine、quality-engine、agent-orchestrator、platform-presets、billing、auth、db、ui/i18n/brand。不要建空模块凑数量，也不要引入另一数据库/云厂商解决可在既定栈验证的问题。
+
+`project_revisions`是唯一版本实体。`config/routes.json`为路由唯一来源，`contracts/agent-api.json`绑定协议Schema，`contracts/production.schema.json`定义传输结构；14规定跨资源/状态/hash/账本语义，12保留认证例外。模板旧fixture可放legacy测试，不按旧类型拒绝新源码，也不把示例hash当真实素材。未上线storyboards/rewrites移除，无需发布兼容端点。
+
+保留支付快照与初次批次的区别；不从Agent运行状态推断付款。付费冻结全部合法target源代码，MP4可延迟；补平台不得重新让模型创作。服务端从真实资源推导工作区，永不信任前端角色/金额/宽高/预算/来源。
+
+## 3 mise、依赖与命令
+
+工具版本和任务使用mise，pnpm冻结锁文件。版本选择顺序：部署支持与运行时能力→框架/SDK兼容→范围内正式版→精确锁定→实际平台验证；正常安装不自动升级。当前Node/pnpm pins不因本次文档修订改动；本地备用Node执行的测试须如实标记，不能冒充固定版本复现。
+
+| 当前可运行命令 | 范围 |
 | --- | --- |
-| `apps/web` | React Router SSR 页面与编辑器 |
-| `apps/api` | 业务路由、鉴权、项目、支付和素材授权 Worker，可与 web 共入口但保持模块边界 |
-| `apps/jobs` | Queues consumer、DO、Cron 与 outbox dispatcher |
-| `apps/renderer` | Container Dockerfile、Chromium、FFmpeg、job agent 与健康检查 |
-| `packages/contracts` | zod 或同类 schema、业务类型、错误码、API 契约 |
-| `packages/composition-runtime` | 自由源码工程、确定性寻帧 Bridge、iframe 隔离预览与可选 editables |
-| `packages/creative-director` | 产品理解、创意方向、节奏、运动语言与镜头连续性 |
-| `packages/audio-engine` | ABC 作曲、授权音效/采样、同步时钟与混音 |
-| `packages/quality-engine` | 源码/浏览器抽帧/视频/音频 QA 与诊断证据 |
-| `packages/agent-orchestrator` | 一主 Agent、工具调用、模型路由、预算、局部修复 |
-| `apps/agent-runner` | 受控隔离沙箱，编译源码、真实寻帧、返回审片证据 |
-| `packages/platform-presets` | 版本化平台配置及外部规则元数据 |
-| `packages/billing` | 仅 Waffo 的 adapter、金额转换、订单与事件映射 |
-| `packages/auth` | Google、邮箱 challenge/proof、身份关联、会话与回跳校验；最小 Cloudflare 邮件适配器 |
-| `packages/db` | D1 SQL、迁移、条件写与查询封装 |
-| `packages/ui` | shadcn/ui Base UI 源码封装、表单和编辑器基础组件；Lucide 图标 |
-| `packages/i18n` | 请求级 i18next、英语网站消息目录、UI locale allowlist、Intl 与消息类型 |
-| `packages/brand` | PromoBento 名称、可信环境 URL、站点元数据和支持配置 |
-| `packages/ui/theme` | 由 theme/ui 配置映射的 CSS tokens、System 偏好、Cookie 与可访问主题控件 |
-| `tests/fixtures` | 已授权测试素材与预期事实 |
-| `tests/integration` | 支付、额度、队列、删除、隔离与恢复 |
-| `tests/e2e` | 两类用户的浏览器闭环 |
-| `docs` | 本文档组、实施决策与验证结果 |
+| `mise run install` | 根据已有锁文件安装仓库依赖 |
+| `mise run check:repo` | 文档链接、配置/路由/认证/主题及正式契约一致性 |
+| `mise run check:contracts` | v2.2结构/语义/哈希引用/预设配对与API清单 |
+| `mise run test:contracts` | 正反例、帧响应、CAS、计量与状态参考测试 |
+| `mise run build:ui-reference` / `mise run check:ui-reference` | 原四页离线参考生成/一致性 |
+| `mise run check:agent-reference` | 新Agent参考的结构和公开承诺边界 |
 
-不创建冗余后端语言或独立数据库服务。渲染与 Web 通过契约共享，不能各复制一份模板后独立修改。
+应用实现时再添加真实 init/dev/dev:renderer/check/test/test:e2e/test:render/test:billing/test:auth/check:i18n/test:appearance/build/deploy:preview/smoke:preview/deploy:production。不可用返回成功的空脚本充数。模型、真实D1/workerd、浏览器/GPU、Cloudflare、邮件/Waffo、平台上传需独立测试，不能只执行contracts单元测试。
 
-## 4 版本与依赖
+## 4 可信配置与密钥
 
-mise 已确定为 Node/pnpm 的工具版本管理与项目任务入口，pnpm 负责包依赖。版本选择顺序为：目标部署平台支持与运行时能力 → 框架/SDK 兼容范围 → 范围内最新正式版 → 精确锁定 → 实际环境验证。详细要求见 [依赖版本与部署兼容策略](../dependency-policy.md)。
+主站promobento.com，staging.promobento.com；回调沿用brand/routes/auth，不从Host或前端origin拼接。Google callback、Waffo webhook/successUrl、Email Sending发信域、支持邮箱继续12/05已登记值。网站i18n首发en、用户文案自由、System/Light/Dark和tokens仍按10/11。
 
-初始化或主动升级时重新核查官方发布与兼容要求；不能把当前环境已安装版本当作最新版本。采用较旧版本必须记录具体兼容限制、来源或复现结果，以及重新评估条件。普通安装复现固定版本，不自动升级依赖。
+D1/R2、业务Queues/DLQ、DO、AI、EMAIL与可选Analytics绑定独立；新增Composer/QA等调度同样受全局准入，不能越过4容器总数。Google、OTP/CSRF、Waffo与服务间密钥仅可信Worker持有；沙箱不要带云/模型/支付token。模型配置须有真实provider/model/价格版本/预算与准入结果，缺失时disabled而非猜模型或成本。
 
-`.mise.toml`、package 配置和生成的锁文件保持一致；CI 冻结安装。Cloudflare Workers Builds 的工具版本与安装顺序需单独配置和核对，不能假定平台自动识别 mise。Worker 按 workerd、compatibility_date 和 API 能力验证；renderer 的 Node、Chromium、FFmpeg、系统库和字体在目标 Linux 镜像中锁定并实测。
+## 5 交付报告
 
-M0 在真实平台分别证明构建、Worker 与 Container 可用，将版本、实际环境、结果和例外写入 `docs/implementation-decisions.md` 与验证记录。当前仓库工具检查通过不代表应用依赖组合已验证。
-
-## 5 命令边界
-
-### 5.1 当前仓库可运行的命令
-
-在仓库根目录通过 `mise install` 安装固定工具，通过 `mise run install` 冻结安装包依赖，再执行 `mise run check:repo`，检查 PRD 文件、相对链接、配置种子与示例之间的引用。mise 是标准任务入口；底层 Node 脚本只用于定位工具环境问题。这项检查不覆盖应用类型检查、实际渲染、支付或部署。当前状态见 [实施进度](../implementation-status.md)。
-
-### 5.2 M0–M4 必须实现的应用命令
-
-| 命令 | 行为 |
-| --- | --- |
-| `mise run init` | 检查依赖、生成安全示例配置、初始化本地 D1 和测试素材索引 |
-| `mise run dev` | 启动本地 Web/API 与开发绑定 |
-| `mise run dev:renderer` | 本地容器渲染服务，挂载仅测试任务目录 |
-| `mise run check` | 类型、静态检查、schema/config 校验和依赖许可检查 |
-| `mise run test` | 核心单元与集成测试 |
-| `mise run test:e2e` | 软件和课程两类流程 |
-| `mise run test:render` | 固定素材关键帧、ffprobe 和四构图验收 |
-| `mise run test:billing` | Waffo 签名、幂等、对账、额度、退款；模式明确 |
-| `mise run test:auth` | URI、OTP、身份关联、会话、CSRF、回跳、邀请及隔离；默认模拟邮件，真实预发布送达模式明确 |
-| `mise run check:i18n` | 稳定文案 key、插值、复数、网站英语首发 allowlist 与资源完整性；用户文案不受该名单限制 |
-| `mise run test:appearance` | System/Light/Dark、SSR 首屏、Cookie、缓存隔离、关键页面与成片样式隔离 |
-| `mise run build` | Web、Workers 和 renderer 镜像构建 |
-| `mise run deploy:preview` | 部署到独立预发布环境 |
-| `mise run smoke:preview` | 预发布资源、登录、素材、渲染、支付 test 连通性 |
-| `mise run deploy:production` | 使用生产配置和发布门槛执行既定发布流程 |
-
-上表是应用实施目标，当前文档仓库尚未提供这些应用命令；不要为填满命令表而创建返回成功的空脚本。
-
-命令应失败可读，不输出密钥；缺少 Waffo 资料时明确哪些集成未运行，不能退回 fake 支付后仍标全部通过。
-
-## 6 环境配置
-
-品牌配置见 `config/brand.json`，正式 `brandName=PromoBento`、`appUrl=https://promobento.com`。目标预发布域为 `https://staging.promobento.com`；域名控制权就绪前可使用实际受控的 HTTPS 测试地址，并同步登记回调。所有 URL 从服务端可信环境配置生成，不能采用任意请求 Host 或前端传入的 origin。配置中的 pending 是当前交付状态，不能当作运行时安全凭据或伪造已完成结果。
-
-| 用途 | 正式地址 |
-| --- | --- |
-| Google OAuth callback | `https://promobento.com/api/auth/google/callback` |
-| 登录、验证码、注册或关联确认 | `https://promobento.com/login`、`/login/verify`、`/login/link`；验证码不进 URL |
-| 认证邮件发信人 | `PromoBento <login@auth.promobento.com>`；预发布使用 `login@auth-staging.promobento.com` |
-| Waffo successUrl | `https://promobento.com/app/billing/orders/{localOrderId}` |
-| Waffo webhook | `https://promobento.com/api/payments/waffo/webhook` |
-| 帮助与支持 | `https://promobento.com/help` |
-| 政策 | `https://promobento.com/privacy`、`/terms`、`/refund-policy` |
-| 规划支持邮箱 | `support@promobento.com`，公开 mailto 前实测收件 |
-
-Google 同意页、允许来源和回调、Email Sending 发信域名与额度、Waffo 商店品牌、支持信息与域名验证需要实际配置。邮件使用 Workers Paid 和原生 `send_email` binding，具体 Beta 状态、DNS 认证、受控收件验收与真实发送边界见 [12](12-routing-and-auth.md)。平台品牌与真实商户主体分别填写。生产与预发布使用 host-only Cookie，不能设 Domain=.promobento.com 共享账号会话。Access 例外只覆盖经过设计的机器回调路径，Waffo test webhook 仍须验签；完整登录和付款往返按 06/12 验收。
-
-UI 视觉与组件用法由 [11](11-ui-design-spec.md) 定义，数值由 `config/ui-tokens.json` 和 `config/theme-tokens.json` 提供。先在 Cloudflare React Router 工程中接入 shadcn/ui 的 Base UI 方案，按实际使用引入源码和最新兼容稳定依赖；统一 tokens 与 portal/SSR 行为，不覆盖既定 Worker 配置。离线参考是设计文档，不是应用实现。
-
-语言配置见 `config/localization.json`，英语资源种子见 `locales/en.json`，主题初值见 `config/theme-tokens.json`。实施时补齐全部真实网站界面资源；UI allowlist 仅 en，不包含视频语言名单或默认值。用户文字、混排与可选内容元数据和 uiLocale 分离，不引入视频语言选择或识别确认流程。主题 Cookie、CSS、SSR 和缓存规则以 10 为准。
-
-Worker bindings 包括 D1、R2、两条业务队列及 DLQ、DO、AI、认证邮件 `EMAIL` 和可选 Analytics Engine。密钥包括 Google OAuth 客户端凭据、`AUTH_OTP_SECRET` 与独立的 CSRF 认证材料、Waffo 商户私钥与环境验证配置、服务间认证材料；应用会话采用不透明随机 token，仅存 hash。原生邮件 binding 不额外向浏览器暴露邮件 API key。生产 secrets 通过 Cloudflare secret 管理，不能放入前端变量、Docker 镜像或提交仓库。
-
-Waffo 配置需有 mode、merchant ID、store ID、两个商品 ID、API 基址、验证公钥或受控 SDK 环境，以及 webhook 路径。test 与 production 在启动和健康检查时校验不混用。API 接收前端 SKU 标识，不接受任意 merchant、商品 ID 或金额。
-
-## 7 默认决策与可配置项
-
-不可因开发方便改变：PromoBento / promobento.com、两个首批人群、Waffo、Cloudflare、React、mise、六个平台预设、真实浏览器预览、按项目版本收费、失败与重复保护、私有素材、事实确认、网站国际化与英语首发、用户文案语言自由、System / Light / Dark。
-
-可配置但必须留记录：价格、AI 配额、素材处理预算、工作区人数、保留期、并发、模板默认值、模型 ID、平台推荐值与性能预算。变更不得追溯减少已购买的权益，订单保存购买时的政策快照。
-
-P0 尚未完成验收的网址抓取、增强自动 TTS、逐词字幕与平台自动发布不得提供可点击的假入口；自由动画、程序化作曲/SFX、QA 和点选改稿必须真实实现后才能宣传。未来功能可在文档里列 P1；生产页面只承诺已可用能力。
-
-## 8 核心契约要求
-
-配置样例是实施输入，不是可直接部署的全部代码。Codex 需要根据 `contracts/composition.example.json` 建立自由代码 Composition 协议；`contracts/scene.example.json` 只作旧场景迁移 fixture，不可设为代码创作白名单；还需完成 schema 与迁移，根据 `config/platform-presets.json` 生成类型与校验器，并根据 `contracts/export-manifest.example.json` 实现文件映射。`config/routes.json` 生成共享路由构建/匹配来源，`config/auth.json` 定义认证策略；仍需实现服务端 guard、flow 状态机、D1 约束、邮件适配和真实测试，不能把 JSON 当已运行鉴权。品牌、locale、主题和英文资源种子也必须建立类型和校验；界面语言 uiLocale 与网站外观开关不影响订单身份或视频指纹，实际用于视频排版的可选语言元数据、direction 和 videoStyle 按内容版本规则冻结。
-
-最低约束包括 450/900 帧且 30 fps、事实均已确认、素材属于当前租户、选择的 Variants 属于现有平台预设且支持同版补齐合法构图、封面时间有效、音轨长度合法、版本快照不可变、相同指纹可复用。带 `exampleOnly` 或 `fixture_placeholder` 的样例只用于契约和本地测试；生产 API 必须拒绝占位素材，不能把示例 hash 当成真实文件验证记录。
-
-服务端回调测试必须使用原始请求字节与真实提供商规范；内部 `BillingAdapter` 方法是本产品接口，不能假设 Waffo SDK 拥有同名方法。协议调整时更新适配层和契约测试，避免散布到页面代码。
-
-## 9 实施中必须先证明的事项
-
-第一，Agent 能实际生成非模板动画源码、ABC/音效、真实抽帧和可播放 MP4。第二，Container 的真实 Linux 字体、视频解码、seek、截图和编码在目标规格可用。第三，Waffo SDK 或其官方 REST 认证在 workerd 可用，签名时间单位正确。第四，D1 额度和 outbox 的条件写可以通过实际并发与中断测试。第五，创作与渲染沙箱的权限、资源预算在真实平台验证；所有合法预设的复杂动画不能丢失关键信息。
-
-这些应在对应阶段用最小垂直切片解决。不能为了规避难点改变支付商、部署厂商，或把真实导出换成浏览器录屏下载而不说明。
-
-## 10 完成报告格式
-
-实施者交付时列出已实现功能、未实现 P0、已运行命令、真实环境、测试与样片证据、费用样本、故障与恢复路径、剩余账户资料及运行说明。若某项只在测试环境验证，应直接说明。
-
-完整交付至少包含代码、锁文件、迁移、环境示例、构建与部署说明、必要自动化测试、样片、许可证清单、生产健康检查和运营操作指南。文档中“可用”必须对应可运行功能。
+列出实际修改、运行命令和环境、成功/失败及未实现P0、样片和关键外部证据、费用、恢复路径、剩余账户资料。只在实现或关键验证状态变化时更新进度；普通检查不新增冗余过程档案。最终交付包括锁文件、真实迁移、部署/运维、安全与许可清单、自动化、生产健康与回滚，而不是只给规格。

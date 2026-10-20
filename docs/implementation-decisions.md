@@ -1,102 +1,43 @@
 # 实施决策记录
 
-本文件记录仓库结构和实际实现选择。产品层决定与外部来源仍由 [09 来源与决策](prd/09-sources-and-decisions.md) 维护。
+产品决定与外部来源在 [09](prd/09-sources-and-decisions.md)，当前工程协议在 [14](prd/14-production-contracts.md)。已有决策的完整历史保存在不可变基线 [750edd1 的原记录](https://github.com/ten2ten2/promobento/blob/750edd1084a1470dfd785f9b9083e6eb14d2e6ad/docs/implementation-decisions.md)。下面保留有效含义并修复重复编号；不重写当时的验收结果。
 
-## REPO-001 — 以 PRD v1.1 建立初始仓库
+## REPO-001 — 初始文档仓库
+2026-10-19。PRD按职责拆分、配置和契约保留单一来源；初始文件数只描述历史版本，不作为当前清单。
 
-- 日期：2026-10-19，Asia/Shanghai。
-- 状态：已采用。
-- 决策：11 份 PRD Markdown 放在 `docs/prd/`；4 份配置、1 份英语资源、2 份契约示例分别放在根 `config/`、`locales/`、`contracts/`。
-- 原因：根目录承担仓库接手，PRD 专章完整保留；配置只保留一份，`locales/en.json` 等资源路径相对于仓库根目录可直接解析。
-- 影响：PRD 索引的资源链接已更新；08 明确区分当前仓库检查与待实施的应用命令。产品范围、支付政策和 JSON 种子内容没有因目录搬迁而调整。
-- 未来：应用建立后，如将种子移动到共享 package，必须同时更新引用并记录哪个文件是权威源、哪个文件由构建生成。
+## REPO-002 — 历史文档工具版本
+2026-10-19。原Node24.19.0/pnpm11.25.0为历史基线，由REPO-004取代；当时的 [仓库检查记录](evidence/repository-check.md) 不证明Cloudflare或支付兼容性。
 
-## REPO-002 — 文档工具使用实际验证版本
+## REPO-003 — 命令与实际实现一致
+2026-10-19。应用目录和dev/build/deploy命令随真实实现创建，不添加返回成功的空脚本；当前参考契约测试与生产实现分开。
 
-- 日期：2026-10-19。
-- 状态：历史基线；当前工具与版本政策由 REPO-004 取代。
-- 决策：Node.js `24.19.0`，pnpm `11.25.0`；`.mise.toml` 精确固定，根 `package.json` 标记 `private: true`，只暴露 `check:repo`。
-- 依据：这两个版本来自本次实际执行环境，检查工具使用 Node 内置模块。验证记录见 [repository-check](evidence/repository-check.md)。
-- 限制：此处不宣称它们已经验证 React Router、Cloudflare 或 Waffo SDK 兼容性。M0 根据实施当日官方模板和 SDK 核查后锁定实际应用组合，必要时更新此记录和锁文件。
-- 任务定义参考：[mise TOML tasks](https://mise.jdx.dev/tasks/toml-tasks.html)。本次未在交付环境运行 mise CLI。
-
-## REPO-003 — 应用命令随真实实现添加
-
-- 日期：2026-10-19。
-- 状态：已采用。
-- 决策：当前不建立空的应用工作区、空运行时测试或返回成功的 dev/build/deploy 占位脚本；下一步从 M0 产生真实代码后建立对应目录、工作区、CI 和运行命令。
-- 原因：让可运行能力与文档中的实现目标清晰对应，保留 Codex 使用官方工程模板初始化的空间。
-- 影响：本仓库当前能检查规格和种子关系，完整产品仍需完成 M0–M4。
-
-## REPO-004 — 简短 AGENTS、mise 与平台兼容优先
-
-- 日期：2026-10-19。
-- 状态：已采用；平台实际部署验证仍属于 M0。
-- 用户要求：依赖优先最新正式版并考虑兼容限制；mise 为确定方案；文件变更直接提交 remote main。
-- 决策：根 AGENTS 只保留任务导航、标准命令、工程规则和少数跨模块约束。业务细节保留在 PRD，动态进度保留在状态文件。
-- 工具：本次采用 mise 2026.10.13、Node 26.12.0、pnpm 12.14.0；精确版本来自本次官方核查，不能沿用“环境里已装所以就选它”的判断。
-- 版本选择：以 [依赖策略](dependency-policy.md) 为准。Workers Builds 的实际安装版本、workerd 的 API 兼容和 renderer 的镜像依赖分别验证；不以本地 Node 检查替代平台测试。
-- 复现：mise 统一工具和任务入口；包安装读取已提交的冻结锁文件。普通修改不自动升级所有依赖，兼容例外须有具体原因和重新评估条件。
-- 验证：[本次实际记录](evidence/toolchain-2026-10-19.md)。应用尚无依赖或部署，当前结果只覆盖仓库工具链。
-- AGENTS 用法参考：[OpenAI 官方说明](https://learn.chatgpt.com/docs/agent-configuration/agents-md)。后续子模块出现特有要求时，就近添加简短指引，不在根文件复制整个业务规格。
+## REPO-004 — mise、兼容优先、直接main
+2026-10-19。mise作为工具/任务入口；依目标部署兼容性选正式版本、精确锁定。既有Node26.12.0/pnpm12.14.0与mise最低2026.10.13不因本地环境不同而改写。按 [依赖政策](dependency-policy.md) 复现，普通修改不自动升级；历史 [工具链验证](evidence/toolchain-2026-10-19.md) 只适用于当时环境。完成变更直接快进remote main并检查HEAD。
 
 ## REPO-005 — 网站国际化与用户文案分离
+2026-10-19。网站英语首发；视频文字可同片/同段任意语言混排，不要求选择/确认语言。网站资源、主题、成片源码及收费相互独立。原文/字体/方向随revision冻结，按实际字形验收，不禁用整种语言。历史 [边界检查](evidence/website-i18n-boundary-2026-10-19.md) 保留原适用范围。
 
-- 日期：2026-10-19。
-- 状态：规格、配置种子与仓库检查已修正；应用仍待 M0–M4 实现及验证。
-- 用户最终澄清：“多语言能力、首发英语”均指网站。视频文案是用户自由内容，可同片、同场景、同段混用任意语言，不需要先选择语言。
-- 修正：撤销此前对视频文案的英语限制，也撤销本轮草稿中新增的视频语言选择器和识别确认步骤。网站国际化采用现有 i18next 架构，首发 UI allowlist 仅 en；后续增加完整网站语言。
-- 配置：localization.json 的 scope 为 website_ui，schemaVersion 2.0.0；删除视频语言名单、默认值、选择器及对应拒绝错误。网站和 Waffo 收银台的英语配置继续独立。
-- 内容：默认保留原文及有意混排。普通生成/改写遵循各字段的语言，显式语言指令只作用于用户指定内容；识别仅辅助排版，不是创建或导出的前提。language 可作为可选内容元数据，实际使用的文本、方向和字体随快照固定。
-- 计费与验收：沿用原 AI 次数、事实确认、不可变购买与按内容版本计费；不增加语言费用。检查实际字形、RTL/混排与预览导出一致性，问题按字段定位；不宣称所有语言都已完成渲染实测。
-- 验证：[网站国际化边界检查](evidence/website-i18n-boundary-2026-10-19.md)。历史 evidence 保留原结果，不再定义当前用户文案的语言范围。
+## REPO-006 — UI来源与组件
+2026-10-19。采用可生成的离线参考、shadcn/ui Base UI、Tailwind、Lucide和统一tokens；早期配色/字体已由008取代。参考不等于生产应用。历史 [UI记录](evidence/ui-spec-2026-10-19.md) 不覆盖后续Studio。
 
-## REPO-006 — UI 规范与可生成参考
+## REPO-007 — 图标主题与记忆
+2026-10-19。默认System，头部太阳/月亮表示下一动作；点击后持久化Light/Dark，设置和公开页提供Use device setting。生产Cookie、串行写入、SSR/cache隔离见10，离线localStorage只演示。原 [主题检查](evidence/theme-toggle-2026-10-19.md) 保留。
 
-- 日期：2026-10-19。
-- 状态：参考生成方式与组件体系继续沿用；视觉方向与网站字体已由 REPO-008 取代，实际应用仍按 M0–M4 实施。
-- 用户要求：制定 UI 规范，并沿用已有直接维护 main 的约定。
-- 决策：PRD 升至 1.2，新增 11 UI 专章；中性工作台配色，紫色操作强调；Inter、Lucide、Tailwind 与 shadcn/ui 的 Base UI 版本。
-- 依据：当前 shadcn 新项目默认 Base UI；本项目尚无旧 primitives，采用当前默认并在未来引入时显式记录。官方来源见 [11](prd/11-ui-design-spec.md)。
-- 单一来源：theme-tokens 保存颜色；ui-tokens 保存字体/尺寸/层级与映射；参考 HTML 从模板与配置生成。参考页的系统字体回退、交互与状态只用于离线审阅，不充当生产 UI。
-- 版本与边界：本次不安装应用依赖，mise 工具版本及包锁文件保持原解析结果；应用初始化时再选最新兼容稳定依赖并锁定。价格、付款、平台、网站语言与用户文案边界继续按原专章执行。
-- 验证：[UI 规范与参考页记录](evidence/ui-spec-2026-10-19.md)。
+## REPO-008 — 杂志排版与专业工具配色
+2026-10-20。用户选择衬线品牌/大标题、无衬线控件、白/炭灰与蓝灰动作色；网站Georgia/Times、Arial/Helvetica系统栈，视频字体独立。theme/ui tokens与原四页参考继续保留，未新增字体下载。
 
-## REPO-007 — 图标主题切换与显式偏好记忆
+## REPO-009 — URI与Google/邮箱验证码
+2026-10-20。原PRD1.4与12、routes/auth seeds定义统一URI、Google+email OTP、独立user与identity、双证明显式关联、Cloudflare Email Sending。保持host-only Cookie、用途证明、幂等、同源保护及真实邮件验收；不因视频升级重做认证。
 
-- 日期：2026-10-19。
-- 用户要求：主题入口简化为图标，默认跟随系统，点击后记住选择。
-- 决策：头部使用单个太阳/月亮按钮，图标与可访问名称表达下一步动作；点击按当前有效主题取反并保存 Light / Dark。Settings 的 Use device setting 恢复 System，头部不提供三选菜单或三态循环。
-- 持久化：生产沿用服务端 Cookie、SSR 与缓存方案，只在用户操作时保存；快速点击的写入串行并合并尚未发送的选择，最终以最后一次用户意图为准。离线参考用独立的浏览器存储演示记忆，不能作为生产 Cookie 实现。
-- 影响：同步 UI/主题规范、关键英文文案和参考控制；原配色、字体、页面视觉方向及应用依赖版本不因主题入口调整而改变。
-- 验证：[图标主题切换记录](evidence/theme-toggle-2026-10-19.md)。实际 React/Cloudflare 产品的 Cookie、SSR 与缓存验收仍待实施。
+## REPO-010 — v2.2自由视频创作
+2026-10-20。原记录第二个REPO-009更正为010。参考huashu-motion固定commit `5f2608c2e12abcf518f74dde86093b19f7f88603`，Director/Coding Agent/ABC-SFX/真实QA/点选改稿，视频只有15/30秒与现有预设，动画创作无固定场景/风格枚举。许可按PORT/ADAPT/REBUILD审核；GSAP、字体、音色、作者形象分开处理。原记录仅是规格交付，未证明运行应用。
 
-## REPO-008 — 杂志排版主体与专业工具配色
+## REPO-011 — v2.2 consistency-1生产契约
+2026-10-20。本轮按审查P0-01..10和P1修订，不新增产品大版本。新增14和机器契约2.2.1；唯一project_revisions，all-target源包付款前冻结、后续仅编码；creative_generate/agent_patch各一次可用候选交付消费，内部修复/准备平台不多扣；BLOCK不可豁免，FactManifest绑定用户确认而非自动担保。
 
-- 日期：2026-10-20，Asia/Shanghai。
-- 用户决定：审阅组合预览后确认实施；沿用直接维护 main 的约定。
-- 方案：公开页采用衬线标题、留白、细分隔线与作品展示；表单和编辑器保留无衬线字体与紧凑操作布局。全站共用白/炭灰表面及蓝灰操作色，减少普通容器的圆角与投影。
-- 字体：网站使用 Georgia/Times 的衬线回退栈及 Arial/Helvetica 的无衬线回退栈，不新增字体下载依赖。实际系统字形与换行按目标浏览器验收；视频字体仍由独立内容快照与渲染资源固定。
-- 来源：颜色与状态仍由 `config/theme-tokens.json` 维护，字体和尺寸由 `config/ui-tokens.json` 维护；四页参考从模板生成。PRD 文档组为 v1.3，UI 规范为 v1.1。
-- 验证与边界：本次检查结果随提交说明报告，不新增日常 evidence 档案。主题偏好行为、网站国际化、客户混排文案、账务和平台规则继续按原专章执行；参考交付不代表应用里程碑完成。
+统一87条路由，删除尚未上线的storyboards/rewrites而非长期双栈；不增加第二套release/restore URI。补充渲染会话身份、CAS/状态/预算、全局4容器和M0b实际Cloudflare门槛。保留所有原商品价格、认证、平台数值和保留/退款规则。
 
-## REPO-009 — 统一 URI 种子与双方式登录规格
-
-- 日期：2026-10-20，Asia/Shanghai；适用 P0，当前为规格与配置交付。
-- 用户要求：完善 URI，并增加邮件登录。
-- 决策：PRD v1.4 新增 12 专章；`config/routes.json` 集中方法/路径、身份与索引规则，`config/auth.json` 保存验证码、会话及邮件默认配置，品牌既有回跳值与 route ID 校验同步。
-- 认证：Google OIDC + 邮箱验证码；身份与业务 user 分开，显式证明后关联，禁止自动迁移既有 identity。未知 Google 身份先通用确认；同邮箱资料不能阻止真实邮箱注册，也不能提供旧账号权限。
-- 传输：Cloudflare Email Sending 原生 binding，保持当前部署栈，不新增 Node 邮件 SDK；Beta、发送域与实际额度/送达门槛见 [12](prd/12-routing-and-auth.md)。
-- 范围：UI v1.2 补认证界面与英语邮件文案；四页离线参考及依赖锁定不变。检查随提交报告，不新增日常 evidence；真实认证、投递、云资源和 M0–M4 仍未实现。
+本地实际验证范围为JSON Schema、fixtures/语义反例、内存状态/额度/CAS参考以及离线参考结构；不是D1事务、真实浏览器隔离、云资源、Agent模型或Waffo实现。结果随提交报告；Node22.16.0与仓库固定工具不同，不宣称mise全套通过。新增Agent参考是设计状态，不是视频输出。
 
 ## 后续记录格式
-
-新增实际决策时使用以下字段：决策 ID、日期、适用阶段、问题、所采用方案、原因、实际版本或配置、影响的 PRD/代码、验证证据、未解决限制。不要把未经执行的选项写成已验证结论。
-
-## REPO-009 — v2.2 Agent-Native 视频创作规格整合
-
-- 日期：2026-10-20。基线：`alchaincyf/huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603`；以 [PRD 13](prd/13-agent-native-production.md) 为设计依据，实际源码移植须继续审核。
-- 产品硬边界：只允许 15 秒/30 秒（30 fps），只用已登记的六个平台预设。导演、镜头数量、视觉风格、动画代码和实现技术不受原六场景/三结构/两样式枚举限制。
-- 既定业务边界保留：Google + 邮箱验证码、网站 en 首发而用户视频文案任意混排、Cloudflare、Waffo、mise、UI 主题、工作区与账务原子性。
-- 原有 `contracts/scene.example.json` 仅为 v1.x 迁移用例；新增 Composition 与 EditRequest 示例均是非运行证据。创作 Agent、ABC/SFX、视频 QA、Studio 改稿和沙箱还未实施。
-- 许可处理：PORT/ADAPT/REBUILD 分开；GSAP、字体、音色采样和作者形象另核，不从上游直接无审核打包。
+使用唯一ID、日期、范围、采用方案、依据、验证环境/结果和限制。普通检查不新增过程档案，应用状态只在真实实现与证据齐备时更新。

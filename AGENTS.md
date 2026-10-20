@@ -2,17 +2,16 @@
 
 ## Start here
 
-- Read `README.md` and `docs/implementation-status.md`; use `docs/prd/README.md` to find requirements relevant to the task.
-- For initial application implementation, read PRD chapters 01, 04, 08 **and 13**, plus `docs/v2.2-CODEX_START.md`, then continue from the current unfinished milestone.
-- Chapter 03 owns export formats, 05 billing, 10 localization/themes, 11 UI design, 12 URI/authentication, and **13 free-source Composition / Director / ABC audio / video QA / Agent Studio** rules. Apply the user's latest explicit decisions and keep related specifications consistent.
-- Code-style paths in the PRD are relative to the repository root; Markdown links are relative to their containing file.
+- Read `README.md` and `docs/implementation-status.md`; use `docs/prd/README.md` to find task-specific requirements.
+- For application implementation, read 01, 04, 08, 13 and **14**, plus `docs/v2.2-CODEX_START.md`. Continue from the actual unfinished milestone, not the highest document version.
+- 03 owns output formats, 05 billing/refunds, 10 website language/themes and unrestricted mixed-language video text, 11 UI, 12 authentication/URI, 13 creative methods, and 14 cross-system contracts. Keep related specifications consistent.
+- Code-style paths in PRDs are repository-root relative; Markdown links are relative to the containing file.
 
 ## Toolchain
 
-- Use mise for tool versions and project tasks, and pnpm for packages. The agreed application stack is React/TypeScript, Cloudflare, and Waffo.
-- At bootstrap or an intentional dependency change, select the latest stable release compatible with the target deployment platform and the other dependencies.
-- Follow `docs/dependency-policy.md`; record concrete compatibility exceptions. Pin resolved versions in `.mise.toml` and commit generated lockfiles.
-- Normal installs reproduce the lockfiles; unrelated edits do not trigger automatic dependency upgrades.
+- Use mise for tool versions/tasks and pnpm for packages. Retain React/TypeScript, Cloudflare and Waffo.
+- At bootstrap or intentional dependency updates, choose current stable versions **within deployment and dependency compatibility bounds**, then pin exact versions and commit generated lockfiles. Follow `docs/dependency-policy.md`.
+- Normal installs reproduce the lockfile. Unrelated edits do not upgrade dependencies or replace pins with whatever is installed locally.
 
 ## Commands
 
@@ -21,22 +20,27 @@ mise trust
 mise install
 mise run install
 mise run check:repo
+mise run check:contracts
+mise run test:contracts
 mise run check:ui-reference
+mise run check:agent-reference
 ```
 
-Application commands in PRD chapter 08 are implementation targets. Add their mise tasks with real implementations.
+Application build/test/deploy commands in08 are targets until real implementations exist. Contract reference tests are not runtime D1, browser isolation, payment or video tests.
 
-## Code and product boundaries
+## Product and code boundaries
 
-- Follow existing module boundaries and `.editorconfig`; keep shared contracts and configuration authoritative in one place.
-- Treat executable Composition source as video truth; allow freely Agent-authored animations **only in isolated sandboxes**. Share deterministic frame seeking between preview and render. Do not hardcode scene/style enums. Videos must be 15/30s @30fps using existing platform presets. Website UI locale/theme is separate; user video copy may mix languages.
-- Preserve tenant isolation, immutable snapshots, server-verified payment rights, and idempotent billing; chapter 05 defines the exact transaction rules.
-- Validate external input at application boundaries. Keep credentials and private customer assets out of source, bundles, logs, and committed evidence.
-- Check applicable licenses when introducing third-party code or assets. Pin huashu-motion adoption to an audited commit; GSAP, samples, fonts and author character have separate restrictions. Keep generated JS off the main origin and do not expose secrets or cross-tenant assets. Keep detailed business rules in the PRD rather than duplicating them here.
+- Composition source is video truth. Allow Agent-authored custom animation **only in isolated execution environments**; share deterministic frame logic between preview and render. Do not hardcode scene/style/animation enums.
+- Keep output strictly15/30 seconds at30fps, using existing six platform presets. Website locale/theme never changes video text, frames or billing. User video copy may mix languages.
+- Use one `project_revisions` identity and guarded draft-pointer updates. Freeze **all legal preset/aspect source variants before payment**, encode later, and never invoke an Agent to invent a missing paid variant.
+- Preserve tenant isolation, immutable snapshots, existing Google+email authentication, server-verified payment rights, idempotent ledgers and refund protections.14 defines creative-operation metering;05 retains purchased entitlements.
+- Validate external inputs, resources and long-running permissions server-side. No platform/payment/model secrets in generated code, browser previews, images, logs or evidence.
+- Audit third-party code/assets separately. Pin reviewed huashu-motion adoptions; GSAP, fonts, samples and the author character are not automatically covered by a repository MIT license.
 
 ## Verification and handoff
 
-- Run the checks affected by the change through mise. Separate local checks from Cloudflare build, workerd, container, and payment-provider verification.
-- When an external account or credential is missing, continue unaffected work and identify the integration that remains unverified.
-- Update implementation status and material decisions when they change. Report the changes, checks actually run, and remaining limitations.
-- Commit completed changes directly to remote `main` unless the user requests another target; use fast-forward updates and preserve existing remote work.
+- Run affected checks through mise and report the actual environment. If pinned tools are unavailable, state which compatible local checks ran and which did not; never claim the full toolchain passed.
+- Keep application progress distinct from documentation/schema/reference tests. M0b requires real Cloudflare capability, recovery and isolation evidence; local PoC does not satisfy that gate.
+- Missing external credentials do not block unrelated work. Report the specific unverified integrations.
+- Update meaningful decisions/status without creating routine evidence diaries. Preserve existing source files and remote changes.
+- Commit completed changes directly to remote `main` unless directed otherwise; use fast-forward updates with an expected-head check.
