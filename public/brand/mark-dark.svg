@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>PromoBento mark — single color, dark</title>
+  <defs>
+    <clipPath id="head">
+      <circle cx="510" cy="560" r="290"/>
+    </clipPath>
+    <!-- everything above the gap, so the ear roots stop at the hood line -->
+    <clipPath id="above">
+      <path d="M 0 0 H 1024 V 348 C 900 368 700 348 640 418 Q 585 488 530 418 C 470 348 160 368 0 348 Z"/>
+    </clipPath>
+  </defs>
+  <!-- one color on transparent: hood and face are separate pieces with a gap between them,
+       eyes and nose are holes cut through the face -->
+  <g transform="translate(512 512) scale(1.15) translate(-545 -465)" fill="#4A3B35">
+    <!-- ears -->
+    <path d="M 395 400 L 375 160" fill="none" stroke="#4A3B35" stroke-width="160" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#above)"/>
+    <path d="M 630 400 L 660 240 L 785 282" fill="none" stroke="#4A3B35" stroke-width="160" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#above)"/>
+    <!-- hood, its lower edge pulled up to open the gap -->
+    <path d="M 0 0 H 1024 V 348 C 900 368 700 348 640 418 Q 585 488 530 418 C 470 348 160 368 0 348 Z" clip-path="url(#head)"/>
+    <!-- face, its upper edge pushed down to open the gap, with eye and nose holes -->
+    <path fill-rule="evenodd" clip-path="url(#head)" d="M 0 376 C 160 396 470 376 530 446 Q 585 516 640 446 C 700 376 900 396 1024 376 V 1024 H 0 Z M 477 600 a 38 38 0 1 0 76 0 a 38 38 0 1 0 -76 0 Z M 627 592 a 38 38 0 1 0 76 0 a 38 38 0 1 0 -76 0 Z M 568 667 a 24 17 0 1 0 48 0 a 24 17 0 1 0 -48 0 Z"/>
+  </g>
+</svg>

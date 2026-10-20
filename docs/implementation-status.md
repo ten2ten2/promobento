@@ -5,6 +5,7 @@
 - `packages/contracts` 提供 JCS、原始 JSON 解析、显式字段白名单的内容/产物身份及按 discriminator 分派的完整 Ajv Draft 2020-12 校验。
 - 契约参考覆盖无 QA 草稿、可复用报告/版本关联/成员豁免、Q2 实际输出绑定、冻结音频，以及试用、计费、授权和状态边界。
 - Studio 的项目动作、普通编辑/CAS、作业进度、预览会话与 inspect，以及 costEvent 已有结构和反例测试；运行时补有受控画布、固定 PTS、字体/值声明。本地回放和可信取帧仍是待实现接口。
+- [品牌图标与分享卡片](../public/brand/README.md)已入库，离线 Studio 使用同一组标志；生产网站的 head、分享元数据和安装入口尚未接入。
 - Waffo Prompt Sift 有默认关闭的服务端策略与可注入的参考适配、错误/重试测试；真实鉴权、队列和输出展示前审核尚未接入。
 - `scripts/agent-setup.sh` 准备精确工具链与冻结依赖；仓库检查覆盖政策草稿的链接/锚点/变量登记和平台执行规则版本变化。
 - `.github/workflows/checks.yml` 在 `main` 推送和 PR 上使用固定 mise 工具链执行检查；实际运行结果以对应提交的 CI 为准。

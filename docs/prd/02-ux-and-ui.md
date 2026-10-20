@@ -17,7 +17,7 @@
 
 ## 2 视觉系统与基础组件
 
-[UI tokens](../../config/ui-tokens.json) 是字体、字号、尺寸、间距、层级和动效数值的唯一来源；[主题 tokens](../../config/theme-tokens.json) 是颜色与配对的唯一来源。品牌使用 PromoBento 文字字标，取 `typography.styles.wordmark`，四周至少保留 `spacing.3`。公开标题用 display 字体，正文、控件和编辑器用 sans；不在编辑器与数据中过度使用衬线或斜体。每个操作区域只有一个主要 CTA，两个人群入口同层级，视觉不能暗示未经证明的效果或收益。
+[UI tokens](../../config/ui-tokens.json) 是字体、字号、尺寸、间距、层级和动效数值的唯一来源；[主题 tokens](../../config/theme-tokens.json) 是界面颜色与配对的唯一来源。品牌可组合兔子标志与 PromoBento 文字字标，字标取 `typography.styles.wordmark`，四周至少保留 `spacing.3`。品牌图形的橙、奶油与可可色仅用于素材，不替换界面主题；图标、分享图和使用说明见[品牌素材](../../public/brand/README.md)。公开标题用 display 字体，正文、控件和编辑器用 sans；不在编辑器与数据中过度使用衬线或斜体。每个操作区域只有一个主要 CTA，两个人群入口同层级，视觉不能暗示未经证明的效果或收益。
 
 | 用途 | token 与使用要求 |
 | --- | --- |
@@ -52,7 +52,7 @@ Studio 在 `breakpoints.xl` 及以上采用镜头标记栏、弹性画布、属�
 
 ## 4 首页、登录与设置
 
-首页主文案为 “Turn your product or course into a promo video.”，辅助为 “Use your real assets. Direct the motion, refine any frame, and export for your channels.”。软件与课程入口同级。CTA 旁显示一次样片试用、正式下载起价及继续创作的项目包入口，金额和可用次数取服务端目录，不在 UI 维护另一套价格。手机首屏主标题、创建按钮与付费边界可读，作品自然向下延伸。样片来源和演示品牌明确，无虚构评价、客户 Logo 或购买结果；SSR 与搜索要求见 07。
+首页 H1 取 `marketing.headline`，辅助文案取 `marketing.description`；它们说明产品用途和创作方式。`marketing.tagline` 是品牌口号，用于页脚、品牌介绍与分享图片，不能替代首次访问时的功能说明。英文正文见 [locales/en.json](../../locales/en.json)，与[品牌配置](../../config/brand.json)中的对应字段保持一致；各位置的使用规则见[品牌素材](../../public/brand/README.md)。软件与课程入口同级。CTA 旁显示一次样片试用、正式下载起价及继续创作的项目包入口，金额和可用次数取服务端目录，不在 UI 维护另一套价格。手机首屏主标题、创建按钮与付费边界可读，作品自然向下延伸。样片来源和演示品牌明确，无虚构评价、客户 Logo 或购买结果；SSR 与搜索要求见 07。
 
 登录使用约 480px 单列，包含 Continue with Google 和 Email address / Send sign-in code。邮箱 autocomplete=email，关闭自动首字母与拼写；不提供密码或找回密码页。验证码用单个 text/inputmode=numeric/autocomplete=one-time-code 输入，支持整段粘贴和前导零；填满后仍须明确 Verify and continue。
 

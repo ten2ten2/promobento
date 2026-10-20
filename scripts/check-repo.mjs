@@ -43,7 +43,7 @@ function main(){
  }catch(error){failures.push(error.message);}
  expect(!Object.hasOwn(brand,'domainLookup'),'Stale domain quote retained');
  expect(brand.brandName==='PromoBento'&&brand.appUrl==='https://promobento.com','Brand changed');
- expect(brand.description===messages.marketing.description&&brand.tagline===messages.marketing.headline,'Marketing sources differ');
+ for(const key of ['headline','tagline','description'])expect(typeof brand[key]==='string'&&brand[key]===messages.marketing[key],'Marketing sources differ: '+key);
  expect(locale.scope==='website_ui'&&same(locale.supportedUiLocales,['en']),'Website locale scope');
  expect(!Object.hasOwn(locale,'supportedVideoLanguages')&&!Object.hasOwn(locale,'defaultVideoLanguage'),'Video language allowlist forbidden');
  expect(locale.uiLanguages?.en?.resourceFile==='locales/en.json'&&locale.selection?.showUiLanguageSwitcher===false,'UI resource/switcher');

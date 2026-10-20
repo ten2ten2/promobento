@@ -5,9 +5,25 @@
   "brandSlug": "promobento",
   "appUrl": "https://promobento.com",
   "stagingUrl": "https://staging.promobento.com",
-  "tagline": "Turn your product or course into a promo video.",
+  "headline": "Turn your product or course into a promo video.",
+  "tagline": "Promo videos, packed like a bento.",
   "description": "Use your real assets. Direct the motion, refine any frame, and export for your channels.",
   "category": "AI Promo Video Maker",
+  "assets": {
+    "icon": "/icon.svg",
+    "favicon": "/favicon.ico",
+    "appleTouchIcon": "/apple-touch-icon.png",
+    "manifest": "/manifest.webmanifest",
+    "mark": "/brand/mark.svg",
+    "markDark": "/brand/mark-dark.svg",
+    "markWhite": "/brand/mark-white.svg",
+    "socialImage": {
+      "path": "/og-image.png",
+      "width": 1200,
+      "height": 630,
+      "altMessageKey": "marketing.socialImageAlt"
+    }
+  },
   "defaultUiLocale": "en",
   "supportEmail": "support@promobento.com",
   "legalEntityName": null,

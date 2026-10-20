@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>PromoBento mark — head only, color</title>
+  <defs>
+    <clipPath id="head">
+      <circle cx="510" cy="560" r="290"/>
+    </clipPath>
+  </defs>
+  <!-- background: orange keeps the cream face visible on any page -->
+  <rect width="1024" height="1024" fill="#F0A868"/>
+  <!-- head mark centered, for favicons and avatars -->
+  <g transform="translate(512 512) scale(1.15) translate(-545 -465)">
+    <!-- ears (C2) -->
+    <path d="M 395 400 L 375 160" fill="none" stroke="#4A3B35" stroke-width="160" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 630 400 L 660 240 L 785 282" fill="none" stroke="#4A3B35" stroke-width="160" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- face (C1) -->
+    <path d="M 0 360 C 160 380 470 360 530 430 Q 585 500 640 430 C 700 360 900 380 1024 360 V 1024 H 0 Z" fill="#FFF8EC" clip-path="url(#head)"/>
+    <!-- hood (C2) -->
+    <path d="M 0 0 H 1024 V 364 C 900 384 700 364 640 434 Q 585 504 530 434 C 470 364 160 384 0 364 Z" fill="#4A3B35" clip-path="url(#head)"/>
+    <!-- eyes and nose (C2) -->
+    <circle cx="515" cy="600" r="38" fill="#4A3B35"/>
+    <circle cx="665" cy="592" r="38" fill="#4A3B35"/>
+    <ellipse cx="592" cy="667" rx="24" ry="17" fill="#4A3B35"/>
+  </g>
+</svg>
