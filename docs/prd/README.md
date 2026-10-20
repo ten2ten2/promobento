@@ -20,7 +20,7 @@
 | [13 导演、声音与改稿](13-agent-native-production.md) | 自由创作方法、宣传真实性、音画和编辑工作流 |
 | [14 生产契约与状态](14-production-contracts.md) | 类型、状态、hash、预算、授权证据与跨系统不变量 |
 
-文档说明行为，配置保存机器数值，Schema 定义传输结构，共享契约库实现结构校验和摘要，14 定义跨字段语义；routes 是页面/API 注册表。消费章节引用负责来源，不另维护价格、期限或里程碑。冲突须同步修复全部消费者。
+文档说明行为，配置保存机器数值，Schema 定义传输结构，共享契约库实现结构校验和摘要，14 定义跨字段语义；routes 是页面/API 注册表。网站完整正文是这些规则的对外表达，构建上下文示例不是第二套权威配置。消费章节引用负责来源，不另维护价格、期限或里程碑。冲突须同步修复全部消费者。
 
 ## 配置与机器契约
 
@@ -30,6 +30,7 @@
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
 | [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态与公开能力边界 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
+| [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 唯一视觉数值 |
 | [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、完整 Ajv 校验与身份计算的唯一实现 |
 | [JSON Schema](../../contracts/production.schema.json)、[创作 API](../../contracts/composition-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 结构、确定性创作和可信 Renderer 桥接；类型不等于运行时已经实现 |

@@ -10,6 +10,8 @@ P0 提供 Google 与邮箱验证码登录；登录/注册共入口，无密码�
 
 /create 先选任务/15或30秒/平台，素材上传、预处理、方向卡和生成前均须 Google/邮箱登录；匿名阶段只保留低成本的选项和公开自有样片，不接收/处理客户素材或生成方向。/login 共用 Google/邮箱；/login/verify 验证码，/login/link 待注册/关联确认。/app→/app/projects、/app/settings→/app/settings/account 为 302/private,no-store；Account、Appearance、Brand、Members、Orders 使用已注册页面。Help 复用 /help；搜索资源只含真实 robots/sitemap，不提供空 /llms.txt 或未实现页面。
 
+/terms、/privacy、/refund-policy 的完整正文来自[内容目录](../../content/pages/README.md)。注册路由不等于正文已发布；仅在内容通过发布条件后公开提供，草稿、未完成变量和编辑提示不能进入正式页面。文章全文由 SSR/构建产物输出，仍遵守 10 的主题与缓存隔离。
+
 GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF，不建账号、不发码。已绑定账号的 flow 只在原有效会话恢复，不能覆盖/泄漏另一账号；不匹配取消或重新开始。匿名 GET /api/auth/session 只返回 authenticated=false，不创建 flow。无有效 challenge/proof 的 verify/link HTML 302 回登录并用安全 flash code 提示，对应 API 409；邮箱和证明不进 URL。
 
 新账号原子创建一个默认 workspace/Owner membership。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表/Brand/Members/Orders 使用 workspaceId query；省略时服务端选仍有权限的最近或默认工作区，并返回规范化链接。失效选择不能静默写另一个工作区。详情从真实项目/订单推导工作区，不信浏览器“当前工作区”。已无工作区的登录用户看到空态及 Account/Help，不因列表访问再创建默认工作区。
@@ -38,7 +40,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 事实/转写确认只代表当前有效用户对精确版本和来源的明确操作，actor 与时间由服务端写入；记录版本冲突返回 409，不自动覆盖。展示授权的 grant/revoke 均须该项目 Owner、Origin/CSRF 和当前授权版本，默认未授予，拒绝或撤回不降低制作/付款/下载权限。`support.tickets.create` 的 session 只是入口：普通支持核验所附资源可见性，refund 分支必须再验原订单工作区的当前 Owner 才建立退款申请；支持人员不能凭请求字段改变订单归属或退款金额。具体交易与撤回处理按 04/05。
 
-sitemap 只含 index 页与已发布样例 slug，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
+sitemap 只含已经发布的 index 页与样例 slug，须同时检查路由索引策略和内容发布状态，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
 
 ## 3 OTP、flow 和会话期限
 
@@ -57,7 +59,7 @@ sitemap 只含 index 页与已发布样例 slug，不含占位符、草稿、私
 
 ## 4 请求、验证、重发与恢复
 
-1. /login POST 验邮箱、同源 Origin/CSRF、flow 和预算，建立随机 challenge；格式错误 422，已注册和未注册同一 202 路径，证明邮箱前不暴露账号状态。
+1. `POST /api/auth/email/challenges` 校验邮箱、同源 Origin/CSRF、flow 和预算，建立随机 challenge；格式错误返回 422，已注册和未注册邮箱均返回 202，验证邮箱前不暴露账号状态。
 2. 邮件适配器发送文本/HTML，进入 verify 显示已输入邮箱及实际截止/重发时间；刷新从 flow 恢复。202/messageId 仅接收请求，不等于投递或进收件箱。
 3. 提交 challengeId、code 字符串和 requestId；校验浏览器 flow、purpose、generation、期限、次数和消费。成功只产生一次身份 resolution，按下节登录/注册/关联。code 不进 URL、Cookie、localStorage、日志、指标、subject/preheader。
 4. 重发用新 requestId，只废止当前 flow 的旧码，其他浏览器不受影响，错误计数继承。同 requestId 重试不会再发第二封，同 key 异 body 409。

@@ -13,5 +13,6 @@
 | 契约实现与机器结构 | [共享契约库](packages/contracts/index.mjs)、[Schema](contracts/production.schema.json)、[14 生产契约](docs/prd/14-production-contracts.md) |
 | 创作运行时与帧桥接 | [创作 API](contracts/composition-runtime.d.ts)、[渲染协议](contracts/render-protocol.d.ts) |
 | 用户流程与设计 | [02 UX 与 UI](docs/prd/02-ux-and-ui.md)、[离线 Studio](docs/design/agent-studio-reference.html) |
+| 网站政策正文与接入 | [内容维护](content/pages/README.md)：Terms、Privacy、Refund 英文草稿及待补事实 |
 
 维护现行规则及其消费者；交付和远端更新按 AGENTS 执行。

@@ -32,6 +32,8 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 `resource_manifest` 保存实际素材的 path、sha256、byteLength、mediaType 和稳定 licenseRef。Asset broker 按 hash 解析不可变存储；可信构建/渲染记录实际访问的资源、音源和混音，与清单核对，不能只信 Agent 自报。源码包保存代码和静态创作声明，素材单独按资源 hash 引用；不包含自身 manifest、QA 输出、临时 URL 或日志。字体子集、塑形和回退配置一同冻结；按实际文字检查字素簇、塑形和回退，不能用 `document.fonts.ready` 证明无缺字。
 
+当前编辑值随不可变源码包保存，并计入源包及相关目标的源码摘要。`RuntimeContext.values` 只能从该冻结版本构造，不能从当前草稿或浏览器状态补入。
+
 **音频冻结：** AudioPlan 的未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
 
 混音统一为 48 kHz、双声道；1 帧等于 1,600 个音频采样帧。最终 WAV 恰为 `totalFrames × 1600` 个采样帧，空白补静音，处理顺序与后处理由固定 `mixerVersion` 决定。`mixedAudio` 固定资源路径、真实 sha256、采样率、声道和 mixerVersion，必须解析到资源表中同路径/同 hash 的实际 WAV。可信解码观察 `audioMetadata` 按字节 hash 保存 sampleRate、channels、sampleFrames；校验音源为音频、源内时间范围及混音的采样率/声道/完整片长，不只检查清单自报值。
@@ -97,7 +99,7 @@ Directions、Treatment、AudioPlan 和 PatchResult 的字段以 Schema 为准；
 
 可信控制器解析 revision/target、固定规则和 renderProfile 后建立短期 session；源码不能自选尺寸、快门、源包写入或支付/模型权限。生命周期为 created→initializing→idle→seeking→ready，后续 ready→seeking；活动态可 failed/disposed。init 和所有 seek/sample 共用串行画布，不并行覆盖待取样内容。
 
-命令/响应都有 protocolVersion/sessionId/requestId/sequence/revisionId/targetId；帧命令带 frameIndex，子帧另带 sampleIndex，准备响应回显 manifestHash。每次调用使用匹配请求 ID 和递增 sequence；revision/target/profile 在会话内固定，变更须新建会话。错误、迟到、已 dispose 或旧 iframe 响应不能用于取帧。时限取 agent-policy；可信控制器校验身份、解码、字体、视频位置和 Shader 屏障后截图，不信源码自报 pass。
+命令/响应都有 protocolVersion/sessionId/requestId/sequence/revisionId/targetId；帧命令带 frameIndex，子帧另带 sampleIndex，帧与子帧就绪响应回显 manifestHash。每次调用使用匹配请求 ID 和递增 sequence；revision/target/profile 在会话内固定，变更须新建会话。错误、迟到、已 dispose 或旧 iframe 响应不能用于取帧。时限取 agent-policy；可信控制器校验身份、解码、字体、视频位置和 Shader 屏障后截图，不信源码自报 pass。
 
 对外 `seekFrame(n)` 只收整数 `0 ≤ n < N`，请求冻结 profile 下的最终帧，名义时间为 n/30；N 为 450 或 900，视频总时长 N/30。renderProfile 只能从可信 `platform-presets.renderProfiles` 选择，按 §3 进入产物和 QA 身份。单样本 profile 的 shutterAngle 为 0，直接采样 n/30。多样本 profile 的样本数 M 为 4 或 8、快门角度 A 由冻结配置决定；第 j 个样本（0≤j<M）的秒数为：
 
@@ -136,25 +138,28 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 ## 7 跨系统状态机
 
-| 当前→事件→目标 | 权限、原子影响与恢复 |
-| --- | --- |
-| 无→submit→queued | 成员、正常期、非墓碑、次数与预算，原子reserve+run+outbox；重复请求返回原结果 |
-| queued→start→active | 全局/工作区租约与generation匹配；真实attempt计数 |
-| active→ask_user→awaiting_user | 检查点持久化、释放容器，不占CPU等待 |
-| awaiting_user/paused_budget→resume→queued | 原权限/base/24小时窗口/剩余预算重查；同run |
-| active/validating→budget_limit→paused_budget | 停止新调用，保存检查点与预算结算，释放资源 |
-| active→candidate→validating | 保存候选不可变hash，暂不切当前指针 |
-| validating→pass→succeeded | 重新核对权限/generation/项目/QA，原子候选ready+一次consume+outbox |
-| validating→repair→active | 同预算且累计修复<2，不新增收费run |
-| 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
-| 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
-| ready候选→accept→accepted | §1 CAS、权限与QA同时验证；同请求同候选幂等 |
-| ready候选→reject→rejected | 不改当前稿，不返已交付成功次数 |
-| revision→freeze→snapshot | 所有合法target来源和报告齐全；只冻结，不生成/付款 |
-| checkout(top_up_only)→verified_payment→entitled | 05原子grant+outbox；无snapshot、无导出intent、不创建rendering |
-| snapshot(purchase_and_export)→verified_payment→entitled/rendering | 05原子grant+导出intent+outbox，关闭网页仍交付 |
-| partial→retry→rendering | 仅失败指纹最多3个真实编码attempt |
-| all-valid→publish→ready | 原子批次发布/consume，退款或删除先发生则阻止发布 |
+| 对象 | 当前状态→事件→目标状态 | 权限、原子影响与恢复 |
+| --- | --- | --- |
+| Agent run | 无→submit→queued | 成员、正常期、非墓碑、次数与预算，原子reserve+run+outbox；重复请求返回原结果 |
+| Agent run | queued→start→active | 全局/工作区租约与generation匹配；真实attempt计数 |
+| Agent run | active→ask_user→awaiting_user | 检查点持久化、释放容器，不占CPU等待 |
+| Agent run | awaiting_user/paused_budget→resume→queued | 原权限/base/24小时窗口/剩余预算重查；同run |
+| Agent run | active/validating→budget_limit→paused_budget | 停止新调用，保存检查点与预算结算，释放资源 |
+| Agent run | active→candidate→validating | 保存候选不可变hash，暂不切当前指针 |
+| Agent run | validating→pass→succeeded | 重新核对权限/generation/项目/QA，原子候选ready+一次consume+outbox |
+| Agent run | validating→repair→active | 同预算且累计修复<2，不新增收费run |
+| Agent run | 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
+| Agent run | 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
+| 候选 | ready→accept→accepted | §1 CAS、权限与QA同时验证；同请求同候选幂等 |
+| 候选 | ready→reject→rejected | 不改当前稿，不返已交付成功次数 |
+
+| 环节 | 事件 | 处理与结果 |
+| --- | --- | --- |
+| 版本冻结 | 用户确认已准备版本 | 所有合法target来源和报告齐全才创建snapshot；不生成或付款 |
+| top_up_only 付款 | 权威付款确认 | 按05原子写paid、grant和outbox；无snapshot或导出intent |
+| purchase_and_export 付款 | 权威付款确认 | 按05原子写paid、grant、导出intent和outbox；后续排队渲染，关闭网页仍交付 |
+| 导出重试 | 部分文件未成功 | 只重试失败指纹，最多3个真实编码attempt；有效产物复用 |
+| 导出发布 | 全部产物通过 | 原子发布批次并consume，exportManifest进入ready；退款或删除先发生则阻止发布 |
 
 终态不能通过普通resume重新活动；需要新的授权操作。长调用结束、消费、接受、发布均重查权限/generation/墓碑。移除发起成员取消未提交创作副作用，但已收款交付由项目权益继续驱动；删除项目/工作区撤销新授权、提升generation、取消作业并清理，晚到文件孤儿回收，不复活项目。退款只冻结关联grant及未发布预留，不能影响无关订单。
 

@@ -13,9 +13,7 @@ mise trust
 mise install
 mise run install
 mise run check:repo
-mise run check:contracts
 mise run test:contracts
-mise run check:agent-reference
 ```
 
 已有工作区先保留未提交改动并同步 remote main，不覆盖他人的提交。当前产品为 v2.5，请求协议为 2.5.0；按 01 的范围和 14 的契约实施，不恢复已删除的旧规则。修改文档、配置、契约与 UI 时同步消费者；更新模板或其输入后运行 `mise run build:agent-reference`。
@@ -23,7 +21,7 @@ mise run check:agent-reference
 | 任务 | 实际范围 |
 | --- | --- |
 | `install` | pnpm 冻结安装 |
-| `check:repo` | 当前文档、链接、配置、路由、认证、主题与契约一致性 |
+| `check:repo` | 文档、配置、路由、认证和主题一致性，并执行契约检查与离线参考同步检查 |
 | `check:contracts` | Schema 样例、语义、hash、合法目标与 API 清单 |
 | `test:contracts` | 协议反例、CAS、计量、状态、授权引用及内容身份参考测试 |
 | `build:agent-reference` | 从模板、tokens、预设与商品配置生成离线 Studio 参考 |

@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "purpose": "Example of the public build-time context merged from authoritative project configuration; not a new runtime configuration source.",
+    "status": "draft",
+    "contentVersion": "2026-10-20.draft.1",
+    "locale": "en",
+    "sourceCommit": "cf6e7c399480920f05d40601c9575786ef7054ba",
+    "verifiedForProduction": false,
+    "publicationValidationImplemented": false,
+    "proposedFields": ["policy.minimumAge"],
+    "existingValuesPendingDeploymentVerification": [
+      "brand.appUrl",
+      "brand.supportEmail",
+      "links.terms",
+      "links.privacy",
+      "links.refundPolicy",
+      "links.pricing",
+      "links.help",
+      "links.orders"
+    ]
+  },
+  "brand": {
+    "brandName": "PromoBento",
+    "appUrl": "https://promobento.com",
+    "legalEntityName": null,
+    "businessAddress": null,
+    "supportEmail": "support@promobento.com"
+  },
+  "legal": {
+    "jurisdiction": null,
+    "governingLaw": null,
+    "courts": null
+  },
+  "payment": {
+    "morEntityName": null,
+    "buyerTermsUrl": null,
+    "privacyUrl": null
+  },
+  "policy": {
+    "minimumAge": 18,
+    "trialActiveDays": 7,
+    "paidActiveDays": 90,
+    "readOnlyGraceDays": 7,
+    "voluntaryRefundDays": 7,
+    "onlineMediaDeletionHours": 24
+  },
+  "ai": {
+    "providerNames": null,
+    "modelNames": null
+  },
+  "links": {
+    "terms": "/terms",
+    "privacy": "/privacy",
+    "refundPolicy": "/refund-policy",
+    "pricing": "/pricing",
+    "help": "/help",
+    "orders": "/app/billing/orders"
+  }
+}

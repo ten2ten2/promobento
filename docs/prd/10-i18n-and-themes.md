@@ -17,7 +17,7 @@
 
 ## 2 消息与用户原文
 
-i18next/react-i18next 使用请求级实例，SSR/hydration 共享消息、locale 和初始时区，不修改模块级当前语言。静态导航、按钮、标签、空态、错误、aria、帮助/政策/邮件进入集中资源；客户正文不进入翻译目录。命名插值、复数、Intl、缺 key/参数检查由 CI 验；运行安全英语回退并提供 requestId，不泄露内部 key/堆栈。
+i18next/react-i18next 使用请求级实例，SSR/hydration 共享消息、locale 和初始时区，不修改模块级当前语言。导航、按钮、标签、空态、错误、aria、帮助短消息和邮件进入 `locales/*.json`；完整政策、About 和帮助文章放在 `content/pages/<locale>/*.md`，维护规则见[页面内容](../../content/pages/README.md)。客户正文不进入翻译目录。命名插值、复数、Intl、缺 key/参数检查由 CI 验；UI 错误可安全英语回退并提供 requestId，不泄露内部 key/堆栈。该回退不用于逐段替换或混合语言法律正文。
 
 资源和用户文字安全输出为纯文本，链接使用受控组件，不把输入 HTML 当脚本。金额明确 USD；首次未知时区显示标注 UTC，hydration 后可转换 UI 日期，但已确认视频报价、币种、日期不换算或重写。
 
@@ -30,6 +30,8 @@ i18next/react-i18next 使用请求级实例，SSR/hydration 共享消息、local
 新网站语言须完整覆盖 UI、帮助/政策、邮件、元数据和无障碍，通过插值/复数/Intl/移动排版后开放；网站语言未上线不妨碍同语客户文案。P0 不做翻译后台，伪本地化和约 40% 文字扩展只验架构，不进入生产。
 
 英语使用根路径，不复制 /en；canonical 无主题/UTM，不按 Accept-Language 跳不存在的页面。无空翻译 URI、虚假 hreflang 或 sitemap；真实翻译页面双向映射后再上线。主题不进 URL，私有索引和权限见 12。
+
+语言标识与 URI 映射、法律译文 `sourceVersion` 及缺失/过期处理按[内容多语言规则](../../content/pages/README.md#4-多语言)。未发布语言页面返回真实 404；新政策生效前审阅已启用语言，不用过期译文取得对新版本的接受。
 
 ## 4 主题交互和持久化
 
