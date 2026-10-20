@@ -27,7 +27,7 @@ expect(p.patch.maxCommentsPerRound===5&&p.patch.maxTotalCommentCodePoints===4000
 expect(['maxMicrosPerUserWindow','maxMicrosPerProjectWindow'].every(key=>Object.hasOwn(p.cost,key))&&p.cost.usageWindowHours===24&&p.cost.usageWindowMode==='rolling_all_actual_and_unsettled_costs','Missing all-outcome account/project cost windows');
 expect(!p.enabled||hasCalibratedCostLimits(p),'Uncalibrated execution or patch-token gate enabled');
 expect(p.cost.hardBudgetScope==='operation_including_all_child_calls_and_attempts'&&!p.cost.quotaReleaseResetsSpend&&!p.cost.retryOrNewOperationResetsCumulativeFailureSpend,'Cost accounting boundary mismatch');
-expect(p.schemaVersion==='2.5.0'&&api.schemaVersion==='2.5.0'&&schema.$id.endsWith('/2.5.0'),'Current structural protocol mismatch');
+expect(p.schemaVersion==='2.6.0'&&api.schemaVersion==='2.6.0'&&schema.$id.endsWith('/2.6.0'),'Current structural protocol mismatch');
 expect(targets().length===7&&p.limits.globalContainers===4,'Target/resource invariant');
 expect(p.quota.creativeConsumeAt==='usable_candidate_delivered'&&p.quota.renderConsumeAt==='initial_batch_published','Consumption boundaries changed');
 const fourteen=read('docs/prd/14-production-contracts.md');

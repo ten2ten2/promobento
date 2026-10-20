@@ -1,6 +1,6 @@
 # 素材许可、合规与来源
 
-查证日期：2026-10-20。本章集中维护素材准入、上游许可和法务依据，不重复产品目录或实施进度。成片使用权与退款以 [05](05-waffo-billing.md) 为准，隐私与删除见 [04](04-architecture-and-data.md)，广告表达见 [13](13-agent-native-production.md)，机器字段及可信校验见 [14](14-production-contracts.md)。来源可查不代表材料已获准用于生产或服务已经实现。
+主要来源查证于 2026-10-20，后续核对日期在对应段落注明。本章集中维护素材准入、上游许可和法务依据，不重复产品目录或实施进度。成片使用权与退款以 [05](05-waffo-billing.md) 为准，隐私与删除见 [04](04-architecture-and-data.md)，广告表达见 [13](13-agent-native-production.md)，机器字段及可信校验见 [14](14-production-contracts.md)。来源可查不代表材料已获准用于生产或服务已经实现。
 
 ## 1 素材准入与证据
 
@@ -13,6 +13,8 @@
 | 模型或程序生成内容 | 记录生成来源、实际模型/工具与条款版本，并核对输入、采样和背景组件的权利；“生成”不自动证明平台所有或无第三方权利 |
 
 用户素材不要求出现在平台通用素材白名单，但也不能因上传成功免除其原许可。若存在渠道、期限或署名限制，须明确展示并校验选定用途；无法履行时替换或补充授权。支付、裁切、转码和混音不消除限制。“无需署名 PromoBento”不等于可以删除任何第三方署名。
+
+P0 品牌字体仅从已审核的平台字库选择并冻结确切文件及回退关系；未审核的客户字体不接收为渲染资源。客户字体上传属于 P1，需另外核实云端处理、服务器渲染及必要嵌入许可，不能用本地桌面许可作通用替代。PDF 授权文件仅作受限证据，不加入可绘素材。
 
 | 材料 | 审核边界及一手依据 |
 | --- | --- |
@@ -51,7 +53,7 @@
 
 ### 3.2 欧盟 AI 透明度
 
-[第50条及委员会 FAQ](https://digital-strategy.ec.europa.eu/en/faqs/transparency-obligations-under-article-50-ai-act)自 **2026-08-02** 适用。[第111(4)条](https://ai-act-service-desk.ec.europa.eu/en/ai-act/article-111)只让 **2026-08-02之前已经投放市场**的相关合成内容系统延至 **2026-12-02** 遵守50(2)；不是所有提供方统一延期。PromoBento 尚无此前已投放的证明，不能按该宽限规划新系统上线。
+[欧盟官方 AI Act 页面](https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai)确认 Digital Omnibus on AI（Regulation (EU) 2026/1744）于 **2026-07-27** 生效。[官方执行日期说明](https://ai-act-service-desk.ec.europa.eu/en/ai-act/faq/when-does-enforcement-start)明确第50条透明度义务自 **2026-08-02** 适用；仅在此前已投放市场的相关系统可延至 **2026-12-02** 遵守50(2)。上述日期于 2026-10-21 核对。PromoBento 尚无此前已投放的证明，不能按旧系统宽限规划新系统上线。
 
 按实际市场、系统功能和角色确定适用性：[第50(2)条](https://ai-act-service-desk.ec.europa.eu/en/ai-act/article-50)的提供方机器可读标记与可检测义务，和50(4)条部署方的深度合成披露分开处理；使用上游模型不能直接转移自身适用义务。普通动态图形或通用 TTS 不因使用 AI 就自动成为 deepfake；应按是否仿真既有人物、物体、地点、实体或事件并误导真实性判断，其他机器标记义务可能仍适用。公开发布自身案例时，平台也须核对其部署方职责。
 
@@ -65,9 +67,11 @@
 
 ### 3.4 Waffo 内容审核要求
 
-[Waffo AIGC 要求](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)允许在独立 AUP 或 Terms 专章公布内容规则。本产品采用 [Terms 第8–9节](../../content/pages/en/terms.md#8-acceptable-use)，集中列出禁止类别、审核、举报和申诉；实际模型在第3节披露，数据处理在 Privacy 第6节披露。深度伪造功能不因人物同意或添加 AI 标签而获准，真实且有权使用的人物素材仍按素材准入规则处理。
+[Waffo AIGC 要求](https://docs.waffo.ai/zh/mor/account-reviews/aigc-compliance)允许在独立 AUP 或 Terms 专章公布内容规则。本产品采用 [Terms 第8–9节](../../content/pages/en/terms.md#8-acceptable-use)，集中列出禁止类别、审核、举报和申诉；实际模型在第3节披露，数据处理在 Privacy 第6节披露。深度伪造功能不因人物同意或添加 AI 标签而获准，真实且有权使用的人物素材仍按素材准入规则处理。
 
 上线前验证输入生成前、输出展示前的审核；公开展示客户作品时增加发布后检查。拦截规则持续更新，自动审核和人工决定保留必要记录，期限与访问按04执行。披露的模型、举报入口和处置能力须与实际服务一致；公开条款本身不证明审核已接通。
+
+[Prompt Sift 端点](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)是可选的生成前提示审核，本产品默认关闭，启用条件与失败处理见 [04](04-architecture-and-data.md#可选提示审核)。它不能替代输出展示前审核。2026-10-21 核对时，官方说明 beta 免费、每商户每路径 60 秒内 100 次，且响应后不保留提示原文；这些范围不构成永久免费、SLA 或整个服务零保留承诺。端点未给出异步结果查询或回调流程，不承诺 review 在一小时内完成或自动恢复生成。实际启用前确认合同、数据流与保留设置，并补齐 Privacy 中的提供方披露。
 
 ## 4 技术核对入口
 

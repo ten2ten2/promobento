@@ -1,0 +1,49 @@
+{
+  "schemaVersion": "2.6.0",
+  "policyVersion": "prompt-sift-v1",
+  "enabled": false,
+  "status": "reference_only_production_wiring_pending",
+  "operatorControl": "server_only",
+  "provider": "waffo_prompt_sift",
+  "api": {
+    "method": "POST",
+    "path": "/v1/actions/verification/scan-prompt",
+    "credentialSource": "existing_trusted_waffo_client",
+    "browserReceivesCredentials": false,
+    "sdkReturns": "unwrapped_verdict"
+  },
+  "appliesTo": ["image_generation", "video_generation"],
+  "trigger": "immediately_before_actual_generation",
+  "scanAutosaveOrKeystrokes": false,
+  "semantic": "enforce",
+  "maxPromptCharacters": 10000,
+  "lengthUnit": "unicode_code_points",
+  "lengthUnitAuthority": "local_input_policy",
+  "providerCharacterBoundary": "integration_verification_pending",
+  "truncatePrompt": false,
+  "normalizePrompt": false,
+  "locales": ["en", "zh", "ja"],
+  "timeoutMs": 10000,
+  "allowRequiresSemanticStatus": "scored",
+  "retry": {
+    "serverErrorInitialDelayMs": 5000,
+    "maxServerErrorRetries": 3,
+    "rateLimitUsesRetryAfter": true,
+    "retryOtherClientErrors": false,
+    "schedulingOnly": true
+  },
+  "audit": {
+    "storeRawPrompt": false,
+    "storeRawProviderResponse": false,
+    "storeRawErrorMessage": false,
+    "receiptBindsExactPromptAndOperation": true,
+    "cacheEnabled": false
+  },
+  "pricing": {
+    "observedStatus": "beta_free",
+    "permanentFreeAssumption": false,
+    "actualUsageStillMetered": true
+  },
+  "source": "https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt",
+  "checkedAt": "2026-10-21"
+}

@@ -93,6 +93,8 @@ export function parseCanonicalJson(input) {
     else while (offset < source.length && !/[\x20\t\n\r,}\]]/u.test(source[offset])) offset++;
   };
   visit(0);
-  canonical(result); // Reject invalid Unicode and numeric overflow as well as non-JSON values.
+  // JCS uses binary64, including finite values outside the safe-integer range.
+  // Business counts, money and frame indices are bounded separately by their schemas.
+  canonical(result); // Reject invalid Unicode, non-finite overflow and non-JSON values.
   return result;
 }

@@ -2,7 +2,7 @@
 title: Privacy Policy
 description: "How {{brand.brandName}} handles account details, project content, AI processing, payments, and your privacy choices."
 status: draft
-version: "2026-10-20.draft.1"
+version: "2026-10-20.draft.2"
 effectiveAt: null
 updatedAt: "2026-10-20"
 anchors:
@@ -27,7 +27,7 @@ If your information was supplied by a customer, you can contact that customer or
 | --- | --- |
 | Account and sign-in | Your email address, account identifier, workspace membership, and sign-in records. If you choose Google sign-in, Google provides the identity, email, and basic profile fields authorized by the sign-in flow, such as name and picture. Email sign-in uses a one-time code; we do not ask you to create a password. |
 | Project content | Product facts, text, instructions, uploaded images, logos, recordings, audio, transcripts, revisions, generated compositions, review comments, and finished videos. These may contain information about you, colleagues, clients, or other people. |
-| Permissions and sharing | Upload rights declarations, project access, invitations, review links, and records of any optional showcase permission or withdrawal. |
+| Permissions and sharing | Upload rights declarations, supporting documents you submit as evidence, project access, invitations, review links, and records of any optional showcase permission or withdrawal. |
 | Orders and service usage | Order identifiers, products purchased, amounts, tax information returned with a transaction, payment and refund status, service usage, and delivery records. Payment details entered at checkout are handled by the payment service; we do not store full card numbers or card security codes. |
 | Usage and attribution | Feature-use events, an analytics session identifier separate from sign-in credentials, referral pages and campaign tags, and any source you tell us about. Where needed for the purposes below, these records are associated with your account, workspace, project, or purchase. |
 | Support and technical records | Messages and attachments you send us, IP addresses, browser and device information, request times, security events, errors, and necessary operational usage records. |
@@ -93,6 +93,8 @@ We do not use your private uploads, prompts, voices, composition source, or fini
 No training does not mean no temporary processing or provider logs. Providers may retain limited data for the disclosed service, security, or legal purposes under their actual terms and settings.
 
 [REQUIRED: For every AI, transcription, and moderation service, specify the actual model or service, purpose, information sent, processing location, provider retention period, deletion capability, and applicable no-training terms or account settings. Keep this factual disclosure in this page; do not replace it with a general claim of zero retention.]
+
+[REQUIRED: Waffo Prompt Sift is an optional provider and is disabled by default. If enabled, disclose its review of the text needed for an actual image or video generation request, separately from payment processing and output moderation. Confirm the contracting entity, locations, settings, and notices before listing it as active. Its public endpoint documentation says it does not retain the original prompt after returning a response; do not extend that statement to all provider records or our own decision logs. Our intended audit records contain request identifiers, decisions, reasons, and necessary task references, without the raw prompt; confirm their actual retention and access controls before publication.]
 
 ## 7. Optional showcases and communications
 

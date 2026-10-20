@@ -1,27 +1,46 @@
 #!/usr/bin/env node
 // Current specification consistency. Not a live auth, D1, cloud, payment or video test.
 import {existsSync,readdirSync,readFileSync} from 'node:fs';
-import {dirname,extname,isAbsolute,join,relative,resolve,sep} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
+import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors} from './repo-documentation.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[],counts={documents:0,links:0,routes:0,apis:0,contrastPairs:0};
-const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(root,p),'utf8'),json=p=>JSON.parse(text(p));
+const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(root,p),'utf8'),json=p=>parseCanonicalJson(text(p));
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),get=(o,k)=>k?.split('.').reduce((v,p)=>v?.[p],o);
-function walk(p){return readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isSymbolicLink()?[]:e.isDirectory()?walk(join(p,e.name)):[join(p,e.name)]);}
-function noCode(s){let fence=null;return s.split('\n').filter(l=>{const m=l.match(/^\s*(`{3,}|~{3,})/);if(m){if(!fence)fence=m[1];else if(fence[0]===m[1][0]&&m[1].length>=fence.length)fence=null;return false;}return !fence;}).map(l=>l.replace(/`[^`]*`/g,'')).join('\n');}
-function links(file){for(const m of noCode(readFileSync(file,'utf8')).matchAll(/!?\[[^\]\n]*\]\(([^\s)]+)(?:\s+"[^"]*")?\)/g)){const t=m[1].replace(/^<|>$/g,'');expect(!/^(sandbox|file):/.test(t),'Non-portable link: '+t);if(/^[a-z][\w+.-]*:/i.test(t)||t.startsWith('//'))continue;const p=t.split(/[?#]/)[0];if(!p)continue;const dest=resolve(dirname(file),decodeURIComponent(p)),rel=relative(root,dest);expect(!isAbsolute(rel)&&rel!=='..'&&!rel.startsWith('..'+sep),'Link escapes repository: '+t);expect(existsSync(dest),'Missing link '+relative(root,file)+' -> '+t);counts.links++;}}
 function flatten(o,p='',out={}){for(const [k,v]of Object.entries(o)){const key=p?p+'.'+k:k;if(typeof v==='string')out[key]=v;else if(v&&typeof v==='object'&&!Array.isArray(v))flatten(v,key,out);else failures.push('Invalid message '+key);}return out;}
 function lum(hex){if(!/^#[0-9a-f]{6}$/i.test(hex??''))throw Error('Invalid color '+hex);const x=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return x[0]*.2126+x[1]*.7152+x[2]*.0722;}
 function main(){
  const names=['01-product-prd','02-ux-and-ui','03-platform-presets','04-architecture-and-data','05-waffo-billing','06-testing-and-release','07-growth-and-experiments','08-codex-execution','09-sources-and-decisions','10-i18n-and-themes','12-routing-and-auth','13-agent-native-production','14-production-contracts'];
  const prds=['README.md',...names.map(n=>n+'.md')];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
- for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/production.schema.json','contracts/agent-api.json','config/agent-policy.json','config/input-capabilities.json'])expect(existsSync(join(root,p)),'Missing '+p);
+ for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/production.schema.json','contracts/agent-api.json','config/agent-policy.json','config/input-capabilities.json','config/preview.json','config/content-safety.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
  expect(same(readdirSync(join(root,'docs/prd')).filter(p=>p.endsWith('.md')).sort(),[...prds].sort()),'PRD directory differs from the current indexed specification');
- const files=[...readdirSync(root).filter(p=>p.endsWith('.md')).map(p=>join(root,p)),...walk(join(root,'docs')),...walk(join(root,'.github'))];
- const md=files.filter(p=>extname(p)==='.md');md.forEach(links);
- for(const p of md)expect(!/^(?:<{7}|={7}|>{7})(?:\s|$)/m.test(readFileSync(p,'utf8')),'Unresolved conflict marker: '+relative(root,p));
+ const files=repositoryFiles(root);
+ const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
+ failures.push(...documentation.errors,...conflictErrors(root,files));counts.markdown=documentation.documents;counts.links=documentation.links;
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
+ const protocol='2.6.0',prd='v2.6';
+ for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
+  const intro=text(path).split('\n').slice(0,8).join('\n');
+  const prdVersions=[...intro.matchAll(/\bv\d+\.\d+(?!\d|\.\d)/g)].map(m=>m[0]),protocolVersions=[...intro.matchAll(/(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)/g)].map(m=>m[0]);
+  expect(prdVersions.length>0&&prdVersions.every(v=>v===prd)&&protocolVersions.length>0&&protocolVersions.every(v=>v===protocol),'PRD/protocol entry mismatch: '+path);
+ }
+ for(const path of ['contracts/agent-api.json','config/agent-policy.json','config/routes.json','config/preview.json','config/content-safety.json',...readdirSync(join(root,'contracts')).filter(p=>p.endsWith('.example.json')).map(p=>'contracts/'+p)])
+  expect(json(path).schemaVersion===protocol,'Protocol envelope mismatch: '+path);
+ const productionSchema=json('contracts/production.schema.json');
+ expect(productionSchema.$id.endsWith('/'+protocol),'Production Schema protocol ID');
+ for(const [name,definition] of Object.entries(productionSchema.$defs))
+  if(definition.properties?.schemaVersion?.const)expect(definition.properties.schemaVersion.const===protocol,'Schema protocol constant: '+name);
+ for(const path of ['contracts/composition-runtime.d.ts','contracts/render-protocol.d.ts']){
+  const versions=[...text(path).matchAll(/(?:apiVersion|protocolVersion|schemaVersion):\s*['"]([^'"]+)['"]/g)].map(m=>m[1]);
+  expect(versions.length>0&&versions.every(v=>v===protocol),'Runtime/bridge protocol entry mismatch: '+path);
+ }
+ try{
+  const baseline=platformBaseline(root);counts.platformRulesBase=baseline.commit??baseline.reason;
+  if(baseline.config)failures.push(...platformRuleErrors(baseline.config,platforms).map(e=>e+' [Git base '+baseline.reference+']'));
+ }catch(error){failures.push(error.message);}
  expect(!Object.hasOwn(brand,'domainLookup'),'Stale domain quote retained');
  expect(brand.brandName==='PromoBento'&&brand.appUrl==='https://promobento.com','Brand changed');
  expect(brand.description===messages.marketing.description&&brand.tagline===messages.marketing.headline,'Marketing sources differ');

@@ -1,16 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {load, validateSchema, semanticErrors, canonical, digest, contentIdentity, factContentIdentity, variantIdentity, outputArtifactIdentity as markedArtifactIdentity, resourceRightsErrors, targets, presets, safePath, transition, QuotaReference, RevisionReference, TrialReference, OperationBudgetReference, CheckoutReference, matchesFrameReady, matchesSampleReady, matchesProtocolFailure, sampleTime, audioIdentity, qaInputIdentity, hasCalibratedCostLimits} from './contract-validation.mjs';
+import {load, validateSchema, semanticErrors, canonical, digest, parseCanonicalJson, contentIdentity, factVersionKey, factContentIdentity, resourceContentIdentity, qualityAssociationErrors, variantIdentity, outputArtifactIdentity as markedArtifactIdentity, resourceRightsErrors, targets, presets, safePath, transition, QuotaReference, RevisionReference, TrialReference, OperationBudgetReference, CheckoutReference, matchesFrameReady, matchesSampleReady, matchesProtocolFailure, sampleTime, audioIdentity, qaInputIdentity, hasCalibratedCostLimits} from './contract-validation.mjs';
 const c = load('contracts/composition.example.json'), r = load('contracts/release-snapshot.example.json'), edit = load('contracts/edit-request.example.json');
 const outputArtifactIdentity = (composition, variant, kind, rules = presets) => markedArtifactIdentity(composition,variant,kind,r.markingProfileVersion,rules);
 const clone = x => structuredClone(x), invalid = v => semanticErrors(v, {composition:c}).length > 0;
 for (const name of ['composition','release-snapshot','edit-request','fact-manifest','export-manifest','resource-manifest']) test('positive contract: '+name, () => assert.deepEqual(semanticErrors(load('contracts/'+name+'.example.json'), {composition:c}), []));
 const protocol = load('tests/contracts/protocol-fixtures.json').valid;
+test('linked examples freeze the 2026-10-21 executable platform rules revision',()=>{
+  assert.equal(presets.rulesVersion,'2026-10-21');
+  assert.equal(c.presetRulesVersion,presets.rulesVersion);
+  assert.equal(r.presetRulesVersion,presets.rulesVersion);
+});
 for (const [name,v] of Object.entries(protocol)) test('protocol structure: '+name,()=>assert.deepEqual(validateSchema(v),[]));
 const mutateCases = [
  ['45 seconds',c,x=>{x.durationSeconds=45;}],['fps 60',c,x=>{x.fps=60;}],['frame arithmetic',c,x=>{x.totalFrames=450;}],
  ['illegal target pairing',c,x=>{x.variants[0].aspectId='square';x.variants[0].targetId='tiktok:square';}],
- ['missing frozen variants',c,x=>{x.variants.pop();}],['duplicate variant',c,x=>{x.variants.push(x.variants[0]);}],
+ ['missing frozen variants',r,x=>{x.variants.pop();}],['duplicate variant',c,x=>{x.variants.push(x.variants[0]);}],
  ['unknown preset',c,x=>{x.variants[0].presetId='fake';}],['unknown preset version',c,x=>{x.variants[0].presetVersion='99';}],
  ['path traversal',c,x=>{x.variants[0].entrypoint='../server.key';}],['absolute source path',c,x=>{x.variants[0].entrypoint='/app/key';}],
  ['encoded path traversal',c,x=>{x.variants[0].entrypoint='%2e%2e/key';}],['cover out of range',c,x=>{x.variants[0].coverFrame=900;}],
@@ -25,19 +30,21 @@ const mutateCases = [
 for (const [name,base,mutate] of mutateCases) test(name,()=>{const x=clone(base);mutate(x);assert.ok(invalid(x));});
 test('custom style is not a closed enum',()=>{const x=clone(c);x.styleLabel='自定义云墨 Shader';assert.deepEqual(semanticErrors(x),[]);});
 test('mixed languages, metadata optional',()=>{const x=clone(c);delete x.textMetadata;assert.deepEqual(semanticErrors(x),[]);});
-test('unprepared candidate allowed, release forbidden',()=>{const x=clone(c);x.releaseEligible=false;x.variants=x.variants.slice(0,1);assert.deepEqual(semanticErrors(x),[]);x.releaseEligible=true;assert.ok(invalid(x));});
+test('unprepared candidate is representable without QA; freeze still requires all targets',()=>{const x=clone(c);x.variants=x.variants.slice(0,1);assert.deepEqual(semanticErrors(x),[]);assert.equal('releaseEligible' in x,false);assert.equal('qaReportHash' in x.variants[0],false);assert.ok(semanticErrors(x,{requireAllTargets:true}).includes('VARIANTS_NOT_READY'));});
 test('fixtures rejected by production gate',()=>assert.ok(semanticErrors(c,{production:true}).includes('FIXTURE_IN_PRODUCTION')));
 test('canonical keys stable but text not normalized',()=>{assert.equal(digest({b:1,a:2}),digest({a:2,b:1}));assert.notEqual(digest('é'),digest('e\u0301'));assert.throws(()=>canonical({x:NaN}));});
-test('revision IDs and QA do not create new content identity',()=>{const x=clone(c);x.revisionId='rev_new';x.variants[0].qaReportHash='d'.repeat(64);assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
+test('revision IDs and QA do not create new content identity',()=>{const x=clone(c);x.revisionId='rev_new';assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 test('7 legal targets, square restricted to feed',()=>{assert.equal(targets().length,7);assert.deepEqual(targets().filter(x=>x.aspectId==='square').map(x=>x.presetId),['instagram_feed']);});
 for (const path of ['../x','x/../y','https://example.com','x\\y','%252e%252e/x','/tmp/x','x//y','x\u0000y']) test('reject path '+JSON.stringify(path),()=>assert.equal(safePath(path),false));
 test('confirmed fact binding required',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].factIds=['unknown'];assert.ok(invalid(f));});
 test('new commercial claim rejected',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].expectedText='Guaranteed 1000%';assert.ok(invalid(f));});
-function qa(){return {schemaVersion:'2.5.0',kind:'quality_report',projectId:c.projectId,revisionId:c.revisionId,targetId:'tiktok:portrait',sourceHash:c.sourceArchiveHash,factManifestHash:c.factManifestHash,checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture',waiver:{actorId:'user',reason:'planned hold',revisionId:c.revisionId,targetId:'tiktok:portrait',expiresAt:'2026-10-21T00:00:00Z'}}]};}
-test('BLOCK cannot be waived',()=>{const q=qa();q.findings[0].level='BLOCK';assert.ok(invalid(q));});
-test('QA hashes bind inputs without referring to the report itself',()=>{
+function qa(){return {schemaVersion:'2.6.0',kind:'quality_report',workspaceId:'workspace_fixture',projectId:c.projectId,targetId:'tiktok:portrait',checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{findingId:'reading_hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture'}]};}
+function waiver(report=qa()){return {schemaVersion:'2.6.0',kind:'quality_waiver',workspaceId:'workspace_fixture',projectId:c.projectId,revisionId:c.revisionId,targetId:report.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash:digest(report),findingId:report.findings[0].findingId,actorId:'user',reason:'planned hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};}
+function waiverContext(report=qa()){return {composition:c,workspaceId:'workspace_fixture',qualityReport:report,now:Date.parse('2026-10-20T00:00:00Z'),waiverActors:{user:{workspaceId:'workspace_fixture',active:true,role:'editor'}}};}
+test('BLOCK cannot be waived',()=>{const q=qa();q.findings[0].level='BLOCK';assert.ok(semanticErrors(waiver(q),waiverContext(q)).includes('BLOCK_NOT_WAIVABLE'));});
+test('QA input identity excludes revision and full confirmation bookkeeping',()=>{
   const x=clone(c),before=digest(qaInputIdentity(x,x.variants[0],r.qaProfileVersion));
-  x.variants[0].qaReportHash=digest('replacement report');
+  x.revisionId='new_revision';x.factManifestHash=digest('new scoped fact receipt');
   assert.equal(digest(qaInputIdentity(x,x.variants[0],r.qaProfileVersion)),before);
   assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));
 });
@@ -56,9 +63,10 @@ for(const [name,change] of [
 ]) test('same revision still rejects stale QA after '+name,()=>{
   const x=clone(c);change(x);assert.ok(semanticErrors(qa(),{composition:x}).includes('STALE_QA_INPUT'));
 });
-test('new revision rejects old QA even when visual inputs match',()=>{
-  const x=clone(c);x.revisionId='new_revision';
-  assert.ok(semanticErrors(qa(),{composition:x}).includes('REVISION_MISMATCH'));
+test('identical new revision can reuse report but requires its own scoped association',()=>{
+  const x=clone(c);x.revisionId='new_revision';x.factManifestHash=digest('new fact receipt');
+  assert.deepEqual(semanticErrors(qa(),{composition:x}),[]);
+  assert.ok(qualityAssociationErrors(r.qualityAssociations[0],x).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
 });
 test('render profile changes output and QA identity without charging another version',()=>{
   const x=clone(c);x.renderProfile=clone(presets.renderProfiles.motion4);
@@ -117,8 +125,8 @@ test('export links exact composition bytes',()=>{const x=load('contracts/export-
 test('export links snapshot, not current draft',()=>{const x=load('contracts/export-manifest.example.json');assert.deepEqual(semanticErrors(x,{composition:c,snapshot:r}),[]);x.snapshotHash='d'.repeat(64);assert.ok(semanticErrors(x,{composition:c,snapshot:r}).includes('EXPORT_SNAPSHOT_MISMATCH'));});
 // Current contracts: identities, actual export outputs, pinned rules, and failure envelopes.
 test('confirmation metadata does not charge new content',()=>{const f=load('contracts/fact-manifest.example.json'),x=clone(f);x.revisionId='another';x.facts[0].confirmedBy='another';x.facts[0].confirmedAt='2026-10-20T03:00:00Z';x.bindings[0].coverage='reviewed';assert.notEqual(digest(x),digest(f));assert.equal(digest(factContentIdentity(x)),digest(factContentIdentity(f)));});
-test('labels and report hashes are not content edits',()=>{const x=clone(c);x.styleLabel='another label';x.factManifestHash='e'.repeat(64);x.projectId='other';x.releaseEligible=false;assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
-for(const key of ['seed','sourceArchiveHash','resourceManifestHash','dependencyManifestHash','layoutRulesHash','factContentHash','runtimeVersion','rendererImageDigest'])test('actual content change: '+key,()=>{const x=clone(c);x[key]=key+'-changed';assert.notEqual(digest(contentIdentity(x)),digest(contentIdentity(c)));});
+test('labels and report hashes are not content edits',()=>{const x=clone(c);x.styleLabel='another label';x.factManifestHash='e'.repeat(64);x.projectId='other';assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
+for(const key of ['seed','sourceArchiveHash','resourceContentHash','dependencyManifestHash','layoutRulesHash','factContentHash','runtimeVersion'])test('actual content change: '+key,()=>{const x=clone(c);x[key]=key+'-changed';assert.notEqual(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 test('cover frame changes cover not video cache',()=>{const v=clone(c.variants[0]);v.coverFrame++;assert.equal(digest(outputArtifactIdentity(c,v,'video')),digest(outputArtifactIdentity(c,c.variants[0],'video')));assert.notEqual(digest(outputArtifactIdentity(c,v,'cover')),digest(outputArtifactIdentity(c,c.variants[0],'cover')));assert.notEqual(digest(outputArtifactIdentity(c,v,'mapping')),digest(outputArtifactIdentity(c,c.variants[0],'mapping')));const x=clone(c);x.variants[0]=v;assert.notEqual(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 test('unsupported artifact kind rejected',()=>assert.throws(()=>outputArtifactIdentity(c,c.variants[0],'unknown')));
 test('targets keep separate render caches even when layout and source match',()=>{const v=c.variants.find(v=>v.presetId==='tiktok'),w=c.variants.find(v=>v.presetId==='instagram_reels');assert.notEqual(digest(outputArtifactIdentity(c,v,'video')),digest(outputArtifactIdentity(c,w,'video')));assert.notEqual(digest(outputArtifactIdentity(c,v,'mapping')),digest(outputArtifactIdentity(c,w,'mapping')));});
@@ -127,10 +135,15 @@ for(const change of ['missing','no-hash','duplicate','wrong-target'])test('ready
 test('complete ready batch passes',()=>{const x=load('contracts/export-manifest.example.json');x.state='ready';for(const a of x.artifacts){a.state='ready';a.sha256=digest(a.id);}assert.deepEqual(semanticErrors(x,{composition:c,snapshot:r}),[]);});
 test('purchased pinned rules resolve independently of current defaults',()=>{const rules=clone(presets),x=clone(c);rules.rulesVersion='fixed-fixture-rules';x.presetRulesVersion=rules.rulesVersion;for(const p of rules.presets)p.version='fixture-version';for(const v of x.variants){v.presetVersion='fixture-version';v.variantHash=digest(variantIdentity(x,v,rules));}assert.ok(semanticErrors(x).length);assert.deepEqual(semanticErrors(x,{presetConfig:rules}),[]);});
 test('unknown pinned rule never silently uses latest',()=>{const x=clone(c);x.presetRulesVersion='unavailable';assert.ok(semanticErrors(x).includes('PRESET_VERSION_UNAVAILABLE'));});
-for(const change of ['source','facts','range','waiver','expiry'])test('QA provenance/interval '+change,()=>{const q=qa();if(change==='source')q.sourceHash='a'.repeat(64);if(change==='facts')q.factManifestHash='a'.repeat(64);if(change==='range')q.findings[0].frameEndExclusive=901;if(change==='waiver')q.findings[0].waiver.revisionId='other';if(change==='expiry')q.findings[0].waiver.expiresAt='2026-01-01T00:00:00Z';assert.ok(semanticErrors(q,{composition:c,now:Date.parse('2026-10-20T00:00:00Z')}).length);});
-test('scoped future REVIEW waiver passes',()=>assert.deepEqual(semanticErrors(qa(),{composition:c,now:Date.parse('2026-10-20T00:00:00Z')}),[]));
+for(const change of ['input','range','workspace'])test('QA provenance/interval '+change,()=>{const q=qa();if(change==='input')q.qaInputHash='a'.repeat(64);if(change==='range')q.findings[0].frameEndExclusive=901;if(change==='workspace')q.workspaceId='foreign';assert.ok(semanticErrors(q,{composition:c,workspaceId:'workspace_fixture'}).length);});
+for(const change of ['revision','report','finding','policy','expiry','actor'])test('REVIEW waiver is bound to its exact approval: '+change,()=>{
+  const q=qa(),w=waiver(q),ctx=waiverContext(q);
+  if(change==='revision')w.revisionId='other';if(change==='report')w.reportHash='a'.repeat(64);if(change==='finding')w.findingId='other';if(change==='policy')w.qaProfileVersion='other';if(change==='expiry')w.expiresAt='2026-01-01T00:00:00Z';if(change==='actor')ctx.waiverActors.user.active=false;
+  assert.ok(semanticErrors(w,ctx).length);
+});
+test('scoped future REVIEW waiver passes without changing its report',()=>{const q=qa(),before=digest(q);assert.deepEqual(semanticErrors(waiver(q),waiverContext(q)),[]);assert.equal(digest(q),before);});
 test('format validation rejects impossible dates and unbounded labels',()=>{
-  const q=qa();q.findings[0].waiver.expiresAt='2026-02-30T00:00:00Z';assert.ok(validateSchema(q).length);
+  const w=waiver();w.expiresAt='2026-02-30T00:00:00Z';assert.ok(validateSchema(w).length);
   const rule=load('contracts/production.schema.json').$defs.direction.properties.label;
   assert.ok(validateSchema('x'.repeat(129),rule).length);
 });
@@ -141,7 +154,7 @@ test('unknown failure code rejected',()=>{const x=clone(protocol.render_error);x
 
 test('creative plan: optional direction fields and bounded events', () => {
   const x={
-    schemaVersion:'2.5.0',kind:'run_result',runId:'run1',operationId:'op1',
+    schemaVersion:'2.6.0',kind:'run_result',runId:'run1',operationId:'op1',
     baseRevision:c.revisionId,state:'succeeded',phase:'final',generation:1,
     candidateRevisionId:c.revisionId,
     usage:{inputTokens:0,cachedInputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
@@ -176,20 +189,21 @@ function provenanceCase() {
   const fact = stripFixture(load('contracts/fact-manifest.example.json'));
   const source = stripFixture(c), snapshot = stripFixture(r);
   const trusted = stripFixture(load('tests/contracts/provenance-fixtures.json').context);
-  trusted.qualityReports = {};
-  source.resourceManifestHash = digest(resource);
+  trusted.qualityReports = {}; trusted.qualityAssociations = [];
+  source.resourceManifestHash = digest(resource); source.resourceContentHash = digest(resourceContentIdentity(resource));
   source.factManifestHash = digest(fact); source.factContentHash = digest(factContentIdentity(fact));
   for (const variant of source.variants) {
-    variant.resourceManifestHash = digest(resource);
+    variant.resourceManifestHash = digest(resource); variant.resourceContentHash = source.resourceContentHash;
     variant.audioHash = digest(audioIdentity(resource));
     variant.variantHash = digest(variantIdentity(source,variant));
-    const report = {schemaVersion:'2.5.0',kind:'quality_report',projectId:source.projectId,revisionId:source.revisionId,
-      targetId:variant.targetId,sourceHash:source.sourceArchiveHash,factManifestHash:source.factManifestHash,
+    const report = {schemaVersion:'2.6.0',kind:'quality_report',workspaceId:trusted.workspaceId,projectId:source.projectId,
+      targetId:variant.targetId,
       qaProfileVersion:trusted.qaProfileVersion,qaInputHash:digest(qaInputIdentity(source,variant,trusted.qaProfileVersion)),
       checkerVersion:trusted.qaProfiles[trusted.qaProfileVersion].checkerVersion,coverage:'sampled',evidenceRefs:['synthetic_qa_evidence'],findings:[]};
-    variant.qaReportHash = digest(report); trusted.qualityReports[variant.qaReportHash] = report;
+    const reportHash = digest(report); trusted.qualityReports[reportHash] = report;
+    trusted.qualityAssociations.push({schemaVersion:'2.6.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
   }
-  Object.assign(snapshot,{compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:source.factManifestHash});
+  Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:source.factManifestHash});
   const context = {...trusted,production:true,composition:source,snapshot,factManifest:fact,
     resourceManifests:{[digest(resource)]:resource},resourceObservations:{[digest(resource)]:{resources:resource.resources.map(({path,sha256})=>({path,sha256})),audioEvents:clone(resource.audioEvents),mixedAudio:clone(resource.mixedAudio)}},markingEvidence:{},qualityEvidence:{}};
   const output = stripFixture(load('contracts/export-manifest.example.json'));
@@ -218,16 +232,16 @@ test('trusted provenance permits scoped preview and commercial publication',()=>
 });
 test('publication rejects missing, substituted and failing source QA',()=>{
   for(const mode of ['missing','substitute','block','review']){
-    const x=provenanceCase(),variant=x.source.variants[0],report=x.context.qualityReports[variant.qaReportHash];
-    if(mode==='missing')delete x.context.qualityReports[variant.qaReportHash];
+    const x=provenanceCase(),association=x.snapshot.qualityAssociations[0],report=x.context.qualityReports[association.reportHash];
+    if(mode==='missing')delete x.context.qualityReports[association.reportHash];
     else if(mode==='substitute')report.qaInputHash=digest('unrelated inputs');
-    else report.findings.push({code:'TEST_FAILURE',level:mode==='block'?'BLOCK':'REVIEW',frameStart:0,frameEndExclusive:1,message:'Synthetic failure'});
+    else report.findings.push({findingId:'synthetic_failure',code:'TEST_FAILURE',level:mode==='block'?'BLOCK':'REVIEW',frameStart:0,frameEndExclusive:1,message:'Synthetic failure'});
     const errors=semanticErrors(x.snapshot,x.context);
     assert.ok(errors.includes(mode==='missing'?'QA_REPORT_UNAVAILABLE':mode==='substitute'?'QA_REPORT_BINDING_MISMATCH':'QA_NOT_PASSED'));
   }
 });
 test('production QA requires current trusted policy and time',()=>{
-  const x=provenanceCase(),q=x.context.qualityReports[x.source.variants[0].qaReportHash];
+  const x=provenanceCase(),q=x.context.qualityReports[x.snapshot.qualityAssociations[0].reportHash];
   assert.deepEqual(semanticErrors(q,x.context),[]);
   assert.ok(semanticErrors(q,{...x.context,now:undefined}).includes('TRUSTED_QA_TIME_REQUIRED'));
   assert.ok(semanticErrors(q,{...x.context,qaProfileVersion:'qa-next'}).includes('STALE_QA_PROFILE'));
@@ -338,8 +352,8 @@ test('a saved customer statement alone cannot support a testimonial or earnings 
   const x=provenanceCase();x.context.evidenceRegistry.evidence_product_name.kind='customer_declaration';
   assert.deepEqual(semanticErrors(x.fact,x.context),[]);
   for(const kind of ['testimonial','outcome','promotion']){
-    x.context.claimKinds.fact_name=kind;
-    assert.ok(semanticErrors(x.fact,x.context).includes('FACT_SOURCE_EVIDENCE_REQUIRED'));
+    x.context.claimKinds[factVersionKey(x.fact.projectId,x.fact.facts[0])]=kind;
+    assert.ok(semanticErrors(x.fact,{...x.context,requireFactConfirmation:true}).includes('FACT_SOURCE_EVIDENCE_REQUIRED'));
   }
 });
 test('usage policy and terms are resolved from an immutable trusted version',()=>{
@@ -379,7 +393,7 @@ test('assessed not-applicable decisions are supported and profile updates do not
   assert.equal(digest(contentIdentity(x.source)),oldContent);
 });
 function previewProvenanceCase() {
-  const x=provenanceCase(),preview={schemaVersion:'2.5.0',kind:'preview_result',previewId:'preview1',projectId:x.source.projectId,
+  const x=provenanceCase(),preview={schemaVersion:'2.6.0',kind:'preview_result',mediaKind:'screenshot',clipAssetId:null,clipSha256:null,clipMarkingEvidenceRef:null,previewId:'preview1',projectId:x.source.projectId,
     revisionId:x.source.revisionId,targetId:'tiktok:portrait',frameStart:0,frameEndExclusive:30,state:'ready',screenshotAssetId:'preview_asset',
     markingProfileVersion:x.snapshot.markingProfileVersion,sha256:digest('preview bytes'),markingEvidenceRef:'preview_check'};
   x.context.markingEvidence.preview_check={outputId:preview.previewId,assetId:preview.screenshotAssetId,sha256:preview.sha256,profileVersion:preview.markingProfileVersion,
@@ -445,7 +459,7 @@ test('target repair cannot mutate a purchased frozen variant',()=>{
 });
 
 const owner={authorized:true,role:'owner',userId:'user_trial'},editor={authorized:true,role:'editor',userId:'user_editor'};
-const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.5.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
+const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.6.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
 test('trial claim is lifetime user scoped across workspaces and deletion',()=>{
   const t=new TrialReference(),first=t.create(projectRequest('one'),owner);
   assert.equal(first.trialStatus,'granted');
@@ -479,7 +493,7 @@ test('omitted requestTrial creates a draft with no free cloud work',()=>{
   assert.equal(t.claims.size,0);
 });
 
-const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.5.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,...changes});
+const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.6.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,...changes});
 const open=(book,request)=>book.open(request,{ownerAuthorized:true});
 const buy=(book,request)=>{const order=open(book,request);book.grantVerifiedPayment(order.orderId);return order;};
 test('checkout intent is explicit and snapshot is exclusive to export intent',()=>{
@@ -636,4 +650,190 @@ test('enabling requires calibrated successful-and-failed cost windows even when 
     const unmeasured=clone(policy);unmeasured.cost[key]=null;assert.equal(hasCalibratedCostLimits(unmeasured),false);
     const missing=clone(policy);delete missing.cost[key];assert.equal(hasCalibratedCostLimits(missing),false);
   }
+});
+
+test('successive draft edits never resolve or require a cloud QA report',()=>{
+  const x=provenanceCase();let reportReads=0;
+  delete x.context.snapshot;delete x.context.qualityAssociations;
+  x.context.qualityReports=new Proxy({}, {get(){reportReads++;throw Error('UNEXPECTED_QA_LOOKUP');},getOwnPropertyDescriptor(){reportReads++;throw Error('UNEXPECTED_QA_LOOKUP');}});
+  for(let i=0;i<25;i++){
+    x.source.revisionId='local_revision_'+i;x.source.seed='edited_seed_'+i;
+    x.fact.revisionId=x.source.revisionId;x.source.factManifestHash=digest(x.fact);
+    for(const variant of x.source.variants)variant.variantHash=digest(variantIdentity(x.source,variant));
+    assert.deepEqual(semanticErrors(x.source,x.context),[]);
+  }
+  assert.equal(reportReads,0);
+});
+
+test('cached reports require a fresh current-revision association and cannot cross projects',()=>{
+  const x=provenanceCase(),old=x.context.qualityAssociations;
+  x.source.revisionId='new_revision';x.fact.revisionId='new_revision';x.source.factManifestHash=digest(x.fact);
+  delete x.context.snapshot;
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
+  x.context.qualityAssociations=old.map(a=>({...a,revisionId:'new_revision'}));
+  assert.deepEqual(semanticErrors(x.source,{...x.context,requireQuality:true}),[]);
+  x.context.qualityAssociations[0].workspaceId='foreign';
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
+});
+
+test('reusing visual QA still rechecks current fact evidence and resource authorization',()=>{
+  const x=provenanceCase();
+  assert.deepEqual(semanticErrors(x.source,{...x.context,requireQuality:true}),[]);
+  const evidence=x.context.evidenceRegistry.evidence_product_name;
+  evidence.factTextHash=digest('another claim');
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('FACT_EVIDENCE_TEXT_MISMATCH'));
+  evidence.factTextHash=digest(x.fact.facts[0].text);x.context.licenseRegistry={};
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('LICENSE_RECORD_UNAVAILABLE'));
+});
+
+function addReviewWaiver(x){
+  const association=x.snapshot.qualityAssociations[0],report=clone(x.context.qualityReports[association.reportHash]);
+  report.findings=[{findingId:'hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'Intentional hold'}];
+  association.reportHash=digest(report);x.context.qualityReports[association.reportHash]=report;
+  const w={schemaVersion:'2.6.0',kind:'quality_waiver',workspaceId:x.context.workspaceId,projectId:x.source.projectId,revisionId:x.source.revisionId,targetId:association.targetId,qaInputHash:association.qaInputHash,qaProfileVersion:association.qaProfileVersion,reportHash:association.reportHash,findingId:'hold_1',actorId:'reviewer',reason:'Verified the intended reading hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};
+  const waiverHash=digest(w);association.waiverHashes=[waiverHash];x.context.qualityWaivers[waiverHash]=w;
+  x.context.waiverActors.reviewer={workspaceId:x.context.workspaceId,role:'editor',active:true};
+  x.output.snapshotHash=digest(x.snapshot);
+  return {association,report,w};
+}
+
+test('snapshot freezes the exact waived finding without modifying composition content',()=>{
+  const x=provenanceCase(),before=digest(contentIdentity(x.source));addReviewWaiver(x);
+  assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  assert.equal(digest(contentIdentity(x.source)),before);
+  x.snapshot.qualityAssociations[0].waiverHashes=[];
+  assert.ok(semanticErrors(x.snapshot,x.context).includes('QA_NOT_PASSED'));
+});
+
+test('new freezes reject expired or unauthorized waivers; paid execution honors the frozen approval time',()=>{
+  const x=provenanceCase();addReviewWaiver(x);
+  x.context.now=Date.parse('2026-10-23T00:00:00Z');x.context.waiverActors.reviewer.active=false;
+  const newFreeze=semanticErrors(x.snapshot,x.context);
+  assert.ok(newFreeze.includes('EXPIRED_WAIVER'));
+  assert.ok(newFreeze.includes('WAIVER_ACTOR_NOT_AUTHORIZED'));
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  delete x.context.qualityWaivers[x.snapshot.qualityAssociations[0].waiverHashes[0]];
+  assert.ok(semanticErrors(x.output,x.context).includes('QA_WAIVER_UNAVAILABLE'));
+});
+
+test('business integer fields reject unsafe numbers without restricting the binary64 JCS domain',()=>{
+  const value=parseCanonicalJson('9007199254740993');
+  assert.equal(value,9007199254740992);
+  assert.equal(canonical(1e30),'1e+30');
+  const fact=load('contracts/fact-manifest.example.json');fact.facts[0].version=value;
+  assert.ok(validateSchema(fact).some(e=>e.includes('/facts/0/version')));
+  const command=clone(protocol.render_seek);command.sequence=value;
+  assert.ok(validateSchema(command).length);
+});
+
+test('root validation reports errors only for the selected message kind',()=>{
+  const invalidDraft=clone(c);delete invalidDraft.seed;
+  const errors=validateSchema(invalidDraft);
+  assert.equal(errors.length,1);assert.ok(errors[0].includes('seed'));
+  assert.deepEqual(validateSchema({kind:'invented'}),['$/kind: UNKNOWN_DISCRIMINATOR']);
+});
+
+test('cloud clip previews require marking evidence for both the screenshot and actual clip bytes',()=>{
+  const x=previewProvenanceCase(),v=x.preview;
+  Object.assign(v,{mediaKind:'clip',clipAssetId:'clip_asset',clipSha256:digest('actual preview clip'),clipMarkingEvidenceRef:'clip_marking'});
+  x.context.markingEvidence.clip_marking={...x.context.markingEvidence.preview_check,assetId:v.clipAssetId,sha256:v.clipSha256};
+  assert.deepEqual(semanticErrors(v,x.context),[]);
+  v.clipMarkingEvidenceRef='preview_check';
+  assert.ok(semanticErrors(v,x.context).includes('MARKING_BYTES_MISMATCH'));
+  v.clipMarkingEvidenceRef='clip_marking';v.clipAssetId='unrelated_clip';
+  assert.ok(semanticErrors(v,x.context).includes('MARKING_ASSET_MISMATCH'));
+});
+
+test('changed facts save as unconfirmed drafts and require current confirmation plus a fresh QA association',()=>{
+  const x=provenanceCase(),fact=x.fact.facts[0];
+  delete x.context.snapshot;
+  x.source.revisionId=x.fact.revisionId='draft_changed_fact';
+  Object.assign(fact,{version:2,text:'新的未确认产品说明',confirmedBy:null,confirmedAt:null,evidenceRefs:[]});
+  for(const binding of x.fact.bindings)binding.expectedText=fact.text;
+  x.context.facts[fact.factId]={version:fact.version,textHash:digest(fact.text),confirmation:null};
+  const relink=()=>{
+    x.source.factManifestHash=digest(x.fact);x.source.factContentHash=digest(factContentIdentity(x.fact));
+    for(const variant of x.source.variants)variant.variantHash=digest(variantIdentity(x.source,variant));
+  };
+  relink();
+  assert.deepEqual(semanticErrors(x.source,x.context),[]);
+  assert.ok(semanticErrors(x.source,{...x.context,requireFactConfirmation:true}).includes('FACT_CONFIRMATION_REQUIRED'));
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('FACT_CONFIRMATION_REQUIRED'));
+  const partial=clone(x.fact);partial.facts[0].confirmedBy='reviewer';
+  assert.ok(validateSchema(partial).length);
+  const qaInputHash=digest(qaInputIdentity(x.source,x.source.variants[0],x.context.qaProfileVersion));
+  Object.assign(fact,{confirmedBy:'user_fixture',confirmedAt:new Date(x.context.now).toISOString(),evidenceRefs:['evidence_product_name']});
+  x.context.claimKinds[factVersionKey(x.fact.projectId,fact)]='general';
+  x.context.evidenceRegistry.evidence_product_name.factTextHash=digest(fact.text);
+  x.context.facts[fact.factId].confirmation={confirmedBy:fact.confirmedBy,confirmedAt:fact.confirmedAt};
+  relink();
+  assert.equal(digest(qaInputIdentity(x.source,x.source.variants[0],x.context.qaProfileVersion)),qaInputHash);
+  assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
+  x.context.qualityAssociations=x.context.qualityAssociations.map(association=>{
+    const variant=x.source.variants.find(item=>item.targetId===association.targetId);
+    const report={...x.context.qualityReports[association.reportHash],qaInputHash:digest(qaInputIdentity(x.source,variant,association.qaProfileVersion))};
+    const reportHash=digest(report);x.context.qualityReports[reportHash]=report;
+    return {...association,revisionId:x.source.revisionId,qaInputHash:report.qaInputHash,reportHash};
+  });
+  assert.deepEqual(semanticErrors(x.source,{...x.context,requireQuality:true}),[]);
+  Object.assign(x.snapshot,{revisionId:x.source.revisionId,compositionHash:digest(x.source),contentHash:digest(contentIdentity(x.source)),factManifestHash:x.source.factManifestHash,
+    variants:clone(x.source.variants),qualityAssociations:clone(x.context.qualityAssociations)});
+  assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
+  x.context.facts[fact.factId].confirmation=null;
+  assert.ok(semanticErrors(x.snapshot,x.context).includes('STALE_FACT_CONFIRMATION'));
+});
+
+test('a paid A release keeps its frozen facts after the current draft changes to B; real revocation still blocks',()=>{
+  const x=provenanceCase(),fact=x.fact.facts[0];
+  x.context.facts[fact.factId]={version:fact.version+1,textHash:digest('current draft B'),confirmation:null};
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  assert.ok(semanticErrors(x.snapshot,x.context).includes('STALE_FACT_CONFIRMATION'));
+  const key=factVersionKey(x.fact.projectId,fact);
+  x.context.factRevocations[key]={revoked:true};
+  assert.ok(semanticErrors(x.output,x.context).includes('FACT_CONFIRMATION_REVOKED'));
+});
+
+test('new snapshots cannot claim a confirmation time before the waiver they freeze',()=>{
+  const x=provenanceCase();addReviewWaiver(x);
+  x.snapshot.confirmedAt='2026-10-18T00:00:00Z';
+  assert.ok(semanticErrors(x.snapshot,x.context).includes('INVALID_WAIVER_ACCEPTANCE_TIME'));
+  x.snapshot.confirmedAt=new Date(x.context.now).toISOString();
+  x.output.snapshotHash=digest(x.snapshot);
+  assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+});
+
+test('a paid general claim keeps its historical classification when the current draft becomes an outcome claim',()=>{
+  const x=provenanceCase(),a=x.fact.facts[0],b={...a,version:a.version+1,text:'Customers earned a new financial outcome'};
+  x.context.evidenceRegistry.evidence_product_name.kind='customer_declaration';
+  const aKey=factVersionKey(x.fact.projectId,a),bKey=factVersionKey(x.fact.projectId,b);
+  x.context.facts[a.factId]={version:b.version,textHash:digest(b.text),confirmation:null};
+  x.context.claimKinds[bKey]='outcome';
+  assert.notEqual(aKey,bKey);
+  assert.equal(x.context.claimKinds[aKey],'general');
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  delete x.context.claimKinds[aKey];
+  assert.ok(semanticErrors(x.output,x.context).includes('FACT_CLASSIFICATION_REQUIRED'));
+});
+
+test('a new outcome claim cannot inherit the old general classification or bypass its source-evidence requirement',()=>{
+  const x=provenanceCase(),fact=x.fact.facts[0],oldKey=factVersionKey(x.fact.projectId,fact);
+  x.fact.revisionId=x.source.revisionId='outcome_revision';
+  Object.assign(fact,{version:fact.version+1,text:'Customers earned a new financial outcome',evidenceRefs:['evidence_new_claim']});
+  for(const binding of x.fact.bindings)binding.expectedText=fact.text;
+  x.context.facts[fact.factId]={version:fact.version,textHash:digest(fact.text),confirmation:{confirmedBy:fact.confirmedBy,confirmedAt:fact.confirmedAt}};
+  x.context.evidenceRegistry.evidence_new_claim={...x.context.evidenceRegistry.evidence_product_name,kind:'customer_declaration',factTextHash:digest(fact.text)};
+  const nextKey=factVersionKey(x.fact.projectId,fact),context={...x.context,requireFactConfirmation:true};
+  assert.equal(context.claimKinds[oldKey],'general');
+  assert.ok(semanticErrors(x.fact,context).includes('FACT_CLASSIFICATION_REQUIRED'));
+  context.claimKinds[fact.factId]='general'; // A legacy unversioned lookup must not authorize this version.
+  assert.ok(semanticErrors(x.fact,context).includes('FACT_CLASSIFICATION_REQUIRED'));
+  context.claimKinds[nextKey]='outcome';
+  const missingSource=semanticErrors(x.fact,context);
+  assert.equal(missingSource.includes('FACT_CLASSIFICATION_REQUIRED'),false);
+  assert.ok(missingSource.includes('FACT_SOURCE_EVIDENCE_REQUIRED'));
+  context.evidenceRegistry.evidence_outcome_source={...context.evidenceRegistry.evidence_new_claim,kind:'source',sourceHash:digest('verified outcome source')};
+  fact.evidenceRefs.push('evidence_outcome_source');
+  assert.deepEqual(semanticErrors(x.fact,context),[]);
 });

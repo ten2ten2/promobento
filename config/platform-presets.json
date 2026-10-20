@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "rulesVersion": "2026-10-18",
+  "rulesVersion": "2026-10-21",
   "status": "prd_seed_not_upload_certification",
   "workflow": "manual_upload",
   "checkedAt": "2026-10-18",

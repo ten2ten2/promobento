@@ -1,6 +1,6 @@
 # PromoBento 现行产品规格
 
-产品规格 **v2.5**；结构协议 **2.5.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
+产品规格 **v2.6**；结构协议 **2.6.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
 
 ## 文档导航
 
@@ -29,6 +29,7 @@
 | [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、renderProfiles 与来源 |
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
 | [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态与公开能力边界 |
+| [预览策略](../../config/preview.json)、[可选内容审核](../../config/content-safety.json) | 本地完整回放、可信捕获和隔离待验项；默认关闭的提示词审核适配 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 唯一视觉数值 |
@@ -39,5 +40,7 @@
 | [资源](../../contracts/resource-manifest.example.json)、[事实](../../contracts/fact-manifest.example.json)、[改稿](../../contracts/edit-request.example.json)、[输出](../../contracts/export-manifest.example.json) | 内容与请求/交付示例 |
 | [Studio参考](../design/agent-studio-reference.html) | 无真实服务的当前设计示意 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |
+
+新环境使用 [agent-setup.sh](../../scripts/agent-setup.sh) 准备精确工具链。成本事件、草稿编辑、项目可用动作及作业进度已纳入 Schema 和参考检查；后端、数据库和浏览器的真实执行仍按08逐阶段交付。
 
 代码样式路径相对仓库根目录，Markdown链接相对所在文件。来源/许可与真实验收按09和[06证据规则](06-testing-and-release.md#5-发布与证据)管理；仅测试用占位数据不得进入生产。

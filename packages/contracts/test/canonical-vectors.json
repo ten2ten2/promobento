@@ -58,5 +58,17 @@
     "input": "[-0,true,false,null,\"🌏\"]",
     "canonical": "[0,true,false,null,\"🌏\"]",
     "sha256": "8b79a3d64856743204259859a673b0c271febe63b5ec57cadccd2c13c7a69332"
+  },
+  {
+    "name": "plain_string_hash_is_json_string",
+    "input": "\"PromoBento\"",
+    "canonical": "\"PromoBento\"",
+    "sha256": "2f871a67723498e5579b0886b347fc22deb310a853bb95e40543070c2a160923"
+  },
+  {
+    "name": "binary64_large_integer_rounding",
+    "input": "9007199254740993",
+    "canonical": "9007199254740992",
+    "sha256": "c681da39d7273a6a24c15c9cac3a75526ff2ecf8ba4ee60346a0c70c8163bdb2"
   }
 ]

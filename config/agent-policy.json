@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.5.0",
+  "schemaVersion": "2.6.0",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,
@@ -17,7 +17,8 @@
     "initTimeoutMs": 30000,
     "frameTimeoutMs": 5000,
     "awaitingUserHours": 24,
-    "temporaryPreviewHours": 72
+    "temporaryPreviewHours": 72,
+    "frameTimeoutScope": "final_frame_including_all_samples_composite_and_readback"
   },
   "cost": {
     "unit": "usd_micros",
@@ -201,5 +202,15 @@
   "quality": {
     "profileVersion": "qa-v1",
     "checkerVersion": "quality-engine-v1"
+  },
+  "renderProfileSelection": {
+    "defaultProfile": "standard",
+    "experimentalProfiles": [
+      "motion4",
+      "motion8"
+    ],
+    "experimentalEnabled": false,
+    "requiresMeasuredBudget": true,
+    "selector": "trusted_controller"
   }
 }

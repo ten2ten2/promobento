@@ -2,11 +2,11 @@
 
 ## Start
 
-Read `README.md`, `docs/implementation-status.md` and `docs/prd/README.md`, then the chapters relevant to the task. The current product specification is v2.5 and the protocol is 2.5.0. Chapter 08 owns the implementation sequence; chapter 14 owns cross-system contracts. Follow the actual unfinished stage.
+Read `README.md`, `docs/implementation-status.md` and `docs/prd/README.md`, then the chapters relevant to the task. The current product specification is v2.6 and the protocol is 2.6.0. Chapter 08 owns the implementation sequence; chapter 14 owns cross-system contracts. Follow the actual unfinished stage.
 
 ## Toolchain and checks
 
-Use mise for tools/tasks and pnpm for packages. Follow chapter 08, preserve exact pins and frozen lockfiles, and run affected checks. Regenerate the offline Studio after its inputs change. CI runs repository and contract checks for `main` pushes and pull requests.
+Run `bash scripts/agent-setup.sh` in a new environment. Use mise for tools/tasks and pnpm for packages. Follow chapter 08, preserve exact pins and frozen lockfiles, and run affected checks. Regenerate the offline Studio after its inputs change. CI runs repository and contract checks for `main` pushes and pull requests.
 
 Import canonical JSON, hashing, identities and the full Ajv validator from `packages/contracts`; do not copy implementations into services. Parse original JSON text/bytes with `parseCanonicalJson` before validation. Runtime authors use `contracts/composition-runtime.d.ts`; trusted hosts use `contracts/render-protocol.d.ts`.
 
@@ -21,7 +21,7 @@ Add application commands when their implementations exist. Report actual tools a
 - Reuse exports by `(project_id, content_hash)`, not snapshot ID alone. Preserve purchase integrity, idempotent ledgers, refunds and tenant/resource authorization; retain personal data only for the purposes and periods in chapter 04. Cloud access revocation does not itself revert copyright or revoke unrelated output licenses.
 - Freeze source, dependencies, resources, facts, the actual mixed WAV and the selected render profile. Public seeking uses integer frames; subframe sampling belongs to trusted Renderer sessions. Bind Q0/Q1 to exact inputs and approved checker policy, and Q2 to actual output bytes. QA, marking or sampling policy changes alone do not consume another video version.
 - Audit asset rights before first processing, including free previews. Repository MIT does not cover every bundled asset. Resolve rights and factual evidence from trusted tenant-scoped records, and verify applicable AI marking on actual output bytes under chapters 09/14.
-- Maintain current specifications and request structures. Remove superseded material and its consumers while preserving required asset provenance, user versions and purchase evidence.
+- Maintain current specifications and request structures. Remove superseded development material and its consumers. Preserve required asset provenance, user versions, purchase evidence and any published schema, identity algorithm, configuration or executable still referenced by a retained purchase.
 
 ## Handoff
 

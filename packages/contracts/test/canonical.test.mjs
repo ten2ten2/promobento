@@ -11,14 +11,11 @@ for (const vector of vectors) test('JCS vector: ' + vector.name, () => {
   assert.equal(digest(value), vector.sha256);
 });
 
-test('content identity fixes target order independently of ICU and ignores report bookkeeping', () => {
-  const value = { variants: [
-    { targetId: 'youtube_shorts:portrait', qaReportHash: 'old' },
-    { targetId: 'youtube:landscape', qaReportHash: 'old' }
-  ] };
-  assert.equal(canonical(contentIdentity(value)), '{"variants":[{"targetId":"youtube:landscape"},{"targetId":"youtube_shorts:portrait"}]}');
-  value.variants.reverse(); value.variants[0].qaReportHash = 'new';
-  assert.equal(canonical(contentIdentity(value)), '{"variants":[{"targetId":"youtube:landscape"},{"targetId":"youtube_shorts:portrait"}]}');
+test('content identity fixes target order and ignores descriptive metadata', () => {
+  const value = parseCanonicalJson(readFileSync(new URL('../../../contracts/composition.example.json', import.meta.url)));
+  const before = canonical(contentIdentity(value));
+  value.variants.reverse(); value.textMetadata = [{label:'new description',language:'mul'}];
+  assert.equal(canonical(contentIdentity(value)), before);
 });
 
 test('serialized input rejects duplicate decoded property names at every nesting level', () => {

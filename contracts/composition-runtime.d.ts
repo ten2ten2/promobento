@@ -1,52 +1,100 @@
-/**
- * Authoring contract for the future composition-runtime package, not an implementation.
- * The trusted adapter owns RenderProtocol, resource barriers, sampling and audio playback.
- * A source module exports one CompositionDefinition; declarations are frozen with its source.
- */
+/** Contract for a future runtime. The trusted host owns barriers, media, overlays and audio. */
 import type { EditableProperty, FrameCount, Sha256, TargetId } from './render-protocol.js';
 
-/** Seconds as a non-negative rational; numerator/denominator are safe integers, denominator > 0. */
+/** Seconds; non-negative safe integer numerator, positive safe integer denominator. */
 export interface RationalTime { readonly numerator: number; readonly denominator: number }
-export interface TimelineMarker { readonly id: string; readonly frame: number; readonly label: string }
+export interface TimelineMarker {
+  readonly id: string; readonly frame: number; readonly label: string;
+  /** Optional index in frozen audioEvents; the trusted build verifies the same start frame. */
+  readonly audioEventIndex?: number;
+}
 export interface RegionDeclaration {
   readonly id: string; readonly label: string;
   readonly sourcePath?: string; readonly line?: number;
 }
 export interface RegionBounds {
   readonly id: string;
-  /** Current target pixel coordinates; finite, non-negative size; clipping is checked by Q1. */
+  /** Platform logical pixels, independent of preview scale and the user's screen DPR. */
   readonly x: number; readonly y: number; readonly width: number; readonly height: number;
 }
 export type EditableValue = string | number | boolean | ReadonlyArray<Record<string, string | number | boolean | null>>;
+/** Exact source-bundle path: values.json. Every declared editable has exactly one value. */
+export interface SourceValues {
+  readonly schemaVersion: '2.6.0'; readonly kind: 'source_values';
+  readonly values: Readonly<Record<string, EditableValue>>;
+}
 export interface RuntimeAsset {
   readonly path: string; readonly sha256: Sha256;
-  /** Task-scoped broker reference, never an arbitrary network URL or a management credential. */
+  /** Task-scoped broker URL; never arbitrary network access or a management credential. */
   readonly url: string;
+}
+export interface RuntimeSurface {
+  readonly mode: 'local_preview' | 'trusted_render';
+  /** P0 local preview: 0.5; trusted rendering: 1. Platform width/height never change. */
+  readonly pixelScale: 0.5 | 1;
+  /** The host creates this clipped logical viewport. Authors mount only below this root. */
+  readonly root: HTMLElement;
+  /**
+   * Appends a canvas with logical CSS size and integer backing dimensions scaled by pixelScale.
+   * Canvas/WebGL drawing uses this explicit scale, never window.devicePixelRatio.
+   * DOM, SVG and canvas share platform logical coordinates. Brand/AI overlays are host-owned.
+   */
+  createCanvas(): HTMLCanvasElement;
+}
+export interface VideoUse {
+  readonly id: string; readonly assetPath: string;
+  readonly sourceStart: RationalTime; readonly sourceEndExclusive: RationalTime;
+  readonly timelineStart: RationalTime; readonly playbackRate: RationalTime;
+}
+export interface RuntimeVideoFrame {
+  readonly image: ImageBitmap;
+  readonly sourceSha256: Sha256; readonly sourcePts: RationalTime;
+  readonly representation: 'source_frame' | 'preview_proxy';
+}
+export interface FontDeclaration {
+  readonly registryVersion: string; readonly fontId: string;
+  readonly weights: ReadonlyArray<number>; readonly fallbackFontIds: ReadonlyArray<string>;
+  /** Actual subset bytes and hashes must also exist in the frozen resource manifest. */
+  readonly assets: ReadonlyArray<{ readonly weight: number; readonly path: string; readonly sha256: Sha256 }>;
 }
 export interface RuntimeContext {
   readonly targetId: TargetId; readonly width: number; readonly height: number;
   readonly fps: 30; readonly totalFrames: FrameCount; readonly seed: string;
+  readonly surface: RuntimeSurface;
   readonly assets: Readonly<Record<string, RuntimeAsset>>;
+  /** Loaded from source values.json, checked against static declarations before prepare. */
   readonly values: Readonly<Record<string, EditableValue>>;
-  /** Stable for this seed/key, independent of draw order; the pinned runtime owns the algorithm. */
+  readonly videoFrames: {
+    /**
+     * sourceTime = sourceStart + (time - timelineStart) * playbackRate, using exact rationals.
+     * Choose the source PTS interval containing sourceTime: [PTS, next PTS), last to duration.
+     * The same rule handles integer and subframe times. Reject undeclared/out-of-range use,
+     * missing frames or unverified proxy mappings; never choose a nearest wall-clock frame.
+     */
+    get(useId: string, time: RationalTime): Promise<RuntimeVideoFrame>;
+  };
+  readonly fonts: {
+    /** Includes every declared fallback; glyph/shape QA is a separate trusted check. */
+    readonly ready: Promise<void>;
+    family(fontId: string): string;
+  };
+  /** Stable for seed/key, independent of draw order; algorithm belongs to the pinned runtime. */
   readonly randomAt: (key: string) => number;
 }
 export interface DrawResult { readonly regions?: ReadonlyArray<RegionBounds> }
 export interface PreparedComposition {
-  /**
-   * Draw the complete state at time. Equal frozen inputs/time give equal pixels and regions.
-   * No wall clock, unseeded randomness, accumulating callbacks or audio/event side effects.
-   * Resolve only after target resources, video position and drawing commands are ready.
-   */
+  /** Complete state at time; no accumulating callbacks, clocks or audio/event side effects. */
   draw(time: RationalTime): DrawResult | Promise<DrawResult>;
   dispose(): void | Promise<void>;
 }
 export interface CompositionDefinition {
-  readonly apiVersion: '2.5.0';
-  /** May be empty. Trusted build checks unique IDs, ranges and source paths once before init. */
+  readonly apiVersion: '2.6.0';
+  /** Validated once by the trusted build; these are the sole source of UI/inspection metadata. */
   readonly editables: ReadonlyArray<EditableProperty>;
   readonly markers: ReadonlyArray<TimelineMarker>;
   readonly regions: ReadonlyArray<RegionDeclaration>;
-  /** Resolve tween endpoints and immutable resources here; a new edit creates a new preparation. */
+  readonly videoUses: ReadonlyArray<VideoUse>;
+  readonly fonts: ReadonlyArray<FontDeclaration>;
+  /** Resolve endpoints, immutable resources and fonts; a value edit creates a new preparation. */
   prepare(context: RuntimeContext): PreparedComposition | Promise<PreparedComposition>;
 }

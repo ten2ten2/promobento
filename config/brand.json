@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.1.0",
+  "schemaVersion": "2.6.0",
   "status": "selected_brand_pending_domain_setup",
   "brandName": "PromoBento",
   "brandSlug": "promobento",
@@ -32,7 +32,8 @@
   },
   "publicPreviewWatermark": {
     "text": "Made with PromoBento",
-    "renderInPaidExport": false
+    "renderInPaidExport": false,
+    "policySource": "config/preview.json"
   },
   "checkoutDefaults": {
     "language": "en",
@@ -49,5 +50,12 @@
     "emailSignIn": "pending",
     "waffoDomain": "pending",
     "productionDeployment": "not_performed"
+  },
+  "brandFontPolicy": {
+    "source": "platform_reviewed_registry",
+    "registryVersion": null,
+    "defaultSelection": null,
+    "customFontUpload": false,
+    "status": "registry_not_deployed"
   }
 }

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "2.6.0",
+  "policyVersion": "preview-v1",
+  "status": "planned_not_deployed",
+  "localPlayback": {
+    "mode": "local_full",
+    "pixelScale": 0.5,
+    "logicalDimensionsSource": "config/platform-presets.json",
+    "durationSource": "composition.totalFrames / 30",
+    "audioSource": "composition.mixedAudio",
+    "valuesSourcePath": "values.json",
+    "ambientDevicePixelRatioAffectsContent": false,
+    "sampling": "nominal_single_sample",
+    "frameEvent": "preview-frame-ready",
+    "motionProfilePlaybackIsApproximate": true,
+    "grantsRendererSamplePermission": false,
+    "editOrReplayStartsCloudQa": false,
+    "editOrReplayStartsVideoEncoding": false
+  },
+  "trustedCapture": {
+    "pixelScale": 1,
+    "devicePixelRatio": 1,
+    "formats": ["screenshot", "clip"],
+    "requiresExplicitIntent": true,
+    "budgeted": true
+  },
+  "brandWatermark": {
+    "source": "config/brand.json#publicPreviewWatermark",
+    "owner": "trusted_host",
+    "placement": "preview_footer_band",
+    "overlapsComposition": false,
+    "includedInPreviewCapture": true,
+    "includedInContentQa": false,
+    "includedInPaidExport": false
+  },
+  "aiMarking": {
+    "source": "trusted_marking_profile",
+    "independentOfBrandWatermark": true,
+    "captureEvidenceBindsActualBytes": true,
+    "localPlaybackIsNotEncodedArtifactEvidence": true
+  },
+  "isolation": {
+    "previewOrigin": null,
+    "deploymentGate": "M0b",
+    "status": "origin_and_sandbox_not_verified",
+    "separateFromAppOrigin": true,
+    "taskScoped": true,
+    "sessionTtlSeconds": 900,
+    "allowMainSiteCookies": false,
+    "drmGuarantee": false
+  }
+}

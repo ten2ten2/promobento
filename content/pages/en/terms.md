@@ -2,7 +2,7 @@
 title: "Terms of Service"
 description: "The terms for using {{brand.brandName}}, buying project services, and using your finished videos."
 status: draft
-version: "2026-10-20.draft.1"
+version: "2026-10-20.draft.2"
 effectiveAt: null
 updatedAt: "2026-10-20"
 anchors:
@@ -36,7 +36,7 @@ AI results can contain mistakes or resemble other work. Review claims, prices, d
 
 An eligible account may claim one trial for one project. Team members share that project's allowance. Changing workspaces or sign-in methods, linking accounts, copying or deleting projects, changing ownership, or purchasing does not create a new trial. Unused trial allowances stay with the original project.
 
-Free previews are for production, authorized review, and evaluation. They do not include formal downloads or permission to publish the preview publicly or use it in advertising.
+Full-length previews use a reduced resolution and a {{brand.brandName}} watermark. They are for production, authorized review, and evaluation, and include the work's actual audio or chosen silence. They do not include formal downloads or permission to publish the preview publicly or use it in advertising.
 
 Paid purchases are one-time purchases for a particular project. There is no automatic renewal or shared credit wallet across projects. A single export buys the confirmed video and its included platform versions, without additional AI creation, revision, or media-processing allowances. Project packs, upgrades, and add-ons provide the allowances shown before purchase. Upgrades add the stated difference without resetting prior usage; add-ons require an eligible project purchase.
 
@@ -50,7 +50,7 @@ Checkout shows the currency, amount, and applicable taxes before you authorize a
 
 Once payment is verified, we provide the purchased project rights. A purchase for creation allowances alone does not automatically generate or export a video. A purchase with export delivers the work you confirmed; production status appears in the service.
 
-A usable creation or revision counts when delivered, even if you later reject it for aesthetic reasons. Failed or canceled work that delivers no usable result does not consume a successful-operation allowance. Media processing and finished-video versions have their own allowances. Ordinary local parameter changes do not consume AI revisions; submitting new AI work can.
+A usable creation or revision counts when delivered, even if you later reject it for aesthetic reasons. Failed or canceled work that delivers no usable result does not consume a successful-operation allowance. Media processing and finished-video versions have their own allowances. Ordinary local edits and autosaving do not use AI revisions or automatically start server rendering or quality checks. Requests for new media processing, server previews, or checks are subject to the limits shown before they start.
 
 Exporting the same unchanged video for another included platform or downloading it again does not consume another video version while access remains available. Technical defect corrections are free. We will not charge you extra to resolve a problem on our side and deliver the work you already purchased.
 
@@ -64,7 +64,7 @@ We do not use customer content or your project outputs to train AI models under 
 
 ## 7. Rights in paid videos
 
-After valid payment and formal delivery, we grant a worldwide, continuing, non-exclusive commercial license to the parts of your finished video that we can license. You may publish, advertise, edit, add captions, and provide the video to your agency or commissioning client for the relevant business. You do not need to credit {{brand.brandName}}.
+After valid payment and formal delivery, we grant a worldwide, continuing, non-exclusive commercial license to the parts of your finished video that we can license. You may publish, advertise, edit, add captions, and provide the video to your agency or commissioning client for the relevant business. You do not need to credit {{brand.brandName}}. Paid files have no {{brand.brandName}} preview watermark; required AI disclosures and third-party attribution still apply.
 
 To the extent we own transferable rights in new expression created specifically for your project, we transfer those rights to you upon valid payment and delivery, subject to any legally required transfer formalities. The delivery record identifies the scope. This does not transfer customer-owned content, our underlying technology or general components, or third-party rights. The license above permits background components to remain in the finished video; it does not permit selling our components as a standalone library.
 

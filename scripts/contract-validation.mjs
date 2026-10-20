@@ -1,12 +1,13 @@
 // Specification/fixture checker, not a production authorization or browser sandbox.
 import { readFileSync } from 'node:fs';
+import { studioErrors } from './studio-contracts.mjs';
 import {
   canonical, digest, parseCanonicalJson, createSchemaValidator,
-  targets as contractTargets, factContentIdentity, contentIdentity, audioIdentity,
+  targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
   variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
   outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity
 } from '../packages/contracts/index.mjs';
-export {canonical, digest, parseCanonicalJson, factContentIdentity, contentIdentity, audioIdentity};
+export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity};
 const ROOT = new URL('../', import.meta.url);
 export const load = path => parseCanonicalJson(readFileSync(new URL(path, ROOT)));
 export const schema = load('contracts/production.schema.json');
@@ -30,6 +31,46 @@ export const outputArtifactIdentity = (c, v, kind, markingProfileVersion, rules 
 export const qaInputIdentity = (c, v, qaProfileVersion, rules = presets) => contractQaInputIdentity(c, v, qaProfileVersion, rules);
 const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+
+/** Reports are reusable checks; associations and waivers remain scoped authorization records. */
+export function qualityAssociationErrors(association, composition, context = {}) {
+  const errors = validateSchema(association, schema.$defs.qualityAssociation);
+  if (errors.length) return errors;
+  const fail = (ok, code) => { if (!ok) errors.push(code); };
+  const variant = composition?.variants.find(v => v.targetId === association.targetId);
+  const rules = context.presetConfig ?? presets;
+  const validTarget = targets(rules).some(target => target.targetId === association.targetId);
+  if (context.production) fail(association.exampleOnly !== true, 'FIXTURE_QA_IN_PRODUCTION');
+  fail(!!composition && association.projectId === composition.projectId && association.revisionId === composition.revisionId, 'QA_ASSOCIATION_SCOPE_MISMATCH');
+  if (context.projectId) fail(association.projectId === context.projectId, 'QA_ASSOCIATION_SCOPE_MISMATCH');
+  if (context.workspaceId || context.production) fail(association.workspaceId === context.workspaceId, 'QA_ASSOCIATION_SCOPE_MISMATCH');
+  fail(!!variant && validTarget, 'QA_ASSOCIATION_TARGET_MISMATCH');
+  if (context.qaProfileVersion) fail(association.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
+  if (variant && validTarget) fail(association.qaInputHash === digest(qaInputIdentity(composition, variant, association.qaProfileVersion, rules)), 'STALE_QA_INPUT');
+  if (!(context.production || context.qualityReports)) return errors;
+  const report = own(context.qualityReports, association.reportHash);
+  fail(!!report, 'QA_REPORT_UNAVAILABLE');
+  if (!report) return errors;
+  fail(digest(report) === association.reportHash, 'QA_REPORT_BINDING_MISMATCH');
+  fail(['workspaceId','projectId','targetId','qaInputHash','qaProfileVersion'].every(key => report[key] === association[key]), 'QA_REPORT_BINDING_MISMATCH');
+  const reportErrors = semanticErrors(report, {...context, composition, qaProfileVersion:association.qaProfileVersion});
+  errors.push(...reportErrors);
+  if (reportErrors.length) return errors;
+  const waived = new Set();
+  for (const waiverHash of association.waiverHashes) {
+    const waiver = own(context.qualityWaivers, waiverHash);
+    fail(!!waiver, 'QA_WAIVER_UNAVAILABLE');
+    if (!waiver) continue;
+    fail(digest(waiver) === waiverHash, 'QA_WAIVER_HASH_MISMATCH');
+    fail(['workspaceId','projectId','revisionId','targetId','qaInputHash','qaProfileVersion','reportHash'].every(key => waiver[key] === association[key]), 'STALE_WAIVER');
+    const waiverErrors = semanticErrors(waiver, {...context, composition, qualityReport:report, reportHash:association.reportHash});
+    errors.push(...waiverErrors);
+    fail(!waived.has(waiver.findingId), 'DUPLICATE_FINDING_WAIVER');
+    if (!waiverErrors.length) waived.add(waiver.findingId);
+  }
+  fail(report.findings.every(finding => finding.level === 'INFO' || (finding.level === 'REVIEW' && waived.has(finding.findingId))), 'QA_NOT_PASSED');
+  return errors;
+}
 /** Run at the asset broker before first use, including preview. Context comes from trusted storage, never a request body. */
 export function resourceRightsErrors(resource, context = {}) {
   const errors = validateSchema(resource, schema.$defs.resource);
@@ -69,7 +110,7 @@ function markingErrors(output, context) {
     && evidence.revisionId === output.revisionId, 'MARKING_SCOPE_MISMATCH');
   if (output.artifactFingerprint) fail(evidence.artifactFingerprint === output.artifactFingerprint, 'MARKING_FINGERPRINT_MISMATCH');
   else {
-    fail(typeof output.screenshotAssetId === 'string' && evidence.assetId === output.screenshotAssetId, 'MARKING_ASSET_MISMATCH');
+    fail(typeof output.assetId === 'string' && evidence.assetId === output.assetId, 'MARKING_ASSET_MISMATCH');
     fail(evidence.targetId === output.targetId && evidence.frameStart === output.frameStart
       && evidence.frameEndExclusive === output.frameEndExclusive, 'MARKING_PREVIEW_IDENTITY_MISMATCH');
   }
@@ -140,12 +181,13 @@ function apiInputErrors(v, context) {
   }
   if (v.kind === 'asset_intent_request') {
     const {mediaType,byteLength} = v.source, audio = mediaType.startsWith('audio/'), video = mediaType.startsWith('video/');
-    fail(v.purpose === 'evidence' || (v.purpose === 'visual' && !audio)
+    const image = mediaType.startsWith('image/'), document = mediaType === 'application/pdf';
+    fail(v.purpose === 'evidence' || (v.purpose === 'visual' && (image || video))
       || (v.purpose === 'logo' && ['image/png','image/webp'].includes(mediaType))
       || (['voiceover','music'].includes(v.purpose) && audio), 'UPLOAD_PURPOSE_MISMATCH');
     const capabilities = load('config/input-capabilities.json').entries;
-    const limit = capabilities.find(x => x.id === (v.purpose === 'logo' ? 'logo' : audio ? 'user_audio' : video ? 'recordings' : 'images')).maxBytes;
-    fail(byteLength <= limit, 'UPLOAD_TOO_LARGE');
+    const limit = capabilities.find(x => x.id === (document ? 'evidence_documents' : v.purpose === 'logo' ? 'logo' : audio ? 'user_audio' : video ? 'recordings' : 'images'))?.maxBytes;
+    fail(Number.isSafeInteger(limit) && byteLength <= limit, 'UPLOAD_TOO_LARGE');
     fail(v.purpose === 'evidence' || v.rightsDeclaration.previewAuthorized, 'PREVIEW_RIGHTS_REQUIRED');
     if (context.production || context.rightsNoticeVersion) fail(v.rightsDeclaration.noticeVersion === context.rightsNoticeVersion, 'RIGHTS_NOTICE_MISMATCH');
   }
@@ -220,6 +262,7 @@ function apiInputErrors(v, context) {
 export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
   if (errors.length) return errors;
+  errors.push(...studioErrors(v,context,{schema,validateSchema,digest,presets:context.presetConfig ?? presets}));
   errors.push(...apiInputErrors(v,context));
   const fail = (ok, message) => { if (!ok) errors.push(message); };
   if (v.kind === 'run_result') {
@@ -242,6 +285,7 @@ export function semanticErrors(v, context = {}) {
     fail(new Set(v.resources.map(x => x.path)).size === v.resources.length, 'DUPLICATE_RESOURCE_PATH');
     for (const resource of v.resources) {
       fail(safePath(resource.path), 'UNSAFE_RESOURCE_PATH');
+      fail(resource.mediaType !== 'application/pdf', 'EVIDENCE_NOT_RENDER_RESOURCE');
       if (context.production || context.licenseRegistry) errors.push(...resourceRightsErrors(resource, context));
     }
     for (const event of v.audioEvents) {
@@ -299,7 +343,7 @@ export function semanticErrors(v, context = {}) {
       fail(safePath(x.entrypoint), 'UNSAFE_ENTRYPOINT');
       fail(x.coverFrame < v.totalFrames, 'COVER_OUT_OF_RANGE');
     }
-    if (v.releaseEligible || v.kind === 'release_snapshot') fail(all.every(t => ownTargets.has(t.targetId)), 'VARIANTS_NOT_READY');
+    if (context.requireAllTargets || v.kind === 'release_snapshot') fail(all.every(t => ownTargets.has(t.targetId)), 'VARIANTS_NOT_READY');
     fail(v.presetRulesVersion === rules.rulesVersion, 'PRESET_VERSION_UNAVAILABLE');
     if (v.kind === 'composition') for (const variant of v.variants) {
       if (allowed.has(variant.targetId)) fail(variant.variantHash === digest(variantIdentity(v, variant, rules)), 'VARIANT_HASH_MISMATCH');
@@ -375,27 +419,35 @@ export function semanticErrors(v, context = {}) {
           fail(Array.isArray(manifest.audioEvents) && variant.audioHash === digest(audioIdentity(manifest)), 'AUDIO_MANIFEST_HASH_MISMATCH');
         }
         const observation = own(context.resourceObservations, resourceHash);
-        if (v.kind === 'release_snapshot' || source.releaseEligible || v.state === 'ready') {
+        if (v.kind === 'release_snapshot' || context.requireQuality || v.state === 'ready') {
           fail(Array.isArray(observation?.resources) && Array.isArray(observation?.audioEvents) && Object.hasOwn(observation, 'mixedAudio'), 'RESOURCE_OBSERVATION_REQUIRED');
         }
+        const resourceContentHash = digest(resourceContentIdentity(manifest));
+        if (resourceHash === source.resourceManifestHash) fail(source.resourceContentHash === resourceContentHash, 'RESOURCE_CONTENT_HASH_MISMATCH');
+        for (const variant of source.variants.filter(item => item.resourceManifestHash === resourceHash)) fail(variant.resourceContentHash === resourceContentHash, 'RESOURCE_CONTENT_HASH_MISMATCH');
         errors.push(...semanticErrors(manifest, {...context,composition:source,projectId:source.projectId,intendedUse:usage,
           licenseVersions,observedResources:observation?.resources,observedAudioEvents:observation?.audioEvents,
           ...(observation && Object.hasOwn(observation,'mixedAudio') ? {observedMixedAudio:observation.mixedAudio} : {})}));
         for (const resource of manifest.resources ?? []) references.add(resource.licenseRef);
       }
       if (commercial && frozen) fail(canonical([...references].sort()) === canonical(Object.keys(licenseVersions).sort()), 'FROZEN_LICENSE_SET_MISMATCH');
-      const needsReports = source.releaseEligible || commercial || v.state === 'ready';
+      const needsReports = context.requireQuality === true || commercial || v.state === 'ready';
       if (needsReports) {
         const qaProfileVersion = frozen?.qaProfileVersion ?? context.qaProfileVersion;
         fail(!!qaProfileVersion && !!own(context.qaProfiles, qaProfileVersion), 'QA_PROFILE_UNAVAILABLE');
-        const variants = source.releaseEligible || commercial ? source.variants : source.variants.filter(x => x.targetId === v.targetId);
-        for (const variant of variants) {
-          const report = own(context.qualityReports, variant.qaReportHash);
-          fail(!!report, 'QA_REPORT_UNAVAILABLE');
-          if (!report) continue;
-          fail(digest(report) === variant.qaReportHash && report.targetId === variant.targetId, 'QA_REPORT_BINDING_MISMATCH');
-          errors.push(...semanticErrors(report, {...context, composition:source, qaProfileVersion}));
-          if (Array.isArray(report.findings)) fail(report.findings.every(f => f.level === 'INFO' || (f.level === 'REVIEW' && f.waiver)), 'QA_NOT_PASSED');
+        const variants = commercial || !v.targetId ? source.variants : source.variants.filter(x => x.targetId === v.targetId);
+        const associations = frozen?.qualityAssociations ?? context.qualityAssociations;
+        fail(Array.isArray(associations), 'QA_ASSOCIATIONS_REQUIRED');
+        if (Array.isArray(associations)) {
+          fail(new Set(associations.map(a => a.targetId)).size === associations.length, 'DUPLICATE_QA_ASSOCIATION');
+          for (const variant of variants) {
+            const association = associations.find(a => a.targetId === variant.targetId);
+            fail(!!association, 'QA_ASSOCIATION_REQUIRED');
+            if (!association) continue;
+            errors.push(...qualityAssociationErrors(association, source, {...context, qaProfileVersion,
+              frozenQuality: v.kind === 'export_manifest',
+              qualityAt: commercial ? Date.parse(frozen?.confirmedAt) : context.now}));
+          }
         }
       }
 
@@ -403,17 +455,22 @@ export function semanticErrors(v, context = {}) {
       if (context.factManifest) {
         fail(source.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
         fail(source.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
-        errors.push(...semanticErrors(context.factManifest, {...context,composition:source,projectId:source.projectId}));
+        errors.push(...semanticErrors(context.factManifest, {...context,composition:source,projectId:source.projectId,
+          requireFactConfirmation: context.requireFactConfirmation === true || needsReports, frozenFacts: v.kind === 'export_manifest',
+          factConfirmationAt: commercial ? Date.parse(frozen?.confirmedAt) : context.now}));
       }
     }
   }
   if (v.kind === 'release_snapshot' && composition) {
-    fail(composition.releaseEligible === true, 'COMPOSITION_NOT_RELEASE_ELIGIBLE');
     fail(v.totalFrames === composition.totalFrames && v.durationSeconds === composition.durationSeconds && v.fps === composition.fps, 'SNAPSHOT_TIMING_MISMATCH');
     fail(v.presetRulesVersion === composition.presetRulesVersion, 'SNAPSHOT_RULES_MISMATCH');
     fail(v.compositionHash === digest(composition), 'COMPOSITION_HASH_MISMATCH');
     fail(v.contentHash === digest(contentIdentity(composition)), 'CONTENT_HASH_MISMATCH');
     fail(canonical(v.variants) === canonical(composition.variants), 'FROZEN_VARIANT_CHANGED');
+    fail(new Set(v.qualityAssociations.map(a => a.targetId)).size === v.qualityAssociations.length, 'DUPLICATE_QA_ASSOCIATION');
+    fail(v.qualityAssociations.length === v.variants.length && v.variants.every(variant => v.qualityAssociations.some(a => a.targetId === variant.targetId)), 'QA_ASSOCIATION_TARGET_MISMATCH');
+    for (const association of v.qualityAssociations) errors.push(...qualityAssociationErrors(association, composition, {...context, qaProfileVersion:v.qaProfileVersion,qualityAt:Date.parse(v.confirmedAt)}));
+    if (context.production) fail(Number.isFinite(context.now) && Date.parse(v.confirmedAt) <= context.now, 'SNAPSHOT_CONFIRMATION_TIME_INVALID');
     fail(v.factManifestHash === composition.factManifestHash && v.rendererImageDigest === composition.rendererImageDigest, 'SNAPSHOT_PROVENANCE_MISMATCH');
     if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
   }
@@ -453,15 +510,39 @@ export function semanticErrors(v, context = {}) {
   if (v.kind === 'preview_result' && v.state === 'ready') {
     fail(typeof v.screenshotAssetId === 'string' && v.screenshotAssetId.length > 0, 'READY_PREVIEW_WITHOUT_ASSET');
     fail(hash(v.sha256), 'READY_PREVIEW_WITHOUT_HASH');
-    if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId},context));
+    if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.screenshotAssetId},context));
+    if (v.mediaKind === 'clip') {
+      fail(typeof v.clipAssetId === 'string' && v.clipAssetId.length > 0, 'READY_CLIP_WITHOUT_ASSET');
+      fail(hash(v.clipSha256), 'READY_CLIP_WITHOUT_HASH');
+      if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.clipAssetId,
+        sha256:v.clipSha256,markingEvidenceRef:v.clipMarkingEvidenceRef},context));
+    }
   }
   if (v.kind === 'fact_manifest') {
     fail(new Set(v.bindings.map(b => b.bindingId)).size === v.bindings.length, 'DUPLICATE_BINDING');
     const facts = new Map(v.facts.map(f => [f.factId, f]));
     fail(facts.size === v.facts.length, 'DUPLICATE_FACT');
-    if (context.production || context.evidenceRegistry) for (const fact of v.facts) {
-      const claimKind = own(context.claimKinds, fact.factId);
-      fail(['general','testimonial','outcome','promotion'].includes(claimKind), 'FACT_CLASSIFICATION_REQUIRED');
+    const requireConfirmation = context.requireFactConfirmation === true || context.requireQuality === true;
+    if (requireConfirmation && context.production) fail(!!context.factRevocations && typeof context.factRevocations === 'object', 'FACT_REVOCATION_STATE_REQUIRED');
+    for (const fact of v.facts) {
+      const versionKey = factVersionKey(v.projectId,fact);
+      if (requireConfirmation) {
+        const at = context.factConfirmationAt ?? context.now;
+        fail(typeof fact.confirmedBy === 'string' && typeof fact.confirmedAt === 'string', 'FACT_CONFIRMATION_REQUIRED');
+        if (context.production) fail(Number.isFinite(at) && typeof fact.confirmedAt === 'string' && Date.parse(fact.confirmedAt) <= at, 'FACT_CONFIRMATION_TIME_INVALID');
+        if (!context.frozenFacts && (context.production || context.facts)) {
+          const current = own(context.facts, fact.factId);
+          fail(!!current && current.version === fact.version && current.textHash === digest(fact.text)
+            && current.confirmation?.confirmedBy === fact.confirmedBy && current.confirmation?.confirmedAt === fact.confirmedAt
+            && (!current.projectId || current.projectId === v.projectId)
+            && (!current.workspaceId || current.workspaceId === context.workspaceId), 'STALE_FACT_CONFIRMATION');
+        }
+        fail(own(context.factRevocations,versionKey)?.revoked !== true, 'FACT_CONFIRMATION_REVOKED');
+        fail(fact.evidenceRefs.length > 0, 'FACT_EVIDENCE_REQUIRED');
+      }
+      if (!(context.production || context.evidenceRegistry)) continue;
+      const claimKind = own(context.claimKinds, versionKey);
+      if (requireConfirmation) fail(['general','testimonial','outcome','promotion'].includes(claimKind), 'FACT_CLASSIFICATION_REQUIRED');
       let sourceEvidence = false;
       for (const ref of fact.evidenceRefs) {
         const evidence = own(context.evidenceRegistry, ref);
@@ -473,23 +554,23 @@ export function semanticErrors(v, context = {}) {
         fail(['source','customer_declaration'].includes(evidence.kind), 'FACT_EVIDENCE_BASIS_MISSING');
         sourceEvidence ||= evidence.kind === 'source';
       }
-      if (claimKind !== 'general') fail(sourceEvidence, 'FACT_SOURCE_EVIDENCE_REQUIRED');
+      if (requireConfirmation && claimKind !== 'general') fail(sourceEvidence, 'FACT_SOURCE_EVIDENCE_REQUIRED');
     }
     for (const b of v.bindings) {
       fail(allowed.has(b.targetId), 'FACT_TARGET_INVALID');
       fail(b.frameEndExclusive > b.frameStart && (!composition || b.frameEndExclusive <= composition.totalFrames), 'FACT_INTERVAL_INVALID');
       fail(b.factIds.every(id => facts.has(id)), 'UNKNOWN_FACT');
-      // A commercial display string must itself be an explicitly approved fact phrase.
+      // A display string must match a declared fact phrase. Confirmation is a separate delivery gate.
       fail(b.factIds.some(id => facts.get(id)?.text === b.expectedText), 'UNCONFIRMED_DISPLAY_TEXT');
     }
   }
   if (v.kind === 'patch_result') for (const path of v.changedFiles) fail(safePath(path), 'UNSAFE_PATCH_PATH');
   if (v.kind === 'quality_report') {
     if (composition) {
-      fail(v.sourceHash === composition.sourceArchiveHash && v.factManifestHash === composition.factManifestHash, 'STALE_QA_PROVENANCE');
       const variant = composition.variants.find(x => x.targetId === v.targetId);
       if (variant && allowed.has(v.targetId)) fail(v.qaInputHash === digest(qaInputIdentity(composition,variant,v.qaProfileVersion,rules)), 'STALE_QA_INPUT');
     } else if (context.production) fail(false, 'QA_COMPOSITION_REQUIRED');
+    if (context.workspaceId || context.production) fail(v.workspaceId === context.workspaceId, 'QA_REPORT_SCOPE_MISMATCH');
     if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
     if (context.production) {
       const profile = own(context.qaProfiles, v.qaProfileVersion);
@@ -498,14 +579,29 @@ export function semanticErrors(v, context = {}) {
       fail(v.coverage !== 'fixture_only', 'FIXTURE_QA_IN_PRODUCTION');
       fail(Number.isFinite(context.now), 'TRUSTED_QA_TIME_REQUIRED');
     }
-    for (const f of v.findings) {
-    fail(f.frameEndExclusive > f.frameStart && (!composition || f.frameEndExclusive <= composition.totalFrames), 'QA_INTERVAL_INVALID');
-    fail(!(f.level === 'BLOCK' && f.waiver), 'BLOCK_NOT_WAIVABLE');
-    if (f.waiver) {
-      fail(f.waiver.revisionId === v.revisionId && f.waiver.targetId === v.targetId, 'STALE_WAIVER');
-      fail(Number.isFinite(Date.parse(f.waiver.expiresAt)), 'INVALID_WAIVER_EXPIRY');
-      if (context.now !== undefined) fail(Date.parse(f.waiver.expiresAt) > context.now, 'EXPIRED_WAIVER');
+    fail(new Set(v.findings.map(f => f.findingId)).size === v.findings.length, 'DUPLICATE_QA_FINDING');
+    for (const f of v.findings) fail(f.frameEndExclusive > f.frameStart && (!composition || f.frameEndExclusive <= composition.totalFrames), 'QA_INTERVAL_INVALID');
+  }
+  if (v.kind === 'quality_association') errors.push(...qualityAssociationErrors(v, composition, context));
+  if (v.kind === 'quality_waiver') {
+    const report = context.qualityReport ?? own(context.qualityReports, v.reportHash);
+    fail(!!report && digest(report) === v.reportHash, 'WAIVER_REPORT_REQUIRED');
+    if (report) {
+      fail(['workspaceId','projectId','targetId','qaInputHash','qaProfileVersion'].every(key => report[key] === v[key]), 'STALE_WAIVER');
+      const finding = report.findings.find(f => f.findingId === v.findingId);
+      fail(!!finding, 'WAIVER_FINDING_MISMATCH');
+      fail(finding?.level === 'REVIEW', 'BLOCK_NOT_WAIVABLE');
     }
+    if (context.workspaceId || context.production) fail(v.workspaceId === context.workspaceId, 'WAIVER_SCOPE_MISMATCH');
+    if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
+    const at = context.qualityAt ?? context.now;
+    fail(Number.isFinite(at) && Date.parse(v.acceptedAt) <= at, 'INVALID_WAIVER_ACCEPTANCE_TIME');
+    fail(Number.isFinite(at) && Date.parse(v.expiresAt) > at, 'EXPIRED_WAIVER');
+    fail(v.reason.trim().length > 0, 'EMPTY_WAIVER_REASON');
+    if (!context.frozenQuality) {
+      if (context.production) fail(Number.isFinite(context.now) && Date.parse(v.expiresAt) > context.now, 'EXPIRED_WAIVER');
+      const actor = own(context.waiverActors, v.actorId);
+      fail(!!actor && actor.active === true && actor.workspaceId === v.workspaceId && ['owner','editor'].includes(actor.role), 'WAIVER_ACTOR_NOT_AUTHORIZED');
     }
   }
   return errors;
@@ -570,7 +666,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.5.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    const result = {schemaVersion:'2.6.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }

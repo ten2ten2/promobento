@@ -6,7 +6,7 @@
 
 P0 提供 Google 与邮箱验证码登录；登录/注册共入口，无密码、忘记密码、magic link 或强制网站语言步骤。OTP 不宣称 MFA。内部 user_id 稳定，登录 identity 与项目/订单主键分离，只有双方验证和明确确认才能关联。
 
-业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；不可信 Composition 预览必须使用另一个受限 origin，不能共享应用会话。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
+业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；不可信 Composition 预览使用 [预览配置](../../config/preview.json) 中的受限 origin，不能共享应用会话。预览配置、隔离域和资产代理未验证前不开放真实预览，具体限制按 14。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
 
 /create 先选任务/15或30秒/平台，素材上传、预处理、方向卡和生成前均须 Google/邮箱登录；匿名阶段只保留低成本的选项和公开自有样片，不接收/处理客户素材或生成方向。/login 共用 Google/邮箱；/login/verify 验证码，/login/link 待注册/关联确认。/app→/app/projects、/app/settings→/app/settings/account 为 302/private,no-store；Account、Appearance、Brand、Members、Orders 使用已注册页面。Help 复用 /help；搜索资源只含真实 robots/sitemap，不提供空 /llms.txt 或未实现页面。
 
@@ -26,7 +26,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 仅允许已注册 /create、/app 页面、/invite/:token 的本站单斜线相对路径，最长 2048；拒绝绝对 URL、双斜线、反斜杠、控制字符、片段、点段、编码分隔符、多重编码和重复 query 键。解析/重新序列化不一致回退默认，不开放重定向。/login、/api、/admin、/review 不能作为用户输入返回目标。
 
-/create query 只允许 audience/task/duration/platforms，按两人群任务、15/30秒和平台 ID 去重校验；应用列表/Brand/Members 允许 workspaceId，其余详情/Account/Appearance/邀请无业务 query。已选 targetIds 与 Feed 方形放在绑定的 flow/草稿上下文并按平台配对校验，不能扩张 returnTo allowlist。原始 UTM/referrer 不层层拼进 OAuth URL；来源按 07 脱敏，日志不留带邀请 token 的返回地址。
+/create query 只允许 audience/task/duration/platforms：audience 仅为 software/course，task 是自由文本而非任务枚举，仍受回跳 URL 的长度与编码限制；duration 仅 15/30，platforms 按平台 ID 校验和去重。应用列表/Brand/Members 允许 workspaceId，其余详情/Account/Appearance/邀请无业务 query。完整任务、已选 targetIds 与 Feed 方形保存在绑定的 flow/草稿上下文，目标按平台配对校验，不能扩张 returnTo allowlist。原始 UTM/referrer 不层层拼进 OAuth URL；来源按 07 脱敏，日志不留带邀请 token 的返回地址。
 
 登录成功后重新验目标权限，无权资源 404 并保留项目列表入口。失败/重试/换邮箱保留合法任务。文件选择授权不保证跨页面登录后仍有效，上传在登录后开始。
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://promobento.com/contracts/production/2.5.0",
+  "$id": "https://promobento.com/contracts/production/2.6.0",
   "title": "PromoBento production contracts",
   "description": "Wire structure only; authorization, cross-resource/hash relations and state guards are mandatory separate semantic checks. Fixtures are not deployed services.",
   "$defs": {
@@ -62,9 +62,6 @@
         "coverFrame": {
           "$ref": "#/$defs/frameIndex"
         },
-        "qaReportHash": {
-          "$ref": "#/$defs/sha256"
-        },
         "targetOverrideHash": {
           "anyOf": [
             {
@@ -74,6 +71,9 @@
               "type": "null"
             }
           ]
+        },
+        "resourceContentHash": {
+          "$ref": "#/$defs/sha256"
         }
       },
       "required": [
@@ -87,8 +87,8 @@
         "audioHash",
         "variantHash",
         "coverFrame",
-        "qaReportHash",
-        "targetOverrideHash"
+        "targetOverrideHash",
+        "resourceContentHash"
       ],
       "additionalProperties": false
     },
@@ -116,7 +116,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "composition"
@@ -170,9 +170,6 @@
         "presetRulesVersion": {
           "$ref": "#/$defs/text"
         },
-        "releaseEligible": {
-          "type": "boolean"
-        },
         "variants": {
           "type": "array",
           "items": {
@@ -198,6 +195,12 @@
         },
         "renderProfile": {
           "$ref": "#/$defs/renderProfile"
+        },
+        "identityVersion": {
+          "const": 1
+        },
+        "resourceContentHash": {
+          "$ref": "#/$defs/sha256"
         }
       },
       "required": [
@@ -216,11 +219,12 @@
         "runtimeVersion",
         "rendererImageDigest",
         "presetRulesVersion",
-        "releaseEligible",
         "variants",
         "factContentHash",
         "layoutRulesHash",
-        "renderProfile"
+        "renderProfile",
+        "identityVersion",
+        "resourceContentHash"
       ],
       "additionalProperties": false
     },
@@ -228,7 +232,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "release_snapshot"
@@ -299,6 +303,16 @@
         },
         "qaProfileVersion": {
           "$ref": "#/$defs/id"
+        },
+        "qualityAssociations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualityAssociation"
+          },
+          "minItems": 1
+        },
+        "confirmedAt": {
+          "$ref": "#/$defs/dateTime"
         }
       },
       "required": [
@@ -319,7 +333,9 @@
         "rendererImageDigest",
         "usagePolicy",
         "markingProfileVersion",
-        "qaProfileVersion"
+        "qaProfileVersion",
+        "qualityAssociations",
+        "confirmedAt"
       ],
       "additionalProperties": false
     },
@@ -327,7 +343,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "edit_request"
@@ -363,7 +379,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "patch_result"
@@ -463,23 +479,38 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "text": {
           "$ref": "#/$defs/text"
         },
         "confirmedBy": {
-          "$ref": "#/$defs/id"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "confirmedAt": {
-          "$ref": "#/$defs/dateTime"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dateTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "evidenceRefs": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/id"
           },
-          "minItems": 1,
+          "minItems": 0,
           "uniqueItems": true
         }
       },
@@ -491,7 +522,29 @@
         "confirmedAt",
         "evidenceRefs"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "confirmedBy": {
+              "type": "null"
+            },
+            "confirmedAt": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "properties": {
+            "confirmedBy": {
+              "$ref": "#/$defs/id"
+            },
+            "confirmedAt": {
+              "$ref": "#/$defs/dateTime"
+            }
+          }
+        }
+      ]
     },
     "binding": {
       "type": "object",
@@ -507,7 +560,8 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "expectedText": {
           "$ref": "#/$defs/text"
@@ -544,7 +598,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "fact_manifest"
@@ -601,45 +655,14 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "message": {
           "$ref": "#/$defs/text"
         },
-        "waiver": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "actorId": {
-                  "$ref": "#/$defs/id"
-                },
-                "reason": {
-                  "$ref": "#/$defs/text"
-                },
-                "revisionId": {
-                  "$ref": "#/$defs/id"
-                },
-                "targetId": {
-                  "$ref": "#/$defs/id"
-                },
-                "expiresAt": {
-                  "$ref": "#/$defs/dateTime"
-                }
-              },
-              "required": [
-                "actorId",
-                "reason",
-                "revisionId",
-                "targetId",
-                "expiresAt"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "findingId": {
+          "$ref": "#/$defs/id"
         }
       },
       "required": [
@@ -648,7 +671,7 @@
         "frameStart",
         "frameEndExclusive",
         "message",
-        "waiver"
+        "findingId"
       ],
       "additionalProperties": false
     },
@@ -656,7 +679,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "quality_report"
@@ -667,17 +690,8 @@
         "projectId": {
           "$ref": "#/$defs/id"
         },
-        "revisionId": {
-          "$ref": "#/$defs/id"
-        },
         "targetId": {
           "$ref": "#/$defs/id"
-        },
-        "sourceHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "factManifestHash": {
-          "$ref": "#/$defs/sha256"
         },
         "checkerVersion": {
           "$ref": "#/$defs/text"
@@ -708,22 +722,23 @@
         },
         "qaInputHash": {
           "$ref": "#/$defs/sha256"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
         }
       },
       "required": [
         "schemaVersion",
         "kind",
         "projectId",
-        "revisionId",
         "targetId",
-        "sourceHash",
-        "factManifestHash",
         "checkerVersion",
         "coverage",
         "findings",
         "evidenceRefs",
         "qaProfileVersion",
-        "qaInputHash"
+        "qaInputHash",
+        "workspaceId"
       ],
       "additionalProperties": false
     },
@@ -731,7 +746,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "agent_request"
@@ -783,7 +798,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "run_result"
@@ -817,7 +832,8 @@
         },
         "generation": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "candidateRevisionId": {
           "anyOf": [
@@ -895,7 +911,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "run_action"
@@ -932,7 +948,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "preview_request"
@@ -954,7 +970,14 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "mediaKind": {
+          "enum": [
+            "screenshot",
+            "clip"
+          ]
         }
       },
       "required": [
@@ -963,7 +986,8 @@
         "requestId",
         "revisionId",
         "targetId",
-        "frameStart"
+        "frameStart",
+        "mediaKind"
       ],
       "additionalProperties": false
     },
@@ -971,7 +995,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "preview_result"
@@ -996,7 +1020,8 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "state": {
           "enum": [
@@ -1037,6 +1062,42 @@
               "type": "null"
             }
           ]
+        },
+        "mediaKind": {
+          "enum": [
+            "screenshot",
+            "clip"
+          ]
+        },
+        "clipAssetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clipSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clipMarkingEvidenceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -1052,7 +1113,11 @@
         "screenshotAssetId",
         "markingProfileVersion",
         "sha256",
-        "markingEvidenceRef"
+        "markingEvidenceRef",
+        "mediaKind",
+        "clipAssetId",
+        "clipSha256",
+        "clipMarkingEvidenceRef"
       ],
       "additionalProperties": false
     },
@@ -1060,7 +1125,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "snapshot_request"
@@ -1096,7 +1161,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "apply_request"
@@ -1123,7 +1188,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "error"
@@ -1186,7 +1251,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1196,7 +1261,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -1218,11 +1284,13 @@
         },
         "width": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "height": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "fps": {
           "const": 30
@@ -1232,6 +1300,18 @@
         },
         "renderProfile": {
           "$ref": "#/$defs/renderProfile"
+        },
+        "mode": {
+          "enum": [
+            "local_preview",
+            "trusted_render"
+          ]
+        },
+        "pixelScale": {
+          "enum": [
+            0.5,
+            1
+          ]
         }
       },
       "required": [
@@ -1248,7 +1328,9 @@
         "height",
         "fps",
         "seed",
-        "renderProfile"
+        "renderProfile",
+        "mode",
+        "pixelScale"
       ],
       "additionalProperties": false
     },
@@ -1256,7 +1338,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1266,7 +1348,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -1297,7 +1380,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1307,7 +1390,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -1334,7 +1418,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1344,7 +1428,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -1385,6 +1470,9 @@
         },
         {
           "$ref": "#/$defs/renderDispose"
+        },
+        {
+          "$ref": "#/$defs/frameInspect"
         }
       ]
     },
@@ -1392,7 +1480,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "export_manifest"
@@ -1520,7 +1608,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "quality_summary"
@@ -1537,8 +1625,28 @@
             "$ref": "#/$defs/qualityReport"
           }
         },
-        "eligibility": {
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "associations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualityAssociation"
+          }
+        },
+        "waivers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualityWaiver"
+          }
+        },
+        "qualityEligibility": {
           "enum": [
+            "unchecked",
+            "checking",
             "blocked",
             "review_required",
             "ready"
@@ -1550,7 +1658,11 @@
         "kind",
         "revisionId",
         "reports",
-        "eligibility"
+        "qualityEligibility",
+        "workspaceId",
+        "projectId",
+        "associations",
+        "waivers"
       ],
       "additionalProperties": false
     },
@@ -1558,7 +1670,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "preflight_request"
@@ -1594,7 +1706,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "export_request"
@@ -1630,7 +1742,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "platform_request"
@@ -1723,7 +1835,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1733,7 +1845,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -1850,7 +1963,8 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "event": {
           "$ref": "#/$defs/text"
@@ -1925,7 +2039,8 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "sourceHash": {
           "$ref": "#/$defs/sha256"
@@ -2039,7 +2154,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "create_project_request"
@@ -2097,7 +2212,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "create_project_result"
@@ -2135,7 +2250,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2174,7 +2289,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2209,7 +2324,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2248,7 +2363,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2287,7 +2402,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2330,7 +2445,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2365,7 +2480,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2413,7 +2528,8 @@
         },
         "byteLength": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "maximum": 9007199254740991
         },
         "mediaType": {
           "$ref": "#/$defs/text"
@@ -2446,7 +2562,8 @@
         },
         "frameEndExclusive": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "sourceHash": {
           "$ref": "#/$defs/sha256"
@@ -2497,7 +2614,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "resource_manifest"
@@ -2626,7 +2743,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -2636,7 +2753,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -2673,7 +2791,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -2683,7 +2801,8 @@
         },
         "sequence": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 9007199254740991
         },
         "revisionId": {
           "$ref": "#/$defs/id"
@@ -2733,6 +2852,9 @@
         },
         {
           "$ref": "#/$defs/renderSample"
+        },
+        {
+          "$ref": "#/$defs/frameInspect"
         }
       ]
     },
@@ -2894,7 +3016,8 @@
             "video/webm",
             "audio/mpeg",
             "audio/wav",
-            "audio/mp4"
+            "audio/mp4",
+            "application/pdf"
           ]
         },
         "byteLength": {
@@ -2969,7 +3092,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "asset_intent_request"
@@ -3008,7 +3131,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "asset_intent_result"
@@ -3079,7 +3202,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "upload_complete_request"
@@ -3108,7 +3231,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "upload_complete_result"
@@ -3169,7 +3292,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "upload_complete_result"
@@ -3399,7 +3522,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "facts_update_request"
@@ -3435,7 +3558,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "facts_confirm_request"
@@ -3471,7 +3594,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "facts_result"
@@ -3537,7 +3660,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "transcript_confirm_request"
@@ -3587,7 +3710,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.5.0"
+          "const": "2.6.0"
         },
         "kind": {
           "const": "transcript_result"
@@ -3673,7 +3796,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "showcase_consent_request"
@@ -3726,7 +3849,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "showcase_consent_request"
@@ -3771,7 +3894,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "showcase_consent_result"
@@ -3826,7 +3949,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "showcase_consent_result"
@@ -3890,7 +4013,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "support_ticket_request"
@@ -3931,7 +4054,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "support_ticket_request"
@@ -3980,7 +4103,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "support_ticket_result"
@@ -4019,7 +4142,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "support_ticket_result"
@@ -4070,7 +4193,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4117,7 +4240,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4167,7 +4290,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.5.0"
+              "const": "2.6.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4242,6 +4365,1830 @@
         "version",
         "textHash",
         "expectedRecordVersion"
+      ],
+      "additionalProperties": false
+    },
+    "qualityAssociation": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "quality_association"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "qaInputHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "reportHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "waiverHashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "workspaceId",
+        "projectId",
+        "revisionId",
+        "targetId",
+        "qaInputHash",
+        "qaProfileVersion",
+        "reportHash",
+        "waiverHashes"
+      ],
+      "additionalProperties": false
+    },
+    "qualityWaiver": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "quality_waiver"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "qaInputHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "reportHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "findingId": {
+          "$ref": "#/$defs/id"
+        },
+        "actorId": {
+          "$ref": "#/$defs/id"
+        },
+        "reason": {
+          "$ref": "#/$defs/text"
+        },
+        "acceptedAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/dateTime"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "workspaceId",
+        "projectId",
+        "revisionId",
+        "targetId",
+        "qaInputHash",
+        "qaProfileVersion",
+        "reportHash",
+        "findingId",
+        "actorId",
+        "reason",
+        "acceptedAt",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "studioActionId": {
+      "enum": [
+        "buy_project_pack",
+        "buy_and_export",
+        "export_new_version",
+        "upgrade_project",
+        "add_to_project",
+        "continue_payment",
+        "view_payment_status",
+        "view_refund_status",
+        "view_export_status",
+        "download_files",
+        "add_platform_files",
+        "request_restoration_review",
+        "ask_owner",
+        "copy_project_link"
+      ]
+    },
+    "studioAction": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/studioActionId"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "reasonCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orderId": {
+          "$ref": "#/$defs/id"
+        },
+        "releaseId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "action",
+        "enabled",
+        "reasonCode"
+      ],
+      "additionalProperties": false
+    },
+    "qualityEligibility": {
+      "enum": [
+        "unchecked",
+        "checking",
+        "blocked",
+        "review_required",
+        "ready"
+      ]
+    },
+    "brandFontSelection": {
+      "type": "object",
+      "properties": {
+        "registryVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "fontId": {
+          "$ref": "#/$defs/id"
+        },
+        "weights": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 900
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "fallbackFontIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "registryVersion",
+        "fontId",
+        "weights",
+        "fallbackFontIds"
+      ],
+      "additionalProperties": false
+    },
+    "projectResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "project_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "draftRevisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "grace",
+            "cleared",
+            "deleted"
+          ]
+        },
+        "audience": {
+          "enum": [
+            "software",
+            "course"
+          ]
+        },
+        "task": {
+          "$ref": "#/$defs/text"
+        },
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "maxItems": 7,
+          "uniqueItems": true
+        },
+        "qualityEligibility": {
+          "$ref": "#/$defs/qualityEligibility"
+        },
+        "unconfirmedFactIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "brandFontSelection": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/brandFontSelection"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accessExpiresAt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dateTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "mediaDeleteAfter": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/dateTime"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versionBalance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "availableActions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/studioAction"
+          },
+          "maxItems": 14
+        },
+        "primaryAction": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/studioActionId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "workspaceId",
+        "draftRevisionId",
+        "lifecycle",
+        "audience",
+        "task",
+        "durationSeconds",
+        "targetIds",
+        "qualityEligibility",
+        "unconfirmedFactIds",
+        "brandFontSelection",
+        "accessExpiresAt",
+        "mediaDeleteAfter",
+        "versionBalance",
+        "availableActions",
+        "primaryAction"
+      ],
+      "additionalProperties": false
+    },
+    "editableValue": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 6000
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "maxItems": 1000
+        }
+      ]
+    },
+    "editableChange": {
+      "type": "object",
+      "properties": {
+        "editableId": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "$ref": "#/$defs/editableValue"
+        },
+        "expectedFactRecordVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "editableId",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "draftUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "draft_update_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/editableChange"
+          },
+          "minItems": 1,
+          "maxItems": 256
+        },
+        "restoreFromRevisionId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "baseRevision"
+      ],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "changes"
+          ],
+          "not": {
+            "required": [
+              "restoreFromRevisionId"
+            ],
+            "properties": {
+              "restoreFromRevisionId": {}
+            }
+          },
+          "properties": {
+            "changes": {}
+          }
+        },
+        {
+          "required": [
+            "restoreFromRevisionId"
+          ],
+          "not": {
+            "required": [
+              "changes"
+            ],
+            "properties": {
+              "changes": {}
+            }
+          },
+          "properties": {
+            "restoreFromRevisionId": {}
+          }
+        }
+      ]
+    },
+    "draftUpdateResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "draft_update_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "state": {
+          "enum": [
+            "saved",
+            "conflict"
+          ]
+        },
+        "currentRevisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "qualityEligibility": {
+          "$ref": "#/$defs/qualityEligibility"
+        },
+        "unconfirmedFactIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "code": {
+          "const": "DRAFT_CONFLICT"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "baseRevision",
+        "state",
+        "currentRevisionId"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "saved"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "required": [
+              "revisionId",
+              "qualityEligibility",
+              "unconfirmedFactIds"
+            ],
+            "not": {
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {}
+              }
+            },
+            "properties": {
+              "revisionId": {},
+              "qualityEligibility": {},
+              "unconfirmedFactIds": {}
+            }
+          },
+          "else": {
+            "required": [
+              "code"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "revisionId"
+                  ],
+                  "properties": {
+                    "revisionId": {}
+                  }
+                },
+                {
+                  "required": [
+                    "qualityEligibility"
+                  ],
+                  "properties": {
+                    "qualityEligibility": {}
+                  }
+                },
+                {
+                  "required": [
+                    "unconfirmedFactIds"
+                  ],
+                  "properties": {
+                    "unconfirmedFactIds": {}
+                  }
+                }
+              ]
+            },
+            "properties": {
+              "code": {}
+            }
+          }
+        }
+      ]
+    },
+    "jobProgress": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "enum": [
+            "frames",
+            "items",
+            "bytes"
+          ]
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "total": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "unit",
+        "completed",
+        "total"
+      ],
+      "additionalProperties": false
+    },
+    "jobResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "job_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "jobId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operation": {
+          "enum": [
+            "media_processing",
+            "creative_generate",
+            "ai_patch",
+            "prepare_targets",
+            "preview",
+            "export"
+          ]
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "queued",
+            "upload_verification",
+            "media_processing",
+            "generating",
+            "checking",
+            "preparing_targets",
+            "encoding",
+            "publishing",
+            "completed"
+          ]
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/jobProgress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorCode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "canRetry": {
+          "type": "boolean"
+        },
+        "retryAfterMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "jobId",
+        "projectId",
+        "workspaceId",
+        "revisionId",
+        "targetId",
+        "operation",
+        "state",
+        "stage",
+        "progress",
+        "errorCode",
+        "canRetry",
+        "retryAfterMs"
+      ],
+      "additionalProperties": false
+    },
+    "previewSessionRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "preview_session_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "revisionId",
+        "targetId"
+      ],
+      "additionalProperties": false
+    },
+    "previewSessionResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "preview_session_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "mode": {
+          "const": "local_full"
+        },
+        "previewOrigin": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "frameUrl": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{32,128}$"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "previewPolicyVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "pixelScale": {
+          "const": 0.5
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "fps": {
+          "const": 30
+        },
+        "frameCount": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "mixedAudioHash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "workspaceId",
+        "revisionId",
+        "targetId",
+        "sessionId",
+        "mode",
+        "previewOrigin",
+        "frameUrl",
+        "nonce",
+        "expiresAt",
+        "manifestHash",
+        "previewPolicyVersion",
+        "pixelScale",
+        "width",
+        "height",
+        "fps",
+        "frameCount",
+        "mixedAudioHash"
+      ],
+      "additionalProperties": false
+    },
+    "frameInspect": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.6.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "const": "inspect"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "x01": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y01": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "command",
+        "frameIndex",
+        "x01",
+        "y01"
+      ],
+      "additionalProperties": false
+    },
+    "hitTarget": {
+      "type": "object",
+      "properties": {
+        "regionId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourcePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "bounds": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "regionId",
+        "bounds"
+      ],
+      "additionalProperties": false
+    },
+    "frameHitResult": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.6.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "hit-result"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "hit": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/hitTarget"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "frameIndex",
+        "manifestHash",
+        "hit"
+      ],
+      "additionalProperties": false
+    },
+    "sourceValues": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "source_values"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "values": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/editableValue"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "values"
+      ],
+      "additionalProperties": false
+    },
+    "rationalTime": {
+      "type": "object",
+      "properties": {
+        "numerator": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "denominator": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator"
+      ],
+      "additionalProperties": false
+    },
+    "videoUse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "assetPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "sourceStart": {
+          "$ref": "#/$defs/rationalTime"
+        },
+        "sourceEndExclusive": {
+          "$ref": "#/$defs/rationalTime"
+        },
+        "timelineStart": {
+          "$ref": "#/$defs/rationalTime"
+        },
+        "playbackRate": {
+          "$ref": "#/$defs/rationalTime"
+        }
+      },
+      "required": [
+        "id",
+        "assetPath",
+        "sourceStart",
+        "sourceEndExclusive",
+        "timelineStart",
+        "playbackRate"
+      ],
+      "additionalProperties": false
+    },
+    "fontDeclaration": {
+      "type": "object",
+      "properties": {
+        "registryVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "fontId": {
+          "$ref": "#/$defs/id"
+        },
+        "weights": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 900
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "fallbackFontIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "weight": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 900
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": [
+              "weight",
+              "path",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "registryVersion",
+        "fontId",
+        "weights",
+        "fallbackFontIds",
+        "assets"
+      ],
+      "additionalProperties": false
+    },
+    "editableDeclaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "$ref": "#/$defs/shortText"
+        },
+        "group": {
+          "$ref": "#/$defs/id"
+        },
+        "affectsTiming": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "color",
+            "asset",
+            "number",
+            "boolean",
+            "enum",
+            "data"
+          ]
+        },
+        "factId": {
+          "$ref": "#/$defs/id"
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "step": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "runtimeDeclarations": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "runtime_declarations"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "editables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/editableDeclaration"
+          },
+          "maxItems": 256
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "frame": {
+                "$ref": "#/$defs/frameIndex"
+              },
+              "label": {
+                "$ref": "#/$defs/shortText"
+              },
+              "audioEventIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "frame",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "label": {
+                "$ref": "#/$defs/shortText"
+              },
+              "sourcePath": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "videoUses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/videoUse"
+          }
+        },
+        "fonts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fontDeclaration"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "editables",
+        "markers",
+        "regions",
+        "videoUses",
+        "fonts"
+      ],
+      "additionalProperties": false
+    },
+    "costEvent": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.6.0"
+        },
+        "kind": {
+          "const": "cost_event"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "eventId": {
+          "$ref": "#/$defs/id"
+        },
+        "chargeId": {
+          "$ref": "#/$defs/id"
+        },
+        "dedupKey": {
+          "$ref": "#/$defs/text"
+        },
+        "environment": {
+          "enum": [
+            "local",
+            "ci",
+            "staging",
+            "production"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "project",
+            "shared"
+          ]
+        },
+        "workspaceId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorUserId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "trialOwnerUserId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "operationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attemptId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "orderId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "releaseId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reservationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "purpose": {
+          "enum": [
+            "acquisition_trial",
+            "paid_creation",
+            "target_preparation",
+            "preview",
+            "asset_processing",
+            "quality",
+            "export",
+            "shared",
+            "content_safety"
+          ]
+        },
+        "provider": {
+          "$ref": "#/$defs/id"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "providerRequestId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "priceVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "methodPackageVersion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rendererImageDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "metric": {
+                "$ref": "#/$defs/id"
+              },
+              "unit": {
+                "$ref": "#/$defs/id"
+              },
+              "quantity": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "metric",
+              "unit",
+              "quantity"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "usdMicros": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "status": {
+          "enum": [
+            "estimated",
+            "actual",
+            "reconciled"
+          ]
+        },
+        "occurredAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "supersedesEventId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "eventId",
+        "chargeId",
+        "dedupKey",
+        "environment",
+        "scope",
+        "workspaceId",
+        "projectId",
+        "actorUserId",
+        "trialOwnerUserId",
+        "operationId",
+        "attemptId",
+        "targetId",
+        "orderId",
+        "releaseId",
+        "reservationId",
+        "purpose",
+        "provider",
+        "model",
+        "providerRequestId",
+        "priceVersion",
+        "methodPackageVersion",
+        "rendererImageDigest",
+        "usage",
+        "usdMicros",
+        "status",
+        "occurredAt",
+        "recordedAt",
+        "supersedesEventId",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "project"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "workspaceId": {
+                "$ref": "#/$defs/id"
+              },
+              "projectId": {
+                "$ref": "#/$defs/id"
+              },
+              "operationId": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "workspaceId": {
+                "type": "null"
+              },
+              "projectId": {
+                "type": "null"
+              },
+              "operationId": {
+                "type": "null"
+              },
+              "purpose": {
+                "const": "shared"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "supersedesEventId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "supersedesEventId"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "reconciled"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "supersedesEventId": {
+                "$ref": "#/$defs/id"
+              },
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "localPreviewReady": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.6.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "preview-frame-ready"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "frameIndex",
+        "manifestHash"
       ],
       "additionalProperties": false
     }
@@ -4372,6 +6319,45 @@
     },
     {
       "$ref": "#/$defs/checkoutResult"
+    },
+    {
+      "$ref": "#/$defs/qualityAssociation"
+    },
+    {
+      "$ref": "#/$defs/qualityWaiver"
+    },
+    {
+      "$ref": "#/$defs/projectResult"
+    },
+    {
+      "$ref": "#/$defs/draftUpdateRequest"
+    },
+    {
+      "$ref": "#/$defs/draftUpdateResult"
+    },
+    {
+      "$ref": "#/$defs/jobResult"
+    },
+    {
+      "$ref": "#/$defs/previewSessionRequest"
+    },
+    {
+      "$ref": "#/$defs/previewSessionResult"
+    },
+    {
+      "$ref": "#/$defs/frameHitResult"
+    },
+    {
+      "$ref": "#/$defs/sourceValues"
+    },
+    {
+      "$ref": "#/$defs/runtimeDeclarations"
+    },
+    {
+      "$ref": "#/$defs/costEvent"
+    },
+    {
+      "$ref": "#/$defs/localPreviewReady"
     }
   ]
 }
