@@ -302,5 +302,26 @@
       "userNoteKey": "platforms.productRecommendation"
     }
   ],
-  "uiCopyVersion": "1.1.0"
+  "uiCopyVersion": "1.1.0",
+  "renderProfiles": {
+    "standard": {
+      "sampleCount": 1,
+      "shutterAngle": 0,
+      "sampling": "centered-box-v1",
+      "edgePolicy": "clamp-v1"
+    },
+    "motion4": {
+      "sampleCount": 4,
+      "shutterAngle": 180,
+      "sampling": "centered-box-v1",
+      "edgePolicy": "clamp-v1"
+    },
+    "motion8": {
+      "sampleCount": 8,
+      "shutterAngle": 180,
+      "sampling": "centered-box-v1",
+      "edgePolicy": "clamp-v1"
+    }
+  },
+  "defaultRenderProfile": "standard"
 }

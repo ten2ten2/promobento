@@ -1,8 +1,14 @@
 // Specification/fixture checker, not a production authorization or browser sandbox.
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import {
+  canonical, digest, parseCanonicalJson, createSchemaValidator,
+  targets as contractTargets, factContentIdentity, contentIdentity, audioIdentity,
+  variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
+  outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity
+} from '../packages/contracts/index.mjs';
+export {canonical, digest, parseCanonicalJson, factContentIdentity, contentIdentity, audioIdentity};
 const ROOT = new URL('../', import.meta.url);
-export const load = path => JSON.parse(readFileSync(new URL(path, ROOT), 'utf8'));
+export const load = path => parseCanonicalJson(readFileSync(new URL(path, ROOT)));
 export const schema = load('contracts/production.schema.json');
 export const presets = load('config/platform-presets.json');
 /** Configuration gate only; this does not enforce live account/project rolling ledgers. */
@@ -16,102 +22,12 @@ export function hasCalibratedCostLimits(policy) {
     && Number.isSafeInteger(patch.maxInputTokensPerRound) && patch.maxInputTokensPerRound > 0
     && Number.isSafeInteger(patch.maxOutputTokensPerRound) && patch.maxOutputTokensPerRound > 0;
 }
-export const canonical = value => {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number') { if (!Number.isFinite(value)) throw Error('NON_FINITE'); return JSON.stringify(value); }
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']';
-  if (value && typeof value === 'object') return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
-  throw Error('NOT_JSON');
-};
-export const digest = value => createHash('sha256').update(canonical(value)).digest('hex');
-const supported = new Set(['$schema', '$id', '$defs', '$ref', 'title', 'description', 'type', 'properties', 'required', 'additionalProperties', 'items', 'minItems', 'maxItems', 'uniqueItems', 'enum', 'const', 'pattern', 'minLength', 'maxLength', 'minimum', 'maximum', 'anyOf', 'oneOf']);
-// Fail closed on unsupported schema vocabulary. CI/app must also validate with a full Draft 2020-12 implementation.
-export function validateSchema(value, rule = schema, at = '$', depth = 0) {
-  if (depth > 64) throw Error('MAX_DEPTH');
-  for (const key of Object.keys(rule)) if (!supported.has(key)) throw Error('UNSUPPORTED_SCHEMA_KEYWORD:' + key);
-  if (rule.$ref) {
-    if (!rule.$ref.startsWith('#/$defs/')) throw Error('REMOTE_SCHEMA_REF');
-    const name = rule.$ref.slice(8);
-    if (!Object.hasOwn(schema.$defs,name)) throw Error('UNKNOWN_SCHEMA_REF');
-    const target = schema.$defs[name];
-    return validateSchema(value, target, at, depth + 1);
-  }
-  if (rule.oneOf || rule.anyOf) {
-    const choices = rule.oneOf ?? rule.anyOf;
-    const ok = choices.filter(s => validateSchema(value, s, at, depth + 1).length === 0).length;
-    return (rule.oneOf ? ok === 1 : ok > 0) ? [] : [at + ': union mismatch'];
-  }
-  const errors = [], add = message => errors.push(at + ': ' + message);
-  if ('const' in rule && canonical(value) !== canonical(rule.const)) add('const');
-  if (rule.enum && !rule.enum.some(x => canonical(value) === canonical(x))) add('enum');
-  if (rule.type) {
-    const t = rule.type;
-    const matches = t === 'null' ? value === null : t === 'array' ? Array.isArray(value) : t === 'object' ? value !== null && typeof value === 'object' && !Array.isArray(value) : t === 'integer' ? Number.isSafeInteger(value) : t === 'number' ? typeof value === 'number' && Number.isFinite(value) : typeof value === t;
-    if (!matches) return errors.concat(at + ': type ' + t);
-  }
-  if (typeof value === 'string') {
-    const length = [...value].length;
-    if (rule.minLength !== undefined && length < rule.minLength) add('minLength');
-    if (rule.maxLength !== undefined && length > rule.maxLength) add('maxLength');
-    if (rule.pattern && !new RegExp(rule.pattern, 'u').test(value)) add('pattern');
-  }
-  if (typeof value === 'number') {
-    if (rule.minimum !== undefined && value < rule.minimum) add('minimum');
-    if (rule.maximum !== undefined && value > rule.maximum) add('maximum');
-  }
-  if (Array.isArray(value)) {
-    if (rule.minItems !== undefined && value.length < rule.minItems) add('minItems');
-    if (rule.maxItems !== undefined && value.length > rule.maxItems) add('maxItems');
-    if (rule.uniqueItems && new Set(value.map(canonical)).size !== value.length) add('uniqueItems');
-    if (rule.items) value.forEach((x, i) => errors.push(...validateSchema(x, rule.items, at + '[' + i + ']', depth + 1)));
-  } else if (value && typeof value === 'object') {
-    for (const key of rule.required ?? []) if (!Object.hasOwn(value, key)) add('missing ' + key);
-    for (const [key, x] of Object.entries(value)) {
-      if (rule.properties && Object.hasOwn(rule.properties,key)) errors.push(...validateSchema(x, rule.properties[key], at + '.' + key, depth + 1));
-      else if (rule.additionalProperties === false) add('unknown ' + key);
-      else if (rule.additionalProperties && typeof rule.additionalProperties === 'object') errors.push(...validateSchema(x, rule.additionalProperties, at + '.' + key, depth + 1));
-    }
-  }
-  return errors;
-}
-export const targets = (rules = presets) => rules.presets.flatMap(p => [p.defaultAspect, ...p.optionalAspects].map(aspectId => ({targetId: p.id + ':' + aspectId, presetId: p.id, aspectId, version: p.version, layout: rules.aspectLayouts[aspectId], encoding: rules.encodingProfiles[p.encodingProfile]})));
-/** Billing identities exclude attestations and transport identities, never user-visible text. */
-export function factContentIdentity(f) {
-  const {projectId, revisionId, exampleOnly, ...rest} = f;
-  return {...rest,
-    facts: rest.facts.map(({confirmedBy, confirmedAt, evidenceRefs, ...fact}) => fact),
-    bindings: rest.bindings.map(({coverage, ...binding}) => binding)};
-}
-export function contentIdentity(c) {
-  const {projectId, revisionId, exampleOnly, releaseEligible, factManifestHash, styleLabel, ...rest} = c;
-  return {...rest, variants: rest.variants.map(({qaReportHash, ...v}) => v).sort((a, b) => a.targetId.localeCompare(b.targetId, 'en'))};
-}
-export function variantIdentity(c, v, rules = presets) {
-  const target = targets(rules).find(t => t.targetId === v.targetId);
-  if (!target) throw Error('INVALID_TARGET_PAIR');
-  return {sourceHash:v.sourceHash, layoutRulesHash:c.layoutRulesHash, targetOverrideHash:v.targetOverrideHash,
-    dependencyManifestHash:c.dependencyManifestHash,
-    resourceManifestHash:v.resourceManifestHash, audioHash:v.audioHash,
-    factContentHash:c.factContentHash, seed:c.seed, totalFrames:c.totalFrames, fps:c.fps,
-    layout:target.layout};
-}
-export function artifactIdentity(c, v, rules = presets) {
-  const target = targets(rules).find(t => t.targetId === v.targetId);
-  if (!target) throw Error('INVALID_TARGET_PAIR');
-  return {variantHash:digest(variantIdentity(c,v,rules)), runtimeVersion:c.runtimeVersion,
-    rendererImageDigest:c.rendererImageDigest, encoding:target.encoding, layout:target.layout};
-}
-/** The cache key for an output includes all choices that can change that output. */
-export function outputArtifactIdentity(c, v, kind, markingProfileVersion, rules = presets) {
-  if (typeof markingProfileVersion !== 'string' || !markingProfileVersion) throw Error('MARKING_PROFILE_REQUIRED');
-  const render = artifactIdentity(c, v, rules);
-  if (kind === 'video') return {kind, render, markingProfileVersion};
-  if (kind === 'cover') return {kind, render, markingProfileVersion, coverFrame:v.coverFrame, encoding:'jpg_v1'};
-  if (kind === 'mapping') return {kind, targetId:v.targetId, presetRulesVersion:c.presetRulesVersion,
-    videoFingerprint:digest(outputArtifactIdentity(c,v,'video',markingProfileVersion,rules)),
-    coverFingerprint:digest(outputArtifactIdentity(c,v,'cover',markingProfileVersion,rules)), encoding:'mapping_v1'};
-  throw Error('INVALID_ARTIFACT_KIND');
-}
+export const validateSchema = createSchemaValidator(schema);
+export const targets = (rules = presets) => contractTargets(rules);
+export const variantIdentity = (c, v, rules = presets) => contractVariantIdentity(c, v, rules);
+export const artifactIdentity = (c, v, rules = presets) => contractArtifactIdentity(c, v, rules);
+export const outputArtifactIdentity = (c, v, kind, markingProfileVersion, rules = presets) => contractOutputArtifactIdentity(c, v, kind, markingProfileVersion, rules);
+export const qaInputIdentity = (c, v, qaProfileVersion, rules = presets) => contractQaInputIdentity(c, v, qaProfileVersion, rules);
 const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 /** Run at the asset broker before first use, including preview. Context comes from trusted storage, never a request body. */
@@ -160,12 +76,155 @@ function markingErrors(output, context) {
   for (const field of ['machineMarking','audienceDisclosure']) fail(evidence[field] === (profile[field] === 'required' ? 'verified' : 'not_applicable'), 'MARKING_CHECK_INCOMPLETE');
   return errors;
 }
+
+function audioEventErrors(event, totalFrames) {
+  const errors = [], length = event.frameEndExclusive - event.frameStart;
+  if (!(length > 0) || (totalFrames !== undefined && event.frameEndExclusive > totalFrames)) errors.push('AUDIO_EVENT_INTERVAL_INVALID');
+  if ((event.fadeInFrames ?? 0) + (event.fadeOutFrames ?? 0) > length) errors.push('AUDIO_FADE_OVERLAP');
+  if (event.gainAutomation) {
+    const keys = event.gainAutomation;
+    if (keys[0].frameOffset !== 0 || keys.at(-1).frameOffset !== length || keys.some((key, i) => key.frameOffset > length || (i > 0 && key.frameOffset <= keys[i-1].frameOffset))) errors.push('AUDIO_AUTOMATION_INVALID');
+  }
+  return errors;
+}
+
+/** Trusted observations establish which mix the renderer actually consumed. */
+function outputQualityErrors(output, context) {
+  const errors = [], fail = (ok, code) => { if (!ok) errors.push(code); };
+  const evidence = own(context.qualityEvidence, output.qualityEvidenceRef);
+  fail(!!evidence, 'OUTPUT_QA_REQUIRED');
+  if (!evidence) return errors;
+  errors.push(...validateSchema(evidence, schema.$defs.outputQualityEvidence));
+  if (errors.length) return errors;
+  if (context.production) fail(evidence.exampleOnly !== true, 'FIXTURE_QA_IN_PRODUCTION');
+  const profile = own(context.qaProfiles, output.qaProfileVersion);
+  fail(!!profile && evidence.checkerVersion === profile.checkerVersion, 'QA_PROFILE_UNAVAILABLE');
+  if (context.production && profile) fail(profile.exampleOnly !== true, 'FIXTURE_QA_IN_PRODUCTION');
+  fail(evidence.qaProfileVersion === output.qaProfileVersion, 'STALE_QA_PROFILE');
+  fail(evidence.outputId === output.id && evidence.sha256 === output.sha256 && evidence.artifactFingerprint === output.artifactFingerprint, 'OUTPUT_QA_BYTES_MISMATCH');
+  fail(evidence.workspaceId === context.workspaceId && evidence.projectId === output.projectId && evidence.revisionId === output.revisionId && evidence.targetId === output.targetId, 'OUTPUT_QA_SCOPE_MISMATCH');
+  if (output.kind === 'video') {
+    const variant = context.composition?.variants.find(x => x.targetId === output.targetId);
+    const resources = own(context.resourceManifests, variant?.resourceManifestHash);
+    fail(!!resources && evidence.mixedAudioSha256 === (resources.mixedAudio?.sha256 ?? null), 'OUTPUT_QA_AUDIO_MISMATCH');
+  } else fail(evidence.mixedAudioSha256 === null, 'COVER_QA_HAS_AUDIO');
+  return errors;
+}
+
+/** Exact sample time; this calculates timing and does not render a frame. */
+export function sampleTime(frameIndex, sampleIndex, profile, totalFrames) {
+  if (![450,900].includes(totalFrames) || validateSchema(profile, schema.$defs.renderProfile).length || !Number.isSafeInteger(frameIndex) || frameIndex < 0 || frameIndex >= totalFrames || !Number.isSafeInteger(sampleIndex) || sampleIndex < 0 || sampleIndex >= profile.sampleCount) throw Error('INVALID_SAMPLE');
+  if (profile.sampleCount === 1 ? profile.shutterAngle !== 0 : profile.shutterAngle === 0) throw Error('INVALID_SHUTTER');
+  const unit = 720 * profile.sampleCount;
+  let numerator = frameIndex * unit + (2 * sampleIndex + 1 - profile.sampleCount) * profile.shutterAngle;
+  let denominator = 30 * unit;
+  numerator = Math.max(0, Math.min(numerator, (totalFrames - 1) * unit));
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const factor = gcd(numerator, denominator);
+  return {numerator: numerator / factor, denominator: denominator / factor};
+}
+
+/** Reference guards for API inputs. All context records represent trusted server reads. */
+function apiInputErrors(v, context) {
+  const errors = [], fail = (ok, code) => { if (!ok) errors.push(code); };
+  const scoped = record => !!record && !!context.workspaceId && record.workspaceId === context.workspaceId
+    && (!context.projectId || record.projectId === context.projectId) && (!v.projectId || record.projectId === v.projectId);
+  const requestKinds = ['asset_intent_request','upload_complete_request','facts_update_request','facts_confirm_request','transcript_confirm_request','showcase_consent_request','support_ticket_request'];
+  if (requestKinds.includes(v.kind) && (context.production || context.authorized !== undefined)) {
+    fail(context.authorized === true, 'API_ACCESS_REQUIRED');
+    if (v.projectId && context.projectId) fail(v.projectId === context.projectId, 'PROJECT_MISMATCH');
+    if (context.production && (v.kind !== 'support_ticket_request' || v.projectId)) {
+      fail(!!context.workspaceId && !!context.projectId, 'API_PROJECT_SCOPE_REQUIRED');
+      fail(['owner','editor'].includes(context.role), 'API_MEMBER_REQUIRED');
+    }
+  }
+  if (v.kind === 'asset_intent_request') {
+    const {mediaType,byteLength} = v.source, audio = mediaType.startsWith('audio/'), video = mediaType.startsWith('video/');
+    fail(v.purpose === 'evidence' || (v.purpose === 'visual' && !audio)
+      || (v.purpose === 'logo' && ['image/png','image/webp'].includes(mediaType))
+      || (['voiceover','music'].includes(v.purpose) && audio), 'UPLOAD_PURPOSE_MISMATCH');
+    const capabilities = load('config/input-capabilities.json').entries;
+    const limit = capabilities.find(x => x.id === (v.purpose === 'logo' ? 'logo' : audio ? 'user_audio' : video ? 'recordings' : 'images')).maxBytes;
+    fail(byteLength <= limit, 'UPLOAD_TOO_LARGE');
+    fail(v.purpose === 'evidence' || v.rightsDeclaration.previewAuthorized, 'PREVIEW_RIGHTS_REQUIRED');
+    if (context.production || context.rightsNoticeVersion) fail(v.rightsDeclaration.noticeVersion === context.rightsNoticeVersion, 'RIGHTS_NOTICE_MISMATCH');
+  }
+  if (['upload_complete_request','upload_complete_result'].includes(v.kind) && (context.production || context.uploadIntents)) {
+    const intent = own(context.uploadIntents,v.uploadId), actual = own(context.uploadObservations,v.uploadId);
+    fail(scoped(intent), 'UPLOAD_SCOPE_MISMATCH');
+    fail(!!intent && !!actual && actual.sourceHash === intent.sourceHash && actual.byteLength === intent.byteLength
+      && actual.mediaType === intent.contentType, 'UPLOAD_BYTES_MISMATCH');
+    if (v.kind === 'upload_complete_request') fail(Number.isFinite(context.now) && Date.parse(intent?.expiresAt) > context.now, 'UPLOAD_EXPIRED');
+    if (intent && v.kind === 'upload_complete_result') fail(['projectId','assetId','purpose','sourceHash','byteLength','rightsDeclarationId'].every(key => v[key] === intent[key]), 'UPLOAD_RESULT_MISMATCH');
+  }
+  const checkFact = (ref, confirmed = false) => {
+    const fact = own(context.facts,ref.factId);
+    fail(!!fact && fact.version === ref.version && fact.textHash === ref.textHash && fact.textHash === digest(fact.text), 'STALE_FACT');
+    if (Object.hasOwn(ref,'expectedRecordVersion')) fail(fact?.recordVersion === ref.expectedRecordVersion, 'STALE_FACT_RECORD');
+    if (confirmed) fail(!!fact?.confirmation, 'FACT_CONFIRMATION_REQUIRED');
+  };
+  if (v.kind === 'facts_update_request') {
+    fail(new Set(v.changes.map(x => x.factId)).size === v.changes.length, 'DUPLICATE_FACT_CHANGE');
+    for (const change of v.changes) {
+      if (change.action === 'upsert') fail(change.text.trim().length > 0, 'EMPTY_FACT');
+      if (context.production || context.facts) fail((own(context.facts,change.factId)?.recordVersion ?? 0) === change.expectedVersion, 'STALE_FACT_RECORD');
+      if (context.production || context.assets) for (const ref of change.evidence ?? []) {
+        const asset = own(context.assets,ref.assetId);
+        fail(scoped(asset) && asset.sourceHash === ref.sourceHash && asset.purpose === 'evidence' && asset.state === 'ready', 'FACT_EVIDENCE_ASSET_MISMATCH');
+      }
+    }
+  }
+  if (v.kind === 'facts_confirm_request') {
+    fail(new Set(v.facts.map(x => x.factId)).size === v.facts.length, 'DUPLICATE_FACT_CONFIRMATION');
+    if (context.production || context.facts) for (const fact of v.facts) checkFact(fact);
+  }
+  if (v.kind === 'facts_result') {
+    fail(new Set(v.facts.map(x => x.factId)).size === v.facts.length, 'DUPLICATE_FACT');
+    for (const fact of v.facts) fail(fact.textHash === digest(fact.text), 'FACT_TEXT_HASH_MISMATCH');
+  }
+  if (['transcript_confirm_request','transcript_result'].includes(v.kind)) {
+    fail(v.segments.reduce((n,segment) => n + [...segment.text].length,0) <= 6000, 'TRANSCRIPT_TOO_LONG');
+    for (let i=0;i<v.segments.length;i++) {
+      const segment=v.segments[i];
+      fail(segment.startMs < segment.endMs && (i === 0 || segment.startMs >= v.segments[i-1].endMs), 'TRANSCRIPT_INTERVAL_INVALID');
+      fail(segment.text.trim().length > 0, 'EMPTY_TRANSCRIPT');
+      if (context.production || context.facts) for (const fact of segment.facts) checkFact(fact,true);
+    }
+    if (context.production || context.assets) {
+      const asset=own(context.assets,v.assetId);
+      fail(scoped(asset) && asset.sourceHash === v.sourceHash && /^(audio|video)\//.test(asset.mediaType), 'TRANSCRIPT_SOURCE_MISMATCH');
+      fail(Number.isFinite(asset?.durationMs) && v.segments.at(-1).endMs <= asset.durationMs, 'TRANSCRIPT_SOURCE_RANGE_INVALID');
+    }
+    if (v.kind === 'transcript_confirm_request' && (context.production || context.transcripts)) fail(v.expectedVersion === (own(context.transcripts,v.assetId)?.version ?? 0), 'STALE_TRANSCRIPT');
+    if (v.kind === 'transcript_result') fail(v.transcriptHash === digest({assetId:v.assetId,sourceHash:v.sourceHash,segments:v.segments}), 'TRANSCRIPT_HASH_MISMATCH');
+  }
+  if (v.kind === 'showcase_consent_request' && (context.production || context.releases)) {
+    const release=own(context.releases,v.releaseId);
+    fail(context.role === 'owner' && scoped(release) && (v.action === 'revoke' || release.state === 'ready'), 'SHOWCASE_RELEASE_ACCESS_REQUIRED');
+    fail(v.expectedVersion === (own(context.showcaseConsents,v.releaseId)?.version ?? 0), 'STALE_SHOWCASE_CONSENT');
+    if (v.action === 'grant') fail(v.noticeVersion === context.showcaseNoticeVersion, 'SHOWCASE_NOTICE_MISMATCH');
+  }
+  if (v.kind === 'support_ticket_request' && (context.production || context.orders)) {
+    if (v.category === 'refund') fail(context.role === 'owner', 'REFUND_OWNER_REQUIRED');
+    if (v.orderId) fail(scoped(own(context.orders,v.orderId)), 'ORDER_ACCESS_REQUIRED');
+  }
+  if (v.kind === 'checkout_result' && v.sessionState === 'ready' && (context.production || context.checkoutOrigins)) {
+    let url;
+    try { url=new URL(v.checkoutUrl); } catch { /* A URI is not necessarily a usable checkout URL. */ }
+    fail(url && context.checkoutOrigins?.includes(url.origin) && !url.username && !url.password, 'CHECKOUT_ORIGIN_NOT_ALLOWED');
+    fail(Number.isFinite(context.now) && Date.parse(v.expiresAt) > context.now, 'CHECKOUT_SESSION_EXPIRED');
+  }
+  return errors;
+}
+
 export function semanticErrors(v, context = {}) {
   const errors = validateSchema(v);
   if (errors.length) return errors;
+  errors.push(...apiInputErrors(v,context));
   const fail = (ok, message) => { if (!ok) errors.push(message); };
   if (v.kind === 'run_result') {
     const t = v.treatment, a = v.audioPlan, outer = context.composition?.totalFrames;
+    fail(v.usage.cachedInputTokens <= v.usage.inputTokens, 'CACHED_TOKENS_EXCEED_INPUT');
     if (t) {
       if (outer) fail(t.totalFrames === outer, 'TREATMENT_DURATION_MISMATCH');
       for (const beat of t.beats) fail(beat.frameEndExclusive > beat.frameStart && beat.frameEndExclusive <= t.totalFrames, 'TREATMENT_INTERVAL_INVALID');
@@ -173,7 +232,7 @@ export function semanticErrors(v, context = {}) {
     if (a) {
       if (outer) fail(a.totalFrames === outer, 'AUDIO_PLAN_DURATION_MISMATCH');
       if (t) fail(a.totalFrames === t.totalFrames, 'CREATIVE_PLAN_DURATION_MISMATCH');
-      for (const cue of a.events) fail(cue.frameEndExclusive > cue.frameStart && cue.frameEndExclusive <= a.totalFrames, 'AUDIO_EVENT_INTERVAL_INVALID');
+      for (const cue of a.events) errors.push(...audioEventErrors(cue, a.totalFrames));
     }
   }
   const rules = context.presetConfig ?? presets;
@@ -186,9 +245,28 @@ export function semanticErrors(v, context = {}) {
       if (context.production || context.licenseRegistry) errors.push(...resourceRightsErrors(resource, context));
     }
     for (const event of v.audioEvents) {
-      fail(event.frameEndExclusive > event.frameStart && (!composition || event.frameEndExclusive <= composition.totalFrames), 'AUDIO_EVENT_INTERVAL_INVALID');
+      errors.push(...audioEventErrors(event, composition?.totalFrames));
       fail(v.resources.some(x => x.sha256 === event.sourceHash && x.licenseRef === event.licenseRef), 'AUDIO_RESOURCE_NOT_COVERED');
+      fail(v.resources.some(x => x.sha256 === event.sourceHash && x.mediaType.startsWith('audio/')), 'AUDIO_SOURCE_TYPE_INVALID');
+      if (context.production || context.audioMetadata) {
+        const meta = own(context.audioMetadata,event.sourceHash);
+        const valid = meta && Number.isSafeInteger(meta.sampleRate) && meta.sampleRate >= 8000 && meta.sampleRate <= 384000
+          && Number.isSafeInteger(meta.channels) && meta.channels > 0 && meta.channels <= 8
+          && Number.isSafeInteger(meta.sampleFrames) && meta.sampleFrames >= 0;
+        fail(valid, 'AUDIO_METADATA_REQUIRED');
+        if (valid) fail((BigInt(event.sourceOffsetFrames) + BigInt(event.frameEndExclusive - event.frameStart)) * BigInt(meta.sampleRate) <= BigInt(meta.sampleFrames) * 30n, 'AUDIO_SOURCE_RANGE_INVALID');
+      }
     }
+    fail(v.audioEvents.length === 0 ? v.mixedAudio === null : v.mixedAudio !== null, 'MIXED_AUDIO_REQUIRED');
+    if (v.mixedAudio) {
+      fail(safePath(v.mixedAudio.resourcePath), 'UNSAFE_MIXED_AUDIO_PATH');
+      fail(v.resources.some(x => x.path === v.mixedAudio.resourcePath && x.sha256 === v.mixedAudio.sha256 && x.mediaType === 'audio/wav'), 'MIXED_AUDIO_RESOURCE_MISMATCH');
+      if (context.production || context.audioMetadata) {
+        const meta = own(context.audioMetadata,v.mixedAudio.sha256);
+        fail(!!composition && meta?.sampleRate === 48000 && meta.channels === 2 && meta.sampleFrames === composition.totalFrames * 1600, 'MIXED_AUDIO_FORMAT_INVALID');
+      }
+    }
+    if (Object.hasOwn(context, 'observedMixedAudio')) fail(canonical(context.observedMixedAudio) === canonical(v.mixedAudio), 'MIXED_AUDIO_NOT_CONSUMED');
     // The renderer/broker supplies its observed inventory. An Agent's own manifest cannot establish completeness.
     if (context.observedResources) for (const actual of context.observedResources) {
       fail(v.resources.some(x => x.path === actual.path && x.sha256 === actual.sha256), 'RESOURCE_NOT_DECLARED');
@@ -227,6 +305,9 @@ export function semanticErrors(v, context = {}) {
       if (allowed.has(variant.targetId)) fail(variant.variantHash === digest(variantIdentity(v, variant, rules)), 'VARIANT_HASH_MISMATCH');
     }
   }
+  if (v.renderProfile) {
+    fail(Object.values(rules.renderProfiles ?? {}).some(profile => canonical(profile) === canonical(v.renderProfile)), 'RENDER_PROFILE_UNAVAILABLE');
+  }
   if (v.initialTargetIds) for (const id of v.initialTargetIds) fail(allowed.has(id), 'INVALID_INITIAL_TARGET');
   if (v.targetId) fail(allowed.has(v.targetId), 'INVALID_TARGET');
   if (v.targetIds) for (const id of v.targetIds) fail(allowed.has(id), 'INVALID_TARGET');
@@ -246,7 +327,13 @@ export function semanticErrors(v, context = {}) {
       fail(v.frameCount === composition.totalFrames, 'RENDER_FRAME_COUNT_MISMATCH');
       fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
       fail(v.seed === composition.seed, 'RENDER_SEED_MISMATCH');
+      fail(canonical(v.renderProfile) === canonical(composition.renderProfile), 'RENDER_PROFILE_MISMATCH');
     }
+  }
+  if (v.command === 'sample' || v.event === 'sample-ready') {
+    fail(context.rendererSession === true, 'RENDERER_SESSION_REQUIRED');
+    fail(!!composition && v.sampleIndex < composition.renderProfile.sampleCount, 'SAMPLE_OUT_OF_RANGE');
+    if (composition && v.event === 'sample-ready') fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
   }
   if (context.factManifest && 'factManifestHash' in v) {
     fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
@@ -285,17 +372,33 @@ export function semanticErrors(v, context = {}) {
         if (!manifest) continue;
         fail(digest(manifest) === resourceHash, 'RESOURCE_MANIFEST_HASH_MISMATCH');
         for (const variant of source.variants.filter(x => x.resourceManifestHash === resourceHash)) {
-          fail(Array.isArray(manifest.audioEvents) && variant.audioHash === digest(manifest.audioEvents), 'AUDIO_MANIFEST_HASH_MISMATCH');
+          fail(Array.isArray(manifest.audioEvents) && variant.audioHash === digest(audioIdentity(manifest)), 'AUDIO_MANIFEST_HASH_MISMATCH');
         }
         const observation = own(context.resourceObservations, resourceHash);
         if (v.kind === 'release_snapshot' || source.releaseEligible || v.state === 'ready') {
-          fail(Array.isArray(observation?.resources) && Array.isArray(observation?.audioEvents), 'RESOURCE_OBSERVATION_REQUIRED');
+          fail(Array.isArray(observation?.resources) && Array.isArray(observation?.audioEvents) && Object.hasOwn(observation, 'mixedAudio'), 'RESOURCE_OBSERVATION_REQUIRED');
         }
         errors.push(...semanticErrors(manifest, {...context,composition:source,projectId:source.projectId,intendedUse:usage,
-          licenseVersions,observedResources:observation?.resources,observedAudioEvents:observation?.audioEvents}));
+          licenseVersions,observedResources:observation?.resources,observedAudioEvents:observation?.audioEvents,
+          ...(observation && Object.hasOwn(observation,'mixedAudio') ? {observedMixedAudio:observation.mixedAudio} : {})}));
         for (const resource of manifest.resources ?? []) references.add(resource.licenseRef);
       }
       if (commercial && frozen) fail(canonical([...references].sort()) === canonical(Object.keys(licenseVersions).sort()), 'FROZEN_LICENSE_SET_MISMATCH');
+      const needsReports = source.releaseEligible || commercial || v.state === 'ready';
+      if (needsReports) {
+        const qaProfileVersion = frozen?.qaProfileVersion ?? context.qaProfileVersion;
+        fail(!!qaProfileVersion && !!own(context.qaProfiles, qaProfileVersion), 'QA_PROFILE_UNAVAILABLE');
+        const variants = source.releaseEligible || commercial ? source.variants : source.variants.filter(x => x.targetId === v.targetId);
+        for (const variant of variants) {
+          const report = own(context.qualityReports, variant.qaReportHash);
+          fail(!!report, 'QA_REPORT_UNAVAILABLE');
+          if (!report) continue;
+          fail(digest(report) === variant.qaReportHash && report.targetId === variant.targetId, 'QA_REPORT_BINDING_MISMATCH');
+          errors.push(...semanticErrors(report, {...context, composition:source, qaProfileVersion}));
+          if (Array.isArray(report.findings)) fail(report.findings.every(f => f.level === 'INFO' || (f.level === 'REVIEW' && f.waiver)), 'QA_NOT_PASSED');
+        }
+      }
+
       fail(!!context.factManifest && context.factManifest.exampleOnly !== true, 'PRODUCTION_FACT_MANIFEST_REQUIRED');
       if (context.factManifest) {
         fail(source.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
@@ -312,6 +415,7 @@ export function semanticErrors(v, context = {}) {
     fail(v.contentHash === digest(contentIdentity(composition)), 'CONTENT_HASH_MISMATCH');
     fail(canonical(v.variants) === canonical(composition.variants), 'FROZEN_VARIANT_CHANGED');
     fail(v.factManifestHash === composition.factManifestHash && v.rendererImageDigest === composition.rendererImageDigest, 'SNAPSHOT_PROVENANCE_MISMATCH');
+    if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
   }
   if (v.kind === 'export_manifest') {
     if (composition) fail(v.compositionHash === digest(composition), 'EXPORT_COMPOSITION_MISMATCH');
@@ -320,6 +424,7 @@ export function semanticErrors(v, context = {}) {
       fail(canonical([...v.initialTargetIds].sort()) === canonical([...context.snapshot.initialTargetIds].sort()), 'EXPORT_INITIAL_TARGET_MISMATCH');
       fail(v.projectId === context.snapshot.projectId && v.revisionId === context.snapshot.revisionId, 'EXPORT_SNAPSHOT_IDENTITY_MISMATCH');
       fail(v.markingProfileVersion === context.snapshot.markingProfileVersion, 'EXPORT_MARKING_PROFILE_MISMATCH');
+      fail(v.qaProfileVersion === context.snapshot.qaProfileVersion, 'EXPORT_QA_PROFILE_MISMATCH');
     }
   }
   if (v.kind === 'export_manifest') {
@@ -334,6 +439,9 @@ export function semanticErrors(v, context = {}) {
       }
       if (context.snapshot) fail(context.snapshot.variants.some(x => x.targetId === a.targetId), 'ARTIFACT_NOT_FROZEN');
       fail(a.state !== 'ready' || typeof a.sha256 === 'string', 'READY_ARTIFACT_WITHOUT_HASH');
+      if (a.state === 'ready' && a.kind !== 'mapping' && (context.production || context.qualityEvidence)) {
+        errors.push(...outputQualityErrors({...a,projectId:v.projectId,revisionId:v.revisionId,qaProfileVersion:v.qaProfileVersion},context));
+      }
       if (a.state === 'ready' && a.kind !== 'mapping' && (context.production || context.markingEvidence)) {
         errors.push(...markingErrors({...a,projectId:v.projectId,revisionId:v.revisionId,markingProfileVersion:v.markingProfileVersion},context));
       }
@@ -377,7 +485,19 @@ export function semanticErrors(v, context = {}) {
   }
   if (v.kind === 'patch_result') for (const path of v.changedFiles) fail(safePath(path), 'UNSAFE_PATCH_PATH');
   if (v.kind === 'quality_report') {
-    if (composition) fail(v.sourceHash === composition.sourceArchiveHash && v.factManifestHash === composition.factManifestHash, 'STALE_QA_PROVENANCE');
+    if (composition) {
+      fail(v.sourceHash === composition.sourceArchiveHash && v.factManifestHash === composition.factManifestHash, 'STALE_QA_PROVENANCE');
+      const variant = composition.variants.find(x => x.targetId === v.targetId);
+      if (variant && allowed.has(v.targetId)) fail(v.qaInputHash === digest(qaInputIdentity(composition,variant,v.qaProfileVersion,rules)), 'STALE_QA_INPUT');
+    } else if (context.production) fail(false, 'QA_COMPOSITION_REQUIRED');
+    if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
+    if (context.production) {
+      const profile = own(context.qaProfiles, v.qaProfileVersion);
+      fail(!!profile && profile.checkerVersion === v.checkerVersion, 'QA_PROFILE_UNAVAILABLE');
+      if (profile) fail(profile.exampleOnly !== true, 'FIXTURE_QA_IN_PRODUCTION');
+      fail(v.coverage !== 'fixture_only', 'FIXTURE_QA_IN_PRODUCTION');
+      fail(Number.isFinite(context.now), 'TRUSTED_QA_TIME_REQUIRED');
+    }
     for (const f of v.findings) {
     fail(f.frameEndExclusive > f.frameStart && (!composition || f.frameEndExclusive <= composition.totalFrames), 'QA_INTERVAL_INVALID');
     fail(!(f.level === 'BLOCK' && f.waiver), 'BLOCK_NOT_WAIVABLE');
@@ -450,7 +570,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.4.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    const result = {schemaVersion:'2.5.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }
@@ -616,8 +736,18 @@ export function matchesFrameReady(command, response, manifestHash, disposed = fa
   return !disposed && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
 }
 
+/** Internal sample replies cannot satisfy Studio's final-frame acknowledgement. */
+export function matchesSampleReady(command, response, manifestHash, context = {}, disposed = false) {
+  return !disposed && context.rendererSession === true
+    && validateSchema(command,schema.$defs.renderSample).length === 0
+    && validateSchema(response,schema.$defs.renderSampleReady).length === 0
+    && semanticErrors(command,context).length === 0 && semanticErrors(response,context).length === 0
+    && response.manifestHash === manifestHash
+    && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','frameIndex','sampleIndex'].every(k => response[k] === command[k]);
+}
+
 /** Ignore stale failures just as strictly as stale frame-ready events. */
 export function matchesProtocolFailure(command, response, disposed = false) {
-  if (disposed || validateSchema(command).length || validateSchema(response).length || response.event !== 'error') return false;
+  if (disposed || validateSchema(command,schema.$defs.rendererCommand).length || validateSchema(response,schema.$defs.renderError).length) return false;
   return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId'].every(k => command[k] === response[k]);
 }

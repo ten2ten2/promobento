@@ -1,0 +1,62 @@
+[
+  {
+    "name": "empty_object",
+    "input": "{}",
+    "canonical": "{}",
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  {
+    "name": "object_key_order",
+    "input": "{\"b\":1,\"a\":2}",
+    "canonical": "{\"a\":2,\"b\":1}",
+    "sha256": "d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772"
+  },
+  {
+    "name": "numeric_property_names",
+    "input": "{\"2\":\"two\",\"10\":\"ten\"}",
+    "canonical": "{\"10\":\"ten\",\"2\":\"two\"}",
+    "sha256": "b71e124675fc80e7314688bffdb68e83515851fb51474125db9a0c4c8aca3808"
+  },
+  {
+    "name": "utf16_non_bmp_keys",
+    "input": "{\"\\ufffd\":1,\"\\ud83d\\ude00\":2,\"\\ue000\":3,\"\\r\":4,\"1\":5}",
+    "canonical": "{\"\\r\":4,\"1\":5,\"😀\":2,\"\":3,\"�\":1}",
+    "sha256": "485ac6a87b4ca14efff3841a7077125cc21e58a2e008bb377ef8a4a7c87c78c9"
+  },
+  {
+    "name": "ecmascript_number_edges",
+    "input": "{\"z\":-0,\"large\":1e21,\"tiny\":1e-7,\"small\":1e-6}",
+    "canonical": "{\"large\":1e+21,\"small\":0.000001,\"tiny\":1e-7,\"z\":0}",
+    "sha256": "1453e6041417415be5512c0ef9048fad782d532110674ec98d4dc5114b5e5b53"
+  },
+  {
+    "name": "rfc_numbers",
+    "input": "[333333333.33333329,1E30,4.50,2e-3,0.000000000000000000000000001]",
+    "canonical": "[333333333.3333333,1e+30,4.5,0.002,1e-27]",
+    "sha256": "7c6bc86d861387d823ae596b79ca0b26567dddc22a77acb1f4e06d441f555adf"
+  },
+  {
+    "name": "escaping",
+    "input": "{\"s\":\"\\u000f\\n\\\"\\\\/€😀\"}",
+    "canonical": "{\"s\":\"\\u000f\\n\\\"\\\\/€😀\"}",
+    "sha256": "aef1e5e972c6851a554669737022676e86e335a11fd3e872078fe13ca7bc1c96"
+  },
+  {
+    "name": "no_unicode_normalization",
+    "input": "{\"é\":\"café\",\"é\":\"café\"}",
+    "canonical": "{\"é\":\"café\",\"é\":\"café\"}",
+    "sha256": "0dc3ec769eff968b379f89a7b70158708066ae57ea7bda673c2d94398771a764"
+  },
+  {
+    "name": "array_order_preserved",
+    "input": "[\"youtube_shorts:portrait\",\"youtube:landscape\"]",
+    "canonical": "[\"youtube_shorts:portrait\",\"youtube:landscape\"]",
+    "sha256": "9225b06d554385b1c7f722a1a16f6ffd833297aa196e1427fe60c62ee903bf43"
+  },
+  {
+    "name": "json_literals",
+    "input": "[-0,true,false,null,\"🌏\"]",
+    "canonical": "[0,true,false,null,\"🌏\"]",
+    "sha256": "8b79a3d64856743204259859a673b0c271febe63b5ec57cadccd2c13c7a69332"
+  }
+]

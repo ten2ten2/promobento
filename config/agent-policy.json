@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.4.0",
+  "schemaVersion": "2.5.0",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,
@@ -197,5 +197,9 @@
     "patchP95Seconds": null,
     "allTargetsPreparedP95Seconds": null,
     "status": "calibration_required"
+  },
+  "quality": {
+    "profileVersion": "qa-v1",
+    "checkerVersion": "quality-engine-v1"
   }
 }

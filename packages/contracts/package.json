@@ -1,0 +1,16 @@
+{
+  "name": "@promobento/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs",
+    "./canonical": "./src/canonical.mjs",
+    "./validation": "./src/validation.mjs",
+    "./identity": "./src/identity.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}

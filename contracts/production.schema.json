@@ -1,1 +1,4377 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://promobento.com/contracts/production/2.4.0","title":"PromoBento production contracts","description":"Wire structure only; authorization, cross-resource/hash relations and state guards are mandatory separate semantic checks. Fixtures are not deployed services.","$defs":{"point":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}},"required":["x","y"],"additionalProperties":false},"variant":{"type":"object","properties":{"targetId":{"$ref":"#/$defs/id"},"presetId":{"$ref":"#/$defs/id"},"aspectId":{"enum":["landscape","portrait","feed","square"]},"presetVersion":{"$ref":"#/$defs/text"},"entrypoint":{"$ref":"#/$defs/text"},"sourceHash":{"$ref":"#/$defs/sha256"},"resourceManifestHash":{"$ref":"#/$defs/sha256"},"audioHash":{"$ref":"#/$defs/sha256"},"variantHash":{"$ref":"#/$defs/sha256"},"coverFrame":{"$ref":"#/$defs/frameIndex"},"qaReportHash":{"$ref":"#/$defs/sha256"},"targetOverrideHash":{"anyOf":[{"$ref":"#/$defs/sha256"},{"type":"null"}]}},"required":["targetId","presetId","aspectId","presetVersion","entrypoint","sourceHash","resourceManifestHash","audioHash","variantHash","coverFrame","qaReportHash","targetOverrideHash"],"additionalProperties":false},"textMetadata":{"type":"object","properties":{"language":{"$ref":"#/$defs/text"},"direction":{"enum":["ltr","rtl","auto"]},"label":{"$ref":"#/$defs/text"}},"required":[],"additionalProperties":false},"composition":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"composition"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"durationSeconds":{"enum":[15,30]},"fps":{"const":30},"totalFrames":{"enum":[450,900]},"seed":{"$ref":"#/$defs/text"},"sourceArchiveHash":{"$ref":"#/$defs/sha256"},"dependencyManifestHash":{"$ref":"#/$defs/sha256"},"resourceManifestHash":{"$ref":"#/$defs/sha256"},"factManifestHash":{"$ref":"#/$defs/sha256"},"runtimeVersion":{"$ref":"#/$defs/text"},"rendererImageDigest":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},"presetRulesVersion":{"$ref":"#/$defs/text"},"releaseEligible":{"type":"boolean"},"variants":{"type":"array","items":{"$ref":"#/$defs/variant"},"minItems":1},"styleLabel":{"$ref":"#/$defs/text"},"textMetadata":{"type":"array","items":{"$ref":"#/$defs/textMetadata"},"minItems":0},"factContentHash":{"$ref":"#/$defs/sha256"},"layoutRulesHash":{"$ref":"#/$defs/sha256"}},"required":["schemaVersion","kind","projectId","revisionId","durationSeconds","fps","totalFrames","seed","sourceArchiveHash","dependencyManifestHash","resourceManifestHash","factManifestHash","runtimeVersion","rendererImageDigest","presetRulesVersion","releaseEligible","variants","factContentHash","layoutRulesHash"],"additionalProperties":false},"releaseSnapshot":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"release_snapshot"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"snapshotId":{"$ref":"#/$defs/id"},"compositionHash":{"$ref":"#/$defs/sha256"},"contentHash":{"$ref":"#/$defs/sha256"},"presetRulesVersion":{"$ref":"#/$defs/text"},"durationSeconds":{"enum":[15,30]},"fps":{"const":30},"totalFrames":{"enum":[450,900]},"variants":{"type":"array","items":{"$ref":"#/$defs/variant"},"minItems":1},"initialTargetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true},"factManifestHash":{"$ref":"#/$defs/sha256"},"rendererImageDigest":{"type":"string","pattern":"^sha256:[0-9a-f]{64}$"},"usagePolicy":{"$ref":"#/$defs/usagePolicy"},"markingProfileVersion":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","projectId","revisionId","snapshotId","compositionHash","contentHash","presetRulesVersion","durationSeconds","fps","totalFrames","variants","initialTargetIds","factManifestHash","rendererImageDigest","usagePolicy","markingProfileVersion"],"additionalProperties":false},"editRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"edit_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"comments":{"type":"array","items":{"$ref":"#/$defs/editComment"},"minItems":1,"maxItems":5}},"required":["schemaVersion","kind","requestId","baseRevision","comments"],"additionalProperties":false},"patchResult":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"patch_result"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"candidateRevisionId":{"$ref":"#/$defs/id"},"baseHash":{"$ref":"#/$defs/sha256"},"candidateHash":{"$ref":"#/$defs/sha256"},"scope":{"enum":["selected","shot","variant","all-variants"]},"changedFiles":{"type":"array","items":{"$ref":"#/$defs/text"},"minItems":1,"uniqueItems":true},"affectedTargetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true},"readSetHash":{"$ref":"#/$defs/sha256"},"writeSetHash":{"$ref":"#/$defs/sha256"},"qualityReportHash":{"$ref":"#/$defs/sha256"},"state":{"enum":["ready","accepted","rejected","cancelled"]},"impactSummary":{"$ref":"#/$defs/text"},"agentInterpretation":{"$ref":"#/$defs/text"},"followUpOf":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","projectId","baseRevision","candidateRevisionId","baseHash","candidateHash","scope","changedFiles","affectedTargetIds","readSetHash","writeSetHash","qualityReportHash","state"],"additionalProperties":false},"fact":{"type":"object","properties":{"factId":{"$ref":"#/$defs/id"},"version":{"type":"integer","minimum":1},"text":{"$ref":"#/$defs/text"},"confirmedBy":{"$ref":"#/$defs/id"},"confirmedAt":{"$ref":"#/$defs/text"},"evidenceRefs":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["factId","version","text","confirmedBy","confirmedAt","evidenceRefs"],"additionalProperties":false},"binding":{"type":"object","properties":{"bindingId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"expectedText":{"$ref":"#/$defs/text"},"factIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true},"coverage":{"enum":["declared","runtime_checked","needs_review","user_reviewed"]}},"required":["bindingId","targetId","frameStart","frameEndExclusive","expectedText","factIds","coverage"],"additionalProperties":false},"factManifest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"fact_manifest"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"facts":{"type":"array","items":{"$ref":"#/$defs/fact"},"minItems":0},"bindings":{"type":"array","items":{"$ref":"#/$defs/binding"},"minItems":0}},"required":["schemaVersion","kind","projectId","revisionId","facts","bindings"],"additionalProperties":false},"qaFinding":{"type":"object","properties":{"code":{"$ref":"#/$defs/id"},"level":{"enum":["BLOCK","REVIEW","INFO"]},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"message":{"$ref":"#/$defs/text"},"waiver":{"anyOf":[{"type":"object","properties":{"actorId":{"$ref":"#/$defs/id"},"reason":{"$ref":"#/$defs/text"},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"expiresAt":{"$ref":"#/$defs/text"}},"required":["actorId","reason","revisionId","targetId","expiresAt"],"additionalProperties":false},{"type":"null"}]}},"required":["code","level","frameStart","frameEndExclusive","message","waiver"],"additionalProperties":false},"qualityReport":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"quality_report"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"sourceHash":{"$ref":"#/$defs/sha256"},"factManifestHash":{"$ref":"#/$defs/sha256"},"checkerVersion":{"$ref":"#/$defs/text"},"coverage":{"enum":["sampled","complete_timeline","fixture_only"]},"findings":{"type":"array","items":{"$ref":"#/$defs/qaFinding"},"minItems":0},"evidenceRefs":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":0}},"required":["schemaVersion","kind","projectId","revisionId","targetId","sourceHash","factManifestHash","checkerVersion","coverage","findings","evidenceRefs"],"additionalProperties":false},"agentRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"agent_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"operation":{"enum":["creative_generate","prepare_targets"]},"mode":{"enum":["direct","compare_directions"]},"instruction":{"$ref":"#/$defs/text"},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["schemaVersion","kind","requestId","baseRevision","operation","targetIds"],"additionalProperties":false},"runResult":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"run_result"},"exampleOnly":{"type":"boolean"},"runId":{"$ref":"#/$defs/id"},"operationId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"state":{"enum":["queued","active","awaiting_user","paused_budget","validating","succeeded","failed","cancelled"]},"phase":{"$ref":"#/$defs/text"},"generation":{"type":"integer","minimum":1},"candidateRevisionId":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]},"usage":{"type":"object","properties":{"inputTokens":{"$ref":"#/$defs/frameIndex"},"outputTokens":{"$ref":"#/$defs/frameIndex"},"activeSeconds":{"$ref":"#/$defs/frameIndex"},"costMicros":{"$ref":"#/$defs/frameIndex"},"internalRepairs":{"type":"integer","minimum":0,"maximum":2}},"required":["inputTokens","outputTokens","activeSeconds","costMicros","internalRepairs"],"additionalProperties":false},"directions":{"type":"array","items":{"$ref":"#/$defs/direction"}},"treatment":{"$ref":"#/$defs/treatment"},"audioPlan":{"$ref":"#/$defs/audioPlan"}},"required":["schemaVersion","kind","runId","operationId","baseRevision","state","phase","generation","candidateRevisionId","usage"],"additionalProperties":false},"runAction":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"run_action"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"action":{"enum":["resume","cancel"]},"directionId":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","requestId","baseRevision","action"],"additionalProperties":false},"previewRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"preview_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1}},"required":["schemaVersion","kind","requestId","revisionId","targetId","frameStart"],"additionalProperties":false},"previewResult":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"preview_result"},"exampleOnly":{"type":"boolean"},"previewId":{"$ref":"#/$defs/id"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"state":{"enum":["queued","ready","failed"]},"screenshotAssetId":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]},"markingProfileVersion":{"$ref":"#/$defs/id"},"sha256":{"anyOf":[{"$ref":"#/$defs/sha256"},{"type":"null"}]},"markingEvidenceRef":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]}},"required":["schemaVersion","kind","previewId","projectId","revisionId","targetId","frameStart","frameEndExclusive","state","screenshotAssetId","markingProfileVersion","sha256","markingEvidenceRef"],"additionalProperties":false},"snapshotRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"snapshot_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["schemaVersion","kind","requestId","baseRevision","targetIds"],"additionalProperties":false},"applyRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"apply_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"baseRevision":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","requestId","baseRevision"],"additionalProperties":false},"error":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"error"},"exampleOnly":{"type":"boolean"},"code":{"$ref":"#/$defs/id"},"messageKey":{"$ref":"#/$defs/id"},"message":{"$ref":"#/$defs/text"},"requestId":{"$ref":"#/$defs/id"},"retryable":{"type":"boolean"},"params":{"type":"object","additionalProperties":{"anyOf":[{"type":"string","maxLength":1024},{"type":"number"},{"type":"boolean"},{"type":"null"}]}},"fieldErrors":{"type":"array","items":{"$ref":"#/$defs/fieldError"}}},"required":["code","messageKey","message","requestId","retryable"],"additionalProperties":false},"renderIdentity":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId"]},"renderInit":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"command":{"const":"init"},"manifestHash":{"$ref":"#/$defs/sha256"},"frameCount":{"enum":[450,900]},"width":{"type":"integer","minimum":1},"height":{"type":"integer","minimum":1},"fps":{"const":30},"seed":{"$ref":"#/$defs/text"}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId","command","manifestHash","frameCount","width","height","fps","seed"],"additionalProperties":false},"renderSeek":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"command":{"const":"seek"},"frameIndex":{"$ref":"#/$defs/frameIndex"}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId","command","frameIndex"],"additionalProperties":false},"renderDispose":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"command":{"const":"dispose"}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId","command"],"additionalProperties":false},"renderReady":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"event":{"const":"frame-ready"},"frameIndex":{"$ref":"#/$defs/frameIndex"},"manifestHash":{"$ref":"#/$defs/sha256"}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId","event","frameIndex","manifestHash"],"additionalProperties":false},"renderCommand":{"oneOf":[{"$ref":"#/$defs/renderInit"},{"$ref":"#/$defs/renderSeek"},{"$ref":"#/$defs/renderDispose"}]},"exportManifest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"export_manifest"},"exampleOnly":{"type":"boolean"},"projectId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"snapshotId":{"$ref":"#/$defs/id"},"releaseId":{"$ref":"#/$defs/id"},"snapshotHash":{"$ref":"#/$defs/sha256"},"compositionHash":{"$ref":"#/$defs/sha256"},"state":{"enum":["reserved","rendering","ready","failed","cancelled"]},"initialTargetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true},"artifacts":{"type":"array","items":{"type":"object","properties":{"id":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"kind":{"enum":["video","cover","mapping"]},"artifactFingerprint":{"$ref":"#/$defs/sha256"},"sha256":{"anyOf":[{"$ref":"#/$defs/sha256"},{"type":"null"}]},"state":{"enum":["pending","ready","failed"]},"markingEvidenceRef":{"$ref":"#/$defs/id"}},"required":["id","targetId","kind","artifactFingerprint","sha256","state"],"additionalProperties":false},"minItems":1},"markingProfileVersion":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","projectId","revisionId","snapshotId","releaseId","snapshotHash","compositionHash","state","initialTargetIds","artifacts","markingProfileVersion"],"additionalProperties":false},"qualitySummary":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"quality_summary"},"exampleOnly":{"type":"boolean"},"revisionId":{"$ref":"#/$defs/id"},"reports":{"type":"array","items":{"$ref":"#/$defs/qualityReport"}},"eligibility":{"enum":["blocked","review_required","ready"]}},"required":["schemaVersion","kind","revisionId","reports","eligibility"],"additionalProperties":false},"preflightRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"preflight_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"revisionId":{"$ref":"#/$defs/id"},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["schemaVersion","kind","requestId","revisionId","targetIds"],"additionalProperties":false},"exportRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"export_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"snapshotId":{"$ref":"#/$defs/id"},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["schemaVersion","kind","requestId","snapshotId","targetIds"],"additionalProperties":false},"platformRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"platform_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true}},"required":["schemaVersion","kind","requestId","targetIds"],"additionalProperties":false},"fieldError":{"type":"object","additionalProperties":false,"required":["code","field","messageKey"],"properties":{"code":{"type":"string","minLength":1},"field":{"type":"string","minLength":1},"messageKey":{"type":"string","minLength":1},"params":{"type":"object","additionalProperties":{"anyOf":[{"type":"string","maxLength":1024},{"type":"number"},{"type":"boolean"},{"type":"null"}]}}}},"id":{"type":"string","pattern":"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},"sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"text":{"type":"string","minLength":1,"maxLength":6000},"frameIndex":{"type":"integer","minimum":0},"renderError":{"type":"object","properties":{"protocolVersion":{"const":"2.4.0"},"sessionId":{"$ref":"#/$defs/id"},"requestId":{"$ref":"#/$defs/id"},"sequence":{"type":"integer","minimum":1},"revisionId":{"$ref":"#/$defs/id"},"targetId":{"$ref":"#/$defs/id"},"event":{"const":"error"},"code":{"enum":["FRAME_TIMEOUT","ASSET_UNAVAILABLE","CAPABILITY_UNAVAILABLE","INVALID_SESSION"]}},"required":["protocolVersion","sessionId","requestId","sequence","revisionId","targetId","event","code"],"additionalProperties":false},"direction":{"type":"object","properties":{"id":{"$ref":"#/$defs/id"},"label":{"$ref":"#/$defs/id"},"logline":{"type":"string","minLength":1,"maxLength":1000},"keyframeIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"uniqueItems":true},"language":{"$ref":"#/$defs/text"},"look":{"$ref":"#/$defs/text"},"palette":{"type":"array","items":{"type":"object","properties":{"color":{"type":"string","pattern":"^#[0-9a-fA-F]{6}$"},"usage":{"$ref":"#/$defs/text"},"source":{"$ref":"#/$defs/text"},"sharePercent":{"type":"number","minimum":0,"maximum":100}},"required":["color","usage"],"additionalProperties":false}},"rhythm":{"$ref":"#/$defs/text"},"sound":{"$ref":"#/$defs/text"},"risk":{"$ref":"#/$defs/text"},"whyItFits":{"$ref":"#/$defs/text"}},"required":["id","label","logline","keyframeIds"],"additionalProperties":false},"treatmentBeat":{"type":"object","properties":{"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"event":{"$ref":"#/$defs/text"},"energy":{"type":"number","minimum":0,"maximum":1},"continuity":{"$ref":"#/$defs/text"},"voiceAction":{"$ref":"#/$defs/text"}},"required":["frameStart","frameEndExclusive","event"],"additionalProperties":false},"treatment":{"type":"object","properties":{"totalFrames":{"enum":[450,900]},"mainMessage":{"$ref":"#/$defs/text"},"visualApproach":{"$ref":"#/$defs/text"},"beats":{"type":"array","items":{"$ref":"#/$defs/treatmentBeat"},"minItems":1},"keyframeIds":{"type":"array","items":{"$ref":"#/$defs/id"},"uniqueItems":true}},"required":["totalFrames","beats"],"additionalProperties":false},"audioEvent":{"type":"object","properties":{"kind":{"enum":["music","sfx","voice"]},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"sourceHash":{"$ref":"#/$defs/sha256"},"licenseRef":{"$ref":"#/$defs/id"},"mark":{"$ref":"#/$defs/text"}},"required":["kind","frameStart","frameEndExclusive","licenseRef"],"additionalProperties":false},"audioPlan":{"type":"object","properties":{"totalFrames":{"enum":[450,900]},"events":{"type":"array","items":{"$ref":"#/$defs/audioEvent"}},"scoreRef":{"$ref":"#/$defs/text"},"voiceTranscriptHash":{"$ref":"#/$defs/sha256"}},"required":["totalFrames","events"],"additionalProperties":false},"editComment":{"type":"object","properties":{"targetId":{"$ref":"#/$defs/id"},"frameIndex":{"$ref":"#/$defs/frameIndex"},"normalizedPoint":{"$ref":"#/$defs/point"},"selectedElementId":{"$ref":"#/$defs/id"},"screenshotAssetId":{"$ref":"#/$defs/id"},"comment":{"type":"string","minLength":1,"maxLength":4000},"editScope":{"enum":["selected","shot","variant","all-variants"]}},"required":["targetId","frameIndex","comment","editScope"],"additionalProperties":false},"createProjectRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"create_project_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"workspaceId":{"$ref":"#/$defs/id"},"audience":{"enum":["software","course"]},"task":{"$ref":"#/$defs/text"},"durationSeconds":{"enum":[15,30]},"targetIds":{"type":"array","items":{"$ref":"#/$defs/id"},"minItems":1,"maxItems":7,"uniqueItems":true},"requestTrial":{"type":"boolean"}},"required":["schemaVersion","kind","requestId","workspaceId","audience","task","durationSeconds","targetIds"],"additionalProperties":false},"createProjectResult":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"create_project_result"},"requestId":{"$ref":"#/$defs/id"},"projectId":{"$ref":"#/$defs/id"},"workspaceId":{"$ref":"#/$defs/id"},"trialStatus":{"enum":["granted","unavailable","not_requested"]}},"required":["schemaVersion","kind","requestId","projectId","workspaceId","trialStatus"],"additionalProperties":false},"checkoutRequest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"checkout_request"},"exampleOnly":{"type":"boolean"},"requestId":{"$ref":"#/$defs/id"},"projectId":{"$ref":"#/$defs/id"},"sku":{"enum":["single_export","project_pack","project_upgrade","extra_pack"]},"purchaseIntent":{"enum":["top_up_only","purchase_and_export"]},"snapshotId":{"$ref":"#/$defs/id"},"upgradeFromOrderId":{"$ref":"#/$defs/id"}},"required":["schemaVersion","kind","requestId","projectId","sku","purchaseIntent"],"additionalProperties":false},"resource":{"type":"object","properties":{"path":{"$ref":"#/$defs/text"},"sha256":{"$ref":"#/$defs/sha256"},"byteLength":{"type":"integer","minimum":0},"mediaType":{"$ref":"#/$defs/text"},"licenseRef":{"$ref":"#/$defs/id"}},"required":["path","sha256","byteLength","mediaType","licenseRef"],"additionalProperties":false},"frozenAudioEvent":{"type":"object","properties":{"kind":{"enum":["music","sfx","voice"]},"frameStart":{"$ref":"#/$defs/frameIndex"},"frameEndExclusive":{"type":"integer","minimum":1},"sourceHash":{"$ref":"#/$defs/sha256"},"licenseRef":{"$ref":"#/$defs/id"},"mark":{"$ref":"#/$defs/text"}},"required":["kind","frameStart","frameEndExclusive","licenseRef","sourceHash"],"additionalProperties":false},"resourceManifest":{"type":"object","properties":{"schemaVersion":{"const":"2.4.0"},"kind":{"const":"resource_manifest"},"exampleOnly":{"type":"boolean"},"resources":{"type":"array","items":{"$ref":"#/$defs/resource"}},"audioEvents":{"type":"array","items":{"$ref":"#/$defs/frozenAudioEvent"}}},"required":["schemaVersion","kind","resources","audioEvents"],"additionalProperties":false},"usagePolicy":{"type":"object","properties":{"termsVersion":{"$ref":"#/$defs/id"},"rightsPolicyVersion":{"$ref":"#/$defs/id"},"intendedUse":{"const":"commercial_export"},"licenseVersions":{"type":"array","items":{"type":"object","properties":{"licenseRef":{"$ref":"#/$defs/id"},"recordVersion":{"$ref":"#/$defs/id"}},"required":["licenseRef","recordVersion"],"additionalProperties":false}}},"required":["termsVersion","rightsPolicyVersion","intendedUse","licenseVersions"],"additionalProperties":false}},"oneOf":[{"$ref":"#/$defs/composition"},{"$ref":"#/$defs/releaseSnapshot"},{"$ref":"#/$defs/editRequest"},{"$ref":"#/$defs/patchResult"},{"$ref":"#/$defs/factManifest"},{"$ref":"#/$defs/qualityReport"},{"$ref":"#/$defs/agentRequest"},{"$ref":"#/$defs/runResult"},{"$ref":"#/$defs/runAction"},{"$ref":"#/$defs/previewRequest"},{"$ref":"#/$defs/previewResult"},{"$ref":"#/$defs/snapshotRequest"},{"$ref":"#/$defs/applyRequest"},{"$ref":"#/$defs/error"},{"$ref":"#/$defs/exportManifest"},{"$ref":"#/$defs/renderCommand"},{"$ref":"#/$defs/renderReady"},{"$ref":"#/$defs/qualitySummary"},{"$ref":"#/$defs/preflightRequest"},{"$ref":"#/$defs/exportRequest"},{"$ref":"#/$defs/platformRequest"},{"$ref":"#/$defs/renderError"},{"$ref":"#/$defs/createProjectRequest"},{"$ref":"#/$defs/createProjectResult"},{"$ref":"#/$defs/checkoutRequest"},{"$ref":"#/$defs/resourceManifest"}]}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/production/2.5.0",
+  "title": "PromoBento production contracts",
+  "description": "Wire structure only; authorization, cross-resource/hash relations and state guards are mandatory separate semantic checks. Fixtures are not deployed services.",
+  "$defs": {
+    "point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "variant": {
+      "type": "object",
+      "properties": {
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "presetId": {
+          "$ref": "#/$defs/id"
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
+        },
+        "presetVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "entrypoint": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resourceManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "audioHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "variantHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "coverFrame": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "qaReportHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "targetOverrideHash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "targetId",
+        "presetId",
+        "aspectId",
+        "presetVersion",
+        "entrypoint",
+        "sourceHash",
+        "resourceManifestHash",
+        "audioHash",
+        "variantHash",
+        "coverFrame",
+        "qaReportHash",
+        "targetOverrideHash"
+      ],
+      "additionalProperties": false
+    },
+    "textMetadata": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "$ref": "#/$defs/text"
+        },
+        "direction": {
+          "enum": [
+            "ltr",
+            "rtl",
+            "auto"
+          ]
+        },
+        "label": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "composition": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "composition"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "fps": {
+          "const": 30
+        },
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "seed": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceArchiveHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "dependencyManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resourceManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "factManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runtimeVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "rendererImageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "presetRulesVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "releaseEligible": {
+          "type": "boolean"
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variant"
+          },
+          "minItems": 1
+        },
+        "styleLabel": {
+          "$ref": "#/$defs/text"
+        },
+        "textMetadata": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/textMetadata"
+          },
+          "minItems": 0
+        },
+        "factContentHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "layoutRulesHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "renderProfile": {
+          "$ref": "#/$defs/renderProfile"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "revisionId",
+        "durationSeconds",
+        "fps",
+        "totalFrames",
+        "seed",
+        "sourceArchiveHash",
+        "dependencyManifestHash",
+        "resourceManifestHash",
+        "factManifestHash",
+        "runtimeVersion",
+        "rendererImageDigest",
+        "presetRulesVersion",
+        "releaseEligible",
+        "variants",
+        "factContentHash",
+        "layoutRulesHash",
+        "renderProfile"
+      ],
+      "additionalProperties": false
+    },
+    "releaseSnapshot": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "release_snapshot"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "compositionHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "contentHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "presetRulesVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "fps": {
+          "const": 30
+        },
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/variant"
+          },
+          "minItems": 1
+        },
+        "initialTargetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "factManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "rendererImageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "usagePolicy": {
+          "$ref": "#/$defs/usagePolicy"
+        },
+        "markingProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "revisionId",
+        "snapshotId",
+        "compositionHash",
+        "contentHash",
+        "presetRulesVersion",
+        "durationSeconds",
+        "fps",
+        "totalFrames",
+        "variants",
+        "initialTargetIds",
+        "factManifestHash",
+        "rendererImageDigest",
+        "usagePolicy",
+        "markingProfileVersion",
+        "qaProfileVersion"
+      ],
+      "additionalProperties": false
+    },
+    "editRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "edit_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/editComment"
+          },
+          "minItems": 1,
+          "maxItems": 5
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "baseRevision",
+        "comments"
+      ],
+      "additionalProperties": false
+    },
+    "patchResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "patch_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "candidateRevisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "candidateHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "scope": {
+          "enum": [
+            "selected",
+            "shot",
+            "variant",
+            "all-variants"
+          ]
+        },
+        "changedFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "affectedTargetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "readSetHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "writeSetHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qualityReportHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "state": {
+          "enum": [
+            "ready",
+            "accepted",
+            "rejected",
+            "cancelled"
+          ]
+        },
+        "impactSummary": {
+          "$ref": "#/$defs/text"
+        },
+        "agentInterpretation": {
+          "$ref": "#/$defs/text"
+        },
+        "followUpOf": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "baseRevision",
+        "candidateRevisionId",
+        "baseHash",
+        "candidateHash",
+        "scope",
+        "changedFiles",
+        "affectedTargetIds",
+        "readSetHash",
+        "writeSetHash",
+        "qualityReportHash",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "fact": {
+      "type": "object",
+      "properties": {
+        "factId": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "confirmedBy": {
+          "$ref": "#/$defs/id"
+        },
+        "confirmedAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "factId",
+        "version",
+        "text",
+        "confirmedBy",
+        "confirmedAt",
+        "evidenceRefs"
+      ],
+      "additionalProperties": false
+    },
+    "binding": {
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedText": {
+          "$ref": "#/$defs/text"
+        },
+        "factIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "coverage": {
+          "enum": [
+            "declared",
+            "runtime_checked",
+            "needs_review",
+            "user_reviewed"
+          ]
+        }
+      },
+      "required": [
+        "bindingId",
+        "targetId",
+        "frameStart",
+        "frameEndExclusive",
+        "expectedText",
+        "factIds",
+        "coverage"
+      ],
+      "additionalProperties": false
+    },
+    "factManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "fact_manifest"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fact"
+          },
+          "minItems": 0
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/binding"
+          },
+          "minItems": 0
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "revisionId",
+        "facts",
+        "bindings"
+      ],
+      "additionalProperties": false
+    },
+    "qaFinding": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/id"
+        },
+        "level": {
+          "enum": [
+            "BLOCK",
+            "REVIEW",
+            "INFO"
+          ]
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "message": {
+          "$ref": "#/$defs/text"
+        },
+        "waiver": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "actorId": {
+                  "$ref": "#/$defs/id"
+                },
+                "reason": {
+                  "$ref": "#/$defs/text"
+                },
+                "revisionId": {
+                  "$ref": "#/$defs/id"
+                },
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                },
+                "expiresAt": {
+                  "$ref": "#/$defs/dateTime"
+                }
+              },
+              "required": [
+                "actorId",
+                "reason",
+                "revisionId",
+                "targetId",
+                "expiresAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "code",
+        "level",
+        "frameStart",
+        "frameEndExclusive",
+        "message",
+        "waiver"
+      ],
+      "additionalProperties": false
+    },
+    "qualityReport": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "quality_report"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "factManifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "checkerVersion": {
+          "$ref": "#/$defs/text"
+        },
+        "coverage": {
+          "enum": [
+            "sampled",
+            "complete_timeline",
+            "fixture_only"
+          ]
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qaFinding"
+          },
+          "minItems": 0
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "qaInputHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "revisionId",
+        "targetId",
+        "sourceHash",
+        "factManifestHash",
+        "checkerVersion",
+        "coverage",
+        "findings",
+        "evidenceRefs",
+        "qaProfileVersion",
+        "qaInputHash"
+      ],
+      "additionalProperties": false
+    },
+    "agentRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "agent_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "operation": {
+          "enum": [
+            "creative_generate",
+            "prepare_targets"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "direct",
+            "compare_directions"
+          ]
+        },
+        "instruction": {
+          "$ref": "#/$defs/text"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "baseRevision",
+        "operation",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "runResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "run_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "runId": {
+          "$ref": "#/$defs/id"
+        },
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "active",
+            "awaiting_user",
+            "paused_budget",
+            "validating",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "phase": {
+          "$ref": "#/$defs/text"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "candidateRevisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usage": {
+          "type": "object",
+          "properties": {
+            "inputTokens": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "outputTokens": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "activeSeconds": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "costMicros": {
+              "$ref": "#/$defs/nonNegativeInteger"
+            },
+            "internalRepairs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "cachedInputTokens": {
+              "$ref": "#/$defs/nonNegativeInteger",
+              "description": "Included in inputTokens; never add it to the total a second time."
+            }
+          },
+          "required": [
+            "inputTokens",
+            "outputTokens",
+            "activeSeconds",
+            "costMicros",
+            "internalRepairs",
+            "cachedInputTokens"
+          ],
+          "additionalProperties": false
+        },
+        "directions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/direction"
+          }
+        },
+        "treatment": {
+          "$ref": "#/$defs/treatment"
+        },
+        "audioPlan": {
+          "$ref": "#/$defs/audioPlan"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "runId",
+        "operationId",
+        "baseRevision",
+        "state",
+        "phase",
+        "generation",
+        "candidateRevisionId",
+        "usage"
+      ],
+      "additionalProperties": false
+    },
+    "runAction": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "run_action"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "action": {
+          "enum": [
+            "resume",
+            "cancel"
+          ]
+        },
+        "directionId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "baseRevision",
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "previewRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "preview_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "revisionId",
+        "targetId",
+        "frameStart"
+      ],
+      "additionalProperties": false
+    },
+    "previewResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "preview_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "previewId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "ready",
+            "failed"
+          ]
+        },
+        "screenshotAssetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "markingProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "markingEvidenceRef": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "previewId",
+        "projectId",
+        "revisionId",
+        "targetId",
+        "frameStart",
+        "frameEndExclusive",
+        "state",
+        "screenshotAssetId",
+        "markingProfileVersion",
+        "sha256",
+        "markingEvidenceRef"
+      ],
+      "additionalProperties": false
+    },
+    "snapshotRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "snapshot_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "baseRevision",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "applyRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "apply_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "baseRevision"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "error"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "code": {
+          "$ref": "#/$defs/id"
+        },
+        "messageKey": {
+          "$ref": "#/$defs/id"
+        },
+        "message": {
+          "$ref": "#/$defs/text"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "fieldErrors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fieldError"
+          }
+        }
+      },
+      "required": [
+        "code",
+        "messageKey",
+        "message",
+        "requestId",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "renderInit": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "const": "init"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "frameCount": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "fps": {
+          "const": 30
+        },
+        "seed": {
+          "$ref": "#/$defs/text"
+        },
+        "renderProfile": {
+          "$ref": "#/$defs/renderProfile"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "command",
+        "manifestHash",
+        "frameCount",
+        "width",
+        "height",
+        "fps",
+        "seed",
+        "renderProfile"
+      ],
+      "additionalProperties": false
+    },
+    "renderSeek": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "const": "seek"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "command",
+        "frameIndex"
+      ],
+      "additionalProperties": false
+    },
+    "renderDispose": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "const": "dispose"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "command"
+      ],
+      "additionalProperties": false
+    },
+    "renderReady": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "frame-ready"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "frameIndex",
+        "manifestHash"
+      ],
+      "additionalProperties": false
+    },
+    "renderCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/renderInit"
+        },
+        {
+          "$ref": "#/$defs/renderSeek"
+        },
+        {
+          "$ref": "#/$defs/renderDispose"
+        }
+      ]
+    },
+    "exportManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "export_manifest"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "releaseId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "compositionHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "state": {
+          "enum": [
+            "reserved",
+            "rendering",
+            "ready",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "initialTargetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "targetId": {
+                "$ref": "#/$defs/id"
+              },
+              "kind": {
+                "enum": [
+                  "video",
+                  "cover",
+                  "mapping"
+                ]
+              },
+              "artifactFingerprint": {
+                "$ref": "#/$defs/sha256"
+              },
+              "sha256": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/sha256"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "state": {
+                "enum": [
+                  "pending",
+                  "ready",
+                  "failed"
+                ]
+              },
+              "markingEvidenceRef": {
+                "$ref": "#/$defs/id"
+              },
+              "qualityEvidenceRef": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "required": [
+              "id",
+              "targetId",
+              "kind",
+              "artifactFingerprint",
+              "sha256",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "markingProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "revisionId",
+        "snapshotId",
+        "releaseId",
+        "snapshotHash",
+        "compositionHash",
+        "state",
+        "initialTargetIds",
+        "artifacts",
+        "markingProfileVersion",
+        "qaProfileVersion"
+      ],
+      "additionalProperties": false
+    },
+    "qualitySummary": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "quality_summary"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/qualityReport"
+          }
+        },
+        "eligibility": {
+          "enum": [
+            "blocked",
+            "review_required",
+            "ready"
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "revisionId",
+        "reports",
+        "eligibility"
+      ],
+      "additionalProperties": false
+    },
+    "preflightRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "preflight_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "revisionId",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "exportRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "export_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "snapshotId",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "platformRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "platform_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "fieldError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "field",
+        "messageKey"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "messageKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 6000
+    },
+    "frameIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "renderError": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "error"
+        },
+        "code": {
+          "enum": [
+            "FRAME_TIMEOUT",
+            "ASSET_UNAVAILABLE",
+            "CAPABILITY_UNAVAILABLE",
+            "INVALID_SESSION"
+          ]
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "direction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "$ref": "#/$defs/shortText"
+        },
+        "logline": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "keyframeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "language": {
+          "$ref": "#/$defs/text"
+        },
+        "look": {
+          "$ref": "#/$defs/text"
+        },
+        "palette": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              "usage": {
+                "$ref": "#/$defs/text"
+              },
+              "source": {
+                "$ref": "#/$defs/text"
+              },
+              "sharePercent": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "color",
+              "usage"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "rhythm": {
+          "$ref": "#/$defs/text"
+        },
+        "sound": {
+          "$ref": "#/$defs/text"
+        },
+        "risk": {
+          "$ref": "#/$defs/text"
+        },
+        "whyItFits": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "logline",
+        "keyframeIds"
+      ],
+      "additionalProperties": false
+    },
+    "treatmentBeat": {
+      "type": "object",
+      "properties": {
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "event": {
+          "$ref": "#/$defs/text"
+        },
+        "energy": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "continuity": {
+          "$ref": "#/$defs/text"
+        },
+        "voiceAction": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "frameStart",
+        "frameEndExclusive",
+        "event"
+      ],
+      "additionalProperties": false
+    },
+    "treatment": {
+      "type": "object",
+      "properties": {
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "mainMessage": {
+          "$ref": "#/$defs/text"
+        },
+        "visualApproach": {
+          "$ref": "#/$defs/text"
+        },
+        "beats": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/treatmentBeat"
+          },
+          "minItems": 1
+        },
+        "keyframeIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "totalFrames",
+        "beats"
+      ],
+      "additionalProperties": false
+    },
+    "audioEvent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "music",
+            "sfx",
+            "voice"
+          ]
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "licenseRef": {
+          "$ref": "#/$defs/id"
+        },
+        "mark": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceOffsetFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -96,
+          "maximum": 24
+        },
+        "fadeInFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "fadeOutFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "gainAutomation": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/gainKeyframe"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "frameStart",
+        "frameEndExclusive",
+        "licenseRef"
+      ],
+      "additionalProperties": false
+    },
+    "audioPlan": {
+      "type": "object",
+      "properties": {
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/audioEvent"
+          }
+        },
+        "scoreRef": {
+          "$ref": "#/$defs/text"
+        },
+        "voiceTranscriptHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "totalFrames",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "editComment": {
+      "type": "object",
+      "properties": {
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "normalizedPoint": {
+          "$ref": "#/$defs/point"
+        },
+        "selectedElementId": {
+          "$ref": "#/$defs/id"
+        },
+        "screenshotAssetId": {
+          "$ref": "#/$defs/id"
+        },
+        "comment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "editScope": {
+          "enum": [
+            "selected",
+            "shot",
+            "variant",
+            "all-variants"
+          ]
+        }
+      },
+      "required": [
+        "targetId",
+        "frameIndex",
+        "comment",
+        "editScope"
+      ],
+      "additionalProperties": false
+    },
+    "createProjectRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "create_project_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "audience": {
+          "enum": [
+            "software",
+            "course"
+          ]
+        },
+        "task": {
+          "$ref": "#/$defs/text"
+        },
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "targetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "maxItems": 7,
+          "uniqueItems": true
+        },
+        "requestTrial": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "workspaceId",
+        "audience",
+        "task",
+        "durationSeconds",
+        "targetIds"
+      ],
+      "additionalProperties": false
+    },
+    "createProjectResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "create_project_result"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "trialStatus": {
+          "enum": [
+            "granted",
+            "unavailable",
+            "not_requested"
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "workspaceId",
+        "trialStatus"
+      ],
+      "additionalProperties": false
+    },
+    "checkoutRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "single_export"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "upgradeFromOrderId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId",
+            "upgradeFromOrderId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "extra_pack"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "extra_pack"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mediaType": {
+          "$ref": "#/$defs/text"
+        },
+        "licenseRef": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "byteLength",
+        "mediaType",
+        "licenseRef"
+      ],
+      "additionalProperties": false
+    },
+    "frozenAudioEvent": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "music",
+            "sfx",
+            "voice"
+          ]
+        },
+        "frameStart": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "frameEndExclusive": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "licenseRef": {
+          "$ref": "#/$defs/id"
+        },
+        "mark": {
+          "$ref": "#/$defs/text"
+        },
+        "sourceOffsetFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -96,
+          "maximum": 24
+        },
+        "fadeInFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "fadeOutFrames": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "gainAutomation": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/gainKeyframe"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "frameStart",
+        "frameEndExclusive",
+        "licenseRef",
+        "sourceHash",
+        "sourceOffsetFrames",
+        "gainDb",
+        "fadeInFrames",
+        "fadeOutFrames"
+      ],
+      "additionalProperties": false
+    },
+    "resourceManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "resource_manifest"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/resource"
+          }
+        },
+        "audioEvents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/frozenAudioEvent"
+          }
+        },
+        "mixedAudio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/mixedAudio"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "resources",
+        "audioEvents",
+        "mixedAudio"
+      ],
+      "additionalProperties": false
+    },
+    "usagePolicy": {
+      "type": "object",
+      "properties": {
+        "termsVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "rightsPolicyVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "intendedUse": {
+          "const": "commercial_export"
+        },
+        "licenseVersions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "licenseRef": {
+                "$ref": "#/$defs/id"
+              },
+              "recordVersion": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "required": [
+              "licenseRef",
+              "recordVersion"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "termsVersion",
+        "rightsPolicyVersion",
+        "intendedUse",
+        "licenseVersions"
+      ],
+      "additionalProperties": false
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    },
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "renderProfile": {
+      "type": "object",
+      "properties": {
+        "sampleCount": {
+          "enum": [
+            1,
+            4,
+            8
+          ]
+        },
+        "shutterAngle": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 360
+        },
+        "sampling": {
+          "const": "centered-box-v1"
+        },
+        "edgePolicy": {
+          "const": "clamp-v1"
+        }
+      },
+      "required": [
+        "sampleCount",
+        "shutterAngle",
+        "sampling",
+        "edgePolicy"
+      ],
+      "additionalProperties": false
+    },
+    "renderSample": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "const": "sample"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "sampleIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "command",
+        "frameIndex",
+        "sampleIndex"
+      ],
+      "additionalProperties": false
+    },
+    "renderSampleReady": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.5.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "sample-ready"
+        },
+        "frameIndex": {
+          "$ref": "#/$defs/frameIndex"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sampleIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "frameIndex",
+        "manifestHash",
+        "sampleIndex"
+      ],
+      "additionalProperties": false
+    },
+    "rendererCommand": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/renderInit"
+        },
+        {
+          "$ref": "#/$defs/renderSeek"
+        },
+        {
+          "$ref": "#/$defs/renderDispose"
+        },
+        {
+          "$ref": "#/$defs/renderSample"
+        }
+      ]
+    },
+    "gainKeyframe": {
+      "type": "object",
+      "properties": {
+        "frameOffset": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "gainDb": {
+          "type": "number",
+          "minimum": -96,
+          "maximum": 24
+        }
+      },
+      "required": [
+        "frameOffset",
+        "gainDb"
+      ],
+      "additionalProperties": false
+    },
+    "mixedAudio": {
+      "type": "object",
+      "properties": {
+        "resourcePath": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sampleRate": {
+          "const": 48000
+        },
+        "channels": {
+          "const": 2
+        },
+        "mixerVersion": {
+          "const": "mix-v1"
+        }
+      },
+      "required": [
+        "resourcePath",
+        "sha256",
+        "sampleRate",
+        "channels",
+        "mixerVersion"
+      ],
+      "additionalProperties": false
+    },
+    "outputQualityEvidence": {
+      "type": "object",
+      "properties": {
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "outputId": {
+          "$ref": "#/$defs/id"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "artifactFingerprint": {
+          "$ref": "#/$defs/sha256"
+        },
+        "qaProfileVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "checkerVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "result": {
+          "const": "passed"
+        },
+        "mixedAudioSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "workspaceId",
+        "projectId",
+        "revisionId",
+        "targetId",
+        "outputId",
+        "sha256",
+        "artifactFingerprint",
+        "qaProfileVersion",
+        "checkerVersion",
+        "result",
+        "mixedAudioSha256"
+      ],
+      "additionalProperties": false
+    },
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://",
+      "maxLength": 4096
+    },
+    "uploadPurpose": {
+      "enum": [
+        "visual",
+        "logo",
+        "voiceover",
+        "music",
+        "evidence"
+      ]
+    },
+    "assetEvidenceRef": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "assetId",
+        "sourceHash"
+      ],
+      "additionalProperties": false
+    },
+    "uploadSource": {
+      "type": "object",
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[^/\\\\\\u0000-\\u001f\\u007f]+$"
+        },
+        "mediaType": {
+          "enum": [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "video/mp4",
+            "video/quicktime",
+            "video/webm",
+            "audio/mpeg",
+            "audio/wav",
+            "audio/mp4"
+          ]
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52428800
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "fileName",
+        "mediaType",
+        "byteLength",
+        "sourceHash"
+      ],
+      "additionalProperties": false
+    },
+    "uploadRightsDeclaration": {
+      "type": "object",
+      "properties": {
+        "noticeVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "basis": {
+          "enum": [
+            "owned",
+            "licensed"
+          ]
+        },
+        "processingAuthorized": {
+          "const": true
+        },
+        "previewAuthorized": {
+          "type": "boolean"
+        },
+        "commercialUseAuthorized": {
+          "type": "boolean"
+        },
+        "peopleRights": {
+          "enum": [
+            "not_applicable",
+            "authorized"
+          ]
+        },
+        "restrictions": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "noticeVersion",
+        "basis",
+        "processingAuthorized",
+        "previewAuthorized",
+        "commercialUseAuthorized",
+        "peopleRights",
+        "restrictions"
+      ],
+      "additionalProperties": false
+    },
+    "assetIntentRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "asset_intent_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "purpose": {
+          "$ref": "#/$defs/uploadPurpose"
+        },
+        "source": {
+          "$ref": "#/$defs/uploadSource"
+        },
+        "rightsDeclaration": {
+          "$ref": "#/$defs/uploadRightsDeclaration"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "purpose",
+        "source",
+        "rightsDeclaration"
+      ],
+      "additionalProperties": false
+    },
+    "assetIntentResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "asset_intent_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "uploadId": {
+          "$ref": "#/$defs/id"
+        },
+        "assetId": {
+          "$ref": "#/$defs/id"
+        },
+        "purpose": {
+          "$ref": "#/$defs/uploadPurpose"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 52428800
+        },
+        "rightsDeclarationId": {
+          "$ref": "#/$defs/id"
+        },
+        "uploadUrl": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "uploadMethod": {
+          "const": "PUT"
+        },
+        "contentType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 127
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/dateTime"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "uploadId",
+        "assetId",
+        "purpose",
+        "sourceHash",
+        "byteLength",
+        "rightsDeclarationId",
+        "uploadUrl",
+        "uploadMethod",
+        "contentType",
+        "expiresAt"
+      ],
+      "additionalProperties": false
+    },
+    "uploadCompleteRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "upload_complete_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "uploadId": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "uploadId"
+      ],
+      "additionalProperties": false
+    },
+    "uploadCompleteResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "upload_complete_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "uploadId": {
+              "$ref": "#/$defs/id"
+            },
+            "assetId": {
+              "$ref": "#/$defs/id"
+            },
+            "purpose": {
+              "$ref": "#/$defs/uploadPurpose"
+            },
+            "sourceHash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 52428800
+            },
+            "rightsDeclarationId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "const": "processing"
+            },
+            "jobId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "uploadId",
+            "assetId",
+            "purpose",
+            "sourceHash",
+            "byteLength",
+            "rightsDeclarationId",
+            "state",
+            "jobId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "upload_complete_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "uploadId": {
+              "$ref": "#/$defs/id"
+            },
+            "assetId": {
+              "$ref": "#/$defs/id"
+            },
+            "purpose": {
+              "$ref": "#/$defs/uploadPurpose"
+            },
+            "sourceHash": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 52428800
+            },
+            "rightsDeclarationId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "const": "ready"
+            },
+            "jobId": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "uploadId",
+            "assetId",
+            "purpose",
+            "sourceHash",
+            "byteLength",
+            "rightsDeclarationId",
+            "state",
+            "jobId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "factRevisionRef": {
+      "type": "object",
+      "properties": {
+        "factId": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "factId",
+        "version",
+        "textHash"
+      ],
+      "additionalProperties": false
+    },
+    "factChange": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "upsert"
+            },
+            "factId": {
+              "$ref": "#/$defs/id"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "text": {
+              "$ref": "#/$defs/text"
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/assetEvidenceRef"
+              },
+              "minItems": 0,
+              "maxItems": 20,
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "action",
+            "factId",
+            "expectedVersion",
+            "text",
+            "evidence"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": {
+              "const": "remove"
+            },
+            "factId": {
+              "$ref": "#/$defs/id"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          },
+          "required": [
+            "action",
+            "factId",
+            "expectedVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "factDraftItem": {
+      "type": "object",
+      "properties": {
+        "factId": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assetEvidenceRef"
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "uniqueItems": true
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "uniqueItems": true
+        },
+        "confirmation": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "confirmedBy": {
+                  "$ref": "#/$defs/id"
+                },
+                "confirmedAt": {
+                  "$ref": "#/$defs/dateTime"
+                }
+              },
+              "required": [
+                "confirmedBy",
+                "confirmedAt"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recordVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "factId",
+        "version",
+        "recordVersion",
+        "text",
+        "textHash",
+        "evidence",
+        "evidenceRefs",
+        "confirmation"
+      ],
+      "additionalProperties": false
+    },
+    "factsUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "facts_update_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factChange"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "changes"
+      ],
+      "additionalProperties": false
+    },
+    "factsConfirmRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "facts_confirm_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factConfirmationRef"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "facts"
+      ],
+      "additionalProperties": false
+    },
+    "factsResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "facts_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factDraftItem"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "facts"
+      ],
+      "additionalProperties": false
+    },
+    "transcriptSegment": {
+      "type": "object",
+      "properties": {
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 59999
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "text": {
+          "$ref": "#/$defs/text"
+        },
+        "facts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/factRevisionRef"
+          },
+          "minItems": 0,
+          "maxItems": 20,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "startMs",
+        "endMs",
+        "text",
+        "facts"
+      ],
+      "additionalProperties": false
+    },
+    "transcriptConfirmRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "transcript_confirm_request"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "assetId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transcriptSegment"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "assetId",
+        "sourceHash",
+        "expectedVersion",
+        "segments"
+      ],
+      "additionalProperties": false
+    },
+    "transcriptResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.5.0"
+        },
+        "kind": {
+          "const": "transcript_result"
+        },
+        "exampleOnly": {
+          "type": "boolean"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "assetId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "transcriptHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/transcriptSegment"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "confirmedBy": {
+          "$ref": "#/$defs/id"
+        },
+        "confirmedAt": {
+          "$ref": "#/$defs/dateTime"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "assetId",
+        "sourceHash",
+        "version",
+        "transcriptHash",
+        "segments",
+        "confirmedBy",
+        "confirmedAt"
+      ],
+      "additionalProperties": false
+    },
+    "showcaseScope": {
+      "type": "object",
+      "properties": {
+        "channels": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "website_examples",
+              "social_media",
+              "advertising"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "purpose": {
+          "const": "product_showcase"
+        }
+      },
+      "required": [
+        "channels",
+        "purpose"
+      ],
+      "additionalProperties": false
+    },
+    "showcaseConsentRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "showcase_consent_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "releaseId": {
+              "$ref": "#/$defs/id"
+            },
+            "action": {
+              "const": "grant"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483647
+            },
+            "scope": {
+              "$ref": "#/$defs/showcaseScope"
+            },
+            "noticeVersion": {
+              "$ref": "#/$defs/id"
+            },
+            "authorityConfirmed": {
+              "const": true
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "releaseId",
+            "action",
+            "expectedVersion",
+            "scope",
+            "noticeVersion",
+            "authorityConfirmed"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "showcase_consent_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "releaseId": {
+              "$ref": "#/$defs/id"
+            },
+            "action": {
+              "const": "revoke"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "releaseId",
+            "action",
+            "expectedVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "showcaseConsentResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "showcase_consent_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "releaseId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "const": "not_granted"
+            },
+            "version": {
+              "const": 0
+            },
+            "consentId": {
+              "type": "null"
+            },
+            "scope": {
+              "type": "null"
+            },
+            "noticeVersion": {
+              "type": "null"
+            },
+            "updatedBy": {
+              "type": "null"
+            },
+            "updatedAt": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "projectId",
+            "releaseId",
+            "state",
+            "version",
+            "consentId",
+            "scope",
+            "noticeVersion",
+            "updatedBy",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "showcase_consent_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "releaseId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "enum": [
+                "granted",
+                "revoked"
+              ]
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2147483647
+            },
+            "consentId": {
+              "$ref": "#/$defs/id"
+            },
+            "scope": {
+              "$ref": "#/$defs/showcaseScope"
+            },
+            "noticeVersion": {
+              "$ref": "#/$defs/id"
+            },
+            "updatedBy": {
+              "$ref": "#/$defs/id"
+            },
+            "updatedAt": {
+              "$ref": "#/$defs/dateTime"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "projectId",
+            "releaseId",
+            "state",
+            "version",
+            "consentId",
+            "scope",
+            "noticeVersion",
+            "updatedBy",
+            "updatedAt"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "supportTicketRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "support_ticket_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "category": {
+              "const": "support"
+            },
+            "subject": {
+              "$ref": "#/$defs/shortText"
+            },
+            "message": {
+              "$ref": "#/$defs/text"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "category",
+            "subject",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "support_ticket_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "category": {
+              "const": "refund"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            },
+            "reason": {
+              "enum": [
+                "unused",
+                "delivery_failed",
+                "duplicate_payment",
+                "statutory_remedy",
+                "other"
+              ]
+            },
+            "message": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "category",
+            "orderId",
+            "reason",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "supportTicketResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "support_ticket_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "category": {
+              "const": "support"
+            },
+            "ticketId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "const": "open"
+            },
+            "createdAt": {
+              "$ref": "#/$defs/dateTime"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "category",
+            "ticketId",
+            "state",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "support_ticket_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "category": {
+              "const": "refund"
+            },
+            "ticketId": {
+              "$ref": "#/$defs/id"
+            },
+            "refundRequestId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            },
+            "state": {
+              "const": "requested"
+            },
+            "createdAt": {
+              "$ref": "#/$defs/dateTime"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "category",
+            "ticketId",
+            "refundRequestId",
+            "orderId",
+            "state",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "checkoutResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderState": {
+              "const": "checkout_open"
+            },
+            "sessionState": {
+              "const": "ready"
+            },
+            "checkoutUrl": {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            "expiresAt": {
+              "$ref": "#/$defs/dateTime"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "orderId",
+            "projectId",
+            "orderState",
+            "sessionState",
+            "checkoutUrl",
+            "expiresAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderState": {
+              "enum": [
+                "created",
+                "awaiting_confirmation"
+              ]
+            },
+            "sessionState": {
+              "const": "pending"
+            },
+            "checkoutUrl": {
+              "type": "null"
+            },
+            "expiresAt": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "orderId",
+            "projectId",
+            "orderState",
+            "sessionState",
+            "checkoutUrl",
+            "expiresAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.5.0"
+            },
+            "kind": {
+              "const": "checkout_result"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "orderState": {
+              "enum": [
+                "paid",
+                "expired",
+                "canceled",
+                "review_required"
+              ]
+            },
+            "sessionState": {
+              "const": "closed"
+            },
+            "checkoutUrl": {
+              "type": "null"
+            },
+            "expiresAt": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "orderId",
+            "projectId",
+            "orderState",
+            "sessionState",
+            "checkoutUrl",
+            "expiresAt"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "factConfirmationRef": {
+      "type": "object",
+      "properties": {
+        "factId": {
+          "$ref": "#/$defs/id"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "textHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expectedRecordVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        }
+      },
+      "required": [
+        "factId",
+        "version",
+        "textHash",
+        "expectedRecordVersion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/composition"
+    },
+    {
+      "$ref": "#/$defs/releaseSnapshot"
+    },
+    {
+      "$ref": "#/$defs/editRequest"
+    },
+    {
+      "$ref": "#/$defs/patchResult"
+    },
+    {
+      "$ref": "#/$defs/factManifest"
+    },
+    {
+      "$ref": "#/$defs/qualityReport"
+    },
+    {
+      "$ref": "#/$defs/agentRequest"
+    },
+    {
+      "$ref": "#/$defs/runResult"
+    },
+    {
+      "$ref": "#/$defs/runAction"
+    },
+    {
+      "$ref": "#/$defs/previewRequest"
+    },
+    {
+      "$ref": "#/$defs/previewResult"
+    },
+    {
+      "$ref": "#/$defs/snapshotRequest"
+    },
+    {
+      "$ref": "#/$defs/applyRequest"
+    },
+    {
+      "$ref": "#/$defs/error"
+    },
+    {
+      "$ref": "#/$defs/exportManifest"
+    },
+    {
+      "$ref": "#/$defs/renderCommand"
+    },
+    {
+      "$ref": "#/$defs/renderReady"
+    },
+    {
+      "$ref": "#/$defs/qualitySummary"
+    },
+    {
+      "$ref": "#/$defs/preflightRequest"
+    },
+    {
+      "$ref": "#/$defs/exportRequest"
+    },
+    {
+      "$ref": "#/$defs/platformRequest"
+    },
+    {
+      "$ref": "#/$defs/renderError"
+    },
+    {
+      "$ref": "#/$defs/createProjectRequest"
+    },
+    {
+      "$ref": "#/$defs/createProjectResult"
+    },
+    {
+      "$ref": "#/$defs/checkoutRequest"
+    },
+    {
+      "$ref": "#/$defs/resourceManifest"
+    },
+    {
+      "$ref": "#/$defs/renderSample"
+    },
+    {
+      "$ref": "#/$defs/renderSampleReady"
+    },
+    {
+      "$ref": "#/$defs/assetIntentRequest"
+    },
+    {
+      "$ref": "#/$defs/assetIntentResult"
+    },
+    {
+      "$ref": "#/$defs/uploadCompleteRequest"
+    },
+    {
+      "$ref": "#/$defs/uploadCompleteResult"
+    },
+    {
+      "$ref": "#/$defs/factsUpdateRequest"
+    },
+    {
+      "$ref": "#/$defs/factsConfirmRequest"
+    },
+    {
+      "$ref": "#/$defs/factsResult"
+    },
+    {
+      "$ref": "#/$defs/transcriptConfirmRequest"
+    },
+    {
+      "$ref": "#/$defs/transcriptResult"
+    },
+    {
+      "$ref": "#/$defs/showcaseConsentRequest"
+    },
+    {
+      "$ref": "#/$defs/showcaseConsentResult"
+    },
+    {
+      "$ref": "#/$defs/supportTicketRequest"
+    },
+    {
+      "$ref": "#/$defs/supportTicketResult"
+    },
+    {
+      "$ref": "#/$defs/checkoutResult"
+    }
+  ]
+}

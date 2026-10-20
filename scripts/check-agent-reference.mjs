@@ -5,7 +5,7 @@ import {load,targets} from './contract-validation.mjs';
 const ui=load('config/ui-tokens.json'),html=readFileSync(new URL('../'+ui.reference.output,import.meta.url),'utf8'),failures=[];
 const policy=load('config/agent-policy.json');
 if(html!==generateReference())failures.push('Reference output differs from current sources');
-for(const s of ['Offline design reference.','STATIC DESIGN SAMPLE — NOT A VIDEO FRAME','no generated video','no external network requests','value="15"','value="30"','max="899"','Prepare platform layouts']){
+for(const s of ['Offline design reference.','STATIC DESIGN SAMPLE — NOT A VIDEO FRAME','no generated video','no external network requests','value="15"','value="30"','max="899"','Buy &amp; export']){
  if(!html.includes(s))failures.push('Missing reference boundary/control: '+s);
 }
 for(const t of targets())if(!html.includes('value="'+t.targetId+'"'))failures.push('Missing legal target '+t.targetId);

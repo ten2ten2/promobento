@@ -34,6 +34,10 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 登录、创建、认证 API、应用、邀请、审阅、后台和 Set-Cookie 均 private,no-store 并绕过共享缓存，按需 noindex。认证/邀请/审阅 no-referrer，无会读 token URL 的第三方分析脚本。日志按路由模板脱敏，不写 callback query、OTP body、邀请路径。
 
+事实、转写、展示授权、持久 export/snapshot 的 URI 与机器契约统一见 [04 §5](04-architecture-and-data.md#5-第一方-api)。读取 exportManifest 不依赖原浏览器、临时 job 或下载 URL，仍查当前成员、实际归属及保存期限；GET 不准备目标、创建订单或签发下载。路径/body 的 project、asset、release、snapshot ID 不一致即拒绝，上传完成从 uploadId 的服务端记录推导归属，不接受客户端换项目。
+
+事实/转写确认只代表当前有效用户对精确版本和来源的明确操作，actor 与时间由服务端写入；记录版本冲突返回 409，不自动覆盖。展示授权的 grant/revoke 均须该项目 Owner、Origin/CSRF 和当前授权版本，默认未授予，拒绝或撤回不降低制作/付款/下载权限。`support.tickets.create` 的 session 只是入口：普通支持核验所附资源可见性，refund 分支必须再验原订单工作区的当前 Owner 才建立退款申请；支持人员不能凭请求字段改变订单归属或退款金额。具体交易与撤回处理按 04/05。
+
 sitemap 只含 index 页与已发布样例 slug，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
 
 ## 3 OTP、flow 和会话期限

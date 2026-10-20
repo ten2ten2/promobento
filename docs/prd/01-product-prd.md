@@ -1,6 +1,6 @@
 # 产品需求
 
-**PromoBento 用 AI Director 和 Coding Agent，把真实产品素材制作成可修改、可按平台交付的宣传短片。** 产品规格 v2.4，结构协议 2.4.0。本文定义当前产品范围；实现及真实环境验证状态见 [实施进度](../implementation-status.md)。
+**PromoBento 用 AI Director 和 Coding Agent，把真实产品素材制作成可修改、可按平台交付的宣传短片。** 产品规格 v2.5，结构协议 2.5.0。本文定义当前产品范围；实现及真实环境验证状态见 [实施进度](../implementation-status.md)。
 
 ## 1 用户、交付与技术边界
 

@@ -36,9 +36,13 @@ flowchart TD
 
 准入来自 01 和 [输入配置](../../config/input-capabilities.json)。上传、解码、素材理解和方向生成前必须登录，且当前项目有已绑定试用或有效付费处理权益；无资助的新草稿不得先消耗这些云资源。检验魔数/解码而非扩展名，限制文件大小、像素、时长、线程和内存；图片方向/色彩规范化，音频规范化 48 kHz。录屏可以生成 H.264 预览代理，但必须先验证目标 Chromium 构建支持的解码器；不支持则用经过验证的预览抽帧，不能假设开源 Chromium 自带 H.264/AAC 解码。正式 Renderer 对实际使用的视频区间默认以 FFmpeg 按 PTS 确定性抽帧并复用受限缓存（含变帧率），不是无条件抽取所有上传帧；缺帧、PTS 不连续或资源越界明确失败。原始媒体与规范化 asset_version 都不可变。用户上传 HTML/SVG 与 Agent 在沙箱编写 HTML/SVG 严格区分。
 
-上传 intent 绑定 workspace/project、临时 key、长度、用途和截止；complete 验实际字节 hash 后创建正式版本，不能覆盖已购引用。账号、项目和素材归属从数据库获取，不信客户端自报。素材首次处理前执行 09 的权利准入，免费预览同样适用。只向已批准 provider 发送该用途所需的最小任务数据，如素材摘要、必要帧、转写所需音频或改稿涉及的源码片段，记录用途、provider 和数据范围；具体数据处理、日志与保留规则见本章第 6 节。
+上传 intent 收取用途、文件名、媒体类型、预先计算的 SHA-256、字节数及 `rightsDeclaration`。声明列明告知版本、owned/licensed 依据、处理/预览/商用范围、人物权利与限制；服务端记录声明人和时间，绑定 workspace/project、来源 hash/长度、临时 key 和截止。文件名仅作显示，不生成存储路径。声明是保存的依据，不自动证明真实授权；首次处理前执行 09/14 的用途准入，免费预览同样适用。
 
-`project_revisions` 是唯一版本实体。CompositionManifest、ReleaseSnapshot、FactManifest、EditRequest/PatchResult、RenderProtocol 使用正式 Schema 和 14 的语义。源码可自由实现 DOM/SVG/Canvas/WebGL/3D/Shader，镜头及风格无固定枚举。绝对帧时钟、受控资源准备、冷/正/逆向 seek、精确消息身份与截图可信来源由 14 定义。
+complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、hash、魔数及解码边界；不匹配返回 422，不创建可用版本或启动后续模型处理。重试复用原结果，正式素材及规范化版本不可变。`purpose=evidence` 也走此流程、现行格式及相应大小/时长和总量限制；它只供事实/权利证据登记，不进入可绘资源清单，也不满足创作必需的视觉素材。账号、项目和素材归属取数据库，不信客户端自报。
+
+只向已批准 provider 发送该用途所需的最小任务数据，如素材摘要、必要帧、转写所需音频或改稿涉及的源码片段，记录用途、provider 和数据范围；具体数据处理、日志与保留规则见本章第 6 节。
+
+`project_revisions` 是唯一成片 revision 实体。CompositionManifest、ReleaseSnapshot、FactManifest、EditRequest/PatchResult、RenderProtocol 使用正式 Schema 和 14 的语义。源码可自由实现 DOM/SVG/Canvas/WebGL/3D/Shader，镜头及风格无固定枚举。绝对帧时钟、受控资源准备、冷/正/逆向 seek、精确消息身份与截图可信来源由 14 定义。
 
 CompositionManifest 的 `layoutRulesHash` 固定响应式布局规则；各 variant 的 `targetOverrideHash` 固定该目标确有必要的独立覆盖，没有覆盖时显式为 null。二者进入 variant/content 身份计算，与源码、字体、音轨和运行环境一同冻结；不能只保存目标尺寸后在导出时重新决定构图。
 
@@ -64,7 +68,7 @@ Composer/Renderer 都按 job/generation 隔离，结束销毁；不复用含客�
 
 试用：`trial_claims` 以内部 user_id 和 trial_project_id 分别唯一，保存 workspace_id、claimed_at 和政策版本。Owner 自领、项目创建、claim/grant 同事务；requestId 重试返回同项目，并发最多成功一次。`requestTrial` 默认 false；`trialStatus` 使用 not_requested/granted/unavailable，不可领取仍可建无权益草稿。身份或项目变化不重置 claim，最小去重关系按第 6 节保留；资格、次数和使用范围统一见 05/12。
 
-内容：projects、product_facts、assets/asset_versions/asset_refs、project_revisions、composition_sources/variants、creative_briefs/treatments、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests/quality_reports、comments/edit_requests。字段/关联/状态见 14；可无 scene/element 标记，不强制场景结构。
+内容：projects、product_facts、assets/asset_versions/asset_refs、upload_intents/rights_declarations、asset_transcripts、project_revisions、composition_sources/variants、creative_briefs/treatments、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests/quality_reports、comments/edit_requests；独立展示授权为 showcase_consents。字段/关联/状态见 14 与本章 API；可无 scene/element 标记，不强制场景结构。
 
 交易：orders、active_checkout_slots、entitlement_grants、credit_reservations/credit_ledger、payment_inbox、refund_requests、export_snapshots/export_releases/export_artifacts、jobs/job_attempts、outbox、renderer_versions。creative_reservations/creative_ledger 与成片账本分开。按 05 的购买资格、项目初始槽/升级槽、依赖退款与重新购买条件建唯一约束；条件写和 outbox 同事务，不无条件读后减余额。消费与费用不能因退款改写，旧付款去重关系不能被新订单复用；保存范围和期限见第 6 节。
 
@@ -89,7 +93,7 @@ M0a开始即建立cost_events及cost_reservations。一次模型请求或一个�
 
 ## 5 第一方 API
 
-URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源；Agent 请求/响应在 [API 契约](../../contracts/agent-api.json) 引用 [正式 Schema](../../contracts/production.schema.json)。以下是可检查的实施清单，不是已部署服务。
+URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源；关键请求/响应在 [API 契约](../../contracts/agent-api.json) 引用 [正式 Schema](../../contracts/production.schema.json)。已绑定对象使用封闭字段和明确分支；其余 API 在对应模块实施前补齐契约与负例，不能接受任意 object 代替。以下是可检查的实施清单，不是已部署服务。
 
 普通业务 mutation 使用 requestId/Idempotency-Key，同时提供须一致；幂等范围包含 workspace/project/actor/route，请求摘要不一致返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入 422、限流 429；未知路径 404、方法 405+Allow。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId。
 
@@ -122,23 +126,31 @@ URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源�
 | `PATCH /api/projects/:projectId/draft` | member | baseRevision；changes 或 restoreFromRevisionId 二选一；创建新 revision 并 CAS，旧快照不变。 |
 | `POST /api/projects/:projectId/copies` | member | 同工作区合法素材/源包引用；新projectId不带付费/试用权益，不重置claim。可只读/本地编辑；新上传、云预览、QA及创作前先购买project_pack的top_up_only权益；原项目的购买快照和QA授权不转移。 |
 | `DELETE /api/projects/:projectId` | member | 删除确认、版本 guard、墓碑、取消、撤销授权、孤儿回收；退款独立处理。 |
-| `POST /api/projects/:projectId/assets/intents` | member | 验项目试用/付费处理权益和累计预算，再绑定项目、文件声明、请求ID、长度/用途/过期及临时upload key；未资助草稿拒绝。 |
-| `POST /api/uploads/:uploadId/complete` | member | 验实际 hash、魔数、解码、尺寸/时长；202 处理任务或 422。 |
-| `POST /api/projects/:projectId/facts/confirm` | member | factIds 和具体 version；用户确认，过时版本 409，Agent 不代确认。 |
+| `POST /api/projects/:projectId/assets/intents` | member | `assetIntentRequest` → `assetIntentResult`，201；先验处理权益、预算和权利声明，返回绑定 hash/字节/用途的短期 PUT 授权。 |
+| `POST /api/uploads/:uploadId/complete` | member | `uploadCompleteRequest` → `uploadCompleteResult`，202；实收字节匹配才接受处理，重复请求复用 processing/ready 结果。 |
+| `GET /api/projects/:projectId/facts` | member | `no-body` → `factsResult`，200；读取当前事实、正文/记录版本、证据及确认状态。 |
+| `PATCH /api/projects/:projectId/facts` | member | `factsUpdateRequest` → `factsResult`，200；逐项 CAS 创建、更新或移除，一批全部成功或 409。 |
+| `POST /api/projects/:projectId/facts/confirm` | member | `factsConfirmRequest` → `factsResult`，200；确认精确正文 hash、正文版本及记录版本，确认人/时间由服务端写入。 |
+| `GET /api/projects/:projectId/transcripts/:assetId` | member | `no-body` → `transcriptResult`，200；读取指定音频/录屏来源的已确认转写，无记录 404。 |
+| `POST /api/projects/:projectId/transcripts/confirm` | member | `transcriptConfirmRequest` → `transcriptResult`，200；CAS 确认 assetId/sourceHash、时间段及关联事实，不代用户确认旁白。 |
 | `POST /api/projects/:projectId/preflight` | member | 检查当前 revision；涉及云计算时先验项目权益与独立预算，不触发支付；`preflightRequest` → `qualitySummary`，200。 |
 | `POST /api/projects/:projectId/export-snapshots` | member | 只冻结全部合法 target 已准备的内容；缺项 409；`snapshotRequest` → `releaseSnapshot`，200。 |
-| `POST /api/billing/checkouts` | owner | checkoutRequest：projectId/sku/purchaseIntent/requestId；purchase_and_export必须snapshotId且全目标冻结，top_up_only禁止snapshotId且不导出。project_upgrade必须upgradeFromOrderId且验证为该项目有效single_export初始订单，其他SKU禁止该字段。先购创作不要求素材，四SKU资格/退款按05；不接收客户端金额币种或权益。 |
+| `GET /api/projects/:projectId/export-snapshots/:snapshotId` | member | `no-body` → `releaseSnapshot`，200；只读指定持久快照，不准备目标或创建 checkout。 |
+| `POST /api/billing/checkouts` | owner | `checkoutRequest` → `checkoutResult`，201；purchase_and_export 必须全目标快照，top_up_only 禁止 snapshotId；project_upgrade 必须有效初始 single_export 的 upgradeFromOrderId，其他 SKU 禁止该字段。资格/退款按 05，不收客户端金额、币种或权益。 |
 | `POST /api/payments/waffo/webhook` | waffo_signature | 按 05 的订单、签名、权益和下载授权；沙箱不能直接调用。 |
 | `GET /api/billing/orders` | owner | 按 05 的订单、签名、权益和下载授权；沙箱不能直接调用。 |
 | `GET /api/billing/orders/:orderId` | owner | 按 05 的订单、签名、权益和下载授权；沙箱不能直接调用。 |
 | `POST /api/projects/:projectId/exports` | member | 按 projectId + contentHash 复用或预留 release；`exportRequest` → `exportManifest`，202。 |
+| `GET /api/exports/:releaseId` | member | `no-body` → `exportManifest`，200；刷新后恢复持久交付状态，独立于 job 和短期下载授权。 |
 | `POST /api/exports/:releaseId/platforms` | member | 只执行已有冻结 target；不调用 Agent；`platformRequest` → `exportManifest`，202。 |
 | `GET /api/jobs/:jobId` | member | 按实际 job 推导工作区；阶段、进度、安全错误码。 |
 | `POST /api/exports/:releaseId/downloads` | member | 按 05 的订单、签名、权益和下载授权；沙箱不能直接调用。 |
 | `POST /api/projects/:projectId/share-links` | member | 成员、不可变 revision 和期限；只读限定预览，不包含源码/账务/AI 权限。 |
 | `DELETE /api/projects/:projectId/share-links/:shareLinkId` | member | 链接确属项目，撤销立即停止新授权；204。 |
 | `POST /api/projects/:projectId/comments` | member | 纯文本成员评论，revision/target/帧可定位；普通评论不触发 AI 扣次。 |
-| `POST /api/support/tickets` | session | 有效会话及可选已授权 project/order、原因和说明；返回站内编号。 |
+| `POST /api/support/tickets` | session | `supportTicketRequest` → `supportTicketResult`，201；support 返回站内编号；refund 必须 orderId/reason，服务端核验该订单 Owner 后建立 refund_requests，非退款成功。 |
+| `GET /api/projects/:projectId/showcase-consents/:releaseId` | owner | `no-body` → `showcaseConsentResult`，200；读取所选 release 的独立展示授权，未授予为 not_granted。 |
+| `PUT /api/projects/:projectId/showcase-consents/:releaseId` | owner | `showcaseConsentRequest` → `showcaseConsentResult`，200；按 expectedVersion 授予或撤回指定渠道/用途，不影响生产权益。 |
 | `POST /api/projects/:projectId/agent-runs` | member | 启动整片创作或显式准备平台源包；`agentRequest` → `runResult`，202。 |
 | `GET /api/projects/:projectId/agent-runs/:runId` | member | 读取阶段、方向候选、预算与结果；`no-body` → `runResult`，200。 |
 | `POST /api/projects/:projectId/agent-runs/:runId/resume` | member | 同 run 剩余预算内恢复；重新核对 base 和权限；`runAction` → `runResult`，202。 |
@@ -154,6 +166,17 @@ URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源�
 
 review token 只经专门 loader 读取限定版本的最小预览，不调用成员全量接口。comments 不隐式触发收费 AI，需要改稿时明确提交 edit-requests。金额、provider、回跳 origin、目标宽高、预算或权限不接受客户端任意覆盖。
 
+### 关键接口语义
+
+路径 ID 与 body ID 必须相等；所有引用重新查验当前租户、项目、成员和生命周期。读接口无业务副作用，均 `private, no-store`。Schema 只校验结构，不能替代以下服务端判断：
+
+- **付款与上传授权。** `checkoutResult` 只返回本地 orderId、订单/会话状态和受控 URL/截止，不透传提供方对象。只有 ready 会话有 HTTPS checkoutUrl；pending/closed 均为 null，pending 不另开付款会话。服务端核对实际会话、允许的提供方主机和有效截止，禁止凭 HTTPS 字符串放行任意地址。上传 URL 同样只授权该 intent 的临时对象、PUT、长度/类型及期限；complete 再检查当前权限与实际字节，处理预算和费用不因重试重置。
+- **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；实际编辑或确认状态改变时递增记录版本。`version` 是正文版本，仅正文改变时递增，`textHash=digest(text)`；证据变化不得改变正文身份或计费 hash，但须清除该记录的旧确认和当前 QA。批内 factId 唯一，CAS 全部原子通过，移除不破坏已冻结 FactManifest。确认同时匹配 factId/version/textHash/expectedRecordVersion；确认人和 UTC 时间取有效会话及服务端时钟，Agent 不能代确认。
+- **证据与转写。** 事实的 `evidence` 只提交 assetId/sourceHash；服务端核验该项目已完成的 evidence 上传，并生成绑定来源字节及当前文案 hash 的 evidenceRefs。14 的事实分类及来源要求仍适用，客户确认不自动证明真实性。转写绑定不可变 assetId/sourceHash，expectedVersion=0 为首次，其后匹配当前转写版本；各段按时间升序、不重叠、落在实测时长内，合计原文不超过 6000 Unicode 码点。商业声称关联当前已确认的 factId/version/textHash，并接受文本覆盖检查；空 facts 不能绕过声称检查。`transcriptHash=digest({assetId,sourceHash,segments})`，确认人/时间由服务端写入；来源或事实变化须重新确认受影响的转写。
+- **展示与退款。** 展示 grant 必须当前 Owner、有权许可、已交付且确属该项目的 release、告知版本及明确所选渠道；scope 仅为该成片的 product_showcase，不延伸到原始素材或训练。revoke 使用当前版本，不要求仍有创作额度或媒体处于可编辑期，立即停止新增使用并安排撤下受控展示；旧 grant 的重放不能恢复已撤回授权。普通支持的可选 project/order 必须可见且关联一致；refund 分支额外核验订单 Owner，按 05 进入退款申请及依赖核查，不接受客户端金额/权益，不把 requested 当作退款到账。
+
+持久 export/snapshot GET 只返回授权范围的清单元数据，不生成媒体授权、不延长期限，也不恢复已撤销的交付权益。短期文件授权仍由 downloads 接口按当前订单、release 和项目生命周期单独签发。
+
 ## 6 隐私、保存与删除
 
 ### 数据角色与处理范围
@@ -162,7 +185,7 @@ review token 只经专门 loader 读取限定版本的最小预览，不调用�
 
 默认不以客户素材、提示、源码、声音或成片训练模型，不跨工作区复用私有创作资料，不用于公开案例或营销。用户主动开启的工作区偏好只用于该工作区；分享审阅不构成公开展示同意。
 
-案例展示单独征求默认未选、具体且可撤回的同意；记录所选作品/素材、渠道、用途、告知版本、同意及撤回时间，核对同意方有权许可该展示范围。拒绝不影响制作、付款或下载。撤回后停止新增使用并从平台控制的展示页面/投放素材撤下；第三方已转发或下载副本的实际限制在同意时说明，不承诺删除整个互联网。撤回展示、删除项目和退款分别处理，保留必要的同意/撤回证明不等于继续公开作品。
+案例展示单独征求默认未选、具体且可撤回的同意；当前仅可选择已交付 release 及 website_examples/social_media/advertising 渠道，不包含原始素材或训练。记录用途、告知版本、授权人及同意/撤回时间，核对其有权许可该范围。拒绝不影响制作、付款或下载。撤回后停止新增使用并从平台控制的展示页面/投放素材撤下；第三方已转发或下载副本的实际限制在同意时说明，不承诺删除整个互联网。撤回展示、删除项目和退款分别处理，保留必要的同意/撤回证明不等于继续公开作品。
 
 API 不训练承诺与供应方日志保留是不同事项。选定模型/ASR 前核实实际账户设置、合同、用途、区域、保留期限和删除能力，再写入对外告知；不得仅凭某个产品入口的通用说明承诺零保留。云端自托管转写仍涉及云基础设施，转写文本交给模型时也计入数据处理范围。常规日志只记录必要的状态、用量和受控引用，不保存客户全文、原始媒体、私有源码、访问令牌或敏感 prompt。
 

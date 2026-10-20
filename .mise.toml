@@ -23,7 +23,7 @@ run = "node scripts/check-production-contracts.mjs"
 [tasks."test:contracts"]
 description = "test:contracts: current specifications and references only"
 dir = "{{config_root}}"
-run = "node --test scripts/production-contracts.test.mjs"
+run = "node --test scripts/*.test.mjs packages/contracts/test/*.test.mjs"
 
 [tasks."build:agent-reference"]
 description = "build:agent-reference: current specifications and references only"
