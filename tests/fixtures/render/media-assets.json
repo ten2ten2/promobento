@@ -1,0 +1,110 @@
+{
+  "registryVersion": "fixture-fonts-v1",
+  "scope": "reviewed_m0a_fixture_only",
+  "fonts": [
+    {
+      "fontId": "geist-sans-fixture",
+      "family": "Geist Sans",
+      "weight": 600,
+      "path": "fonts/geist-sans-latin-600-normal.woff",
+      "encodedPath": "tests/fixtures/render/fonts/geist-sans-latin-600-normal.woff.base64",
+      "sha256": "3903ed7633d563de34bbbf609e869a878e4b4081a25011a195b7a80043ecafe9",
+      "byteLength": 41204,
+      "package": "@fontsource/geist-sans",
+      "packageVersion": "5.0.3",
+      "archiveUrl": "https://registry.npmjs.org/@fontsource/geist-sans/-/geist-sans-5.0.3.tgz",
+      "archiveSha256": "9c853c34780af3e90a1e1cb08f30d202b1826d003fb92cba58b6aa851257b5ca",
+      "sourceMetadata": {
+        "id": "geist-sans",
+        "family": "Geist Sans",
+        "subsets": [
+          "latin"
+        ],
+        "weights": [
+          100,
+          200,
+          300,
+          400,
+          500,
+          600,
+          700,
+          800,
+          900
+        ],
+        "styles": [
+          "normal"
+        ],
+        "defSubset": "latin",
+        "variable": false,
+        "lastModified": "2023-11-10",
+        "version": "v1.0.1",
+        "category": "sans-serif",
+        "license": {
+          "type": "OFL-1.1",
+          "url": "https://github.com/vercel/geist-sans-font/blob/main/LICENSE.TXT",
+          "attribution": "Vercel"
+        },
+        "source": "https://github.com/vercel/geist-sans-font/tree/main/packages/next/dist/fonts/geist-sans",
+        "type": "other"
+      },
+      "licenseRef": "geist-sans-ofl-1.1",
+      "licensePath": "tests/fixtures/render/fonts/geist-sans-OFL.txt",
+      "licenseSha256": "f38cbd54a72dd027dc854a9bbac9eb5bb8b9b1d6e4b43f037435336ab62a63fc",
+      "license": "OFL-1.1",
+      "modified": false,
+      "reviewedDate": "2026-10-21"
+    },
+    {
+      "fontId": "geist-mono-fixture",
+      "family": "Geist Mono",
+      "weight": 400,
+      "path": "fonts/geist-mono-latin-400-normal.woff",
+      "encodedPath": "tests/fixtures/render/fonts/geist-mono-latin-400-normal.woff.base64",
+      "sha256": "7b30735924b7a027fac9f21c180cbbde7d1d7b5b70b9cfc407f93a3c02fde35e",
+      "byteLength": 23552,
+      "package": "@fontsource/geist-mono",
+      "packageVersion": "5.0.3",
+      "archiveUrl": "https://registry.npmjs.org/@fontsource/geist-mono/-/geist-mono-5.0.3.tgz",
+      "archiveSha256": "56b0496de435086148fca18407eb85053e7138d1a177556874138e0f010ab247",
+      "sourceMetadata": {
+        "id": "geist-mono",
+        "family": "Geist Mono",
+        "subsets": [
+          "latin"
+        ],
+        "weights": [
+          100,
+          200,
+          300,
+          400,
+          500,
+          600,
+          700,
+          800,
+          900
+        ],
+        "styles": [
+          "normal"
+        ],
+        "defSubset": "latin",
+        "variable": false,
+        "lastModified": "2023-12-19",
+        "version": "v1.1.0",
+        "category": "monospace",
+        "license": {
+          "type": "OFL-1.1",
+          "url": "https://github.com/vercel/geist-font/blob/main/LICENSE.TXT",
+          "attribution": "vercel"
+        },
+        "source": "https://github.com/vercel/geist-font",
+        "type": "other"
+      },
+      "licenseRef": "geist-mono-ofl-1.1",
+      "licensePath": "tests/fixtures/render/fonts/geist-mono-OFL.txt",
+      "licenseSha256": "f38cbd54a72dd027dc854a9bbac9eb5bb8b9b1d6e4b43f037435336ab62a63fc",
+      "license": "OFL-1.1",
+      "modified": false,
+      "reviewedDate": "2026-10-21"
+    }
+  ]
+}

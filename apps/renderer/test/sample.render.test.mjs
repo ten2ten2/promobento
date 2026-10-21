@@ -73,6 +73,27 @@ test('30-second portrait keeps DOM/SVG/Canvas nodes and remains deterministic',{
   assertTimings(report);
 });
 
+test('30-second media fixture freezes actual fonts, VFR frames, soundtrack and edited values',{timeout:900000},async()=>{
+  const {report}=await renderSample({fixture:'media'});
+  assert.equal(report.frameCount,900);assert.equal(report.checks.reverseFrames,900);
+  assert.equal(report.media.status,'passed');assert.equal(report.media.fixtureInputHash,report.fixtureInputHash);
+  assert.equal(report.media.resources.sourceFrameCount,61);assert.equal(report.media.resources.variableFrameRate,true);
+  const {cache,fonts}=report.media.browser;
+  assert(cache.peakDecodedFrames<=cache.maxDecodedFrames && cache.peakDecodedBytes<=cache.maxDecodedBytes);
+  assert(cache.cacheHits>0 && cache.fetches>61,'Reverse/cold selection must really exercise the bounded cache');
+  assert(fonts.length===2 && fonts.every(font=>font.status==='loaded'));
+  const {audio,editing,clip,screenshot,layout}=report.media;
+  assert.equal(audio.preparation.sampleFrames,1440000);
+  assert.equal(audio.previewDecode.sha256,audio.encoded.mixedAudioHash);
+  assert(audio.encoded.cueChecks.every(check=>Math.abs(check.differenceFrames)<=1));
+  assert.equal(editing.status,'passed');assert.equal(editing.trustedHashes.length,3);
+  assert(editing.missingGlyphRejected && editing.textOverflowDetected && editing.staleEpochRejected);
+  assert.equal(layout.checkedFrames,31);assert.equal(screenshot.sourceFrame,300);
+  assert.equal(clip.frameStart,270);assert.equal(clip.frameEndExclusive,330);assert.equal(clip.sourcePixelHashes.length,60);
+  assert.equal(clip.audio.interval.effectiveSampleFrames,96000);
+  assertTimings(report);
+});
+
 test('a host deadline kills both an unresolved draw and a synchronous renderer loop',{timeout:60000},async()=>{
   const bundle=prepareBrowserBundle(environmentLock.browser);
   let handle;

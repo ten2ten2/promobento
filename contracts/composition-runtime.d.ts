@@ -1,4 +1,4 @@
-/** Contract for a future runtime. The trusted host owns barriers, media, overlays and audio. */
+/** Authoring contract. The reviewed-fixture implementation is a subset of product admission. */
 import type { EditableProperty, EditableValue, FrameCount, Sha256, TargetId } from './render-protocol.js';
 export type { EditableValue } from './render-protocol.js';
 
@@ -82,6 +82,8 @@ export interface RuntimeContext {
     /** Includes every declared fallback; glyph/shape QA is a separate trusted check. */
     readonly ready: Promise<void>;
     family(fontId: string): string;
+    /** Registered cmap + declared fallback coverage; does not certify complex shaping or layout. */
+    assertText(fontId: string, text: string): void;
   };
   /**
    * random-at-v1: length-prefixed UTF-8, FNV-1a + fmix32, unsigned value / 2^32.
@@ -95,8 +97,9 @@ export interface DrawResult { readonly regions?: ReadonlyArray<RegionBounds> }
 export interface PreparedComposition {
   /**
    * Complete state at time; no accumulating callbacks, clocks or audio/event side effects.
-   * The current reviewed-fixture runtime supports direct DOM/SVG updates and Canvas 2D.
-   * Native CSS/WAAPI animations (also paused ones), WebGL, fonts and video await admission.
+   * The reviewed-fixture runtime supports direct DOM/SVG updates, Canvas 2D,
+   * registered font bytes and trusted PTS-extracted video frames.
+   * Native CSS/WAAPI animations (also paused ones), WebGL and arbitrary source await admission.
    * A host frame deadline must terminate a stuck execution environment, not queue dispose
    * behind a draw that may never finish. That recovery is outside customer code.
    */

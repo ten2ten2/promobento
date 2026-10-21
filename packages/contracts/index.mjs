@@ -9,3 +9,5 @@ export {
   targets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, variantIdentity,
   artifactIdentity, outputArtifactIdentity, qaInputIdentity, audioIdentity
 } from './src/identity.mjs';
+
+export {editableValueErrors,editableValuesErrors,boundValueUpdates,checkedValueUpdates,localPreviewValues} from './src/editable-values.mjs';

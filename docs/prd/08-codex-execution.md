@@ -26,8 +26,8 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `test` | 运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
 | `install:renderer` | 获取并校验完整 Chrome for Testing 固定归档，保存到私有缓存 |
-| `render:fixture` | 只渲染已审阅样例；默认30秒`inplace`、`output`模式，记录出片及必需检查时间；可显式选择`square`和`regression` |
-| `test:render` | 独立媒体回归：15/30秒MP4、两种模式像素一致、正/逆序/重复/乱序及冷启抽查、编码/色块、字体隔离与超时失败检查 |
+| `render:fixture` | 只渲染已审阅样例；默认30秒`media`、`output`模式，记录出片和媒体检查；另可选择静音`square`/`inplace`及完整`regression` |
+| `test:render` | 独立媒体回归：15/30秒MP4、模式像素一致、正/逆序/重复/乱序及冷启、真实字体/VFR取帧/冻结音轨、编辑保存与区域定位、截图片段及故障检查 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
@@ -81,7 +81,7 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 ### M0a 渲染环境
 
-本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。命令只接受仓库中经审阅的`square`/`inplace`样例，不接收任意路径、URL或Agent源码。当前浏览器以`chromiumSandbox:false`启动；私有目录、CSP及请求拦截不构成客户代码隔离。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
+本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。命令只接受仓库中经审阅的`square`/`inplace`/`media`样例，不接收任意路径、URL或Agent源码。当前浏览器以`chromiumSandbox:false`启动；私有目录、CSP及请求拦截不构成客户代码隔离。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
 
 Linux x64 / Ubuntu 24.04 的运行步骤：
 
@@ -94,24 +94,30 @@ mise run install:renderer
 mise run test:render
 ```
 
-仅测30秒样例的出片流程时运行`mise run render:fixture -- --fixture inplace --mode output`；完整回归可选`--mode regression`，15秒方形样例用`--fixture square`。`--output-directory`只改变产物目录，不改变输入或校验。默认产物位于`artifacts/m0a/<runId>/`，包含MP4、封面、环境及报告。
+30秒真实媒体样例运行`mise run render:fixture -- --fixture media --mode output`；完整回归可选`--mode regression`，15秒静音方形用`--fixture square`，30秒静音DOM/SVG/Canvas用`--fixture inplace`。`--output-directory`只改变产物目录，不改变输入或校验。默认产物位于`artifacts/m0a/<runId>/`，包含MP4、封面、环境及报告；`media`另有冻结WAV、真实资源/PTS清单、可信截图/两秒片段和媒体QA，完整回归还保存编辑参数及预览/高清对照图。
 
 | 模式 | 两者共同执行 | 额外检查 |
 | --- | --- | --- |
-| `output` | 同一正序全帧捕获与编码；按`fixture-determinism-v1`做重复、乱序和新进程冷启抽查；核对编码、帧数/时长、色块及文件摘要 | 无全片倒序和故障探针；未运行项明确记为空或零 |
-| `regression` | 与`output`相同 | 全帧倒序、非法帧/已释放会话、原生动画拒绝及减少动态设置探针 |
+| `output` | 同一正序全帧捕获与编码；按`fixture-determinism-v1`做重复、乱序和新进程冷启抽查；核对编码、帧数/时长、色块及文件摘要；`media`检查字体/布局、冻结声音、实际MP4音画落点与同区间片段 | 无全片倒序和故障探针；未运行项明确记为空或零 |
+| `regression` | 与`output`相同 | 全帧倒序、非法帧/已释放会话、原生动画拒绝及减少动态设置；`media`另验改值、失败回滚、缺字、溢出、epoch、区域和保存/冻结重放 |
 
-两种模式都不能关闭必需校验，也都只用于固定工程样例。`output`便于测量后续交付流程的开销，尚不包含真实素材、混音、输出审核及完整QA；不表示生产服务已经可用。完整回归的额外时间不计为客户处理目标，生产测量口径见06。
+两种模式都不能关闭必需校验，也都只用于固定工程样例。`output`包含当前样例的媒体处理和工程QA开销，尚未接入生产输出审核、AI标记、计费预留或发布QA。完整回归的额外时间不计为客户处理目标，生产测量口径见06。
 
 报告`timings`按不重叠的墙钟阶段累计：`prepareMs`准备环境与样例，`captureEncodeMs`全帧捕获及流水编码，`determinismChecksMs`复取/乱序/冷启检查，`regressionChecksMs`额外回归，`outputChecksMs`产物检查，`cleanupMs`回收。捕获与编码有重叠，不能拆成两段再相加；阶段之和应与从准备到清理结束的`totalMs`一致，仅有毫秒取整误差。依赖安装和浏览器下载属于环境准备，不混入这次样例计时。单次结果不能推导p95。
 
 系统依赖安装只在准备阶段进行。`PROMOBENTO_BROWSER_DIR` 指定当前用户拥有、非符号链接且权限为 0700 的归档缓存目录，内含 `browser.zip`；可用 `PROMOBENTO_BROWSER_ARCHIVE` 从已取得的官方归档导入，仍核对锁定的完整 SHA-256。镜像来源只允许相同官方字节，不接受其他版本。每次渲染都复制并复核归档，在新的私有目录完整解压，拒绝特殊文件并校验可执行文件；不复用只检查过主程序的解压目录。测试结束清理临时解压和原始帧。
 
-当前样例使用自制 SVG 字形，浏览器由空字体目录的 Fontconfig 隔离系统字体。固定模板生成指向私有字体/缓存目录的绝对路径配置，分别记录模板与实际配置摘要；媒体测试实查目录、字体清单及 Chromium 的本地字体可见性。这不代表字体登记、塑形或回退已实现。第二步继续加入有授权的固定字体、录屏、实际混音与可编辑项。FFmpeg 使用 Ubuntu 的 GPL/libx264 构建，以本地/CI 进程执行，仓库不分发二进制；未来交付容器或二进制时按 09 另核对分发义务。
+浏览器继续由空字体目录的Fontconfig隔离系统字体；模板与实际私有路径配置分别记录摘要，并实查Chromium不能使用宿主字体。`media`通过[固定字体登记](../../tests/fixtures/render/media-assets.json)加载Geist Sans/Mono的确切OFL字节及回退，处理前核对来源/许可摘要，读取实际WOFF cmap并检查绘制文字。只覆盖已登记Latin字形和回退，不代表CJK/RTL/复杂塑形已认证。`square`保留自制SVG字形。FFmpeg使用Ubuntu的GPL/libx264构建，以本地/CI进程执行，仓库不分发二进制；未来交付容器或二进制时按09另核对分发义务。
 
-当前截图路径只准入绝对时间直接更新 DOM/SVG 属性及完整重绘 Canvas 2D。宿主在绘制前后拒绝原生 CSS/WAAPI 动画；截图使用 `animations:'allow'`、`reducedMotion:'no-preference'`。在此受限路径下，绘制后通过显示状态失效处理重建保留的 SVG 图层，再由截图完成合成与读回；它不能作为任意动画、视频或 WebGL 的通用帧屏障。增加创作能力前，必须加入相应普通样例并完成冷启、顺逆序和重复取帧验证。
+`media`的虚构应用录屏由自制几何图形生成，实际H.264源包含交替10/30、20/30秒的PTS间隔。FFprobe核对PTS，FFmpeg逐帧提取PNG；浏览器以BigInt有理数按包含区间取帧，验证资源hash后解码，ImageBitmap缓存最多8帧/1,843,200字节。实际原生视频解码探针独立记录，无论支持与否均使用同一可信PNG路径；缺帧、坏字节、越界和未声明资源直接失败。故障测试通过浏览器策略阻断原生解码验证回退，不能据此声称所有客户端codec已验收。
 
-整帧宿主 deadline 覆盖 `draw`、绘制屏障与截图；超时通过宿主终止 BrowserServer 进程组，即使 `draw` 永不返回或同步死循环，也不等待排在它后面的 `dispose`。诊断只在内存保存摘要和少量必要帧；正序原始 PNG 写临时目录，逆序/重复/冷启逐帧比较，用后清理，保留报告中的实际覆盖数与失败诊断。归档、主程序、系统库和成片的 SHA-256 用固定 64 KiB 缓冲分块计算。报告的 Node 最大 RSS 不包含浏览器与编码器，不能作为生产总内存结论。
+声音使用首次处理前已核对CC0依据的原创程序音源，按稳定eventId、偏移、增益/自动化与淡入淡出生成48kHz双声道PCM16 WAV，30秒恰为1,440,000采样帧。冻结前只施加一次恒定响度增益，浏览器解码、全片AAC与片段均读取同一WAV。报告记录真实响度/真峰值、AAC前导/尾部及有效播放区间；声音起点与编码后MP4像素检测到的三次视觉脉冲比较。片段`[270,330)`同步使用WAV采样`[432000,528000)`；截图、片段和QA绑定源码、资源、参数、编码与实际环境摘要。工程QA不代替内容审核或人工试听。
+
+参数和区域通过经审阅样例的串行直接API实现，尚非完整跨源消息桥接。本地0.5倍预览先准备新画面再提交epoch，失败保留旧画面；类型、事实绑定、时序限制和规范参数字节与Studio共用。保存参数后验证同分辨率本地重放，以及三个高清冻结帧的冷重放；本地与高清之间核对逻辑布局，不要求重采样边缘像素相同。可信渲染拒绝overlay，区域仅引用静态声明。当前真实DOM文字按每秒及末帧检查边界/溢出，覆盖不足的其他绘制文本仍需另行QA。
+
+当前截图路径准入绝对时间DOM/SVG更新、Canvas2D完整重绘及上述已验证媒体资源。宿主在绘制前后拒绝原生CSS/WAAPI动画；截图使用`animations:'allow'`、`reducedMotion:'no-preference'`。字体加载、PTS资源解码和draw完成后，通过显示状态失效处理重建保留SVG图层，再由截图完成合成与读回；它不能作为任意动画、原生视频seek或WebGL的通用屏障。增加创作能力前，必须加入普通样例并完成冷启、顺逆序和重复取帧验证。
+
+整帧宿主deadline覆盖`draw`、资源/绘制屏障与截图；超时终止BrowserServer进程组，不等待排在挂起或死循环绘制之后的`dispose`。编码器写入和结束另有60秒宿主期限，超时SIGKILL并等待进程关闭；媒体子进程同样有硬期限。诊断只在内存保存摘要和少量必要帧；正序原始PNG写临时目录，逆序/重复/冷启逐帧比较，用后清理，保留实际覆盖与失败诊断。归档、主程序、系统库和成片的SHA-256用固定64KiB缓冲分块计算。报告的Node最大RSS不包含浏览器与编码器，不能作为生产总内存结论。
 
 每次媒体测试记录实际系统库、输入文件、启动参数和解码像素摘要，保存样片、封面及报告。严格比较同次固定环境的帧；系统库记录不等于已经证明跨机器像素一致。后续扩展继续固定：
 

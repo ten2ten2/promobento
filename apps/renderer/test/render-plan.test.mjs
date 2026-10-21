@@ -37,10 +37,12 @@ test('fixture runner rejects arbitrary paths, URLs, code and verification overri
   for (const mode of ['none','production','',null]) await assert.rejects(renderSample({mode}),/RENDER_MODE_INVALID/);
   assert.equal(renderOptions().mode,'regression');
   assert.equal(fixtureConfiguration('inplace').frameCount,900);
+  assert.equal(fixtureConfiguration('media').frameCount,900);
+  assert.equal(fixtureConfiguration('media').input.values.accent,'#e77d51');
 });
 
 test('the CLI defaults to 30-second output measurement and accepts no custom source or check bypass',()=>{
-  assert.deepEqual(parseRenderArguments([]),{fixture:'inplace',mode:'output',outputDirectory:undefined});
+  assert.deepEqual(parseRenderArguments([]),{fixture:'media',mode:'output',outputDirectory:undefined});
   assert.deepEqual(parseRenderArguments(['--fixture','square','--mode','regression','--output-directory','artifacts/probe']),
     {fixture:'square',mode:'regression',outputDirectory:'artifacts/probe'});
   for (const args of [

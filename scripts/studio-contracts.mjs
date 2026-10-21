@@ -1,6 +1,7 @@
 // Reference validation of Studio boundaries; no API, rendering or authorization service runs here.
 import { readFileSync } from 'node:fs';
-import { canonical, createSchemaValidator, digest, parseCanonicalJson, safePath, sourceValuesBytes } from '../packages/contracts/index.mjs';
+import { canonical, createSchemaValidator, digest, parseCanonicalJson, safePath,
+  editableValuesErrors, boundValueUpdates, checkedValueUpdates, localPreviewValues } from '../packages/contracts/index.mjs';
 import { outputSafetyErrors, scopedSafetyCoveragePolicy } from './output-safety.mjs';
 const previewPolicy = parseCanonicalJson(readFileSync(new URL('../config/preview.json',import.meta.url)));
 const schema = parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json',import.meta.url)));
@@ -20,62 +21,7 @@ const add = (a,b) => ({n:a.n*b.d+b.n*a.d,d:a.d*b.d});
 const sub = (a,b) => ({n:a.n*b.d-b.n*a.d,d:a.d*b.d});
 const divide = (a,b) => ({n:a.n*b.d,d:a.d*b.n});
 
-function valueErrors(value, definition, context) {
-  const errors = [], fail = (ok, code) => { if (!ok) errors.push(code); };
-  if (!definition) return ['EDITABLE_NOT_DECLARED'];
-  switch (definition.type) {
-    case 'text': fail(typeof value === 'string' && [...value].length <= 6000, 'EDITABLE_TEXT_INVALID'); break;
-    case 'color': fail(typeof value === 'string' && /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu.test(value), 'EDITABLE_COLOR_INVALID'); break;
-    case 'number':
-      fail(typeof value === 'number' && Number.isFinite(value)
-        && (definition.min === undefined || value >= definition.min)
-        && (definition.max === undefined || value <= definition.max), 'EDITABLE_NUMBER_OUT_OF_RANGE');
-      break;
-    case 'boolean': fail(typeof value === 'boolean', 'EDITABLE_BOOLEAN_INVALID'); break;
-    case 'enum': fail(definition.choices?.includes(value), 'EDITABLE_CHOICE_INVALID'); break;
-    case 'data': fail(Array.isArray(value) && value.length <= 1000 && value.every(row => row && typeof row === 'object'
-      && !Array.isArray(row) && Object.keys(row).length <= 32 && Object.entries(row).every(([key,cell]) =>
-        [...key].length > 0 && [...key].length <= 64 && (cell === null || typeof cell === 'boolean'
-          || (typeof cell === 'string' && [...cell].length <= 6000) || (typeof cell === 'number' && Number.isFinite(cell))))), 'EDITABLE_DATA_INVALID'); break;
-    case 'asset': {
-      const resource = own(context.resources,value);
-      fail(typeof value === 'string' && safePath(value) && !!resource && drawable(value,context)
-        && resource.mediaType !== 'application/pdf', 'EDITABLE_ASSET_UNAVAILABLE');
-      break;
-    }
-    default: errors.push('EDITABLE_TYPE_INVALID');
-  }
-  return errors;
-}
-
-/** Expand one fact edit to every declared text binding. The caller still owns the save transaction. */
-export function boundValueUpdates(values, editables) {
-  const updates = new Map(Object.entries(values)), facts = new Map();
-  for (const [id,value] of updates) {
-    const definition = own(editables,id);
-    if (!definition?.factId) continue;
-    if (facts.has(definition.factId) && facts.get(definition.factId) !== value) throw Error('EDITABLE_FACT_VALUE_CONFLICT');
-    facts.set(definition.factId,value);
-  }
-  for (const definition of Object.values(editables ?? {})) {
-    if (facts.has(definition.factId)) updates.set(definition.id,facts.get(definition.factId));
-  }
-  return Object.fromEntries(updates);
-}
-
-function checkedValueUpdates(values, context) {
-  const updates = boundValueUpdates(values,context.editables);
-  for (const [id,value] of Object.entries(updates)) {
-    const definition = own(context.editables,id), errors = valueErrors(value,definition,context);
-    if (errors.length) throw Error(errors[0]);
-    if (definition.affectsTiming === true) throw Error('EDITABLE_REQUIRES_AI');
-    if (definition.type === 'color') updates[id] = value.toLowerCase();
-  }
-  const mergedValues={...context.sourceValues,...updates};
-  const errors=studioErrors({kind:'source_values',values:mergedValues},context);
-  if (errors.length) throw Error(errors[0]);
-  return updates;
-}
+export {boundValueUpdates,localPreviewValues};
 
 /** Shared final values validation for facts.update and ordinary draft saves. */
 export function checkedFactValueUpdates(changes,context) {
@@ -109,14 +55,6 @@ export function factBindingUpdates(bindings, previousFacts, nextFacts) {
     if (text.size !== 1) throw Error('FACT_BINDING_TEXT_AMBIGUOUS');
     return {...structuredClone(binding),expectedText:[...text][0]};
   });
-}
-
-/** A local preparation only. It creates no revision, fact confirmation, billable run or QA result. */
-export function localPreviewValues(valuesOverlay, context) {
-  if (!context.editables || !context.sourceValues) throw Error('PREVIEW_VALUES_REQUIRED');
-  const sourceErrors = studioErrors({kind:'source_values',values:context.sourceValues},context);
-  if (sourceErrors.length) throw Error(sourceErrors[0]);
-  return {...structuredClone(context.sourceValues),...checkedValueUpdates(valuesOverlay,context)};
 }
 
 export function creativePlanIdentity(result) {
@@ -453,24 +391,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
       }
     }
   }
-  if (v.kind === 'source_values') {
-    try { sourceValuesBytes(v.values); } catch (error) { errors.push(error.message); }
-    const definitions = context.editables;
-    fail(!!definitions, 'EDITABLE_DECLARATIONS_REQUIRED');
-    if (definitions) {
-      fail(Object.keys(definitions).length === Object.keys(v.values ?? {}).length, 'EDITABLE_VALUES_INCOMPLETE');
-      for (const [id,value] of Object.entries(v.values ?? {})) {
-        const definition = own(definitions,id);
-        errors.push(...valueErrors(value,definition,context));
-        if (definition?.type === 'color' && typeof value === 'string') fail(value === value.toLowerCase(), 'EDITABLE_COLOR_NOT_CANONICAL');
-      }
-      for (const id of Object.keys(definitions)) fail(Object.hasOwn(v.values ?? {},id), 'EDITABLE_VALUE_MISSING');
-      if (context.requireFactBindings) for (const definition of Object.values(definitions)) if (definition.factId) {
-        const fact = own(context.facts,definition.factId);
-        fail(definition.type === 'text' && !!fact && v.values?.[definition.id] === fact.text, 'EDITABLE_FACT_VALUE_MISMATCH');
-      }
-    }
-  }
+  if (v.kind === 'source_values') errors.push(...editableValuesErrors(v.values,context));
   if (v.kind === 'runtime_declarations') {
     if (context.sharedEditables) fail(canonical(v.editables) === canonical(context.sharedEditables), 'TARGET_EDITABLE_DECLARATIONS_MISMATCH');
     for (const key of ['editables','markers','regions','videoUses']) fail(new Set((v[key] ?? []).map(item => item.id)).size === (v[key] ?? []).length, 'DUPLICATE_'+key.toUpperCase());

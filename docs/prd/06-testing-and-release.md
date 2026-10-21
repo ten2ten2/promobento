@@ -35,7 +35,7 @@
 | STUDIO-01 | 空草稿null基线首次创作、统一candidateResult意图/影响摘要、接受/拒绝/取消及鉴权后幂等重放；刷新恢复创作、素材、预览、交付和待处理候选。权益和availableActions由服务端推导；保存CAS冲突保留输入；facts.update与草稿保存使用同一完整values类型/可见文本/范围/时序/总字节校验；事实原文、绑定值、expectedText双向原子同步并重确认；jobs仅素材处理且返回asset；无声明不伪造编辑，所有目标共享editables |
 | PREVIEW-01 | 本地低清保持逻辑尺寸，父页驱动时钟与授权混音，自动播放受阻可手动播放；参数成功ACK才推进epoch，拒绝后修正可重试，旧回执丢弃，可信渲染拒绝临时值。保存平滑换会话且不启动云QA；可信截图/片段执行预算限制；本地水印在作品iframe外，实际捕获包含合成水印，AI证据另验 |
 | FRAME-01 | init/set-values/seek/inspect/sample串行及ready/error/dispose；精确session/sequence/request/revision/target/帧/hash/appliedEpoch；初始化、prepare、draw、缺视频帧、越界与并发错误可定位；hit仅声明region，重叠及右下半开边界明确，过时/失败/释放后不截图或定位源码 |
-| FRAME-02 | 按08分别验证output与regression：同一源码的正序捕获、编码和像素一致，两者都保留重复/乱序/冷启抽查及输出检查；完整回归另含全帧倒序和故障探针，未运行项不记pass。30秒样例覆盖原位DOM/SVG与Canvas2D。宿主期限覆盖draw、资源屏障和截图，挂起及同步死循环均终止浏览器；未准入的原生动画拒绝。跨环境按定义容差检查 |
+| FRAME-02 | 按08分别验证output与regression：同一源码的正序捕获、编码和像素一致，两者都保留重复/乱序/冷启抽查及输出检查；完整回归另含全帧倒序和故障探针，未运行项不记pass。30秒样例覆盖原位DOM/SVG、Canvas2D、真实字体与PTS媒体。宿主期限覆盖draw、资源屏障和截图，编码器写入/结束也有独立期限；挂起及同步死循环终止浏览器，超时编码器强制回收。未准入的原生动画拒绝，跨环境按定义容差检查 |
 | FRAME-03 | 公开 seek 拒绝小数帧；sample/sample-ready 仅允许可信 Renderer，校验冻结profile、样本索引、有理数时间和边界夹取；1/4/8样本按协议合成，整帧超时覆盖全部样本/合成/readback，总帧数不变；local motion近似回放不冒充可信最终帧 |
 | EXEC-01 | 首次执行Agent源码前通过08准入；验证模块求值即读取墙钟/随机数、创建计时器/动画循环、越权取资源、持续占用CPU/内存/磁盘/进程及逃逸网络。资源就绪缺失、不支持能力或版本化确定性检查失败均BLOCK；抽样相同不能代替真实隔离 |
 | AUDIO-01 | 稳定eventId与marker引用在插入/排序后仍指向同一事件；冻结事件的音源范围、偏移、增益、淡入淡出和增益曲线；audioHash覆盖事件与mixedAudio，WAV路径/hash与真实解码的48kHz、双声道、完整采样长度一致；预览与导出同字节，全部音源可追溯许可 |

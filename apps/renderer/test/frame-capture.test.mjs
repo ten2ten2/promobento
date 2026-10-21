@@ -25,3 +25,10 @@ test('capture leaves animation state untouched and does not terminate a complete
   await assert.rejects(withDeadline(()=>Promise.reject(new Error('DRAW_FAILED')),{timeoutMs:100,code:'TIMEOUT',
     terminate:()=>assert.fail('Unexpected termination')}),/DRAW_FAILED/);
 });
+
+test('local capture rejects a stale applied epoch before reading pixels',async()=>{
+  let captured=false;
+  const page={evaluate:async()=>({frameIndex:8,previewEpoch:2}),screenshot:async()=>{captured=true;}};
+  await assert.rejects(captureFrame(page,8,{previewEpoch:3,timeoutMs:100,terminate:()=>{}}),/stale local epoch/);
+  assert.equal(captured,false);
+});

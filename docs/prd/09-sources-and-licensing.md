@@ -25,6 +25,8 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
+当前M0a工程样例的自制几何、虚构界面、程序乐谱和波形按[素材许可](../../tests/fixtures/render/LICENSE.txt)使用CC0；Geist Sans/Mono来自`@fontsource`的固定`5.0.3`归档，使用未修改字体字节并保留OFL原文。确切文件、归档及许可摘要见[媒体登记](../../tests/fixtures/render/media-assets.json)。混音和抽帧前核对这些依据，生成产物继续引用相应来源，不能把字体纳入自制素材的CC0声明。
+
 ## 2 视频创作上游
 
 参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。以下是候选来源，尚未整包导入；实际采用时记录文件、commit、许可、修改和验证结果。

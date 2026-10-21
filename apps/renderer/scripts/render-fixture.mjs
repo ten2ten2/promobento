@@ -3,13 +3,13 @@ import {resolve} from 'node:path';
 import {renderOptions,renderSample} from '../src/render-sample.mjs';
 
 export const usage='Render an already reviewed repository fixture only.\n'
-  +'Usage: render:fixture [--fixture square|inplace] [--mode output|regression] [--output-directory DIRECTORY]\n'
-  +'Defaults: --fixture inplace --mode output. This is not an arbitrary-source or production-service entrypoint.';
+  +'Usage: render:fixture [--fixture square|inplace|media] [--mode output|regression] [--output-directory DIRECTORY]\n'
+  +'Defaults: --fixture media --mode output. This is not an arbitrary-source or production-service entrypoint.';
 
 export function parseRenderArguments(args) {
   if (args.length===1 && args[0]==='--help') return {help:true};
   const flags=new Map([['--fixture','fixture'],['--mode','mode'],['--output-directory','outputDirectory']]);
-  const options={fixture:'inplace',mode:'output'},seen=new Set();
+  const options={fixture:'media',mode:'output'},seen=new Set();
   for (let index=0;index<args.length;index+=2) {
     const key=flags.get(args[index]),value=args[index+1];
     if (!key || seen.has(key) || typeof value!=='string' || !value || value.startsWith('--'))

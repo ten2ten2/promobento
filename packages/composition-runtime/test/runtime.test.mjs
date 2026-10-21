@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCompositionRuntime,frameTime,randomAt} from '../src/index.mjs';
+import {createCompositionRuntime,frameTime,randomAt,checkedRegions,inspectRegions} from '../src/index.mjs';
 
 test('frame addressing preserves exact time and rejects a missing or fractional frame',()=>{
   assert.deepEqual(frameTime(449,450),{numerator:449,denominator:30});
@@ -48,7 +48,8 @@ test('keyed random values do not depend on call order',()=>{
 
 test('native animation created during prepare is rejected before a usable runtime or first draw',async()=>{
   let animations=[],draws=0;
-  const root={style:{},replaceChildren(){},getAnimations:()=>animations};
+  const inner={style:{},getAnimations:()=>animations,remove(){}};
+  const root={style:{},replaceChildren(){},append(){},ownerDocument:{createElement:()=>inner}};
   const definition={apiVersion:'2.7.0',editables:[],markers:[],regions:[],videoUses:[],fonts:[],
     prepare() {
       animations=[{playState:'paused'}];
@@ -57,4 +58,30 @@ test('native animation created during prepare is rejected before a usable runtim
   await assert.rejects(createCompositionRuntime({definition,root,targetId:'instagram_feed:square',width:1080,height:1080,
     durationSeconds:15,seed:'fixture',values:{}}),/NATIVE_ANIMATION_UNSUPPORTED/);
   assert.equal(draws,0);
+});
+
+test('inspection uses declared precedence, logical coordinates and half-open bounds',()=>{
+  const declarations=[{id:'background',sourcePath:'src/main.mjs',line:1},{id:'headline',sourcePath:'src/main.mjs',line:20}];
+  // Deliberately reverse returned bounds: draw order cannot rewrite source inspection precedence.
+  const regions=checkedRegions([{id:'headline',x:20,y:10,width:50,height:20},{id:'background',x:0,y:0,width:200,height:100}],
+    declarations,200,100);
+  assert.deepEqual(inspectRegions(regions,declarations,200,100,0.1,0.1),
+    {regionId:'headline',sourcePath:'src/main.mjs',line:20,bounds:{x:20,y:10,width:50,height:20}});
+  assert.equal(inspectRegions(regions,declarations,200,100,0.35,0.2).regionId,'background');
+  assert.equal(inspectRegions(regions,declarations,200,100,1,0.5),null);
+  assert.equal(inspectRegions(regions,declarations,200,100,0.5,1),null);
+  for(const point of [[-1,0],[0,1.1],[NaN,0],[0,Infinity]])
+    assert.throws(()=>inspectRegions(regions,declarations,200,100,...point),/INSPECT_COORDINATES_INVALID/);
+});
+
+test('a completed draw cannot invent source paths, duplicate regions or report out-of-bounds geometry',()=>{
+  const declarations=[{id:'title',sourcePath:'src/main.mjs',line:20},{id:'panel'}];
+  const valid={id:'title',x:0,y:0,width:100,height:30};
+  for(const regions of [[{...valid,id:'injected'}],[{...valid,sourcePath:'private.mjs'}],[valid,valid]])
+    assert.throws(()=>checkedRegions(regions,declarations,100,100),/REGION_UNDECLARED/);
+  for(const mutation of [{x:-1},{y:80},{width:101}])
+    assert.throws(()=>checkedRegions([{...valid,...mutation}],declarations,100,100),/REGION_OUT_OF_BOUNDS/);
+  for(const mutation of [{x:NaN},{height:-1},{width:Infinity}])
+    assert.throws(()=>checkedRegions([{...valid,...mutation}],declarations,100,100),/REGION_BOUNDS_INVALID/);
+  assert.deepEqual(checkedRegions([],declarations,100,100),[],'An absent region has no inferred source location');
 });
