@@ -1,7 +1,8 @@
 {
-  "version": "canvas-commands-admission-v1",
+  "version": "canvas-commands-admission-v2",
   "capabilityProfile": "canvas-commands-v1",
   "taskTimeoutMs": 600000,
+  "engineStageTimeoutMs": 180000,
   "engine": {"memoryBytes": 33554432, "stackBytes": 262144, "callTimeoutMs": 1000, "maxOutputBytes": 1048576},
   "sourceMaxBytes": 262144,
   "declarationsMaxBytes": 65536,

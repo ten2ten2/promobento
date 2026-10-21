@@ -8,6 +8,8 @@ import {readAdmissionSource,admissionQaIdentity} from './admission-source.mjs';
 import {runAdmissionSandbox} from './admission-sandbox.mjs';
 import {admissionVerificationPlan} from './admission-capture.mjs';
 import {validateAdmissionDraw} from './admission-commands.mjs';
+import {admissionEngineBudget} from './admission-budget.mjs';
+import {admissionFailure} from './admission-failure.mjs';
 
 export async function renderAdmission({sourceDirectory,outputDirectory,signal,onCreated}) {
   const started=performance.now(),candidate=readAdmissionSource(sourceDirectory),image=verifiedAdmissionImage();
@@ -19,12 +21,15 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
   mkdirSync(data,{mode:0o755});mkdirSync(captureOut,{mode:0o777});chmodSync(captureOut,0o777);
   const resources=[],hashes=[],stages={};
   const remaining=()=>{const value=admissionPolicy.taskTimeoutMs-(performance.now()-started);if(value<=0)throw Error('ADMISSION_TASK_TIMEOUT');return value;};
+  const engineRemaining=admissionEngineBudget(admissionPolicy.engineStageTimeoutMs);
   const engineInput={...candidate.input};delete engineInput.durationSeconds;
   const forward=Array.from({length:candidate.input.totalFrames},(_,frame)=>({frame,path:'forward/'+frame+'.json'}));
   const check=(name,frames)=>frames.map((frame,i)=>({frame,path:name+'/'+i+'.json'}));
   const run=async requests=>{
     let sequence=0,complete=false,isolation;
-    const receipt=await runAdmissionSandbox({image,mode:'evaluate',signal,onCreated,timeoutMs:remaining(),
+    const taskMs=remaining(),engineMs=engineRemaining();
+    const receipt=await runAdmissionSandbox({image,mode:'evaluate',signal,onCreated,timeoutMs:Math.min(taskMs,engineMs),
+      timeoutCode:engineMs<=taskMs?'ADMISSION_ENGINE_BUDGET_EXHAUSTED':'ADMISSION_TASK_TIMEOUT',
       input:{source:candidate.source,input:engineInput,declarations:candidate.declarations,frames:requests.map(item=>item.frame)},
       onLine(message){
         if(complete)throw Error('ADMISSION_UNEXPECTED_OUTPUT');
@@ -54,6 +59,7 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
     await run([...forward,...check('repeated',verification.repeated),...check('unordered',verification.unordered)]);
     stages.executeMs=Math.round(performance.now()-stage);stage=performance.now();
     await run(check('cold',verification.cold));
+    engineRemaining();
     stages.coldMs=Math.round(performance.now()-stage);stage=performance.now();
     writeFileSync(join(data,'job.json'),canonical({input:candidate.input,encoding:candidate.encoding,declarations:candidate.declarations}),{mode:0o644});
     let captured=false;
@@ -70,6 +76,7 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
       copyFileSync(path,join(out,name));
     }
     stages.captureMs=Math.round(performance.now()-stage);
+    remaining();
     const report={kind:'m0a_admission_result',status:'passed',scope:'canvas-commands-v1 technical execution admission',
       sourceHash:candidate.sourceHash,sourceArchiveHash:candidate.sourceArchiveHash,sourceFiles:candidate.files,
       targetSourceFiles:candidate.targetFiles,
@@ -84,7 +91,7 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
     return {out,report};
   } catch(error) {
     writeFileSync(join(out,'failure.json'),JSON.stringify({kind:'m0a_admission_failure',status:'BLOCK',qaInputHash:qa.qaInputHash,
-      sourceHash:candidate.sourceHash,error:String(error.message).slice(0,2048),resources},null,2)+'\n',{flag:'wx'});
+      sourceHash:candidate.sourceHash,policy:admissionPolicy,...admissionFailure(error),resources},null,2)+'\n',{flag:'wx'});
     throw error;
   } finally {rmSync(temporary,{recursive:true,force:true});}
 }

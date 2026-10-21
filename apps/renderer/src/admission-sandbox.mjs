@@ -2,6 +2,7 @@ import {spawn,execFileSync} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {parseCanonicalJson} from '@promobento/contracts';
 import {admissionPolicy} from './admission-image.mjs';
+import {admissionWorkerFailure} from './admission-failure.mjs';
 
 export function sandboxArguments({name,imageId,kind='engine',mounts=[]}) {
   if(!['engine','capture'].includes(kind)||!/^promobento-admission-[a-f0-9-]+$/u.test(name)||!/^sha256:[a-f0-9]{64}$/u.test(imageId))throw Error('ADMISSION_SANDBOX_ID');
@@ -41,11 +42,11 @@ export function verifySandboxConfiguration(container,{kind='engine',mounts=[]}={
 
 /** Only this invocation's random container is removed; killing a Docker client alone is insufficient. */
 export async function runAdmissionSandbox({image,mode,input,kind='engine',mounts=[],signal,timeoutMs=admissionPolicy.taskTimeoutMs,
-  onLine,onCreated,maxOutputBytes=admissionPolicy.maxTransportBytes}) {
+  timeoutCode='ADMISSION_TASK_TIMEOUT',onLine,onCreated,maxOutputBytes=admissionPolicy.maxTransportBytes}) {
   const name='promobento-admission-'+randomUUID();
   const deadline=performance.now()+timeoutMs;
-  const remaining=()=>{const value=Math.ceil(deadline-performance.now());if(value<=0)throw Error('ADMISSION_TASK_TIMEOUT');return value;};
-  let child,timer,created=false,attempted=false,total=0,pending='',stderr='',failure,resourceReceipt;
+  const remaining=()=>{const value=Math.ceil(deadline-performance.now());if(value<=0)throw Error(timeoutCode);return value;};
+  let child,timer,created=false,attempted=false,total=0,framesReceived=0,pending='',stderr='',failure,resourceReceipt;
   const decoder=new TextDecoder('utf-8',{fatal:true});
   const kill=()=>{child?.kill('SIGKILL');};
   try {
@@ -62,17 +63,25 @@ export async function runAdmissionSandbox({image,mode,input,kind='engine',mounts
       const abort=()=>fail(Error('ADMISSION_CANCELLED'));
       child=spawn('docker',['start','--attach','--interactive',name],{stdio:['pipe','pipe','pipe']});
       signal?.addEventListener('abort',abort,{once:true});
-      timer=setTimeout(()=>fail(Error('ADMISSION_TASK_TIMEOUT')),remaining());
+      timer=setTimeout(()=>fail(Error(timeoutCode)),remaining());
       child.stdout.on('data',chunk=>{
+        if(failure)return;
         try {
           total+=chunk.length;
-          if(total>maxOutputBytes)throw Error('ADMISSION_OUTPUT_LIMIT');
+          if(total>maxOutputBytes) {
+            const error=Error('ADMISSION_TRANSPORT_LIMIT');
+            error.details={transportBytes:total,maxTransportBytes:maxOutputBytes};throw error;
+          }
           pending+=decoder.decode(chunk,{stream:true});
           let at;
-          while((at=pending.indexOf('\n'))>=0) {
+          while(!failure&&(at=pending.indexOf('\n'))>=0) {
             const line=pending.slice(0,at);pending=pending.slice(at+1);
             if(Buffer.byteLength(line)>admissionPolicy.engine.maxOutputBytes+4096)throw Error('ADMISSION_OUTPUT_LINE_LIMIT');
-            if(line)onLine?.(parseCanonicalJson(line));
+            if(line) {
+              remaining();
+              const message=parseCanonicalJson(line);onLine?.(message);
+              if(message.kind==='draw')framesReceived++;
+            }
           }
           if(Buffer.byteLength(pending)>admissionPolicy.engine.maxOutputBytes+4096)throw Error('ADMISSION_OUTPUT_LINE_LIMIT');
         } catch(error){fail(error);}
@@ -84,26 +93,42 @@ export async function runAdmissionSandbox({image,mode,input,kind='engine',mounts
         clearTimeout(timer);signal?.removeEventListener('abort',abort);
         try {pending+=decoder.decode();}catch(error){failure??=error;}
         if(failure)reject(failure);
-        else if(code!==0)reject(Error('ADMISSION_SANDBOX_FAILED: '+stderr.trim()));
+        else if(code!==0)reject(admissionWorkerFailure(stderr,code));
         else if(pending.trim())reject(Error('ADMISSION_OUTPUT_TRUNCATED'));
-        else resolve();
+        else {
+          try {
+            // close may run before an already-due timer after synchronous frame processing.
+            if(signal?.aborted)throw Error('ADMISSION_CANCELLED');
+            remaining();resolve();
+          } catch(error){reject(error);}
+        }
       });
       child.stdin.end(JSON.stringify(input)+'\n');
     });
-    return {name,...resourceReceipt,transportBytes:total};
+    return {name,...resourceReceipt,transportBytes:total,framesReceived};
   } catch(error) {
+    if(error.code==='ETIMEDOUT'&&performance.now()>=deadline)error=Error(timeoutCode,{cause:error});
     if(created) {
       try {
         const [inspection]=parseCanonicalJson(execFileSync('docker',['inspect',name],{timeout:5000,maxBuffer:4*1024*1024}));
         error.sandboxState={status:inspection.State.Status,exitCode:inspection.State.ExitCode,oomKilled:inspection.State.OOMKilled};
+        if(inspection.State.OOMKilled&&error.message.startsWith('ADMISSION_SANDBOX_FAILED'))
+          error.message=kind==='engine'?'ADMISSION_ENGINE_OOM':'ADMISSION_CAPTURE_OOM';
       } catch { /* Cleanup below remains mandatory even when diagnostics are unavailable. */ }
     }
+    error.sandbox={name,mode,kind,...resourceReceipt,transportBytes:total,maxTransportBytes:maxOutputBytes,framesReceived,timeoutMs};
+    failure=error;
     throw error;
   } finally {
     clearTimeout(timer);kill();
     if(attempted) {
       try {execFileSync('docker',['rm','--force',name],{timeout:30000,stdio:['ignore','pipe','pipe']});}
-      catch(error){if(created||!String(error.stderr).includes('No such container'))throw Error('ADMISSION_CLEANUP_FAILED: '+name,{cause:error});}
+      catch(error){if(created||!String(error.stderr).includes('No such container')) {
+        const cleanup=Error('ADMISSION_CLEANUP_FAILED: '+name,{cause:failure??error});
+        cleanup.sandboxState=failure?.sandboxState;
+        cleanup.sandbox=failure?.sandbox??{name,mode,kind,...resourceReceipt,transportBytes:total,maxTransportBytes:maxOutputBytes,framesReceived,timeoutMs};
+        throw cleanup;
+      }}
     }
   }
 }

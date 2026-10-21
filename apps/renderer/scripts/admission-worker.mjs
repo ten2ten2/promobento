@@ -6,8 +6,11 @@ import {parseCanonicalJson,canonical} from '@promobento/contracts';
 import {admissionPolicy} from '../src/admission-image.mjs';
 import {createAdmissionEngine} from '../src/admission-engine.mjs';
 import {validateAdmissionDraw} from '../src/admission-commands.mjs';
+import {createAdmissionOutput} from '../src/admission-output.mjs';
+import {admissionFailure} from '../src/admission-failure.mjs';
 
-const output=value=>process.stdout.write(JSON.stringify(value)+'\n');
+const output=createAdmissionOutput(process.stdout,{maxBytes:admissionPolicy.maxTransportBytes,
+  maxLineBytes:admissionPolicy.engine.maxOutputBytes+4096});
 async function input() {
   let size=0;const chunks=[];
   for await(const chunk of process.stdin) {size+=chunk.length;if(size>2097152)throw Error('WORKER_INPUT_LIMIT');chunks.push(chunk);}
@@ -15,15 +18,17 @@ async function input() {
 }
 async function evaluate(job) {
   if(!Array.isArray(job.frames)||job.frames.length>920)throw Error('WORKER_FRAME_PLAN');
-  output({kind:'isolation',...await inspectTaskIsolation()});
+  await output({kind:'isolation',...await inspectTaskIsolation()});
   const engine=await createAdmissionEngine({...job,limits:admissionPolicy.engine});
+  let failure;
   try {
     for(const [sequence,frameIndex] of job.frames.entries()) {
       const draw=validateAdmissionDraw(engine.draw(frameIndex),{...job.input,declarations:job.declarations});
-      output({kind:'draw',sequence,frameIndex,draw});
+      await output({kind:'draw',sequence,frameIndex,draw});
     }
-  } finally {engine.dispose();}
-  output({kind:'complete',count:job.frames.length});
+  } catch(error) {failure=error;throw error;}
+  finally {try {engine.dispose();}catch(error){if(!failure)throw error;}}
+  await output({kind:'complete',count:job.frames.length});
 }
 async function engineTest(job) {
   await inspectTaskIsolation();
@@ -45,7 +50,7 @@ async function engineTest(job) {
     if(item.expected==='success'?!!error:!error||phase!==item.phase)
       throw Error('ENGINE_CASE_FAILED: '+item.name+' phase='+phase+' '+(error?.message??'was accepted'));
     if(item.timeout&&!error.message.includes('TIMEOUT'))throw Error('ENGINE_CASE_TIMEOUT_EXPECTED: '+item.name+' '+error.message);
-    output({kind:'engine-test',name:item.name,status:'passed',phase,errorCode:error?.message??null});
+    await output({kind:'engine-test',name:item.name,status:'passed',phase,errorCode:error?.message??null});
   }
 }
 const cannotConnect=host=>new Promise((resolve,reject)=>{
@@ -63,6 +68,7 @@ async function inspectTaskIsolation() {
     if(!blocked)throw Error('PROBE_WRITE_ALLOWED');
   }
   await cannotConnect('1.1.1.1');await cannotConnect('169.254.169.254');
+  if(!existsSync('/sys/fs/cgroup/cgroup.controllers'))throw Error('ADMISSION_CGROUP_V2_REQUIRED');
   const read=path=>readFileSync('/sys/fs/cgroup/'+path,'utf8').trim();
   const measured={memory:read('memory.max'),pids:read('pids.max'),cpu:read('cpu.max')};
   const expected=admissionPolicy.engineContainer;
@@ -90,7 +96,7 @@ async function probe() {
     }
   } finally {await Promise.all(children.map(async child=>{child.kill('SIGKILL');await once(child,'close');}));}
   if(!processLimited)throw Error('PROBE_PIDS_UNBOUNDED');
-  output({kind:'probe',...isolation,
+  await output({kind:'probe',...isolation,
     taskMountReadOnly:true,diskLimitObserved:true,processLimitObserved:true});
 }
 async function capture() {
@@ -108,7 +114,7 @@ async function capture() {
     return parseCanonicalJson(readFileSync('/input/'+request.path));
   }});
   if(index!==requests.length)throw Error('CAPTURE_PLAN_INCOMPLETE');
-  output({kind:'capture-complete',frameCount:report.frameCount});
+  await output({kind:'capture-complete',frameCount:report.frameCount});
 }
 try {
   const mode=process.argv[2];
@@ -120,5 +126,5 @@ try {
   else if(mode==='capture'){await input();await capture();}
   else throw Error('WORKER_MODE_INVALID');
 } catch(error) {
-  process.stderr.write(String(error.message).slice(0,1024)+'\n');process.exitCode=1;
+  process.stderr.write(JSON.stringify({kind:'admission_failure',...admissionFailure(error)})+'\n');process.exitCode=1;
 }

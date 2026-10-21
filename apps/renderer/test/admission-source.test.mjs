@@ -9,6 +9,7 @@ import {readAdmissionSource,admissionQaIdentity} from '../src/admission-source.m
 import {sandboxArguments,verifySandboxConfiguration} from '../src/admission-sandbox.mjs';
 import {admissionPolicy,admissionEnvironment} from '../src/admission-image.mjs';
 import {admissionVerificationPlan} from '../src/admission-capture.mjs';
+import {ADMISSION_DRAW_MAX_BYTES} from '../src/admission-commands.mjs';
 
 function fixture(operation) {
   const dir=mkdtempSync(join(tmpdir(),'promobento-source-test-'));
@@ -62,4 +63,12 @@ test('admission toolchain stays on the existing exact Node, pnpm and renderer en
   assert.equal(admissionEnvironment.nodeVersion,pkg.engines.node);assert.equal(admissionEnvironment.nodeVersion,renderer.nodeVersion);
   assert.equal('pnpm@'+admissionEnvironment.pnpmVersion,pkg.packageManager);
   assert.equal(admissionEnvironment.quickjsVersion,dependencies['quickjs-emscripten']);
+});
+
+test('frame, transport and engine-stage policies retain distinct bounded scopes',()=>{
+  assert.equal(admissionPolicy.engine.maxOutputBytes,ADMISSION_DRAW_MAX_BYTES);
+  assert(admissionPolicy.maxTransportBytes>admissionPolicy.engine.maxOutputBytes+4096);
+  assert(Number.isSafeInteger(admissionPolicy.engineStageTimeoutMs));
+  assert(admissionPolicy.engineStageTimeoutMs>admissionPolicy.engine.callTimeoutMs);
+  assert(admissionPolicy.engineStageTimeoutMs<admissionPolicy.taskTimeoutMs);
 });

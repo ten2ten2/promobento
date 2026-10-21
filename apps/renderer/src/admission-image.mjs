@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {parseCanonicalJson,digest,sourceFileDigests} from '@promobento/contracts';
 import {repositoryFiles} from '../../../scripts/repo-documentation.mjs';
+import {verifyAdmissionHost} from './admission-host.mjs';
 
 export const repository=fileURLToPath(new URL('../../../',import.meta.url));
 export const imageReceiptPath=join(repository,'artifacts/admission-image.json');
@@ -21,6 +22,7 @@ export function imageSources() {
 }
 
 export function buildAdmissionImage() {
+  verifyAdmissionHost();
   const {files,sourceTreeHash}=imageSources(),context=mkdtempSync(join(tmpdir(),'promobento-image-'));
   try {
     for(const {path,bytes} of files) {mkdirSync(dirname(join(context,path)),{recursive:true});writeFileSync(join(context,path),bytes);}
@@ -36,6 +38,7 @@ export function buildAdmissionImage() {
 }
 
 export function verifiedAdmissionImage() {
+  verifyAdmissionHost();
   let receipt;
   try {receipt=parseCanonicalJson(readFileSync(imageReceiptPath));} catch {throw Error('ADMISSION_IMAGE_REQUIRED: run build:admission');}
   if(!/^sha256:[0-9a-f]{64}$/u.test(receipt.imageId)||receipt.sourceTreeHash!==imageSources().sourceTreeHash)

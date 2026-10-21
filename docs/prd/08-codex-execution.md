@@ -160,7 +160,7 @@ mise run test:admission
 mise run render:admission -- --source tests/fixtures/admission
 ```
 
-宿主须有可用的Docker Engine或Docker Desktop，能运行`linux/amd64`、执行默认seccomp策略并落实cgroup v2限额；非x64宿主还须具备相应仿真能力。构建阶段从官方来源取得固定Ubuntu、Node、依赖、Chrome及FFmpeg；版本与字节身份见[admission.environment.json](../../apps/renderer/admission.environment.json)、[Dockerfile](../../apps/renderer/docker/Dockerfile)和既有渲染环境锁。执行阶段无下载、安装或联网。Docker、镜像或实际限额不可用时命令失败，不退回宿主Node、浏览器执行或无隔离模式。
+宿主须有可用的Docker Engine或Docker Desktop，能运行`linux/amd64`、执行默认seccomp策略并落实cgroup v2限额；非x64宿主还须具备相应仿真能力。构建及运行入口先检查Docker daemon的Linux/cgroup版本，不在macOS或Windows客户端检查Linux路径；不满足时明确报`ADMISSION_CGROUP_V2_REQUIRED`或相应环境错误。预检不代替容器内的实际限额探针。构建阶段从官方来源取得固定Ubuntu、Node、依赖、Chrome及FFmpeg；版本与字节身份见[admission.environment.json](../../apps/renderer/admission.environment.json)、[Dockerfile](../../apps/renderer/docker/Dockerfile)和既有渲染环境锁。执行阶段无下载、安装或联网。Docker、镜像或实际限额不可用时命令失败，不退回宿主Node、浏览器执行或无隔离模式。
 
 `build:admission`记录`artifacts/admission-image.json`，绑定构建输入的`sourceTreeHash`和Docker实际`imageId`；运行前重新核对当前输入、镜像身份及标签。镜像包含的代码、契约、配置、依赖或测试素材改变后须重建，不能复用旧回执。检查日志和生成的媒体产物不写入该源码身份。
 
@@ -173,11 +173,15 @@ mise run render:admission -- --source tests/fixtures/admission
 
 宿主先静态解析和校验源包，不导入作品；源码随后进入独立Docker任务内的`quickjs-emscripten` 0.32.0。QuickJS的独立VM承载模块求值、同步`prepare/draw/dispose`，作品只取得冻结参数、绝对有理时间及共享`randomAt`，无真实时钟、随机源、计时器、网络、文件或进程接口；异步结果和待执行任务直接拒绝。引擎内存预算是整个WASM线性内存的硬上限，包含VM开销，不等于可用作品堆大小。内存、栈、每次调用、输出，以及容器CPU/内存/进程/临时磁盘、传输和总时长上限统一见[admission.policy.json](../../apps/renderer/admission.policy.json)，由外部宿主管理。
 
+单帧峰值、单容器累计传输和执行时间是独立限制，满足单帧Schema不保证整片可运行。`maxTransportBytes`按实际UTF-8 JSON行计量，包含消息封装、换行及复取；首轮为全部正序帧加重复/乱序帧，冷启容器另计。worker在生成下一帧前等待当前行完成写入，并在超过累计上限前停止；宿主另行计量，超限为`ADMISSION_TRANSPORT_LIMIT`，不靠OOM代替预算判断。高密度画面可以短时达到单帧上限，持续高密度仍须满足累计预算。
+
+`engineStageTimeoutMs`是正序及冷启共用的宿主单调墙钟期限，覆盖容器启动、隔离检查、VM准备/绘制/释放、命令校验和传输等待；新容器不重置它。耗尽为`ADMISSION_ENGINE_BUDGET_EXHAUSTED`。单次VM调用期限及包含可信捕获的`taskTimeoutMs`继续生效。这是当前本地几何profile的资源保护，新增文字/媒体能力须重新标定，不能据此推导生产p95或费用预算。
+
 `draw`只返回[几何JSON](../../contracts/admission-commands.schema.json)：带显式颜色和透明度的矩形/圆角矩形、圆及多边形，可附已声明区域的边界。命令数、点数、坐标、半径和字节均有上限，未知字段及伪造就绪/身份字段拒绝。共享`parseCanonicalJson`、完整Ajv和`checkedRegions`分别处理入站文本、结构及区域语义；源码不能选择任意Canvas方法、SVG、CSS或URL。字体、图片、视频、声音、DOM、原生动画和WebGL尚未进入此profile，现有媒体fixture不因此获得未知源码执行许可。
 
-每个执行阶段新建非root容器，根文件系统只读、网络关闭、不继承业务凭据，撤销Linux capabilities并启用no-new-privileges。首次容器运行正序、重复和乱序命令，第二个全新容器验证冷启；可信宿主绑定返回帧序号并比较命令数据。另一个可信捕获容器只读取这些JSON，不接收创作源码；固定浏览器重绘450/900帧，再按`admission-determinism-v1`比较重复、乱序及重启浏览器后的冷启像素。`test:admission`还实测资源耗尽、模块/prepare/draw/dispose挂起、越权能力、外网和元数据地址、只读挂载及容器回收。
+每个执行阶段新建非root容器，根文件系统只读、网络关闭、不继承业务凭据，撤销Linux capabilities并启用no-new-privileges。首次容器运行正序、重复和乱序命令，第二个全新容器验证冷启；可信宿主绑定返回帧序号并比较命令数据。另一个可信捕获容器只读取这些JSON，不接收创作源码；固定浏览器重绘450/900帧，再按`admission-determinism-v1`比较重复、乱序及重启浏览器后的冷启像素。`test:admission`还实测预算内高密度全片和单帧命令峰值、累计传输超限、逐帧未超时但累计超时、资源耗尽、模块/prepare/draw/dispose挂起、越权能力、外网和元数据地址、只读挂载及容器回收。
 
-CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器强制移除本次创建的容器并清理临时数据；不等待作品释放自己，也不停止其他任务。回收失败须按报告中的容器名处理，不能记作完成。输出默认在`artifacts/admission/<runId>/`，可用`--output-directory`指定空目录。成功保留MP4、poster、环境、实际限额、逐帧命令摘要及像素hash、捕获报告和总报告；执行失败写`failure.json`并以BLOCK退出，源包或镜像预检失败直接报错。总报告以共享`qaInputIdentity`绑定源码、参数、目标、空资源/声音、镜像、配置和验证策略，保留`productionEligible:false`。
+CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器强制移除本次创建的容器并清理临时数据；不等待作品释放自己，也不停止其他任务。回收失败须按报告中的容器名处理，不能记作完成。输出默认在`artifacts/admission/<runId>/`，可用`--output-directory`指定空目录。成功保留MP4、poster、环境、实际限额、逐帧命令摘要及像素hash、捕获报告和总报告；执行失败写`failure.json`并以BLOCK退出，源包或镜像预检失败直接报错。失败报告保留`errorCode`、容器名/模式/实际限额、已接收帧数和传输字节，以及可取得的`sandboxState`（退出码和`oomKilled`）；无法取得状态时为null。引擎和捕获容器的OOM分别为`ADMISSION_ENGINE_OOM`、`ADMISSION_CAPTURE_OOM`，不再用空错误描述。回收失败保留原始失败原因。总报告以共享`qaInputIdentity`绑定源码、参数、目标、空资源/声音、镜像、配置和验证策略，保留`productionEligible:false`。
 
 这是几何源码的本地技术执行入口。真实模型创作仍须按第三步补商业事实与权利、内容审核、所需媒体能力和预算；客户本地播放器、生产QA关联及Cloudflare目标环境分别按M1/M2/M0b推进。几何样例的点阵字形不等于文字轨迹或安全审核通过。QuickJS及其WASM封装均采用MIT许可，来源见[QuickJS官方](https://bellard.org/quickjs/)、[quickjs-emscripten仓库](https://github.com/justjake/quickjs-emscripten)、[封装许可证](https://github.com/justjake/quickjs-emscripten/blob/main/LICENSE)及[API文档](https://github.com/justjake/quickjs-emscripten/blob/main/doc/packages.md)；依赖许可不授予候选源码或客户素材使用权。
 
