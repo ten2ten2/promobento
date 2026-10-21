@@ -27,9 +27,11 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 当前M0a工程样例的自制几何、虚构界面、程序乐谱和波形按[素材许可](../../tests/fixtures/render/LICENSE.txt)使用CC0；Geist Sans/Mono来自`@fontsource`的固定`5.0.3`归档，使用未修改字体字节并保留OFL原文。确切文件、归档及许可摘要见[媒体登记](../../tests/fixtures/render/media-assets.json)。混音和抽帧前核对这些依据，生成产物继续引用相应来源，不能把字体纳入自制素材的CC0声明。
 
+canvas-media-v1的[可信目录](../../apps/renderer/src/admission-media.mjs)单独准入这些确切字节，字体ID中的`fixture`标识来源，不允许候选扩大许可范围。新增目录项须核对真实资源及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。当前研究题目使用原创几何表达与上述固定字体/音源，事实确认由作品负责人另行完成。
+
 ## 2 视频创作上游
 
-参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。以下是候选来源，尚未整包导入；实际采用时记录文件、commit、许可、修改和验证结果。
+参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。[本地基线](../../research/m0a/baseline.json)使用此版本的实际CLI作隔离对照，上游代码下载到研究产物目录，不整包并入产品。以下其他代码仍为候选来源；实际采用时记录文件、commit、许可、修改和验证结果。
 
 | 来源范围 | 用途 |
 | --- | --- |
@@ -40,7 +42,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 [上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
 
-**生产运行时不使用 GSAP，按绝对时间计算画面。** [GSAP 标准许可](https://gsap.com/community/standard-license/)限制与 Webflow 竞争的可视化动画构建用途。生产引入前须取得适用于本产品的书面许可结论并重审架构；本地研究也须符合许可。当前不打包、托管或交付 GSAP 运行库。
+**生产运行时不使用 GSAP，按绝对时间计算画面。** [GSAP 标准许可](https://gsap.com/community/standard-license/)限制与 Webflow 竞争的可视化动画构建用途。生产引入前须取得适用于本产品的书面许可结论并重审架构。本地基线仅按[研究范围](../../research/m0a/README.md)在断网容器运行固定上游CLI和原创建例，保留其独立GSAP许可；不把该运行库打包、托管或交付到客户产品。
 
 ## 3 适用规则与产品边界
 

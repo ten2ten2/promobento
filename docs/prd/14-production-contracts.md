@@ -60,6 +60,8 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 本地受限源码另用[08的canvas-commands-v1入口](08-codex-execution.md#本地canvas-commands-v1入口)：`composition.mjs`默认导出`CommandCompositionDefinition`，同步返回[固定几何命令](../../contracts/admission-commands.schema.json)，没有浏览器对象或资源能力。静态声明仍使用`runtime_declarations`，源码清单另按[admission-source.schema.json](../../contracts/admission-source.schema.json)校验；新增类型不扩大`CompositionDefinition`或`RenderProtocol`的已准入能力。该profile仅接受空字体/视频声明和无asset/事实绑定的参数，不处理客户素材或商业事实。
 
+[canvas-media-v1](08-codex-execution.md#本地canvas-media-v1入口)是独立媒体profile，不改变上述几何契约。它增加可信登记资源ID、固定单行Latin文字/图片/PTS视频命令及冻结声音；`resources.json`不能自授权资源。实际字体度量、逐帧文字及目标安全区由可信层检查，文字轨迹和关键帧绑定实际成片。当前无任意上传、复杂塑形或事实绑定参数；本地研究控制器保存题目事实与输入身份并要求负责人审核，不能冒充生产的事实编辑联动和`qualityAssociation`。
+
 首版不支持本地修改 `affectsTiming:true` 的字段，连同事实同步间接影响的字段一起拒绝，提示使用 AI 改稿。没有明确的时间补偿规则时，不能只改一个时间点却留下旧音轨、转场或录屏区间。AI 修改仍受固定总帧数和完整音画验证约束。
 
 **音频冻结：** AudioPlan 与冻结事件都使用稳定的 `eventId`，marker 通过 `audioEventId` 引用，不以数组下标定位。未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
@@ -235,7 +237,7 @@ FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允
 
 `qualityReport` 是不可变 Q0/Q1 检查结果，固定 workspace/project/target、qaInputHash、qaProfileVersion、checkerVersion 与 findings；不保存 revisionId、成员豁免或完整事实确认清单。只有同一项目、相同输入和获准 checker 的可信报告才可复用。资源、布局、声音、封面、运行时、镜像或采样变化须重算；同内容仅新增 revision 或补充事实确认不重复昂贵检查。事实当前确认、证据和权利仍在冻结前独立检查，不因报告缓存而省略。
 
-本地`m0a_admission_result`复用共享`qaInputIdentity`绑定技术执行输入，包括源包内参数、目标、空资源/声音、实际镜像及验证策略，并另记录实际环境和产物摘要。它保留`productionEligible:false`，尚无workspace/project、可信checker登记、`qualityAssociation`或内容审核授权，不能直接作为上述生产`qualityReport`接受；技术检查失败按Q0 BLOCK处理。
+本地`m0a_admission_result`复用共享`qaInputIdentity`绑定技术执行输入，包括源包内参数、目标、资源/声音、实际镜像及验证策略，并另记录实际环境和产物摘要。几何profile使用空资源/声音；媒体profile绑定实际获准资源、冻结事件和混音字节。它保留`productionEligible:false`，尚无workspace/project、可信checker登记、`qualityAssociation`或内容审核授权，不能直接作为上述生产`qualityReport`接受；技术检查失败按Q0 BLOCK处理。
 
 `qualityAssociation` 将当前 workspace/project/revision/target、qaInputHash、qaProfileVersion 绑定到 reportHash 与 waiverHashes。新 revision 需要新关联，不能沿用旧 revision 的豁免。`qualityWaiver` 固定同一作用域、reportHash/findingId、actorId、reason、acceptedAt/expiresAt，仅处理具体 REVIEW。新冻结验证当前 actor 权限和时间；已购快照按 confirmedAt 验证当时豁免，当前权限与权益撤销另行执行。关联由可信服务读取，完整嵌入快照并受 snapshotHash 固定；reportHash 和 waiverHashes 解析到各自可信登记。调用方改写自报 hash 不会得到可信身份。
 

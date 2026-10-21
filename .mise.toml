@@ -56,7 +56,7 @@ dir = "{{config_root}}"
 run = "node apps/renderer/scripts/build-admission.mjs"
 
 [tasks."render:admission"]
-description = "Run a restricted geometry source in isolated task containers"
+description = "Run an admitted geometry or media source in isolated task containers"
 dir = "{{config_root}}"
 run = "node apps/renderer/scripts/render-admission.mjs"
 
@@ -64,3 +64,18 @@ run = "node apps/renderer/scripts/render-admission.mjs"
 description = "Verify real task isolation, attack sources, cleanup and 30-second MP4"
 dir = "{{config_root}}"
 run = "node apps/renderer/scripts/test-admission.mjs"
+
+[tasks."agent:local"]
+description = "Run the budgeted local M0a director, patch and target workflow"
+dir = "{{config_root}}"
+run = "node apps/agent-runner/scripts/local-agent.mjs"
+
+[tasks."test:admission-media"]
+description = "Verify admitted text, images, PTS video and frozen audio in real containers"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/test-admission-media.mjs"
+
+[tasks."benchmark:m0a"]
+description = "Run and summarize the paired M0a model, baseline, cost and blind-review study"
+dir = "{{config_root}}"
+run = "node scripts/benchmark-m0a.mjs"

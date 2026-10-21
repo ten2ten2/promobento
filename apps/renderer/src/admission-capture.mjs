@@ -10,7 +10,11 @@ import {prepareBrowserBundle} from './browser-bundle.mjs';
 import {launchFixtureBrowser,withDeadline} from './frame-capture.mjs';
 import {encoderArguments} from './render-sample.mjs';
 import {inspectExecutionResources} from './render-diagnostics.mjs';
-import {paintAdmissionCanvas,validateAdmissionDraw} from './admission-commands.mjs';
+import {paintAdmissionCanvas,validateAdmissionDraw,validateAdmissionTextInk} from './admission-commands.mjs';
+import {prepareAdmissionMedia} from './admission-media.mjs';
+import {validateEncodedAudio} from './audio.mjs';
+import {repository} from './admission-image.mjs';
+import {admissionObservationBudget,ADMISSION_MEDIA_OBSERVATION_MAX_BYTES} from './admission-observations.mjs';
 
 const presets=parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json',import.meta.url)));
 const frameTimeoutMs=5000;
@@ -22,6 +26,18 @@ export function admissionVerificationPlan(frameCount) {
   return {version:'admission-determinism-v1',repeated:[middle,0,middle,frameCount-1,0],
     unordered:[17,frameCount-7,Math.floor(frameCount/3),3,Math.floor(frameCount*2/3),middle-11],
     cold:[0,59,Math.floor(frameCount/3),middle,Math.floor(frameCount*2/3),frameCount-1]};
+}
+
+export function admissionKeyframePlan(frameCount,declarations,denseFrame=Math.floor(frameCount/2)) {
+  if(![450,900].includes(frameCount)||!Number.isSafeInteger(denseFrame)||denseFrame<0||denseFrame>=frameCount
+    ||declarations.markers.length>64||declarations.markers.some(marker=>!Number.isSafeInteger(marker.frame)||marker.frame<0||marker.frame>=frameCount))
+    throw Error('ADMISSION_KEYFRAME_PLAN_INVALID');
+  const frames=new Map();
+  for(const [frame,role] of [[0,'opening'],[Math.floor(frameCount/2),'main'],[denseFrame,'densest_commands'],[frameCount-1,'ending'],
+    ...declarations.markers.map(marker=>[marker.frame,'marker:'+marker.id])]) {
+    if(!frames.has(frame))frames.set(frame,[]);frames.get(frame).push(role);
+  }
+  return [...frames].sort(([a],[b])=>a-b).map(([frameIndex,roles])=>({frameIndex,roles,file:'keyframe-'+String(frameIndex).padStart(6,'0')+'.png'}));
 }
 
 function configuration(input,encoding) {
@@ -36,8 +52,8 @@ function configuration(input,encoding) {
   return input.durationSeconds*encoding.fps;
 }
 
-function startEncoder(output,encoding,frameCount) {
-  const encoder=spawn('/usr/bin/ffmpeg',encoderArguments(output,{encoding,frameCount}),{stdio:['pipe','ignore','pipe']});
+function startEncoder(output,encoding,frameCount,audioPath) {
+  const encoder=spawn('/usr/bin/ffmpeg',encoderArguments(output,{encoding,frameCount,audioPath}),{stdio:['pipe','ignore','pipe']});
   let errors='',stopping;
   const closed=new Promise(resolve=>encoder.once('close',resolve));
   const stop=()=>stopping??=(async()=>{
@@ -60,7 +76,8 @@ function startEncoder(output,encoding,frameCount) {
 }
 
 /** Only validated geometry crosses into this browser. drawFrame reads trusted guest-output data. */
-export async function captureAdmission({input,encoding,outputDirectory,drawFrame,verification,declarations={regions:[]}}) {
+export async function captureAdmission({input,encoding,outputDirectory,drawFrame,verification,declarations={regions:[]},
+  profile='canvas-commands-v1',resourceRequest,denseFrame}) {
   const frameCount=configuration(input,encoding),expectedPlan=admissionVerificationPlan(frameCount);
   if(verification!==undefined&&canonical(verification)!==canonical(expectedPlan))throw new Error('ADMISSION_VERIFICATION_INVALID');
   verification=expectedPlan;
@@ -75,45 +92,83 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
     currentStage=name;stageStarted=now;
     if(name===null)finishedAt=now;
   };
-  let bundle,handle,encoder,framesDirectory,report;
+  let bundle,handle,encoder,framesDirectory,mediaDirectory,media,report;
+  const mediaFrames=[];
+  const chargeObservation=admissionObservationBudget();let observationBytes=0;
+  const keyframePlan=profile==='canvas-media-v1'?admissionKeyframePlan(frameCount,declarations,denseFrame):[];
   const hashes=[],browserErrors=[],savedFrames=new Set([...verification.repeated,...verification.unordered,...verification.cold]);
   let maxFramePngBytes=0;
   try {
     bundle=prepareBrowserBundle(environmentLock.browser);
     const environment=inspectEnvironment(bundle),execution=inspectExecutionResources();
     mkdirSync(out,{recursive:true});
-    const outputNames=['environment.json','execution.json','sample.mp4','poster.png','capture-report.json','failure-expected.png','failure-actual.png'];
+    const outputNames=['environment.json','execution.json','sample.mp4','poster.png','capture-report.json','failure-expected.png','failure-actual.png','mixed.wav','text-track.json',
+      'keyframes.json',...keyframePlan.map(item=>item.file)];
     if(readdirSync(out).some(name=>outputNames.includes(name)))throw new Error('ADMISSION_OUTPUT_ALREADY_EXISTS');
     framesDirectory=mkdtempSync(join(out,'sampled-frames-'));
+    if(profile==='canvas-media-v1') {
+      mediaDirectory=mkdtempSync(join(out,'media-prepare-'));
+      media=prepareAdmissionMedia({request:resourceRequest,declarations,input,outputDirectory:mediaDirectory});
+      if(media.audio)copyFileSync(media.audio.mixedPath,join(out,'mixed.wav'));
+    } else if(profile!=='canvas-commands-v1')throw Error('ADMISSION_PROFILE_INVALID');
     writeFileSync(join(out,'environment.json'),JSON.stringify(environment,null,2)+'\n',{flag:'wx'});
     writeFileSync(join(out,'execution.json'),JSON.stringify(execution,null,2)+'\n',{flag:'wx'});
     const open=()=>withDeadline(async()=>{
       const context=await handle.browser.newContext({viewport:{width,height},deviceScaleFactor:1,locale:'en-US',timezoneId:'UTC',
         colorScheme:'light',reducedMotion:'no-preference',serviceWorkers:'block'});
-      await context.route('**/*',route=>route.abort('blockedbyclient'));
+      await context.route('**/*',route=>{
+        if(!media)return route.abort('blockedbyclient');
+        const url=new URL(route.request().url());
+        if(url.origin!=='http://localhost:9431')return route.abort('blockedbyclient');
+        if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:shell.replace("default-src 'none';", "default-src 'none'; script-src 'self'; connect-src 'self'; font-src 'self'; img-src 'self' blob:; media-src blob:;")});
+        const asset=media.routes.get(url.pathname);
+        if(asset)return route.fulfill({body:asset.bytes,contentType:asset.contentType});
+        if(['/apps/renderer/src/admission-media-browser.mjs','/packages/composition-runtime/src/media.mjs',
+          '/packages/composition-runtime/src/command-text.mjs'].includes(url.pathname))
+          return route.fulfill({contentType:'text/javascript',body:readFileSync(join(repository,url.pathname.slice(1)))});
+        return route.abort('blockedbyclient');
+      });
       await context.setOffline(true);
       const page=await context.newPage();
       page.on('pageerror',error=>browserErrors.push(error.message));
-      await page.setContent(shell,{waitUntil:'load'});
+      if(media) {
+        await page.goto('http://localhost:9431/',{waitUntil:'load'});
+        await page.evaluate(async data=>{
+          const module=await import('/apps/renderer/src/admission-media-browser.mjs');
+          await module.initializeAdmissionMedia(data);globalThis.paintAdmissionMedia=module.paintAdmissionMedia;
+        },{manifest:media.manifest,declarations,fontMetrics:media.fontMetrics,images:media.images});
+      } else await page.setContent(shell,{waitUntil:'load'});
       return {context,page};
     },{timeoutMs:environmentLock.prepareTimeoutMs,code:'ADMISSION_BROWSER_PREPARE_TIMEOUT',terminate:()=>handle.stop()});
-    const screenshot=(page,frame,options)=>withDeadline(async()=>{
-      const draw=validateAdmissionDraw(await drawFrame(frame,options),{width,height,declarations});
-      await page.evaluate(paintAdmissionCanvas,{commands:draw.commands,width,height});
+    const screenshot=(page,frame,options,record=false)=>withDeadline(async()=>{
+      const draw=validateAdmissionDraw(await drawFrame(frame,options),{width,height,targetId,declarations,profile,resourceRequest});
+      if(media) {
+        const observation=await page.evaluate(data=>globalThis.paintAdmissionMedia(data),{commands:draw.commands,width,height,frame});
+        validateAdmissionTextInk(observation,{targetId,width,height});
+        if(record) {
+          const item={frame,...observation};observationBytes=chargeObservation(item);mediaFrames.push(item);
+        }
+      } else await page.evaluate(paintAdmissionCanvas,{commands:draw.commands,width,height});
       return page.screenshot({type:'png',animations:'allow',caret:'hide',timeout:frameTimeoutMs});
-    },{timeoutMs:frameTimeoutMs,code:'ADMISSION_FRAME_TIMEOUT: '+frame,terminate:()=>handle.stop()});
+    },{timeoutMs:frameTimeoutMs,code:'ADMISSION_FRAME_TIMEOUT: '+frame,terminate:()=>handle.stop()}).catch(error=>{
+      const match=error.message.match(/^page\.evaluate: Error: ((?:ADMISSION|FONT|VIDEO|MEDIA)_[A-Z0-9_]+)(?=:|\n|$)/u);
+      if(match)throw Error(match[1]+': '+error.message.slice('page.evaluate: Error: '.length),{cause:error});
+      throw error;
+    });
     handle=await launchFixtureBrowser(bundle);
     const {context,page}=await open();
     stage('captureEncodeMs');
     const video=join(out,'sample.mp4');
-    encoder=startEncoder(video,encoding,frameCount);
+    encoder=startEncoder(video,encoding,frameCount,media?.audio?.mixedPath);
     for(let frame=0;frame<frameCount;frame++) {
-      const png=await screenshot(page,frame),decoded=PNG.sync.read(png);
+      const png=await screenshot(page,frame,undefined,true),decoded=PNG.sync.read(png);
       assert.equal(decoded.width,width);assert.equal(decoded.height,height);
       maxFramePngBytes=Math.max(maxFramePngBytes,png.length);
       hashes.push(sha256(decoded.data));
       if(savedFrames.has(frame))writeFileSync(join(framesDirectory,frame+'.png'),png);
       if(frame===Math.floor(frameCount/2))writeFileSync(join(out,'poster.png'),png,{flag:'wx'});
+      const keyframe=keyframePlan.find(item=>item.frameIndex===frame);
+      if(keyframe)writeFileSync(join(out,keyframe.file),png,{flag:'wx'});
       await encoder.write(png);
     }
     await encoder.finish();
@@ -136,8 +191,8 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
     stage('outputChecksMs');
     const probe=parseCanonicalJson(execFileSync('/usr/bin/ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',video],
       {timeout:30000,killSignal:'SIGKILL',maxBuffer:1024*1024}));
-    assert.equal(probe.streams.length,1,'The geometry profile is silent');
-    const stream=probe.streams[0];
+    assert.equal(probe.streams.length,media?.audio?2:1,'Only the frozen audio track may accompany video');
+    const stream=probe.streams.find(stream=>stream.codec_type==='video');
     for(const [key,value] of Object.entries({codec_type:'video',width,height,codec_name:'h264',pix_fmt:'yuv420p',r_frame_rate:'30/1',avg_frame_rate:'30/1',
       color_space:'bt709',color_transfer:'bt709',color_primaries:'bt709',color_range:'tv'}))assert.equal(stream[key],value,key);
     assert.equal(Number(stream.nb_read_frames),frameCount);assert.equal(Number(stream.duration),durationSeconds);
@@ -145,18 +200,56 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
     assert(statSync(video).size<=presets.productLimits.maxOutputFileBytes);
     assert.deepEqual(browserErrors,[]);
     const file=name=>({file:name,sha256:sha256File(join(out,name)),byteLength:statSync(join(out,name)).size});
-    report={kind:'m0a_admission_capture_result',scope:'trusted_geometry_commands_only',profile:'canvas-commands-v1',
+    let mediaReport=null;
+    const keyframes=keyframePlan.map(item=>({...item,...file(item.file),pixelSha256:hashes[item.frameIndex]}));
+    if(media)writeFileSync(join(out,'keyframes.json'),canonical({kind:'admission_keyframes',videoSha256:sha256File(video),
+      frameCount,selection:'opening_main_densest_commands_ending_declared_markers_v1',keyframes})+'\n',{flag:'wx'});
+    if(media) {
+      const tracks=[],openTracks=new Map();
+      for(const observation of mediaFrames) {
+        const current=new Set();
+        for(const text of observation.texts) {
+          const identity=canonical({id:text.id,text:text.text,fontId:text.fontId,fontSize:text.fontSize,weight:text.weight,faces:text.faces});current.add(identity);
+          let track=openTracks.get(identity);
+          if(!track||track.frameEndExclusive!==observation.frame) {
+            track={...parseCanonicalJson(identity),frameStart:observation.frame,frameEndExclusive:observation.frame};tracks.push(track);openTracks.set(identity,track);
+          }
+          track.frameEndExclusive=observation.frame+1;
+        }
+        for(const key of openTracks.keys())if(!current.has(key))openTracks.delete(key);
+      }
+      const textTrack={kind:'admission_text_track',version:'drawn-text-v1',videoSha256:sha256File(video),frameCount,tracks,
+        coverage:{allForwardFrames:true,source:'trusted_canvas_draw_dispatch_and_actual_font_metrics',
+          occlusionNotInferred:true,imageTextNotTranscribed:true,complexShapingAdmitted:false}};
+      writeFileSync(join(out,'text-track.json'),canonical(textTrack)+'\n',{flag:'wx'});
+      const audioCheck=media.audio?validateEncodedAudio(video,{...media.audio,durationSeconds,frameCount,markers:[],visualMarkerFrames:[]}):null;
+      if(audioCheck) {
+        audioCheck.provenance='decoded AAC compared with the frozen WAV';
+        audioCheck.visualCueAlignment='requires_observed_visual_event_binding';
+      }
+      mediaReport={...media.report,textTrack:file('text-track.json'),drawnTextTracks:tracks.length,observations:mediaFrames,
+        observationBytes,maxObservationBytes:ADMISSION_MEDIA_OBSERVATION_MAX_BYTES,
+        textQa:{checkedFrames:frameCount,layout:'selected_face_unshaped_latin',safeArea:'all_drawn_text_with_positive_opacity',
+          safeAreaMeasurements:['shared_font_advances','actual_browser_ink'],overflow:'block'},
+        frozenAudio:media.audio?file('mixed.wav'):null,encodedAudio:audioCheck};
+    }
+    report={kind:'m0a_admission_capture_result',scope:media?'trusted_media_commands_only':'trusted_geometry_commands_only',profile,
       targetId,width,height,durationSeconds,frameCount,environmentHash:environment.environmentHash,execution,
       verification,pixelHashes:hashes,checks:{forwardFrames:frameCount,repeatedFrames:verification.repeated.length,
         unorderedFrames:verification.unordered.length,coldFrames:verification.cold.length,coldBrowserRestarted:true,sourceCodeInBrowser:false},
       capture:{frameTimeoutMs,sourceFrameStorage:'temporary_sampled_disk',maxFramePngBytes,encodingOverlapsCapture:true},
       video:file('sample.mp4'),poster:{...file('poster.png'),sourceFrame:Math.floor(frameCount/2),pixelSha256:hashes[Math.floor(frameCount/2)]},
-      files:['sample.mp4','poster.png','environment.json','execution.json'].map(file),probe};
+      keyframes,
+      files:['sample.mp4','poster.png','environment.json','execution.json',...(media?['text-track.json','keyframes.json',...keyframePlan.map(item=>item.file)]:[]),
+        ...(media?.audio?['mixed.wav']:[])].map(file),probe,media:mediaReport};
   } finally {
     stage('cleanupMs');
     try {await encoder?.stop();} finally {
       try {await handle?.stop();} finally {
-        try {if(framesDirectory)rmSync(framesDirectory,{recursive:true,force:true});} finally {bundle?.cleanup();stage(null);}
+        try {
+          if(framesDirectory)rmSync(framesDirectory,{recursive:true,force:true});
+          if(mediaDirectory)rmSync(mediaDirectory,{recursive:true,force:true});
+        } finally {bundle?.cleanup();stage(null);}
       }
     }
   }

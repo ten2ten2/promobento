@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/admission-resources.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "resourceIds",
+    "audioEvents"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.7.0"
+    },
+    "kind": {
+      "const": "admission_resources"
+    },
+    "resourceIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+        "maxLength": 128
+      }
+    },
+    "audioEvents": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "kind",
+          "sourceId",
+          "frameStart",
+          "frameEndExclusive",
+          "sourceOffsetFrames",
+          "gainDb",
+          "fadeInFrames",
+          "fadeOutFrames"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "maxLength": 128
+          },
+          "kind": {
+            "enum": [
+              "music",
+              "sfx"
+            ]
+          },
+          "sourceId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "maxLength": 128
+          },
+          "frameStart": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "frameEndExclusive": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "sourceOffsetFrames": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "gainDb": {
+            "type": "number",
+            "minimum": -96,
+            "maximum": 24
+          },
+          "fadeInFrames": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "fadeOutFrames": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 900
+          },
+          "gainAutomation": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 256,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "frameOffset",
+                "gainDb"
+              ],
+              "properties": {
+                "frameOffset": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 900
+                },
+                "gainDb": {
+                  "type": "number",
+                  "minimum": -96,
+                  "maximum": 24
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -8,7 +8,7 @@
 
 Agent 可编写 HTML/CSS/TS/JS、SVG、Canvas、WebGL、Three.js、Shader，也可复用获准组件。生产运行时不依赖 GSAP，画面由固定输入和绝对时间确定，按[创作接口](../../contracts/composition-runtime.d.ts)实现；WebGL 不可用时明确报错。上游 GSAP 只用于隔离的本地对比，许可边界见 09。
 
-这是目标创作范围。当前本地回归准入绝对时间DOM/SVG更新、Canvas2D重绘，以及固定字体/PTS录屏/冻结声音的已审阅样例；原生CSS/WAAPI动画明确拒绝。任意工程、字体上传、复杂塑形和WebGL须另行准入，不能从样例通过推定已经可用。实际范围见[08](08-codex-execution.md#m0a-渲染环境)。
+这是目标创作范围。当前经审阅浏览器样例覆盖绝对时间DOM/SVG更新、Canvas2D重绘及固定字体/PTS录屏/冻结声音；原生CSS/WAAPI动画明确拒绝。未知源码另经QuickJS隔离，只能输出已准入的几何或canvas-media-v1文字/媒体数据，浏览器不执行作品源码。媒体profile范围为固定获准资源和单行未塑形Latin，详见[08](08-codex-execution.md#本地canvas-media-v1入口)；任意工程、字体上传、复杂塑形和WebGL须另行准入。
 
 创作始终受素材授权、真实商业事实、租户权限、依赖许可、资源预算和输出规格约束。网站主题和语言不进入创作身份；用户文案任意混排，翻译只能按明确指令作用于指定内容。客户确认不等于平台为商业主张真实性担保。
 

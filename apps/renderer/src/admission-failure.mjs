@@ -18,8 +18,10 @@ export function admissionWorkerFailure(stderr,exitCode) {
       &&record.errorCode===code({message:record.error})) {
       const error=Error(record.error);
       if(record.details&&typeof record.details==='object'&&!Array.isArray(record.details)
-        &&Object.keys(record.details).every(key=>['transportBytes','nextLineBytes','maxTransportBytes'].includes(key))
-        &&Object.values(record.details).every(value=>Number.isSafeInteger(value)&&value>=0))error.details=record.details;
+        &&Object.entries(record.details).every(([key,value])=>
+          ['transportBytes','nextLineBytes','maxTransportBytes','observationBytes','nextObservationBytes','maxObservationBytes'].includes(key)?Number.isSafeInteger(value)&&value>=0:
+          record.errorCode==='AUDIO_LEVEL_INVALID'&&['integratedLufs','truePeakDbtp','normalizationGainDb'].includes(key)
+            &&typeof value==='number'&&Number.isFinite(value)&&value>=-120&&value<=120))error.details=record.details;
       return error;
     }
   } catch { /* Docker/OS failures may not contain a worker record. */ }

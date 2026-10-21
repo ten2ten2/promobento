@@ -15,7 +15,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/composition-runtime/package.json ./packages/composition-runtime/package.json
 COPY apps/renderer/package.json ./apps/renderer/package.json
-RUN pnpm install --frozen-lockfile --ignore-scripts \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && printf 'Acquire::Retries "3";\nAcquire::http::Timeout "60";\nAcquire::https::Timeout "60";\n' > /etc/apt/apt.conf.d/80-promobento-network \
+    && pnpm install --frozen-lockfile --ignore-scripts \
     && pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
 COPY . .
 # Downloaded only during image preparation. Tasks have no network and no package installation.

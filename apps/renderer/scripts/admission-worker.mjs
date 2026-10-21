@@ -23,7 +23,8 @@ async function evaluate(job) {
   let failure;
   try {
     for(const [sequence,frameIndex] of job.frames.entries()) {
-      const draw=validateAdmissionDraw(engine.draw(frameIndex),{...job.input,declarations:job.declarations});
+      const draw=validateAdmissionDraw(engine.draw(frameIndex),{...job.input,declarations:job.declarations,
+        profile:job.profile??'canvas-commands-v1',resourceRequest:job.resourceRequest});
       await output({kind:'draw',sequence,frameIndex,draw});
     }
   } catch(error) {failure=error;throw error;}

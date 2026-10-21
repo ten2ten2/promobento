@@ -167,3 +167,34 @@ export interface CommandCompositionDefinition {
   /** Declarations must match the independently validated declarations.json before prepare. */
   prepare(context: CommandRuntimeContext): PreparedCommandComposition;
 }
+
+/** Separately admitted canvas-media-v1 profile. Resource IDs resolve only through
+ * the trusted renderer catalog and resources.json; guest modules get no bytes,
+ * URLs, DOM, audio clock, networking or browser objects.
+ */
+export interface MediaCommandRuntimeContext extends CommandRuntimeContext {
+  /** Pure metrics from the licensed selected WOFF faces. Single-line unshaped
+   * Latin only; the painter uses identical per-codepoint advances with no kerning.
+   */
+  measureText(fontId: string, text: string, fontSize: number, weight: number): {
+    readonly width: number; readonly ascent: number; readonly descent: number;
+  };
+}
+export type MediaCanvasCommand = CanvasCommand | (
+  | { readonly op:'text'; readonly id:string; readonly fontId:string; readonly text:string;
+      readonly fontSize:number; readonly weight:number; readonly color:`#${string}` }
+  | { readonly op:'image'; readonly resourceId:string }
+  | { readonly op:'video'; readonly useId:string }
+) & { readonly x:number; readonly y:number; readonly width:number; readonly height:number; readonly opacity:number };
+export interface MediaCommandCompositionDefinition {
+  readonly apiVersion:'2.7.0';
+  readonly editables:ReadonlyArray<EditableProperty>;
+  readonly markers:ReadonlyArray<TimelineMarker>;
+  readonly regions:ReadonlyArray<RegionDeclaration>;
+  readonly videoUses:ReadonlyArray<VideoUse>;
+  readonly fonts:ReadonlyArray<FontDeclaration>;
+  prepare(context:MediaCommandRuntimeContext): {
+    draw(time:RationalTime): {readonly commands:ReadonlyArray<MediaCanvasCommand>; readonly regions?:ReadonlyArray<RegionBounds>};
+    dispose():void;
+  };
+}

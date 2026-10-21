@@ -170,6 +170,8 @@ importers:
         specifier: workspace:*
         version: link:packages/contracts
 
+  apps/agent-runner: {}
+
   apps/renderer:
     dependencies:
       '@promobento/composition-runtime':

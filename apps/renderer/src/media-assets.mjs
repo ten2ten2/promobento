@@ -105,7 +105,7 @@ export function reviewedFixtureFonts() {
   return {routes,resources,fonts,sourcePaths,registry};
 }
 
-function screenPixels(index) {
+export function screenPixels(index) {
   const image=new PNG({width,height});
   const rect=(x,y,w,h,color)=>{
     for(let row=Math.max(0,Math.floor(y));row<Math.min(height,Math.floor(y+h));row++)

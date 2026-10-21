@@ -101,6 +101,8 @@ jobs:
         run: mise run build:admission
       - name: Verify real task limits, hostile modules, cancellation and MP4 output
         run: mise run test:admission
+      - name: Verify admitted text, images, PTS video and frozen audio
+        run: mise run test:admission-media
       - name: Preserve isolation evidence, image identity and sample
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -108,6 +110,7 @@ jobs:
           name: m0a-admission-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             artifacts/admission-tests/
+            artifacts/admission-media/
             artifacts/admission-image.json
           retention-days: 30
           if-no-files-found: warn

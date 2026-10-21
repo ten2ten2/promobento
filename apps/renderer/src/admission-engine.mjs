@@ -1,6 +1,7 @@
 import {DefaultIntrinsics,newQuickJSWASMModule,newVariant,RELEASE_SYNC} from 'quickjs-emscripten';
 import {canonical,parseCanonicalJson} from '@promobento/contracts';
 import {randomAt} from '@promobento/composition-runtime';
+import {admissionTextMeasurement} from './admission-fonts.mjs';
 
 const declarationNames=['editables','markers','regions','videoUses','fonts'];
 const clock=performance.now.bind(performance);
@@ -19,7 +20,8 @@ export function admissionWasmMemoryDescriptor(memoryBytes) {
 /** Inert validation only: importing this module never creates a VM or evaluates source.
  * Full declarations/values/target admission belongs to the external trusted controller.
  */
-export function admissionEngineOptions({source,input,declarations,limits}={}) {
+export function admissionEngineOptions({source,input,declarations,limits,profile='canvas-commands-v1'}={}) {
+  if(!['canvas-commands-v1','canvas-media-v1'].includes(profile))throw Error('ADMISSION_PROFILE_INVALID');
   if(typeof source!=='string' || !source.length || !source.isWellFormed() || Buffer.byteLength(source)>1048576)
     throw Error('ADMISSION_SOURCE_INVALID');
   if(!ownKeys(limits,['memoryBytes','stackBytes','callTimeoutMs','maxOutputBytes'])
@@ -42,7 +44,7 @@ export function admissionEngineOptions({source,input,declarations,limits}={}) {
     || declarations.schemaVersion!=='2.7.0' || declarations.kind!=='runtime_declarations'
     || declarationNames.some(name=>!Array.isArray(declarations[name])))
     throw Error('ADMISSION_ENGINE_DECLARATIONS_INVALID');
-  if(declarations.videoUses.length || declarations.fonts.length)throw Error('ADMISSION_CAPABILITY_UNAVAILABLE');
+  if(profile==='canvas-commands-v1'&&(declarations.videoUses.length || declarations.fonts.length))throw Error('ADMISSION_CAPABILITY_UNAVAILABLE');
   const declarationsText=canonical(declarations);
   if(Buffer.byteLength(declarationsText)>1048576)throw Error('ADMISSION_ENGINE_DECLARATIONS_TOO_LARGE');
   return Object.freeze({source,inputText,declarationsText,limits:Object.freeze({...limits})});
@@ -149,9 +151,11 @@ const bootstrap=String.raw`(() => {
         define(declarations,name,{value:data(definition,name),enumerable:true});
       return serialize(declarations,maxBytes);
     },
-    prepare(contextText,randomAt,maxBytes,checkSync) {
+    prepare(contextText,randomAt,maxBytes,checkSync,measureText) {
       const context=parse(contextText);outputLimit=maxBytes;assertSync=checkSync;
-      define(context,'randomAt',{value:randomAt,enumerable:true});harden(context);
+      define(context,'randomAt',{value:randomAt,enumerable:true});
+      if(measureText)define(context,'measureText',{value:(fontId,text,fontSize,weight)=>harden(parse(measureText(fontId,text,fontSize,weight))),enumerable:true});
+      harden(context);
       prepared=apply(data(definition,'prepare'),definition,[context]);
       assertSync(prepared);
       exact(prepared,['draw','dispose']);
@@ -252,7 +256,12 @@ export async function createAdmissionEngine(options) {
     const actual=parseCanonicalJson(readText(invoke('declarations',methods.inspect,[module,declarationLimit]),1048576));
     if(canonical(actual)!==declarationsText)throw Error('ADMISSION_DECLARATIONS_MISMATCH');
     const context=retain(vm.newString(inputText)),outputLimit=retain(vm.newNumber(limits.maxOutputBytes));
-    invoke('prepare',methods.prepare,[context,random,outputLimit,synchronous]).dispose();
+    const measurement=options.profile==='canvas-media-v1'?retain(vm.newFunction('measureText',(fontId,text,fontSize,weight)=>{
+      if(vm.typeof(fontId)!=='string'||vm.typeof(text)!=='string'||vm.typeof(fontSize)!=='number'||vm.typeof(weight)!=='number')throw Error('ADMISSION_TEXT_INVALID');
+      const {width,ascent,descent}=admissionTextMeasurement(options.declarations,vm.getString(fontId),vm.getString(text),vm.getNumber(fontSize),vm.getNumber(weight));
+      return vm.newString(canonical({width,ascent,descent}));
+    })):vm.undefined;
+    invoke('prepare',methods.prepare,[context,random,outputLimit,synchronous,measurement]).dispose();
     return Object.freeze({
       draw(frameIndex) {
         if(closed || failed)throw Error('ADMISSION_ENGINE_CLOSED');

@@ -3,13 +3,42 @@
   "$id": "https://promobento.com/contracts/admission-source/1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "kind", "capabilityProfile", "targetId", "durationSeconds", "seed"],
+  "required": [
+    "schemaVersion",
+    "kind",
+    "capabilityProfile",
+    "targetId",
+    "durationSeconds",
+    "seed"
+  ],
   "properties": {
-    "schemaVersion": {"const": "2.7.0"},
-    "kind": {"const": "admission_candidate"},
-    "capabilityProfile": {"const": "canvas-commands-v1"},
-    "targetId": {"type": "string", "minLength": 1, "maxLength": 128},
-    "durationSeconds": {"enum": [15, 30]},
-    "seed": {"type": "string", "minLength": 1, "maxLength": 128}
+    "schemaVersion": {
+      "const": "2.7.0"
+    },
+    "kind": {
+      "const": "admission_candidate"
+    },
+    "capabilityProfile": {
+      "enum": [
+        "canvas-commands-v1",
+        "canvas-media-v1"
+      ]
+    },
+    "targetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "durationSeconds": {
+      "enum": [
+        15,
+        30
+      ]
+    },
+    "seed": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
   }
 }

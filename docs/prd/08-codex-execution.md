@@ -30,7 +30,10 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `test:render` | 独立媒体回归：15/30秒MP4、模式像素一致、正/逆序/重复/乱序及冷启、真实字体/VFR取帧/冻结音轨、编辑保存与区域定位、截图片段及故障检查 |
 | `build:admission` | 构建固定Linux/amd64的受限源码执行与可信绘制镜像，记录实际imageId及sourceTreeHash |
 | `test:admission` | 在真实Docker容器验证受限源码、网络/文件/资源限额、超时/取消/回收，并生成30秒几何样片；缺Docker或匹配镜像明确失败 |
-| `render:admission` | `--source DIRECTORY`读取有界单模块源包，运行canvas-commands-v1及必需确定性检查，生成静音MP4、封面和输入绑定报告 |
+| `test:admission-media` | 在真实容器验证canvas-media-v1的字体度量、图片、PTS录屏、冻结声音、可信文字轨迹、关键帧与30秒出片 |
+| `render:admission` | `--source DIRECTORY`读取有界单模块源包，按canvas-commands-v1或canvas-media-v1执行必需确定性检查，生成MP4、封面和输入绑定报告 |
+| `agent:local` | 本地研究的导演/改稿/全目标控制器、预算账本、人工审核与版本接受；真实模型调用须单独授权 |
+| `benchmark:m0a` | 题目矩阵、同预算双臂初稿/改稿、固定huashu-motion基线、费用汇总与独立盲审包；证据缺失明确不通过 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
@@ -175,7 +178,7 @@ mise run render:admission -- --source tests/fixtures/admission
 
 单帧峰值、单容器累计传输和执行时间是独立限制，满足单帧Schema不保证整片可运行。`maxTransportBytes`按实际UTF-8 JSON行计量，包含消息封装、换行及复取；首轮为全部正序帧加重复/乱序帧，冷启容器另计。worker在生成下一帧前等待当前行完成写入，并在超过累计上限前停止；宿主另行计量，超限为`ADMISSION_TRANSPORT_LIMIT`，不靠OOM代替预算判断。高密度画面可以短时达到单帧上限，持续高密度仍须满足累计预算。
 
-`engineStageTimeoutMs`是正序及冷启共用的宿主单调墙钟期限，覆盖容器启动、隔离检查、VM准备/绘制/释放、命令校验和传输等待；新容器不重置它。耗尽为`ADMISSION_ENGINE_BUDGET_EXHAUSTED`。单次VM调用期限及包含可信捕获的`taskTimeoutMs`继续生效。这是当前本地几何profile的资源保护，新增文字/媒体能力须重新标定，不能据此推导生产p95或费用预算。
+`engineStageTimeoutMs`是正序及冷启共用的宿主单调墙钟期限，覆盖容器启动、隔离检查、VM准备/绘制/释放、命令校验和传输等待；新容器不重置它。耗尽为`ADMISSION_ENGINE_BUDGET_EXHAUSTED`。单次VM调用期限及包含可信捕获的`taskTimeoutMs`继续生效。这是当前本地profile的资源保护，不能据此推导生产p95或费用预算。
 
 `draw`只返回[几何JSON](../../contracts/admission-commands.schema.json)：带显式颜色和透明度的矩形/圆角矩形、圆及多边形，可附已声明区域的边界。命令数、点数、坐标、半径和字节均有上限，未知字段及伪造就绪/身份字段拒绝。共享`parseCanonicalJson`、完整Ajv和`checkedRegions`分别处理入站文本、结构及区域语义；源码不能选择任意Canvas方法、SVG、CSS或URL。字体、图片、视频、声音、DOM、原生动画和WebGL尚未进入此profile，现有媒体fixture不因此获得未知源码执行许可。
 
@@ -185,13 +188,33 @@ CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器
 
 这是几何源码的本地技术执行入口。真实模型创作仍须按第三步补商业事实与权利、内容审核、所需媒体能力和预算；客户本地播放器、生产QA关联及Cloudflare目标环境分别按M1/M2/M0b推进。几何样例的点阵字形不等于文字轨迹或安全审核通过。QuickJS及其WASM封装均采用MIT许可，来源见[QuickJS官方](https://bellard.org/quickjs/)、[quickjs-emscripten仓库](https://github.com/justjake/quickjs-emscripten)、[封装许可证](https://github.com/justjake/quickjs-emscripten/blob/main/LICENSE)及[API文档](https://github.com/justjake/quickjs-emscripten/blob/main/doc/packages.md)；依赖许可不授予候选源码或客户素材使用权。
 
+#### 本地canvas-media-v1入口
+
+同一`render:admission`入口另支持`canvas-media-v1`，保留几何profile原有源包和调用契约。媒体源包增加[resources.json](../../contracts/admission-resources.schema.json)，`draw`使用[媒体命令Schema](../../contracts/admission-media-commands.schema.json)。可从[媒体回归源包生成器](../../apps/renderer/test/admission-media.cases.mjs)或[两个原创工程样片](../../research/m0a/showcase.mjs)开始；先构建镜像，再运行`mise run test:admission-media`。
+
+源码仍只在QuickJS中求值，浏览器只消费校验后的数据。几何之外新增单行文字、图片和视频命令；冻结音频事件在可信混音器处理，不由`draw`播放。资源ID只能引用[可信登记](../../apps/renderer/src/admission-media.mjs)的固定OFL字体、自制PNG/变帧率录屏及CC0程序音轨。候选不能提交URL、字体字节或自签许可；首次处理前核对实际字节和许可。新增素材提供方须先登记来源与处理限额，当前不支持任意上传。
+
+`context.measureText`读取已核验WOFF的cmap、hmtx、head和hhea度量；可信浏览器按相同逐码位advance绘制，不依赖系统回退或kerning。当前为`single-line-unshaped-latin-v1`，只覆盖U+0020–007E、U+00A0–00FF；CJK、RTL、组合字符及复杂塑形未准入，不能悄悄替换原文。逐帧检查实际文字字形、布局边界及所选平台安全区，输出绑定MP4的`text-track.json`。这条轨迹记录实际命令文字，几何模拟的字形和图片内部文字仍须人工或另行可信检查。
+
+图片与PTS录屏沿用经核验的解码路径和有界缓存。音轨按冻结事件生成完整48kHz双声道WAV，检查真实响度、真峰值、AAC有效区间及其与冻结WAV的一致性；这不证明任意源码的画面事件与音效对齐，具体落点还需视觉标记检查与正常速度试听。不合格混音须改增益/ducking，不能通过放宽阈值放行。媒体资源及实际混音进入`qaInputHash`，不再使用几何profile的空资源身份。
+
+成功输出额外保留实际开场、中段、最密命令帧、末帧及有界marker关键帧，索引记录帧号、角色、路径和实际字节/像素身份；模型方向引用这些图片，不以生成描述或封面代替。技术报告仍为`productionEligible:false`，完整内容审核、商业事实覆盖与正常速度试听分别记录。
+
+#### 本地导演与对照研究
+
+`agent:local`接通单机研究的方向、Treatment、声音计划、受限源码、最多两次内部修复、改稿及全目标准备。候选通过实际渲染后仍等待负责人审阅；明确接受才以CAS更新当前版本。模型、修复和渲染共用持久费用账本，未知用量保留最坏预留，SIGINT/SIGTERM取消并回收本次作业。配置、事实确认和审核回执示例入口见[本地控制器说明](../../apps/agent-runner/README.md)。它不是生产身份、权益、审核或数据库服务。
+
+[M0a研究入口](../../research/m0a/README.md)维护用户选定的3软件＋3课程题目、官方事实来源、初稿/改稿双臂、独立盲审和单位经济。Claude Opus 5.5与iPhone Duo保留为额外题目，不替代主矩阵。题目中的模型名称是宣传对象，不代表已选定收费调用模型。负责人正常速度检查和未参与制作的目标用户盲审分别留证；不能代填事实确认、主观票或未观测费用。
+
+真实调用前必须取得账户可用的模型、精确价格和总预算授权。没有这些信息时，`matrix`、本地工程样片、固定上游烟测和离线校验可继续，`config/agent-policy.json`仍保持关闭；M0a退出条件不因此缩减。
+
 ### 媒体验证与结果交接
 
 `test:render` 先校验环境，再产片和检查；缺浏览器、编码器或所需字体时明确失败，不采用宿主的浮动默认值。有容器能力时使用固定镜像；没有时采用已验证的预装环境，或把可信渲染交给 CI/专用 runner，本地继续纯代码工作并注明媒体未验证。必需的 CI 媒体门禁不能把环境不可用记为 skip 后通过。安装/下载放所选 Agent 环境允许的准备阶段，不假定所有沙箱支持 Docker 或相同网络策略。
 
 | 环境 | 另需验证 |
 | --- | --- |
-| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`及独立Docker `test:admission`，分别保留样片、环境与验证报告 |
+| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`及独立Docker `test:admission`、`test:admission-media`，分别保留样片、环境与验证报告 |
 | Workers Builds | 显式安装工具并设置路径，干净检出可构建，不假定平台读取 mise |
 | workerd | compatibility_date/flags/bindings；SSR、认证、签名、存储和队列 |
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |
@@ -199,7 +222,7 @@ CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器
 
 CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。[工作流](../../.github/workflows/checks.yml)的`contracts`通过后，`render`、`media-output`和`admission`在独立job执行。`render`运行完整`test:render`；`media-output`运行真实30秒`media --mode output`，单独记录工程出片时间，不混入倒序/故障回归。这两项把`artifacts/m0a/`上传为artifact，名称含精确commit SHA、run ID/attempt和模式，保留30天；`ci-context.json`补充任务与锁定浏览器归档身份，报告另存实际机器资源。只缓存以完整SHA-256为key的官方归档，每次仍校验字节并私有解压。
 
-`admission`使用Ubuntu 24.04 runner，job期限35分钟，冻结安装后依次运行`build:admission`、`test:admission`。它单独验收真实容器隔离、恶意模块、限额、取消/回收与30秒几何出片，不沿用fixture结果。无论成功或失败，上传已有的`artifacts/admission-tests/`与`artifacts/admission-image.json`，artifact名为`m0a-admission-<commit SHA>-<run ID>-<attempt>`，保留30天。镜像构建时间包含在job期限内，不计入单次作品捕获耗时。
+`admission`使用Ubuntu 24.04 runner，job期限35分钟，冻结安装后依次运行`build:admission`、`test:admission`、`test:admission-media`。它单独验收真实容器隔离、恶意模块、限额、取消/回收、30秒几何及媒体源码出片，不沿用fixture结果。无论成功或失败，上传已有的`artifacts/admission-tests/`、`artifacts/admission-media/`与`artifacts/admission-image.json`，artifact名为`m0a-admission-<commit SHA>-<run ID>-<attempt>`，保留30天。镜像构建时间包含在job期限内，不计入单次作品捕获耗时。
 
 长期准入证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的媒体或源码准入项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或盲审材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 

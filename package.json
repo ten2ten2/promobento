@@ -19,7 +19,10 @@
     "test:render": "node scripts/run-tests.mjs --render",
     "build:admission": "node apps/renderer/scripts/build-admission.mjs",
     "render:admission": "node apps/renderer/scripts/render-admission.mjs",
-    "test:admission": "node apps/renderer/scripts/test-admission.mjs"
+    "test:admission": "node apps/renderer/scripts/test-admission.mjs",
+    "agent:local": "node apps/agent-runner/scripts/local-agent.mjs",
+    "test:admission-media": "node apps/renderer/scripts/test-admission-media.mjs",
+    "benchmark:m0a": "node scripts/benchmark-m0a.mjs"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"
