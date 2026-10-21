@@ -1,14 +1,20 @@
 {
-  "schemaVersion": "2.6.0",
-  "policyVersion": "preview-v1",
+  "schemaVersion": "2.7.0",
+  "policyVersion": "preview-v2",
   "status": "planned_not_deployed",
   "localPlayback": {
     "mode": "local_full",
+    "bridgeMode": "local_preview",
     "pixelScale": 0.5,
     "logicalDimensionsSource": "config/platform-presets.json",
     "durationSource": "composition.totalFrames / 30",
     "audioSource": "composition.mixedAudio",
     "valuesSourcePath": "values.json",
+    "unsavedValues": "validated_local_overlay",
+    "responseOrdering": "previewEpoch_and_request_sequence",
+    "logicalLayout": "fixed_target_css_dimensions",
+    "domDisplayScale": "host_transform_with_inverse_pointer_mapping",
+    "canvasBufferScale": "explicit_pixelScale",
     "ambientDevicePixelRatioAffectsContent": false,
     "sampling": "nominal_single_sample",
     "frameEvent": "preview-frame-ready",
@@ -18,11 +24,24 @@
     "editOrReplayStartsVideoEncoding": false
   },
   "trustedCapture": {
+    "enabled": false,
     "pixelScale": 1,
     "devicePixelRatio": 1,
     "formats": ["screenshot", "clip"],
     "requiresExplicitIntent": true,
-    "budgeted": true
+    "budgeted": true,
+    "limits": {
+      "maxClipFrames": null,
+      "maxRequestsPerProjectWindow": null,
+      "maxClipFramesPerProjectWindow": null,
+      "maxRequestsPerTrial": null,
+      "maxClipFramesPerTrial": null
+    },
+    "projectWindowSource": "config/agent-policy.json#cost.usageWindowHours",
+    "trialScope": "original_trial_claim",
+    "countersInclude": "started_requests_and_active_reservations",
+    "unmeasuredLimits": "keep_capture_disabled",
+    "reservation": "atomic_with_cost_budget_and_idempotency_key"
   },
   "brandWatermark": {
     "source": "config/brand.json#publicPreviewWatermark",
@@ -30,6 +49,7 @@
     "placement": "preview_footer_band",
     "overlapsComposition": false,
     "includedInPreviewCapture": true,
+    "encodedPreviewOwner": "trusted_capture_compositor",
     "includedInContentQa": false,
     "includedInPaidExport": false
   },

@@ -1,6 +1,6 @@
 {
-  "schemaVersion": "2.6.0",
-  "policyVersion": "prompt-sift-v1",
+  "schemaVersion": "2.7.0",
+  "policyVersion": "prompt-sift-v2",
   "enabled": false,
   "status": "reference_only_production_wiring_pending",
   "operatorControl": "server_only",
@@ -12,8 +12,12 @@
     "browserReceivesCredentials": false,
     "sdkReturns": "unwrapped_verdict"
   },
-  "appliesTo": ["image_generation", "video_generation"],
-  "trigger": "immediately_before_actual_generation",
+  "appliesTo": ["creative_generate", "agent_patch", "prepare_targets"],
+  "trigger": "before_each_actual_generation_with_new_content",
+  "deterministicRenderingRequiresNewScan": false,
+  "promptAssembly": "canonical_json_instruction_facts_transcript_comments",
+  "oversizedInput": "reject_and_request_shorter_input",
+  "disabledResult": "provider_disabled_not_a_safety_approval",
   "scanAutosaveOrKeystrokes": false,
   "semantic": "enforce",
   "maxPromptCharacters": 10000,
@@ -36,7 +40,7 @@
     "storeRawPrompt": false,
     "storeRawProviderResponse": false,
     "storeRawErrorMessage": false,
-    "receiptBindsExactPromptAndOperation": true,
+    "receiptBindsExactPromptAndGeneration": true,
     "cacheEnabled": false
   },
   "pricing": {

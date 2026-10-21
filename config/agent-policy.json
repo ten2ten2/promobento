@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "2.6.0",
+  "schemaVersion": "2.7.0",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,
@@ -101,7 +101,8 @@
         "purchase_and_export"
       ],
       "requiresConfirmedAllTargetSnapshot": true,
-      "isInitialPurchase": true
+      "isInitialPurchase": true,
+      "checkoutEnabled": true
     },
     "project_pack": {
       "priceMinor": 3900,
@@ -115,7 +116,8 @@
         "purchase_and_export"
       ],
       "defaultPurchaseIntent": "top_up_only",
-      "isInitialPurchase": true
+      "isInitialPurchase": true,
+      "checkoutEnabled": true
     },
     "project_upgrade": {
       "priceMinor": 2000,
@@ -132,7 +134,8 @@
       "requiredInitialSku": "single_export",
       "maximumPendingOrEffectiveUpgradesPerInitialPurchase": 1,
       "allowNewUpgradeAfterSettledFullRefundChain": true,
-      "preserveHistoricalConsumption": true
+      "preserveHistoricalConsumption": true,
+      "checkoutEnabled": true
     },
     "extra_pack": {
       "priceMinor": 1200,
@@ -149,7 +152,8 @@
       "requiresEffectiveCreativePurchase": [
         "project_pack",
         "project_upgrade"
-      ]
+      ],
+      "checkoutEnabled": true
     },
     "purchaseSlots": {
       "maximumPendingOrEffectiveInitialPurchasesPerProject": 1,
@@ -179,7 +183,8 @@
   "retention": {
     "freeDays": 7,
     "paidDays": 90,
-    "graceDays": 7
+    "graceDays": 7,
+    "refundNoticeDays": 7
   },
   "states": [
     "queued",

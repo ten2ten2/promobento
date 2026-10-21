@@ -2,9 +2,9 @@
 title: "Terms of Service"
 description: "The terms for using {{brand.brandName}}, buying project services, and using your finished videos."
 status: draft
-version: "2026-10-20.draft.2"
+version: "2026-10-21.draft.1"
 effectiveAt: null
-updatedAt: "2026-10-20"
+updatedAt: "2026-10-21"
 anchors:
   ai-models: "3. The service and AI models"
   acceptable-use: "8. Acceptable use"
@@ -38,7 +38,7 @@ An eligible account may claim one trial for one project. Team members share that
 
 Full-length previews use a reduced resolution and a {{brand.brandName}} watermark. They are for production, authorized review, and evaluation, and include the work's actual audio or chosen silence. They do not include formal downloads or permission to publish the preview publicly or use it in advertising.
 
-Paid purchases are one-time purchases for a particular project. There is no automatic renewal or shared credit wallet across projects. A single export buys the confirmed video and its included platform versions, without additional AI creation, revision, or media-processing allowances. Project packs, upgrades, and add-ons provide the allowances shown before purchase. Upgrades add the stated difference without resetting prior usage; add-ons require an eligible project purchase.
+Paid purchases are one-time purchases for a particular project. There is no automatic renewal or shared credit wallet across projects. A single export buys the confirmed video and its included platform versions, without additional AI creation, revision, or media-processing allowances. You can buy a project pack before uploading or creating a video; it pays for the allowances shown before purchase. Upgrades add the stated difference without resetting prior usage, and add-ons require an eligible project purchase.
 
 See [Pricing]({{links.pricing}}) and your purchase confirmation for the applicable features, allowances, and restrictions.
 
@@ -46,7 +46,7 @@ See [Pricing]({{links.pricing}}) and your purchase confirmation for the applicab
 
 Waffo Pancake provides checkout. **{{payment.morEntityName}}** is the Merchant of Record and legal seller for your transaction, handling payment, applicable transaction taxes, and receipts under its [buyer terms]({{payment.buyerTermsUrl}}). {{brand.legalEntityName}} provides the product and remains responsible for its service obligations.
 
-Checkout shows the currency, amount, and applicable taxes before you authorize a one-time payment. Later price changes do not retrospectively reduce purchased allowances or rights already granted.
+Checkout shows the currency, amount, applicable taxes, and what you are buying before you authorize a one-time payment. Where required, it separately asks whether you want delivery or services to start during a withdrawal period and explains the effect on your rights. A confirmed-video purchase and a pack of ongoing creation services may have different requirements; see the [Refund Policy]({{links.refundPolicy}}). Later price changes do not retrospectively reduce purchased allowances or rights already granted.
 
 Once payment is verified, we provide the purchased project rights. A purchase for creation allowances alone does not automatically generate or export a video. A purchase with export delivers the work you confirmed; production status appears in the service.
 
@@ -60,11 +60,13 @@ You and your licensors retain rights in your uploads, prompts, text, factual inf
 
 You grant us permission to host, reproduce, process, adapt, and deliver your content only as needed to provide the requested service, maintain its security, and carry out your sharing instructions. Necessary service providers may process it for those purposes under appropriate arrangements. Retention and limited legal recordkeeping are explained in the [Privacy Policy]({{links.privacy}}).
 
-We do not use customer content or your project outputs to train AI models under these Terms or reuse private content for other customers. Case studies and promotional showcases require separate, optional, revocable permission.
+We do not use customer content or your project outputs to train AI models, authorize providers to train on them, or reuse private content for other customers. Case studies and promotional showcases require separate, optional, revocable permission.
 
 ## 7. Rights in paid videos
 
 After valid payment and formal delivery, we grant a worldwide, continuing, non-exclusive commercial license to the parts of your finished video that we can license. You may publish, advertise, edit, add captions, and provide the video to your agency or commissioning client for the relevant business. You do not need to credit {{brand.brandName}}. Paid files have no {{brand.brandName}} preview watermark; required AI disclosures and third-party attribution still apply.
+
+When required for the output and its intended use, we include machine-readable information about its AI origin. This is separate from a brand watermark. Editing, transcoding, or a publishing platform may change or remove that information; ordinary permitted editing is still allowed. Before publishing, check the AI labels or other disclosures required for your use and destination. We do not guarantee that embedded information survives every later edit or upload.
 
 To the extent we own transferable rights in new expression created specifically for your project, we transfer those rights to you upon valid payment and delivery, subject to any legally required transfer formalities. The delivery record identifies the scope. This does not transfer customer-owned content, our underlying technology or general components, or third-party rights. The license above permits background components to remain in the finished video; it does not permit selling our components as a standalone library.
 
@@ -89,6 +91,8 @@ Do not use the service for fraud, unlawful products, deceptive advertising, hara
 
 We check submitted instructions before generation and generated results before displaying them, and review relevant uploaded materials for prohibited content. We may block a request, withhold an output, or restrict affected content while it is reviewed. Safety checks can make mistakes and do not certify that a video is lawful, accurate, or suitable for every audience.
 
+[REQUIRED: Verify the working input and output checks, upload review, and reporting process before submitting for Waffo AIGC review or opening customer generation. A prompt-scanning adapter alone does not support this statement.]
+
 Report abuse, infringement, or an incorrect restriction to [{{brand.supportEmail}}](mailto:{{brand.supportEmail}}). Identify the relevant project or content and explain the issue; do not send unnecessary sensitive material. We review reports and may request supporting information. You may use the same channel to appeal a restriction and provide relevant evidence. We will explain the outcome unless legal or security obligations prevent disclosure.
 
 We may preserve necessary evidence and make legally required reports. Content review and access to personal data remain subject to the [Privacy Policy]({{links.privacy}}).
@@ -97,17 +101,15 @@ We may preserve necessary evidence and make legally required reports. Content re
 
 Trial projects have {{policy.trialActiveDays}} days of normal access from creation. Paid projects have {{policy.paidActiveDays}} days from the latest successful payment for that project that remains valid. An eligible upgrade or add-on extends the project's remaining allowances to that date.
 
-Normal access is followed by {{policy.readOnlyGraceDays}} days of read-only access. The grace period does not permit new cloud creation or processing. Available restoration options depend on the project's purchases and existing work; restoration is unavailable after its media has been deleted. The project shows its access and cleanup dates.
+Normal access is followed by {{policy.readOnlyGraceDays}} days of read-only access. New cloud creation or processing is paused until an eligible purchase restores normal access. The restoration options depend on your existing purchases and work: a single export needs a valid confirmed video; a project pack can restore creation access before you prepare more work. Restoration is unavailable after the project's media has been deleted. The project shows its access and cleanup dates.
 
 Download your paid files while they are available and keep your own copies. These storage periods do not limit your continuing right to use lawfully acquired videos.
 
-Deleting a project stops sharing and new download access and cancels its tasks. Media deletion, lawful remaining references, backups, and required records are addressed in the [Privacy Policy]({{links.privacy}}). Deleting a project or account is not a refund request and does not renew trial eligibility.
+Deleting a project stops sharing and new download access and cancels its tasks. To close your account, use an available account setting or contact [support]({{links.help}}); we verify your identity and address workspace ownership and pending orders first. Media deletion, lawful remaining references, backups, and required records are addressed in the [Privacy Policy]({{links.privacy}}). Deleting a project or account is not a refund request and does not renew trial eligibility.
 
 ## 11. Refunds and delivery problems
 
-Our voluntary full-refund policy applies within {{policy.voluntaryRefundDays}} days of payment when none of that order's creation, revision, media-processing, or finished-video allowances has been consumed. “Not exported” does not necessarily mean “unused.” Used purchases require individual review.
-
-Duplicate charges, delivery failures, technical defects, and statutory remedies are considered separately. The [Refund Policy]({{links.refundPolicy}}) explains requests, related purchases, and effects on access. Accepting these Terms or first using the service does not by itself waive mandatory cancellation or consumer rights.
+The [Refund Policy]({{links.refundPolicy}}) sets out unused-purchase refunds, separate remedies for billing and delivery problems, related purchases, and effects on access. Accepting these Terms or first using the service does not by itself waive mandatory cancellation or consumer rights.
 
 ## 12. Service limits and your legal rights
 

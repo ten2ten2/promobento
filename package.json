@@ -11,7 +11,7 @@
   "scripts": {
     "check:repo": "node scripts/check-repo.mjs",
     "check:contracts": "node scripts/check-production-contracts.mjs",
-    "test:contracts": "node --test scripts/*.test.mjs packages/contracts/test/*.test.mjs",
+    "test": "node scripts/run-tests.mjs",
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs"
   },

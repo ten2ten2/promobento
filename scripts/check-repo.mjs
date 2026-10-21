@@ -5,7 +5,7 @@ import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[],counts={documents:0,links:0,routes:0,apis:0,contrastPairs:0};
 const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(root,p),'utf8'),json=p=>parseCanonicalJson(text(p));
@@ -13,18 +13,19 @@ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),get=(o,k)=>k?.split('.')
 function flatten(o,p='',out={}){for(const [k,v]of Object.entries(o)){const key=p?p+'.'+k:k;if(typeof v==='string')out[key]=v;else if(v&&typeof v==='object'&&!Array.isArray(v))flatten(v,key,out);else failures.push('Invalid message '+key);}return out;}
 function lum(hex){if(!/^#[0-9a-f]{6}$/i.test(hex??''))throw Error('Invalid color '+hex);const x=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return x[0]*.2126+x[1]*.7152+x[2]*.0722;}
 function main(){
- const names=['01-product-prd','02-ux-and-ui','03-platform-presets','04-architecture-and-data','05-waffo-billing','06-testing-and-release','07-growth-and-experiments','08-codex-execution','09-sources-and-licensing','10-i18n-and-themes','12-routing-and-auth','13-agent-native-production','14-production-contracts'];
- const prds=['README.md',...names.map(n=>n+'.md')];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
+ const indexed=indexedPrdFiles(text('docs/prd/README.md'));
+ expect(indexed.length>0&&new Set(indexed).size===indexed.length,'PRD index must list each chapter once');
+ const prds=['README.md',...indexed];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
  for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/production.schema.json','contracts/agent-api.json','config/agent-policy.json','config/input-capabilities.json','config/preview.json','config/content-safety.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
  expect(same(readdirSync(join(root,'docs/prd')).filter(p=>p.endsWith('.md')).sort(),[...prds].sort()),'PRD directory differs from the current indexed specification');
  const files=repositoryFiles(root);
  const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
  failures.push(...documentation.errors,...conflictErrors(root,files));counts.markdown=documentation.documents;counts.links=documentation.links;
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
- const protocol='2.6.0',prd='v2.6';
+ const protocol='2.7.0',prd='v2.7';
  for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
   const intro=text(path).split('\n').slice(0,8).join('\n');
-  const prdVersions=[...intro.matchAll(/\bv\d+\.\d+(?!\d|\.\d)/g)].map(m=>m[0]),protocolVersions=[...intro.matchAll(/(?<![\d.])\d+\.\d+\.\d+(?!\d|\.\d)/g)].map(m=>m[0]);
+  const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);
   expect(prdVersions.length>0&&prdVersions.every(v=>v===prd)&&protocolVersions.length>0&&protocolVersions.every(v=>v===protocol),'PRD/protocol entry mismatch: '+path);
  }
  for(const path of ['contracts/agent-api.json','config/agent-policy.json','config/routes.json','config/preview.json','config/content-safety.json',...readdirSync(join(root,'contracts')).filter(p=>p.endsWith('.example.json')).map(p=>'contracts/'+p)])
@@ -90,8 +91,11 @@ function main(){
  const expected=['tiktok','instagram_feed','instagram_reels','x','youtube','youtube_shorts'];expect(same(platforms.presets.map(p=>p.id).sort(),[...expected].sort()),'Platform set');expect(same(Object.keys(platforms.aspectLayouts).sort(),['feed','landscape','portrait','square']),'Layout set');
  for(const p of platforms.presets){expect(platforms.encodingProfiles[p.encodingProfile],'Encoding profile');for(const key of [p.labelKey,p.userNoteKey])expect(typeof get(messages,key)==='string','Platform message '+key);for(const a of [p.defaultAspect,...p.optionalAspects])expect(platforms.aspectLayouts[a],'Invalid aspect');}
  const mise=text('.mise.toml');expect(pkg.private===true,'Private tooling package');expect(mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1]===pkg.engines.node,'Node pin');expect('pnpm@'+mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1]===pkg.packageManager,'pnpm pin');
- const tasks={'check:repo':'node scripts/check-repo.mjs','check:contracts':'node scripts/check-production-contracts.mjs','test:contracts':'node --test scripts/*.test.mjs packages/contracts/test/*.test.mjs','build:agent-reference':'node scripts/build-agent-reference.mjs','check:agent-reference':'node scripts/check-agent-reference.mjs'};
- for(const [key,cmd]of Object.entries(tasks)){expect(pkg.scripts[key]===cmd&&mise.includes('[tasks."'+key+'"]')&&mise.includes('run = "'+cmd+'"'),'Task mismatch '+key);}
+ for(const key of ['check:repo','check:contracts','test','build:agent-reference','check:agent-reference']){
+  const task=mise.split(/(?=^\[)/m).find(block=>block.startsWith('[tasks."'+key+'"]\n'));
+  const command=task?.match(/^run\s*=\s*"([^"\n]+)"/m)?.[1];
+  expect(typeof pkg.scripts[key]==='string'&&pkg.scripts[key].trim()&&command===pkg.scripts[key],'Task mismatch '+key);
+ }
  for(const file of ['check-production-contracts.mjs','check-agent-reference.mjs']){const result=spawnSync(process.execPath,[join(root,'scripts',file)],{stdio:'inherit'});expect(result.status===0,'Failed '+file);}
 }
 try{main();}catch(e){failures.push(e.message);}

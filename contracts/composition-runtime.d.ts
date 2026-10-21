@@ -1,5 +1,6 @@
 /** Contract for a future runtime. The trusted host owns barriers, media, overlays and audio. */
-import type { EditableProperty, FrameCount, Sha256, TargetId } from './render-protocol.js';
+import type { EditableProperty, EditableValue, FrameCount, Sha256, TargetId } from './render-protocol.js';
+export type { EditableValue } from './render-protocol.js';
 
 /** Seconds; non-negative safe integer numerator, positive safe integer denominator. */
 export interface RationalTime { readonly numerator: number; readonly denominator: number }
@@ -17,10 +18,9 @@ export interface RegionBounds {
   /** Platform logical pixels, independent of preview scale and the user's screen DPR. */
   readonly x: number; readonly y: number; readonly width: number; readonly height: number;
 }
-export type EditableValue = string | number | boolean | ReadonlyArray<Record<string, string | number | boolean | null>>;
 /** Exact source-bundle path: values.json. Every declared editable has exactly one value. */
 export interface SourceValues {
-  readonly schemaVersion: '2.6.0'; readonly kind: 'source_values';
+  readonly schemaVersion: '2.7.0'; readonly kind: 'source_values';
   readonly values: Readonly<Record<string, EditableValue>>;
 }
 export interface RuntimeAsset {
@@ -62,7 +62,7 @@ export interface RuntimeContext {
   readonly fps: 30; readonly totalFrames: FrameCount; readonly seed: string;
   readonly surface: RuntimeSurface;
   readonly assets: Readonly<Record<string, RuntimeAsset>>;
-  /** Loaded from source values.json, checked against static declarations before prepare. */
+  /** Frozen values.json; local previews may merge a validated overlay before a new prepare. */
   readonly values: Readonly<Record<string, EditableValue>>;
   readonly videoFrames: {
     /**
@@ -88,7 +88,7 @@ export interface PreparedComposition {
   dispose(): void | Promise<void>;
 }
 export interface CompositionDefinition {
-  readonly apiVersion: '2.6.0';
+  readonly apiVersion: '2.7.0';
   /** Validated once by the trusted build; these are the sole source of UI/inspection metadata. */
   readonly editables: ReadonlyArray<EditableProperty>;
   readonly markers: ReadonlyArray<TimelineMarker>;

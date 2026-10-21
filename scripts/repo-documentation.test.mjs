@@ -1,15 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,truncateSync,symlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
+import {discoverTests} from './run-tests.mjs';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
 
 function fixture(t,entries) {
   const root=mkdtempSync(join(tmpdir(),'promobento-repo-check-'));
   t.after(()=>rmSync(root,{recursive:true,force:true}));
+  const initialized=spawnSync('git',['init','-q'],{cwd:root,encoding:'utf8'});
+  assert.equal(initialized.status,0,initialized.stderr);
+  writeFileSync(join(root,'.gitignore'),'node_modules/\nrenders/\nartifacts/\n');
   for (const [path,source] of Object.entries(entries)) {
     mkdirSync(dirname(join(root,path)),{recursive:true});
     writeFileSync(join(root,path),source);
@@ -100,6 +104,68 @@ test('conflict scanning covers source/config text and excludes Git metadata and 
   assert.equal(errors.length,2);
   assert.ok(errors.some(error=>error.includes('packages/runtime/code.mjs')));
   assert.ok(errors.some(error=>error.includes('config/settings.json')));
+});
+
+test('Git file discovery includes tracked and new files, skips ignored output, deleted files and symlinks',t=>{
+  const root=fixture(t,{
+    'tracked.md':'Tracked',
+    'removed.md':'Will be deleted',
+    'renders/kept.md':'Explicitly tracked despite ignore',
+    'renders/report.md':'[generated output](missing.mp4)',
+    'artifacts/output.test.mjs':'Not a source test',
+    'new file\nwith newline.md':'New file'
+  });
+  const added=spawnSync('git',['add','-f','tracked.md','removed.md','renders/kept.md'],{cwd:root,encoding:'utf8'});
+  assert.equal(added.status,0,added.stderr);
+  rmSync(join(root,'removed.md'));
+  symlinkSync(join(root,'tracked.md'),join(root,'linked.md'));
+  const paths=repositoryFiles(root);
+  for (const path of ['tracked.md','renders/kept.md','new file\nwith newline.md']) assert.ok(paths.includes(join(root,path)),path);
+  for (const path of ['removed.md','renders/report.md','artifacts/output.test.mjs','linked.md']) assert.ok(!paths.includes(join(root,path)),path);
+  assert.deepEqual(check(root),[]);
+});
+
+test('conflict checks accept Markdown headings while finding orphaned and complete conflict markers',t=>{
+  const start='<'.repeat(7)+' HEAD',end='>'.repeat(7)+' branch',base='|'.repeat(7)+' ancestor';
+  const root=fixture(t,{
+    'README.md':'Heading\n=======\n',
+    'orphan.mjs':end+'\n',
+    'separator.mjs':'='.repeat(7)+'\n',
+    'orphan.md':'\n'+'='.repeat(7)+'\n',
+    'conflict.mjs':[start,'old',base,'base','='.repeat(7),'new',end].join('\n'),
+    'preview.mov':'',
+    'large.txt':''
+  });
+  // Sparse files exercise the size check without allocating a multi-gigabyte buffer.
+  truncateSync(join(root,'preview.mov'),3*1024*1024*1024);
+  truncateSync(join(root,'large.txt'),16*1024*1024);
+  const errors=conflictErrors(root,repositoryFiles(root));
+  assert.equal(errors.length,7);
+  assert.ok(errors.some(error=>error.includes('orphan.mjs')));
+  assert.ok(errors.some(error=>error.includes('separator.mjs')));
+  assert.ok(errors.some(error=>error.includes('orphan.md')));
+  assert.ok(errors.every(error=>!error.includes('README.md')));
+});
+
+test('the PRD index owns its chapter list and version labels exclude toolchain numbers',()=>{
+  assert.deepEqual(indexedPrdFiles('| [Product](01-product-prd.md) | Scope |\n| [Renderer](15-renderer.md) | Media |\n[Other](../README.md)'),['01-product-prd.md','15-renderer.md']);
+  assert.deepEqual(specificationVersions('Requires Node 26.12.0 and pnpm 12.14.0.\n现行 PRD **v2.7**、结构协议 `2.7.0`。'),{prd:['v2.7'],protocol:['2.7.0']});
+  assert.deepEqual(specificationVersions('产品规格 v2.7；协议为 2.7.0；PRD v9.9'),{prd:['v2.7','v9.9'],protocol:['2.7.0']});
+});
+
+test('unit test discovery covers new packages and apps without collecting generated or browser suites',t=>{
+  const root=fixture(t,{
+    'scripts/check.test.mjs':'',
+    'packages/runtime/test/nested/draw.test.mjs':'',
+    'apps/web/test/editor.test.mjs':'',
+    'tests/integration/ledger.test.mjs':'',
+    'apps/web/e2e/editor.spec.ts':'',
+    'renders/output.test.mjs':'',
+    'node_modules/dependency/test/unrelated.test.mjs':''
+  });
+  assert.deepEqual(discoverTests(root).map(path=>path.slice(root.length+1)),[
+    'apps/web/test/editor.test.mjs','packages/runtime/test/nested/draw.test.mjs','scripts/check.test.mjs','tests/integration/ledger.test.mjs'
+  ]);
 });
 
 test('Git baseline uses explicit CI commits, HEAD for dirty work and HEAD^ for clean work',t=>{

@@ -1,30 +1,60 @@
 // Static repository checks. This does not render policies or establish publication readiness.
-import {readFileSync,readdirSync,existsSync,statSync} from 'node:fs';
+import {readFileSync,existsSync,statSync,lstatSync} from 'node:fs';
 import {isUtf8} from 'node:buffer';
 import {dirname,extname,isAbsolute,join,relative,resolve,sep} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {canonical,parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
 
 export function repositoryFiles(root) {
-  return readdirSync(root,{withFileTypes:true}).flatMap(entry => {
-    if (entry.isSymbolicLink() || ['.git','node_modules'].includes(entry.name)) return [];
-    const path=join(root,entry.name);
-    return entry.isDirectory() ? repositoryFiles(path) : [path];
+  const result=spawnSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{
+    cwd:root,encoding:'utf8',maxBuffer:16*1024*1024
   });
+  if (result.status!==0) throw Error('Cannot list repository files; run checks in a Git checkout: '+(result.error?.message??result.stderr.trim()));
+  return [...new Set(result.stdout.split('\0').filter(Boolean))].sort().map(path=>join(root,path))
+    .filter(path=>lstatSync(path,{throwIfNoEntry:false})?.isFile());
+}
+
+const binaryExtensions=new Set(['.png','.jpg','.jpeg','.gif','.webp','.avif','.ico','.pdf','.mp4','.mov','.webm','.mkv','.wav','.mp3','.aac','.ogg','.flac','.ttf','.otf','.woff','.woff2','.zip','.gz','.br','.tar','.7z','.wasm','.bin']);
+const maxTextBytes=2*1024*1024;
+
+function repositoryText(path) {
+  if (binaryExtensions.has(extname(path).toLowerCase()) || statSync(path).size>maxTextBytes) return null;
+  const bytes=readFileSync(path);
+  return bytes.includes(0)||!isUtf8(bytes)?null:bytes.toString('utf8');
 }
 
 export function conflictErrors(root,files) {
   const errors=[];
   for (const path of files) {
-    const bytes=readFileSync(path);
-    if (bytes.includes(0) || !isUtf8(bytes)) continue;
-    const lines=bytes.toString('utf8').split('\n');
+    const source=repositoryText(path);
+    if (source===null) continue;
+    const lines=source.split('\n');
+    let inConflict=false;
     for (let i=0;i<lines.length;i++) {
-      if (/^(?:<{7,}(?:\s.*)?|={7,}\s*|>{7,}(?:\s.*)?|\|{7,}(?:\s.*)?)$/.test(lines[i]))
+      const start=/^<{7,}(?:\s.*)?$/.test(lines[i]);
+      const end=/^>{7,}(?:\s.*)?$/.test(lines[i]);
+      const base=/^\|{7,}(?:\s.*)?$/.test(lines[i]);
+      const separator=/^={7,}\s*$/.test(lines[i]);
+      const setext=extname(path).toLowerCase()==='.md'&&i>0&&lines[i-1].trim();
+      if (start||end||base||(separator&&(inConflict||!setext)))
         errors.push('Unresolved conflict marker: '+relative(root,path)+':'+(i+1));
+      if (start) inConflict=true;
+      if (end) inConflict=false;
     }
   }
   return errors;
+}
+
+export function indexedPrdFiles(source) {
+  return [...source.matchAll(/^\|\s*\[[^\]\n]+\]\((?:\.\/)?(\d{2}-[a-z0-9-]+\.md)\)\s*\|/gm)].map(match=>match[1]);
+}
+
+export function specificationVersions(source) {
+  const plain=source.replace(/\*\*|\x60/g,'');
+  return {
+    prd:[...plain.matchAll(/(?:\bPRD|产品规格)\s*(?:为\s*)?(v\d+\.\d+)(?![\d.])/g)].map(match=>match[1]),
+    protocol:[...plain.matchAll(/(?:结构)?协议\s*(?:为\s*)?(\d+\.\d+\.\d+)(?![\d.])/g)].map(match=>match[1])
+  };
 }
 
 function withoutFences(source) {
@@ -203,7 +233,9 @@ export function checkDocumentation(root,files,{publicContext={},routes=[]}={}) {
   const errors=[],documents=new Map(),routeDocuments=new Map(),fields=contextFields(publicContext);
   const pageRoutes=new Set(routes.filter(r=>r.method==='GET'&&r.kind==='page').map(r=>r.path));
   for (const file of files.filter(path=>extname(path).toLowerCase()==='.md')) {
-    const parsed=document(readFileSync(file,'utf8')),name=relative(root,file).split(sep).join('/');
+    const source=repositoryText(file),name=relative(root,file).split(sep).join('/');
+    if (source===null) { errors.push('Markdown must be UTF-8 text under 2 MiB: '+name); continue; }
+    const parsed=document(source);
     documents.set(file,parsed);
     errors.push(...parsed.errors.map(error=>name+': '+error));
     if (name.startsWith('content/pages/')) {

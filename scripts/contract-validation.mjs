@@ -1,11 +1,13 @@
 // Specification/fixture checker, not a production authorization or browser sandbox.
 import { readFileSync } from 'node:fs';
 import { studioErrors } from './studio-contracts.mjs';
+import { trustedPreviewErrors } from './preview-policy.mjs';
 import {
   canonical, digest, parseCanonicalJson, createSchemaValidator,
   targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
   variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
-  outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity
+  outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity,
+  sourceBuildErrors, revisionEnvironmentErrors
 } from '../packages/contracts/index.mjs';
 export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity};
 const ROOT = new URL('../', import.meta.url);
@@ -326,11 +328,14 @@ export function semanticErrors(v, context = {}) {
     }
   }
   if (v.kind === 'checkout_request') {
-    const catalog = load('config/agent-policy.json').quota[v.sku];
+    const catalog = (context.quotaCatalog ?? load('config/agent-policy.json').quota)[v.sku];
+    fail(catalog?.checkoutEnabled === true, 'SKU_CHECKOUT_DISABLED');
     fail(catalog?.allowedPurchaseIntents?.includes(v.purchaseIntent), 'PURCHASE_INTENT_NOT_ALLOWED');
     fail(v.purchaseIntent === 'purchase_and_export' ? !!v.snapshotId : !Object.hasOwn(v, 'snapshotId'), 'SNAPSHOT_INTENT_MISMATCH');
     fail(v.sku === 'project_upgrade' ? !!v.upgradeFromOrderId : !Object.hasOwn(v, 'upgradeFromOrderId'), 'UPGRADE_SOURCE_MISMATCH');
   }
+  if (v.kind === 'preview_request' && context.production) errors.push(...trustedPreviewErrors(v,context));
+  if (v.kind === 'composition' && context.baseComposition) errors.push(...revisionEnvironmentErrors(context.baseComposition,v));
   if (v.kind === 'create_project_request' && v.requestTrial && context.role !== undefined) fail(context.role === 'owner', 'TRIAL_OWNER_REQUIRED');
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
@@ -433,6 +438,22 @@ export function semanticErrors(v, context = {}) {
       if (commercial && frozen) fail(canonical([...references].sort()) === canonical(Object.keys(licenseVersions).sort()), 'FROZEN_LICENSE_SET_MISMATCH');
       const needsReports = context.requireQuality === true || commercial || v.state === 'ready';
       if (needsReports) {
+        errors.push(...sourceBuildErrors(source,context.sourceBuilds));
+        for (const variant of source.variants) {
+          const build = own(context.sourceBuilds,variant.targetId);
+          if (!build) continue;
+          fail(build.exampleOnly !== true, 'FIXTURE_SOURCE_BUILD_IN_PRODUCTION');
+          fail(Array.isArray(build.editables) && !!build.values, 'SOURCE_VALUES_OBSERVATION_REQUIRED');
+          if (!Array.isArray(build.editables) || !build.values) continue;
+          fail(new Set(build.editables.map(item => item.id)).size === build.editables.length, 'DUPLICATE_EDITABLES');
+          for (const definition of build.editables) errors.push(...validateSchema(definition,schema.$defs.editableDeclaration));
+          const sourceValues = {schemaVersion:source.schemaVersion,kind:'source_values',values:build.values};
+          errors.push(...validateSchema(sourceValues,schema.$defs.sourceValues));
+          const definitions = Object.fromEntries(build.editables.map(item => [item.id,item]));
+          const facts = Object.fromEntries((context.factManifest?.facts ?? []).map(fact => [fact.factId,fact]));
+          const resources = Object.fromEntries(Object.values(context.resourceManifests ?? {}).flatMap(manifest => manifest.resources.map(resource => [resource.path,resource])));
+          errors.push(...studioErrors(sourceValues,{editables:definitions,facts,resources,requireFactBindings:true}));
+        }
         const qaProfileVersion = frozen?.qaProfileVersion ?? context.qaProfileVersion;
         fail(!!qaProfileVersion && !!own(context.qaProfiles, qaProfileVersion), 'QA_PROFILE_UNAVAILABLE');
         const variants = commercial || !v.targetId ? source.variants : source.variants.filter(x => x.targetId === v.targetId);
@@ -666,7 +687,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.6.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    const result = {schemaVersion:'2.7.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }
@@ -742,10 +763,11 @@ export class CheckoutReference {
   }
   open(request, {ownerAuthorized, recoverable = true} = {}) {
     if (!ownerAuthorized) throw Error('FORBIDDEN');
-    const errors = semanticErrors(request);
+    const previous = this.requests.get(request.requestId);
+    const errors = semanticErrors(request,{quotaCatalog:this.catalog}).filter(error => !previous || error !== 'SKU_CHECKOUT_DISABLED');
     if (request.kind !== 'checkout_request' || errors.length) throw Error(errors.join(',') || 'INVALID_CHECKOUT');
     if (request.projectId !== this.projectId || !recoverable) throw Error('PROJECT_UNAVAILABLE');
-    const signature = digest(request), previous = this.requests.get(request.requestId);
+    const signature = digest(request);
     if (previous) {
       if (previous.signature !== signature) throw Error('IDEMPOTENCY_CONFLICT');
       return structuredClone(this.orders.get(previous.orderId));
@@ -829,7 +851,7 @@ export class CheckoutReference {
   }
 }
 export function matchesFrameReady(command, response, manifestHash, disposed = false) {
-  return !disposed && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
+  return !disposed && command.previewEpoch === undefined && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
 }
 
 /** Internal sample replies cannot satisfy Studio's final-frame acknowledgement. */
@@ -843,7 +865,9 @@ export function matchesSampleReady(command, response, manifestHash, context = {}
 }
 
 /** Ignore stale failures just as strictly as stale frame-ready events. */
-export function matchesProtocolFailure(command, response, disposed = false) {
-  if (disposed || validateSchema(command,schema.$defs.rendererCommand).length || validateSchema(response,schema.$defs.renderError).length) return false;
-  return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId'].every(k => command[k] === response[k]);
+export function matchesProtocolFailure(command, response, disposed = false, previewEpoch) {
+  if (disposed || (validateSchema(command,schema.$defs.rendererCommand).length && validateSchema(command,schema.$defs.renderCommand).length)
+    || validateSchema(response,schema.$defs.renderError).length) return false;
+  if (command.previewEpoch !== undefined && response.previewEpoch !== previewEpoch) return false;
+  return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','previewEpoch'].every(k => command[k] === response[k]);
 }

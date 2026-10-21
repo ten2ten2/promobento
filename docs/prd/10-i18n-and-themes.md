@@ -17,7 +17,7 @@
 
 ## 2 消息与用户原文
 
-每个请求使用独立的 i18next/react-i18next 实例，SSR 与客户端接管页面时使用相同消息、locale 和初始时区，避免并发请求串用语言。导航、按钮、标签、空态、错误、aria、帮助短消息和邮件进入 `locales/*.json`；完整政策、About 和帮助文章放在 `content/pages/<locale>/*.md`，维护规则见[页面内容](../../content/pages/README.md)。客户正文不进入翻译目录。CI 检查变量插值、复数、Intl、缺失消息和参数。界面出错可显示安全的英语提示及 requestId，不泄露内部 key 或堆栈；法律正文不逐段混用语言来回退。
+每个请求使用独立的 i18next/react-i18next 实例，SSR 与客户端使用相同消息、语言和初始时区，避免并发请求串用语言。导航、按钮、错误、无障碍标签和邮件进入 `locales/*.json`；完整文章放在 `content/pages/<locale>/*.md`，维护规则见[页面内容](../../content/pages/README.md)。客户正文不进入翻译目录。生产 UI 实现时须在 CI 中加入插值、复数、Intl、缺失消息和参数检查。出错可显示安全的英语提示及 requestId，不泄露内部 key 或堆栈；法律正文不能夹用其他语言补缺段。
 
 资源和用户文字安全输出为纯文本，链接使用受控组件，不把输入 HTML 当脚本。金额明确 USD；首次未知时区显示标注 UTC，hydration 后可转换 UI 日期，但已确认视频报价、币种、日期不换算或重写。
 
@@ -37,7 +37,7 @@
 
 ## 4 主题交互和持久化
 
-顶栏只有一个 44×44 太阳/月亮按钮，表示下一动作：Light 显示月亮/Switch to dark mode，Dark 显示太阳/Switch to light mode。支持键盘、focus、tooltip；图标读屏隐藏，仅一个可访问名称，不三态循环或加头部三选菜单。
+顶栏用一个太阳/月亮按钮表示下一动作：Light 显示月亮/Switch to dark mode，Dark 显示太阳/Switch to light mode。触控尺寸和键盘操作按 02；图标对读屏隐藏，只提供一个可访问名称，不做三态循环。
 
 无有效 Cookie 按 System，设备无偏好默认 Light；设备变化不主动写偏好。点击以当时有效主题取反并保存 light/dark，随后系统变化不能覆盖。Settings Appearance 和公开/审阅页脚提供 Use device setting 恢复 System，访客无需登录或购买。
 

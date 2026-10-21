@@ -2,9 +2,9 @@
 title: Privacy Policy
 description: "How {{brand.brandName}} handles account details, project content, AI processing, payments, and your privacy choices."
 status: draft
-version: "2026-10-20.draft.2"
+version: "2026-10-21.draft.1"
 effectiveAt: null
-updatedAt: "2026-10-20"
+updatedAt: "2026-10-21"
 anchors:
   ai-processing: "6. AI processing"
 ---
@@ -61,7 +61,7 @@ We use browser cookies for the following purposes:
 
 You can remove cookies or limit them through your browser. Blocking sign-in cookies prevents authenticated features from working. A browser cookie's expiry is separate from the retention of account or security records.
 
-[REQUIRED: Verify this table against the production cookie and browser-storage inventory. Name any additional analytics, advertising, or preference tools, their providers and lifetimes, and the actual consent or opt-out controls. If none are used, state that clearly. Do not name a cookie preference center unless it exists.]
+[REQUIRED: Check this table against production storage. For the analytics identifier and attribution described above, state whether each is kept in a cookie, other browser storage, or only on the server, together with its purpose, provider, linkage, lifetime, and applicable controls. Do not invent an analytics cookie or preference center. Add any other actual advertising or preference storage.]
 
 ## 5. Recipients and sharing
 
@@ -92,9 +92,9 @@ We do not use your private uploads, prompts, voices, composition source, or fini
 
 No training does not mean no temporary processing or provider logs. Providers may retain limited data for the disclosed service, security, or legal purposes under their actual terms and settings.
 
-[REQUIRED: For every AI, transcription, and moderation service, specify the actual model or service, purpose, information sent, processing location, provider retention period, deletion capability, and applicable no-training terms or account settings. Keep this factual disclosure in this page; do not replace it with a general claim of zero retention.]
+[REQUIRED: For every AI, transcription, and moderation service, specify the actual model or service, purpose, information sent, processing location, retention period, and deletion capability. Verify that its contract and account settings support the no-training commitment before enabling it; this commitment is not a template option. Temporary processing and other permitted records must still be disclosed.]
 
-[REQUIRED: Waffo Prompt Sift is an optional provider and is disabled by default. If enabled, disclose its review of the text needed for an actual image or video generation request, separately from payment processing and output moderation. Confirm the contracting entity, locations, settings, and notices before listing it as active. Its public endpoint documentation says it does not retain the original prompt after returning a response; do not extend that statement to all provider records or our own decision logs. Our intended audit records contain request identifiers, decisions, reasons, and necessary task references, without the raw prompt; confirm their actual retention and access controls before publication.]
+[REQUIRED: List optional Waffo Prompt Sift only if enabled. Describe the instructions, facts, relevant transcript and comments sent for an actual creation, revision, or layout-generation call, separately from payment and output moderation. Verify its entity, processing locations and terms. Its statement about not retaining the original prompt after a response does not cover all provider records or our decision logs. Confirm actual audit retention and access controls; ordinary audit records must not contain the raw prompt.]
 
 ## 7. Optional showcases and communications
 
@@ -145,6 +145,8 @@ No system can eliminate all risk. Protect your sign-in email and Google account 
 Depending on applicable law and our role, you may request access to personal information, correction, deletion, a portable copy, restriction of processing, or an objection to processing. You may withdraw consent for future consent-based processing without affecting the lawfulness of earlier processing. You can also contact the relevant data protection authority.
 
 Send requests to [{{brand.supportEmail}}](mailto:{{brand.supportEmail}}). We verify identity and authority using proportionate checks, explain applicable exceptions, and respond within the legally required period. For requests governed by the GDPR, this is generally one month; a permitted extension of up to two further months requires notice within the initial month and an explanation. Exercising a privacy right does not itself reduce your service rights.
+
+You may also request account closure through this channel or an available account setting. We verify the account, resolve workspace ownership and pending orders, end active sign-in sessions, and explain any records we must retain. Account closure and project deletion are separate from a refund request.
 
 You can request human review of a safety decision affecting your account or content through the same channel. A privacy data-access right is separate from the product's export features; the absence of a composition-source export feature does not limit rights provided by law.
 

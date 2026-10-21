@@ -1,6 +1,6 @@
 # PromoBento 现行产品规格
 
-产品规格 **v2.6**；结构协议 **2.6.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
+产品规格 **v2.7**；结构协议 **2.7.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
 
 ## 文档导航
 
@@ -33,7 +33,7 @@
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
-| [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、完整 Ajv 校验与身份计算的唯一实现 |
+| [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、Ajv 校验、源码依赖摘要和版本环境继承 |
 | [JSON Schema](../../contracts/production.schema.json)、[创作 API](../../contracts/composition-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 结构、确定性创作和可信 Renderer 桥接；类型不等于运行时已经实现 |
 | [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
 | [Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json) | 可关联的非生产示例 |

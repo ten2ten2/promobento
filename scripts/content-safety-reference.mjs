@@ -1,14 +1,29 @@
 // Reference adapter only. It injects an authenticated scanner; no SDK, endpoint or credential is installed.
 import { readFileSync } from 'node:fs';
-import { digest, parseCanonicalJson } from '../packages/contracts/index.mjs';
+import { canonical, digest, parseCanonicalJson } from '../packages/contracts/index.mjs';
 export const contentSafetyConfig = parseCanonicalJson(readFileSync(new URL('../config/content-safety.json',import.meta.url)));
 const token = value => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/u.test(value);
 const reasons = new Set(['allowed','review_required','restricted_content','service_degraded']);
 const statuses = new Set(['disabled','scored','shadow_scored','provider_error']);
-const withheld = (status,reasonCode,fields = {}) => ({status,canGenerate:false,reasonCode,receipt:null,nextRetry:null,...fields});
+const withheld = (status,reasonCode,fields = {}) => ({status,providerAllowsGeneration:false,reasonCode,receipt:null,nextRetry:null,...fields});
+
+/** Used when the trusted orchestrator selects this provider for a generation.
+ * Pass the exact customer text used by the model, including relevant extracted text in facts.
+ * Keep each section and its order; do not trim, summarize, normalize or silently drop overflow.
+ */
+export function generationScanInput({operationId,operationKind,generationId,instruction,facts = [],transcript = [],comments = [],locale},config = contentSafetyConfig) {
+  if (typeof instruction !== 'string' || !instruction.trim()
+    || ![facts,transcript,comments].every(items => Array.isArray(items) && items.every(item => typeof item === 'string')))
+    throw new Error('INVALID_SCAN_TEXT_PARTS');
+  const input={operationId,operationKind,generationId,prompt:canonical({instruction,facts,transcript,comments})};
+  if (locale !== undefined) input.locale=locale;
+  const problem=inputError(input,config);
+  if (problem) throw new Error(problem);
+  return input;
+}
 
 function inputError(input,config) {
-  if (!input || !config.appliesTo.includes(input.operationKind) || !token(input.operationId)) return 'INVALID_GENERATION_OPERATION';
+  if (!input || !config.appliesTo.includes(input.operationKind) || !token(input.operationId) || !token(input.generationId)) return 'INVALID_GENERATION_OPERATION';
   if (typeof input.prompt !== 'string' || input.prompt.trim().length === 0) return 'EMPTY_PROMPT';
   // Local code-point counting only: Waffo documents "characters", not an encoding-specific unit.
   // A provider 400 still needs corrected input; the adapter must never truncate and retry silently.
@@ -18,9 +33,9 @@ function inputError(input,config) {
   return null;
 }
 
-/** Exact bytes/text and operation bind the verdict; never normalize, truncate or reuse another input. */
+/** Exact text, operation and generation bind the verdict; never normalize or reuse another call. */
 export function promptIdentity(input,config = contentSafetyConfig) {
-  return digest({policyVersion:config.policyVersion,operationKind:input.operationKind,operationId:input.operationId,
+  return digest({policyVersion:config.policyVersion,operationKind:input.operationKind,operationId:input.operationId,generationId:input.generationId,
     prompt:input.prompt,locale:input.locale ?? null,semantic:'enforce'});
 }
 
@@ -59,9 +74,11 @@ function validVerdict(verdict) {
     && (verdict.action !== 'allow' || (verdict.reasonCode === 'allowed' && verdict.matchedCategories.length === 0));
 }
 
-/** Config and scanner are operator dependencies, never fields from the user's request. */
+/** This is one provider's verdict, not overall authorization to generate or display content.
+ * Config and scanner are operator dependencies, never fields from the user's request.
+ */
 export async function scanGenerationPrompt(input,{config = contentSafetyConfig,scanner,retryCount = 0,now = Date.now} = {}) {
-  if (config.enabled === false) return {status:'disabled',scanAttempted:false,receipt:null,nextRetry:null};
+  if (config.enabled === false) return withheld('provider_disabled','PROVIDER_DISABLED',{scanAttempted:false});
   if (config.enabled !== true || config.semantic !== 'enforce' || config.operatorControl !== 'server_only'
     || config.allowRequiresSemanticStatus !== 'scored'
     || !Number.isSafeInteger(config.maxPromptCharacters) || config.maxPromptCharacters < 1 || config.maxPromptCharacters > 10000
@@ -89,7 +106,7 @@ export async function scanGenerationPrompt(input,{config = contentSafetyConfig,s
       decision:verdict.action,reasonCode:verdict.reasonCode,semanticStatus:statuses.has(verdict.semanticStatus) ? verdict.semanticStatus : 'unknown'};
     if (verdict.action === 'allow' && verdict.semanticStatus !== config.allowRequiresSemanticStatus)
       return withheld('unavailable','SEMANTIC_ENFORCEMENT_NOT_CONFIRMED',{scanAttempted:true,inputFingerprint});
-    if (verdict.action === 'allow') return {status:'allowed',scanAttempted:true,canGenerate:true,receipt,nextRetry:null};
+    if (verdict.action === 'allow') return {status:'allowed',scanAttempted:true,providerAllowsGeneration:true,receipt,nextRetry:null};
     if (verdict.action === 'block') return withheld('blocked',verdict.reasonCode,{scanAttempted:true,receipt});
     if (verdict.reasonCode === 'service_degraded') {
       const nextRetry=nextScanRetry({status:503,retryCount,nowMs:now()},config);

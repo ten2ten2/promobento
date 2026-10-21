@@ -36,7 +36,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 事实、转写、展示授权、持久 export/snapshot 的 URI 与机器契约统一见 [04 §5](04-architecture-and-data.md#5-第一方-api)。读取 exportManifest 不依赖原浏览器、临时 job 或下载 URL，仍查当前成员、实际归属及保存期限；GET 不准备目标、创建订单或签发下载。路径/body 的 project、asset、release、snapshot ID 不一致即拒绝，上传完成从 uploadId 的服务端记录推导归属，不接受客户端换项目。
 
-事实、转写和展示同意按[04](04-architecture-and-data.md)核验当前用户、资源及版本，服务端记录操作者与时间；冲突返回 409。展示同意只允许 Owner 授予或撤回，校验 Origin/CSRF 和授权版本，拒绝或撤回不降低制作、付款和下载权限。`support.tickets.create` 的 session 只是入口：普通支持核验所附资源可见性，refund 分支必须再验原订单工作区的当前 Owner 才建立退款申请；支持人员不能凭请求字段改变订单归属或退款金额。具体交易与撤回处理按 04/05。
+事实、转写和展示同意按[04](04-architecture-and-data.md)核验当前用户、资源及版本，冲突返回 409。展示同意只允许 Owner 授予或撤回，拒绝或撤回不影响制作、付款和下载。`support.tickets.create` 的会话只证明谁在提交：普通支持还须核验所附资源可见性，退款须核验原订单工作区的当前 Owner，关闭账号申请须核验本人并按 04 处理所有权和未结事项。支持人员不能凭请求字段改变订单归属或金额。交易与撤回规则见 04/05。
 
 sitemap 只含已经发布的 index 页与样例 slug，须同时检查路由索引策略和内容发布状态，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
 

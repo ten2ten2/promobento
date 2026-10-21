@@ -2,9 +2,9 @@
 title: "Refund Policy"
 description: "Refund eligibility, service problems, related purchases, and what happens to your project and delivered videos."
 status: draft
-version: "2026-10-20.draft.1"
+version: "2026-10-21.draft.1"
 effectiveAt: null
-updatedAt: "2026-10-20"
+updatedAt: "2026-10-21"
 ---
 
 This policy covers purchases for {{brand.brandName}}, operated by {{brand.legalEntityName}}. Read it together with our [Terms of Service]({{links.terms}}). Waffo Pancake acts as Merchant of Record through {{payment.morEntityName}}, the legal seller identified at checkout and on your receipt. We provide the product and coordinate refund requests with Waffo.
@@ -25,6 +25,8 @@ We check the activity charged to the order, including activity by authorized wor
 
 A temporary reservation, a placeholder, or a failed or cancelled task that delivers no usable result does not count as use. Technical defects are handled separately under Section 3. Having no exported video does not necessarily mean your order is unused: creation, revisions, or media processing may already have used its allowances.
 
+A single-export purchase starts delivery after payment. Once the confirmed initial files are available for download, that purchase has been used and no longer qualifies for the voluntary unused-purchase refund. Delivery problems, technical defects, and legal rights remain covered by Section 3.
+
 ## 3. Billing errors, delivery problems, and legal rights
 
 Contact us about duplicate charges, an ongoing failure to deliver a paid service, or a technical defect. These requests are assessed separately from the voluntary unused-purchase policy, including after its {{policy.voluntaryRefundDays}}-day window. Our costs from failed attempts do not remove your delivery rights.
@@ -32,6 +34,10 @@ Contact us about duplicate charges, an ongoing failure to deliver a paid service
 For a technical defect in delivered work, we will first offer a repair without an additional charge where appropriate and consistent with your legal rights. If we cannot fix it, we will assess a refund for the affected purchase or delivery.
 
 Nothing here limits mandatory cancellation, withdrawal, refund, or other consumer rights. Using the service does not automatically waive those rights.
+
+Where the law requires it, checkout asks separately for your request or consent to start during a withdrawal period, explains any effect on that right, and provides the required purchase confirmation. The rules can differ between delivery of a confirmed video and a pack of creation services. Agreeing to the Terms, paying, or using one allowance does not by itself waive every right for an entire pack.
+
+[REQUIRED: Confirm each purchase type, applicable consumer markets, immediate-performance wording, required acknowledgements and contract confirmation with the actual merchant of record. Verify the working withdrawal/request channel and evidence before sales; do not apply a digital-content exception to every service pack.]
 
 ## 4. How to request a refund
 
@@ -53,9 +59,9 @@ If one related refund cannot be completed, we will pause and resolve the remaini
 
 A completed refund removes the allowances covered by that refund. If a refund fails, we restore paused access that remains valid, subject to the project's permissions, expiry, and deletion status. Refunds do not reset your free-trial eligibility or previous use.
 
-We recalculate the project's expiry using its remaining valid purchases. If a refund brings automatic media deletion forward, deletion will occur no earlier than {{policy.readOnlyGraceDays}} days after notice and no earlier than the expiry and grace period supported by another valid purchase.
+We recalculate the project's expiry using its remaining valid purchases. If a refund brings automatic media deletion forward, deletion will occur no earlier than {{policy.refundNoticeDays}} days after notice and no earlier than the expiry and grace period supported by another valid purchase.
 
-Access supported by another valid purchase continues until its normal expiry. If files are retained only for the additional notice period after normal access ends, they are read-only; downloads require a valid existing permission. Refunded creation or export allowances are not restored. A separate request to delete your project follows our [Privacy Policy]({{links.privacy}}) and does not wait for this refund grace period.
+Access supported by another valid purchase continues until its normal expiry. If files are retained only for the additional notice period after normal access ends, they are read-only; downloads require a valid existing permission. Refunded creation or export allowances are not restored. A separate request to delete your project follows our [Privacy Policy]({{links.privacy}}) and does not wait for this notice period.
 
 ## 7. Rights in delivered videos
 

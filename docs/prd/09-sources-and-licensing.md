@@ -48,11 +48,11 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 [FTC 评价规则](https://www.ftc.gov/business-guidance/resources/consumer-reviews-testimonials-rule-questions-answers)禁止虚构评价与使用经历，参与制作的机构也可能承担责任。真实个案不自动证明一般效果，收益/成绩宣传还须核对[典型结果与关联关系披露](https://www.ftc.gov/business-guidance/resources/ftcs-endorsement-guides-what-people-are-asking)。事实与证据按 13/14 检查；用户确认和自动 QA 不构成真实性担保。
 
-若依赖美国 [DMCA §512 安全港](https://www.copyright.gov/512/)，须落实代理登记及公开联系、通知/反通知、及时处置和重复侵权政策。反通知后的恢复按法定 10–14 个工作日及诉讼例外处理。投诉邮箱本身不满足这些要求，安全港也不自动覆盖平台自行制作的侵权。处置限于受影响内容，并通知用户、保留必要记录。
+若依赖美国 [DMCA §512 安全港](https://www.copyright.gov/512/)，须落实代理登记、通知/反通知、法定处置与恢复流程及重复侵权政策；一个投诉邮箱并不充分。该机制也不自动覆盖平台自行制作的侵权。处置限于受影响内容，并通知用户、保留必要记录。
 
 ### 3.2 欧盟 AI 透明度
 
-[官方执行日期说明](https://ai-act-service-desk.ec.europa.eu/en/ai-act/faq/when-does-enforcement-start)确认第 50 条透明度义务自 **2026-08-02** 适用；此前已投放市场的部分系统可延至 **2026-12-02** 遵守 50(2)。2026-10-21 核对时，PromoBento 尚无此前投放证明，按新系统要求准备上线。
+[官方执行日期说明](https://ai-act-service-desk.ec.europa.eu/en/ai-act/faq/when-does-enforcement-start)确认第 50 条透明度义务自 **2026-08-02** 适用。PromoBento 按新系统要求准备上线；核对日期为 2026-10-21。
 
 按实际市场、功能和角色，分别核对 [50(2) 提供方的机器可读标记/检测义务与 50(4) 部署方披露义务](https://ai-act-service-desk.ec.europa.eu/en/ai-act/article-50)。使用上游模型不自动解除自身责任；普通动态图形或通用 TTS 不自动构成 deepfake，须判断是否仿真既有人物、物体、地点、实体或事件并误导真实性。平台发布案例时也要核对自身部署方职责。
 
@@ -68,9 +68,9 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 按 [Waffo AIGC 要求](https://docs.waffo.ai/zh/mor/account-reviews/aigc-compliance)，内容规则集中在 [Terms 第 8–9 节](../../content/pages/en/terms.md#8-acceptable-use)，模型在第 3 节披露，AI 数据处理在 Privacy 第 6 节披露。禁止的深度伪造功能不会因人物同意或添加 AI 标签而获准；真实、获授权的人物素材仍按素材准入规则处理。
 
-必须覆盖生成前输入审核和展示前输出审核；公开展示客户作品时增加发布后检查。持续更新拦截规则，保留必要的自动/人工审核记录，并提供可用的举报与申诉入口。记录访问和期限按 04 执行，公开条款须与实际能力一致。
+**提交 Waffo AIGC 审核或开放客户生成前，必须已运行生成前输入审核和展示前输出审核。** 公开展示客户作品时另加发布后检查。持续更新规则、保留必要审核记录，并提供可用的举报与申诉入口；访问和期限按 04 执行，公开条款须与实际能力一致。本仓库的输入审核参考适配不等于这两阶段已上线。
 
-[Prompt Sift](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)是默认关闭的可选提示词审核，启用与失败处理见 [04](04-architecture-and-data.md#可选提示审核)，不能代替输出审核。2026-10-21 核对时，官方说明内测免费、每商户每路径每 60 秒 100 次请求，响应后不保留提示原文。启用前确认合同、数据流和保留设置，并更新 Privacy；不要将内测说明写成永久免费或整个服务零保留承诺。端点未定义异步复核查询/回调，不承诺一小时完成或自动恢复生成。
+[Prompt Sift](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)是默认关闭的可选输入审核提供方，不覆盖输出。操作映射、原文组装、长度和失败处理统一见 [04](04-architecture-and-data.md#可选提示审核)及配置。启用前核实合同、费率、数据流和保留设置并更新 Privacy；内测免费及不保留提示原文的说明不扩展为永久免费或整个服务零保留。端点未定义异步复核查询/回调，不承诺限时完成或自动恢复生成。
 
 ## 4 技术核对入口
 

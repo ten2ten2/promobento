@@ -16,7 +16,7 @@ const factText = '课程共 8 节。', factHash = digest(factText);
 const factRef = {factId:'fact_lessons', version:3, textHash:factHash};
 const confirmation = {confirmedBy:'user_input_owner', confirmedAt:timestamp};
 const scope = {channels:['website_examples'], purpose:'product_showcase'};
-const envelope = (kind, fields) => ({schemaVersion:'2.6.0', kind, ...fields});
+const envelope = (kind, fields) => ({schemaVersion:'2.7.0', kind, ...fields});
 const segments = [
   {startMs:0, endMs:3000, text:factText, facts:[factRef]},
   {startMs:3000, endMs:6000, text:'欢迎了解。', facts:[]}
@@ -28,7 +28,7 @@ const uploadFields = {
 
 function context() {
   return clone({
-    production:true, authorized:true, role:'owner', workspaceId, projectId, now,
+    production:true, authorized:true, role:'owner', workspaceId, projectId, now, editables:{},
     rightsNoticeVersion:'rights-v1', showcaseNoticeVersion:'showcase-v1',
     checkoutOrigins:['https://checkout.example.test'],
     assets:{

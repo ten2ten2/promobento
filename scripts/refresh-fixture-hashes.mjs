@@ -1,8 +1,9 @@
 // Rebuild linked, deliberately non-production contract examples. No media is rendered.
 import {writeFileSync} from 'node:fs';
+import {sourceFileDigests,targetSourceIdentity} from '../packages/contracts/index.mjs';
 import {targets,digest,factVersionKey,factContentIdentity,resourceContentIdentity,contentIdentity,variantIdentity,outputArtifactIdentity,qaInputIdentity,audioIdentity,presets,load} from './contract-validation.mjs';
 const write=(p,v)=>writeFileSync(new URL('../'+p,import.meta.url),JSON.stringify(v)+'\n');
-const version='2.6.0',projectId='proj_fixture',revisionId='rev_fixture';
+const version='2.7.0',projectId='proj_fixture',revisionId='rev_fixture';
 const quality=load('config/agent-policy.json').quality;
 const all=targets();
 const resources={schemaVersion:version,kind:'resource_manifest',exampleOnly:true,
@@ -36,7 +37,17 @@ const composition={schemaVersion:version,identityVersion:1,kind:'composition',ex
  durationSeconds:30,fps:30,totalFrames:900,seed:'fixture',sourceArchiveHash:digest('fixture-runtime-source'),dependencyManifestHash:digest('fixture-dependencies'),resourceManifestHash:digest(resources),resourceContentHash:digest(resourceContentIdentity(resources)),layoutRulesHash:digest('fixture-responsive-layout-rules'),factManifestHash:digest(fact),factContentHash:digest(factContentIdentity(fact)),runtimeVersion:'runtime-fixture',rendererImageDigest:'sha256:'+digest('fixture-renderer'),presetRulesVersion:presets.rulesVersion,renderProfile:presets.renderProfiles[presets.defaultRenderProfile],
  variants:all.map(t=>({targetId:t.targetId,presetId:t.presetId,aspectId:t.aspectId,presetVersion:t.version,entrypoint:'src/'+t.aspectId+'.html',sourceHash:digest('fixture-code-'+t.aspectId),targetOverrideHash:null,resourceManifestHash:digest(resources),resourceContentHash:digest(resourceContentIdentity(resources)),audioHash:digest(audioIdentity(resources)),variantHash:'0'.repeat(64),coverFrame:240})),
  styleLabel:'自定义云墨 Shader',textMetadata:[{language:'mul',direction:'ltr',label:'mixed original text'}]};
+provenance.context.sourceBuilds = {};
 for(const v of composition.variants){
+ const values={headline:fact.facts[0].text};
+ const build={exampleOnly:true,sourceArchiveHash:composition.sourceArchiveHash,entrypoint:v.entrypoint,
+  files:sourceFileDigests([
+   {path:v.entrypoint,bytes:Buffer.from('fixture-code-'+v.aspectId)},
+   {path:'src/shared.mjs',bytes:Buffer.from('fixture-shared-module')},
+   {path:'values.json',bytes:Buffer.from(JSON.stringify({schemaVersion:version,kind:'source_values',values}))}
+  ]),values,editables:[{id:'headline',label:'Headline',type:'text',factId:'fact_name'}]};
+ provenance.context.sourceBuilds[v.targetId]=build;
+ v.sourceHash=digest(targetSourceIdentity(build));
  v.variantHash=digest(variantIdentity(composition,v));
  const qaInputHash=digest(qaInputIdentity(composition,v,quality.profileVersion));
  const report={schemaVersion:version,kind:'quality_report',exampleOnly:true,workspaceId:'workspace_fixture',projectId,targetId:v.targetId,qaProfileVersion:quality.profileVersion,qaInputHash,checkerVersion:quality.checkerVersion,coverage:'fixture_only',evidenceRefs:[],findings:[]};

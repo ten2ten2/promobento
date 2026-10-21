@@ -9,6 +9,7 @@ permissions:
   contents: read
 
 concurrency:
+  # Validate the latest branch tree; superseded runs need not finish.
   group: checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
@@ -31,5 +32,5 @@ jobs:
         env:
           PROMOBENTO_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: mise run check:repo
-      - name: Test contracts and canonical hash vectors
-        run: mise run test:contracts
+      - name: Run Node unit tests
+        run: mise run test

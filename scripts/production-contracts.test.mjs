@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {sourceFileDigests,targetSourceIdentity} from '../packages/contracts/index.mjs';
 import {load, validateSchema, semanticErrors, canonical, digest, parseCanonicalJson, contentIdentity, factVersionKey, factContentIdentity, resourceContentIdentity, qualityAssociationErrors, variantIdentity, outputArtifactIdentity as markedArtifactIdentity, resourceRightsErrors, targets, presets, safePath, transition, QuotaReference, RevisionReference, TrialReference, OperationBudgetReference, CheckoutReference, matchesFrameReady, matchesSampleReady, matchesProtocolFailure, sampleTime, audioIdentity, qaInputIdentity, hasCalibratedCostLimits} from './contract-validation.mjs';
 const c = load('contracts/composition.example.json'), r = load('contracts/release-snapshot.example.json'), edit = load('contracts/edit-request.example.json');
 const outputArtifactIdentity = (composition, variant, kind, rules = presets) => markedArtifactIdentity(composition,variant,kind,r.markingProfileVersion,rules);
@@ -38,8 +39,8 @@ test('7 legal targets, square restricted to feed',()=>{assert.equal(targets().le
 for (const path of ['../x','x/../y','https://example.com','x\\y','%252e%252e/x','/tmp/x','x//y','x\u0000y']) test('reject path '+JSON.stringify(path),()=>assert.equal(safePath(path),false));
 test('confirmed fact binding required',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].factIds=['unknown'];assert.ok(invalid(f));});
 test('new commercial claim rejected',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].expectedText='Guaranteed 1000%';assert.ok(invalid(f));});
-function qa(){return {schemaVersion:'2.6.0',kind:'quality_report',workspaceId:'workspace_fixture',projectId:c.projectId,targetId:'tiktok:portrait',checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{findingId:'reading_hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture'}]};}
-function waiver(report=qa()){return {schemaVersion:'2.6.0',kind:'quality_waiver',workspaceId:'workspace_fixture',projectId:c.projectId,revisionId:c.revisionId,targetId:report.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash:digest(report),findingId:report.findings[0].findingId,actorId:'user',reason:'planned hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};}
+function qa(){return {schemaVersion:'2.7.0',kind:'quality_report',workspaceId:'workspace_fixture',projectId:c.projectId,targetId:'tiktok:portrait',checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{findingId:'reading_hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture'}]};}
+function waiver(report=qa()){return {schemaVersion:'2.7.0',kind:'quality_waiver',workspaceId:'workspace_fixture',projectId:c.projectId,revisionId:c.revisionId,targetId:report.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash:digest(report),findingId:report.findings[0].findingId,actorId:'user',reason:'planned hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};}
 function waiverContext(report=qa()){return {composition:c,workspaceId:'workspace_fixture',qualityReport:report,now:Date.parse('2026-10-20T00:00:00Z'),waiverActors:{user:{workspaceId:'workspace_fixture',active:true,role:'editor'}}};}
 test('BLOCK cannot be waived',()=>{const q=qa();q.findings[0].level='BLOCK';assert.ok(semanticErrors(waiver(q),waiverContext(q)).includes('BLOCK_NOT_WAIVABLE'));});
 test('QA input identity excludes revision and full confirmation bookkeeping',()=>{
@@ -87,8 +88,8 @@ for(const n of [undefined,NaN,Infinity,-1,0,449,900.5]) test('reject invalid sam
 test('sample bounds and shutter are validated before timing',()=>{
   assert.throws(()=>sampleTime(900,0,c.renderProfile,900));
   assert.throws(()=>sampleTime(0,1,c.renderProfile,900));
-  assert.throws(()=>sampleTime(0,0,{...c.renderProfile,shutterAngle:180},900),/INVALID_SHUTTER/);
-  assert.ok(semanticErrors({...clone(c),renderProfile:{...c.renderProfile,shutterAngle:180}}).includes('RENDER_PROFILE_UNAVAILABLE'));
+  assert.throws(()=>sampleTime(0,0,{...c.renderProfile,shutterAngle:180},900),/INVALID_SAMPLE/);
+  assert.ok(validateSchema({...clone(c),renderProfile:{...c.renderProfile,shutterAngle:180}}).length>0);
 });
 test('sample replies require an internal renderer session and exact identity',()=>{
   const ctx={rendererSession:true,composition:c},cmd=protocol.render_sample,response=protocol.render_sample_ready,hash=protocol.render_init.manifestHash;
@@ -154,7 +155,7 @@ test('unknown failure code rejected',()=>{const x=clone(protocol.render_error);x
 
 test('creative plan: optional direction fields and bounded events', () => {
   const x={
-    schemaVersion:'2.6.0',kind:'run_result',runId:'run1',operationId:'op1',
+    schemaVersion:'2.7.0',kind:'run_result',runId:'run1',operationId:'op1',
     baseRevision:c.revisionId,state:'succeeded',phase:'final',generation:1,
     candidateRevisionId:c.revisionId,
     usage:{inputTokens:0,cachedInputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
@@ -196,12 +197,12 @@ function provenanceCase() {
     variant.resourceManifestHash = digest(resource); variant.resourceContentHash = source.resourceContentHash;
     variant.audioHash = digest(audioIdentity(resource));
     variant.variantHash = digest(variantIdentity(source,variant));
-    const report = {schemaVersion:'2.6.0',kind:'quality_report',workspaceId:trusted.workspaceId,projectId:source.projectId,
+    const report = {schemaVersion:'2.7.0',kind:'quality_report',workspaceId:trusted.workspaceId,projectId:source.projectId,
       targetId:variant.targetId,
       qaProfileVersion:trusted.qaProfileVersion,qaInputHash:digest(qaInputIdentity(source,variant,trusted.qaProfileVersion)),
       checkerVersion:trusted.qaProfiles[trusted.qaProfileVersion].checkerVersion,coverage:'sampled',evidenceRefs:['synthetic_qa_evidence'],findings:[]};
     const reportHash = digest(report); trusted.qualityReports[reportHash] = report;
-    trusted.qualityAssociations.push({schemaVersion:'2.6.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
+    trusted.qualityAssociations.push({schemaVersion:'2.7.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
   }
   Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:source.factManifestHash});
   const context = {...trusted,production:true,composition:source,snapshot,factManifest:fact,
@@ -229,6 +230,22 @@ test('trusted provenance permits scoped preview and commercial publication',()=>
   assert.deepEqual(resourceRightsErrors(x.resource.resources[0],x.context),[]);
   assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
   assert.deepEqual(semanticErrors(x.output,x.context),[]);
+});
+
+test('freeze verifies source digests and bound values against trusted build observations',()=>{
+  const first=provenanceCase();
+  assert.deepEqual(semanticErrors(first.snapshot,first.context),[]);
+  for (const [name,mutate,code] of [
+    ['missing receipt',x=>{delete x.context.sourceBuilds;},'SOURCE_BUILD_REQUIRED'],
+    ['stale archive',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].sourceArchiveHash=digest('old');},'SOURCE_BUILD_SCOPE_MISMATCH'],
+    ['forged source hash',x=>{x.source.variants[0].sourceHash=digest('forged');},'SOURCE_HASH_MISMATCH'],
+    ['changed bytes',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].files[0].sha256=digest('changed bytes');},'SOURCE_HASH_MISMATCH'],
+    ['stale editable fact',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].values.headline='Stale visible text';},'EDITABLE_FACT_VALUE_MISMATCH'],
+    ['missing declarations',x=>{delete x.context.sourceBuilds[x.source.variants[0].targetId].editables;},'SOURCE_VALUES_OBSERVATION_REQUIRED']
+  ]) {
+    const value=provenanceCase();mutate(value);
+    assert.ok(semanticErrors(value.snapshot,value.context).includes(code),name);
+  }
 });
 test('publication rejects missing, substituted and failing source QA',()=>{
   for(const mode of ['missing','substitute','block','review']){
@@ -393,7 +410,7 @@ test('assessed not-applicable decisions are supported and profile updates do not
   assert.equal(digest(contentIdentity(x.source)),oldContent);
 });
 function previewProvenanceCase() {
-  const x=provenanceCase(),preview={schemaVersion:'2.6.0',kind:'preview_result',mediaKind:'screenshot',clipAssetId:null,clipSha256:null,clipMarkingEvidenceRef:null,previewId:'preview1',projectId:x.source.projectId,
+  const x=provenanceCase(),preview={schemaVersion:'2.7.0',kind:'preview_result',mediaKind:'screenshot',clipAssetId:null,clipSha256:null,clipMarkingEvidenceRef:null,previewId:'preview1',projectId:x.source.projectId,
     revisionId:x.source.revisionId,targetId:'tiktok:portrait',frameStart:0,frameEndExclusive:30,state:'ready',screenshotAssetId:'preview_asset',
     markingProfileVersion:x.snapshot.markingProfileVersion,sha256:digest('preview bytes'),markingEvidenceRef:'preview_check'};
   x.context.markingEvidence.preview_check={outputId:preview.previewId,assetId:preview.screenshotAssetId,sha256:preview.sha256,profileVersion:preview.markingProfileVersion,
@@ -459,7 +476,7 @@ test('target repair cannot mutate a purchased frozen variant',()=>{
 });
 
 const owner={authorized:true,role:'owner',userId:'user_trial'},editor={authorized:true,role:'editor',userId:'user_editor'};
-const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.6.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
+const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.7.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
 test('trial claim is lifetime user scoped across workspaces and deletion',()=>{
   const t=new TrialReference(),first=t.create(projectRequest('one'),owner);
   assert.equal(first.trialStatus,'granted');
@@ -493,7 +510,7 @@ test('omitted requestTrial creates a draft with no free cloud work',()=>{
   assert.equal(t.claims.size,0);
 });
 
-const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.6.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,...changes});
+const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.7.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,...changes});
 const open=(book,request)=>book.open(request,{ownerAuthorized:true});
 const buy=(book,request)=>{const order=open(book,request);book.grantVerifiedPayment(order.orderId);return order;};
 test('checkout intent is explicit and snapshot is exclusive to export intent',()=>{
@@ -538,6 +555,18 @@ test('checkout retry and payment redelivery cannot duplicate entitlements',()=>{
   book.grantVerifiedPayment(order.orderId);book.grantVerifiedPayment(order.orderId);
   assert.equal(book.grants.size,1);assert.equal(book.available('versionUnits'),3);
   assert.throws(()=>book.open(request,{ownerAuthorized:false}),/FORBIDDEN/);
+});
+
+test('pausing new checkout preserves existing checkout retries, payment grants and downloads',()=>{
+  const book=new CheckoutReference(c.projectId),catalog=book.catalog;
+  Object.defineProperty(book,'catalog',{value:catalog});
+  const request=checkout('before_pause','project_pack'),order=open(book,request);
+  catalog.project_pack.checkoutEnabled=false;
+  assert.throws(()=>open(book,checkout('after_pause','project_pack')),/SKU_CHECKOUT_DISABLED/);
+  assert.deepEqual(open(book,request),order);
+  assert.equal(book.grantVerifiedPayment(order.orderId).versionUnits,3);
+  const release=book.publish('paid_release',r.contentHash);
+  assert.deepEqual(book.publish('download_again',r.contentHash),release);
 });
 test('paid single plus upgrade grants only remaining two versions after first delivery',()=>{
   const book=new CheckoutReference(c.projectId,[r]);const single=buy(book,checkout('single','single_export','purchase_and_export',{snapshotId:r.snapshotId}));
@@ -690,7 +719,7 @@ function addReviewWaiver(x){
   const association=x.snapshot.qualityAssociations[0],report=clone(x.context.qualityReports[association.reportHash]);
   report.findings=[{findingId:'hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'Intentional hold'}];
   association.reportHash=digest(report);x.context.qualityReports[association.reportHash]=report;
-  const w={schemaVersion:'2.6.0',kind:'quality_waiver',workspaceId:x.context.workspaceId,projectId:x.source.projectId,revisionId:x.source.revisionId,targetId:association.targetId,qaInputHash:association.qaInputHash,qaProfileVersion:association.qaProfileVersion,reportHash:association.reportHash,findingId:'hold_1',actorId:'reviewer',reason:'Verified the intended reading hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};
+  const w={schemaVersion:'2.7.0',kind:'quality_waiver',workspaceId:x.context.workspaceId,projectId:x.source.projectId,revisionId:x.source.revisionId,targetId:association.targetId,qaInputHash:association.qaInputHash,qaProfileVersion:association.qaProfileVersion,reportHash:association.reportHash,findingId:'hold_1',actorId:'reviewer',reason:'Verified the intended reading hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};
   const waiverHash=digest(w);association.waiverHashes=[waiverHash];x.context.qualityWaivers[waiverHash]=w;
   x.context.waiverActors.reviewer={workspaceId:x.context.workspaceId,role:'editor',active:true};
   x.output.snapshotHash=digest(x.snapshot);
@@ -754,7 +783,16 @@ test('changed facts save as unconfirmed drafts and require current confirmation 
   x.context.facts[fact.factId]={version:fact.version,textHash:digest(fact.text),confirmation:null};
   const relink=()=>{
     x.source.factManifestHash=digest(x.fact);x.source.factContentHash=digest(factContentIdentity(x.fact));
-    for(const variant of x.source.variants)variant.variantHash=digest(variantIdentity(x.source,variant));
+    x.source.sourceArchiveHash=digest('source values for '+fact.text);
+    for(const variant of x.source.variants){
+      const build=x.context.sourceBuilds[variant.targetId];
+      build.values.headline=fact.text;build.sourceArchiveHash=x.source.sourceArchiveHash;
+      build.files=build.files.filter(file=>file.path!=='values.json').concat(sourceFileDigests([
+        {path:'values.json',bytes:Buffer.from(JSON.stringify({schemaVersion:'2.7.0',kind:'source_values',values:build.values}))}
+      ]));
+      variant.sourceHash=digest(targetSourceIdentity(build));
+      variant.variantHash=digest(variantIdentity(x.source,variant));
+    }
   };
   relink();
   assert.deepEqual(semanticErrors(x.source,x.context),[]);
