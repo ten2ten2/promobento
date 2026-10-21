@@ -300,12 +300,33 @@ test('fact confirmation binds text hash, content version and current record vers
   ]);
 });
 
-test('fact responses cannot publish inconsistent content hashes or duplicate IDs', () => {
+test('fact responses reject inconsistent hashes, confirmation sets and saved revisions', () => {
   rejectChanges('facts_result', [
     ['changed text with old hash', value => { value.facts[0].text='课程共 9 节。'; }],
     ['forged response hash', value => { value.facts[0].textHash=otherHash; }],
-    ['duplicate response fact', value => { value.facts.push(clone(value.facts[0])); }]
+    ['duplicate response fact', value => { value.facts.push(clone(value.facts[0])); }],
+    ['unknown unconfirmed fact', value => { value.unconfirmedFactIds=['fact_missing']; }],
+    ['confirmed fact listed as unconfirmed', value => { value.unconfirmedFactIds=['fact_lessons']; }],
+    ['unconfirmed fact omitted', value => { value.facts[0].confirmation=null; }],
+    ['unconfirmed fact replaced by an unknown ID', value => {
+      value.facts[0].confirmation=null; value.unconfirmedFactIds=['fact_missing'];
+    }],
+    ['new revision with no current revision', value => { value.revisionId='revision_saved'; }],
+    ['new revision disagrees with response snapshot', value => {
+      value.revisionId='revision_saved'; value.currentRevisionId='revision_other';
+    }]
   ]);
+});
+
+test('fact results preserve null revisions and the original response snapshot after a later edit', () => {
+  accepted({...sample('facts_result'),revisionId:null,currentRevisionId:'revision_existing'});
+  accepted({...sample('facts_result'),facts:[],revisionId:null,currentRevisionId:null});
+  const saved={...sample('facts_result'),revisionId:'revision_saved',currentRevisionId:'revision_saved'};
+  accepted(saved,{...context(),currentRevisionId:'revision_later',facts:{}});
+  const facts=[{...saved.facts[0],confirmation:null},
+    {...saved.facts[0],factId:'fact_other',confirmation:null}];
+  accepted({...saved,facts,unconfirmedFactIds:['fact_other','fact_lessons']},
+    {...context(),currentRevisionId:'revision_later'});
 });
 
 test('transcript confirmation binds CAS and the actual scoped audio or video source', () => {

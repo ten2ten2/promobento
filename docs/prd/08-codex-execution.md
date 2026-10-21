@@ -26,7 +26,8 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `test` | 运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
 | `install:renderer` | 获取并校验完整 Chrome for Testing 固定归档，保存到私有缓存 |
-| `test:render` | 独立运行媒体测试：15/30 秒真实 MP4、正序/逆序/重复及冷启动抽帧、编码与色块、帧超时和不支持动画的失败检查 |
+| `render:fixture` | 只渲染已审阅样例；默认30秒`inplace`、`output`模式，记录出片及必需检查时间；可显式选择`square`和`regression` |
+| `test:render` | 独立媒体回归：15/30秒MP4、两种模式像素一致、正/逆序/重复/乱序及冷启抽查、编码/色块、字体隔离与超时失败检查 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
@@ -47,7 +48,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | --- | --- | --- |
 | 1. 源码到15秒 MP4 | `packages/composition-runtime`、`apps/renderer` 的最小实现；一个合法目标、standard profile；自制且许可明确的图片/文字样例放 `tests/fixtures/render/`；提供 `test:render`，产物放 `artifacts/m0a/<runId>/` | 可播放的450帧文件；固定环境中冷启、正序、逆序和重复 seek 得到相同帧；尺寸与总长正确 |
 | 2. 30秒与真实媒体 | 沿用首片，补冻结 WAV、视频 PTS、字体、可编辑项、区域定位、可信截图/片段和 QA；固定录屏/音频样例沿用相同素材目录 | 900帧音画一致；本地改值立即可见，保存与冻结一致；缺字、越界、缺帧和时序不同步可被发现 |
-| 3. 两个题目到自由创作 | 软件及课程题目卡、模型候选、预算和许可方案；接通导演、原创镜头、声音、改稿及全目标准备；清单放 `research/m0a/` | 每题有成片、报告、一次改稿和完整 costEvent；真实商业事实、素材权利与正常速度试听经责任人确认 |
+| 3. 两个题目到自由创作 | 先通过本章的Agent源码执行准入；准备软件及课程题目卡、模型候选、预算和许可方案，接通导演、原创镜头、声音、改稿及全目标准备；清单放 `research/m0a/` | 每题有成片、报告、一次改稿和完整 costEvent；真实商业事实、素材权利与正常速度试听经责任人确认 |
 | 4. 对照与准入判断 | 扩为下述12组；提供实际运行的 `benchmark:m0a`、输入引用、费用和盲审材料 | 质量、确定性和费用达到门槛；未参与制作的目标用户盲审，Agent 不代投票 |
 
 上述包、命令和测试素材在对应步骤实现时加入。先完成 standard；motion4/8 的质量与成本单独实验，不阻塞首片，也不默认启用。
@@ -80,7 +81,7 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 ### M0a 渲染环境
 
-本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。当前只运行仓库中自制、经审阅的固定样例，不接收客户代码；尚不具备 M0b 的隔离准入。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
+本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。命令只接受仓库中经审阅的`square`/`inplace`样例，不接收任意路径、URL或Agent源码。当前浏览器以`chromiumSandbox:false`启动；私有目录、CSP及请求拦截不构成客户代码隔离。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
 
 Linux x64 / Ubuntu 24.04 的运行步骤：
 
@@ -92,6 +93,17 @@ sudo apt-get install --no-install-recommends --allow-downgrades ffmpeg=7:6.1.1-3
 mise run install:renderer
 mise run test:render
 ```
+
+仅测30秒样例的出片流程时运行`mise run render:fixture -- --fixture inplace --mode output`；完整回归可选`--mode regression`，15秒方形样例用`--fixture square`。`--output-directory`只改变产物目录，不改变输入或校验。默认产物位于`artifacts/m0a/<runId>/`，包含MP4、封面、环境及报告。
+
+| 模式 | 两者共同执行 | 额外检查 |
+| --- | --- | --- |
+| `output` | 同一正序全帧捕获与编码；按`fixture-determinism-v1`做重复、乱序和新进程冷启抽查；核对编码、帧数/时长、色块及文件摘要 | 无全片倒序和故障探针；未运行项明确记为空或零 |
+| `regression` | 与`output`相同 | 全帧倒序、非法帧/已释放会话、原生动画拒绝及减少动态设置探针 |
+
+两种模式都不能关闭必需校验，也都只用于固定工程样例。`output`便于测量后续交付流程的开销，尚不包含真实素材、混音、输出审核及完整QA；不表示生产服务已经可用。完整回归的额外时间不计为客户处理目标，生产测量口径见06。
+
+报告`timings`按不重叠的墙钟阶段累计：`prepareMs`准备环境与样例，`captureEncodeMs`全帧捕获及流水编码，`determinismChecksMs`复取/乱序/冷启检查，`regressionChecksMs`额外回归，`outputChecksMs`产物检查，`cleanupMs`回收。捕获与编码有重叠，不能拆成两段再相加；阶段之和应与从准备到清理结束的`totalMs`一致，仅有毫秒取整误差。依赖安装和浏览器下载属于环境准备，不混入这次样例计时。单次结果不能推导p95。
 
 系统依赖安装只在准备阶段进行。`PROMOBENTO_BROWSER_DIR` 指定当前用户拥有、非符号链接且权限为 0700 的归档缓存目录，内含 `browser.zip`；可用 `PROMOBENTO_BROWSER_ARCHIVE` 从已取得的官方归档导入，仍核对锁定的完整 SHA-256。镜像来源只允许相同官方字节，不接受其他版本。每次渲染都复制并复核归档，在新的私有目录完整解压，拒绝特殊文件并校验可执行文件；不复用只检查过主程序的解压目录。测试结束清理临时解压和原始帧。
 
@@ -110,6 +122,20 @@ mise run test:render
 
 同一固定环境内比较解码后的帧像素；不同环境单独设定观感/布局容差。本地浏览器预览不承诺与可信输出逐像素一致，交付文件另外保存实际字节摘要。启用 motion4/8 前再固定线性光采样合成、alpha、舍入和各配置超时。
 
+### Agent源码执行准入（待实现）
+
+以下条件须在第三步首次执行模型源码前完成，包含模块加载和求值，不能等到首帧`seek`才检查：
+
+- 作品只使用宿主传入的绝对时间和`randomAt`；真实墙钟、随机源、计时器及自行调度的动画循环不得改变作品状态。限制在模块求值前生效，不能靠生成提示或事后抽样约束。
+- 宿主使用独立的真实单调时钟控制加载、准备、逐帧和任务总期限；作品不能修改该时钟、延长期限或阻止回收。
+- 只开放已验收的绘制与媒体能力。图片解码、字体字形、视频PTS取帧各有就绪条件，并绑定实际资源字节；缺失或未准入能力直接拒绝，不能沿用旧画面。WebGL另行准入。
+- 在实际受限环境中验证无业务凭据、外网及宿主非授权资源不可达；素材只读且按任务授权，临时目录隔离，CPU/内存/磁盘/进程数量与总时长有硬上限。API替换、CSP和`getAnimations()`不代替隔离。
+- 候选按版本化策略与正序基准做重复、乱序和冷启复取，结论绑定`qaInputHash`所覆盖的源码、资源、目标、环境与输出配置；失败为Q0 BLOCK。新增能力补对应样例，抽样一致不证明任意程序确定性或安全。
+
+当前白名单样例及`fixture-determinism-v1`仅用于验证宿主工程路径，尚未实现上述Agent准入或候选QA绑定；不得接入任意源码。
+
+### 媒体验证与结果交接
+
 `test:render` 先校验环境，再产片和检查；缺浏览器、编码器或所需字体时明确失败，不采用宿主的浮动默认值。有容器能力时使用固定镜像；没有时采用已验证的预装环境，或把可信渲染交给 CI/专用 runner，本地继续纯代码工作并注明媒体未验证。必需的 CI 媒体门禁不能把环境不可用记为 skip 后通过。安装/下载放所选 Agent 环境允许的准备阶段，不假定所有沙箱支持 Docker 或相同网络策略。
 
 | 环境 | 另需验证 |
@@ -120,7 +146,7 @@ mise run test:render
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
 
-CI 支持手动 `workflow_dispatch`，可选择实验分支运行完整检查，无需为环境实验反复推 main。媒体任务把 `artifacts/m0a/` 上传为 CI artifact，保留30天；需要支撑更长期准入结论的样片和原始证据按06移到受控存储，保留引用与摘要。确定性样例可重新生成，模型作品或盲审材料不能只留下命令和 hash。受跟踪文档不得链接仅在本地存在的 artifacts 路径。
+CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。媒体任务把`artifacts/m0a/`上传为artifact，保留30天；长期准入证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各项结果，以及关联的报告、样片和环境文件；核对环境/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留“媒体未验证”，不改lock绕过环境校验。确定性样例可重新生成，模型作品或盲审材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 
 首次生产冻结时按14建立发布版本登记；当前未发布草稿直接更新，不建 legacy 目录。已购作品的环境继承、修复和保留按14执行，不用浮动 latest 重放。媒体许可见09，关键实测按06留证，不另写迁移日记。
 

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sourceFileDigests,sourceArchiveIdentity,sourceValuesBytes,targetSourceIdentity} from '../packages/contracts/index.mjs';
 import {checkoutPurchaseIdentity,recordCheckoutConsent} from './checkout-consent.mjs';
+import {candidateOutputIdentity} from './studio-contracts.mjs';
+import {expectedSafetyCoverage,scopedSafetyCoveragePolicy} from './output-safety.mjs';
 import {load, validateSchema, semanticErrors, canonical, digest, parseCanonicalJson, contentIdentity, factVersionKey, factContentIdentity, resourceContentIdentity, qualityAssociationErrors, variantIdentity, outputArtifactIdentity as markedArtifactIdentity, resourceRightsErrors, targets, presets, safePath, transition, QuotaReference, RevisionReference, TrialReference, OperationBudgetReference, CheckoutReference, matchesFrameReady, matchesSampleReady, matchesProtocolFailure, sampleTime, audioIdentity, qaInputIdentity, hasCalibratedCostLimits} from './contract-validation.mjs';
 const c = load('contracts/composition.example.json'), r = load('contracts/release-snapshot.example.json'), edit = load('contracts/edit-request.example.json');
 const outputArtifactIdentity = (composition, variant, kind, rules = presets) => markedArtifactIdentity(composition,variant,kind,r.markingProfileVersion,rules);
@@ -106,12 +108,41 @@ test('sample replies require an internal renderer session and exact identity',()
   assert.ok(validateSchema(cmd,load('contracts/production.schema.json').$defs.renderCommand).length);
   assert.ok(matchesProtocolFailure(cmd,protocol.render_error));
 });
-test('state happy path',()=>{let s=transition('queued','start');s=transition(s,'candidate');assert.equal(transition(s,'pass',{authorized:true,generationMatches:true,qaPassed:true,safetyAllowed:true}),'succeeded');});
-test('successful QA cannot publish an output without the trusted safety decision',()=>{
+test('state happy path',()=>{let s=transition('queued','start');s=transition(s,'candidate');assert.equal(transition(s,'pass',publicationCase().guard),'succeeded');});
+test('successful QA and a safety flag cannot replace trusted candidate receipts',()=>{
   const guard={authorized:true,generationMatches:true,qaPassed:true};
-  for(const safetyAllowed of [undefined,false,'allowed'])
+  for(const safetyAllowed of [undefined,false,'allowed',true])
     assert.throws(()=>transition('validating','pass',{...guard,safetyAllowed}),/PUBLISH_REJECTED/);
-  assert.equal(transition('validating','pass',{...guard,safetyAllowed:true}),'succeeded');
+});
+for (const operation of ['creative_generate','agent_patch','prepare_targets']) test('run publication checks candidate receipts for '+operation,()=>{
+  const {guard}=publicationCase(operation);
+  assert.equal(transition('validating','pass',guard),'succeeded');
+  const check=guard.safetyContext.candidateSafetyChecks['tiktok:portrait'];
+  check.receipt.status='blocked';
+  assert.throws(()=>transition('validating','pass',guard),/PUBLISH_REJECTED/);
+});
+for (const [name,mutate] of [
+  ['missing receipt',({check})=>{delete check.receipt;}],
+  ['revoked receipt',({check})=>{check.options.revokedResultIds.push(check.receipt.resultId);}],
+  ['wrong target',({check})=>{check.receipt.targetId='youtube:landscape';}],
+  ['changed candidate content',({context})=>{context.candidateContentHashes['tiktok:portrait']=digest('new content');}],
+  ['changed summary',({candidate})=>{candidate.impactSummary='Unreviewed impact summary.';}],
+  ['wrong run',({context})=>{context.runId='another_run';}],
+  ['wrong operation',({context})=>{context.operation='prepare_targets';}],
+  ['wrong project',({context})=>{context.projectId='another_project';}],
+  ['no trusted source',({context,candidate})=>{delete context.revisions[candidate.candidateRevisionId];}],
+  ['withheld candidate',({candidate})=>{candidate.state='withheld';candidate.agentInterpretation=null;candidate.impactSummary=null;}],
+  ['non-boolean authorization',({guard})=>{guard.authorized='true';}],
+  ['incomplete sampling',({check})=>{check.options.coverageManifest.frames=check.options.coverageManifest.frames.slice(0,1);check.receipt.coverageManifestHash=digest(check.options.coverageManifest);}],
+  ['shortened coverage',({check})=>{
+    Object.assign(check.options.coverageManifest,{frameCount:30,durationMs:1000,sourceRange:{kind:'video',sourceFrameCount:900,frameStart:0,frameEndExclusive:30},
+      frames:[{frameIndex:0,sha256:digest('first')},{frameIndex:29,sha256:digest('last')}],audioSegments:[{startMs:0,endMs:1000,sha256:digest('short audio')}]});
+    Object.assign(check.options.coveragePolicy,{sourceRange:clone(check.options.coverageManifest.sourceRange),frameCount:30,durationMs:1000,requiredFrameIndices:[0]});
+    check.receipt.coverageManifestHash=digest(check.options.coverageManifest);
+  }]
+]) test('run publication rejects '+name,()=>{
+  const fixture=publicationCase();mutate(fixture);
+  assert.throws(()=>transition('validating','pass',fixture.guard),/PUBLISH_REJECTED/);
 });
 for (const state of ['succeeded','failed','cancelled']) test('terminal state '+state,()=>assert.throws(()=>transition(state,'start')));
 test('resume rechecks membership/base/budget/window',()=>{const g={authorized:true,baseMatches:true,withinWindow:true,remainingBudget:1};assert.equal(transition('paused_budget','resume',g),'queued');for(const k of Object.keys(g))assert.throws(()=>transition('paused_budget','resume',{...g,[k]:false}));});
@@ -250,22 +281,55 @@ test('creative plan: optional direction fields and bounded events', () => {
 });
 
 // In-memory trusted-store inputs exercise fail-closed gates; no licenses, media or legal findings are verified here.
-function addOutputSafety(context,id,{projectId,revisionId,targetId,sha256,kind,mediaKind},subjectKind,coverage=['text','visual','audio']) {
+function runtimeDeclarations(markers=[]) {
+  return {schemaVersion:'2.7.0',kind:'runtime_declarations',editables:[],markers,regions:[],videoUses:[],fonts:[]};
+}
+function addOutputSafety(context,id,{projectId,revisionId,targetId,sha256,kind,mediaKind,frameStart,frameEndExclusive,screenshotAssetId},subjectKind,coverage=['text','visual','audio']) {
   context.outputSafetyResults ??= {};
   context.outputOperationIds ??= {};
   context.outputSafetyCoverageManifests ??= {};context.outputSafetyCoveragePolicies ??= {};context.revokedOutputSafetyResultIds ??= [];
   context.outputSafetyPolicyVersion ??= 'output-safety-v1';
   const operationId='operation_'+id;
   context.outputOperationIds[id]=operationId;
+  const image=kind==='cover'||mediaKind==='screenshot'||id===screenshotAssetId;
+  const start=kind==='cover' ? context.composition.variants.find(v=>v.targetId===targetId).coverFrame
+    : kind==='video'||mediaKind==='video' ? 0 : frameStart;
+  const end=image ? start+1 : kind==='video'||mediaKind==='video' ? context.composition.totalFrames : frameEndExclusive;
   const observation={subjectHash:sha256,targetId,representation:'trusted_media',textPresent:true,
-    audioPresent:kind==='video'||mediaKind==='clip',evidenceRef:'synthetic_modality_observation'};
+    audioPresent:!image,evidenceRef:'synthetic_modality_observation'};
+  const policy=scopedSafetyCoveragePolicy({version:'output-sampling-v1',modalityObservation:observation},{
+    totalFrames:context.composition.totalFrames,runtimeDeclarations:context.runtimeDeclarationsByTarget[targetId],
+    kind:image?'image':'video',frameStart:start,frameEndExclusive:end});
+  const expected=expectedSafetyCoverage(policy,'trusted_media');
   const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:sha256,targetId,representation:'trusted_media',
-    samplingPolicyVersion:'sampling_fixture',textHashes:[digest('observed synthetic text')],frameCount:450,frames:[{frameIndex:0,sha256:digest('observed synthetic frame')}],
-    durationMs:coverage.includes('audio')?15000:null,audioSegments:coverage.includes('audio')?[{startMs:0,endMs:15000,sha256:digest('observed synthetic audio')}]:[],runtimeStateHash:null,modalityObservationHash:digest(observation)};
-  context.outputSafetyCoverageManifests[id]=manifest;context.outputSafetyCoveragePolicies[id]={version:'sampling_fixture',frameCount:manifest.frameCount,durationMs:manifest.durationMs,requiredFrameIndices:[0],modalityObservation:observation};
+    samplingPolicyVersion:policy.version,sourceRange:expected.sourceRange,textHashes:[digest('observed synthetic text')],frameCount:expected.frameCount,
+    frames:expected.requiredFrameIndices.map(frameIndex=>({frameIndex,sha256:digest('observed synthetic frame '+frameIndex)})),
+    durationMs:expected.durationMs,audioSegments:coverage.includes('audio')&&!image?[{startMs:0,endMs:expected.durationMs,sha256:digest('observed synthetic audio')}]:[],
+    runtimeStateHash:null,modalityObservationHash:digest(observation)};
+  context.outputSafetyCoverageManifests[id]=manifest;context.outputSafetyCoveragePolicies[id]=policy;
   context.outputSafetyResults[id]={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_'+id,
     projectId,revisionId,operationId,targetId,subjectKind,subjectHash:sha256,coverageManifestHash:digest(manifest),policyVersion:context.outputSafetyPolicyVersion,
     representation:'trusted_media',coverage,status:'allowed',checkedAt:new Date(context.now).toISOString(),evidenceRefs:['synthetic_safety_evidence']};
+}
+function publicationCase(operation='creative_generate') {
+  const targetId='tiktok:portrait',targetContentHash=digest('trusted candidate content');
+  const candidate={schemaVersion:'2.7.0',kind:'candidate_result',projectId:c.projectId,runId:'run_publish',operation,
+    baseRevision:operation==='creative_generate'?null:c.revisionId,candidateRevisionId:'candidate_publish',state:'ready',affectedTargetIds:[targetId],
+    agentInterpretation:'Present the product.',impactSummary:'Updates the product scene.'};
+  const context={workspaceId:'workspace_fixture',projectId:candidate.projectId,runId:candidate.runId,operation,
+    composition:{...clone(c),revisionId:candidate.candidateRevisionId},now:Date.parse('2026-10-21T00:00:00Z'),
+    runtimeDeclarationsByTarget:{[targetId]:runtimeDeclarations()},candidateContentHashes:{[targetId]:targetContentHash}};
+  const subjectHash=digest(candidateOutputIdentity(candidate,targetId,targetContentHash)),id='candidate_output';
+  addOutputSafety(context,id,{projectId:candidate.projectId,revisionId:candidate.candidateRevisionId,targetId,sha256:subjectHash,mediaKind:'video'},'candidate');
+  context.operationId=context.outputOperationIds[id];
+  context.revisions={[candidate.candidateRevisionId]:{workspaceId:context.workspaceId,projectId:candidate.projectId,
+    totalFrames:context.composition.totalFrames,targetIds:[targetId],runtimeDeclarationsByTarget:context.runtimeDeclarationsByTarget}};
+  const check={receipt:context.outputSafetyResults[id],options:{policyVersion:context.outputSafetyPolicyVersion,
+    representation:'trusted_media',nowMs:context.now,revokedResultIds:context.revokedOutputSafetyResultIds,
+    coverageManifest:context.outputSafetyCoverageManifests[id],coveragePolicy:context.outputSafetyCoveragePolicies[id]}};
+  context.candidateSafetyChecks={[targetId]:check};
+  const guard={authorized:true,generationMatches:true,qaPassed:true,candidate,safetyContext:context};
+  return {guard,candidate,context,check};
 }
 function provenanceCase() {
   const stripFixture = value => {
@@ -294,6 +358,7 @@ function provenanceCase() {
   Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:digest(fact)});
   const context = {...trusted,production:true,composition:source,snapshot,factManifest:fact,
     resourceManifests:{[digest(resource)]:resource},resourceObservations:{[digest(resource)]:{resources:resource.resources.map(({path,sha256})=>({path,sha256})),audioEvents:clone(resource.audioEvents),mixedAudio:clone(resource.mixedAudio)}},markingEvidence:{},qualityEvidence:{}};
+  context.runtimeDeclarationsByTarget=Object.fromEntries(source.variants.map(variant=>[variant.targetId,runtimeDeclarations()]));
   const output = stripFixture(load('contracts/export-manifest.example.json'));
   Object.assign(output,{snapshotHash:digest(snapshot),compositionHash:digest(source),state:'ready'});
   for (const artifact of output.artifacts) {
@@ -569,6 +634,51 @@ test('ready exports require independent safety receipts for the final video and 
   x.context.outputSafetyResults[video.id].coverage=['text','visual'];
   assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_COVERAGE_INCOMPLETE'));
 });
+test('full exports reject self-consistent safety records for only half the actual composition',()=>{
+  const x=provenanceCase(),id=x.output.artifacts.find(artifact=>artifact.kind==='video').id;
+  const manifest=x.context.outputSafetyCoverageManifests[id],policy=x.context.outputSafetyCoveragePolicies[id];
+  Object.assign(manifest,{sourceRange:{kind:'video',sourceFrameCount:900,frameStart:0,frameEndExclusive:450},frameCount:450,durationMs:15000,
+    frames:[0,30,60,90,120,150,180,210,240,270,300,330,360,390,420,449].map(frameIndex=>({frameIndex,sha256:digest('frame '+frameIndex)})),
+    audioSegments:[{startMs:0,endMs:15000,sha256:digest('half audio')}]});
+  Object.assign(policy,{sourceRange:clone(manifest.sourceRange),frameCount:450,durationMs:15000,requiredFrameIndices:[0]});
+  x.context.outputSafetyResults[id].coverageManifestHash=digest(manifest);
+  const errors=semanticErrors(x.output,x.context);
+  assert.ok(errors.includes('OUTPUT_SAFETY_SOURCE_RANGE_MISMATCH'));
+  assert.ok(errors.includes('OUTPUT_SAFETY_MEDIA_LENGTH_MISMATCH'));
+});
+test('cover and screenshot safety are bound to the actual source frame',()=>{
+  for(const mode of ['cover','screenshot']) {
+    const x=mode==='cover'?provenanceCase():previewProvenanceCase();
+    const id=mode==='cover'?x.output.artifacts.find(artifact=>artifact.kind==='cover').id:x.preview.screenshotAssetId;
+    const manifest=x.context.outputSafetyCoverageManifests[id];
+    manifest.sourceRange.frameStart++;manifest.sourceRange.frameEndExclusive++;
+    x.context.outputSafetyCoveragePolicies[id].sourceRange=clone(manifest.sourceRange);
+    x.context.outputSafetyResults[id].coverageManifestHash=digest(manifest);
+    assert.ok(semanticErrors(x.preview??x.output,x.context).includes('OUTPUT_SAFETY_SOURCE_RANGE_MISMATCH'),mode);
+  }
+});
+test('trusted source markers add mandatory samples even when a supplied policy omits them',()=>{
+  const x=provenanceCase(),targetId=x.source.variants[0].targetId;
+  x.context.runtimeDeclarationsByTarget[targetId].markers=[{id:'cut',label:'Cut',frame:17}];
+  assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_FRAME_COVERAGE_INCOMPLETE'));
+  delete x.context.runtimeDeclarationsByTarget[targetId];
+  assert.ok(semanticErrors(x.output,x.context).length);
+});
+test('direct output schema validation applies each collection cap before canonicalization',()=>{
+  const x=provenanceCase(),id=x.output.artifacts.find(artifact=>artifact.kind==='video').id;
+  for(const [field,max,source,definition] of [
+    ['textHashes',1024,x.context.outputSafetyCoverageManifests[id],'outputSafetyCoverageManifest'],
+    ['audioSegments',900,x.context.outputSafetyCoverageManifests[id],'outputSafetyCoverageManifest'],
+    ['frames',900,x.context.outputSafetyCoverageManifests[id],'outputSafetyCoverageManifest'],
+    ['evidenceRefs',128,x.context.outputSafetyResults[id],'outputSafetyResult']
+  ]) {
+    const value=clone(source),oversized=new Array(max+1);
+    Object.defineProperty(oversized,0,{enumerable:true,get(){throw Error('OVERSIZED_ARRAY_TRAVERSED');}});
+    value[field]=oversized;
+    for(const rule of [undefined,load('contracts/production.schema.json').$defs[definition]])
+      assert.ok(validateSchema(value,rule).some(error=>error.includes('/'+field+': must NOT have more than '+max+' items')));
+  }
+});
 test('ready clip safety cannot be authorized by the screenshot receipt',()=>{
   const x=previewProvenanceCase(),v=x.preview;
   Object.assign(v,{mediaKind:'clip',clipAssetId:'clip_asset',clipSha256:digest('different clip bytes'),clipMarkingEvidenceRef:'clip_marking'});
@@ -583,6 +693,24 @@ test('ready clip safety cannot be authorized by the screenshot receipt',()=>{
   assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_AUDIO_COVERAGE_INCOMPLETE'));
   addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview');
   assert.deepEqual(semanticErrors(v,x.context),[]);
+});
+test('clip safety uses output-relative frames and rounded-up milliseconds for its exact interval',()=>{
+  const x=previewProvenanceCase(),v=x.preview;
+  Object.assign(v,{mediaKind:'clip',frameStart:17,frameEndExclusive:48,clipAssetId:'offset_clip',clipSha256:digest('31 frame clip'),clipMarkingEvidenceRef:'clip_marking'});
+  Object.assign(x.context.markingEvidence.preview_check,{frameStart:17,frameEndExclusive:48});
+  x.context.markingEvidence.clip_marking={...x.context.markingEvidence.preview_check,assetId:v.clipAssetId,sha256:v.clipSha256};
+  x.context.runtimeDeclarationsByTarget[v.targetId].markers=[{id:'cut',label:'Cut',frame:22}];
+  addOutputSafety(x.context,v.screenshotAssetId,v,'preview',['text','visual']);
+  addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview');
+  const manifest=x.context.outputSafetyCoverageManifests[v.clipAssetId];
+  assert.deepEqual(manifest.sourceRange,{kind:'video',sourceFrameCount:900,frameStart:17,frameEndExclusive:48});
+  assert.equal(manifest.durationMs,1034);assert.equal(manifest.frameCount,31);
+  assert.deepEqual(manifest.frames.map(frame=>frame.frameIndex),[0,5,30]);
+  assert.deepEqual(semanticErrors(v,x.context),[]);
+  manifest.sourceRange.frameStart=18;manifest.sourceRange.frameEndExclusive=49;
+  x.context.outputSafetyCoveragePolicies[v.clipAssetId].sourceRange=clone(manifest.sourceRange);
+  x.context.outputSafetyResults[v.clipAssetId].coverageManifestHash=digest(manifest);
+  assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_SOURCE_RANGE_MISMATCH'));
 });
 for(const [name,mutate,code] of [
   ['different bytes',(r)=>{r.subjectHash=digest('unseen output');},'OUTPUT_SAFETY_SCOPE_MISMATCH'],

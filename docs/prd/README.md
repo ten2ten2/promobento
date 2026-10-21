@@ -29,7 +29,7 @@
 | [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、renderProfiles 与来源 |
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
 | [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态与公开能力边界 |
-| [预览策略](../../config/preview.json)、[可选内容审核](../../config/content-safety.json) | 本地完整回放、可信捕获和隔离待验项；默认关闭的提示词审核适配 |
+| [预览策略](../../config/preview.json)、[输入审核](../../config/content-safety.json)、[输出采样](../../config/output-safety-sampling.json) | 本地回放与可信捕获；默认关闭的提示词审核适配；输出审核的最低覆盖与大小上限 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |

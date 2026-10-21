@@ -16,19 +16,22 @@ function generationTextParts({instruction = '',task = '',facts = [],transcript =
 
 /** Preflight the selected generation context, not the project's stored material.
  * Empty text is valid for an in-progress form. Submission still requires actual text.
+ * Sections count original text; format overhead includes JSON structure and escaping.
  * The UI can use these numeric totals without receiving another copy of private text.
  */
 export function generationScanBudget(textParts = {},config = contentSafetyConfig) {
   if (!Number.isSafeInteger(config.maxPromptCharacters) || config.maxPromptCharacters < 1 || config.maxPromptCharacters > 10000)
     throw new Error('INVALID_SCAN_CONFIGURATION');
   const parts=generationTextParts(textParts);
-  const sections=Object.fromEntries(Object.entries(parts).map(([key,value]) => [key,[...canonical(value)].length]));
+  const sections=Object.fromEntries(Object.entries(parts).map(([key,value]) => [key,
+    (Array.isArray(value) ? value : [value]).reduce((length,text) => length+[...text].length,0)]));
+  const textCodePoints=Object.values(sections).reduce((sum,length) => sum+length,0);
   const totalCodePoints=[...canonical(parts)].length;
   const maxCodePoints=config.maxPromptCharacters;
-  return {totalCodePoints,maxCodePoints,
+  return {totalCodePoints,textCodePoints,maxCodePoints,
     remainingCodePoints:Math.max(0,maxCodePoints-totalCodePoints),
     excessCodePoints:Math.max(0,totalCodePoints-maxCodePoints),
-    structureCodePoints:totalCodePoints-Object.values(sections).reduce((sum,length) => sum+length,0),sections};
+    formatCodePoints:totalCodePoints-textCodePoints,sections};
 }
 
 /** Used when the trusted orchestrator selects this provider for a generation.

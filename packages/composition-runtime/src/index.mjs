@@ -90,6 +90,9 @@ export async function createCompositionRuntime({definition, root, targetId, widt
   const prepared = await definition.prepare(context);
   if (!prepared || typeof prepared.draw !== 'function' || typeof prepared.dispose !== 'function')
     throw new TypeError('PREPARED_COMPOSITION_INVALID');
+  // Reject an unsupported native timeline before returning a usable runtime.
+  // Keep the seek-time checks as draw() can create a new animation later.
+  assertSupportedDrawing(root);
   let disposed = false, pending = Promise.resolve();
   const serial = operation => {
     const next = pending.then(operation);

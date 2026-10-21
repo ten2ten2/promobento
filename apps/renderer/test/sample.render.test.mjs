@@ -30,10 +30,36 @@ test('fontconfig exposes only the private font directory and never writes cwd ca
   } finally { await handle?.stop();bundle.cleanup();rmSync(cwd,{recursive:true,force:true}); }
 });
 
-test('15-second fixed-target MP4 has deterministic pixels and verified media metadata',{timeout:600000},async()=>{
+function assertTimings(report) {
+  const {totalMs,...phases}=report.timings;
+  assert(Object.values(phases).every(value=>Number.isSafeInteger(value)&&value>=0));
+  assert(report.timings.prepareMs>0 && report.timings.captureEncodeMs>0 && report.timings.determinismChecksMs>0);
+  assert(report.timings.outputChecksMs>0 && report.timings.cleanupMs>0);
+  assert(Math.abs(Object.values(phases).reduce((sum,value)=>sum+value,0)-totalMs)<=Object.keys(phases).length,
+    'Phases are non-overlapping wall time; capture and encoding share one phase');
+  assert.equal(report.capture.encodingOverlapsCapture,true);
+  assert.equal(Object.hasOwn(report.capture,'elapsedMs'),false);
+}
+
+test('15-second output and full regression use identical capture/encoding and real output checks',{timeout:600000},async()=>{
   const {report}=await renderSample();
   assert.equal(report.frameCount,450);
   assert.equal(new Set(report.pixelHashes).size>100,true,'The fixture must contain actual animation');
+  assert.equal(report.mode,'regression');
+  assert.equal(report.checks.reverseFrames,450);
+  assertTimings(report);
+  const {report:output}=await renderSample({fixture:'square',mode:'output'});
+  assert.equal(output.mode,'output');
+  assert.deepEqual(output.pixelHashes,report.pixelHashes,'Output mode cannot change what is captured');
+  assert.equal(output.checks.forwardFrames,450);
+  assert.equal(output.checks.reverseFrames,0);
+  assert.equal(output.checks.invalidFrames,0);
+  assert.equal(output.checks.nativeAnimationsRejected,null,'An omitted error-path probe cannot claim a pass');
+  assert.equal(output.timings.regressionChecksMs,0);
+  assert.equal(output.checks.colorSwatches.length,4);
+  assert.equal(output.verification.version,report.verification.version);
+  assert(output.checks.repeatedFrames>0 && output.checks.unorderedFrames>0 && output.checks.coldFrames>0);
+  assertTimings(output);
 });
 
 test('30-second portrait keeps DOM/SVG/Canvas nodes and remains deterministic',{timeout:600000},async()=>{
@@ -44,6 +70,7 @@ test('30-second portrait keeps DOM/SVG/Canvas nodes and remains deterministic',{
   assert.equal(report.checks.nativeAnimationsRejected,true);
   assert.equal(report.capture.sourceFrameStorage,'temporary_disk');
   assert(new Set(report.pixelHashes).size>800,'The 30-second fixture must actually redraw');
+  assertTimings(report);
 });
 
 test('a host deadline kills both an unresolved draw and a synchronous renderer loop',{timeout:60000},async()=>{

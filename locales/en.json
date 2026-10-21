@@ -167,7 +167,7 @@
     "reviewRequired": "Review the highlighted frames before confirming.",
     "exportNewVersion": "Export new version",
     "inputBudget": "Selected generation context: {{used}} / {{limit}} characters, including formatting.",
-    "inputBudgetSections": "Task {{task}} · Instructions {{instruction}} · Facts {{facts}} · Transcript {{transcript}} · Comments {{comments}} · Editable text {{editableTexts}} · Structure {{structure}}",
+    "inputBudgetSections": "Task {{task}} · Instructions {{instruction}} · Facts {{facts}} · Transcript {{transcript}} · Comments {{comments}} · Editable text {{editableTexts}} · Formatting {{format}}",
     "inputBudgetHelp": "Choose the material for this generation. Your other project material stays saved.",
     "outputReviewPending": "Your work is saved. The result will be available after its content review.",
     "outputWithheld": "This result is not available to preview. Review the issue before trying again.",

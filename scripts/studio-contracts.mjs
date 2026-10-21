@@ -1,7 +1,7 @@
 // Reference validation of Studio boundaries; no API, rendering or authorization service runs here.
 import { readFileSync } from 'node:fs';
 import { canonical, createSchemaValidator, digest, parseCanonicalJson, safePath, sourceValuesBytes } from '../packages/contracts/index.mjs';
-import { outputSafetyErrors } from './output-safety.mjs';
+import { outputSafetyErrors, scopedSafetyCoveragePolicy } from './output-safety.mjs';
 const previewPolicy = parseCanonicalJson(readFileSync(new URL('../config/preview.json',import.meta.url)));
 const schema = parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json',import.meta.url)));
 const validate = createSchemaValidator(schema);
@@ -101,9 +101,10 @@ export function factBindingUpdates(bindings, previousFacts, nextFacts) {
   const before = new Map(previousFacts.map(fact => [fact.factId,fact]));
   const after = new Map(nextFacts.map(fact => [fact.factId,fact]));
   return bindings.map(binding => {
+    if (binding.factIds.some(id => !before.has(id))) throw Error('FACT_BINDING_SOURCE_MISMATCH');
+    if (binding.factIds.some(id => !after.has(id))) throw Error('BOUND_FACT_REMOVAL_REQUIRES_SOURCE_EDIT');
     const displayedIds = binding.factIds.filter(id => before.get(id)?.text === binding.expectedText);
     if (!displayedIds.length) throw Error('FACT_BINDING_SOURCE_MISMATCH');
-    if (displayedIds.some(id => !after.has(id))) throw Error('BOUND_FACT_REMOVAL_REQUIRES_SOURCE_EDIT');
     const text = new Set(displayedIds.map(id => after.get(id).text));
     if (text.size !== 1) throw Error('FACT_BINDING_TEXT_AMBIGUOUS');
     return {...structuredClone(binding),expectedText:[...text][0]};
@@ -126,6 +127,16 @@ export function candidateOutputIdentity(candidate,targetId,targetContentHash) {
   return {targetId,targetContentHash,agentInterpretation:candidate.agentInterpretation,impactSummary:candidate.impactSummary};
 }
 
+/** The revision projection also carries declarations extracted from that target's actual source. */
+function revisionSafetyPolicy(revision,projectId,revisionId,targetId,context,policy) {
+  if (!revision || !context.workspaceId || context.projectId!==projectId || revision.projectId!==projectId
+    || revision.workspaceId!==context.workspaceId || (revision.revisionId!==undefined && revision.revisionId!==revisionId)
+    || !Array.isArray(revision.targetIds) || !revision.targetIds.includes(targetId))
+    throw Error('OUTPUT_SAFETY_SOURCE_RECORD_REQUIRED');
+  return scopedSafetyCoveragePolicy(policy,{totalFrames:revision.totalFrames,
+    runtimeDeclarations:own(revision.runtimeDeclarationsByTarget,targetId)});
+}
+
 /** Validate every target against controller-observed content and trusted moderation records. */
 export function candidateSafetyErrors(candidate,context) {
   if (!candidate?.affectedTargetIds?.length) return ['CANDIDATE_TARGETS_REQUIRED'];
@@ -136,10 +147,14 @@ export function candidateSafetyErrors(candidate,context) {
     if (!visibleText(candidate.agentInterpretation) || !visibleText(candidate.impactSummary)) return ['CANDIDATE_SUMMARY_REQUIRED'];
     const subjectHash=digest(candidateOutputIdentity(candidate,targetId,targetContentHash));
     if (!['trusted_media','verified_local_runtime'].includes(check?.options?.representation)) return ['CANDIDATE_SAFETY_REQUIRED'];
+    let coveragePolicy;
+    try {coveragePolicy=revisionSafetyPolicy(own(context.revisions,candidate.candidateRevisionId),candidate.projectId,
+      candidate.candidateRevisionId,targetId,context,check.options.coveragePolicy);}
+    catch (error) {return [error.message];}
     return outputSafetyErrors(check?.receipt,{
       projectId:candidate.projectId,operationId:context.operationId,revisionId:candidate.candidateRevisionId,
       subjectKind:'candidate',subjectHash,targetId
-    },{...check.options,requiredCoverage:['text','visual','audio']});
+    },{...check.options,coveragePolicy,requiredCoverage:['text','visual','audio']});
   });
 }
 
@@ -309,10 +324,14 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (context.production) {
       fail(context.localPreviewAllowed === true, 'LOCAL_PREVIEW_ACCESS_REQUIRED');
       const check=context.previewSafetyCheck;
-      const safetyErrors=outputSafetyErrors(check?.receipt,{
-        projectId:v.projectId,operationId:context.operationId ?? null,revisionId:v.revisionId,
-        subjectKind:'preview',subjectHash:revision?.manifestHash,targetId:v.targetId
-      },{...check?.options,representation:'verified_local_runtime',requiredCoverage:['text','visual','audio']});
+      let safetyErrors;
+      try {
+        const coveragePolicy=revisionSafetyPolicy(revision,v.projectId,v.revisionId,v.targetId,context,check?.options?.coveragePolicy);
+        safetyErrors=outputSafetyErrors(check?.receipt,{
+          projectId:v.projectId,operationId:context.operationId ?? null,revisionId:v.revisionId,
+          subjectKind:'preview',subjectHash:revision?.manifestHash,targetId:v.targetId
+        },{...check?.options,coveragePolicy,representation:'verified_local_runtime',requiredCoverage:['text','visual','audio']});
+      } catch (error) {safetyErrors=[error.message];}
       fail(safetyErrors.length===0, 'LOCAL_PREVIEW_SAFETY_REQUIRED');errors.push(...safetyErrors);
     }
     if (v.kind === 'preview_session_result') {

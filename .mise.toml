@@ -41,6 +41,11 @@ dir = "{{config_root}}"
 run = "node apps/renderer/scripts/install-browser.mjs"
 
 [tasks."test:render"]
-description = "Render and verify the fixed 15-second MP4 fixture"
+description = "Render and verify fixed 15/30-second fixtures and host failure handling"
 dir = "{{config_root}}"
 run = "node scripts/run-tests.mjs --render"
+
+[tasks."render:fixture"]
+description = "Render a reviewed fixture with output or full regression checks"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/render-fixture.mjs"

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {frameTime,randomAt} from '../src/index.mjs';
+import {createCompositionRuntime,frameTime,randomAt} from '../src/index.mjs';
 
 test('frame addressing preserves exact time and rejects a missing or fractional frame',()=>{
   assert.deepEqual(frameTime(449,450),{numerator:449,denominator:30});
@@ -44,4 +44,17 @@ test('keyed random values do not depend on call order',()=>{
   assert.equal(randomAt('scene','particle-2'),before);
   assert.notEqual(randomAt('other-scene','particle-2'),before);
   assert(before>=0&&before<1);
+});
+
+test('native animation created during prepare is rejected before a usable runtime or first draw',async()=>{
+  let animations=[],draws=0;
+  const root={style:{},replaceChildren(){},getAnimations:()=>animations};
+  const definition={apiVersion:'2.7.0',editables:[],markers:[],regions:[],videoUses:[],fonts:[],
+    prepare() {
+      animations=[{playState:'paused'}];
+      return {draw(){draws++;},dispose(){}};
+    }};
+  await assert.rejects(createCompositionRuntime({definition,root,targetId:'instagram_feed:square',width:1080,height:1080,
+    durationSeconds:15,seed:'fixture',values:{}}),/NATIVE_ANIMATION_UNSUPPORTED/);
+  assert.equal(draws,0);
 });

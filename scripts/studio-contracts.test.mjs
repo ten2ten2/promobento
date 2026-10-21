@@ -12,6 +12,8 @@ const clone = value => structuredClone(value);
 const sha = 'a'.repeat(64), otherSha = 'b'.repeat(64);
 const envelope = (kind,fields) => ({...(kind === 'source_values' ? {} : {schemaVersion:'2.7.0'}),kind,...fields});
 const scope = {production:true,authorized:true,workspaceId:'workspace_studio',projectId:'project_studio'};
+const sourceDeclarations=(frames=[])=>envelope('runtime_declarations',{editables:[],
+  markers:frames.map((frame,i)=>({id:'marker_'+i,label:'Scene '+i,frame})),regions:[],videoUses:[],fonts:[]});
 const definitions = {
   headline:{id:'headline',label:'Headline',type:'text',factId:'fact_headline'},
   background:{id:'background',label:'Background',type:'color'},
@@ -97,6 +99,19 @@ test('fact edits synchronize every binding and require a draft CAS in either dir
   assert.throws(()=>localPreviewValues(updates,trusted),/EDITABLE_REQUIRES_AI/);
   rejects('draftUpdateRequest',draft(),trusted);
   rejects('factsUpdateRequest',request,trusted);
+});
+
+test('fact binding updates validate every reference, including facts that do not supply the displayed text', () => {
+  const previous=[{factId:'fact_title',text:'The title.'},{factId:'fact_support',text:'A supporting fact.'}];
+  const next=[{...previous[0],text:'The revised title.'},previous[1]];
+  const bindings=[{bindingId:'title_binding',factIds:['fact_title','fact_support'],expectedText:'The title.'}];
+  assert.deepEqual(factBindingUpdates(bindings,previous,next),[{...bindings[0],expectedText:'The revised title.'}]);
+  assert.throws(()=>factBindingUpdates([{...bindings[0],factIds:['fact_title','ghost']}],previous,next),
+    /FACT_BINDING_SOURCE_MISMATCH/);
+  assert.throws(()=>factBindingUpdates(bindings,previous,[next[0]]),/BOUND_FACT_REMOVAL_REQUIRES_SOURCE_EDIT/);
+  assert.throws(()=>factBindingUpdates(bindings,[previous[0]],next),/FACT_BINDING_SOURCE_MISMATCH/);
+  assert.deepEqual(bindings[0].factIds,['fact_title','fact_support']);
+  assert.equal(bindings[0].expectedText,'The title.');
 });
 
 test('restoring a revision is exclusive with changes and never crosses projects', () => {
@@ -199,7 +214,8 @@ function preview() {
 function previewContext() {
   return {...context(),localPreviewAllowed:true,previewSafetyCheck:localSafetyCheck(),previewOrigin:'https://preview.example.test',appOrigin:'https://app.example.test',
     now:Date.parse('2026-10-21T00:00:00Z'),audioGrants:{[otherSha]:'https://media.example.test/audio/grant_current'},revisions:{revision_current:{workspaceId:scope.workspaceId,
-      projectId:scope.projectId,targetIds:['tiktok:portrait'],manifestHash:sha,totalFrames:450,mixedAudioHash:otherSha}}};
+      projectId:scope.projectId,targetIds:['tiktok:portrait'],manifestHash:sha,totalFrames:450,mixedAudioHash:otherSha,
+      runtimeDeclarationsByTarget:{'tiktok:portrait':sourceDeclarations()}}}};
 }
 test('local preview keeps full duration and logical dimensions while rejecting origin or scale substitution', () => {
   accepts('previewSessionResult',preview(),previewContext());
@@ -419,9 +435,11 @@ function candidateCase(overrides={}) {
   const reviewedHash=digest(candidateOutputIdentity(candidate,'tiktok:portrait',sha));
   const observation={subjectHash:reviewedHash,targetId:'tiktok:portrait',representation:'trusted_media',
     textPresent:true,audioPresent:true,evidenceRef:'candidate_modality_observation'};
+  const sourceRange={kind:'video',sourceFrameCount:450,frameStart:0,frameEndExclusive:450};
+  const frameIndices=[0,30,60,90,120,150,180,210,240,270,300,330,360,390,420,449];
   const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:reviewedHash,targetId:'tiktok:portrait',
-    representation:'trusted_media',samplingPolicyVersion:'sample_v1',textHashes:[digest('approved text')],frameCount:450,
-    frames:[{frameIndex:0,sha256:digest('approved frame')}],durationMs:15000,
+    representation:'trusted_media',samplingPolicyVersion:'output-sampling-v1',sourceRange,textHashes:[digest('approved text')],frameCount:450,
+    frames:frameIndices.map(frameIndex=>({frameIndex,sha256:digest('approved frame '+frameIndex)})),durationMs:15000,
     audioSegments:[{startMs:0,endMs:15000,sha256:digest('approved audio')}],runtimeStateHash:null,modalityObservationHash:digest(observation)};
   const receipt={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_candidate',projectId:scope.projectId,
     operationId:'operation_candidate',revisionId:candidate.candidateRevisionId,targetId:'tiktok:portrait',subjectKind:'candidate',
@@ -429,9 +447,12 @@ function candidateCase(overrides={}) {
     checkedAt:'2026-10-21T00:00:00Z',evidenceRefs:['evidence_1'],coverageManifestHash:digest(manifest)};
   const options={policyVersion:'safety_v1',representation:'trusted_media',requiredCoverage:['text','visual','audio'],
     nowMs:Date.parse('2026-10-21T00:01:00Z'),revokedResultIds:[],coverageManifest:manifest,
-    coveragePolicy:{version:'sample_v1',frameCount:450,durationMs:15000,requiredFrameIndices:[0],modalityObservation:observation}};
+    coveragePolicy:{version:'output-sampling-v1',sourceRange:{...sourceRange},frameCount:450,durationMs:15000,
+      markerFrameIndices:[],modalityObservation:observation}};
   const trusted={...scope,actorUserId:'user_1',operationId:'operation_candidate',candidateContentHashes:{'tiktok:portrait':sha},
-    candidateSafetyChecks:{'tiktok:portrait':{receipt,options}}};
+    candidateSafetyChecks:{'tiktok:portrait':{receipt,options}},revisions:{[candidate.candidateRevisionId]:{
+      workspaceId:scope.workspaceId,projectId:scope.projectId,targetIds:['tiktok:portrait'],totalFrames:450,
+      runtimeDeclarationsByTarget:{'tiktok:portrait':sourceDeclarations()}}}};
   const request=envelope('candidate_action_request',{requestId:'accept_1',projectId:scope.projectId,baseRevision:null,
     candidateRevisionId:candidate.candidateRevisionId});
   return {candidate,trusted,request,book:new CandidateReference({...scope,candidates:[candidate]})};
@@ -467,6 +488,55 @@ test('candidate acceptance derives permission from each actual target; cancellat
   assert.equal(rejected.book.currentRevisionId,null);
 });
 
+test('candidate safety requires a scoped revision and its actual target declarations',()=>{
+  for (const mutate of [
+    t=>{t.revisions={};},
+    t=>{t.revisions.revision_candidate.workspaceId='other_workspace';},
+    t=>{t.revisions.revision_candidate.projectId='other_project';},
+    t=>{t.revisions.revision_candidate.revisionId='other_revision';},
+    t=>{t.revisions.revision_candidate.targetIds=['x:landscape'];},
+    t=>{t.revisions.revision_candidate.totalFrames=30;},
+    t=>{delete t.revisions.revision_candidate.runtimeDeclarationsByTarget;},
+    t=>{delete t.revisions.revision_candidate.runtimeDeclarationsByTarget['tiktok:portrait'].markers;}
+  ]) {
+    const x=candidateCase();mutate(x.trusted);
+    assert.throws(()=>x.book.decide('accept',x.request,x.trusted),/OUTPUT_SAFETY_SOURCE_/);
+    assert.equal(x.book.currentRevisionId,null);assert.equal(x.book.requests.size,0);
+  }
+});
+
+test('candidate coverage cannot prove its own length or omit source markers',()=>{
+  const longer=candidateCase();longer.trusted.revisions.revision_candidate.totalFrames=900;
+  assert.ok(errors('candidateResult',longer.candidate,longer.trusted).includes('OUTPUT_SAFETY_MEDIA_LENGTH_MISMATCH'));
+  const short=candidateCase(),check=short.trusted.candidateSafetyChecks['tiktok:portrait'];
+  const manifest=check.options.coverageManifest;
+  Object.assign(manifest,{sourceRange:{...manifest.sourceRange,frameEndExclusive:30},frameCount:30,durationMs:1000,
+    frames:[{frameIndex:0,sha256:digest('first frame')},{frameIndex:29,sha256:digest('last short frame')}],
+    audioSegments:[{startMs:0,endMs:1000,sha256:digest('one second audio')}]});
+  Object.assign(check.options.coveragePolicy,{sourceRange:{...manifest.sourceRange},frameCount:30,durationMs:1000});
+  check.receipt.coverageManifestHash=digest(manifest);
+  assert.ok(errors('candidateResult',short.candidate,short.trusted).includes('OUTPUT_SAFETY_MEDIA_LENGTH_MISMATCH'));
+  const marked=candidateCase(),approved=marked.trusted.candidateSafetyChecks['tiktok:portrait'];
+  marked.trusted.revisions.revision_candidate.runtimeDeclarationsByTarget['tiktok:portrait']=sourceDeclarations([17]);
+  assert.ok(errors('candidateResult',marked.candidate,marked.trusted).includes('OUTPUT_SAFETY_FRAME_COVERAGE_INCOMPLETE'));
+  approved.options.coverageManifest.frames.push({frameIndex:17,sha256:digest('marker frame')});
+  approved.options.coverageManifest.frames.sort((a,b)=>a.frameIndex-b.frameIndex);
+  approved.receipt.coverageManifestHash=digest(approved.options.coverageManifest);
+  accepts('candidateResult',marked.candidate,marked.trusted);
+});
+
+test('local preview derives its length and required markers from the authorized revision',()=>{
+  const request=envelope('preview_session_request',{requestId:'preview_scope',projectId:scope.projectId,
+    revisionId:'revision_current',targetId:'tiktok:portrait'});
+  const longer=previewContext();longer.revisions.revision_current.totalFrames=900;
+  assert.ok(errors('previewSessionRequest',request,longer).includes('OUTPUT_SAFETY_MEDIA_LENGTH_MISMATCH'));
+  const marked=previewContext();
+  marked.revisions.revision_current.runtimeDeclarationsByTarget['tiktok:portrait']=sourceDeclarations([17]);
+  assert.ok(errors('previewSessionRequest',request,marked).includes('OUTPUT_SAFETY_FRAME_COVERAGE_INCOMPLETE'));
+  const missing=previewContext();delete missing.revisions.revision_current.runtimeDeclarationsByTarget;
+  assert.ok(errors('previewSessionRequest',request,missing).includes('OUTPUT_SAFETY_SOURCE_DECLARATIONS_REQUIRED'));
+});
+
 test('run responses withhold all creative prose until the exact text bundle is approved',()=>{
   const result=envelope('run_result',{runId:'run_plan',operationId:'operation_plan',baseRevision:null,state:'validating',
     phase:'text_review',generation:1,candidateRevisionId:null,outputStatus:'withheld',
@@ -477,13 +547,13 @@ test('run responses withhold all creative prose until the exact text bundle is a
   const subjectHash=digest(creativePlanIdentity(ready));
   const observation={subjectHash,targetId:null,representation:'text',textPresent:true,audioPresent:false,evidenceRef:'plan_modality_observation'};
   const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash,targetId:null,representation:'text',
-    samplingPolicyVersion:'plan_text_v1',textHashes:[subjectHash],frameCount:null,frames:[],durationMs:null,audioSegments:[],runtimeStateHash:null,modalityObservationHash:digest(observation)};
+    samplingPolicyVersion:'output-sampling-v1',sourceRange:null,textHashes:[subjectHash],frameCount:null,frames:[],durationMs:null,audioSegments:[],runtimeStateHash:null,modalityObservationHash:digest(observation)};
   const check={receipt:{schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'plan_safety',projectId:scope.projectId,
     operationId:ready.operationId,revisionId:null,targetId:null,subjectKind:'creative_plan',subjectHash,
     policyVersion:'safety_v1',representation:'text',coverage:['text'],status:'allowed',checkedAt:'2026-10-21T00:00:00Z',
     evidenceRefs:['plan_evidence'],coverageManifestHash:digest(manifest)},options:{policyVersion:'safety_v1',representation:'text',
       requiredCoverage:['text'],nowMs:Date.parse('2026-10-21T00:01:00Z'),revokedResultIds:[],coverageManifest:manifest,
-      coveragePolicy:{version:'plan_text_v1',modalityObservation:observation}}};
+      coveragePolicy:{version:'output-sampling-v1',modalityObservation:observation}}};
   assert.ok(errors('runResult',ready,context()).includes('OUTPUT_SAFETY_REQUIRED'));
   accepts('runResult',ready,{...context(),planSafetyCheck:check});
   const changed=clone(ready);changed.treatment.beats[0].event='Unreviewed replacement.';

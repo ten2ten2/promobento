@@ -1,9 +1,9 @@
 // Specification/fixture checker, not a production authorization or browser sandbox.
 import { readFileSync } from 'node:fs';
-import { studioErrors, visibleText } from './studio-contracts.mjs';
+import { studioErrors, visibleText, candidateSafetyErrors } from './studio-contracts.mjs';
 import { trustedPreviewErrors } from './preview-policy.mjs';
 import { recordCheckoutConsent } from './checkout-consent.mjs';
-import { outputSafetyErrors } from './output-safety.mjs';
+import { outputSafetyErrors, scopedSafetyCoveragePolicy } from './output-safety.mjs';
 import {
   canonical, digest, parseCanonicalJson, createSchemaValidator,
   targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
@@ -37,8 +37,23 @@ const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] 
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 
 /** Each visible media output has its own trusted receipt, bound to the actual bytes. */
-function mediaOutputSafetyErrors({id,projectId,revisionId,targetId,subjectKind,sha256,mediaKind},context) {
-  return outputSafetyErrors(own(context.outputSafetyResults,id),{
+function mediaOutputSafetyErrors({id,projectId,revisionId,targetId,subjectKind,sha256,mediaKind,frameStart,frameEndExclusive},context) {
+  const receipt=own(context.outputSafetyResults,id);
+  if (!receipt) return ['OUTPUT_SAFETY_REQUIRED'];
+  const source=context.composition, variant=source?.variants?.find(item=>item.targetId===targetId);
+  if (!source || source.projectId!==projectId || source.revisionId!==revisionId || !variant)
+    return ['OUTPUT_SAFETY_SOURCE_UNAVAILABLE'];
+  const image=['screenshot','cover'].includes(mediaKind);
+  const start=mediaKind==='cover' ? variant.coverFrame : mediaKind==='video' ? 0 : frameStart;
+  const end=image ? start+1 : mediaKind==='video' ? source.totalFrames : frameEndExclusive;
+  let coveragePolicy;const errors=[];
+  try {
+    coveragePolicy=scopedSafetyCoveragePolicy(own(context.outputSafetyCoveragePolicies,id),{
+      totalFrames:source.totalFrames,runtimeDeclarations:own(context.runtimeDeclarationsByTarget,targetId),
+      kind:image ? 'image' : 'video',frameStart:start,frameEndExclusive:end
+    });
+  } catch (error) { errors.push(error.message); }
+  return [...errors,...outputSafetyErrors(receipt,{
     projectId,revisionId,targetId,subjectKind,subjectHash:sha256,
     operationId:own(context.outputOperationIds,id) ?? null
   },{
@@ -48,9 +63,9 @@ function mediaOutputSafetyErrors({id,projectId,revisionId,targetId,subjectKind,s
     nowMs:typeof context.now === 'string' ? Date.parse(context.now) : context.now,
     revokedResultIds:context.revokedOutputSafetyResultIds,
     coverageManifest:own(context.outputSafetyCoverageManifests,id),
-    coveragePolicy:own(context.outputSafetyCoveragePolicies,id),
+    coveragePolicy,
     association:own(context.outputSafetyAssociations,id)
-  });
+  })];
 }
 
 /** Reports are reusable checks; associations and waivers remain scoped authorization records. */
@@ -244,6 +259,11 @@ function apiInputErrors(v, context) {
   if (v.kind === 'facts_result') {
     fail(new Set(v.facts.map(x => x.factId)).size === v.facts.length, 'DUPLICATE_FACT');
     for (const fact of v.facts) fail(fact.textHash === digest(fact.text), 'FACT_TEXT_HASH_MISMATCH');
+    const unconfirmed = new Set(v.facts.filter(fact => fact.confirmation === null).map(fact => fact.factId));
+    fail(v.unconfirmedFactIds.length === unconfirmed.size
+      && v.unconfirmedFactIds.every(factId => unconfirmed.has(factId)), 'UNCONFIRMED_FACTS_MISMATCH');
+    // Check this response snapshot, not a newer draft that may exist when it is replayed.
+    if (v.revisionId !== null) fail(v.revisionId === v.currentRevisionId, 'FACT_RESULT_REVISION_MISMATCH');
   }
   if (['transcript_confirm_request','transcript_result'].includes(v.kind)) {
     fail(v.segments.reduce((n,segment) => n + [...segment.text].length,0) <= 6000, 'TRANSCRIPT_TOO_LONG');
@@ -590,14 +610,16 @@ export function semanticErrors(v, context = {}) {
     fail(hash(v.sha256), 'READY_PREVIEW_WITHOUT_HASH');
     if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.screenshotAssetId},context));
     if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.screenshotAssetId,
-      projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.sha256,mediaKind:'screenshot'},context));
+      projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.sha256,mediaKind:'screenshot',
+      frameStart:v.frameStart,frameEndExclusive:v.frameStart+1},context));
     if (v.mediaKind === 'clip') {
       fail(typeof v.clipAssetId === 'string' && v.clipAssetId.length > 0, 'READY_CLIP_WITHOUT_ASSET');
       fail(hash(v.clipSha256), 'READY_CLIP_WITHOUT_HASH');
       if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.clipAssetId,
         sha256:v.clipSha256,markingEvidenceRef:v.clipMarkingEvidenceRef},context));
       if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.clipAssetId,
-        projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.clipSha256,mediaKind:'clip'},context));
+        projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.clipSha256,mediaKind:'clip',
+        frameStart:v.frameStart,frameEndExclusive:v.frameEndExclusive},context));
     }
   }
   if (v.kind === 'fact_manifest') {
@@ -698,8 +720,13 @@ export function transition(state, event, guard = {}) {
   const next = edges[state]?.[event];
   if (!next) throw Error('INVALID_TRANSITION');
   if (event === 'resume' && (!guard.authorized || !guard.baseMatches || !guard.withinWindow || !(guard.remainingBudget > 0))) throw Error('RESUME_REJECTED');
-  if (event === 'pass' && (!guard.qaPassed || !guard.generationMatches || !guard.authorized || guard.safetyAllowed !== true))
-    throw Error('PUBLISH_REJECTED');
+  if (event === 'pass') {
+    const {candidate,safetyContext}=guard;
+    if (guard.qaPassed!==true || guard.generationMatches!==true || guard.authorized!==true
+      || !candidate || validateSchema(candidate,schema.$defs.candidateResult).length || candidate.state!=='ready'
+      || !safetyContext || ['projectId','runId','operation'].some(key=>candidate[key]!==safetyContext[key])
+      || candidateSafetyErrors(candidate,safetyContext).length) throw Error('PUBLISH_REJECTED');
+  }
   if (event === 'repair' && !(guard.repairs < 2 && guard.remainingBudget > 0)) throw Error('REPAIR_EXHAUSTED');
   return next;
 }

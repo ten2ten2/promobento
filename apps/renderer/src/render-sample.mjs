@@ -13,14 +13,42 @@ import {captureFrame,launchFixtureBrowser,withDeadline} from './frame-capture.mj
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const presets=parseCanonicalJson(readFileSync(join(root,'config/platform-presets.json')));
-const fixtures={
-  square:{targetId:'instagram_feed:square',durationSeconds:15,path:'tests/fixtures/render/square.mjs'},
-  inplace:{targetId:'tiktok:portrait',durationSeconds:30,path:'tests/fixtures/render/inplace.mjs'}
-};
+const fixtures=Object.freeze({
+  square:Object.freeze({targetId:'instagram_feed:square',durationSeconds:15,path:'tests/fixtures/render/square.mjs'}),
+  inplace:Object.freeze({targetId:'tiktok:portrait',durationSeconds:30,path:'tests/fixtures/render/inplace.mjs'})
+});
+
+/** Both modes execute only these repository fixtures, never caller-supplied code or URLs. */
+export function renderOptions(options={}) {
+  if (!options || typeof options!=='object' || Array.isArray(options)
+    || Object.keys(options).some(key=>!['fixture','mode','outputDirectory'].includes(key)))
+    throw new Error('RENDER_OPTIONS_INVALID: only fixture, mode and outputDirectory are accepted');
+  const {fixture='square',mode='regression',outputDirectory}=options;
+  if (typeof fixture!=='string' || !Object.hasOwn(fixtures,fixture)) throw new Error('RENDER_FIXTURE_UNKNOWN');
+  if (!['output','regression'].includes(mode)) throw new Error('RENDER_MODE_INVALID');
+  if (outputDirectory!==undefined && (typeof outputDirectory!=='string' || !outputDirectory.trim()))
+    throw new Error('RENDER_OUTPUT_DIRECTORY_INVALID');
+  return {fixture,mode,outputDirectory};
+}
+
+/** A bounded fixture check, not proof that arbitrary programs are deterministic or safe. */
+export function fixtureVerificationPlan(frameCount,mode) {
+  if (![450,900].includes(frameCount)) throw new Error('RENDER_FRAME_COUNT_INVALID');
+  if (!['output','regression'].includes(mode)) throw new Error('RENDER_MODE_INVALID');
+  const middle=Math.floor(frameCount/2);
+  return {
+    version:'fixture-determinism-v1',
+    repeated:[middle,0,middle,frameCount-1,0],
+    unordered:[17,frameCount-7,Math.floor(frameCount/3),3,Math.floor(frameCount*2/3),middle-11],
+    cold:[0,59,Math.floor(frameCount/3),middle,Math.floor(frameCount*2/3),frameCount-1],
+    reverseFrameCount:mode==='regression'?frameCount:0,
+    reducedMotion:mode==='regression'?[0,middle,frameCount-1]:[]
+  };
+}
 
 export function fixtureConfiguration(fixture) {
+  if (typeof fixture!=='string' || !Object.hasOwn(fixtures,fixture)) throw new Error('RENDER_FIXTURE_UNKNOWN');
   const selected=fixtures[fixture];
-  if (!selected) throw new Error('RENDER_FIXTURE_UNKNOWN');
   const [presetId,aspect]=selected.targetId.split(':');
   const preset=presets.presets.find(item=>item.id===presetId);
   assert(preset && [preset.defaultAspect,...preset.optionalAspects].includes(aspect),'Fixture must use a configured product target');
@@ -55,8 +83,19 @@ function verifySwatches(video,{width,height}) {
   return checks;
 }
 
-export async function renderSample({outputDirectory,fixture='square'}={}) {
+export async function renderSample(options={}) {
+  const {outputDirectory,fixture,mode}=renderOptions(options);
+  const started=performance.now();
+  const timings={prepareMs:0,captureEncodeMs:0,determinismChecksMs:0,regressionChecksMs:0,outputChecksMs:0,cleanupMs:0};
+  let currentStage='prepareMs',stageStarted=started,finishedAt;
+  const stage=name=>{
+    const now=performance.now();
+    if (currentStage) timings[currentStage]+=now-stageStarted;
+    currentStage=name;stageStarted=now;
+    if (name===null) finishedAt=now;
+  };
   const {selected,input,encoding,frameCount}=fixtureConfiguration(fixture);
+  const verification=fixtureVerificationPlan(frameCount,mode),regression=mode==='regression';
   const {width,height,targetId,durationSeconds}=input;
   const files=new Map([
     ['/', ['apps/renderer/src/host.html','text/html']],
@@ -64,28 +103,34 @@ export async function renderSample({outputDirectory,fixture='square'}={}) {
     ['/composition.mjs',[selected.path,'text/javascript']],
     ['/runtime.mjs',['packages/composition-runtime/src/index.mjs','text/javascript']]
   ]);
-  const bundle=prepareBrowserBundle(environmentLock.browser);
-  let handle,encoder,server;
+  let bundle,handle,encoder,server,report,ownsFramesDirectory=false;
   const hashes=[],browserErrors=[];
-  const started=performance.now();
   let maxFramePngBytes=0;
-  const runId=new Date().toISOString().replace(/[:.]/g,'-')+'-'+fixture;
+  const runId=new Date().toISOString().replace(/[:.]/g,'-')+'-'+fixture+'-'+mode;
   const out=resolve(outputDirectory||join(root,'artifacts/m0a',runId));
   const framesDirectory=join(out,'frames');
   try {
+    bundle=prepareBrowserBundle(environmentLock.browser);
     const environment=inspectEnvironment(bundle);
-    mkdirSync(framesDirectory,{recursive:true});
+    mkdirSync(out,{recursive:true});
+    // Never merge with or remove a pre-existing caller directory on failure.
+    mkdirSync(framesDirectory);
+    ownsFramesDirectory=true;
     writeFileSync(join(out,'environment.json'),JSON.stringify(environment,null,2)+'\n');
     const sourcePaths=[...new Set([...files.values()].map(([path])=>path).concat(
       'tests/fixtures/render/values.json','apps/renderer/environment.lock.json','apps/renderer/fontconfig.conf',
       'apps/renderer/src/render-sample.mjs','apps/renderer/src/frame-capture.mjs','apps/renderer/src/browser-bundle.mjs','apps/renderer/src/environment.mjs'))];
-    const fixtureFiles=sourceFileDigests(sourcePaths.map(path=>({path,bytes:readFileSync(join(root,path))})));
+    // Serve the same immutable bytes that were hashed; edits during a run must not
+    // silently replace a module between the first capture and the cold restart.
+    const sourceInputs=new Map(sourcePaths.map(path=>[path,readFileSync(join(root,path))]));
+    input.values=parseSourceValues(sourceInputs.get('tests/fixtures/render/values.json')).values;
+    const fixtureFiles=sourceFileDigests([...sourceInputs].map(([path,bytes])=>({path,bytes})));
     server=createServer((request,response)=>{
       const entry=files.get(request.url);
       if (request.method!=='GET'||!entry) { response.writeHead(404);response.end();return; }
       response.writeHead(200,{'Content-Type':entry[1],'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
         'Content-Security-Policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});
-      response.end(readFileSync(join(root,entry[0])));
+      response.end(sourceInputs.get(entry[0]));
     });
     server.listen(0,'127.0.0.1');
     await once(server,'listening');
@@ -106,16 +151,20 @@ export async function renderSample({outputDirectory,fixture='square'}={}) {
     handle=await launchFixtureBrowser(bundle);
     const {context,page}=await open();
     assert.equal(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches),false);
-    for (const invalid of [-1,0.5,frameCount])
-      await assert.rejects(screenshot(page,invalid),/FRAME_OUT_OF_RANGE/);
-    // Reject native timelines instead of silently cancelling/restarting them during capture.
-    await page.evaluate(()=>{
-      const child=document.querySelector('#composition').firstElementChild;
-      window.nativeProbe=child.animate([{opacity:0.5},{opacity:1}],{duration:1000,iterations:Infinity});
-      window.nativeProbe.pause();window.nativeProbe.currentTime=250;
-    });
-    await assert.rejects(screenshot(page,0),/NATIVE_ANIMATION_UNSUPPORTED/);
-    await page.evaluate(()=>window.nativeProbe.cancel());
+    if (regression) {
+      stage('regressionChecksMs');
+      for (const invalid of [-1,0.5,frameCount])
+        await assert.rejects(screenshot(page,invalid),/FRAME_OUT_OF_RANGE/);
+      // These deliberate failures test the host; they are not customer output work.
+      await page.evaluate(()=>{
+        const child=document.querySelector('#composition').firstElementChild;
+        window.nativeProbe=child.animate([{opacity:0.5},{opacity:1}],{duration:1000,iterations:Infinity});
+        window.nativeProbe.pause();window.nativeProbe.currentTime=250;
+      });
+      await assert.rejects(screenshot(page,0),/NATIVE_ANIMATION_UNSUPPORTED/);
+      await page.evaluate(()=>window.nativeProbe.cancel());
+    }
+    stage('captureEncodeMs');
     const video=join(out,'sample.mp4');
     encoder=spawn('/usr/bin/ffmpeg',encoderArguments(video,{encoding,frameCount}),{stdio:['pipe','ignore','pipe']});
     let encoderErrors='';
@@ -126,7 +175,7 @@ export async function renderSample({outputDirectory,fixture='square'}={}) {
       encoder.once('close',code=>code===0?resolve():reject(new Error('FFMPEG_FAILED: '+encoderErrors)));
     });
     finished.catch(()=>{});
-    console.log('M0a '+fixture+': rendering '+frameCount+' frames at '+width+'x'+height);
+    console.log('M0a '+fixture+' ('+mode+'): rendering '+frameCount+' frames at '+width+'x'+height);
     for(let frame=0;frame<frameCount;frame++) {
       if (encoder.exitCode!==null) await finished;
       const png=await screenshot(page,frame);
@@ -148,28 +197,39 @@ export async function renderSample({outputDirectory,fixture='square'}={}) {
       }
       assert.equal(actualHash,hashes[frame],label+' differs at frame '+frame);
     };
-    console.log('M0a '+fixture+': comparing every frame in reverse seek order');
-    for(let frame=frameCount-1;frame>=0;frame--) await compare(page,frame,'Reverse seek');
-    const middle=Math.floor(frameCount/2),repeated=[middle,0,middle,frameCount-1,0];
-    for(const frame of repeated) await compare(page,frame,'Repeated seek');
-    const shuffled=[17,frameCount-7,Math.floor(frameCount/3),3,Math.floor(frameCount*2/3),middle-11];
-    for(const frame of shuffled) await compare(page,frame,'Unordered seek');
+    if (regression) {
+      stage('regressionChecksMs');
+      console.log('M0a '+fixture+': comparing every frame in reverse seek order');
+      for(let frame=frameCount-1;frame>=0;frame--) await compare(page,frame,'Reverse seek');
+    }
+    stage('determinismChecksMs');
+    for(const frame of verification.repeated) await compare(page,frame,'Repeated seek');
+    for(const frame of verification.unordered) await compare(page,frame,'Unordered seek');
     assert(await page.evaluate(()=>{
       const current=[...document.querySelector('#composition').querySelectorAll('*')];
       return current.length===window.fixtureNodes.length && current.every((node,index)=>node===window.fixtureNodes[index]);
     }),'The fixture must retain its original DOM/SVG/canvas nodes');
-    await page.emulateMedia({reducedMotion:'reduce'});
-    for (const frame of [0,middle,frameCount-1]) await compare(page,frame,'Motion preference');
-    await page.emulateMedia({reducedMotion:'no-preference'});
+    if (regression) {
+      stage('regressionChecksMs');
+      await page.emulateMedia({reducedMotion:'reduce'});
+      for (const frame of verification.reducedMotion) await compare(page,frame,'Motion preference');
+      await page.emulateMedia({reducedMotion:'no-preference'});
+    }
+    stage('determinismChecksMs');
     await withDeadline(()=>page.evaluate(()=>window.fixtureHost.dispose()),{
       timeoutMs:environmentLock.prepareTimeoutMs,code:'DISPOSE_TIMEOUT',terminate:()=>handle.stop()});
-    await assert.rejects(screenshot(page,0),/INVALID_SESSION/);
+    if (regression) {
+      stage('regressionChecksMs');
+      await assert.rejects(screenshot(page,0),/INVALID_SESSION/);
+    }
+    stage('determinismChecksMs');
     await context.close();
     await handle.stop();
     handle=await launchFixtureBrowser(bundle);
-    const cold=await open(),coldFrames=[0,59,Math.floor(frameCount/3),middle,Math.floor(frameCount*2/3),frameCount-1];
-    for(const frame of coldFrames) await compare(cold.page,frame,'Cold seek');
+    const cold=await open();
+    for(const frame of verification.cold) await compare(cold.page,frame,'Cold seek');
     await cold.context.close();
+    stage('outputChecksMs');
     const probe=parseCanonicalJson(execFileSync('/usr/bin/ffprobe',['-v','error','-count_frames','-show_streams','-show_format','-of','json',video],{timeout:30000}));
     const stream=probe.streams.find(stream=>stream.codec_type==='video');
     assert.equal(probe.streams.length,1,'These engineering fixtures are deliberately silent');
@@ -180,27 +240,35 @@ export async function renderSample({outputDirectory,fixture='square'}={}) {
     assert.equal(Number(probe.format.duration),durationSeconds);
     assert(statSync(video).size<=presets.productLimits.maxOutputFileBytes);
     assert.deepEqual(browserErrors,[]);
-    const report={kind:'m0a_render_result',scope:environmentLock.scope,runId,fixture,targetId,profile:'standard',width,height,durationSeconds,frameCount,
+    report={kind:'m0a_render_result',scope:environmentLock.scope,runId,fixture,mode,targetId,profile:'standard',width,height,durationSeconds,frameCount,
       environmentHash:environment.environmentHash,fixtureFiles,pixelHashes:hashes,
-      checks:{forwardFrames:frameCount,reverseFrames:frameCount,repeatedFrames:repeated.length,unorderedFrames:shuffled.length,
-        coldFrames:coldFrames.length,invalidFrames:3,disposedSession:true,nativeAnimationsRejected:true,retainedNodes:true,
-        reducedMotionFrames:3,colorSwatches:verifySwatches(video,input)},
+      verification,
+      checks:{forwardFrames:frameCount,reverseFrames:verification.reverseFrameCount,repeatedFrames:verification.repeated.length,
+        unorderedFrames:verification.unordered.length,coldFrames:verification.cold.length,invalidFrames:regression?3:0,
+        disposedSession:regression?true:null,nativeAnimationsRejected:regression?true:null,retainedNodes:true,
+        reducedMotionFrames:verification.reducedMotion.length,colorSwatches:verifySwatches(video,input)},
       capture:{frameTimeoutMs:environmentLock.frameTimeoutMs,sourceFrameStorage:'temporary_disk',maxFramePngBytes,
-        nodeMaxRssBytes:process.resourceUsage().maxRSS*1024,elapsedMs:Math.round(performance.now()-started)},
+        nodeMaxRssBytes:process.resourceUsage().maxRSS*1024,encodingOverlapsCapture:true},
       video:{file:'sample.mp4',sha256:sha256File(video),byteLength:statSync(video).size},
       probe,limitations:['silent reviewed fixtures only','no arbitrary source intake','no customer sandbox or cloud isolation certification',
+        'output mode measures the fixture pipeline, not a production p95 or service acceptance',
+        'bounded frame comparisons do not prove arbitrary-program determinism',
         'no native animations or WebGL admission','no font or video registry','no AI or cost benchmark','nodeMaxRssBytes excludes browser and encoder processes']};
-    writeFileSync(join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
-    console.log('M0a passed; artifacts: '+out);
-    return {out,report};
   } finally {
+    stage('cleanupMs');
     if(encoder&&encoder.exitCode===null) encoder.kill('SIGKILL');
     await handle?.stop();
     if (server?.listening) {
       server.closeAllConnections();
       await new Promise(resolve=>server.close(resolve));
     }
-    rmSync(framesDirectory,{recursive:true,force:true});
-    bundle.cleanup();
+    if (ownsFramesDirectory) rmSync(framesDirectory,{recursive:true,force:true});
+    bundle?.cleanup();
+    stage(null);
   }
+  report.timings={...Object.fromEntries(Object.entries(timings).map(([key,value])=>[key,Math.round(value)])),
+    totalMs:Math.round(finishedAt-started)};
+  writeFileSync(join(out,'report.json'),JSON.stringify(report,null,2)+'\n');
+  console.log('M0a '+mode+' passed; artifacts: '+out);
+  return {out,report};
 }

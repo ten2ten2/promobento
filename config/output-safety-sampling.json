@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "2.7.0",
+  "policies": {
+    "output-sampling-v1": {
+      "framesPerSecond": 30,
+      "maxFrameGap": 30
+    }
+  },
+  "limits": {
+    "maxRecordBytes": 524288,
+    "maxRecordNodes": 16384,
+    "maxObjectProperties": 32,
+    "maxStringCodeUnits": 2048,
+    "maxFrames": 900,
+    "maxTextHashes": 1024,
+    "maxAudioSegments": 900,
+    "maxEvidenceRefs": 128
+  }
+}

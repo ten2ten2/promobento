@@ -202,21 +202,40 @@ test('preflight returns a section-length explanation without echoing customer te
   assert.equal(JSON.stringify(failure.details).includes(privateText),false);
 });
 
-test('form preflight and submitted prompt share exact escaping, code-point counts and section totals', () => {
+test('form sections count original text while the submitted budget includes JSON formatting and escaping', () => {
   const parts={task:'  A "quoted" task\n😀  ',facts:['cafe\u0301','line\tbreak'],comments:['Keep \\ literal.']};
   const budget=generationScanBudget(parts);
   const source=generationScanInput({...parts,operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'});
   assert.equal(budget.totalCodePoints,[...source.prompt].length);
   assert.equal(budget.remainingCodePoints,contentSafetyConfig.maxPromptCharacters-budget.totalCodePoints);
   assert.equal(budget.excessCodePoints,0);
-  assert.equal(budget.structureCodePoints+Object.values(budget.sections).reduce((sum,length) => sum+length,0),budget.totalCodePoints);
+  assert.equal(budget.sections.task,[...parts.task].length);
+  assert.equal(budget.sections.facts,parts.facts.reduce((sum,text) => sum+[...text].length,0));
+  assert.equal(budget.textCodePoints,Object.values(budget.sections).reduce((sum,length) => sum+length,0));
+  assert.equal(budget.formatCodePoints+budget.textCodePoints,budget.totalCodePoints);
   assert.equal(JSON.stringify(budget).includes('quoted'),false);
   const empty=generationScanBudget();
   assert.ok(empty.totalCodePoints>0);
-  assert.equal(empty.sections.task,2);
+  assert.deepEqual(empty.sections,{task:0,instruction:0,facts:0,transcript:0,comments:0,editableTexts:0});
+  assert.equal(empty.textCodePoints,0);
+  assert.equal(empty.formatCodePoints,empty.totalCodePoints);
   assert.throws(() => generationScanInput({operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'}),/INVALID_SCAN_TEXT_PARTS/);
   assert.throws(() => generationScanBudget({facts:[false]}),/INVALID_SCAN_TEXT_PARTS/);
   assert.throws(() => generationScanBudget({}, {...contentSafetyConfig,maxPromptCharacters:10001}),/INVALID_SCAN_CONFIGURATION/);
+});
+
+test('format overhead cannot be excluded from the submitted limit even when original text fits', () => {
+  const parts={instruction:'"\n\\😀',facts:['','中'],comments:['a','a']};
+  const budget=generationScanBudget(parts);
+  assert.deepEqual(budget.sections,{task:0,instruction:4,facts:1,transcript:0,comments:2,editableTexts:0});
+  assert.equal(budget.textCodePoints,7);
+  const request={...parts,operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'};
+  const exact={...contentSafetyConfig,maxPromptCharacters:budget.totalCodePoints};
+  assert.equal([...generationScanInput(request,exact).prompt].length,exact.maxPromptCharacters);
+  const tooSmall={...exact,maxPromptCharacters:exact.maxPromptCharacters-1};
+  assert.ok(budget.textCodePoints<tooSmall.maxPromptCharacters);
+  assert.throws(()=>generationScanInput(request,tooSmall),error=>error.message==='PROMPT_TOO_LONG'
+    && error.details.excessCodePoints===1 && error.details.textCodePoints===7);
 });
 
 test('preflight exposes exact overflow while project storage is outside the selected context budget', () => {

@@ -56,7 +56,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 选用该提供方时，可信编排器用 `generationScanInputForRequest` 映射业务请求，再由 `generationScanInput` 组装本次任务、用户指令、事实文字（含相关素材提取文字）、转写、批注和实际参与生成的可编辑文本。无独立 instruction 的批注改稿和目标准备不伪造指令；至少一项须有实际内容。固定 JSON 结构保留原文与次序，不发送整仓源码、二进制附件、支付资料、固定系统提示或凭据。结果绑定 operationId、generationId 和完整送审文本；输入或生成调用变化不能沿用旧结果。
 
-组装和长度预检在排队、次数及费用预留前执行。`generationScanBudget` 按相同规范 JSON 计算总长、各部分长度、结构开销及剩余/超出额度，只返回数字。上限取 `content-safety.maxPromptCharacters`，按 Unicode code point 计数；提供方具体计数边界仍待实测。这只限制本次选中且实际交给模型的生成上下文，不限制项目可保存的全部事实和转写，也不替代模型上下文限制或美元预算。超限返回 422 `PROMPT_TOO_LONG` 并保留原稿，提示缩小本次材料范围；不静默截断、摘要或丢弃已选文字，错误和日志不回传原文。当前已有预检辅助函数和提示文案，实际界面与服务仍需接入。
+组装和长度预检在排队、次数及费用预留前执行。`generationScanBudget` 的 `sections` 和 `textCodePoints` 统计原文，`formatCodePoints` 统计字段、标点与转义开销；二者之和等于实际发送的规范 JSON 总长 `totalCodePoints`。它只返回数字，空段原文用量为 0。上限取 `content-safety.maxPromptCharacters`，按 Unicode code point 计数；提供方具体计数边界仍待实测。这只限制本次选中且实际交给模型的生成上下文，不限制项目保存容量，也不替代模型上下文限制或美元预算。超限返回 422 `PROMPT_TOO_LONG` 并保留原稿，提示缩小本次材料范围；不静默截断、摘要或丢弃已选文字，错误和日志不回传原文。实际界面与服务仍需接入。
 
 启用时使用 `semantic=enforce`，只有有效的 allow 且语义评分确实执行，`providerAllowsGeneration` 才为 true。关闭时返回 `provider_disabled` 和 false，表示该提供方未给出审核许可；总流程须取得当前审核方案的有效通过结果，不能把关闭 Waffo 当作整体放行或固定拒绝。review、block、降级、未知响应及超时均不能冒充通过。重试、超时和限流取配置及参考适配器，所有调用共用原操作预算。
 
@@ -66,7 +66,7 @@ Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理�
 
 方向卡、Treatment 和 audioPlan 在展示前审核实际文字；`run_result.outputStatus` 只有为 `allowed` 时才可返回这些字段，审核中或扣留时不能夹带原文。候选、可信预览、导出和案例展示分别审核实际可见文字、画面与音频，不能用源码声明或少数封面代替动态内容。
 
-可信服务保存 `outputSafetyResult`，绑定项目、operation/revision、用途、实际 `subjectHash`、`targetId`、策略、检查表示和 `coverageManifestHash`。对应的可信覆盖清单记录实际 `textHashes`、总帧数及受检帧索引/摘要、时长及连续音频区间/摘要，并绑定 `samplingPolicyVersion`；控制器校验其内容、采样要求和实际素材。媒体回执从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 取回，任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面检查文字与画面，视频/片段还检查覆盖完整时长的音频。
+可信服务保存 `outputSafetyResult`，绑定项目、operation/revision、用途、实际 `subjectHash`、`targetId`、策略、检查表示和 `coverageManifestHash`。覆盖清单固定实际文字摘要、源片范围、帧数、受检帧与连续音频区间；最低采样由登记的策略推导，不能靠调用方缩短采样数组放行。具体字段与边界见 [14](14-production-contracts.md#8-事实与qa授权)。媒体回执从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 取回，任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面检查文字与画面，视频/片段还检查覆盖实际输出时长的音频。
 
 纯图形与无音轨作品须由可信检查生成 `outputSafetyModalityObservation`，记录同一对象、目标及表示下的 `textPresent`、`audioPresent` 和证据引用；其摘要由覆盖清单的 `modalityObservationHash` 固定。只有观察确认确实不存在相应内容，才允许文字或音频清单为空；缺观察、摘要不符或实际存在但未覆盖都拒绝。静音作品保留真实时长，不为通过审核伪造音轨或摘要。
 

@@ -15,6 +15,7 @@
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
     "install:renderer": "node apps/renderer/scripts/install-browser.mjs",
+    "render:fixture": "node apps/renderer/scripts/render-fixture.mjs",
     "test:render": "node scripts/run-tests.mjs --render"
   },
   "devDependencies": {

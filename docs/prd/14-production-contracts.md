@@ -27,7 +27,9 @@
 
 普通参数保存检查权限、`baseRevision`、静态声明和值的范围，通过 CAS 创建新 revision；不调用模型，也不自动启动 Q0/Q1 或编码。修改事实绑定文本时，同一事务须更新所有绑定值、创建未确认事实版本并返回 `unconfirmedFactIds`。一次请求给同一事实写入不同文本时拒绝，不能由最后一项覆盖。绑定事实的文本保存时不能为空白；本地输入过程中可以暂时清空，但不能因此创建空事实。
 
-反向调用 `facts.update` 也要同步所有绑定值及 bindings 的 `expectedText`；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。合并后的完整 values 复用普通草稿保存的类型、可见文字、范围、时序限制及规范文件字节上限校验，不能只检查这次传入的事实字符串。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates`、`factValueUpdates` 和 `factBindingUpdates` 只计算应更新的内容，事实、参数、绑定与新 revision 须在同一数据库事务写入。响应返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`，让界面切换到实际保存版本。
+反向调用 `facts.update` 也要同步所有绑定值及 bindings 的 `expectedText`；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。合并后的完整 values 复用普通草稿保存的类型、可见文字、范围、时序限制及规范文件字节上限校验，不能只检查这次传入的事实字符串。每个 binding 的全部 `factIds` 在更新前后都必须存在，包括只提供依据而未直接提供显示文字的事实；缺失时拒绝，不能先过滤再保留悬空引用。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates`、`factValueUpdates` 和 `factBindingUpdates` 只计算应更新的内容，事实、参数、绑定与新 revision 须在同一数据库事务写入。
+
+`facts_result` 返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`。非空 `revisionId` 必须等于同一响应的 `currentRevisionId`；`unconfirmedFactIds` 必须与该响应中确认字段为 null 的事实 ID 集合完全一致，不能漏报、多报或仅比较数量。校验以同一响应快照为准；幂等重放原成功结果时，不与后来推进的当前草稿比较。实际事务及重放服务仍按 §1 的数据库要求实现。
 
 `qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`、`activeMediaJobIds` 和 `activeReleaseIds`，刷新后按这些引用恢复任务。`jobs.get` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，交付使用 `exports.get`，并返回实际候选或产物引用。
 
@@ -103,7 +105,7 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 `sourceArchiveHash = digest(sourceArchiveIdentity(files))` 固定完整源包的规范文件清单，每项包含路径、原始字节 SHA-256 和长度，按路径排序。它不是 ZIP 压缩字节的摘要；传输包可另校验字节 hash。可信 `sourceArchiveFiles` 必须由实际解包得到，并证明每个目标构建文件都属于该源包，`values.json` 的字节与构建读取的值完全一致。
 
-内部源包路径须为合法 Unicode 且已经是 NFC，每段 UTF-8 不超过 255 字节；拒绝路径穿越、保留设备名、不可移植字符及末尾点/空格。整个文件树按保守的兼容字形与大小写比较规则拒绝文件、目录别名和文件/目录前缀冲突。只检测冲突，不静默重命名或归一化用户文本；原合法路径的摘要及 `identityVersion:1` 不变。路径校验由 `safePath`、`sourceFileDigests` 与两种源码身份入口共用。
+内部源包路径须为合法 Unicode 且已经是 NFC，每段 UTF-8 不超过 255 字节；拒绝路径穿越、保留设备名、不可移植字符及末尾点/空格。整个文件树按保守的兼容字形与大小写比较规则拒绝文件、目录别名和文件/目录前缀冲突。只检测冲突，不静默重命名或归一化用户文本；仍满足当前规则的源包，摘要算法及 `identityVersion:1` 不变。路径接受范围已经收紧，不满足规则的未发布源包直接拒绝。路径校验由 `safePath`、`sourceFileDigests` 与两种源码身份入口共用。
 
 冻结和正式预检把每个目标的摘要与可信构建记录核对，缺记录、源包不匹配、入口不一致或摘要过期都拒绝。构建记录还提供从源码读出的声明和值，用于检查事实绑定；这不代替像素和语音 QA。整个 `sourceArchiveHash` 保留在作品身份里，不塞进每个目标摘要。仅目标专有文件改变时可复用已证明不受影响的目标 QA；首版共享参数文件或全局事实内容变化会使所有相关目标失效，不按 Agent 自报的影响范围省略依赖。
 
@@ -245,9 +247,17 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 输出审核须从可信回执及覆盖记录推导，不能传入单一 `safetyAllowed` 代替。候选按 target 使用 `candidateOutputIdentity`，同时固定可信内容摘要、意图解读与影响摘要；创作计划固定完整 directions/Treatment/AudioPlan；本地预览固定授权 revision 的 manifestHash，媒体预览和交付固定实际媒体字节摘要。只有不可变对象身份与策略仍一致，才可用可信 association 关联新的 operation/revision；当前撤销状态仍必查，改文字不能自行推定视觉、布局或音频未受影响。
 
+覆盖清单的 `sourceRange` 固定 `kind`（video/image）、`sourceFrameCount` 和源时间线半开区间 `frameStart/frameEndExclusive`；纯文本为 null。候选和本地运行时预览覆盖实际 revision 的完整450/900帧，成片覆盖冻结 Composition 全片，封面覆盖实际 `coverFrame`，截图覆盖请求起点一帧，片段覆盖实际截取区间。视频 `frameCount` 为区间长度，`durationMs = ceil(frameCount × 1000 / 30)`；图片为1帧且时长为 null。清单内 `frames[].frameIndex` 相对本次输出从0开始，镜头标记从源绝对帧换算；不同区间即使帧数相同也不能互换。
+
+最低采样由 [output-safety-sampling.json](../../config/output-safety-sampling.json) 登记，当前为 `output-sampling-v1`：首末帧、从输出第0帧起每30帧，以及范围内全部可信镜头标记。候选、本地预览和媒体共用此规则；调用方的 `requiredFrameIndices` 只能加密，未知版本拒绝。控制器从实际 revision/Composition 与目标源码的可信 `runtime_declarations.markers` 派生范围、片长和标记，缺记录时拒绝，不能复制待审回执或其策略自证。参考入口由 `scopedSafetyCoveragePolicy` 完成派生：Studio 使用 revision 记录中的 `runtimeDeclarationsByTarget`，媒体检查使用对应 Composition 的可信声明。1秒间隔只是最低覆盖，不证明能发现每一处不安全变化；实际模态观察、完整音频覆盖、审核结论和当前撤销状态仍须同时成立。
+
+审核数据先限额再规范化、求摘要及完整 Schema 校验。`evidenceRefs` 最多128项、`textHashes` 最多1024项、`audioSegments` 和采样 `frames` 各最多900项；记录字节、节点、深度和字符串上限由同一配置与有界检查约束。共享 Schema 入口也先执行已声明的集合/字符串上限，避免超大数组在报错前进入 canonical 或 Ajv 的元素遍历。
+
+`transition(validating, pass)` 的参考守卫要求真实候选和可信 `safetyContext`，核对 project/run/operation，并复用 `candidateSafetyErrors` 检查所有受影响目标。`creative_generate`、`agent_patch` 与 `prepare_targets` 使用同一入口；技术 QA、权限、generation 和审核必须全部通过才允许成功。该内存守卫不替代生产事务、审核提供方或执行隔离。
+
 ## 9 资源、输入与保存
 
-任务隔离、调度和媒体清理按[04](04-architecture-and-data.md)，权益期限按[05](05-waffo-billing.md)，输入范围取 [input-capabilities](../../config/input-capabilities.json) 与[01](01-product-prd.md)，权利依据按[09](09-sources-and-licensing.md)。固定镜像不代表客户代码可信；实例名称也不能证明具备 GPU 或完整浏览器能力。真实隔离、恢复和性能须通过[06](06-testing-and-release.md)，再按[08](08-codex-execution.md)开放对应服务。
+任务隔离、调度和媒体清理按[04](04-architecture-and-data.md)，权益期限按[05](05-waffo-billing.md)，输入范围取 [input-capabilities](../../config/input-capabilities.json) 与[01](01-product-prd.md)，权利依据按[09](09-sources-and-licensing.md)。固定镜像不代表客户代码可信；实例名称也不能证明具备 GPU 或完整浏览器能力。真实隔离、恢复和性能须通过[06](06-testing-and-release.md)；首次执行 Agent 模块前还须满足[08 的源码准入要求](08-codex-execution.md#agent源码执行准入待实现)，包括模块求值前生效的时间、随机与执行限制。
 
 ## 10 协议与发布版本
 
