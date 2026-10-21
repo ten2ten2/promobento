@@ -25,6 +25,7 @@
   "scanAutosaveOrKeystrokes": false,
   "semantic": "enforce",
   "maxPromptCharacters": 10000,
+  "inputBudgetScope": "selected_generation_context",
   "lengthUnit": "unicode_code_points",
   "lengthUnitAuthority": "local_input_policy",
   "providerCharacterBoundary": "integration_verification_pending",

@@ -1,12 +1,15 @@
 // Reference validation of Studio boundaries; no API, rendering or authorization service runs here.
 import { readFileSync } from 'node:fs';
-import { canonical, parseCanonicalJson, safePath, sourceValuesBytes } from '../packages/contracts/index.mjs';
+import { canonical, createSchemaValidator, digest, parseCanonicalJson, safePath, sourceValuesBytes } from '../packages/contracts/index.mjs';
+import { outputSafetyErrors } from './output-safety.mjs';
 const previewPolicy = parseCanonicalJson(readFileSync(new URL('../config/preview.json',import.meta.url)));
+const schema = parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json',import.meta.url)));
+const validate = createSchemaValidator(schema);
 const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
-const apiKinds = new Set(['project_result','agent_request','edit_request','candidate_action_request','candidate_result',
+const apiKinds = new Set(['project_result','run_result','agent_request','edit_request','candidate_action_request','candidate_result',
   'draft_update_request','draft_update_result','job_result','preview_session_request','preview_session_result']);
-const visibleText = value => typeof value === 'string' && /[^\s\p{Default_Ignorable_Code_Point}\u3164\uffa0]/u.test(value);
+export const visibleText = value => typeof value === 'string' && /[^\s\p{Default_Ignorable_Code_Point}\u3164\uffa0]/u.test(value);
 const drawable = (path, context) => context.production || context.drawableResourcePaths
   ? context.drawableResourcePaths?.includes(path) === true : true;
 const rational = value => value && Number.isSafeInteger(value.numerator) && value.numerator >= 0
@@ -68,8 +71,17 @@ function checkedValueUpdates(values, context) {
     if (definition.affectsTiming === true) throw Error('EDITABLE_REQUIRES_AI');
     if (definition.type === 'color') updates[id] = value.toLowerCase();
   }
-  sourceValuesBytes({...context.sourceValues,...updates});
+  const mergedValues={...context.sourceValues,...updates};
+  const errors=studioErrors({kind:'source_values',values:mergedValues},context);
+  if (errors.length) throw Error(errors[0]);
   return updates;
+}
+
+/** Shared final values validation for facts.update and ordinary draft saves. */
+export function checkedFactValueUpdates(changes,context) {
+  for (const change of changes) if (change.action==='upsert' && !visibleText(change.text)) throw Error('EMPTY_FACT');
+  const updates=factValueUpdates(changes,context.editables);
+  return Object.keys(updates).length ? checkedValueUpdates(updates,context) : updates;
 }
 
 /** Reverse synchronization for facts.update; deletion of a bound fact needs an explicit source edit. */
@@ -106,6 +118,78 @@ export function localPreviewValues(valuesOverlay, context) {
   return {...structuredClone(context.sourceValues),...checkedValueUpdates(valuesOverlay,context)};
 }
 
+export function creativePlanIdentity(result) {
+  return {directions:result.directions ?? [],treatment:result.treatment ?? null,audioPlan:result.audioPlan ?? null};
+}
+
+export function candidateOutputIdentity(candidate,targetId,targetContentHash) {
+  return {targetId,targetContentHash,agentInterpretation:candidate.agentInterpretation,impactSummary:candidate.impactSummary};
+}
+
+/** Validate every target against controller-observed content and trusted moderation records. */
+export function candidateSafetyErrors(candidate,context) {
+  if (!candidate?.affectedTargetIds?.length) return ['CANDIDATE_TARGETS_REQUIRED'];
+  return candidate.affectedTargetIds.flatMap(targetId=>{
+    const check=own(context.candidateSafetyChecks,targetId);
+    const targetContentHash=own(context.candidateContentHashes,targetId);
+    if (!hash(targetContentHash)) return ['CANDIDATE_CONTENT_IDENTITY_REQUIRED'];
+    if (!visibleText(candidate.agentInterpretation) || !visibleText(candidate.impactSummary)) return ['CANDIDATE_SUMMARY_REQUIRED'];
+    const subjectHash=digest(candidateOutputIdentity(candidate,targetId,targetContentHash));
+    if (!['trusted_media','verified_local_runtime'].includes(check?.options?.representation)) return ['CANDIDATE_SAFETY_REQUIRED'];
+    return outputSafetyErrors(check?.receipt,{
+      projectId:candidate.projectId,operationId:context.operationId,revisionId:candidate.candidateRevisionId,
+      subjectKind:'candidate',subjectHash,targetId
+    },{...check.options,requiredCoverage:['text','visual','audio']});
+  });
+}
+
+/** In-memory controller reference: a single call models one atomic transaction, not a live API. */
+export class CandidateReference {
+  constructor({workspaceId,projectId,currentRevisionId=null,candidates=[]}) {
+    this.workspaceId=workspaceId;this.projectId=projectId;this.currentRevisionId=currentRevisionId;
+    this.candidates=new Map();this.requests=new Map();
+    for (const candidate of candidates) {
+      if (validate(candidate,schema.$defs.candidateResult).length || candidate.projectId!==projectId)
+        throw Error('CANDIDATE_INVALID');
+      this.candidates.set(candidate.candidateRevisionId,structuredClone(candidate));
+    }
+  }
+  authorize(context) {
+    if (context.authorized!==true || !context.actorUserId || context.workspaceId!==this.workspaceId
+      || context.projectId!==this.projectId) throw Error('FORBIDDEN');
+  }
+  decide(action,request,context) {
+    this.authorize(context);
+    if (!['accept','reject'].includes(action) || validate(request,schema.$defs.candidateActionRequest).length
+      || request.projectId!==this.projectId) throw Error('CANDIDATE_REQUEST_INVALID');
+    const key=canonical([context.actorUserId,request.requestId]),signature=digest({action,request});
+    const prior=this.requests.get(key);
+    if (prior) {
+      if (prior.signature!==signature) throw Error('IDEMPOTENCY_CONFLICT');
+      return structuredClone(prior.result);
+    }
+    const candidate=this.candidates.get(request.candidateRevisionId);
+    const errors=studioErrors(request,{...context,currentRevisionId:this.currentRevisionId,
+      candidate:candidate && {...candidate,workspaceId:this.workspaceId},candidateAction:action});
+    if (errors.length) throw Error(errors.join(','));
+    const result={...candidate,state:action==='accept'?'accepted':'rejected'};
+    if (action==='accept') this.currentRevisionId=candidate.candidateRevisionId;
+    this.candidates.set(candidate.candidateRevisionId,structuredClone(result));
+    this.requests.set(key,{signature,result:structuredClone(result)});
+    return result;
+  }
+  /** Run cancellation only cancels still-pending candidates; it never rolls back an accepted draft. */
+  cancelRun(runId,context) {
+    this.authorize(context);
+    const changed=[];
+    for (const [id,candidate] of this.candidates) if (candidate.runId===runId && ['ready','withheld'].includes(candidate.state)) {
+      const next={...candidate,state:'cancelled',agentInterpretation:null,impactSummary:null};
+      this.candidates.set(id,next);changed.push(structuredClone(next));
+    }
+    return changed;
+  }
+}
+
 /** Context is a trusted projection of current records, source declarations and observations. */
 export function studioErrors(v, context = {}, helpers = {}) {
   const errors = [], fail = (ok, code) => { if (!ok) errors.push(code); };
@@ -134,13 +218,30 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (context.candidateAction === 'accept') {
       fail(candidate?.state === 'ready', 'CANDIDATE_NOT_READY');
       fail(v.baseRevision === context.currentRevisionId, 'DRAFT_CONFLICT');
-      // The service derives this from the trusted output-safety receipt, never a request flag.
-      fail(context.safetyAllowed === true, 'CANDIDATE_SAFETY_REQUIRED');
+      const safetyErrors=candidateSafetyErrors(candidate,context);
+      fail(safetyErrors.length===0, 'CANDIDATE_SAFETY_REQUIRED');errors.push(...safetyErrors);
     } else if (context.candidateAction === 'reject') fail(['ready','withheld'].includes(candidate?.state), 'CANDIDATE_NOT_PENDING');
   }
   if (v.kind === 'candidate_result') {
     if (v.baseRevision === null) fail(v.operation === 'creative_generate', 'EMPTY_BASE_REQUIRES_CREATION');
-    if (context.production && ['ready','accepted'].includes(v.state)) fail(context.safetyAllowed === true, 'CANDIDATE_SAFETY_REQUIRED');
+    if (context.production && ['ready','accepted'].includes(v.state)) {
+      const safetyErrors=candidateSafetyErrors(v,context);
+      fail(safetyErrors.length===0, 'CANDIDATE_SAFETY_REQUIRED');errors.push(...safetyErrors);
+    }
+    if (['ready','accepted'].includes(v.state)) for (const key of ['agentInterpretation','impactSummary'])
+      fail(visibleText(v[key]), 'CANDIDATE_SUMMARY_REQUIRED');
+  }
+  if (v.kind === 'run_result') {
+    const hasOutput=['directions','treatment','audioPlan'].some(key=>Object.hasOwn(v,key));
+    fail(!hasOutput || v.outputStatus==='allowed', 'CREATIVE_OUTPUT_WITHHELD');
+    fail(v.outputStatus!=='allowed' || hasOutput, 'CREATIVE_OUTPUT_REQUIRED');
+    if (hasOutput && context.production) {
+      const check=context.planSafetyCheck;
+      errors.push(...outputSafetyErrors(check?.receipt,{
+        projectId:context.projectId,operationId:v.operationId,revisionId:v.baseRevision,
+        subjectKind:'creative_plan',subjectHash:digest(creativePlanIdentity(v)),targetId:null
+      },{...check?.options,representation:'text',requiredCoverage:['text']}));
+    }
   }
   if (v.kind === 'project_result') {
     const actions = v.availableActions ?? [];
@@ -182,7 +283,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     const bound = Object.values(context.editables ?? {}).some(definition => v.changes.some(change => change.factId === definition.factId));
     if (bound || v.baseRevision !== undefined) fail(typeof context.currentRevisionId === 'string'
       && v.baseRevision === context.currentRevisionId, 'DRAFT_CONFLICT');
-    try { factValueUpdates(v.changes,context.editables); } catch (error) { errors.push(error.message); }
+    try { checkedFactValueUpdates(v.changes,context); } catch (error) { errors.push(error.message); }
   }
   if (v.kind === 'draft_update_result') {
     if (v.state === 'saved') {
@@ -207,9 +308,12 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (revision) fail(revision.targetIds?.includes(v.targetId), 'PREVIEW_TARGET_UNAVAILABLE');
     if (context.production) {
       fail(context.localPreviewAllowed === true, 'LOCAL_PREVIEW_ACCESS_REQUIRED');
-      // Derived by outputSafetyErrors with representation=verified_local_runtime. Approval
-      // of trusted_media alone cannot authorize execution in a customer's local preview.
-      fail(context.safetyAllowed === true, 'LOCAL_PREVIEW_SAFETY_REQUIRED');
+      const check=context.previewSafetyCheck;
+      const safetyErrors=outputSafetyErrors(check?.receipt,{
+        projectId:v.projectId,operationId:context.operationId ?? null,revisionId:v.revisionId,
+        subjectKind:'preview',subjectHash:revision?.manifestHash,targetId:v.targetId
+      },{...check?.options,representation:'verified_local_runtime',requiredCoverage:['text','visual','audio']});
+      fail(safetyErrors.length===0, 'LOCAL_PREVIEW_SAFETY_REQUIRED');errors.push(...safetyErrors);
     }
     if (v.kind === 'preview_session_result') {
       try {

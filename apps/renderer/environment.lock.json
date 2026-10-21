@@ -23,7 +23,10 @@
   },
   "launchArgs": ["--disable-gpu", "--force-color-profile=srgb", "--hide-scrollbars"],
   "deviceScaleFactor": 1,
-  "fonts": "original_svg_glyphs_no_system_fonts",
+  "fonts": "isolated_empty_fontconfig_original_svg_glyphs",
+  "drawingPolicy": "absolute_dom_svg_canvas2d_no_native_animations",
+  "frameTimeoutMs": 15000,
+  "prepareTimeoutMs": 15000,
   "scope": "reviewed_fixture_only_not_customer_code",
   "systemLibraries": "record_actual_hashes_per_run; cross_environment_pixel_equality_not_claimed"
 }

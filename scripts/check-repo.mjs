@@ -5,7 +5,7 @@ import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,rendererToolchainErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[],counts={documents:0,links:0,routes:0,apis:0,contrastPairs:0};
 const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(root,p),'utf8'),json=p=>parseCanonicalJson(text(p));
@@ -24,8 +24,10 @@ function main(){
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
  const publicContext=json('config/public-context.example.json'),agentPolicy=json('config/agent-policy.json');
  expect(typeof agentPolicy.policyVersion==='string'&&/^[a-z][a-z0-9._-]{0,63}$/.test(agentPolicy.policyVersion),'Agent policyVersion must be a non-empty controlled ID');
- for(const [publicKey,policyKey] of Object.entries({trialActiveDays:'freeDays',paidActiveDays:'paidDays',readOnlyGraceDays:'graceDays',refundNoticeDays:'refundNoticeDays'}))
-  expect(publicContext.policy?.[publicKey]===agentPolicy.retention?.[policyKey],'Public policy differs from agent-policy.retention.'+policyKey);
+ for(const [publicKey,policyKey] of Object.entries({trialActiveDays:'retention.freeDays',paidActiveDays:'retention.paidDays',readOnlyGraceDays:'retention.graceDays',refundNoticeDays:'retention.refundNoticeDays',voluntaryRefundDays:'refund.voluntaryWindowDays',onlineMediaDeletionHours:'retention.onlineMediaDeletionHours'})){
+  const value=get(agentPolicy,policyKey);
+  expect(Number.isSafeInteger(value)&&value>0&&publicContext.policy?.[publicKey]===value,'Public policy differs from positive integer agent-policy.'+policyKey);
+ }
  for(const key of ['brandName','appUrl','supportEmail','legalEntityName'])expect(publicContext.brand?.[key]===brand[key],'Public brand differs: '+key);
  const protocol='2.7.0',prd='v2.7';
  for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
@@ -91,11 +93,16 @@ function main(){
  for(const part of [auth.flow,auth.session]){const c=part.cookie;expect(part.randomBytes>=32&&c.name.startsWith('__Host-')&&c.path==='/'&&c.httpOnly&&c.secure&&c.hostOnly&&c.sameSite==='Lax'&&!Object.hasOwn(c,'domain'),'Auth cookie');}
  expect(auth.flow.cookie.name!==auth.session.cookie.name&&auth.session.storage==='token_hash_only'&&!auth.session.clearThemeCookieOnLogout,'Session storage');
  expect(auth.accountLinking.existingMethodProofRequired&&auth.accountLinking.newMethodProofRequired&&auth.accountLinking.explicitConfirmationRequired&&!auth.accountLinking.automaticAccountMerge&&!auth.accountLinking.allowIdentityTransfer,'Identity linking');
+ const closure=auth.accountClosure;
+ expect(same(auth.flow.reauthActions,['logout_all','delete_workspace','transfer_owner']),'Reauthentication actions must have an issuing business route');
+ expect(closure?.mode==='manual_support_email'&&closure.contactSource==='brand.supportEmail'&&typeof brand.supportEmail==='string'&&brand.supportEmail.trim(),'Manual account closure contact');
+ expect(same(closure?.requiredChecks,['identity_and_account_control','explicit_closure_intent','workspace_ownership','pending_orders'])&&closure.revokeAllSessions===true&&closure.selfService===false,'Manual account closure checks and session revocation');
  for(const key of [...Object.values(auth.email.messageKeys),...Object.values(auth.errorMessageKeys)])expect(typeof flat[key]==='string','Missing auth key '+key);
  for(const key of ['subject','preheader','linkSubject','linkPreheader'])expect(typeof flat[auth.email.messageKeys[key]]==='string'&&!/\{\{\s*code\s*\}\}/.test(flat[auth.email.messageKeys[key]]),'OTP in subject/preheader');
  const expected=['tiktok','instagram_feed','instagram_reels','x','youtube','youtube_shorts'];expect(same(platforms.presets.map(p=>p.id).sort(),[...expected].sort()),'Platform set');expect(same(Object.keys(platforms.aspectLayouts).sort(),['feed','landscape','portrait','square']),'Layout set');
  for(const p of platforms.presets){expect(platforms.encodingProfiles[p.encodingProfile],'Encoding profile');for(const key of [p.labelKey,p.userNoteKey])expect(typeof get(messages,key)==='string','Platform message '+key);for(const a of [p.defaultAspect,...p.optionalAspects])expect(platforms.aspectLayouts[a],'Invalid aspect');}
  const mise=text('.mise.toml');expect(pkg.private===true,'Private tooling package');expect(mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1]===pkg.engines.node,'Node pin');expect('pnpm@'+mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1]===pkg.packageManager,'pnpm pin');
+ failures.push(...rendererToolchainErrors(mise,pkg,json('apps/renderer/package.json'),json('apps/renderer/environment.lock.json')));
  for(const key of Object.keys(pkg.scripts)){
   const task=mise.split(/(?=^\[)/m).find(block=>block.startsWith('[tasks."'+key+'"]\n'));
   const command=task?.match(/^run\s*=\s*"([^"\n]+)"/m)?.[1];

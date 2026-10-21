@@ -61,6 +61,7 @@ jobs:
       - name: Install browser system libraries and the pinned Ubuntu FFmpeg build
         run: |
           mise exec -- pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends --allow-downgrades ffmpeg=7:6.1.1-3ubuntu5
       - name: Install and verify official Chrome for Testing
         run: mise run install:renderer

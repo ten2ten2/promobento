@@ -161,3 +161,29 @@ test('A to B to A source edits survive a request protocol upgrade without anothe
   assert.equal(digest(contentIdentity(restored)),digest(contentIdentity(original)));
   assert.equal(restored.sourceArchiveHash,original.sourceArchiveHash);
 });
+
+test('source paths preserve NFC Unicode names and reject decomposed or nonportable entries',()=>{
+  const unicode={path:'src/é.mjs',bytes:Buffer.from('export const name = "é";')};
+  const inventory=sourceFileDigests([...files(),unicode]);
+  assert.equal(inventory.find(file=>file.path===unicode.path).path,unicode.path);
+  assert.equal(sourceArchiveIdentity(inventory).identityVersion,1);
+  for (const path of ['src/e\u0301.mjs','src/\ud800.mjs','src/con.mjs','src/AUX','src/COM¹.txt',
+    'src/trailing.','src/trailing ','src/what*.mjs','src/中'.slice(0,4)+'中'.repeat(86)+'.mjs'])
+    assert.throws(()=>sourceFileDigests([{path,bytes:Buffer.from('x')}]),/SOURCE_FILE_INVALID/,path);
+  const values={headline:'e\u0301 is preserved in user text'};
+  assert.deepEqual(parseSourceValues(sourceValuesBytes(values)).values,values);
+});
+
+test('file and directory aliases are rejected before hashing or extracting a source tree',()=>{
+  for (const paths of [
+    ['src/Main.mjs','src/main.mjs'],['src/É.mjs','src/é.mjs'],['src/straße.mjs','src/STRASSE.mjs'],
+    ['src/Σ.mjs','src/ς.mjs'],['src/Ｆoo.mjs','src/foo.mjs'],
+    ['Src/one.mjs','src/two.mjs'],['assets','assets/image.png'],['assets/image.png','ASSETS']
+  ]) {
+    const input=paths.map(path=>({path,bytes:Buffer.from(path)}));
+    assert.throws(()=>sourceFileDigests(input),/SOURCE_PATH_COLLISION/,paths.join(' / '));
+    const forged=[...sourceFileDigests(files()),...input.map(({path,bytes})=>({path,sha256:digest(path),byteLength:bytes.length}))];
+    assert.throws(()=>sourceArchiveIdentity(forged),/SOURCE_PATH_COLLISION/,paths.join(' / '));
+    assert.throws(()=>targetSourceIdentity({entrypoint:'src/main.mjs',files:forged}),/SOURCE_PATH_COLLISION/,paths.join(' / '));
+  }
+});

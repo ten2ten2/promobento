@@ -105,7 +105,7 @@ Normal access is followed by {{policy.readOnlyGraceDays}} days of read-only acce
 
 Download your paid files while they are available and keep your own copies. These storage periods do not limit your continuing right to use lawfully acquired videos.
 
-Deleting a project stops sharing and new download access and cancels its tasks. To close your account, use an available account setting or contact [support]({{links.help}}); we verify your identity and address workspace ownership and pending orders first. Media deletion, lawful remaining references, backups, and required records are addressed in the [Privacy Policy]({{links.privacy}}). Deleting a project or account is not a refund request and does not renew trial eligibility.
+Deleting a project stops sharing and new download access and cancels its tasks. To request account closure, email [{{brand.supportEmail}}](mailto:{{brand.supportEmail}}). Our support team verifies your identity and control of the account, confirms that you want it closed, and addresses workspace ownership and pending orders before closing it and ending all active sign-in sessions. Media deletion, lawful remaining references, backups, and required records are addressed in the [Privacy Policy]({{links.privacy}}). Deleting a project or account is not a refund request and does not renew trial eligibility.
 
 ## 11. Refunds and delivery problems
 

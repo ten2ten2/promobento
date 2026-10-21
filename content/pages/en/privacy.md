@@ -146,7 +146,7 @@ Depending on applicable law and our role, you may request access to personal inf
 
 Send requests to [{{brand.supportEmail}}](mailto:{{brand.supportEmail}}). We verify identity and authority using proportionate checks, explain applicable exceptions, and respond within the legally required period. For requests governed by the GDPR, this is generally one month; a permitted extension of up to two further months requires notice within the initial month and an explanation. Exercising a privacy right does not itself reduce your service rights.
 
-You may also request account closure through this channel or an available account setting. We verify the account, resolve workspace ownership and pending orders, end active sign-in sessions, and explain any records we must retain. Account closure and project deletion are separate from a refund request.
+To request account closure, email [{{brand.supportEmail}}](mailto:{{brand.supportEmail}}). Our support team verifies your identity and control of the account, confirms that you want it closed, and addresses workspace ownership and pending orders before closing it and ending all active sign-in sessions. We explain any records we must retain. Account closure and project deletion are separate from a refund request.
 
 You can request human review of a safety decision affecting your account or content through the same channel. A privacy data-access right is separate from the product's export features; the absence of a composition-source export feature does not limit rights provided by law.
 

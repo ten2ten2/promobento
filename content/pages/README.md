@@ -28,12 +28,13 @@ Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supp
 | `links.*` | 从 routes 和 [localization](../../config/localization.json) 推导当前语言链接；示例中的路径不再单独手工维护。 |
 | `policy.trialActiveDays`、`paidActiveDays`、`readOnlyGraceDays` | 分别取 [agent-policy](../../config/agent-policy.json) 的 `retention.freeDays`、`paidDays`、`graceDays`；起算、退款重算和使用条件以 05 为准。 |
 | `policy.refundNoticeDays` | 取 `retention.refundNoticeDays`，用于退款导致提前清理时的通知期，不复用正常到期的宽限天数。 |
-| `policy.voluntaryRefundDays`、`onlineMediaDeletionHours` | 分别来自 05 的自愿退款规则和 04 的主动删除规则。24 小时仅覆盖在线业务存储中已无合法引用的项目媒体。 |
+| `policy.voluntaryRefundDays` | 取 `agent-policy.refund.voluntaryWindowDays`；申请条件和例外按 05。 |
+| `policy.onlineMediaDeletionHours` | 取 `agent-policy.retention.onlineMediaDeletionHours`；仅覆盖在线业务存储中已无合法引用的项目媒体，范围按 04。 |
 | `policy.minimumAge` | 本稿建议 18，待结合实际主体与市场确认；不是已批准的生产规则。 |
 | `legal.*`、`payment.*` | 经确认的适用法、法院、实际 MoR 法律实体、买家条款及隐私告知；不得用 Waffo 品牌名代替法律销售方。 |
 | `ai.*` | 实际生产提供商和模型的简短披露；多提供商时，正文还须列清提供商、模型、用途之间的对应关系。 |
 
-未知值保持 null；`_meta` 只说明示例状态，不是正文变量。供应商数据范围、地区、保留期限及删除能力直接维护在 Privacy。客户内容不用于训练是产品承诺和供应商准入条件，不设模板开关；合同和账户设置不能支持该承诺时，不得启用该供应商或发布相关功能。
+上述保存期、退款期和在线媒体删除时限由 `check:repo` 核对配置与公开变量是否一致。未知值保持 null；`_meta` 只说明示例状态，不是正文变量。供应商数据范围、地区、保留期限及删除能力直接维护在 Privacy。客户内容不用于训练是产品承诺和供应商准入条件，不设模板开关；合同和账户设置不能支持该承诺时，不得启用该供应商或发布相关功能。
 
 接入时只接受登记过的字符串和符合范围的数字。文本按 Markdown/HTML 使用位置转义，链接目标分别校验允许的站内路径、HTTPS 地址和邮箱。先解析 frontmatter，再对允许的文本字段替换；不做任意模板求值，不启用 MDX、脚本或原始 HTML。替换不能递归解释配置值中的新变量。
 
@@ -75,7 +76,7 @@ Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supp
 | 展示副本 | 独立授权的成片副本保存终点、撤回后的移除时限，以及原项目删除或到期是否同时结束展示；授权记录只保留必要证据。 |
 | Cookie、分析与营销 | 按实际 Cookie、其他浏览器存储及服务端记录披露分析标识、关联范围和期限；核实归因、广告、营销及个人信息出售/共享情况，不凭设计名称虚构 Cookie 或控制入口。 |
 | 素材与成片权利 | 字体、音乐、素材、代码及组件许可支持所授使用范围；项目专属新增权利确属平台且可转让，必要形式及交付记录范围已落实；用户原许可限制与用途一致。 |
-| 审核与用户权利 | 提交 Waffo AIGC 审核和开放客户生成前，按 09 验证输入、展示前输出两阶段；公开展示另有发布后检查。举报、申诉、账号关闭及隐私请求有可用的认证支持渠道或设置入口。 |
+| 审核与用户权利 | 提交 Waffo AIGC 审核和开放客户生成前，按 09 验证输入、展示前输出两阶段；公开展示另有发布后检查。举报、申诉和隐私请求有可用渠道；P0 账号关闭通过 `brand.supportEmail` 人工核验和处理，按 12 的 AUTH-11 验收。 |
 | 购买、退款及到期 | 成功成果计次、失败释放、缺陷修复、升级/追加依赖、退款确认状态及退款诱发的清理宽限与 05 一致；不由余额状态自动回转版权或撤销无关许可。 |
 | 页面和记录 | 模板变量、锚点、链接、全文 SSR、缓存及语言策略通过验收；发布快照和按目的区分的接受/同意记录可追溯。 |
 

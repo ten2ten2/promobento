@@ -83,12 +83,23 @@ export interface RuntimeContext {
     readonly ready: Promise<void>;
     family(fontId: string): string;
   };
-  /** Stable for seed/key, independent of draw order; algorithm belongs to the pinned runtime. */
+  /**
+   * random-at-v1: length-prefixed UTF-8, FNV-1a + fmix32, unsigned value / 2^32.
+   * Stable in [0, 1) for seed/key, independent of draw order. Fixed vectors live
+   * with the runtime. Seed/key must be well-formed Unicode strings; isolated
+   * surrogates are rejected. This visual helper is not cryptographic randomness.
+   */
   readonly randomAt: (key: string) => number;
 }
 export interface DrawResult { readonly regions?: ReadonlyArray<RegionBounds> }
 export interface PreparedComposition {
-  /** Complete state at time; no accumulating callbacks, clocks or audio/event side effects. */
+  /**
+   * Complete state at time; no accumulating callbacks, clocks or audio/event side effects.
+   * The current reviewed-fixture runtime supports direct DOM/SVG updates and Canvas 2D.
+   * Native CSS/WAAPI animations (also paused ones), WebGL, fonts and video await admission.
+   * A host frame deadline must terminate a stuck execution environment, not queue dispose
+   * behind a draw that may never finish. That recovery is outside customer code.
+   */
   draw(time: RationalTime): DrawResult | Promise<DrawResult>;
   dispose(): void | Promise<void>;
 }

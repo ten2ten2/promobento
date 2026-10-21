@@ -7,26 +7,46 @@ const reasons = new Set(['allowed','review_required','restricted_content','servi
 const statuses = new Set(['disabled','scored','shadow_scored','provider_error']);
 const withheld = (status,reasonCode,fields = {}) => ({status,providerAllowsGeneration:false,reasonCode,receipt:null,nextRetry:null,...fields});
 
+function generationTextParts({instruction = '',task = '',facts = [],transcript = [],comments = [],editableTexts = []} = {}) {
+  if (typeof instruction !== 'string' || typeof task !== 'string'
+    || ![facts,transcript,comments,editableTexts].every(items => Array.isArray(items) && items.every(item => typeof item === 'string')))
+    throw new Error('INVALID_SCAN_TEXT_PARTS');
+  return {task,instruction,facts,transcript,comments,editableTexts};
+}
+
+/** Preflight the selected generation context, not the project's stored material.
+ * Empty text is valid for an in-progress form. Submission still requires actual text.
+ * The UI can use these numeric totals without receiving another copy of private text.
+ */
+export function generationScanBudget(textParts = {},config = contentSafetyConfig) {
+  if (!Number.isSafeInteger(config.maxPromptCharacters) || config.maxPromptCharacters < 1 || config.maxPromptCharacters > 10000)
+    throw new Error('INVALID_SCAN_CONFIGURATION');
+  const parts=generationTextParts(textParts);
+  const sections=Object.fromEntries(Object.entries(parts).map(([key,value]) => [key,[...canonical(value)].length]));
+  const totalCodePoints=[...canonical(parts)].length;
+  const maxCodePoints=config.maxPromptCharacters;
+  return {totalCodePoints,maxCodePoints,
+    remainingCodePoints:Math.max(0,maxCodePoints-totalCodePoints),
+    excessCodePoints:Math.max(0,totalCodePoints-maxCodePoints),
+    structureCodePoints:totalCodePoints-Object.values(sections).reduce((sum,length) => sum+length,0),sections};
+}
+
 /** Used when the trusted orchestrator selects this provider for a generation.
  * Pass the exact customer text used by the model, including relevant extracted text in facts.
  * Keep each section and its order; do not trim, summarize, normalize or silently drop overflow.
  */
 export function generationScanInput({operationId,operationKind,generationId,instruction = '',task = '',facts = [],transcript = [],comments = [],editableTexts = [],locale},config = contentSafetyConfig) {
-  if (typeof instruction !== 'string' || typeof task !== 'string'
-    || ![facts,transcript,comments,editableTexts].every(items => Array.isArray(items) && items.every(item => typeof item === 'string'))
-    || ![instruction,task,...facts,...transcript,...comments,...editableTexts].some(text => text.trim()))
+  const parts=generationTextParts({task,instruction,facts,transcript,comments,editableTexts});
+  if (![instruction,task,...facts,...transcript,...comments,...editableTexts].some(text => text.trim()))
     throw new Error('INVALID_SCAN_TEXT_PARTS');
-  const parts={task,instruction,facts,transcript,comments,editableTexts};
+  const budget=generationScanBudget(parts,config);
   const input={operationId,operationKind,generationId,prompt:canonical(parts)};
   if (locale !== undefined) input.locale=locale;
   const problem=inputError(input,config);
   if (problem) {
     const error=new Error(problem);
     error.statusCode=422;
-    if (problem === 'PROMPT_TOO_LONG') error.details={
-      totalCodePoints:[...input.prompt].length,maxCodePoints:config.maxPromptCharacters,
-      sections:Object.fromEntries(Object.entries(parts).map(([key,value]) => [key,[...canonical(value)].length]))
-    };
+    if (problem === 'PROMPT_TOO_LONG') error.details=budget;
     throw error;
   }
   return input;

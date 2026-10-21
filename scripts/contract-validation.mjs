@@ -1,6 +1,6 @@
 // Specification/fixture checker, not a production authorization or browser sandbox.
 import { readFileSync } from 'node:fs';
-import { studioErrors } from './studio-contracts.mjs';
+import { studioErrors, visibleText } from './studio-contracts.mjs';
 import { trustedPreviewErrors } from './preview-policy.mjs';
 import { recordCheckoutConsent } from './checkout-consent.mjs';
 import { outputSafetyErrors } from './output-safety.mjs';
@@ -37,16 +37,19 @@ const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] 
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 
 /** Each visible media output has its own trusted receipt, bound to the actual bytes. */
-function mediaOutputSafetyErrors({id,projectId,revisionId,subjectKind,sha256,mediaKind},context) {
+function mediaOutputSafetyErrors({id,projectId,revisionId,targetId,subjectKind,sha256,mediaKind},context) {
   return outputSafetyErrors(own(context.outputSafetyResults,id),{
-    projectId,revisionId,subjectKind,subjectHash:sha256,
+    projectId,revisionId,targetId,subjectKind,subjectHash:sha256,
     operationId:own(context.outputOperationIds,id) ?? null
   },{
     policyVersion:context.outputSafetyPolicyVersion,
     representation:'trusted_media',
     requiredCoverage:['screenshot','cover'].includes(mediaKind) ? ['text','visual'] : ['text','visual','audio'],
     nowMs:typeof context.now === 'string' ? Date.parse(context.now) : context.now,
-    revokedResultIds:context.revokedOutputSafetyResultIds ?? []
+    revokedResultIds:context.revokedOutputSafetyResultIds,
+    coverageManifest:own(context.outputSafetyCoverageManifests,id),
+    coveragePolicy:own(context.outputSafetyCoveragePolicies,id),
+    association:own(context.outputSafetyAssociations,id)
   });
 }
 
@@ -226,7 +229,7 @@ function apiInputErrors(v, context) {
   if (v.kind === 'facts_update_request') {
     fail(new Set(v.changes.map(x => x.factId)).size === v.changes.length, 'DUPLICATE_FACT_CHANGE');
     for (const change of v.changes) {
-      if (change.action === 'upsert') fail(change.text.trim().length > 0, 'EMPTY_FACT');
+      if (change.action === 'upsert') fail(visibleText(change.text), 'EMPTY_FACT');
       if (context.production || context.facts) fail((own(context.facts,change.factId)?.recordVersion ?? 0) === change.expectedVersion, 'STALE_FACT_RECORD');
       if (context.production || context.assets) for (const ref of change.evidence ?? []) {
         const asset = own(context.assets,ref.assetId);
@@ -367,7 +370,8 @@ export function semanticErrors(v, context = {}) {
         fail(Number.isSafeInteger(context.now) && Number.isFinite(acceptedAt) && acceptedAt <= context.now, 'CHECKOUT_CONSENT_TIME_INVALID');
         fail(Date.parse(disclosure.expiresAt) > context.now, 'CHECKOUT_DISCLOSURE_EXPIRED');
         const expected = recordCheckoutConsent(v,disclosure,{actorUserId:context.actorUserId,receiptId:receipt.receiptId,
-          projectId:context.projectId,currentOfferVersion:context.currentOfferVersion,nowMs:acceptedAt});
+          projectId:context.projectId,currentOfferVersion:context.currentOfferVersion,currentTermsVersion:context.currentTermsVersion,
+          dependsOnOrderId:context.dependsOnOrderId,nowMs:acceptedAt});
         fail(canonical(receipt) === canonical(expected), 'CHECKOUT_CONSENT_RECEIPT_MISMATCH');
       } catch { errors.push('CHECKOUT_CONSENT_INVALID'); }
     }
@@ -586,14 +590,14 @@ export function semanticErrors(v, context = {}) {
     fail(hash(v.sha256), 'READY_PREVIEW_WITHOUT_HASH');
     if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.screenshotAssetId},context));
     if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.screenshotAssetId,
-      projectId:v.projectId,revisionId:v.revisionId,subjectKind:'preview',sha256:v.sha256,mediaKind:'screenshot'},context));
+      projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.sha256,mediaKind:'screenshot'},context));
     if (v.mediaKind === 'clip') {
       fail(typeof v.clipAssetId === 'string' && v.clipAssetId.length > 0, 'READY_CLIP_WITHOUT_ASSET');
       fail(hash(v.clipSha256), 'READY_CLIP_WITHOUT_HASH');
       if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.clipAssetId,
         sha256:v.clipSha256,markingEvidenceRef:v.clipMarkingEvidenceRef},context));
       if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.clipAssetId,
-        projectId:v.projectId,revisionId:v.revisionId,subjectKind:'preview',sha256:v.clipSha256,mediaKind:'clip'},context));
+        projectId:v.projectId,revisionId:v.revisionId,targetId:v.targetId,subjectKind:'preview',sha256:v.clipSha256,mediaKind:'clip'},context));
     }
   }
   if (v.kind === 'fact_manifest') {
@@ -642,7 +646,6 @@ export function semanticErrors(v, context = {}) {
       fail(b.factIds.some(id => facts.get(id)?.text === b.expectedText), 'UNCONFIRMED_DISPLAY_TEXT');
     }
   }
-  if (v.kind === 'patch_result') for (const path of v.changedFiles) fail(safePath(path), 'UNSAFE_PATCH_PATH');
   if (v.kind === 'quality_report') {
     if (composition) {
       const variant = composition.variants.find(x => x.targetId === v.targetId);
@@ -832,25 +835,34 @@ export class CheckoutReference {
       if ([...this.grants.values()].some(g => this.effective(g) && g.upgradeFromOrderId === request.upgradeFromOrderId && g.orderId !== orderId)) throw Error('ALREADY_UPGRADED');
     }
     if (request.sku === 'extra_pack' && !this.hasCreativePurchase()) throw Error('CREATIVE_PROJECT_REQUIRED');
-    if (request.sku === 'extra_pack' && request.dependsOnOrderId && !this.effective(this.grants.get(request.dependsOnOrderId))) throw Error('CREATIVE_PROJECT_REQUIRED');
+    if (request.sku === 'extra_pack') {
+      const source=this.grants.get(request.dependsOnOrderId);
+      if (!this.effective(source) || !['project_pack','project_upgrade'].includes(source.sku)) throw Error('CREATIVE_PROJECT_REQUIRED');
+    }
   }
   open(request, {ownerAuthorized, recoverable = true, production = false, consentContext} = {}) {
     if (!ownerAuthorized) throw Error('FORBIDDEN');
     const structure = validateSchema(request);
     if (request.kind !== 'checkout_request' || structure.length) throw Error(structure.join(',') || 'INVALID_CHECKOUT');
-    if (request.projectId !== this.projectId || !recoverable) throw Error('PROJECT_UNAVAILABLE');
+    if (request.projectId !== this.projectId) throw Error('PROJECT_UNAVAILABLE');
     const previous = this.requests.get(request.requestId);
     const signature = digest(request);
     if (previous) {
       if (previous.signature !== signature) throw Error('IDEMPOTENCY_CONFLICT');
       return structuredClone(this.orders.get(previous.orderId));
     }
+    if (!recoverable) throw Error('PROJECT_UNAVAILABLE');
+    const creativeSource=request.sku==='extra_pack' ? [...this.grants.values()].find(g=>this.effective(g)
+      && ['project_pack','project_upgrade'].includes(g.sku)) : null;
+    const dependsOnOrderId=consentContext ? consentContext.disclosure?.dependsOnOrderId
+      : request.upgradeFromOrderId ?? creativeSource?.orderId ?? null;
     const consentReceipt = consentContext ? recordCheckoutConsent(request,consentContext.disclosure,
-      {...consentContext,projectId:this.projectId}) : null;
+      {...consentContext,projectId:this.projectId,dependsOnOrderId}) : null;
     const errors = semanticErrors(request,{quotaCatalog:this.catalog,production,
       ...(consentContext ? {ownerAuthorized,actorUserId:consentContext.actorUserId,projectId:this.projectId,
         checkoutDisclosure:consentContext.disclosure,checkoutConsentReceipt:consentReceipt,
-        currentOfferVersion:consentContext.currentOfferVersion,now:consentContext.nowMs} : {})});
+        currentOfferVersion:consentContext.currentOfferVersion,currentTermsVersion:consentContext.currentTermsVersion,
+        dependsOnOrderId,now:consentContext.nowMs} : {})});
     if (errors.length) throw Error(errors.join(','));
     if (request.purchaseIntent === 'purchase_and_export') {
       const snapshot = this.snapshots.get(request.snapshotId);
@@ -858,15 +870,14 @@ export class CheckoutReference {
       const delivered = this.releases.get(snapshot.contentHash);
       if (delivered && !this.effective(this.grants.get(delivered.orderId))) throw Error('RELEASE_RESTORATION_REVIEW_REQUIRED');
     }
-    this.assertEligibility(request);
+    this.assertEligibility({...request,dependsOnOrderId});
     const item = this.catalog[request.sku];
     const slotKey = item.isInitialPurchase ? 'initial_purchase' : request.sku === 'project_upgrade' ? 'upgrade:' + request.upgradeFromOrderId : 'extra_pack';
     if (this.slots.has(slotKey)) throw Error('CHECKOUT_IN_PROGRESS');
     const orderId = 'order_ref_' + (this.orders.size + 1);
-    const creativeSource = request.sku === 'extra_pack' ? [...this.grants.values()].find(g => this.effective(g) && ['project_pack','project_upgrade'].includes(g.sku)) : null;
     const order = {orderId, ...structuredClone(request), priceMinor:item.priceMinor, entitlementSnapshot:structuredClone(item),
       consentReceipt:structuredClone(consentReceipt),
-      dependsOnOrderId:request.upgradeFromOrderId ?? creativeSource?.orderId ?? null,
+      dependsOnOrderId,
       slotKey, paymentVerified:false, refundVerified:false, state:'checkout_open'};
     this.orders.set(orderId, order); this.slots.set(slotKey, orderId); this.requests.set(request.requestId, {signature, orderId});
     return structuredClone(order);

@@ -1,4 +1,5 @@
-import {easeOutCubic, clamp01} from '/runtime.mjs';
+const clamp01 = value => Math.min(1, Math.max(0, value));
+const easeOutCubic = value => 1 - (1 - clamp01(value)) ** 3;
 
 // Original 5x7 geometric glyphs make the first fixture independent of system fonts.
 const glyphs = {
@@ -74,9 +75,6 @@ export default {
           card.setAttribute('transform', `translate(540 570) scale(${pulse.toFixed(6)}) translate(-540 -570)`);
         });
         cta.setAttribute('opacity', (0.35+0.65*easeOutCubic((seconds-7)/2)).toFixed(6));
-        // Rebuild the complete frame. Reusing transformed SVG layers can retain
-        // Chromium raster caches whose antialiasing depends on the previous seek.
-        surface.root.replaceChildren(svg.cloneNode(true));
         return {regions:[]};
       },
       dispose() { svg.remove(); }

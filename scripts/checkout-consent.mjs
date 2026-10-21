@@ -4,20 +4,25 @@ import { createSchemaValidator, digest, parseCanonicalJson } from '../packages/c
 const schema=parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json',import.meta.url)));
 const validate=createSchemaValidator(schema);
 
-export function checkoutPurchaseIdentity(request) {
+export function checkoutPurchaseIdentity(request,dependsOnOrderId=request.upgradeFromOrderId ?? null) {
   return {projectId:request.projectId,sku:request.sku,purchaseIntent:request.purchaseIntent,
-    snapshotId:request.snapshotId ?? null,upgradeFromOrderId:request.upgradeFromOrderId ?? null};
+    snapshotId:request.snapshotId ?? null,upgradeFromOrderId:request.upgradeFromOrderId ?? null,dependsOnOrderId};
 }
 
 /** The caller checks owner permission and persists this receipt with the order in one transaction. */
-export function recordCheckoutConsent(request,disclosure,{actorUserId,receiptId,projectId,currentOfferVersion,nowMs}={}) {
+export function recordCheckoutConsent(request,disclosure,{actorUserId,receiptId,projectId,currentOfferVersion,
+  currentTermsVersion,dependsOnOrderId=request.upgradeFromOrderId ?? null,nowMs}={}) {
   if (validate(request,schema.$defs.checkoutRequest).length || validate(disclosure,schema.$defs.checkoutDisclosureResult).length)
     throw Error('CHECKOUT_CONSENT_INVALID');
   if (!actorUserId || !receiptId || projectId !== request.projectId || disclosure.projectId !== projectId)
     throw Error('CHECKOUT_CONSENT_SCOPE_MISMATCH');
-  if (request.consent.disclosureId !== disclosure.disclosureId || disclosure.purchaseHash !== digest(checkoutPurchaseIdentity(request)))
+  if (request.consent.disclosureId !== disclosure.disclosureId || disclosure.dependsOnOrderId!==dependsOnOrderId
+    || disclosure.purchaseHash !== digest(checkoutPurchaseIdentity(request,dependsOnOrderId)))
     throw Error('CHECKOUT_DISCLOSURE_MISMATCH');
   if (!currentOfferVersion || disclosure.offerVersion !== currentOfferVersion) throw Error('CHECKOUT_OFFER_CHANGED');
+  if (!currentTermsVersion || disclosure.termsVersion !== currentTermsVersion) throw Error('CHECKOUT_TERMS_CHANGED');
+  if (request.sku==='project_upgrade' ? dependsOnOrderId!==request.upgradeFromOrderId
+    : request.sku==='extra_pack' ? !dependsOnOrderId : dependsOnOrderId!==null) throw Error('CHECKOUT_DEPENDENCY_INVALID');
   if (!Number.isSafeInteger(nowMs) || Date.parse(disclosure.expiresAt) <= nowMs) throw Error('CHECKOUT_DISCLOSURE_EXPIRED');
   const items=new Map(disclosure.items.map(item=>[item.id,item]));
   if (items.size !== disclosure.items.length || new Set(disclosure.items.map(item=>item.purpose)).size !== disclosure.items.length
@@ -27,6 +32,7 @@ export function recordCheckoutConsent(request,disclosure,{actorUserId,receiptId,
     throw Error('CHECKOUT_CONSENT_REQUIRED');
   const result={schemaVersion:'2.7.0',kind:'checkout_consent_receipt',receiptId,disclosureId:disclosure.disclosureId,
     projectId,actorUserId,requestId:request.requestId,purchaseHash:disclosure.purchaseHash,
+    termsVersion:disclosure.termsVersion,dependsOnOrderId,
     disclosureHash:digest(disclosure),acceptedItemIds:[...accepted].sort(),acceptedAt:new Date(nowMs).toISOString()};
   if (validate(result,schema.$defs.checkoutConsentReceipt).length) throw Error('CHECKOUT_CONSENT_INVALID');
   return result;

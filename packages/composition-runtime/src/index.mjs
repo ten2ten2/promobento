@@ -7,16 +7,54 @@ export function frameTime(frameIndex, totalFrames) {
   return Object.freeze({numerator: frameIndex, denominator: 30});
 }
 
-/** FNV-1a over UTF-8(seed + NUL + key), scaled to [0, 1). No mutable PRNG state. */
+/**
+ * random-at-v1: UTF-8 byte lengths (uint32 little-endian) followed by each value,
+ * FNV-1a, then MurmurHash3's fmix32. Unsigned output / 2^32 is in [0, 1).
+ * This is keyed visual noise, not a source of credentials or cryptographic entropy.
+ */
 export function randomAt(seed, key) {
-  if (typeof seed !== 'string' || typeof key !== 'string') throw new TypeError('RANDOM_KEY_INVALID');
+  if (typeof seed !== 'string' || typeof key !== 'string' || !seed.isWellFormed() || !key.isWellFormed())
+    throw new TypeError('RANDOM_KEY_INVALID');
   let value = 2166136261;
-  for (const byte of new TextEncoder().encode(seed + '\0' + key)) value = Math.imul(value ^ byte, 16777619) >>> 0;
+  const add = byte => { value = Math.imul(value ^ byte, 16777619) >>> 0; };
+  for (const input of [seed, key]) {
+    const bytes = new TextEncoder().encode(input);
+    if (bytes.length > 0xffffffff) throw new RangeError('RANDOM_KEY_TOO_LONG');
+    for (let shift = 0; shift < 32; shift += 8) add((bytes.length >>> shift) & 255);
+    for (const byte of bytes) add(byte);
+  }
+  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b) >>> 0;
+  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35) >>> 0;
+  value = (value ^ (value >>> 16)) >>> 0;
   return value / 4294967296;
 }
 
-export const clamp01 = value => Math.min(1, Math.max(0, value));
-export const easeOutCubic = value => 1 - (1 - clamp01(value)) ** 3;
+function assertSupportedDrawing(root) {
+  // Display invalidation below is only valid for direct absolute-time drawing.
+  // It would cancel/restart native animations, including manually paused ones.
+  if (root.getAnimations({subtree:true}).length)
+    throw new Error('NATIVE_ANIMATION_UNSUPPORTED: use absolute-time DOM/SVG attributes or Canvas 2D drawing');
+}
+
+async function settleDirectDrawing(root) {
+  assertSupportedDrawing(root);
+  const display = root.style.getPropertyValue('display');
+  const priority = root.style.getPropertyPriority('display');
+  try {
+    root.style.setProperty('display', 'none', 'important');
+    root.getBoundingClientRect();
+  } finally {
+    if (display) root.style.setProperty('display', display, priority);
+    else root.style.removeProperty('display');
+  }
+  // This invalidates retained SVG raster layers for the supported drawing path.
+  // The screenshot supplies the compositor/readback barrier. It is not a media
+  // or WebGL barrier, and cannot make stateful customer code deterministic.
+  root.getBoundingClientRect();
+  assertSupportedDrawing(root);
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  assertSupportedDrawing(root);
+}
 
 export async function createCompositionRuntime({definition, root, targetId, width, height, durationSeconds, seed, values}) {
   if (!root || definition?.apiVersion !== '2.7.0' || typeof definition.prepare !== 'function')
@@ -63,10 +101,9 @@ export async function createCompositionRuntime({definition, root, targetId, widt
       return serial(async () => {
         if (disposed) throw new Error('INVALID_SESSION');
         const time = frameTime(frameIndex, context.totalFrames);
+        assertSupportedDrawing(root);
         const result = await prepared.draw(time);
-        // Reviewed M0a fixtures use synchronous DOM/SVG. This barrier is followed by
-        // Chromium's screenshot compositor barrier; it is not a general media barrier.
-        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await settleDirectDrawing(root);
         return {frameIndex, time, regions: result?.regions ?? []};
       });
     },

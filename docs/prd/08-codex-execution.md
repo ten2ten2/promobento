@@ -21,12 +21,12 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | 任务 | 实际范围 |
 | --- | --- |
 | `install` | pnpm 冻结安装 |
-| `check:repo` | 当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；并执行契约与离线参考检查 |
+| `check:repo` | 当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；提前核对 Renderer Node/Playwright 与工具链、包声明一致；并执行契约与离线参考检查 |
 | `check:contracts` | Schema 样例、语义、摘要、合法目标与 API 清单 |
 | `test` | 运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
-| `install:renderer` | 从 Google Chrome for Testing 下载固定浏览器，核对归档与可执行文件 SHA-256 |
-| `test:render` | 独立运行媒体测试：真实 15 秒 MP4、正序/逆序/重复/冷启动帧、编码参数与色块检查 |
+| `install:renderer` | 获取并校验完整 Chrome for Testing 固定归档，保存到私有缓存 |
+| `test:render` | 独立运行媒体测试：15/30 秒真实 MP4、正序/逆序/重复及冷启动抽帧、编码与色块、帧超时和不支持动画的失败检查 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
@@ -80,30 +80,37 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 ### M0a 渲染环境
 
-当前已实现第一步的本地 Renderer 和标准采样运行时，入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供。它只运行仓库中自制的固定样例，不接收客户代码；尚不具备 M0b 的隔离准入。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
+本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。当前只运行仓库中自制、经审阅的固定样例，不接收客户代码；尚不具备 M0b 的隔离准入。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
 
 Linux x64 / Ubuntu 24.04 的运行步骤：
 
 ```bash
 bash scripts/agent-setup.sh
 mise exec -- pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
+sudo apt-get update
 sudo apt-get install --no-install-recommends --allow-downgrades ffmpeg=7:6.1.1-3ubuntu5
 mise run install:renderer
 mise run test:render
 ```
 
-系统依赖安装只在准备阶段进行。浏览器下载到临时目录，也可用 `PROMOBENTO_BROWSER_DIR` 指定已有缓存；版本或摘要不符时明确失败。当前自制 SVG 字形不依赖系统字体，也不证明完整字体、录屏、混音或本地编辑能力；第二步再加入有授权的固定字体与媒体素材。FFmpeg 使用 Ubuntu 的 GPL/libx264 构建，以本地/CI 进程执行，仓库不分发二进制；未来交付容器或二进制时按 09 另核对分发义务。
+系统依赖安装只在准备阶段进行。`PROMOBENTO_BROWSER_DIR` 指定当前用户拥有、非符号链接且权限为 0700 的归档缓存目录，内含 `browser.zip`；可用 `PROMOBENTO_BROWSER_ARCHIVE` 从已取得的官方归档导入，仍核对锁定的完整 SHA-256。镜像来源只允许相同官方字节，不接受其他版本。每次渲染都复制并复核归档，在新的私有目录完整解压，拒绝特殊文件并校验可执行文件；不复用只检查过主程序的解压目录。测试结束清理临时解压和原始帧。
+
+当前样例使用自制 SVG 字形，浏览器由空字体目录的 Fontconfig 隔离系统字体。固定模板生成指向私有字体/缓存目录的绝对路径配置，分别记录模板与实际配置摘要；媒体测试实查目录、字体清单及 Chromium 的本地字体可见性。这不代表字体登记、塑形或回退已实现。第二步继续加入有授权的固定字体、录屏、实际混音与可编辑项。FFmpeg 使用 Ubuntu 的 GPL/libx264 构建，以本地/CI 进程执行，仓库不分发二进制；未来交付容器或二进制时按 09 另核对分发义务。
+
+当前截图路径只准入绝对时间直接更新 DOM/SVG 属性及完整重绘 Canvas 2D。宿主在绘制前后拒绝原生 CSS/WAAPI 动画；截图使用 `animations:'allow'`、`reducedMotion:'no-preference'`。在此受限路径下，绘制后通过显示状态失效处理重建保留的 SVG 图层，再由截图完成合成与读回；它不能作为任意动画、视频或 WebGL 的通用帧屏障。增加创作能力前，必须加入相应普通样例并完成冷启、顺逆序和重复取帧验证。
+
+整帧宿主 deadline 覆盖 `draw`、绘制屏障与截图；超时通过宿主终止 BrowserServer 进程组，即使 `draw` 永不返回或同步死循环，也不等待排在它后面的 `dispose`。诊断只在内存保存摘要和少量必要帧；正序原始 PNG 写临时目录，逆序/重复/冷启逐帧比较，用后清理，保留报告中的实际覆盖数与失败诊断。归档、主程序、系统库和成片的 SHA-256 用固定 64 KiB 缓冲分块计算。报告的 Node 最大 RSS 不包含浏览器与编码器，不能作为生产总内存结论。
 
 每次媒体测试记录实际系统库、输入文件、启动参数和解码像素摘要，保存样片、封面及报告。严格比较同次固定环境的帧；系统库记录不等于已经证明跨机器像素一致。后续扩展继续固定：
 
 - 操作系统/架构与主机类型、Chromium 构建及启动参数、绘制后端、FFmpeg 构建与系统库；容器使用实际镜像 digest。
 - 字体文件、字形处理和回退配置的摘要；图片/视频的解码方式；帧就绪条件与截帧路径。仅调用 `gl.finish()` 或等待字体加载不能代替完整帧验收。
 - 输入颜色解释、RGB 到 YUV 的转换、范围及输出标记，用色块样例验证；不能仅添加 BT.709 标签而不核对转换。
-- `randomAt` 算法、输出范围和固定向量，预览与可信渲染共用实现。
+- `randomAt` 使用 UTF-8 字节长度的 uint32 小端前缀分别编码 seed/key，经 FNV-1a 与 fmix32 混合，将 uint32 除以 2³² 得到 [0,1)；固定向量和统计回归检查输入边界及相邻键，不以它生成凭据。预览与可信渲染共用实现。
 
 同一固定环境内比较解码后的帧像素；不同环境单独设定观感/布局容差。本地浏览器预览不承诺与可信输出逐像素一致，交付文件另外保存实际字节摘要。启用 motion4/8 前再固定线性光采样合成、alpha、舍入和各配置超时。
 
-`test:render` 先校验环境，再产片和检查；缺浏览器、编码器或字体时明确失败，不采用宿主的浮动默认值。有容器能力时使用固定镜像；没有时采用已验证的预装环境，或把可信渲染交给 CI/专用 runner，本地继续纯代码工作。安装/下载放所选 Agent 环境允许的准备阶段，不假定所有沙箱支持 Docker 或相同网络策略。
+`test:render` 先校验环境，再产片和检查；缺浏览器、编码器或所需字体时明确失败，不采用宿主的浮动默认值。有容器能力时使用固定镜像；没有时采用已验证的预装环境，或把可信渲染交给 CI/专用 runner，本地继续纯代码工作并注明媒体未验证。必需的 CI 媒体门禁不能把环境不可用记为 skip 后通过。安装/下载放所选 Agent 环境允许的准备阶段，不假定所有沙箱支持 Docker 或相同网络策略。
 
 | 环境 | 另需验证 |
 | --- | --- |
@@ -125,4 +132,8 @@ CI 支持手动 `workflow_dispatch`，可选择实验分支运行完整检查，
 
 appUrl、回调、发信和支持地址取 brand/routes/auth。密钥只交给需要它的可信服务，沙箱不带凭据；新增服务纳入费用预算。完成报告写清变更、实际验证、未实现项、样片/费用和外部条件；仅在能力变化时更新实施进度。
 
-CI 验证当前提交的完整代码树；被新提交替代的检查可以取消，最终远端 SHA 必须获得所需检查结果。平台规则比较以 main 上相同检查工作流最后成功且属于当前 SHA 祖先的提交为基线，失败/取消不推进基线；PR 使用其 base SHA。查询失败或找不到成功基线时明确失败，不能退回 `event.before`。本地默认比较已获取的上游，无上游时才按工作区状态比较 HEAD/HEAD^；可用 `PROMOBENTO_BASE_REF` 显式指定已核实基线。失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境后重跑。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。
+CI 验证当前提交的完整代码树；被新提交替代的检查可以取消，最终远端 SHA 必须获得所需检查结果。平台规则比较使用 main 上相同检查工作流中、按 Git 祖先距离最近的成功提交；运行时间不决定距离，失败/取消不推进基线。选择器先从一页成功历史发现候选，再对候选与 HEAD 之间的祖先逐 SHA 分批核验，避开全局筛选列表上限及旧提交反复重跑的排序问题；PR 使用其 base SHA。
+
+只有 API 明确返回零成功历史时，`ten2ten2/promobento` 才可使用脚本内固定的初始基线 `a55939e4e080b4a0731b0b43315b22d0ad7ec902`，且该提交必须为 HEAD 的严格祖先。不得用环境变量替换初始 SHA。API/网络失败、异常响应、已有成功历史却无合格祖先均阻断，不退回 `event.before`、HEAD 或全零 SHA。CI 显式基线必须为严格祖先；本地允许用 `origin/main=HEAD` 比较尚未提交的改动。默认比较已获取的上游，无上游时才按工作区状态比较 HEAD/HEAD^；可用 `PROMOBENTO_BASE_REF` 显式指定已核实基线。
+
+失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境后重跑。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。

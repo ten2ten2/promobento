@@ -21,13 +21,15 @@
 
 候选操作先验证当前权限、作用域和幂等摘要；已有同键同请求返回原结果，不能因候选已 accepted/rejected 再次执行状态检查而拒绝重放。新接受操作才检查当前基线和准入条件；拒绝只改变候选状态，不要求其旧基线仍为当前草稿。
 
+`CandidateReference` 把请求校验、身份与作用域、请求指纹、重放、当前状态检查和候选提交连成一个内存参考入口。首次创作、改稿和目标准备统一返回 `candidateResult`；获准展示的候选包含 `agentInterpretation`、`impactSummary`，withheld/cancelled 时这两项为 null。实际 CAS、消费与 outbox 仍须在生产数据库同事务实现。
+
 恢复使用 `PATCH /api/projects/:projectId/draft` 的 restoreFromRevisionId，与changes互斥，创建新revision，可复用源包；不改订单或余额。素材清理后409 SOURCE_UNAVAILABLE。源包相同而revisionId/检查记录变化不必然是新的付费内容。
 
 普通参数保存检查权限、`baseRevision`、静态声明和值的范围，通过 CAS 创建新 revision；不调用模型，也不自动启动 Q0/Q1 或编码。修改事实绑定文本时，同一事务须更新所有绑定值、创建未确认事实版本并返回 `unconfirmedFactIds`。一次请求给同一事实写入不同文本时拒绝，不能由最后一项覆盖。绑定事实的文本保存时不能为空白；本地输入过程中可以暂时清空，但不能因此创建空事实。
 
-反向调用 `facts.update` 也要同步所有绑定值及 bindings 的 `expectedText`；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates`、`factValueUpdates` 和 `factBindingUpdates` 只计算应更新的内容，事实、参数、绑定与新 revision 须在同一数据库事务写入。响应返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`，让界面切换到实际保存版本。
+反向调用 `facts.update` 也要同步所有绑定值及 bindings 的 `expectedText`；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。合并后的完整 values 复用普通草稿保存的类型、可见文字、范围、时序限制及规范文件字节上限校验，不能只检查这次传入的事实字符串。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates`、`factValueUpdates` 和 `factBindingUpdates` 只计算应更新的内容，事实、参数、绑定与新 revision 须在同一数据库事务写入。响应返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`，让界面切换到实际保存版本。
 
-`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`，刷新后按这些引用恢复任务。`jobs` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，并返回实际候选或产物引用。
+`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`、`activeMediaJobIds` 和 `activeReleaseIds`，刷新后按这些引用恢复任务。`jobs.get` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，交付使用 `exports.get`，并返回实际候选或产物引用。
 
 ### 数据库约束清单
 
@@ -101,6 +103,8 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 `sourceArchiveHash = digest(sourceArchiveIdentity(files))` 固定完整源包的规范文件清单，每项包含路径、原始字节 SHA-256 和长度，按路径排序。它不是 ZIP 压缩字节的摘要；传输包可另校验字节 hash。可信 `sourceArchiveFiles` 必须由实际解包得到，并证明每个目标构建文件都属于该源包，`values.json` 的字节与构建读取的值完全一致。
 
+内部源包路径须为合法 Unicode 且已经是 NFC，每段 UTF-8 不超过 255 字节；拒绝路径穿越、保留设备名、不可移植字符及末尾点/空格。整个文件树按保守的兼容字形与大小写比较规则拒绝文件、目录别名和文件/目录前缀冲突。只检测冲突，不静默重命名或归一化用户文本；原合法路径的摘要及 `identityVersion:1` 不变。路径校验由 `safePath`、`sourceFileDigests` 与两种源码身份入口共用。
+
 冻结和正式预检把每个目标的摘要与可信构建记录核对，缺记录、源包不匹配、入口不一致或摘要过期都拒绝。构建记录还提供从源码读出的声明和值，用于检查事实绑定；这不代替像素和语音 QA。整个 `sourceArchiveHash` 保留在作品身份里，不塞进每个目标摘要。仅目标专有文件改变时可复用已证明不受影响的目标 QA；首版共享参数文件或全局事实内容变化会使所有相关目标失效，不按 Agent 自报的影响范围省略依赖。
 
 QA、确认和授权证据、标记策略、采样配置、样式标签本身不增加成片次数。采样或标记改变时重算产物指纹并重检，已购快照保留原策略；系统修复关联原 release，免费生成新文件，原收据不覆盖。
@@ -121,7 +125,7 @@ AI 标记和观众披露分开：可信 markingProfile 按09及实际用途分�
 
 订单、退款、素材失效与恢复按[05](05-waffo-billing.md)。退出界面不取消已付款交付；有效作品所需的运行版本按 §10 保留。
 
-Directions、Treatment、AudioPlan 和 PatchResult 的字段以 Schema 为准；可信层检查总帧、半开区间和关联。计划、解读和摘要是过程证据，不单独改变 contentHash；真正修改执行源码、参数、事实、音频、资源或布局才改变创作内容。
+Directions、Treatment、AudioPlan 和 `candidateResult` 的字段以 Schema 为准；可信层检查总帧、半开区间和关联。`runResult.outputStatus` 为 none/withheld 时结构上禁止携带方向、Treatment 或 AudioPlan；allowed 时生产校验还须匹配同一 `creative_plan` 正文身份的可信文本审核。计划、解读和摘要是过程证据，不单独改变 contentHash；真正修改执行源码、参数、事实、音频、资源或布局才改变创作内容。
 
 Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输入边界规范化颜色，不改变其他文字。
 
@@ -209,6 +213,7 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | 候选 | withheld→审核通过→ready | 只由可信审核结果解锁；失败、未知或覆盖不足不能展示与消费 |
 | 候选 | ready→accept→accepted | §1 CAS、权限与输出审核同时验证；同请求同候选幂等 |
 | 候选 | ready/withheld→reject→rejected | 不改当前稿；ready不返已交付成功次数，withheld未交付则释放未消费预留 |
+| 候选 | ready/withheld→cancel→cancelled | 原稿不变，作废后续接受；终止原操作时释放未消费预留并阻止晚到结果，已交付成功次数不返还 |
 
 冻结、付款、预留和交付发布按 §4 与[05](05-waffo-billing.md)执行。编码失败只重试失败指纹，最多 3 个真实编码 attempt；有效产物复用。源码修复与编码重试分别计数，共享累计费用上限。
 
@@ -237,6 +242,8 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 | INFO | 已声明的非关键视觉/节奏提示 | 展示，不阻断 |
 
 缺字、授权和事实错误必须修复；节奏、调色等风格判断不能冒充硬性错误。输出审核按[04](04-architecture-and-data.md#输出审核)独立放行，`qualityWaiver` 不能豁免输出安全阻断或覆盖不足。实际视听和覆盖验收按[06](06-testing-and-release.md)，不默认每单后台人工批准。
+
+输出审核须从可信回执及覆盖记录推导，不能传入单一 `safetyAllowed` 代替。候选按 target 使用 `candidateOutputIdentity`，同时固定可信内容摘要、意图解读与影响摘要；创作计划固定完整 directions/Treatment/AudioPlan；本地预览固定授权 revision 的 manifestHash，媒体预览和交付固定实际媒体字节摘要。只有不可变对象身份与策略仍一致，才可用可信 association 关联新的 operation/revision；当前撤销状态仍必查，改文字不能自行推定视觉、布局或音频未受影响。
 
 ## 9 资源、输入与保存
 

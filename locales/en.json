@@ -122,7 +122,7 @@
     "readOnly": "This project is read-only.",
     "freeRestore": "Restore this project with an eligible purchase before its files are removed. A single export needs a video whose output layouts were already checked and confirmed. Otherwise, buy a project pack to resume creating and preparing layouts.",
     "singleRestore": "Upgrade this project to keep creating before its files are removed.",
-    "paidRestore": "Add a project pack extension before this project's files are removed.",
+    "paidRestore": "Choose an eligible project extension before this project's files are removed.",
     "filesRemoved": "This project's files have been removed. Start a new project and choose an available trial or project pack to continue.",
     "claimTrial": "Use my one free trial for this project",
     "trialIncludes": "One successful video creation, up to three direction cards, and two AI edit rounds. Finished downloads require payment.",
@@ -165,7 +165,14 @@
     "candidateReady": "Candidate ready to review",
     "qaBlocked": "Repair the blocking issue before continuing.",
     "reviewRequired": "Review the highlighted frames before confirming.",
-    "exportNewVersion": "Export new version"
+    "exportNewVersion": "Export new version",
+    "inputBudget": "Selected generation context: {{used}} / {{limit}} characters, including formatting.",
+    "inputBudgetSections": "Task {{task}} · Instructions {{instruction}} · Facts {{facts}} · Transcript {{transcript}} · Comments {{comments}} · Editable text {{editableTexts}} · Structure {{structure}}",
+    "inputBudgetHelp": "Choose the material for this generation. Your other project material stays saved.",
+    "outputReviewPending": "Your work is saved. The result will be available after its content review.",
+    "outputWithheld": "This result is not available to preview. Review the issue before trying again.",
+    "candidateCancelled": "This attempt was cancelled. Your current draft is still saved.",
+    "candidateImpact": "Review the proposed changes before accepting this candidate."
   },
   "billing": {
     "singleExport": "Single export",
@@ -206,7 +213,14 @@
     "paidSnapshotNotice": "We are exporting the version you confirmed. Your new edits are saved as a draft.",
     "taxNotice": "Applicable taxes are shown at checkout.",
     "uiThemeNoCharge": "Changing appearance does not use a video version.",
-    "sameContentNoCharge": "This content has a valid export entitlement. Reuse it without another version charge."
+    "sameContentNoCharge": "This content has a valid export entitlement. Reuse it without another version charge.",
+    "reviewPurchaseDetails": "Review the current purchase details before continuing.",
+    "acceptTerms": "I accept the Terms of Service shown for this purchase.",
+    "acceptRefundPolicy": "I have read the refund terms shown for this purchase.",
+    "acceptImmediatePerformance": "I request that the purchased service begin immediately.",
+    "acceptanceRequired": "Confirm the required purchase details to continue.",
+    "disclosureChanged": "The purchase details have changed. Review and confirm the updated details.",
+    "dependentPurchaseChanged": "The purchase this offer depends on has changed. Review the available offers."
   },
   "exports": {
     "queued": "Queued",
@@ -274,7 +288,8 @@
     "upgradeRequired": "Upgrade this single-export project to add creation allowance or download different content.",
     "previewLimitReached": "This project's cloud preview limit has been reached. Your saved draft and available local controls are still here.",
     "budgetExhausted": "This operation has reached its budget. Your saved work is still available.",
-    "sourceUnavailable": "The source files required for this version are unavailable."
+    "sourceUnavailable": "The source files required for this version are unavailable.",
+    "promptTooLong": "The selected generation context exceeds the limit by {{excess}} characters. Shorten the highlighted sections or choose less material before generating. Your project material stays saved."
   },
   "admin": {
     "title": "Operations",

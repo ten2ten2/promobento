@@ -311,10 +311,20 @@ export function platformRuleErrors(previous,current) {
   return changed.length?['Platform execution rules changed without a rulesVersion bump ('+current.rulesVersion+'): '+changed.join(', ')]:[];
 }
 
+export function rendererToolchainErrors(mise,project,renderer,lock) {
+  const errors=[],exact=/^\d+\.\d+\.\d+$/;
+  const node=mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1];
+  if(!exact.test(lock.nodeVersion??'')||lock.nodeVersion!==node||lock.nodeVersion!==project.engines?.node)
+    errors.push('Renderer Node pin differs from .mise.toml or package.json');
+  if(!exact.test(lock.playwrightCoreVersion??'')||lock.playwrightCoreVersion!==renderer.dependencies?.['playwright-core'])
+    errors.push('Renderer Playwright pin differs from apps/renderer/package.json');
+  return errors;
+}
+
 export function platformBaseline(root,env=process.env) {
   const git=args=>spawnSync('git',args,{cwd:root,encoding:'utf8'});
   const explicit=env.PROMOBENTO_BASE_REF?.trim();
-  if (explicit&&/^0{40,64}$/.test(explicit)) return {reference:explicit,config:null,reason:'initial push'};
+  if (explicit&&/^0{40,64}$/.test(explicit)) throw Error('An empty Git baseline cannot bypass platform rule checks');
   const ci=env.CI==='true'||env.CI==='1'||env.GITHUB_ACTIONS==='true';
   if (ci&&!explicit) throw Error('CI requires PROMOBENTO_BASE_REF (PR base SHA or last successful ancestor)');
   let reference=explicit;
@@ -334,7 +344,13 @@ export function platformBaseline(root,env=process.env) {
       return {reference,config:null,reason:'initial local commit'};
     throw Error('Cannot read Git baseline '+reference+'; fetch the base commit before checking platform rules');
   }
-  const commit=revision.stdout.trim(),source=git(['show',commit+':config/platform-presets.json']);
+  const commit=revision.stdout.trim();
+  if(ci) {
+    const head=git(['rev-parse','HEAD']);
+    if(head.status!==0||head.stdout.trim()===commit||git(['merge-base','--is-ancestor',commit,'HEAD']).status!==0)
+      throw Error('CI platform baseline must be a strict ancestor of HEAD');
+  }
+  const source=git(['show',commit+':config/platform-presets.json']);
   if (source.status!==0) throw Error('Cannot read config/platform-presets.json at Git baseline '+reference);
   return {reference,commit,config:parseCanonicalJson(source.stdout)};
 }

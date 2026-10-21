@@ -4,7 +4,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,truncateSync,sym
 import {tmpdir} from 'node:os';
 import {dirname,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline,rendererToolchainErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 import {discoverTests} from './run-tests.mjs';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
 
@@ -153,6 +153,17 @@ test('the PRD index owns its chapter list and version labels exclude toolchain n
   assert.deepEqual(specificationVersions('产品规格 v2.7；协议为 2.7.0；PRD v9.9'),{prd:['v2.7','v9.9'],protocol:['2.7.0']});
 });
 
+test('renderer lock detects toolchain drift before browser installation',()=>{
+  const mise='[tools]\nnode = "26.12.0"\n';
+  const project={engines:{node:'26.12.0'}},renderer={dependencies:{'playwright-core':'1.62.1'}};
+  const lock={nodeVersion:'26.12.0',playwrightCoreVersion:'1.62.1'};
+  assert.deepEqual(rendererToolchainErrors(mise,project,renderer,lock),[]);
+  assert.match(rendererToolchainErrors(mise,project,renderer,{...lock,nodeVersion:'26.11.0'}).join('\n'),/Node pin/);
+  assert.match(rendererToolchainErrors(mise,{engines:{node:'26.11.0'}},renderer,lock).join('\n'),/Node pin/);
+  assert.match(rendererToolchainErrors(mise,project,renderer,{...lock,playwrightCoreVersion:'1.61.0'}).join('\n'),/Playwright pin/);
+  assert.match(rendererToolchainErrors(mise,project,{dependencies:{'playwright-core':'^1.62.1'}},lock).join('\n'),/Playwright pin/);
+});
+
 test('unit test discovery covers new packages and apps without collecting generated or browser suites',t=>{
   const root=fixture(t,{
     'scripts/check.test.mjs':'',
@@ -199,5 +210,7 @@ test('Git baseline uses explicit CI commits, HEAD for dirty work and HEAD^ for c
   assert.deepEqual(platformBaseline(root,{CI:'true',PROMOBENTO_BASE_REF:first}).config,previous);
   assert.throws(()=>platformBaseline(root,{CI:'true'}),/CI requires PROMOBENTO_BASE_REF/);
   assert.throws(()=>platformBaseline(root,{CI:'true',PROMOBENTO_BASE_REF:'missing-base'}),/Cannot read Git baseline/);
-  assert.equal(platformBaseline(root,{CI:'true',PROMOBENTO_BASE_REF:'0'.repeat(40)}).reason,'initial push');
+  assert.throws(()=>platformBaseline(root,{CI:'true',PROMOBENTO_BASE_REF:'0'.repeat(40)}),/empty Git baseline/);
+  assert.throws(()=>platformBaseline(root,{CI:'true',PROMOBENTO_BASE_REF:second}),/strict ancestor/);
+  assert.equal(platformBaseline(root,{PROMOBENTO_BASE_REF:second}).commit,second,'local dirty work can still compare with HEAD');
 });

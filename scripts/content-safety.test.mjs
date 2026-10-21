@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { contentSafetyConfig, generationScanInput, generationScanInputForRequest, scanGenerationPrompt, scanReceiptMatches, nextScanRetry } from './content-safety-reference.mjs';
+import { contentSafetyConfig, generationScanBudget, generationScanInput, generationScanInputForRequest, scanGenerationPrompt, scanReceiptMatches, nextScanRetry } from './content-safety-reference.mjs';
 
 const enabled = () => ({...structuredClone(contentSafetyConfig),enabled:true});
 const input = () => ({operationId:'operation_creative',operationKind:'creative_generate',generationId:'generation_1',prompt:'  A product card with cafe\u0301 lettering.  ',locale:'en'});
@@ -200,4 +200,34 @@ test('preflight returns a section-length explanation without echoing customer te
   assert.ok(failure.details.sections.task>6000);
   assert.ok(failure.details.totalCodePoints>failure.details.maxCodePoints);
   assert.equal(JSON.stringify(failure.details).includes(privateText),false);
+});
+
+test('form preflight and submitted prompt share exact escaping, code-point counts and section totals', () => {
+  const parts={task:'  A "quoted" task\n😀  ',facts:['cafe\u0301','line\tbreak'],comments:['Keep \\ literal.']};
+  const budget=generationScanBudget(parts);
+  const source=generationScanInput({...parts,operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'});
+  assert.equal(budget.totalCodePoints,[...source.prompt].length);
+  assert.equal(budget.remainingCodePoints,contentSafetyConfig.maxPromptCharacters-budget.totalCodePoints);
+  assert.equal(budget.excessCodePoints,0);
+  assert.equal(budget.structureCodePoints+Object.values(budget.sections).reduce((sum,length) => sum+length,0),budget.totalCodePoints);
+  assert.equal(JSON.stringify(budget).includes('quoted'),false);
+  const empty=generationScanBudget();
+  assert.ok(empty.totalCodePoints>0);
+  assert.equal(empty.sections.task,2);
+  assert.throws(() => generationScanInput({operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'}),/INVALID_SCAN_TEXT_PARTS/);
+  assert.throws(() => generationScanBudget({facts:[false]}),/INVALID_SCAN_TEXT_PARTS/);
+  assert.throws(() => generationScanBudget({}, {...contentSafetyConfig,maxPromptCharacters:10001}),/INVALID_SCAN_CONFIGURATION/);
+});
+
+test('preflight exposes exact overflow while project storage is outside the selected context budget', () => {
+  const parts={instruction:'x'.repeat(10001)};
+  const budget=generationScanBudget(parts);
+  assert.equal(budget.remainingCodePoints,0);
+  assert.equal(budget.excessCodePoints,budget.totalCodePoints-budget.maxCodePoints);
+  assert.throws(() => generationScanInput({...parts,operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate'}),
+    error => error.message === 'PROMPT_TOO_LONG' && assert.deepEqual(error.details,budget) === undefined);
+  const selected={task:'Use this selected product fact.',facts:['Approved price: $19']};
+  const projectMaterials=['Unselected transcript '.repeat(10000)];
+  assert.deepEqual(generationScanBudget({...selected,projectMaterials}),generationScanBudget(selected));
+  assert.equal(contentSafetyConfig.inputBudgetScope,'selected_generation_context');
 });

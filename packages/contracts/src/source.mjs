@@ -2,9 +2,15 @@ import { createHash } from 'node:crypto';
 import { compareUtf16, canonical, parseCanonicalJson } from './canonical.mjs';
 import { digest } from './digest.mjs';
 
+// Comparison only: accepted paths and their original UTF-8 bytes are never rewritten.
+// Compatibility folding deliberately rejects more aliases than a particular filesystem might.
+const pathComparisonKey = value => value.normalize('NFKC').toUpperCase().toLowerCase().normalize('NFKC');
+const reservedName = part => /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/u.test(pathComparisonKey(part));
 export const safePath = value => typeof value === 'string' && value.length > 0 && value.length <= 512
-  && !/[\\\u0000-\u001f\u007f%:?#]/u.test(value)
-  && value.split('/').every(part => part && part !== '.' && part !== '..');
+  && value.isWellFormed() && value === value.normalize('NFC')
+  && !/[\\\u0000-\u001f\u007f%:?#<>"|*]/u.test(value)
+  && value.split('/').every(part => part && part !== '.' && part !== '..'
+    && !/[. ]$/u.test(part) && !reservedName(part) && Buffer.byteLength(part,'utf8') <= 255);
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
 export const SOURCE_VALUES_MAX_BYTES = 1024 * 1024;
 export const SOURCE_VALUES_MAX_ITEMS = 256;
@@ -39,14 +45,33 @@ export function parseSourceValues(input) {
 /** The trusted builder supplies actual file bytes, after resolving the allowed dependency graph. */
 export function sourceFileDigests(files) {
   if (!Array.isArray(files)) throw Error('SOURCE_FILES_REQUIRED');
+  assertSourcePaths(files);
   return files.map(({path,bytes}) => {
     if (!safePath(path) || !(bytes instanceof Uint8Array)) throw Error('SOURCE_FILE_INVALID');
     return {path,sha256:createHash('sha256').update(bytes).digest('hex'),byteLength:bytes.byteLength};
   });
 }
 
+/** Validate the complete archive inventory before writing any files into a destination tree. */
+function assertSourcePaths(files) {
+  const entries=new Map();
+  for (const file of files) {
+    if (!file || !safePath(file.path)) throw Error('SOURCE_FILE_INVALID');
+    const parts=file.path.split('/');
+    for (let index=0;index<parts.length;index++) {
+      const path=parts.slice(0,index+1).join('/'),key=pathComparisonKey(path),directory=index<parts.length-1;
+      const previous=entries.get(key);
+      if (previous) {
+        if (previous.path!==path || previous.directory!==directory) throw Error('SOURCE_PATH_COLLISION');
+        if (!directory) throw Error('SOURCE_FILE_INVALID');
+      } else entries.set(key,{path,directory});
+    }
+  }
+}
+
 function orderedSourceFiles(files) {
   if (!Array.isArray(files) || files.length === 0) throw Error('SOURCE_GRAPH_INVALID');
+  assertSourcePaths(files);
   const paths = new Set();
   const ordered = files.map(file => {
     if (!file || !safePath(file.path) || paths.has(file.path) || !hash(file.sha256)
@@ -104,7 +129,7 @@ export function sourceBuildErrors(composition,builds,archiveFiles) {
         sharedDeclarations ??= declarations;
       }
     } catch (error) {
-      const codes = ['SOURCE_GRAPH_INVALID','SOURCE_FILE_INVALID','SOURCE_GRAPH_INCOMPLETE','SOURCE_ENTRYPOINT_INVALID',
+      const codes = ['SOURCE_GRAPH_INVALID','SOURCE_FILE_INVALID','SOURCE_PATH_COLLISION','SOURCE_GRAPH_INCOMPLETE','SOURCE_ENTRYPOINT_INVALID',
         'SOURCE_VALUES_INVALID','SOURCE_VALUES_TOO_LARGE','SOURCE_VALUES_TOO_MANY'];
       errors.push(codes.includes(error.message) ? error.message : 'SOURCE_BUILD_INVALID');
     }

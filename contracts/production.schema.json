@@ -371,102 +371,6 @@
       ],
       "additionalProperties": false
     },
-    "patchResult": {
-      "type": "object",
-      "properties": {
-        "schemaVersion": {
-          "const": "2.7.0"
-        },
-        "kind": {
-          "const": "patch_result"
-        },
-        "exampleOnly": {
-          "type": "boolean"
-        },
-        "projectId": {
-          "$ref": "#/$defs/id"
-        },
-        "baseRevision": {
-          "$ref": "#/$defs/id"
-        },
-        "candidateRevisionId": {
-          "$ref": "#/$defs/id"
-        },
-        "baseHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "candidateHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "scope": {
-          "enum": [
-            "selected",
-            "shot",
-            "variant",
-            "all-variants"
-          ]
-        },
-        "changedFiles": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/text"
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        },
-        "affectedTargetIds": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/id"
-          },
-          "minItems": 1,
-          "uniqueItems": true
-        },
-        "readSetHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "writeSetHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "qualityReportHash": {
-          "$ref": "#/$defs/sha256"
-        },
-        "state": {
-          "enum": [
-            "ready",
-            "accepted",
-            "rejected",
-            "cancelled"
-          ]
-        },
-        "impactSummary": {
-          "$ref": "#/$defs/text"
-        },
-        "agentInterpretation": {
-          "$ref": "#/$defs/text"
-        },
-        "followUpOf": {
-          "$ref": "#/$defs/id"
-        }
-      },
-      "required": [
-        "schemaVersion",
-        "kind",
-        "projectId",
-        "baseRevision",
-        "candidateRevisionId",
-        "baseHash",
-        "candidateHash",
-        "scope",
-        "changedFiles",
-        "affectedTargetIds",
-        "readSetHash",
-        "writeSetHash",
-        "qualityReportHash",
-        "state"
-      ],
-      "additionalProperties": false
-    },
     "fact": {
       "type": "object",
       "properties": {
@@ -924,6 +828,13 @@
         },
         "audioPlan": {
           "$ref": "#/$defs/audioPlan"
+        },
+        "outputStatus": {
+          "enum": [
+            "none",
+            "withheld",
+            "allowed"
+          ]
         }
       },
       "required": [
@@ -936,26 +847,30 @@
         "phase",
         "generation",
         "candidateRevisionId",
-        "usage"
+        "usage",
+        "outputStatus"
       ],
       "additionalProperties": false,
       "allOf": [
         {
           "if": {
             "properties": {
-              "baseRevision": {
-                "type": "null"
+              "outputStatus": {
+                "enum": [
+                  "none",
+                  "withheld"
+                ]
               }
             },
             "required": [
-              "baseRevision"
+              "outputStatus"
             ]
           },
           "then": {
             "properties": {
-              "operation": {
-                "const": "creative_generate"
-              }
+              "directions": false,
+              "treatment": false,
+              "audioPlan": false
             }
           }
         }
@@ -2108,7 +2023,7 @@
             "properties": {
               "color": {
                 "type": "string",
-                  "pattern": "^#[0-9a-f]{6}$"
+                "pattern": "^#[0-9a-f]{6}$"
               },
               "usage": {
                 "$ref": "#/$defs/text"
@@ -5187,6 +5102,20 @@
             "$ref": "#/$defs/id"
           },
           "uniqueItems": true
+        },
+        "activeMediaJobIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "activeReleaseIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
         }
       },
       "required": [
@@ -5213,7 +5142,9 @@
         "trialStatus",
         "activeRunIds",
         "pendingCandidateRevisionIds",
-        "activePreviewIds"
+        "activePreviewIds",
+        "activeMediaJobIds",
+        "activeReleaseIds"
       ],
       "additionalProperties": false
     },
@@ -6881,6 +6812,26 @@
           "uniqueItems": true,
           "minItems": 1,
           "maxItems": 7
+        },
+        "agentInterpretation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "impactSummary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -6892,9 +6843,63 @@
         "baseRevision",
         "candidateRevisionId",
         "state",
-        "affectedTargetIds"
+        "affectedTargetIds",
+        "agentInterpretation",
+        "impactSummary"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "ready",
+                  "accepted"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "agentInterpretation": {
+                "$ref": "#/$defs/text"
+              },
+              "impactSummary": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "withheld",
+                  "cancelled"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "agentInterpretation": {
+                "type": "null"
+              },
+              "impactSummary": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
     },
     "localValuesApplied": {
       "type": "object",
@@ -7352,6 +7357,19 @@
         },
         "summaryText": {
           "$ref": "#/$defs/text"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "dependsOnOrderId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -7365,7 +7383,9 @@
         "expiresAt",
         "items",
         "offerVersion",
-        "summaryText"
+        "summaryText",
+        "termsVersion",
+        "dependsOnOrderId"
       ],
       "additionalProperties": false
     },
@@ -7410,6 +7430,19 @@
         },
         "acceptedAt": {
           "$ref": "#/$defs/dateTime"
+        },
+        "termsVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "dependsOnOrderId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -7423,7 +7456,9 @@
         "purchaseHash",
         "disclosureHash",
         "acceptedItemIds",
-        "acceptedAt"
+        "acceptedAt",
+        "termsVersion",
+        "dependsOnOrderId"
       ],
       "additionalProperties": false
     },
@@ -7469,7 +7504,8 @@
             "candidate",
             "preview",
             "export",
-            "showcase"
+            "showcase",
+            "creative_plan"
           ]
         },
         "subjectHash": {
@@ -7516,6 +7552,19 @@
             "$ref": "#/$defs/id"
           },
           "uniqueItems": true
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coverageManifestHash": {
+          "$ref": "#/$defs/sha256"
         }
       },
       "required": [
@@ -7532,7 +7581,191 @@
         "coverage",
         "status",
         "checkedAt",
-        "evidenceRefs"
+        "evidenceRefs",
+        "targetId",
+        "coverageManifestHash"
+      ],
+      "additionalProperties": false
+    },
+    "outputSafetyCoverageManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "output_safety_coverage_manifest"
+        },
+        "subjectHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "representation": {
+          "enum": [
+            "text",
+            "trusted_media",
+            "verified_local_runtime"
+          ]
+        },
+        "samplingPolicyVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "textHashes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sha256"
+          },
+          "uniqueItems": true
+        },
+        "frameCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 900
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "frameIndex": {
+                "$ref": "#/$defs/frameIndex"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": [
+              "frameIndex",
+              "sha256"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 900
+        },
+        "durationMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "audioSegments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startMs": {
+                "$ref": "#/$defs/nonNegativeInteger"
+              },
+              "endMs": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 30000
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "required": [
+              "startMs",
+              "endMs",
+              "sha256"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "runtimeStateHash": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "modalityObservationHash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "subjectHash",
+        "targetId",
+        "representation",
+        "samplingPolicyVersion",
+        "textHashes",
+        "frameCount",
+        "frames",
+        "durationMs",
+        "audioSegments",
+        "runtimeStateHash",
+        "modalityObservationHash"
+      ],
+      "additionalProperties": false
+    },
+    "outputSafetyModalityObservation": {
+      "type": "object",
+      "properties": {
+        "subjectHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "targetId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "representation": {
+          "enum": [
+            "text",
+            "trusted_media",
+            "verified_local_runtime"
+          ]
+        },
+        "textPresent": {
+          "type": "boolean"
+        },
+        "audioPresent": {
+          "type": "boolean"
+        },
+        "evidenceRef": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "subjectHash",
+        "targetId",
+        "representation",
+        "textPresent",
+        "audioPresent",
+        "evidenceRef"
       ],
       "additionalProperties": false
     }
@@ -7546,9 +7779,6 @@
     },
     {
       "$ref": "#/$defs/editRequest"
-    },
-    {
-      "$ref": "#/$defs/patchResult"
     },
     {
       "$ref": "#/$defs/factManifest"
@@ -7723,6 +7953,9 @@
     },
     {
       "$ref": "#/$defs/outputSafetyResult"
+    },
+    {
+      "$ref": "#/$defs/outputSafetyCoverageManifest"
     }
   ]
 }

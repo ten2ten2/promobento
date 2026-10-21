@@ -221,7 +221,7 @@ test('unknown failure code rejected',()=>{const x=clone(protocol.render_error);x
 
 test('creative plan: optional direction fields and bounded events', () => {
   const x={
-    schemaVersion:'2.7.0',kind:'run_result',runId:'run1',operationId:'op1',
+    schemaVersion:'2.7.0',kind:'run_result',outputStatus:'allowed',runId:'run1',operationId:'op1',
     baseRevision:c.revisionId,state:'succeeded',phase:'final',generation:1,
     candidateRevisionId:c.revisionId,
     usage:{inputTokens:0,cachedInputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
@@ -250,14 +250,21 @@ test('creative plan: optional direction fields and bounded events', () => {
 });
 
 // In-memory trusted-store inputs exercise fail-closed gates; no licenses, media or legal findings are verified here.
-function addOutputSafety(context,id,{projectId,revisionId,sha256},subjectKind,coverage=['text','visual','audio']) {
+function addOutputSafety(context,id,{projectId,revisionId,targetId,sha256,kind,mediaKind},subjectKind,coverage=['text','visual','audio']) {
   context.outputSafetyResults ??= {};
   context.outputOperationIds ??= {};
+  context.outputSafetyCoverageManifests ??= {};context.outputSafetyCoveragePolicies ??= {};context.revokedOutputSafetyResultIds ??= [];
   context.outputSafetyPolicyVersion ??= 'output-safety-v1';
   const operationId='operation_'+id;
   context.outputOperationIds[id]=operationId;
+  const observation={subjectHash:sha256,targetId,representation:'trusted_media',textPresent:true,
+    audioPresent:kind==='video'||mediaKind==='clip',evidenceRef:'synthetic_modality_observation'};
+  const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:sha256,targetId,representation:'trusted_media',
+    samplingPolicyVersion:'sampling_fixture',textHashes:[digest('observed synthetic text')],frameCount:450,frames:[{frameIndex:0,sha256:digest('observed synthetic frame')}],
+    durationMs:coverage.includes('audio')?15000:null,audioSegments:coverage.includes('audio')?[{startMs:0,endMs:15000,sha256:digest('observed synthetic audio')}]:[],runtimeStateHash:null,modalityObservationHash:digest(observation)};
+  context.outputSafetyCoverageManifests[id]=manifest;context.outputSafetyCoveragePolicies[id]={version:'sampling_fixture',frameCount:manifest.frameCount,durationMs:manifest.durationMs,requiredFrameIndices:[0],modalityObservation:observation};
   context.outputSafetyResults[id]={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_'+id,
-    projectId,revisionId,operationId,subjectKind,subjectHash:sha256,policyVersion:context.outputSafetyPolicyVersion,
+    projectId,revisionId,operationId,targetId,subjectKind,subjectHash:sha256,coverageManifestHash:digest(manifest),policyVersion:context.outputSafetyPolicyVersion,
     representation:'trusted_media',coverage,status:'allowed',checkedAt:new Date(context.now).toISOString(),evidenceRefs:['synthetic_safety_evidence']};
 }
 function provenanceCase() {
@@ -573,6 +580,8 @@ test('ready clip safety cannot be authorized by the screenshot receipt',()=>{
   addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview',['text','visual']);
   assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_COVERAGE_INCOMPLETE'));
   x.context.outputSafetyResults[v.clipAssetId].coverage.push('audio');
+  assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_AUDIO_COVERAGE_INCOMPLETE'));
+  addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview');
   assert.deepEqual(semanticErrors(v,x.context),[]);
 });
 for(const [name,mutate,code] of [
@@ -752,7 +761,8 @@ test('catalog narrowing cannot invalidate the same authorized checkout or rewrit
   assert.throws(()=>open(book,checkout('new_after_narrowing','project_pack')),/PURCHASE_INTENT_NOT_ALLOWED/);
   assert.throws(()=>open(book,{...request,consent:{...request.consent,disclosureId:'changed'}}),/IDEMPOTENCY_CONFLICT/);
   assert.throws(()=>book.open(request,{ownerAuthorized:false}),/FORBIDDEN/);
-  assert.throws(()=>book.open(request,{ownerAuthorized:true,recoverable:false}),/PROJECT_UNAVAILABLE/);
+  assert.deepEqual(book.open(request,{ownerAuthorized:true,recoverable:false}),order);
+  assert.throws(()=>book.open({...request,requestId:'new_after_project_unavailable'},{ownerAuthorized:true,recoverable:false}),/PROJECT_UNAVAILABLE/);
   assert.throws(()=>open(book,{...request,projectId:'another_project'}),/PROJECT_UNAVAILABLE/);
   delete catalog.project_pack;
   assert.deepEqual(open(book,request),order);
@@ -761,20 +771,20 @@ test('catalog narrowing cannot invalidate the same authorized checkout or rewrit
 test('new production checkout requires a server-scoped consent receipt; replay retains the original record',()=>{
   const request=checkout('consent_checkout','project_pack'),now=Date.parse('2026-10-21T00:00:00Z');
   const disclosure={schemaVersion:'2.7.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_fixture',
-    projectId:c.projectId,purchaseHash:digest(checkoutPurchaseIdentity(request)),policyVersion:'terms-v1',
+    projectId:c.projectId,purchaseHash:digest(checkoutPurchaseIdentity(request)),policyVersion:'agent-policy-v1',termsVersion:'terms-v1',dependsOnOrderId:null,
     offerVersion:'offer-v1',summaryText:'Project creation package',locale:'en',expiresAt:'2026-10-22T00:00:00Z',
     items:[{id:'terms',purpose:'terms',text:'I accept the displayed terms.',required:true}]};
-  const consentContext={disclosure,actorUserId:'owner',receiptId:'consent_receipt',projectId:c.projectId,currentOfferVersion:'offer-v1',nowMs:now};
+  const consentContext={disclosure,actorUserId:'owner',receiptId:'consent_receipt',projectId:c.projectId,currentOfferVersion:'offer-v1',currentTermsVersion:'terms-v1',nowMs:now};
   const receipt=recordCheckoutConsent(request,disclosure,consentContext);
   const context={production:true,ownerAuthorized:true,actorUserId:'owner',projectId:c.projectId,
-    now,currentOfferVersion:'offer-v1',checkoutDisclosure:disclosure,checkoutConsentReceipt:receipt};
+    now,currentOfferVersion:'offer-v1',currentTermsVersion:'terms-v1',checkoutDisclosure:disclosure,checkoutConsentReceipt:receipt};
   assert.deepEqual(semanticErrors(request,context),[]);
   assert.ok(semanticErrors(request,{...context,checkoutConsentReceipt:null}).includes('CHECKOUT_CONSENT_REQUIRED'));
   assert.ok(semanticErrors(request,{...context,actorUserId:'another'}).includes('CHECKOUT_CONSENT_RECEIPT_MISMATCH'));
   assert.ok(semanticErrors(request,{...context,checkoutConsentReceipt:{...receipt,purchaseHash:digest('other')}}).includes('CHECKOUT_CONSENT_RECEIPT_MISMATCH'));
   const book=new CheckoutReference(c.projectId),order=book.open(request,{ownerAuthorized:true,production:true,consentContext});
   assert.deepEqual(order.consentReceipt,receipt);
-  const later={...consentContext,nowMs:now+3*86400000,currentOfferVersion:'new-offer'};
+  const later={...consentContext,nowMs:now+3*86400000,currentOfferVersion:'new-offer',currentTermsVersion:'new-terms'};
   assert.deepEqual(book.open(request,{ownerAuthorized:true,production:true,consentContext:later}),order);
 });
 test('paid single plus upgrade grants only remaining two versions after first delivery',()=>{

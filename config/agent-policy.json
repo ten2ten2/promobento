@@ -185,7 +185,11 @@
     "freeDays": 7,
     "paidDays": 90,
     "graceDays": 7,
-    "refundNoticeDays": 7
+    "refundNoticeDays": 7,
+    "onlineMediaDeletionHours": 24
+  },
+  "refund": {
+    "voluntaryWindowDays": 7
   },
   "states": [
     "queued",
