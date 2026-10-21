@@ -109,7 +109,7 @@ Node从固定白名单的`*.declarations.json`读取静态声明，使用共享J
 
 `capture.diagnostics`仅汇总正序捕获：宿主seek、截图、PNG写入/解码、像素摘要、光学/文字QA、编码器管道等待和最终结束等待分别计时。`browserWithinSeek`记录draw、区域检查与绘制稳定等待，已包含在宿主seek内；其中`resourceWaitMs`只统计draw内`videoFrames.get`调用区间的并集，不含prepare的字体加载，不能再与draw相加。编码器等待不是其总CPU耗时。每帧p50/p95用于定位本次瓶颈，不代表生产任务p95；先据实测定位，再决定并行或编码优化。
 
-`execution.json`及报告`execution`记录实际CPU型号、逻辑核、可用并行度、可见cgroup配额/内存限制和缓存状态；未暴露的限制保留null。`standard`是采样/质量配置，不是机器规格。比较耗时须同时核对运行资源、输入、模式与校验范围。
+`execution.json`及报告`execution`记录实际CPU型号、逻辑核、可用并行度、可见cgroup配额/内存限制和缓存状态；未暴露的限制及不可安全表示的内存哨兵值保留null。`standard`是采样/质量配置，不是机器规格。比较耗时须同时核对运行资源、输入、模式与校验范围。
 
 系统依赖安装只在准备阶段进行。`PROMOBENTO_BROWSER_DIR` 指定当前用户拥有、非符号链接且权限为 0700 的归档缓存目录，内含 `browser.zip`；可用 `PROMOBENTO_BROWSER_ARCHIVE` 从已取得的官方归档导入，仍核对锁定的完整 SHA-256。镜像来源只允许相同官方字节，不接受其他版本。每次渲染都复制并复核归档，在新的私有目录完整解压，拒绝特殊文件并校验可执行文件；不复用只检查过主程序的解压目录。测试结束清理临时解压和原始帧。
 

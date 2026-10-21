@@ -48,6 +48,8 @@ export function createRenderDiagnostics(frameCount) {
 }
 
 const readText=path=>{try{return readFileSync(path,'utf8').trim();}catch{return null;}};
+// Some unconstrained libuv/cgroup readings use a uint64 sentinel, not a RAM limit.
+const safeMemoryBytes=value=>Number.isSafeInteger(value)&&value>0?value:null;
 
 /** Record visible limits; an unavailable measurement remains null, never an assumed runner size. */
 export function inspectExecutionResources() {
@@ -64,11 +66,14 @@ export function inspectExecutionResources() {
     return parts?.length===2&&/^\d+$/.test(parts[0])&&/^\d+$/.test(parts[1])&&Number(parts[1])>0
       ?[Number(parts[0])/Number(parts[1])]:[];
   });
-  const memoryLimits=limits.flatMap(({memoryMax})=>/^\d+$/.test(memoryMax??'')?[Number(memoryMax)]:[]);
-  const processors=cpus(),constrained=process.constrainedMemory();
+  const memoryLimits=limits.flatMap(({memoryMax})=>{
+    const bytes=/^\d+$/.test(memoryMax??'')?safeMemoryBytes(Number(memoryMax)):null;
+    return bytes===null?[]:[bytes];
+  });
+  const processors=cpus(),constrained=safeMemoryBytes(process.constrainedMemory());
   return {cpu:{model:processors[0]?.model??null,logicalCount:processors.length,availableParallelism:availableParallelism(),
       visibleQuotaCores:quotas.length?Math.min(...quotas):null},
-    memory:{hostTotalBytes:totalmem(),processConstrainedBytes:constrained>0?constrained:null,
+    memory:{hostTotalBytes:totalmem(),processConstrainedBytes:constrained,
       visibleCgroupLimitBytes:memoryLimits.length?Math.min(...memoryLimits):null},
     cgroupV2:limits,
     cache:{browserArchive:'verified local archive; install/download excluded',browserProcess:'new process',

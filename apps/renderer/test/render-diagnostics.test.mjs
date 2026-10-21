@@ -34,7 +34,18 @@ test('execution resources are observed independently from a render quality profi
   const actual=inspectExecutionResources();
   assert(Number.isSafeInteger(actual.cpu.availableParallelism)&&actual.cpu.availableParallelism>0);
   assert(actual.memory.hostTotalBytes>0);
-  for(const value of [actual.cpu.visibleQuotaCores,actual.memory.processConstrainedBytes,actual.memory.visibleCgroupLimitBytes])
-    assert(value===null||Number.isFinite(value)&&value>0);
+  const quota=actual.cpu.visibleQuotaCores;
+  assert(quota===null||Number.isFinite(quota)&&quota>0);
+  for(const value of [actual.memory.processConstrainedBytes,actual.memory.visibleCgroupLimitBytes])
+    assert(value===null||Number.isSafeInteger(value)&&value>0);
   assert.equal(Object.hasOwn(actual,'profile'),false);
+});
+
+test('an unconstrained uint64 memory sentinel remains unknown in the execution report',t=>{
+  const reading=t.mock.method(process,'constrainedMemory',()=>Number(2n**64n-1n));
+  assert.equal(inspectExecutionResources().memory.processConstrainedBytes,null);
+  reading.mock.mockImplementation(()=>0);
+  assert.equal(inspectExecutionResources().memory.processConstrainedBytes,null);
+  reading.mock.mockImplementation(()=>8*1024**3);
+  assert.equal(inspectExecutionResources().memory.processConstrainedBytes,8589934592);
 });
