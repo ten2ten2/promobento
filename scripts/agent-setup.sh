@@ -23,6 +23,12 @@ if [[ -z $expected_node || -z $expected_pnpm ]]; then
   echo 'Cannot read exact Node and pnpm pins from .mise.toml.' >&2
   exit 1
 fi
+for tool in node pnpm; do
+  if ! "${runner[@]}" bash -c 'command -v "$1" >/dev/null 2>&1' -- "$tool"; then
+    echo "Missing $tool. Install the exact pins in .mise.toml with mise, or pre-provision them from the official sources in PRD 08." >&2
+    exit 1
+  fi
+done
 actual_node=$("${runner[@]}" node --version) || exit 1
 actual_pnpm=$("${runner[@]}" pnpm --version) || exit 1
 if [[ $actual_node != "v$expected_node" || $actual_pnpm != "$expected_pnpm" ]]; then

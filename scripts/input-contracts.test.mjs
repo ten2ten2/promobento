@@ -71,7 +71,7 @@ const samples = {
     requestId:'request_fact_confirm', projectId, facts:[{...factRef, expectedRecordVersion:5}]
   }),
   facts_result:envelope('facts_result', {
-    projectId, facts:[{...factRef, recordVersion:5, text:factText,
+    projectId,revisionId:null,currentRevisionId:null,unconfirmedFactIds:[],facts:[{...factRef, recordVersion:5, text:factText,
       evidence:[{assetId:'asset_evidence', sourceHash:evidenceHash}],
       evidenceRefs:['evidence_record'], confirmation}]
   }),
@@ -135,6 +135,7 @@ test('legal response variants preserve explicit pending, ready and consent state
   accepted({...sample('facts_result'), facts:[]});
   const unconfirmed = sample('facts_result');
   unconfirmed.facts[0].confirmation = null;
+  unconfirmed.unconfirmedFactIds = ['fact_lessons'];
   accepted(unconfirmed);
   for (const state of ['granted','revoked']) accepted({...sample('showcase_consent_result'),
     state, version:1, consentId:'consent_input_test', scope, noticeVersion:'showcase-v1',

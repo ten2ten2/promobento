@@ -45,11 +45,11 @@ The workspace owner can find the purchase in [Orders]({{links.orders}}) and subm
 
 Include your account email, order or receipt reference, and reason for requesting a refund. We may ask for information needed to verify the purchase or understand a problem. Do not send full payment-card details.
 
-## 5. Review, upgrades, and additional packs
+## 5. Review, upgrades, and project extensions
 
 While we review a request, we may pause the affected unused allowances and unfinished work that depends on them. This does not cancel unrelated purchases or automatically remove rights in delivered videos.
 
-An upgrade depends on its original purchase; an additional pack depends on the qualifying project purchase or upgrade. We cannot refund a base purchase while leaving related paid purchases without their required access.
+A project upgrade depends on its original purchase; a project extension depends on the qualifying project purchase or upgrade. We cannot refund a base purchase while leaving related paid purchases without their required access.
 
 Before proceeding, we will identify the related orders, proposed amounts, allowances that would end, and treatment of delivered videos, and ask the owner to confirm the scope. Used allowances, partial refunds, and complications involving related orders receive individual review. Partial refunds are not calculated automatically from the proportion of unused allowances.
 
@@ -65,7 +65,7 @@ Access supported by another valid purchase continues until its normal expiry. If
 
 ## 7. Rights in delivered videos
 
-Unused-allowance refunds, partial refunds, and service compensation do not by themselves revoke commercial permissions lawfully obtained for delivered videos. Refunding an upgrade or additional pack does not revoke permissions from unrelated valid purchases.
+Unused-allowance refunds, partial refunds, and service compensation do not by themselves revoke commercial permissions lawfully obtained for delivered videos. Refunding an upgrade or project extension does not revoke permissions from unrelated valid purchases.
 
 For an exceptional full refund of an already delivered order, we will explain the affected videos and any proposed change to their permitted use. Such a change needs a valid contractual or legal basis. A refund status alone does not revoke every video license or reverse a transfer of intellectual-property rights. Cloud download access is separate from these rights.
 

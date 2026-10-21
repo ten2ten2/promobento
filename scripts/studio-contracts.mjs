@@ -1,13 +1,14 @@
 // Reference validation of Studio boundaries; no API, rendering or authorization service runs here.
 import { readFileSync } from 'node:fs';
-import { parseCanonicalJson } from '../packages/contracts/index.mjs';
+import { canonical, parseCanonicalJson, safePath, sourceValuesBytes } from '../packages/contracts/index.mjs';
 const previewPolicy = parseCanonicalJson(readFileSync(new URL('../config/preview.json',import.meta.url)));
 const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
-const safePath = value => typeof value === 'string' && value.length > 0
-  && !value.startsWith('/') && !/[\\\u0000-\u001f\u007f]/u.test(value)
-  && value.split('/').every(part => part && part !== '.' && part !== '..');
-const apiKinds = new Set(['project_result','draft_update_request','draft_update_result','job_result','preview_session_request','preview_session_result']);
+const apiKinds = new Set(['project_result','agent_request','edit_request','candidate_action_request','candidate_result',
+  'draft_update_request','draft_update_result','job_result','preview_session_request','preview_session_result']);
+const visibleText = value => typeof value === 'string' && /[^\s\p{Default_Ignorable_Code_Point}\u3164\uffa0]/u.test(value);
+const drawable = (path, context) => context.production || context.drawableResourcePaths
+  ? context.drawableResourcePaths?.includes(path) === true : true;
 const rational = value => value && Number.isSafeInteger(value.numerator) && value.numerator >= 0
   && Number.isSafeInteger(value.denominator) && value.denominator > 0
   ? {n:BigInt(value.numerator),d:BigInt(value.denominator)} : null;
@@ -35,7 +36,7 @@ function valueErrors(value, definition, context) {
           || (typeof cell === 'string' && [...cell].length <= 6000) || (typeof cell === 'number' && Number.isFinite(cell))))), 'EDITABLE_DATA_INVALID'); break;
     case 'asset': {
       const resource = own(context.resources,value);
-      fail(typeof value === 'string' && safePath(value) && !!resource && resource.purpose !== 'evidence'
+      fail(typeof value === 'string' && safePath(value) && !!resource && drawable(value,context)
         && resource.mediaType !== 'application/pdf', 'EDITABLE_ASSET_UNAVAILABLE');
       break;
     }
@@ -65,7 +66,9 @@ function checkedValueUpdates(values, context) {
     const definition = own(context.editables,id), errors = valueErrors(value,definition,context);
     if (errors.length) throw Error(errors[0]);
     if (definition.affectsTiming === true) throw Error('EDITABLE_REQUIRES_AI');
+    if (definition.type === 'color') updates[id] = value.toLowerCase();
   }
+  sourceValuesBytes({...context.sourceValues,...updates});
   return updates;
 }
 
@@ -81,11 +84,24 @@ export function factValueUpdates(changes, editables) {
   return Object.fromEntries(updates);
 }
 
+/** Rebuild display bindings in the same transaction as the new facts and values.json. */
+export function factBindingUpdates(bindings, previousFacts, nextFacts) {
+  const before = new Map(previousFacts.map(fact => [fact.factId,fact]));
+  const after = new Map(nextFacts.map(fact => [fact.factId,fact]));
+  return bindings.map(binding => {
+    const displayedIds = binding.factIds.filter(id => before.get(id)?.text === binding.expectedText);
+    if (!displayedIds.length) throw Error('FACT_BINDING_SOURCE_MISMATCH');
+    if (displayedIds.some(id => !after.has(id))) throw Error('BOUND_FACT_REMOVAL_REQUIRES_SOURCE_EDIT');
+    const text = new Set(displayedIds.map(id => after.get(id).text));
+    if (text.size !== 1) throw Error('FACT_BINDING_TEXT_AMBIGUOUS');
+    return {...structuredClone(binding),expectedText:[...text][0]};
+  });
+}
+
 /** A local preparation only. It creates no revision, fact confirmation, billable run or QA result. */
 export function localPreviewValues(valuesOverlay, context) {
   if (!context.editables || !context.sourceValues) throw Error('PREVIEW_VALUES_REQUIRED');
-  const sourceErrors = studioErrors({kind:'source_values',values:context.sourceValues},
-    {editables:context.editables,resources:context.resources});
+  const sourceErrors = studioErrors({kind:'source_values',values:context.sourceValues},context);
   if (sourceErrors.length) throw Error(sourceErrors[0]);
   return {...structuredClone(context.sourceValues),...checkedValueUpdates(valuesOverlay,context)};
 }
@@ -96,8 +112,35 @@ export function studioErrors(v, context = {}, helpers = {}) {
   if (!v || typeof v !== 'object') return errors;
   if (apiKinds.has(v.kind)) {
     if (context.production) fail(context.authorized === true && !!context.workspaceId && !!context.projectId, 'STUDIO_AUTHORIZATION_REQUIRED');
-    if (context.projectId) fail(v.projectId === context.projectId, 'STUDIO_PROJECT_MISMATCH');
+    if (v.projectId !== undefined && context.projectId) fail(v.projectId === context.projectId, 'STUDIO_PROJECT_MISMATCH');
     if (v.workspaceId && context.workspaceId) fail(v.workspaceId === context.workspaceId, 'STUDIO_WORKSPACE_MISMATCH');
+  }
+  if (v.kind === 'agent_request') {
+    if (context.production || Object.hasOwn(context,'currentRevisionId'))
+      fail(v.baseRevision === context.currentRevisionId, 'DRAFT_CONFLICT');
+    if (v.baseRevision === null) fail(v.operation === 'creative_generate', 'EMPTY_BASE_REQUIRES_CREATION');
+  }
+  if (v.kind === 'edit_request') {
+    if (context.production || Object.hasOwn(context,'currentRevisionId'))
+      fail(v.baseRevision === context.currentRevisionId, 'DRAFT_CONFLICT');
+    if (context.production || Object.hasOwn(context,'displayedRevisionId'))
+      fail(v.baseRevision === context.displayedRevisionId && context.hasUnsavedValues === false, 'COMMENT_REQUIRES_SAVED_FRAME');
+  }
+  if (v.kind === 'candidate_action_request') {
+    const candidate = context.candidate;
+    fail(!!candidate && ['projectId','candidateRevisionId','baseRevision'].every(key => candidate[key] === v[key]), 'CANDIDATE_SCOPE_MISMATCH');
+    if (candidate && context.workspaceId) fail(candidate.workspaceId === context.workspaceId, 'CANDIDATE_SCOPE_MISMATCH');
+    fail(['accept','reject'].includes(context.candidateAction), 'CANDIDATE_ACTION_REQUIRED');
+    if (context.candidateAction === 'accept') {
+      fail(candidate?.state === 'ready', 'CANDIDATE_NOT_READY');
+      fail(v.baseRevision === context.currentRevisionId, 'DRAFT_CONFLICT');
+      // The service derives this from the trusted output-safety receipt, never a request flag.
+      fail(context.safetyAllowed === true, 'CANDIDATE_SAFETY_REQUIRED');
+    } else if (context.candidateAction === 'reject') fail(['ready','withheld'].includes(candidate?.state), 'CANDIDATE_NOT_PENDING');
+  }
+  if (v.kind === 'candidate_result') {
+    if (v.baseRevision === null) fail(v.operation === 'creative_generate', 'EMPTY_BASE_REQUIRES_CREATION');
+    if (context.production && ['ready','accepted'].includes(v.state)) fail(context.safetyAllowed === true, 'CANDIDATE_SAFETY_REQUIRED');
   }
   if (v.kind === 'project_result') {
     const actions = v.availableActions ?? [];
@@ -123,7 +166,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
         if (definition?.factId) {
           const fact = own(context.facts,definition.factId);
           fail(definition.type === 'text' && !!fact && fact.recordVersion === change.expectedFactRecordVersion, 'EDITABLE_FACT_CONFLICT');
-          fail(typeof change.value === 'string' && change.value.trim().length > 0, 'EMPTY_FACT');
+          fail(visibleText(change.value), 'EMPTY_FACT');
         } else fail(change.expectedFactRecordVersion === undefined, 'UNBOUND_FACT_VERSION');
       }
       try { checkedValueUpdates(Object.fromEntries(v.changes.map(change => [change.editableId,change.value])),context); }
@@ -152,8 +195,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (v.state === 'succeeded') {
       fail(v.stage === 'completed', 'JOB_COMPLETION_STAGE_INVALID');
       if (v.progress?.total !== null && v.progress?.total !== undefined) fail(v.progress.completed === v.progress.total, 'JOB_COMPLETION_PROGRESS_INVALID');
-      const resultKind = {media_processing:'asset',creative_generate:'revision',agent_patch:'patch',prepare_targets:'revision',preview:'preview',export:'release'}[v.operation];
-      fail(v.result?.kind === resultKind, 'JOB_RESULT_REQUIRED');
+      fail(v.operation === 'media_processing' && v.result?.kind === 'asset', 'JOB_RESULT_REQUIRED');
     } else fail(v.result === null, 'JOB_RESULT_NOT_READY');
     fail(v.state === 'failed' ? typeof v.errorCode === 'string' : v.errorCode === null, 'JOB_ERROR_STATE_INVALID');
     if (v.canRetry) fail(v.state === 'failed', 'JOB_RETRY_STATE_INVALID');
@@ -163,7 +205,12 @@ export function studioErrors(v, context = {}, helpers = {}) {
     const revision = own(context.revisions,v.revisionId);
     fail(!!revision && revision.projectId === v.projectId && revision.workspaceId === context.workspaceId, 'PREVIEW_SOURCE_UNAVAILABLE');
     if (revision) fail(revision.targetIds?.includes(v.targetId), 'PREVIEW_TARGET_UNAVAILABLE');
-    if (context.production) fail(context.localPreviewAllowed === true, 'LOCAL_PREVIEW_ACCESS_REQUIRED');
+    if (context.production) {
+      fail(context.localPreviewAllowed === true, 'LOCAL_PREVIEW_ACCESS_REQUIRED');
+      // Derived by outputSafetyErrors with representation=verified_local_runtime. Approval
+      // of trusted_media alone cannot authorize execution in a customer's local preview.
+      fail(context.safetyAllowed === true, 'LOCAL_PREVIEW_SAFETY_REQUIRED');
+    }
     if (v.kind === 'preview_session_result') {
       try {
         const origin = new URL(v.previewOrigin), frame = new URL(v.frameUrl);
@@ -179,12 +226,22 @@ export function studioErrors(v, context = {}, helpers = {}) {
         fail(v.manifestHash === revision.manifestHash && v.frameCount === revision.totalFrames, 'PREVIEW_SOURCE_IDENTITY_MISMATCH');
         fail(v.mixedAudioHash === revision.mixedAudioHash, 'PREVIEW_AUDIO_IDENTITY_MISMATCH');
       }
+      fail((v.mixedAudioHash === null) === (v.mixedAudioUrl === null), 'PREVIEW_AUDIO_URL_REQUIRED');
+      if (v.mixedAudioUrl !== null) {
+        try {
+          const url = new URL(v.mixedAudioUrl);
+          fail(url.protocol === 'https:' && !url.username && !url.password && !url.hash, 'PREVIEW_AUDIO_URL_UNTRUSTED');
+          if (context.production || context.audioGrants) fail(context.audioGrants?.[v.mixedAudioHash] === v.mixedAudioUrl, 'PREVIEW_AUDIO_GRANT_REQUIRED');
+        } catch { errors.push('PREVIEW_AUDIO_URL_UNTRUSTED'); }
+      }
       const [,aspect] = (v.targetId ?? '').split(':');
       const layout = helpers.presets?.aspectLayouts?.[aspect];
       if (layout) fail(v.width === layout.width && v.height === layout.height, 'PREVIEW_LOGICAL_SIZE_MISMATCH');
       else if (context.production) fail(false, 'PREVIEW_PLATFORM_RULES_REQUIRED');
     }
   }
+  if (['init','set-values','seek','inspect','sample'].includes(v.command))
+    fail(context.commandInFlight !== true, 'COMMAND_IN_PROGRESS');
   if (v.command === 'init') {
     fail((v.mode === 'local_preview' && v.pixelScale === previewPolicy.localPlayback.pixelScale)
       || (v.mode === 'trusted_render' && v.pixelScale === previewPolicy.trustedCapture.pixelScale), 'RENDER_SCALE_POLICY_MISMATCH');
@@ -200,9 +257,20 @@ export function studioErrors(v, context = {}, helpers = {}) {
     const session = context.previewSession;
     fail(!!session && ['sessionId','revisionId','targetId','manifestHash'].every(key => v[key] === session[key])
       && context.rendererSession !== true && context.disposed !== true, 'LOCAL_VALUES_SESSION_REQUIRED');
-    fail(Number.isSafeInteger(context.previewEpoch) && v.previewEpoch === context.previewEpoch + 1, 'PREVIEW_EPOCH_INVALID');
+    fail(Number.isSafeInteger(context.previewEpoch) && v.requestedEpoch === context.previewEpoch + 1, 'PREVIEW_EPOCH_INVALID');
     fail(Number.isSafeInteger(context.lastSequence) && v.sequence > context.lastSequence, 'PREVIEW_SEQUENCE_INVALID');
     try { localPreviewValues(v.valuesOverlay,context); } catch (error) { errors.push(error.message); }
+  }
+  if (['values-applied','values-rejected'].includes(v.event)) {
+    const command = context.valuesCommand, session = context.previewSession;
+    fail(!!session && ['sessionId','revisionId','targetId','manifestHash'].every(key => v[key] === session[key])
+      && context.disposed !== true && context.rendererSession !== true, 'LOCAL_VALUES_SESSION_REQUIRED');
+    fail(command?.command === 'set-values'
+      && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','manifestHash','requestedEpoch']
+        .every(key => command[key] === v[key]), 'VALUES_ACK_ENVELOPE_MISMATCH');
+    if (v.event === 'values-applied') fail(v.appliedEpoch === v.requestedEpoch
+      && Number.isSafeInteger(context.previewEpoch) && v.requestedEpoch === context.previewEpoch + 1, 'VALUES_ACK_EPOCH_INVALID');
+    else fail(Number.isSafeInteger(context.previewEpoch) && v.appliedEpoch === context.previewEpoch, 'VALUES_REJECTION_CHANGED_EPOCH');
   }
   const localMessage = context.previewSession && (['seek','inspect'].includes(v.command)
     || ['preview-frame-ready','hit-result','error'].includes(v.event));
@@ -216,7 +284,8 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (v.frameIndex !== undefined) fail(v.frameIndex < session.frameCount, 'LOCAL_PREVIEW_FRAME_OUT_OF_RANGE');
   }
   if (context.rendererSession === true || context.mode === 'trusted_render') {
-    fail(v.previewEpoch === undefined && v.valuesOverlay === undefined && v.command !== 'set-values', 'TRUSTED_RENDER_OVERLAY_FORBIDDEN');
+    fail(v.previewEpoch === undefined && v.requestedEpoch === undefined && v.appliedEpoch === undefined
+      && v.valuesOverlay === undefined && v.command !== 'set-values', 'TRUSTED_RENDER_OVERLAY_FORBIDDEN');
   }
   if (v.event === 'preview-frame-ready') {
     const session = context.previewSession;
@@ -240,6 +309,17 @@ export function studioErrors(v, context = {}, helpers = {}) {
       if (context.production || command) fail(command?.command === 'inspect'
         && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','frameIndex','previewEpoch'].every(key => command[key] === v[key]), 'INSPECT_ENVELOPE_MISMATCH');
       if (context.manifestHash) fail(v.manifestHash === context.manifestHash, 'INSPECT_MANIFEST_MISMATCH');
+      if (command?.x01 === 1 || command?.y01 === 1) fail(v.hit === null, 'INSPECT_BOUNDARY_HAS_NO_HIT');
+      const width = context.previewSession?.width ?? context.width, height = context.previewSession?.height ?? context.height;
+      if (command && Number.isFinite(width) && Number.isFinite(height)) {
+        const x = command.x01 * width, y = command.y01 * height;
+        const order = context.regionOrder ?? Object.keys(context.regions ?? {});
+        const expected = command.x01 === 1 || command.y01 === 1 ? null : [...order].reverse().find(id => {
+          const bounds = own(context.regionBounds,id);
+          return bounds && x >= bounds.x && x < bounds.x + bounds.width && y >= bounds.y && y < bounds.y + bounds.height;
+        }) ?? null;
+        fail((v.hit?.regionId ?? null) === expected, 'INSPECT_HIT_PRIORITY_MISMATCH');
+      }
       if (v.hit) {
         const region = own(context.regions,v.hit.regionId);
         fail(!!region, 'INSPECT_REGION_UNDECLARED');
@@ -251,11 +331,16 @@ export function studioErrors(v, context = {}, helpers = {}) {
     }
   }
   if (v.kind === 'source_values') {
+    try { sourceValuesBytes(v.values); } catch (error) { errors.push(error.message); }
     const definitions = context.editables;
     fail(!!definitions, 'EDITABLE_DECLARATIONS_REQUIRED');
     if (definitions) {
       fail(Object.keys(definitions).length === Object.keys(v.values ?? {}).length, 'EDITABLE_VALUES_INCOMPLETE');
-      for (const [id,value] of Object.entries(v.values ?? {})) errors.push(...valueErrors(value,own(definitions,id),context));
+      for (const [id,value] of Object.entries(v.values ?? {})) {
+        const definition = own(definitions,id);
+        errors.push(...valueErrors(value,definition,context));
+        if (definition?.type === 'color' && typeof value === 'string') fail(value === value.toLowerCase(), 'EDITABLE_COLOR_NOT_CANONICAL');
+      }
       for (const id of Object.keys(definitions)) fail(Object.hasOwn(v.values ?? {},id), 'EDITABLE_VALUE_MISSING');
       if (context.requireFactBindings) for (const definition of Object.values(definitions)) if (definition.factId) {
         const fact = own(context.facts,definition.factId);
@@ -264,6 +349,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     }
   }
   if (v.kind === 'runtime_declarations') {
+    if (context.sharedEditables) fail(canonical(v.editables) === canonical(context.sharedEditables), 'TARGET_EDITABLE_DECLARATIONS_MISMATCH');
     for (const key of ['editables','markers','regions','videoUses']) fail(new Set((v[key] ?? []).map(item => item.id)).size === (v[key] ?? []).length, 'DUPLICATE_'+key.toUpperCase());
     for (const item of v.editables ?? []) {
       if (item.factId !== undefined) fail(item.type === 'text', 'FACT_BINDING_REQUIRES_TEXT');
@@ -276,8 +362,8 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (context.production) fail([450,900].includes(totalFrames), 'RUNTIME_FRAME_COUNT_REQUIRED');
     for (const marker of v.markers ?? []) {
       if (totalFrames !== undefined) fail(marker.frame < totalFrames, 'MARKER_FRAME_OUT_OF_RANGE');
-      if (marker.audioEventIndex !== undefined) {
-        const event = (context.audioEvents ?? context.composition?.audioEvents)?.[marker.audioEventIndex];
+      if (marker.audioEventId !== undefined) {
+        const event = (context.audioEvents ?? context.composition?.audioEvents)?.find(item => item.eventId === marker.audioEventId);
         fail(!!event && event.frameStart === marker.frame, 'MARKER_AUDIO_EVENT_MISMATCH');
       }
     }
@@ -288,7 +374,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
       fail(!!start && !!end && !!at && !!rate && rate.n > 0n && less(start,end), 'VIDEO_USE_INTERVAL_INVALID');
       if (start && end && at && rate?.n > 0n && totalFrames !== undefined) fail(!less({n:BigInt(totalFrames),d:30n},add(at,divide(sub(end,start),rate))), 'VIDEO_USE_EXCEEDS_COMPOSITION');
       const resource = own(context.resources,use.assetPath);
-      if (context.production || resource) fail(!!resource && resource.mediaType?.startsWith('video/') && resource.purpose !== 'evidence', 'VIDEO_RESOURCE_UNAVAILABLE');
+      if (context.production || resource) fail(!!resource && resource.mediaType?.startsWith('video/') && drawable(use.assetPath,context), 'VIDEO_RESOURCE_UNAVAILABLE');
       const source = own(context.videoSources,use.assetPath), duration = rational(source?.duration);
       if (context.production || source) fail(!!duration && !!end && !less(duration,end), 'VIDEO_USE_EXCEEDS_SOURCE');
     }

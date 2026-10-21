@@ -4,8 +4,8 @@ import {previewPolicy,trustedPreviewErrors} from './preview-policy.mjs';
 
 const request = {mediaKind:'clip',revisionId:'rev-1',targetId:'tiktok:portrait',frameStart:60,frameEndExclusive:150};
 const context = () => ({
-  authorized:true, executionEnabled:true, budgetAvailable:true, previewEntitled:true, isTrial:true,
-  composition:{revisionId:'rev-1',totalFrames:450,variants:[{targetId:'tiktok:portrait'}]},
+  authorized:true, executionEnabled:true, budgetAvailable:true, previewEntitled:true, isTrial:true,projectId:'project_1',
+  composition:{projectId:'project_1',revisionId:'rev-1',totalFrames:450,renderProfile:{sampleCount:1,shutterAngle:0},variants:[{targetId:'tiktok:portrait'}]},
   usage:{project:{requests:0,clipFrames:0},trial:{requests:0,clipFrames:0}},
   // Test-only limits; production limits stay unset until measured.
   policy:{trustedCapture:{enabled:true,limits:{maxClipFrames:90,maxRequestsPerProjectWindow:4,
@@ -29,6 +29,15 @@ test('ranges belong to the actual frozen target and duration', () => {
   ]) assert.ok(trustedPreviewErrors(invalid,context()).includes('PREVIEW_FRAME_RANGE_INVALID'));
   assert.ok(trustedPreviewErrors({...request,revisionId:'rev-other'},context()).includes('PREVIEW_SOURCE_MISMATCH'));
   assert.ok(trustedPreviewErrors({...request,targetId:'tiktok:square'},context()).includes('PREVIEW_SOURCE_MISMATCH'));
+});
+test('capture requires the authorized project and separately measured render profile', () => {
+  assert.ok(trustedPreviewErrors(request,{...context(),projectId:'other_project'}).includes('PREVIEW_PROJECT_MISMATCH'));
+  const c=context(); delete c.projectId;
+  assert.ok(trustedPreviewErrors(request,c).includes('PREVIEW_PROJECT_MISMATCH'));
+  for (const sampleCount of [4,8]) {
+    const motion=context();motion.composition.renderProfile={sampleCount,shutterAngle:180};
+    assert.ok(trustedPreviewErrors(request,motion).includes('PREVIEW_PROFILE_UNMEASURED'));
+  }
 });
 test('screenshots capture one frame and still consume request allowance', () => {
   const image={...request,mediaKind:'screenshot'}; delete image.frameEndExclusive;

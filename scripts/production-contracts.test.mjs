@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sourceFileDigests,targetSourceIdentity} from '../packages/contracts/index.mjs';
+import {sourceFileDigests,sourceArchiveIdentity,sourceValuesBytes,targetSourceIdentity} from '../packages/contracts/index.mjs';
+import {checkoutPurchaseIdentity,recordCheckoutConsent} from './checkout-consent.mjs';
 import {load, validateSchema, semanticErrors, canonical, digest, parseCanonicalJson, contentIdentity, factVersionKey, factContentIdentity, resourceContentIdentity, qualityAssociationErrors, variantIdentity, outputArtifactIdentity as markedArtifactIdentity, resourceRightsErrors, targets, presets, safePath, transition, QuotaReference, RevisionReference, TrialReference, OperationBudgetReference, CheckoutReference, matchesFrameReady, matchesSampleReady, matchesProtocolFailure, sampleTime, audioIdentity, qaInputIdentity, hasCalibratedCostLimits} from './contract-validation.mjs';
 const c = load('contracts/composition.example.json'), r = load('contracts/release-snapshot.example.json'), edit = load('contracts/edit-request.example.json');
 const outputArtifactIdentity = (composition, variant, kind, rules = presets) => markedArtifactIdentity(composition,variant,kind,r.markingProfileVersion,rules);
@@ -45,7 +46,7 @@ function waiverContext(report=qa()){return {composition:c,workspaceId:'workspace
 test('BLOCK cannot be waived',()=>{const q=qa();q.findings[0].level='BLOCK';assert.ok(semanticErrors(waiver(q),waiverContext(q)).includes('BLOCK_NOT_WAIVABLE'));});
 test('QA input identity excludes revision and full confirmation bookkeeping',()=>{
   const x=clone(c),before=digest(qaInputIdentity(x,x.variants[0],r.qaProfileVersion));
-  x.revisionId='new_revision';x.factManifestHash=digest('new scoped fact receipt');
+  x.revisionId='new_revision';
   assert.equal(digest(qaInputIdentity(x,x.variants[0],r.qaProfileVersion)),before);
   assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));
 });
@@ -65,7 +66,7 @@ for(const [name,change] of [
   const x=clone(c);change(x);assert.ok(semanticErrors(qa(),{composition:x}).includes('STALE_QA_INPUT'));
 });
 test('identical new revision can reuse report but requires its own scoped association',()=>{
-  const x=clone(c);x.revisionId='new_revision';x.factManifestHash=digest('new fact receipt');
+  const x=clone(c);x.revisionId='new_revision';
   assert.deepEqual(semanticErrors(qa(),{composition:x}),[]);
   assert.ok(qualityAssociationErrors(r.qualityAssociations[0],x).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
 });
@@ -105,7 +106,13 @@ test('sample replies require an internal renderer session and exact identity',()
   assert.ok(validateSchema(cmd,load('contracts/production.schema.json').$defs.renderCommand).length);
   assert.ok(matchesProtocolFailure(cmd,protocol.render_error));
 });
-test('state happy path',()=>{let s=transition('queued','start');s=transition(s,'candidate');assert.equal(transition(s,'pass',{authorized:true,generationMatches:true,qaPassed:true}),'succeeded');});
+test('state happy path',()=>{let s=transition('queued','start');s=transition(s,'candidate');assert.equal(transition(s,'pass',{authorized:true,generationMatches:true,qaPassed:true,safetyAllowed:true}),'succeeded');});
+test('successful QA cannot publish an output without the trusted safety decision',()=>{
+  const guard={authorized:true,generationMatches:true,qaPassed:true};
+  for(const safetyAllowed of [undefined,false,'allowed'])
+    assert.throws(()=>transition('validating','pass',{...guard,safetyAllowed}),/PUBLISH_REJECTED/);
+  assert.equal(transition('validating','pass',{...guard,safetyAllowed:true}),'succeeded');
+});
 for (const state of ['succeeded','failed','cancelled']) test('terminal state '+state,()=>assert.throws(()=>transition(state,'start')));
 test('resume rechecks membership/base/budget/window',()=>{const g={authorized:true,baseMatches:true,withinWindow:true,remainingBudget:1};assert.equal(transition('paused_budget','resume',g),'queued');for(const k of Object.keys(g))assert.throws(()=>transition('paused_budget','resume',{...g,[k]:false}));});
 test('two repairs maximum',()=>{assert.equal(transition('validating','repair',{repairs:1,remainingBudget:1}),'active');assert.throws(()=>transition('validating','repair',{repairs:2,remainingBudget:1}));});
@@ -115,18 +122,77 @@ test('failure/cancel release once',()=>{const q=new QuotaReference(1);q.reserve(
 test('concurrent last unit guards',()=>{const q=new QuotaReference(1);q.reserve('a','h');assert.throws(()=>q.reserve('b','h'));});
 test('CAS accept, replay and competing patch',()=>{const x=new RevisionReference('base');assert.equal(x.apply('req','base','new',true),'new');assert.equal(x.apply('req','base','new',true),'new');assert.throws(()=>x.apply('other','base','newer',true));assert.throws(()=>x.apply('req','base','different',true));assert.equal(x.current,'new');});
 test('revoked actor cannot apply a repeated request',()=>{const x=new RevisionReference('base');x.apply('r','base','new',true);assert.throws(()=>x.apply('r','base','new',false));});
+test('an empty project accepts its first candidate once and keeps competing candidates rejectable',()=>{
+  const revisions=new RevisionReference();
+  assert.equal(revisions.apply('first',null,'candidate_a',true),'candidate_a');
+  assert.equal(revisions.apply('first',null,'candidate_a',true),'candidate_a');
+  assert.throws(()=>revisions.apply('competing',null,'candidate_b',true),/STALE_BASE/);
+  assert.equal(revisions.reject('reject_other',null,'candidate_b',true),'candidate_b');
+  assert.equal(revisions.current,'candidate_a');
+  assert.equal(revisions.reject('reject_other',null,'candidate_b',true),'candidate_b');
+  assert.throws(()=>revisions.reject('reject_other',null,'candidate_b',false),/FORBIDDEN/);
+  assert.throws(()=>revisions.apply('reject_other',null,'candidate_b',true),/IDEMPOTENCY_CONFLICT/);
+  revisions.apply('next','candidate_a','candidate_c',true);
+  revisions.apply('first',null,'candidate_a',true);
+  assert.equal(revisions.current,'candidate_c');
+});
+test('rejecting a superseded candidate uses its own base and still enforces project and workspace scope',()=>{
+  const request={schemaVersion:'2.7.0',kind:'candidate_action_request',requestId:'reject_superseded',projectId:c.projectId,
+    baseRevision:'older_revision',candidateRevisionId:'candidate_from_old_revision'};
+  const candidate={workspaceId:'workspace_fixture',projectId:c.projectId,baseRevision:request.baseRevision,
+    candidateRevisionId:request.candidateRevisionId,state:'ready'};
+  const context={production:true,authorized:true,workspaceId:'workspace_fixture',projectId:c.projectId,
+    composition:c,currentRevisionId:c.revisionId,candidate,candidateAction:'reject'};
+  assert.deepEqual(semanticErrors(request,context),[]);
+  assert.ok(semanticErrors(request,{...context,candidateAction:'accept',safetyAllowed:true}).includes('DRAFT_CONFLICT'));
+  assert.ok(semanticErrors(request,{...context,authorized:false}).includes('STUDIO_AUTHORIZATION_REQUIRED'));
+  assert.ok(semanticErrors(request,{...context,candidate:{...candidate,workspaceId:'other'}}).includes('CANDIDATE_SCOPE_MISMATCH'));
+  assert.ok(semanticErrors({...request,baseRevision:'invented'},context).includes('CANDIDATE_SCOPE_MISMATCH'));
+});
+test('cancelling a run from an older draft does not require the current draft to rewind',()=>{
+  const request={schemaVersion:'2.7.0',kind:'run_action',requestId:'cancel_old',baseRevision:'older_revision',action:'cancel'};
+  const run={workspaceId:'workspace_fixture',projectId:c.projectId,baseRevision:request.baseRevision};
+  const context={production:true,authorized:true,workspaceId:'workspace_fixture',projectId:c.projectId,
+    composition:c,currentRevisionId:c.revisionId,run};
+  assert.deepEqual(semanticErrors(request,context),[]);
+  assert.ok(semanticErrors({...request,action:'resume'},context).includes('STALE_BASE'));
+  assert.ok(semanticErrors(request,{...context,authorized:false}).includes('RUN_ACCESS_REQUIRED'));
+  assert.ok(semanticErrors(request,{...context,run:{...run,workspaceId:'another'}}).includes('RUN_SCOPE_MISMATCH'));
+});
+test('restoring an old revision takes its environment but still competes against the current draft',()=>{
+  const current={...clone(c),revisionId:'current_revision',runtimeVersion:'newer_runtime',rendererImageDigest:'sha256:'+digest('newer_image')};
+  const source={...clone(c),revisionId:'historical_revision'},restored={...clone(source),revisionId:'restored_revision'};
+  const context={baseComposition:current,currentRevisionId:current.revisionId,
+    restoreFromComposition:source,restoreFromRevisionId:source.revisionId};
+  assert.deepEqual(semanticErrors(restored,context),[]);
+  assert.ok(semanticErrors(restored,{baseComposition:current}).some(code=>code.startsWith('REVISION_ENVIRONMENT_CHANGED')));
+  assert.ok(semanticErrors(restored,{...context,restoreFromRevisionId:'another'}).includes('RESTORE_BASE_REQUIRED'));
+  assert.ok(semanticErrors({...restored,sourceArchiveHash:digest('changed')},context).includes('RESTORE_CONTENT_MISMATCH'));
+  const revisions=new RevisionReference(current.revisionId);
+  revisions.apply('restore',current.revisionId,restored.revisionId,true);
+  assert.throws(()=>revisions.apply('late_restore',current.revisionId,'another_restore',true),/STALE_BASE/);
+});
 test('exact ready accepted',()=>assert.ok(matchesFrameReady(protocol.render_seek,protocol.render_ready,protocol.render_init.manifestHash)));
 for (const field of ['sequence','sessionId','requestId','revisionId','targetId','frameIndex','manifestHash']) test('stale ready '+field,()=>{const x=clone(protocol.render_ready);x[field]=typeof x[field]==='number'?999:'old';assert.equal(matchesFrameReady(protocol.render_seek,x,protocol.render_init.manifestHash),false);});
 test('dispose invalidates ready',()=>assert.equal(matchesFrameReady(protocol.render_seek,protocol.render_ready,protocol.render_init.manifestHash,true),false));
 test('preset controls renderer dimensions',()=>{const x=clone(protocol.render_init);assert.deepEqual(semanticErrors(x,{composition:c}),[]);x.width=1000;assert.ok(invalid(x));});
 test('renderer manifest and frame identity',()=>{for(const k of ['manifestHash','frameCount','seed']){const x=clone(protocol.render_init);x[k]=k==='frameCount'?450:'a'.repeat(64);assert.ok(invalid(x));}});
-test('fact manifest hash links exact source revision',()=>{const f=load('contracts/fact-manifest.example.json');assert.deepEqual(semanticErrors(c,{factManifest:f}),[]);f.facts[0].text='edited';assert.ok(semanticErrors(c,{factManifest:f}).includes('FACT_MANIFEST_HASH_MISMATCH'));});
+test('composition pins fact content while snapshots pin the complete confirmation receipt',()=>{
+  const fact=load('contracts/fact-manifest.example.json');
+  assert.deepEqual(semanticErrors(c,{factManifest:fact}),[]);
+  assert.equal(Object.hasOwn(c,'factManifestHash'),false);
+  const confirmed=clone(fact);confirmed.facts[0].confirmedBy='another_reviewer';
+  assert.deepEqual(semanticErrors(c,{factManifest:confirmed}),[]);
+  assert.ok(semanticErrors(r,{composition:c,factManifest:confirmed}).includes('FACT_MANIFEST_HASH_MISMATCH'));
+  fact.facts[0].text='edited';
+  assert.ok(semanticErrors(c,{factManifest:fact}).includes('FACT_CONTENT_HASH_MISMATCH'));
+});
 test('API errors allow only safe params',()=>{const rule=load('contracts/production.schema.json').$defs.error;const e={code:'STALE_BASE',messageKey:'errors.staleBase',message:'Review changes',requestId:'req_error',retryable:false,params:{currentRevision:'revision'},fieldErrors:[{code:'INVALID',field:'baseRevision',messageKey:'errors.invalid',params:{min:1}}]};assert.deepEqual(validateSchema(e,rule),[]);e.params.secret={raw:'no nesting'};assert.ok(validateSchema(e,rule).length);});
 test('export links exact composition bytes',()=>{const x=load('contracts/export-manifest.example.json');x.compositionHash='b'.repeat(64);assert.ok(invalid(x));});
 test('export links snapshot, not current draft',()=>{const x=load('contracts/export-manifest.example.json');assert.deepEqual(semanticErrors(x,{composition:c,snapshot:r}),[]);x.snapshotHash='d'.repeat(64);assert.ok(semanticErrors(x,{composition:c,snapshot:r}).includes('EXPORT_SNAPSHOT_MISMATCH'));});
 // Current contracts: identities, actual export outputs, pinned rules, and failure envelopes.
 test('confirmation metadata does not charge new content',()=>{const f=load('contracts/fact-manifest.example.json'),x=clone(f);x.revisionId='another';x.facts[0].confirmedBy='another';x.facts[0].confirmedAt='2026-10-20T03:00:00Z';x.bindings[0].coverage='reviewed';assert.notEqual(digest(x),digest(f));assert.equal(digest(factContentIdentity(x)),digest(factContentIdentity(f)));});
-test('labels and report hashes are not content edits',()=>{const x=clone(c);x.styleLabel='another label';x.factManifestHash='e'.repeat(64);x.projectId='other';assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
+test('labels and revision bookkeeping are not content edits',()=>{const x=clone(c);x.styleLabel='another label';x.revisionId='another_revision';x.projectId='other';assert.equal(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 for(const key of ['seed','sourceArchiveHash','resourceContentHash','dependencyManifestHash','layoutRulesHash','factContentHash','runtimeVersion'])test('actual content change: '+key,()=>{const x=clone(c);x[key]=key+'-changed';assert.notEqual(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 test('cover frame changes cover not video cache',()=>{const v=clone(c.variants[0]);v.coverFrame++;assert.equal(digest(outputArtifactIdentity(c,v,'video')),digest(outputArtifactIdentity(c,c.variants[0],'video')));assert.notEqual(digest(outputArtifactIdentity(c,v,'cover')),digest(outputArtifactIdentity(c,c.variants[0],'cover')));assert.notEqual(digest(outputArtifactIdentity(c,v,'mapping')),digest(outputArtifactIdentity(c,c.variants[0],'mapping')));const x=clone(c);x.variants[0]=v;assert.notEqual(digest(contentIdentity(x)),digest(contentIdentity(c)));});
 test('unsupported artifact kind rejected',()=>assert.throws(()=>outputArtifactIdentity(c,c.variants[0],'unknown')));
@@ -161,8 +227,12 @@ test('creative plan: optional direction fields and bounded events', () => {
     usage:{inputTokens:0,cachedInputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
     directions:[{id:'dir1',label:'Fit',logline:'Explain product',keyframeIds:['kf1'],look:'clear UI',palette:[{color:'#336699',usage:'accent'}],whyItFits:'real footage'}],
     treatment:{totalFrames:900,beats:[{frameStart:0,frameEndExclusive:450,event:'introduce'},{frameStart:450,frameEndExclusive:900,event:'show CTA'}]},
-    audioPlan:{totalFrames:900,events:[{kind:'music',frameStart:0,frameEndExclusive:900,licenseRef:'CC0-cleared'}]}
+    audioPlan:{totalFrames:900,events:[{eventId:'music_plan',kind:'music',frameStart:0,frameEndExclusive:900,licenseRef:'CC0-cleared'}]}
   };
+  assert.deepEqual(semanticErrors(x,{composition:c}),[]);
+  x.directions[0].palette[0].color='#AABBCC';
+  assert.ok(validateSchema(x).length);
+  x.directions[0].palette[0].color='#aabbcc';
   assert.deepEqual(semanticErrors(x,{composition:c}),[]);
   x.usage.inputTokens=100000;x.usage.cachedInputTokens=80000;
   assert.deepEqual(semanticErrors(x,{composition:c}),[]);
@@ -180,6 +250,16 @@ test('creative plan: optional direction fields and bounded events', () => {
 });
 
 // In-memory trusted-store inputs exercise fail-closed gates; no licenses, media or legal findings are verified here.
+function addOutputSafety(context,id,{projectId,revisionId,sha256},subjectKind,coverage=['text','visual','audio']) {
+  context.outputSafetyResults ??= {};
+  context.outputOperationIds ??= {};
+  context.outputSafetyPolicyVersion ??= 'output-safety-v1';
+  const operationId='operation_'+id;
+  context.outputOperationIds[id]=operationId;
+  context.outputSafetyResults[id]={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_'+id,
+    projectId,revisionId,operationId,subjectKind,subjectHash:sha256,policyVersion:context.outputSafetyPolicyVersion,
+    representation:'trusted_media',coverage,status:'allowed',checkedAt:new Date(context.now).toISOString(),evidenceRefs:['synthetic_safety_evidence']};
+}
 function provenanceCase() {
   const stripFixture = value => {
     if (!value || typeof value !== 'object') return value;
@@ -192,7 +272,7 @@ function provenanceCase() {
   const trusted = stripFixture(load('tests/contracts/provenance-fixtures.json').context);
   trusted.qualityReports = {}; trusted.qualityAssociations = [];
   source.resourceManifestHash = digest(resource); source.resourceContentHash = digest(resourceContentIdentity(resource));
-  source.factManifestHash = digest(fact); source.factContentHash = digest(factContentIdentity(fact));
+  source.factContentHash = digest(factContentIdentity(fact));
   for (const variant of source.variants) {
     variant.resourceManifestHash = digest(resource); variant.resourceContentHash = source.resourceContentHash;
     variant.audioHash = digest(audioIdentity(resource));
@@ -204,7 +284,7 @@ function provenanceCase() {
     const reportHash = digest(report); trusted.qualityReports[reportHash] = report;
     trusted.qualityAssociations.push({schemaVersion:'2.7.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
   }
-  Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:source.factManifestHash});
+  Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:digest(fact)});
   const context = {...trusted,production:true,composition:source,snapshot,factManifest:fact,
     resourceManifests:{[digest(resource)]:resource},resourceObservations:{[digest(resource)]:{resources:resource.resources.map(({path,sha256})=>({path,sha256})),audioEvents:clone(resource.audioEvents),mixedAudio:clone(resource.mixedAudio)}},markingEvidence:{},qualityEvidence:{}};
   const output = stripFixture(load('contracts/export-manifest.example.json'));
@@ -222,6 +302,8 @@ function provenanceCase() {
     context.markingEvidence[artifact.markingEvidenceRef] = {outputId:artifact.id,sha256:artifact.sha256,artifactFingerprint:artifact.artifactFingerprint,
       profileVersion:output.markingProfileVersion,workspaceId:context.workspaceId,projectId:source.projectId,revisionId:source.revisionId,
       machineMarking:'verified',audienceDisclosure:'not_applicable'};
+    addOutputSafety(context,artifact.id,{...artifact,projectId:source.projectId,revisionId:source.revisionId},'export',
+      artifact.kind==='cover'?['text','visual']:['text','visual','audio']);
   }
   return {source,snapshot,resource,fact,output,context};
 }
@@ -230,6 +312,31 @@ test('trusted provenance permits scoped preview and commercial publication',()=>
   assert.deepEqual(resourceRightsErrors(x.resource.resources[0],x.context),[]);
   assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
   assert.deepEqual(semanticErrors(x.output,x.context),[]);
+});
+function previewAdmissionCase() {
+  const x=provenanceCase();
+  Object.assign(x.context,{authorized:true,executionEnabled:true,budgetAvailable:true,previewEntitled:true,isTrial:false,
+    usage:{project:{requests:0,clipFrames:0}},
+    policy:{trustedCapture:{enabled:true,limits:{maxRequestsPerProjectWindow:4}}}});
+  delete x.context.outputSafetyResults;
+  const request={schemaVersion:'2.7.0',kind:'preview_request',requestId:'preview_admission',revisionId:x.source.revisionId,
+    targetId:x.source.variants[0].targetId,frameStart:0,mediaKind:'screenshot'};
+  return {...x,request};
+}
+test('preview admission checks current trusted content evidence before capture reservation',()=>{
+  const valid=previewAdmissionCase();
+  assert.deepEqual(semanticErrors(valid.request,valid.context),[]);
+  for(const [mutate,code] of [
+    [x=>{delete x.context.sourceBuilds;},'SOURCE_BUILD_REQUIRED'],
+    [x=>{delete x.context.factManifest;},'PRODUCTION_FACT_MANIFEST_REQUIRED'],
+    [x=>{x.fact.facts[0].confirmedAt=null;x.fact.facts[0].confirmedBy=null;},'FACT_CONFIRMATION_REQUIRED'],
+    [x=>{delete x.context.qualityAssociations;},'QA_ASSOCIATIONS_REQUIRED'],
+    [x=>{delete x.context.resourceObservations;},'RESOURCE_OBSERVATION_REQUIRED'],
+    [x=>{x.context.projectId='another_project';},'PRODUCTION_PROJECT_SCOPE_MISMATCH']
+  ]) {
+    const x=previewAdmissionCase();mutate(x);
+    assert.ok(semanticErrors(x.request,x.context).includes(code),code);
+  }
 });
 
 test('freeze verifies source digests and bound values against trusted build observations',()=>{
@@ -240,6 +347,7 @@ test('freeze verifies source digests and bound values against trusted build obse
     ['stale archive',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].sourceArchiveHash=digest('old');},'SOURCE_BUILD_SCOPE_MISMATCH'],
     ['forged source hash',x=>{x.source.variants[0].sourceHash=digest('forged');},'SOURCE_HASH_MISMATCH'],
     ['changed bytes',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].files[0].sha256=digest('changed bytes');},'SOURCE_HASH_MISMATCH'],
+    ['different shared declarations',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].editables[0].label='Different target schema';},'SHARED_EDITABLE_DECLARATIONS_MISMATCH'],
     ['stale editable fact',x=>{x.context.sourceBuilds[x.source.variants[0].targetId].values.headline='Stale visible text';},'EDITABLE_FACT_VALUE_MISMATCH'],
     ['missing declarations',x=>{delete x.context.sourceBuilds[x.source.variants[0].targetId].editables;},'SOURCE_VALUES_OBSERVATION_REQUIRED']
   ]) {
@@ -290,6 +398,13 @@ test('frozen audio requires explicit mix settings and a declared final WAV',()=>
   delete x.audioEvents[0].gainDb;assert.ok(validateSchema(x).length);
   x.audioEvents[0].gainDb=0;x.mixedAudio=null;assert.ok(invalid(x));
   x.audioEvents=[];assert.deepEqual(semanticErrors(x,{composition:c}),[]);
+});
+test('audio cue ids stay unique when two events start on the same frame',()=>{
+  const resource=load('contracts/resource-manifest.example.json');
+  resource.audioEvents.push({...resource.audioEvents[0]});
+  assert.ok(semanticErrors(resource,{composition:c}).includes('DUPLICATE_AUDIO_EVENT_ID'));
+  resource.audioEvents[1].eventId='second_music_cue';
+  assert.deepEqual(semanticErrors(resource,{composition:c}),[]);
 });
 test('automation is ordered, covers its event and has non-overlapping fades',()=>{
   const x=load('contracts/resource-manifest.example.json'),event=x.audioEvents[0];
@@ -416,6 +531,7 @@ function previewProvenanceCase() {
   x.context.markingEvidence.preview_check={outputId:preview.previewId,assetId:preview.screenshotAssetId,sha256:preview.sha256,profileVersion:preview.markingProfileVersion,
     workspaceId:x.context.workspaceId,projectId:preview.projectId,revisionId:preview.revisionId,targetId:preview.targetId,
     frameStart:preview.frameStart,frameEndExclusive:preview.frameEndExclusive,machineMarking:'verified',audienceDisclosure:'not_applicable'};
+  addOutputSafety(x.context,preview.screenshotAssetId,preview,'preview',['text','visual']);
   return {...x,preview};
 }
 for (const [assetId,code] of [[null,'READY_PREVIEW_WITHOUT_ASSET'],['another_output_asset','MARKING_ASSET_MISMATCH']]) {
@@ -433,6 +549,65 @@ test('free ready previews require rights and marking evidence for their own byte
   preview.sha256=digest('changed preview');assert.ok(semanticErrors(preview,x.context).includes('MARKING_BYTES_MISMATCH'));
   preview.sha256=x.context.markingEvidence.preview_check.sha256;x.context.licenseRegistry={};
   assert.ok(semanticErrors(preview,x.context).includes('LICENSE_RECORD_UNAVAILABLE'));
+});
+test('ready exports require independent safety receipts for the final video and cover bytes',()=>{
+  const x=provenanceCase(),video=x.output.artifacts.find(a=>a.kind==='video'),cover=x.output.artifacts.find(a=>a.kind==='cover');
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  const receipt=x.context.outputSafetyResults[cover.id];
+  delete x.context.outputSafetyResults[cover.id];
+  assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_REQUIRED'));
+  x.context.outputSafetyResults[cover.id]=x.context.outputSafetyResults[video.id];
+  assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_SCOPE_MISMATCH'));
+  x.context.outputSafetyResults[cover.id]=receipt;
+  x.context.outputSafetyResults[video.id].coverage=['text','visual'];
+  assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_COVERAGE_INCOMPLETE'));
+});
+test('ready clip safety cannot be authorized by the screenshot receipt',()=>{
+  const x=previewProvenanceCase(),v=x.preview;
+  Object.assign(v,{mediaKind:'clip',clipAssetId:'clip_asset',clipSha256:digest('different clip bytes'),clipMarkingEvidenceRef:'clip_marking'});
+  x.context.markingEvidence.clip_marking={...x.context.markingEvidence.preview_check,assetId:v.clipAssetId,sha256:v.clipSha256};
+  assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_REQUIRED'));
+  x.context.outputSafetyResults[v.clipAssetId]=clone(x.context.outputSafetyResults[v.screenshotAssetId]);
+  x.context.outputOperationIds[v.clipAssetId]=x.context.outputOperationIds[v.screenshotAssetId];
+  assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_SCOPE_MISMATCH'));
+  addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview',['text','visual']);
+  assert.ok(semanticErrors(v,x.context).includes('OUTPUT_SAFETY_COVERAGE_INCOMPLETE'));
+  x.context.outputSafetyResults[v.clipAssetId].coverage.push('audio');
+  assert.deepEqual(semanticErrors(v,x.context),[]);
+});
+for(const [name,mutate,code] of [
+  ['different bytes',(r)=>{r.subjectHash=digest('unseen output');},'OUTPUT_SAFETY_SCOPE_MISMATCH'],
+  ['different project',(r)=>{r.projectId='other_project';},'OUTPUT_SAFETY_SCOPE_MISMATCH'],
+  ['different revision',(r)=>{r.revisionId='other_revision';},'OUTPUT_SAFETY_SCOPE_MISMATCH'],
+  ['different operation',(r)=>{r.operationId='other_operation';},'OUTPUT_SAFETY_SCOPE_MISMATCH'],
+  ['candidate-only approval',(r)=>{r.subjectKind='candidate';},'OUTPUT_SAFETY_SCOPE_MISMATCH'],
+  ['unreviewed rendering',(r)=>{r.representation='text';},'OUTPUT_SAFETY_REPRESENTATION_MISMATCH'],
+  ['incomplete coverage',(r)=>{r.coverage=['text'];},'OUTPUT_SAFETY_COVERAGE_INCOMPLETE'],
+  ['changed policy',(r,c)=>{c.outputSafetyPolicyVersion='output-safety-v2';},'OUTPUT_SAFETY_POLICY_CHANGED'],
+  ['future observation',(r,c)=>{r.checkedAt=new Date(c.now+1).toISOString();},'OUTPUT_SAFETY_TIME_INVALID'],
+  ['revocation',(r,c)=>{c.revokedOutputSafetyResultIds=[r.resultId];},'OUTPUT_SAFETY_REVOKED'],
+  ['review required',(r)=>{r.status='review_required';},'OUTPUT_SAFETY_REVIEW_REQUIRED'],
+  ['block',(r)=>{r.status='blocked';},'OUTPUT_SAFETY_BLOCKED'],
+  ['provider unavailable',(r)=>{r.status='unavailable';},'OUTPUT_SAFETY_UNAVAILABLE']
+])test('ready preview safety rejects '+name,()=>{
+  const x=previewProvenanceCase();
+  mutate(x.context.outputSafetyResults[x.preview.screenshotAssetId],x.context);
+  assert.ok(semanticErrors(x.preview,x.context).includes(code));
+});
+test('output policy upgrades require fresh permission without changing billable content',()=>{
+  const x=provenanceCase(),before=digest(contentIdentity(x.source));
+  x.context.outputSafetyPolicyVersion='output-safety-v2';
+  assert.ok(semanticErrors(x.output,x.context).includes('OUTPUT_SAFETY_POLICY_CHANGED'));
+  for(const receipt of Object.values(x.context.outputSafetyResults))receipt.policyVersion='output-safety-v2';
+  assert.deepEqual(semanticErrors(x.output,x.context),[]);
+  assert.equal(digest(contentIdentity(x.source)),before);
+});
+test('unassociated operations must be explicitly null in trusted output receipts',()=>{
+  const x=previewProvenanceCase(),id=x.preview.screenshotAssetId;
+  delete x.context.outputOperationIds[id];
+  assert.ok(semanticErrors(x.preview,x.context).includes('OUTPUT_SAFETY_SCOPE_MISMATCH'));
+  x.context.outputSafetyResults[id].operationId=null;
+  assert.deepEqual(semanticErrors(x.preview,x.context),[]);
 });
 
 // Current edit round: one request/operation may contain several precisely located comments.
@@ -479,16 +654,16 @@ const owner={authorized:true,role:'owner',userId:'user_trial'},editor={authorize
 const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.7.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
 test('trial claim is lifetime user scoped across workspaces and deletion',()=>{
   const t=new TrialReference(),first=t.create(projectRequest('one'),owner);
-  assert.equal(first.trialStatus,'granted');
+  assert.equal(first.trialGrantStatus,'granted');
   assert.deepEqual([t.projects.get(first.projectId).creative_generate,t.projects.get(first.projectId).agent_patch],[1,2]);
-  assert.equal(t.create(projectRequest('two','workspace_b'),owner).trialStatus,'unavailable');
+  assert.equal(t.create(projectRequest('two','workspace_b'),owner).trialGrantStatus,'unavailable');
   t.deleteProject(first.projectId);assert.equal(t.hasTrialCloudAccess(first.projectId),false);
-  assert.equal(t.create(projectRequest('three','workspace_c'),owner).trialStatus,'unavailable');
+  assert.equal(t.create(projectRequest('three','workspace_c'),owner).trialGrantStatus,'unavailable');
 });
 test('competing trial claims produce two drafts and exactly one funded project',()=>{
   const t=new TrialReference(),results=['a','b'].map(id=>t.create(projectRequest(id),owner));
   assert.equal(new Set(results.map(x=>x.projectId)).size,2);
-  assert.deepEqual(results.map(x=>x.trialStatus),['granted','unavailable']);
+  assert.deepEqual(results.map(x=>x.trialGrantStatus),['granted','unavailable']);
   assert.equal(t.hasTrialCloudAccess(results[1].projectId),false);
 });
 test('trial request replay preserves the same project and checks authorization',()=>{
@@ -501,16 +676,16 @@ test('only Owner can request own trial; user ID cannot be supplied in body',()=>
   const t=new TrialReference();assert.throws(()=>t.create(projectRequest('a'),editor),/TRIAL_OWNER_REQUIRED/);
   assert.throws(()=>t.create({...projectRequest('b'),userId:'another'},owner));
   assert.equal(t.projects.size,0);
-  assert.equal(t.create(projectRequest('c'),{...owner,userId:'another_owner'}).trialStatus,'granted');
+  assert.equal(t.create(projectRequest('c'),{...owner,userId:'another_owner'}).trialGrantStatus,'granted');
 });
 test('omitted requestTrial creates a draft with no free cloud work',()=>{
   const request=projectRequest('plain');delete request.requestTrial;
   const t=new TrialReference(),result=t.create(request,editor);
-  assert.equal(result.trialStatus,'not_requested');assert.equal(t.hasTrialCloudAccess(result.projectId),false);
+  assert.equal(result.trialGrantStatus,'not_requested');assert.equal(t.hasTrialCloudAccess(result.projectId),false);
   assert.equal(t.claims.size,0);
 });
 
-const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.7.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,...changes});
+const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.7.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,consent:{disclosureId:'disclosure_fixture',acceptedItemIds:['terms']},...changes});
 const open=(book,request)=>book.open(request,{ownerAuthorized:true});
 const buy=(book,request)=>{const order=open(book,request);book.grantVerifiedPayment(order.orderId);return order;};
 test('checkout intent is explicit and snapshot is exclusive to export intent',()=>{
@@ -567,6 +742,40 @@ test('pausing new checkout preserves existing checkout retries, payment grants a
   assert.equal(book.grantVerifiedPayment(order.orderId).versionUnits,3);
   const release=book.publish('paid_release',r.contentHash);
   assert.deepEqual(book.publish('download_again',r.contentHash),release);
+});
+test('catalog narrowing cannot invalidate the same authorized checkout or rewrite its price and rights',()=>{
+  const book=new CheckoutReference(c.projectId),catalog=book.catalog;
+  Object.defineProperty(book,'catalog',{value:catalog});
+  const request=checkout('before_narrowing','project_pack'),order=open(book,request);
+  catalog.project_pack.allowedPurchaseIntents=[];catalog.project_pack.priceMinor=1;catalog.project_pack.versionUnits=0;
+  assert.deepEqual(open(book,request),order);
+  assert.throws(()=>open(book,checkout('new_after_narrowing','project_pack')),/PURCHASE_INTENT_NOT_ALLOWED/);
+  assert.throws(()=>open(book,{...request,consent:{...request.consent,disclosureId:'changed'}}),/IDEMPOTENCY_CONFLICT/);
+  assert.throws(()=>book.open(request,{ownerAuthorized:false}),/FORBIDDEN/);
+  assert.throws(()=>book.open(request,{ownerAuthorized:true,recoverable:false}),/PROJECT_UNAVAILABLE/);
+  assert.throws(()=>open(book,{...request,projectId:'another_project'}),/PROJECT_UNAVAILABLE/);
+  delete catalog.project_pack;
+  assert.deepEqual(open(book,request),order);
+  assert.equal(book.grantVerifiedPayment(order.orderId).versionUnits,order.entitlementSnapshot.versionUnits);
+});
+test('new production checkout requires a server-scoped consent receipt; replay retains the original record',()=>{
+  const request=checkout('consent_checkout','project_pack'),now=Date.parse('2026-10-21T00:00:00Z');
+  const disclosure={schemaVersion:'2.7.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_fixture',
+    projectId:c.projectId,purchaseHash:digest(checkoutPurchaseIdentity(request)),policyVersion:'terms-v1',
+    offerVersion:'offer-v1',summaryText:'Project creation package',locale:'en',expiresAt:'2026-10-22T00:00:00Z',
+    items:[{id:'terms',purpose:'terms',text:'I accept the displayed terms.',required:true}]};
+  const consentContext={disclosure,actorUserId:'owner',receiptId:'consent_receipt',projectId:c.projectId,currentOfferVersion:'offer-v1',nowMs:now};
+  const receipt=recordCheckoutConsent(request,disclosure,consentContext);
+  const context={production:true,ownerAuthorized:true,actorUserId:'owner',projectId:c.projectId,
+    now,currentOfferVersion:'offer-v1',checkoutDisclosure:disclosure,checkoutConsentReceipt:receipt};
+  assert.deepEqual(semanticErrors(request,context),[]);
+  assert.ok(semanticErrors(request,{...context,checkoutConsentReceipt:null}).includes('CHECKOUT_CONSENT_REQUIRED'));
+  assert.ok(semanticErrors(request,{...context,actorUserId:'another'}).includes('CHECKOUT_CONSENT_RECEIPT_MISMATCH'));
+  assert.ok(semanticErrors(request,{...context,checkoutConsentReceipt:{...receipt,purchaseHash:digest('other')}}).includes('CHECKOUT_CONSENT_RECEIPT_MISMATCH'));
+  const book=new CheckoutReference(c.projectId),order=book.open(request,{ownerAuthorized:true,production:true,consentContext});
+  assert.deepEqual(order.consentReceipt,receipt);
+  const later={...consentContext,nowMs:now+3*86400000,currentOfferVersion:'new-offer'};
+  assert.deepEqual(book.open(request,{ownerAuthorized:true,production:true,consentContext:later}),order);
 });
 test('paid single plus upgrade grants only remaining two versions after first delivery',()=>{
   const book=new CheckoutReference(c.projectId,[r]);const single=buy(book,checkout('single','single_export','purchase_and_export',{snapshotId:r.snapshotId}));
@@ -687,7 +896,7 @@ test('successive draft edits never resolve or require a cloud QA report',()=>{
   x.context.qualityReports=new Proxy({}, {get(){reportReads++;throw Error('UNEXPECTED_QA_LOOKUP');},getOwnPropertyDescriptor(){reportReads++;throw Error('UNEXPECTED_QA_LOOKUP');}});
   for(let i=0;i<25;i++){
     x.source.revisionId='local_revision_'+i;x.source.seed='edited_seed_'+i;
-    x.fact.revisionId=x.source.revisionId;x.source.factManifestHash=digest(x.fact);
+    x.fact.revisionId=x.source.revisionId;
     for(const variant of x.source.variants)variant.variantHash=digest(variantIdentity(x.source,variant));
     assert.deepEqual(semanticErrors(x.source,x.context),[]);
   }
@@ -696,7 +905,7 @@ test('successive draft edits never resolve or require a cloud QA report',()=>{
 
 test('cached reports require a fresh current-revision association and cannot cross projects',()=>{
   const x=provenanceCase(),old=x.context.qualityAssociations;
-  x.source.revisionId='new_revision';x.fact.revisionId='new_revision';x.source.factManifestHash=digest(x.fact);
+  x.source.revisionId='new_revision';x.fact.revisionId='new_revision';
   delete x.context.snapshot;
   assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
   x.context.qualityAssociations=old.map(a=>({...a,revisionId:'new_revision'}));
@@ -767,6 +976,7 @@ test('cloud clip previews require marking evidence for both the screenshot and a
   const x=previewProvenanceCase(),v=x.preview;
   Object.assign(v,{mediaKind:'clip',clipAssetId:'clip_asset',clipSha256:digest('actual preview clip'),clipMarkingEvidenceRef:'clip_marking'});
   x.context.markingEvidence.clip_marking={...x.context.markingEvidence.preview_check,assetId:v.clipAssetId,sha256:v.clipSha256};
+  addOutputSafety(x.context,v.clipAssetId,{...v,sha256:v.clipSha256},'preview');
   assert.deepEqual(semanticErrors(v,x.context),[]);
   v.clipMarkingEvidenceRef='preview_check';
   assert.ok(semanticErrors(v,x.context).includes('MARKING_BYTES_MISMATCH'));
@@ -782,14 +992,14 @@ test('changed facts save as unconfirmed drafts and require current confirmation 
   for(const binding of x.fact.bindings)binding.expectedText=fact.text;
   x.context.facts[fact.factId]={version:fact.version,textHash:digest(fact.text),confirmation:null};
   const relink=()=>{
-    x.source.factManifestHash=digest(x.fact);x.source.factContentHash=digest(factContentIdentity(x.fact));
-    x.source.sourceArchiveHash=digest('source values for '+fact.text);
+    x.source.factContentHash=digest(factContentIdentity(x.fact));
+    const valuesFile=sourceFileDigests([{path:'values.json',bytes:sourceValuesBytes({headline:fact.text})}])[0];
+    x.context.sourceArchiveFiles=x.context.sourceArchiveFiles.map(file=>file.path==='values.json'?valuesFile:file);
+    x.source.sourceArchiveHash=digest(sourceArchiveIdentity(x.context.sourceArchiveFiles));
     for(const variant of x.source.variants){
       const build=x.context.sourceBuilds[variant.targetId];
       build.values.headline=fact.text;build.sourceArchiveHash=x.source.sourceArchiveHash;
-      build.files=build.files.filter(file=>file.path!=='values.json').concat(sourceFileDigests([
-        {path:'values.json',bytes:Buffer.from(JSON.stringify({schemaVersion:'2.7.0',kind:'source_values',values:build.values}))}
-      ]));
+      build.files=build.files.map(file=>file.path==='values.json'?valuesFile:file);
       variant.sourceHash=digest(targetSourceIdentity(build));
       variant.variantHash=digest(variantIdentity(x.source,variant));
     }
@@ -801,11 +1011,13 @@ test('changed facts save as unconfirmed drafts and require current confirmation 
   const partial=clone(x.fact);partial.facts[0].confirmedBy='reviewer';
   assert.ok(validateSchema(partial).length);
   const qaInputHash=digest(qaInputIdentity(x.source,x.source.variants[0],x.context.qaProfileVersion));
+  const unchangedComposition=canonical(x.source);
   Object.assign(fact,{confirmedBy:'user_fixture',confirmedAt:new Date(x.context.now).toISOString(),evidenceRefs:['evidence_product_name']});
   x.context.claimKinds[factVersionKey(x.fact.projectId,fact)]='general';
   x.context.evidenceRegistry.evidence_product_name.factTextHash=digest(fact.text);
   x.context.facts[fact.factId].confirmation={confirmedBy:fact.confirmedBy,confirmedAt:fact.confirmedAt};
   relink();
+  assert.equal(canonical(x.source),unchangedComposition);
   assert.equal(digest(qaInputIdentity(x.source,x.source.variants[0],x.context.qaProfileVersion)),qaInputHash);
   assert.ok(semanticErrors(x.source,{...x.context,requireQuality:true}).includes('QA_ASSOCIATION_SCOPE_MISMATCH'));
   x.context.qualityAssociations=x.context.qualityAssociations.map(association=>{
@@ -815,7 +1027,7 @@ test('changed facts save as unconfirmed drafts and require current confirmation 
     return {...association,revisionId:x.source.revisionId,qaInputHash:report.qaInputHash,reportHash};
   });
   assert.deepEqual(semanticErrors(x.source,{...x.context,requireQuality:true}),[]);
-  Object.assign(x.snapshot,{revisionId:x.source.revisionId,compositionHash:digest(x.source),contentHash:digest(contentIdentity(x.source)),factManifestHash:x.source.factManifestHash,
+  Object.assign(x.snapshot,{revisionId:x.source.revisionId,compositionHash:digest(x.source),contentHash:digest(contentIdentity(x.source)),factManifestHash:digest(x.fact),
     variants:clone(x.source.variants),qualityAssociations:clone(x.context.qualityAssociations)});
   assert.deepEqual(semanticErrors(x.snapshot,x.context),[]);
   x.context.facts[fact.factId].confirmation=null;

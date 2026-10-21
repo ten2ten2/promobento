@@ -6,8 +6,8 @@ export type { EditableValue } from './render-protocol.js';
 export interface RationalTime { readonly numerator: number; readonly denominator: number }
 export interface TimelineMarker {
   readonly id: string; readonly frame: number; readonly label: string;
-  /** Optional index in frozen audioEvents; the trusted build verifies the same start frame. */
-  readonly audioEventIndex?: number;
+  /** Stable frozen audio event id; array order never changes which event this marker refers to. */
+  readonly audioEventId?: string;
 }
 export interface RegionDeclaration {
   readonly id: string; readonly label: string;
@@ -18,9 +18,13 @@ export interface RegionBounds {
   /** Platform logical pixels, independent of preview scale and the user's screen DPR. */
   readonly x: number; readonly y: number; readonly width: number; readonly height: number;
 }
-/** Exact source-bundle path: values.json. Every declared editable has exactly one value. */
+/**
+ * Exact source-bundle path: values.json, canonical UTF-8 bytes, at most 1 MiB.
+ * All target entrypoints declare the same editable set; every editable has exactly one value.
+ * The pinned runtime defines the file format. Wire protocol versions are not saved here.
+ */
 export interface SourceValues {
-  readonly schemaVersion: '2.7.0'; readonly kind: 'source_values';
+  readonly kind: 'source_values';
   readonly values: Readonly<Record<string, EditableValue>>;
 }
 export interface RuntimeAsset {
@@ -37,7 +41,8 @@ export interface RuntimeSurface {
   /**
    * Appends a canvas with logical CSS size and integer backing dimensions scaled by pixelScale.
    * Canvas/WebGL drawing uses this explicit scale, never window.devicePixelRatio.
-   * DOM, SVG and canvas share platform logical coordinates. Brand/AI overlays are host-owned.
+   * DOM, SVG and canvas share platform logical coordinates. The Studio parent owns the
+   * local watermark outside this document; trusted capture adds its own marking layer.
    */
   createCanvas(): HTMLCanvasElement;
 }
@@ -87,11 +92,13 @@ export interface PreparedComposition {
   draw(time: RationalTime): DrawResult | Promise<DrawResult>;
   dispose(): void | Promise<void>;
 }
+/** Each .mjs entrypoint default-exports this object. The host supplies the HTML document. */
 export interface CompositionDefinition {
   readonly apiVersion: '2.7.0';
   /** Validated once by the trusted build; these are the sole source of UI/inspection metadata. */
   readonly editables: ReadonlyArray<EditableProperty>;
   readonly markers: ReadonlyArray<TimelineMarker>;
+  /** Inspection precedence: the last declared region containing the point wins. */
   readonly regions: ReadonlyArray<RegionDeclaration>;
   readonly videoUses: ReadonlyArray<VideoUse>;
   readonly fonts: ReadonlyArray<FontDeclaration>;

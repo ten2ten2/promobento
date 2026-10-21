@@ -157,9 +157,6 @@
         "resourceManifestHash": {
           "$ref": "#/$defs/sha256"
         },
-        "factManifestHash": {
-          "$ref": "#/$defs/sha256"
-        },
         "runtimeVersion": {
           "$ref": "#/$defs/text"
         },
@@ -215,7 +212,6 @@
         "sourceArchiveHash",
         "dependencyManifestHash",
         "resourceManifestHash",
-        "factManifestHash",
         "runtimeVersion",
         "rendererImageDigest",
         "presetRulesVersion",
@@ -617,14 +613,16 @@
           "items": {
             "$ref": "#/$defs/fact"
           },
-          "minItems": 0
+          "minItems": 0,
+          "maxItems": 100
         },
         "bindings": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/binding"
           },
-          "minItems": 0
+          "minItems": 0,
+          "maxItems": 700
         }
       },
       "required": [
@@ -758,7 +756,14 @@
           "$ref": "#/$defs/id"
         },
         "baseRevision": {
-          "$ref": "#/$defs/id"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "operation": {
           "enum": [
@@ -792,7 +797,28 @@
         "operation",
         "targetIds"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "baseRevision": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "baseRevision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operation": {
+                "const": "creative_generate"
+              }
+            }
+          }
+        }
+      ]
     },
     "runResult": {
       "type": "object",
@@ -813,7 +839,14 @@
           "$ref": "#/$defs/id"
         },
         "baseRevision": {
-          "$ref": "#/$defs/id"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "state": {
           "enum": [
@@ -905,7 +938,28 @@
         "candidateRevisionId",
         "usage"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "baseRevision": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "baseRevision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "operation": {
+                "const": "creative_generate"
+              }
+            }
+          }
+        }
+      ]
     },
     "runAction": {
       "type": "object",
@@ -923,7 +977,14 @@
           "$ref": "#/$defs/id"
         },
         "baseRevision": {
-          "$ref": "#/$defs/id"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "action": {
           "enum": [
@@ -1199,33 +1260,6 @@
       ],
       "additionalProperties": false
     },
-    "applyRequest": {
-      "type": "object",
-      "properties": {
-        "schemaVersion": {
-          "const": "2.7.0"
-        },
-        "kind": {
-          "const": "apply_request"
-        },
-        "exampleOnly": {
-          "type": "boolean"
-        },
-        "requestId": {
-          "$ref": "#/$defs/id"
-        },
-        "baseRevision": {
-          "$ref": "#/$defs/id"
-        }
-      },
-      "required": [
-        "schemaVersion",
-        "kind",
-        "requestId",
-        "baseRevision"
-      ],
-      "additionalProperties": false
-    },
     "error": {
       "type": "object",
       "properties": {
@@ -1445,6 +1479,32 @@
                   }
                 }
               ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "trusted_render"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "pixelScale": {
+                "const": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "pixelScale": {
+                "const": 0.5
+              }
             }
           }
         }
@@ -1986,7 +2046,13 @@
             "FRAME_TIMEOUT",
             "ASSET_UNAVAILABLE",
             "CAPABILITY_UNAVAILABLE",
-            "INVALID_SESSION"
+            "INVALID_SESSION",
+            "INIT_TIMEOUT",
+            "PREPARE_FAILED",
+            "DRAW_FAILED",
+            "VIDEO_FRAME_UNAVAILABLE",
+            "FRAME_OUT_OF_RANGE",
+            "COMMAND_IN_PROGRESS"
           ]
         },
         "previewEpoch": {
@@ -2042,7 +2108,7 @@
             "properties": {
               "color": {
                 "type": "string",
-                "pattern": "^#[0-9a-fA-F]{6}$"
+                  "pattern": "^#[0-9a-f]{6}$"
               },
               "usage": {
                 "$ref": "#/$defs/text"
@@ -2201,13 +2267,17 @@
           "items": {
             "$ref": "#/$defs/gainKeyframe"
           }
+        },
+        "eventId": {
+          "$ref": "#/$defs/id"
         }
       },
       "required": [
         "kind",
         "frameStart",
         "frameEndExclusive",
-        "licenseRef"
+        "licenseRef",
+        "eventId"
       ],
       "additionalProperties": false
     },
@@ -2355,7 +2425,7 @@
         "workspaceId": {
           "$ref": "#/$defs/id"
         },
-        "trialStatus": {
+        "trialGrantStatus": {
           "enum": [
             "granted",
             "unavailable",
@@ -2369,7 +2439,7 @@
         "requestId",
         "projectId",
         "workspaceId",
-        "trialStatus"
+        "trialGrantStatus"
       ],
       "additionalProperties": false
     },
@@ -2401,161 +2471,28 @@
             },
             "snapshotId": {
               "$ref": "#/$defs/id"
-            }
-          },
-          "required": [
-            "schemaVersion",
-            "kind",
-            "requestId",
-            "projectId",
-            "sku",
-            "purchaseIntent",
-            "snapshotId"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "schemaVersion": {
-              "const": "2.7.0"
             },
-            "kind": {
-              "const": "checkout_request"
-            },
-            "exampleOnly": {
-              "type": "boolean"
-            },
-            "requestId": {
-              "$ref": "#/$defs/id"
-            },
-            "projectId": {
-              "$ref": "#/$defs/id"
-            },
-            "sku": {
-              "const": "project_pack"
-            },
-            "purchaseIntent": {
-              "const": "top_up_only"
-            }
-          },
-          "required": [
-            "schemaVersion",
-            "kind",
-            "requestId",
-            "projectId",
-            "sku",
-            "purchaseIntent"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "schemaVersion": {
-              "const": "2.7.0"
-            },
-            "kind": {
-              "const": "checkout_request"
-            },
-            "exampleOnly": {
-              "type": "boolean"
-            },
-            "requestId": {
-              "$ref": "#/$defs/id"
-            },
-            "projectId": {
-              "$ref": "#/$defs/id"
-            },
-            "sku": {
-              "const": "project_pack"
-            },
-            "purchaseIntent": {
-              "const": "purchase_and_export"
-            },
-            "snapshotId": {
-              "$ref": "#/$defs/id"
-            }
-          },
-          "required": [
-            "schemaVersion",
-            "kind",
-            "requestId",
-            "projectId",
-            "sku",
-            "purchaseIntent",
-            "snapshotId"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "schemaVersion": {
-              "const": "2.7.0"
-            },
-            "kind": {
-              "const": "checkout_request"
-            },
-            "exampleOnly": {
-              "type": "boolean"
-            },
-            "requestId": {
-              "$ref": "#/$defs/id"
-            },
-            "projectId": {
-              "$ref": "#/$defs/id"
-            },
-            "sku": {
-              "const": "project_upgrade"
-            },
-            "purchaseIntent": {
-              "const": "top_up_only"
-            },
-            "upgradeFromOrderId": {
-              "$ref": "#/$defs/id"
-            }
-          },
-          "required": [
-            "schemaVersion",
-            "kind",
-            "requestId",
-            "projectId",
-            "sku",
-            "purchaseIntent",
-            "upgradeFromOrderId"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "schemaVersion": {
-              "const": "2.7.0"
-            },
-            "kind": {
-              "const": "checkout_request"
-            },
-            "exampleOnly": {
-              "type": "boolean"
-            },
-            "requestId": {
-              "$ref": "#/$defs/id"
-            },
-            "projectId": {
-              "$ref": "#/$defs/id"
-            },
-            "sku": {
-              "const": "project_upgrade"
-            },
-            "purchaseIntent": {
-              "const": "purchase_and_export"
-            },
-            "snapshotId": {
-              "$ref": "#/$defs/id"
-            },
-            "upgradeFromOrderId": {
-              "$ref": "#/$defs/id"
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -2566,7 +2503,255 @@
             "sku",
             "purchaseIntent",
             "snapshotId",
-            "upgradeFromOrderId"
+            "consent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "consent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId",
+            "consent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "upgradeFromOrderId",
+            "consent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId",
+            "upgradeFromOrderId",
+            "consent"
           ],
           "additionalProperties": false
         },
@@ -2593,6 +2778,28 @@
             },
             "purchaseIntent": {
               "const": "top_up_only"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -2601,7 +2808,8 @@
             "requestId",
             "projectId",
             "sku",
-            "purchaseIntent"
+            "purchaseIntent",
+            "consent"
           ],
           "additionalProperties": false
         },
@@ -2631,6 +2839,28 @@
             },
             "snapshotId": {
               "$ref": "#/$defs/id"
+            },
+            "consent": {
+              "type": "object",
+              "properties": {
+                "disclosureId": {
+                  "$ref": "#/$defs/id"
+                },
+                "acceptedItemIds": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "uniqueItems": true,
+                  "minItems": 1,
+                  "maxItems": 3
+                }
+              },
+              "required": [
+                "disclosureId",
+                "acceptedItemIds"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -2640,7 +2870,8 @@
             "projectId",
             "sku",
             "purchaseIntent",
-            "snapshotId"
+            "snapshotId",
+            "consent"
           ],
           "additionalProperties": false
         }
@@ -2724,6 +2955,9 @@
           "items": {
             "$ref": "#/$defs/gainKeyframe"
           }
+        },
+        "eventId": {
+          "$ref": "#/$defs/id"
         }
       },
       "required": [
@@ -2735,7 +2969,8 @@
         "sourceOffsetFrames",
         "gainDb",
         "fadeInFrames",
-        "fadeOutFrames"
+        "fadeOutFrames",
+        "eventId"
       ],
       "additionalProperties": false
     },
@@ -3788,13 +4023,43 @@
           },
           "minItems": 0,
           "maxItems": 100
+        },
+        "revisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentRevisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unconfirmedFactIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
         }
       },
       "required": [
         "schemaVersion",
         "kind",
         "projectId",
-        "facts"
+        "facts",
+        "revisionId",
+        "currentRevisionId",
+        "unconfirmedFactIds"
       ],
       "additionalProperties": false
     },
@@ -4681,7 +4946,9 @@
         "add_platform_files",
         "request_restoration_review",
         "ask_owner",
-        "copy_project_link"
+        "copy_project_link",
+        "generate",
+        "revise"
       ]
     },
     "studioAction": {
@@ -4899,6 +5166,27 @@
             "not_granted",
             "expired"
           ]
+        },
+        "activeRunIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "pendingCandidateRevisionIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        },
+        "activePreviewIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
         }
       },
       "required": [
@@ -4922,7 +5210,10 @@
         "primaryAction",
         "creationBalance",
         "editRoundBalance",
-        "trialStatus"
+        "trialStatus",
+        "activeRunIds",
+        "pendingCandidateRevisionIds",
+        "activePreviewIds"
       ],
       "additionalProperties": false
     },
@@ -5252,34 +5543,13 @@
           "$ref": "#/$defs/id"
         },
         "revisionId": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/id"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "null"
         },
         "targetId": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/id"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "type": "null"
         },
         "operation": {
-          "enum": [
-            "media_processing",
-            "creative_generate",
-            "agent_patch",
-            "prepare_targets",
-            "preview",
-            "export"
-          ]
+          "const": "media_processing"
         },
         "state": {
           "enum": [
@@ -5295,11 +5565,6 @@
             "queued",
             "upload_verification",
             "media_processing",
-            "generating",
-            "checking",
-            "preparing_targets",
-            "encoding",
-            "publishing",
             "completed"
           ]
         },
@@ -5353,70 +5618,6 @@
               "required": [
                 "kind",
                 "assetId"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "revision"
-                },
-                "revisionId": {
-                  "$ref": "#/$defs/id"
-                }
-              },
-              "required": [
-                "kind",
-                "revisionId"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "patch"
-                },
-                "patchId": {
-                  "$ref": "#/$defs/id"
-                }
-              },
-              "required": [
-                "kind",
-                "patchId"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "preview"
-                },
-                "previewId": {
-                  "$ref": "#/$defs/id"
-                }
-              },
-              "required": [
-                "kind",
-                "previewId"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "const": "release"
-                },
-                "releaseId": {
-                  "$ref": "#/$defs/id"
-                }
-              },
-              "required": [
-                "kind",
-                "releaseId"
               ],
               "additionalProperties": false
             },
@@ -5563,6 +5764,16 @@
               "type": "null"
             }
           ]
+        },
+        "mixedAudioUrl": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/httpsUrl"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -5586,9 +5797,38 @@
         "height",
         "fps",
         "frameCount",
-        "mixedAudioHash"
+        "mixedAudioHash",
+        "mixedAudioUrl"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mixedAudioHash": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "mixedAudioHash"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mixedAudioUrl": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "mixedAudioUrl": {
+                "$ref": "#/$defs/httpsUrl"
+              }
+            }
+          }
+        }
+      ]
     },
     "frameInspect": {
       "type": "object",
@@ -5763,14 +6003,8 @@
     "sourceValues": {
       "type": "object",
       "properties": {
-        "schemaVersion": {
-          "const": "2.7.0"
-        },
         "kind": {
           "const": "source_values"
-        },
-        "exampleOnly": {
-          "type": "boolean"
         },
         "values": {
           "type": "object",
@@ -5779,11 +6013,11 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/editableValue"
-          }
+          },
+          "maxProperties": 256
         }
       },
       "required": [
-        "schemaVersion",
         "kind",
         "values"
       ],
@@ -5995,10 +6229,8 @@
               "label": {
                 "$ref": "#/$defs/shortText"
               },
-              "audioEventIndex": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991
+              "audioEventId": {
+                "$ref": "#/$defs/id"
               }
             },
             "required": [
@@ -6525,11 +6757,6 @@
         "command": {
           "const": "set-values"
         },
-        "previewEpoch": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        },
         "manifestHash": {
           "$ref": "#/$defs/sha256"
         },
@@ -6541,7 +6768,12 @@
           "additionalProperties": {
             "$ref": "#/$defs/editableValue"
           },
-          "maxProperties": 1000
+          "maxProperties": 256
+        },
+        "requestedEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -6553,8 +6785,754 @@
         "targetId",
         "command",
         "manifestHash",
-        "previewEpoch",
+        "requestedEpoch",
         "valuesOverlay"
+      ],
+      "additionalProperties": false
+    },
+    "candidateActionRequest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "candidate_action_request"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "candidateRevisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseRevision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "requestId",
+        "projectId",
+        "candidateRevisionId",
+        "baseRevision"
+      ],
+      "additionalProperties": false
+    },
+    "candidateResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "candidate_result"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "runId": {
+          "$ref": "#/$defs/id"
+        },
+        "operation": {
+          "enum": [
+            "creative_generate",
+            "agent_patch",
+            "prepare_targets"
+          ]
+        },
+        "baseRevision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidateRevisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "state": {
+          "enum": [
+            "withheld",
+            "ready",
+            "accepted",
+            "rejected",
+            "cancelled"
+          ]
+        },
+        "affectedTargetIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 7
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "projectId",
+        "runId",
+        "operation",
+        "baseRevision",
+        "candidateRevisionId",
+        "state",
+        "affectedTargetIds"
+      ],
+      "additionalProperties": false
+    },
+    "localValuesApplied": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.7.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "values-applied"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestedEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "appliedEpoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "manifestHash",
+        "requestedEpoch",
+        "appliedEpoch"
+      ],
+      "additionalProperties": false
+    },
+    "localValuesRejected": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "const": "2.7.0"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "targetId": {
+          "$ref": "#/$defs/id"
+        },
+        "event": {
+          "const": "values-rejected"
+        },
+        "manifestHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "requestedEpoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "appliedEpoch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "code": {
+          "enum": [
+            "VALUES_INVALID",
+            "EPOCH_STALE",
+            "PREPARE_FAILED",
+            "INVALID_SESSION",
+            "COMMAND_IN_PROGRESS"
+          ]
+        }
+      },
+      "required": [
+        "protocolVersion",
+        "sessionId",
+        "requestId",
+        "sequence",
+        "revisionId",
+        "targetId",
+        "event",
+        "manifestHash",
+        "requestedEpoch",
+        "appliedEpoch",
+        "code"
+      ],
+      "additionalProperties": false
+    },
+    "checkoutDisclosureRequest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "single_export"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_pack"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "upgradeFromOrderId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "project_upgrade"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            },
+            "upgradeFromOrderId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId",
+            "upgradeFromOrderId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "extra_pack"
+            },
+            "purchaseIntent": {
+              "const": "top_up_only"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaVersion": {
+              "const": "2.7.0"
+            },
+            "kind": {
+              "const": "checkout_disclosure_request"
+            },
+            "exampleOnly": {
+              "type": "boolean"
+            },
+            "requestId": {
+              "$ref": "#/$defs/id"
+            },
+            "projectId": {
+              "$ref": "#/$defs/id"
+            },
+            "sku": {
+              "const": "extra_pack"
+            },
+            "purchaseIntent": {
+              "const": "purchase_and_export"
+            },
+            "snapshotId": {
+              "$ref": "#/$defs/id"
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "kind",
+            "requestId",
+            "projectId",
+            "sku",
+            "purchaseIntent",
+            "snapshotId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "checkoutDisclosureResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "checkout_disclosure_result"
+        },
+        "disclosureId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "purchaseHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "policyVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "locale": {
+          "$ref": "#/$defs/id"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "purpose": {
+                "enum": [
+                  "terms",
+                  "immediate_performance",
+                  "withdrawal_acknowledgment"
+                ]
+              },
+              "text": {
+                "$ref": "#/$defs/text"
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "purpose",
+              "text",
+              "required"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "offerVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "summaryText": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "disclosureId",
+        "projectId",
+        "purchaseHash",
+        "policyVersion",
+        "locale",
+        "expiresAt",
+        "items",
+        "offerVersion",
+        "summaryText"
+      ],
+      "additionalProperties": false
+    },
+    "checkoutConsentReceipt": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "checkout_consent_receipt"
+        },
+        "receiptId": {
+          "$ref": "#/$defs/id"
+        },
+        "disclosureId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "actorUserId": {
+          "$ref": "#/$defs/id"
+        },
+        "requestId": {
+          "$ref": "#/$defs/id"
+        },
+        "purchaseHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "disclosureHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptedItemIds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 3
+        },
+        "acceptedAt": {
+          "$ref": "#/$defs/dateTime"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "receiptId",
+        "disclosureId",
+        "projectId",
+        "actorUserId",
+        "requestId",
+        "purchaseHash",
+        "disclosureHash",
+        "acceptedItemIds",
+        "acceptedAt"
+      ],
+      "additionalProperties": false
+    },
+    "outputSafetyResult": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": "2.7.0"
+        },
+        "kind": {
+          "const": "output_safety_result"
+        },
+        "resultId": {
+          "$ref": "#/$defs/id"
+        },
+        "projectId": {
+          "$ref": "#/$defs/id"
+        },
+        "operationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revisionId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subjectKind": {
+          "enum": [
+            "direction",
+            "treatment",
+            "candidate",
+            "preview",
+            "export",
+            "showcase"
+          ]
+        },
+        "subjectHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "policyVersion": {
+          "$ref": "#/$defs/id"
+        },
+        "representation": {
+          "enum": [
+            "text",
+            "trusted_media",
+            "verified_local_runtime"
+          ]
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "text",
+              "visual",
+              "audio"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "allowed",
+            "review_required",
+            "blocked",
+            "unavailable"
+          ]
+        },
+        "checkedAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "kind",
+        "resultId",
+        "projectId",
+        "operationId",
+        "revisionId",
+        "subjectKind",
+        "subjectHash",
+        "policyVersion",
+        "representation",
+        "coverage",
+        "status",
+        "checkedAt",
+        "evidenceRefs"
       ],
       "additionalProperties": false
     }
@@ -6595,9 +7573,6 @@
     },
     {
       "$ref": "#/$defs/snapshotRequest"
-    },
-    {
-      "$ref": "#/$defs/applyRequest"
     },
     {
       "$ref": "#/$defs/error"
@@ -6724,6 +7699,30 @@
     },
     {
       "$ref": "#/$defs/localPreviewReady"
+    },
+    {
+      "$ref": "#/$defs/candidateActionRequest"
+    },
+    {
+      "$ref": "#/$defs/candidateResult"
+    },
+    {
+      "$ref": "#/$defs/localValuesApplied"
+    },
+    {
+      "$ref": "#/$defs/localValuesRejected"
+    },
+    {
+      "$ref": "#/$defs/checkoutDisclosureRequest"
+    },
+    {
+      "$ref": "#/$defs/checkoutDisclosureResult"
+    },
+    {
+      "$ref": "#/$defs/checkoutConsentReceipt"
+    },
+    {
+      "$ref": "#/$defs/outputSafetyResult"
     }
   ]
 }

@@ -2,7 +2,7 @@
   "name": "promobento",
   "version": "0.0.0",
   "private": true,
-  "description": "PromoBento current PRD, contracts and repository tooling; application implementation starts at M0.",
+  "description": "PromoBento contracts, repository checks and the M0a local rendering implementation.",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
   "engines": {
@@ -13,7 +13,9 @@
     "check:contracts": "node scripts/check-production-contracts.mjs",
     "test": "node scripts/run-tests.mjs",
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
-    "check:agent-reference": "node scripts/check-agent-reference.mjs"
+    "check:agent-reference": "node scripts/check-agent-reference.mjs",
+    "install:renderer": "node apps/renderer/scripts/install-browser.mjs",
+    "test:render": "node scripts/run-tests.mjs --render"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"

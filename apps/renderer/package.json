@@ -1,0 +1,12 @@
+{
+  "name": "@promobento/renderer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@promobento/contracts": "workspace:*",
+    "@promobento/composition-runtime": "workspace:*",
+    "playwright-core": "1.62.1",
+    "pngjs": "7.0.0"
+  }
+}

@@ -2,14 +2,16 @@
 import { readFileSync } from 'node:fs';
 import { studioErrors } from './studio-contracts.mjs';
 import { trustedPreviewErrors } from './preview-policy.mjs';
+import { recordCheckoutConsent } from './checkout-consent.mjs';
+import { outputSafetyErrors } from './output-safety.mjs';
 import {
   canonical, digest, parseCanonicalJson, createSchemaValidator,
   targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
   variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
   outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity,
-  sourceBuildErrors, revisionEnvironmentErrors
+  sourceBuildErrors, revisionEnvironmentErrors, safePath
 } from '../packages/contracts/index.mjs';
-export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity};
+export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity, safePath};
 const ROOT = new URL('../', import.meta.url);
 export const load = path => parseCanonicalJson(readFileSync(new URL(path, ROOT)));
 export const schema = load('contracts/production.schema.json');
@@ -33,6 +35,20 @@ export const outputArtifactIdentity = (c, v, kind, markingProfileVersion, rules 
 export const qaInputIdentity = (c, v, qaProfileVersion, rules = presets) => contractQaInputIdentity(c, v, qaProfileVersion, rules);
 const own = (object, key) => object && Object.hasOwn(object, key) ? object[key] : undefined;
 const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value);
+
+/** Each visible media output has its own trusted receipt, bound to the actual bytes. */
+function mediaOutputSafetyErrors({id,projectId,revisionId,subjectKind,sha256,mediaKind},context) {
+  return outputSafetyErrors(own(context.outputSafetyResults,id),{
+    projectId,revisionId,subjectKind,subjectHash:sha256,
+    operationId:own(context.outputOperationIds,id) ?? null
+  },{
+    policyVersion:context.outputSafetyPolicyVersion,
+    representation:'trusted_media',
+    requiredCoverage:['screenshot','cover'].includes(mediaKind) ? ['text','visual'] : ['text','visual','audio'],
+    nowMs:typeof context.now === 'string' ? Date.parse(context.now) : context.now,
+    revokedResultIds:context.revokedOutputSafetyResultIds ?? []
+  });
+}
 
 /** Reports are reusable checks; associations and waivers remain scoped authorization records. */
 export function qualityAssociationErrors(association, composition, context = {}) {
@@ -267,6 +283,13 @@ export function semanticErrors(v, context = {}) {
   errors.push(...studioErrors(v,context,{schema,validateSchema,digest,presets:context.presetConfig ?? presets}));
   errors.push(...apiInputErrors(v,context));
   const fail = (ok, message) => { if (!ok) errors.push(message); };
+  if (v.kind === 'run_action' && (context.production || context.run)) {
+    const run = context.run;
+    fail(context.authorized === true && !!context.workspaceId && !!context.projectId, 'RUN_ACCESS_REQUIRED');
+    fail(!!run && run.projectId === context.projectId && run.workspaceId === context.workspaceId
+      && v.baseRevision === run.baseRevision, 'RUN_SCOPE_MISMATCH');
+    if (v.action === 'resume') fail(v.baseRevision === context.currentRevisionId, 'STALE_BASE');
+  }
   if (v.kind === 'run_result') {
     const t = v.treatment, a = v.audioPlan, outer = context.composition?.totalFrames;
     fail(v.usage.cachedInputTokens <= v.usage.inputTokens, 'CACHED_TOKENS_EXCEED_INPUT');
@@ -275,6 +298,7 @@ export function semanticErrors(v, context = {}) {
       for (const beat of t.beats) fail(beat.frameEndExclusive > beat.frameStart && beat.frameEndExclusive <= t.totalFrames, 'TREATMENT_INTERVAL_INVALID');
     }
     if (a) {
+      fail(new Set(a.events.map(cue=>cue.eventId)).size === a.events.length, 'DUPLICATE_AUDIO_EVENT_ID');
       if (outer) fail(a.totalFrames === outer, 'AUDIO_PLAN_DURATION_MISMATCH');
       if (t) fail(a.totalFrames === t.totalFrames, 'CREATIVE_PLAN_DURATION_MISMATCH');
       for (const cue of a.events) errors.push(...audioEventErrors(cue, a.totalFrames));
@@ -284,6 +308,7 @@ export function semanticErrors(v, context = {}) {
   const all = targets(rules), allowed = new Map(all.map(t => [t.targetId, t]));
   const composition = context.composition;
   if (v.kind === 'resource_manifest') {
+    fail(new Set(v.audioEvents.map(event=>event.eventId)).size === v.audioEvents.length, 'DUPLICATE_AUDIO_EVENT_ID');
     fail(new Set(v.resources.map(x => x.path)).size === v.resources.length, 'DUPLICATE_RESOURCE_PATH');
     for (const resource of v.resources) {
       fail(safePath(resource.path), 'UNSAFE_RESOURCE_PATH');
@@ -333,9 +358,30 @@ export function semanticErrors(v, context = {}) {
     fail(catalog?.allowedPurchaseIntents?.includes(v.purchaseIntent), 'PURCHASE_INTENT_NOT_ALLOWED');
     fail(v.purchaseIntent === 'purchase_and_export' ? !!v.snapshotId : !Object.hasOwn(v, 'snapshotId'), 'SNAPSHOT_INTENT_MISMATCH');
     fail(v.sku === 'project_upgrade' ? !!v.upgradeFromOrderId : !Object.hasOwn(v, 'upgradeFromOrderId'), 'UPGRADE_SOURCE_MISMATCH');
+    if (context.production || context.checkoutConsentReceipt) {
+      fail(context.ownerAuthorized === true && !!context.actorUserId && context.projectId === v.projectId, 'CHECKOUT_OWNER_REQUIRED');
+      const receipt = context.checkoutConsentReceipt, disclosure = context.checkoutDisclosure;
+      if (!receipt || !disclosure) errors.push('CHECKOUT_CONSENT_REQUIRED');
+      else try {
+        const acceptedAt = Date.parse(receipt.acceptedAt);
+        fail(Number.isSafeInteger(context.now) && Number.isFinite(acceptedAt) && acceptedAt <= context.now, 'CHECKOUT_CONSENT_TIME_INVALID');
+        fail(Date.parse(disclosure.expiresAt) > context.now, 'CHECKOUT_DISCLOSURE_EXPIRED');
+        const expected = recordCheckoutConsent(v,disclosure,{actorUserId:context.actorUserId,receiptId:receipt.receiptId,
+          projectId:context.projectId,currentOfferVersion:context.currentOfferVersion,nowMs:acceptedAt});
+        fail(canonical(receipt) === canonical(expected), 'CHECKOUT_CONSENT_RECEIPT_MISMATCH');
+      } catch { errors.push('CHECKOUT_CONSENT_INVALID'); }
+    }
   }
   if (v.kind === 'preview_request' && context.production) errors.push(...trustedPreviewErrors(v,context));
-  if (v.kind === 'composition' && context.baseComposition) errors.push(...revisionEnvironmentErrors(context.baseComposition,v));
+  if (v.kind === 'composition' && (context.baseComposition || context.restoreFromComposition)) {
+    const restored = context.restoreFromComposition;
+    if (restored) {
+      fail(!!context.baseComposition && context.baseComposition.revisionId === context.currentRevisionId
+        && restored.revisionId === context.restoreFromRevisionId, 'RESTORE_BASE_REQUIRED');
+      fail(digest(contentIdentity(restored)) === digest(contentIdentity(v)), 'RESTORE_CONTENT_MISMATCH');
+    }
+    errors.push(...revisionEnvironmentErrors(restored ?? context.baseComposition,v));
+  }
   if (v.kind === 'create_project_request' && v.requestTrial && context.role !== undefined) fail(context.role === 'owner', 'TRIAL_OWNER_REQUIRED');
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
@@ -363,7 +409,9 @@ export function semanticErrors(v, context = {}) {
   if (composition) {
     if (v.projectId) fail(v.projectId === composition.projectId, 'PROJECT_MISMATCH');
     if (v.revisionId) fail(v.revisionId === composition.revisionId, 'REVISION_MISMATCH');
-    if (v.baseRevision) fail(v.baseRevision === composition.revisionId, 'STALE_BASE');
+    const closesPendingWork = (v.kind === 'candidate_action_request' && context.candidateAction === 'reject')
+      || (v.kind === 'run_action' && v.action === 'cancel');
+    if (v.baseRevision && !closesPendingWork) fail(v.baseRevision === composition.revisionId, 'STALE_BASE');
     if (v.frameIndex !== undefined) fail(v.frameIndex < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
     if (v.frameStart !== undefined) fail(v.frameStart < composition.totalFrames, 'FRAME_OUT_OF_RANGE');
     if (v.targetId && !['agent_request','edit_request'].includes(v.kind)) fail(composition.variants.some(x => x.targetId === v.targetId), 'TARGET_SOURCE_UNAVAILABLE');
@@ -384,8 +432,8 @@ export function semanticErrors(v, context = {}) {
     fail(!!composition && v.sampleIndex < composition.renderProfile.sampleCount, 'SAMPLE_OUT_OF_RANGE');
     if (composition && v.event === 'sample-ready') fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
   }
-  if (context.factManifest && 'factManifestHash' in v) {
-    fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
+  if (context.factManifest) {
+    if ('factManifestHash' in v) fail(v.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
     if ('factContentHash' in v) fail(v.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
   }
   if (v.kind === 'release_snapshot') {
@@ -396,11 +444,12 @@ export function semanticErrors(v, context = {}) {
     fail(!!profile && !!profile.decisionRef && ['machineMarking','audienceDisclosure'].every(field => ['required','not_applicable'].includes(profile[field])), 'MARKING_PROFILE_UNAVAILABLE');
     if (profile) fail(profile.exampleOnly !== true, 'FIXTURE_MARKING_IN_PRODUCTION');
   }
-  const delivery = ['composition','release_snapshot','export_manifest','preview_result'].includes(v.kind);
+  const delivery = ['composition','release_snapshot','export_manifest','preview_request','preview_result'].includes(v.kind);
   if (context.production && delivery) {
     const source = v.kind === 'composition' ? v : composition;
     fail(!!source && source.exampleOnly !== true, 'PRODUCTION_COMPOSITION_REQUIRED');
-    const frozen = v.kind === 'release_snapshot' ? v : context.snapshot;
+    fail(!!context.projectId && context.projectId === source?.projectId, 'PRODUCTION_PROJECT_SCOPE_MISMATCH');
+    const frozen = v.kind === 'release_snapshot' ? v : v.kind === 'export_manifest' ? context.snapshot : undefined;
     if (v.kind === 'export_manifest') fail(!!frozen && frozen.exampleOnly !== true, 'PRODUCTION_SNAPSHOT_REQUIRED');
     const commercial = ['release_snapshot','export_manifest'].includes(v.kind);
     const usage = commercial ? 'commercial_export' : 'preview';
@@ -424,7 +473,7 @@ export function semanticErrors(v, context = {}) {
           fail(Array.isArray(manifest.audioEvents) && variant.audioHash === digest(audioIdentity(manifest)), 'AUDIO_MANIFEST_HASH_MISMATCH');
         }
         const observation = own(context.resourceObservations, resourceHash);
-        if (v.kind === 'release_snapshot' || context.requireQuality || v.state === 'ready') {
+        if (v.kind === 'release_snapshot' || v.kind === 'preview_request' || context.requireQuality || v.state === 'ready') {
           fail(Array.isArray(observation?.resources) && Array.isArray(observation?.audioEvents) && Object.hasOwn(observation, 'mixedAudio'), 'RESOURCE_OBSERVATION_REQUIRED');
         }
         const resourceContentHash = digest(resourceContentIdentity(manifest));
@@ -436,9 +485,9 @@ export function semanticErrors(v, context = {}) {
         for (const resource of manifest.resources ?? []) references.add(resource.licenseRef);
       }
       if (commercial && frozen) fail(canonical([...references].sort()) === canonical(Object.keys(licenseVersions).sort()), 'FROZEN_LICENSE_SET_MISMATCH');
-      const needsReports = context.requireQuality === true || commercial || v.state === 'ready';
+      const needsReports = context.requireQuality === true || commercial || v.kind === 'preview_request' || v.state === 'ready';
       if (needsReports) {
-        errors.push(...sourceBuildErrors(source,context.sourceBuilds));
+        errors.push(...sourceBuildErrors(source,context.sourceBuilds,context.sourceArchiveFiles));
         for (const variant of source.variants) {
           const build = own(context.sourceBuilds,variant.targetId);
           if (!build) continue;
@@ -447,12 +496,13 @@ export function semanticErrors(v, context = {}) {
           if (!Array.isArray(build.editables) || !build.values) continue;
           fail(new Set(build.editables.map(item => item.id)).size === build.editables.length, 'DUPLICATE_EDITABLES');
           for (const definition of build.editables) errors.push(...validateSchema(definition,schema.$defs.editableDeclaration));
-          const sourceValues = {schemaVersion:source.schemaVersion,kind:'source_values',values:build.values};
+          const sourceValues = {kind:'source_values',values:build.values};
           errors.push(...validateSchema(sourceValues,schema.$defs.sourceValues));
           const definitions = Object.fromEntries(build.editables.map(item => [item.id,item]));
           const facts = Object.fromEntries((context.factManifest?.facts ?? []).map(fact => [fact.factId,fact]));
           const resources = Object.fromEntries(Object.values(context.resourceManifests ?? {}).flatMap(manifest => manifest.resources.map(resource => [resource.path,resource])));
-          errors.push(...studioErrors(sourceValues,{editables:definitions,facts,resources,requireFactBindings:true}));
+          errors.push(...studioErrors(sourceValues,{editables:definitions,facts,resources,requireFactBindings:true,
+            production:context.production,drawableResourcePaths:context.drawableResourcePaths}));
         }
         const qaProfileVersion = frozen?.qaProfileVersion ?? context.qaProfileVersion;
         fail(!!qaProfileVersion && !!own(context.qaProfiles, qaProfileVersion), 'QA_PROFILE_UNAVAILABLE');
@@ -474,7 +524,7 @@ export function semanticErrors(v, context = {}) {
 
       fail(!!context.factManifest && context.factManifest.exampleOnly !== true, 'PRODUCTION_FACT_MANIFEST_REQUIRED');
       if (context.factManifest) {
-        fail(source.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
+        if (commercial && frozen) fail(frozen.factManifestHash === digest(context.factManifest), 'FACT_MANIFEST_HASH_MISMATCH');
         fail(source.factContentHash === digest(factContentIdentity(context.factManifest)), 'FACT_CONTENT_HASH_MISMATCH');
         errors.push(...semanticErrors(context.factManifest, {...context,composition:source,projectId:source.projectId,
           requireFactConfirmation: context.requireFactConfirmation === true || needsReports, frozenFacts: v.kind === 'export_manifest',
@@ -492,7 +542,7 @@ export function semanticErrors(v, context = {}) {
     fail(v.qualityAssociations.length === v.variants.length && v.variants.every(variant => v.qualityAssociations.some(a => a.targetId === variant.targetId)), 'QA_ASSOCIATION_TARGET_MISMATCH');
     for (const association of v.qualityAssociations) errors.push(...qualityAssociationErrors(association, composition, {...context, qaProfileVersion:v.qaProfileVersion,qualityAt:Date.parse(v.confirmedAt)}));
     if (context.production) fail(Number.isFinite(context.now) && Date.parse(v.confirmedAt) <= context.now, 'SNAPSHOT_CONFIRMATION_TIME_INVALID');
-    fail(v.factManifestHash === composition.factManifestHash && v.rendererImageDigest === composition.rendererImageDigest, 'SNAPSHOT_PROVENANCE_MISMATCH');
+    fail(v.rendererImageDigest === composition.rendererImageDigest, 'SNAPSHOT_PROVENANCE_MISMATCH');
     if (context.qaProfileVersion) fail(v.qaProfileVersion === context.qaProfileVersion, 'STALE_QA_PROFILE');
   }
   if (v.kind === 'export_manifest') {
@@ -523,6 +573,9 @@ export function semanticErrors(v, context = {}) {
       if (a.state === 'ready' && a.kind !== 'mapping' && (context.production || context.markingEvidence)) {
         errors.push(...markingErrors({...a,projectId:v.projectId,revisionId:v.revisionId,markingProfileVersion:v.markingProfileVersion},context));
       }
+      if (a.state === 'ready' && a.kind !== 'mapping' && (context.production || context.outputSafetyResults)) {
+        errors.push(...mediaOutputSafetyErrors({...a,projectId:v.projectId,revisionId:v.revisionId,subjectKind:'export',mediaKind:a.kind},context));
+      }
     }
     if (v.state === 'ready') for (const id of v.initialTargetIds) {
       for (const kind of ['video','cover','mapping']) fail(v.artifacts.some(a => a.targetId === id && a.kind === kind && a.state === 'ready' && a.sha256), 'INITIAL_BATCH_INCOMPLETE');
@@ -532,11 +585,15 @@ export function semanticErrors(v, context = {}) {
     fail(typeof v.screenshotAssetId === 'string' && v.screenshotAssetId.length > 0, 'READY_PREVIEW_WITHOUT_ASSET');
     fail(hash(v.sha256), 'READY_PREVIEW_WITHOUT_HASH');
     if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.screenshotAssetId},context));
+    if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.screenshotAssetId,
+      projectId:v.projectId,revisionId:v.revisionId,subjectKind:'preview',sha256:v.sha256,mediaKind:'screenshot'},context));
     if (v.mediaKind === 'clip') {
       fail(typeof v.clipAssetId === 'string' && v.clipAssetId.length > 0, 'READY_CLIP_WITHOUT_ASSET');
       fail(hash(v.clipSha256), 'READY_CLIP_WITHOUT_HASH');
       if (context.production || context.markingEvidence) errors.push(...markingErrors({...v,id:v.previewId,assetId:v.clipAssetId,
         sha256:v.clipSha256,markingEvidenceRef:v.clipMarkingEvidenceRef},context));
+      if (context.production || context.outputSafetyResults) errors.push(...mediaOutputSafetyErrors({id:v.clipAssetId,
+        projectId:v.projectId,revisionId:v.revisionId,subjectKind:'preview',sha256:v.clipSha256,mediaKind:'clip'},context));
     }
   }
   if (v.kind === 'fact_manifest') {
@@ -627,9 +684,6 @@ export function semanticErrors(v, context = {}) {
   }
   return errors;
 }
-export function safePath(path) {
-  return typeof path === 'string' && path.length <= 512 && !path.includes('\\') && !path.includes('%') && !/[:\x00-\x1f]/u.test(path) && !path.startsWith('/') && path.split('/').every(p => p && p !== '.' && p !== '..');
-}
 const edges = {
   queued: {start: 'active', cancel: 'cancelled', fail: 'failed', expire: 'failed'},
   active: {ask_user: 'awaiting_user', candidate: 'validating', budget_limit: 'paused_budget', cancel: 'cancelled', fail: 'failed', expire: 'failed'},
@@ -641,7 +695,8 @@ export function transition(state, event, guard = {}) {
   const next = edges[state]?.[event];
   if (!next) throw Error('INVALID_TRANSITION');
   if (event === 'resume' && (!guard.authorized || !guard.baseMatches || !guard.withinWindow || !(guard.remainingBudget > 0))) throw Error('RESUME_REJECTED');
-  if (event === 'pass' && (!guard.qaPassed || !guard.generationMatches || !guard.authorized)) throw Error('PUBLISH_REJECTED');
+  if (event === 'pass' && (!guard.qaPassed || !guard.generationMatches || !guard.authorized || guard.safetyAllowed !== true))
+    throw Error('PUBLISH_REJECTED');
   if (event === 'repair' && !(guard.repairs < 2 && guard.remainingBudget > 0)) throw Error('REPAIR_EXHAUSTED');
   return next;
 }
@@ -658,13 +713,30 @@ export class QuotaReference {
   cancel(id) { const e = this.entries.get(id); if (e?.state === 'reserved') {e.state = 'released'; this.available++;} return e; }
 }
 export class RevisionReference {
-  constructor(current) { this.current = current; this.accepted = new Map(); }
+  constructor(current = null) { this.current = current; this.requests = new Map(); this.candidates = new Map(); }
   apply(requestId, base, candidate, authorized) {
-    const sig = base + ':' + candidate;
+    return this.decide('accept',requestId,base,candidate,authorized);
+  }
+  reject(requestId, base, candidate, authorized) {
+    return this.decide('reject',requestId,base,candidate,authorized);
+  }
+  decide(action, requestId, base, candidate, authorized) {
     if (!authorized) throw Error('FORBIDDEN');
-    if (this.accepted.has(requestId)) {if (this.accepted.get(requestId) !== sig) throw Error('IDEMPOTENCY_CONFLICT'); return candidate;}
-    if (this.current !== base) throw Error('STALE_BASE');
-    this.current = candidate; this.accepted.set(requestId, sig); return candidate;
+    if (!(base === null || (typeof base === 'string' && base)) || typeof candidate !== 'string' || !candidate)
+      throw Error('INVALID_CANDIDATE');
+    const signature = digest({action,base,candidate});
+    if (this.requests.has(requestId)) {
+      if (this.requests.get(requestId) !== signature) throw Error('IDEMPOTENCY_CONFLICT');
+      return candidate;
+    }
+    if (this.candidates.has(candidate)) throw Error('CANDIDATE_NOT_READY');
+    if (action === 'accept') {
+      if (this.current !== base) throw Error('STALE_BASE');
+      this.current = candidate;
+    }
+    this.candidates.set(candidate,{base,state:action === 'accept' ? 'accepted' : 'rejected'});
+    this.requests.set(requestId,signature);
+    return candidate;
   }
 }
 /** Account-scoped trial allocation reference. Authorization/transactions remain live-service work. */
@@ -687,7 +759,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.7.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialStatus};
+    const result = {schemaVersion:'2.7.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialGrantStatus:trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }
@@ -750,9 +822,10 @@ export class CheckoutReference {
   }
   hasCreativePurchase() { return [...this.grants.values()].some(g => this.effective(g) && ['project_pack', 'project_upgrade'].includes(g.sku)); }
   assertEligibility(request, orderId) {
-    const item = this.catalog[request.sku];
+    const item = request.entitlementSnapshot ?? this.catalog[request.sku];
     if (!item) throw Error('UNKNOWN_SKU');
-    if (item.isInitialPurchase && [...this.grants.values()].some(g => this.effective(g) && this.catalog[g.sku].isInitialPurchase && g.orderId !== orderId)) throw Error('INITIAL_PURCHASE_EXISTS');
+    if (item.isInitialPurchase && [...this.grants.values()].some(g => this.effective(g)
+      && this.orders.get(g.orderId)?.entitlementSnapshot.isInitialPurchase && g.orderId !== orderId)) throw Error('INITIAL_PURCHASE_EXISTS');
     if (request.sku === 'project_upgrade') {
       const source = this.grants.get(request.upgradeFromOrderId);
       if (!this.effective(source) || source.sku !== 'single_export') throw Error('VALID_SINGLE_EXPORT_REQUIRED');
@@ -761,17 +834,24 @@ export class CheckoutReference {
     if (request.sku === 'extra_pack' && !this.hasCreativePurchase()) throw Error('CREATIVE_PROJECT_REQUIRED');
     if (request.sku === 'extra_pack' && request.dependsOnOrderId && !this.effective(this.grants.get(request.dependsOnOrderId))) throw Error('CREATIVE_PROJECT_REQUIRED');
   }
-  open(request, {ownerAuthorized, recoverable = true} = {}) {
+  open(request, {ownerAuthorized, recoverable = true, production = false, consentContext} = {}) {
     if (!ownerAuthorized) throw Error('FORBIDDEN');
-    const previous = this.requests.get(request.requestId);
-    const errors = semanticErrors(request,{quotaCatalog:this.catalog}).filter(error => !previous || error !== 'SKU_CHECKOUT_DISABLED');
-    if (request.kind !== 'checkout_request' || errors.length) throw Error(errors.join(',') || 'INVALID_CHECKOUT');
+    const structure = validateSchema(request);
+    if (request.kind !== 'checkout_request' || structure.length) throw Error(structure.join(',') || 'INVALID_CHECKOUT');
     if (request.projectId !== this.projectId || !recoverable) throw Error('PROJECT_UNAVAILABLE');
+    const previous = this.requests.get(request.requestId);
     const signature = digest(request);
     if (previous) {
       if (previous.signature !== signature) throw Error('IDEMPOTENCY_CONFLICT');
       return structuredClone(this.orders.get(previous.orderId));
     }
+    const consentReceipt = consentContext ? recordCheckoutConsent(request,consentContext.disclosure,
+      {...consentContext,projectId:this.projectId}) : null;
+    const errors = semanticErrors(request,{quotaCatalog:this.catalog,production,
+      ...(consentContext ? {ownerAuthorized,actorUserId:consentContext.actorUserId,projectId:this.projectId,
+        checkoutDisclosure:consentContext.disclosure,checkoutConsentReceipt:consentReceipt,
+        currentOfferVersion:consentContext.currentOfferVersion,now:consentContext.nowMs} : {})});
+    if (errors.length) throw Error(errors.join(','));
     if (request.purchaseIntent === 'purchase_and_export') {
       const snapshot = this.snapshots.get(request.snapshotId);
       if (!snapshot || snapshot.projectId !== this.projectId || semanticErrors(snapshot).length) throw Error('VARIANTS_NOT_READY');
@@ -785,6 +865,7 @@ export class CheckoutReference {
     const orderId = 'order_ref_' + (this.orders.size + 1);
     const creativeSource = request.sku === 'extra_pack' ? [...this.grants.values()].find(g => this.effective(g) && ['project_pack','project_upgrade'].includes(g.sku)) : null;
     const order = {orderId, ...structuredClone(request), priceMinor:item.priceMinor, entitlementSnapshot:structuredClone(item),
+      consentReceipt:structuredClone(consentReceipt),
       dependsOnOrderId:request.upgradeFromOrderId ?? creativeSource?.orderId ?? null,
       slotKey, paymentVerified:false, refundVerified:false, state:'checkout_open'};
     this.orders.set(orderId, order); this.slots.set(slotKey, orderId); this.requests.set(request.requestId, {signature, orderId});

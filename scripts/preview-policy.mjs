@@ -16,6 +16,11 @@ export function trustedPreviewErrors(request, context = {}) {
   fail(policy.trustedCapture?.enabled === true && context.executionEnabled === true, 'TRUSTED_PREVIEW_DISABLED');
   fail(context.budgetAvailable === true, 'PREVIEW_BUDGET_REQUIRED');
   fail(context.previewEntitled === true && typeof context.isTrial === 'boolean', 'PREVIEW_ENTITLEMENT_REQUIRED');
+  fail(typeof context.projectId === 'string' && context.projectId.length > 0
+    && context.projectId === composition?.projectId, 'PREVIEW_PROJECT_MISMATCH');
+  // Motion profiles need separately measured sampling/cost caps before admission.
+  fail(composition?.renderProfile?.sampleCount === 1 && composition.renderProfile.shutterAngle === 0,
+    'PREVIEW_PROFILE_UNMEASURED');
   if (!request || !['screenshot','clip'].includes(request.mediaKind)) return [...errors,'PREVIEW_MEDIA_KIND_INVALID'];
   fail(!!composition && request.revisionId === composition.revisionId
     && Array.isArray(composition.variants)

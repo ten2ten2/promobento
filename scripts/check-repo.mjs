@@ -22,6 +22,11 @@ function main(){
  const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
  failures.push(...documentation.errors,...conflictErrors(root,files));counts.markdown=documentation.documents;counts.links=documentation.links;
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
+ const publicContext=json('config/public-context.example.json'),agentPolicy=json('config/agent-policy.json');
+ expect(typeof agentPolicy.policyVersion==='string'&&/^[a-z][a-z0-9._-]{0,63}$/.test(agentPolicy.policyVersion),'Agent policyVersion must be a non-empty controlled ID');
+ for(const [publicKey,policyKey] of Object.entries({trialActiveDays:'freeDays',paidActiveDays:'paidDays',readOnlyGraceDays:'graceDays',refundNoticeDays:'refundNoticeDays'}))
+  expect(publicContext.policy?.[publicKey]===agentPolicy.retention?.[policyKey],'Public policy differs from agent-policy.retention.'+policyKey);
+ for(const key of ['brandName','appUrl','supportEmail','legalEntityName'])expect(publicContext.brand?.[key]===brand[key],'Public brand differs: '+key);
  const protocol='2.7.0',prd='v2.7';
  for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
   const intro=text(path).split('\n').slice(0,8).join('\n');
@@ -91,7 +96,7 @@ function main(){
  const expected=['tiktok','instagram_feed','instagram_reels','x','youtube','youtube_shorts'];expect(same(platforms.presets.map(p=>p.id).sort(),[...expected].sort()),'Platform set');expect(same(Object.keys(platforms.aspectLayouts).sort(),['feed','landscape','portrait','square']),'Layout set');
  for(const p of platforms.presets){expect(platforms.encodingProfiles[p.encodingProfile],'Encoding profile');for(const key of [p.labelKey,p.userNoteKey])expect(typeof get(messages,key)==='string','Platform message '+key);for(const a of [p.defaultAspect,...p.optionalAspects])expect(platforms.aspectLayouts[a],'Invalid aspect');}
  const mise=text('.mise.toml');expect(pkg.private===true,'Private tooling package');expect(mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1]===pkg.engines.node,'Node pin');expect('pnpm@'+mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1]===pkg.packageManager,'pnpm pin');
- for(const key of ['check:repo','check:contracts','test','build:agent-reference','check:agent-reference']){
+ for(const key of Object.keys(pkg.scripts)){
   const task=mise.split(/(?=^\[)/m).find(block=>block.startsWith('[tasks."'+key+'"]\n'));
   const command=task?.match(/^run\s*=\s*"([^"\n]+)"/m)?.[1];
   expect(typeof pkg.scripts[key]==='string'&&pkg.scripts[key].trim()&&command===pkg.scripts[key],'Task mismatch '+key);

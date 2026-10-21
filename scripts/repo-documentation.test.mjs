@@ -158,14 +158,21 @@ test('unit test discovery covers new packages and apps without collecting genera
     'scripts/check.test.mjs':'',
     'packages/runtime/test/nested/draw.test.mjs':'',
     'apps/web/test/editor.test.mjs':'',
+    'apps/web/test/state.test.ts':'',
+    'packages/runtime/test/seek.test.js':'',
+    'packages/runtime/test/clock.test.mts':'',
+    'apps/renderer/test/sample.render.test.mjs':'',
     'tests/integration/ledger.test.mjs':'',
     'apps/web/e2e/editor.spec.ts':'',
     'renders/output.test.mjs':'',
     'node_modules/dependency/test/unrelated.test.mjs':''
   });
   assert.deepEqual(discoverTests(root).map(path=>path.slice(root.length+1)),[
-    'apps/web/test/editor.test.mjs','packages/runtime/test/nested/draw.test.mjs','scripts/check.test.mjs','tests/integration/ledger.test.mjs'
+    'apps/web/test/editor.test.mjs','apps/web/test/state.test.ts','packages/runtime/test/clock.test.mts','packages/runtime/test/nested/draw.test.mjs','packages/runtime/test/seek.test.js','scripts/check.test.mjs','tests/integration/ledger.test.mjs'
   ]);
+  assert.deepEqual(discoverTests(root,{suite:'render'}).map(path=>path.slice(root.length+1)),['apps/renderer/test/sample.render.test.mjs']);
+  writeFileSync(join(root,'apps/web/test/unsupported.test.tsx'),'');
+  assert.throws(()=>discoverTests(root),/Unsupported test extension/);
 });
 
 test('Git baseline uses explicit CI commits, HEAD for dirty work and HEAD^ for clean work',t=>{

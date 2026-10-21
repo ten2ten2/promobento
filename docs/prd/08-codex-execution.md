@@ -16,17 +16,19 @@ mise run test
 
 已有工作区先保留未提交改动，再同步 remote main。配置或契约变更须同步使用它们的代码与文档；参考页模板、tokens 或商品配置变化后，运行 `mise run build:agent-reference`。
 
-setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
+setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm，缺工具先给明确提示。工具来源为 [mise 官方](https://mise.jdx.dev/getting-started.html)、[Node 官方发行](https://nodejs.org/en/download)及 [pnpm 官方安装](https://pnpm.io/installation)，也可使用已核验的内部镜像；不因某个沙箱下载方便而接受第三方重打包二进制。无 mise 时使用相同版本执行 `pnpm install --frozen-lockfile`、`pnpm run check:repo` 和 `pnpm run test`，其他已登记任务对应 `pnpm run <任务名>`。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
 
 | 任务 | 实际范围 |
 | --- | --- |
 | `install` | pnpm 冻结安装 |
 | `check:repo` | 当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；并执行契约与离线参考检查 |
 | `check:contracts` | Schema 样例、语义、摘要、合法目标与 API 清单 |
-| `test` | 自动运行 scripts、packages、apps、tests 中的 `*.test.mjs`；当前覆盖协议、Studio、费用、授权和提示词审核的参考逻辑 |
+| `test` | 运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
+| `install:renderer` | 从 Google Chrome for Testing 下载固定浏览器，核对归档与可执行文件 SHA-256 |
+| `test:render` | 独立运行媒体测试：真实 15 秒 MP4、正序/逆序/重复/冷启动帧、编码参数与色块检查 |
 
-检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；浏览器、媒体及外部集成测试随模块加入独立命令和 CI，不创建空脚本占位。
+检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
 ## 2 里程碑与退出关口
 
@@ -78,7 +80,21 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 ### M0a 渲染环境
 
-首次实现 renderer 时提交它实际使用的环境清单、安装方式和验证命令，至少固定：
+当前已实现第一步的本地 Renderer 和标准采样运行时，入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供。它只运行仓库中自制的固定样例，不接收客户代码；尚不具备 M0b 的隔离准入。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
+
+Linux x64 / Ubuntu 24.04 的运行步骤：
+
+```bash
+bash scripts/agent-setup.sh
+mise exec -- pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
+sudo apt-get install --no-install-recommends --allow-downgrades ffmpeg=7:6.1.1-3ubuntu5
+mise run install:renderer
+mise run test:render
+```
+
+系统依赖安装只在准备阶段进行。浏览器下载到临时目录，也可用 `PROMOBENTO_BROWSER_DIR` 指定已有缓存；版本或摘要不符时明确失败。当前自制 SVG 字形不依赖系统字体，也不证明完整字体、录屏、混音或本地编辑能力；第二步再加入有授权的固定字体与媒体素材。FFmpeg 使用 Ubuntu 的 GPL/libx264 构建，以本地/CI 进程执行，仓库不分发二进制；未来交付容器或二进制时按 09 另核对分发义务。
+
+每次媒体测试记录实际系统库、输入文件、启动参数和解码像素摘要，保存样片、封面及报告。严格比较同次固定环境的帧；系统库记录不等于已经证明跨机器像素一致。后续扩展继续固定：
 
 - 操作系统/架构与主机类型、Chromium 构建及启动参数、绘制后端、FFmpeg 构建与系统库；容器使用实际镜像 digest。
 - 字体文件、字形处理和回退配置的摘要；图片/视频的解码方式；帧就绪条件与截帧路径。仅调用 `gl.finish()` 或等待字体加载不能代替完整帧验收。
@@ -91,11 +107,13 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 | 环境 | 另需验证 |
 | --- | --- |
-| 本地/CI | 工具实际版本、冻结安装；renderer 实现后加入真实 `test:render` |
+| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`，保留样片、环境与验证报告 |
 | Workers Builds | 显式安装工具并设置路径，干净检出可构建，不假定平台读取 mise |
 | workerd | compatibility_date/flags/bindings；SSR、认证、签名、存储和队列 |
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
+
+CI 支持手动 `workflow_dispatch`，可选择实验分支运行完整检查，无需为环境实验反复推 main。媒体任务把 `artifacts/m0a/` 上传为 CI artifact，保留30天；需要支撑更长期准入结论的样片和原始证据按06移到受控存储，保留引用与摘要。确定性样例可重新生成，模型作品或盲审材料不能只留下命令和 hash。受跟踪文档不得链接仅在本地存在的 artifacts 路径。
 
 首次生产冻结时按14建立发布版本登记；当前未发布草稿直接更新，不建 legacy 目录。已购作品的环境继承、修复和保留按14执行，不用浮动 latest 重放。媒体许可见09，关键实测按06留证，不另写迁移日记。
 
@@ -107,4 +125,4 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 appUrl、回调、发信和支持地址取 brand/routes/auth。密钥只交给需要它的可信服务，沙箱不带凭据；新增服务纳入费用预算。完成报告写清变更、实际验证、未实现项、样片/费用和外部条件；仅在能力变化时更新实施进度。
 
-CI 验证当前提交的完整代码树；被新提交替代的检查可以取消，最终远端 SHA 必须获得所需检查结果。失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境后重跑。未通过的提交不得发布生产。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。
+CI 验证当前提交的完整代码树；被新提交替代的检查可以取消，最终远端 SHA 必须获得所需检查结果。平台规则比较以 main 上相同检查工作流最后成功且属于当前 SHA 祖先的提交为基线，失败/取消不推进基线；PR 使用其 base SHA。查询失败或找不到成功基线时明确失败，不能退回 `event.before`。本地默认比较已获取的上游，无上游时才按工作区状态比较 HEAD/HEAD^；可用 `PROMOBENTO_BASE_REF` 显式指定已核实基线。失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境后重跑。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。

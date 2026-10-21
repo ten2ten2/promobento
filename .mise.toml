@@ -34,3 +34,13 @@ run = "node scripts/build-agent-reference.mjs"
 description = "check:agent-reference: current specifications and references only"
 dir = "{{config_root}}"
 run = "node scripts/check-agent-reference.mjs"
+
+[tasks."install:renderer"]
+description = "Install the pinned official browser and verify its checksums"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/install-browser.mjs"
+
+[tasks."test:render"]
+description = "Render and verify the fixed 15-second MP4 fixture"
+dir = "{{config_root}}"
+run = "node scripts/run-tests.mjs --render"

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { contentSafetyConfig, generationScanInput, scanGenerationPrompt, scanReceiptMatches, nextScanRetry } from './content-safety-reference.mjs';
+import { contentSafetyConfig, generationScanInput, generationScanInputForRequest, scanGenerationPrompt, scanReceiptMatches, nextScanRetry } from './content-safety-reference.mjs';
 
 const enabled = () => ({...structuredClone(contentSafetyConfig),enabled:true});
 const input = () => ({operationId:'operation_creative',operationKind:'creative_generate',generationId:'generation_1',prompt:'  A product card with cafe\u0301 lettering.  ',locale:'en'});
@@ -145,7 +145,7 @@ test('all generating business operations scan their exact text; rendering and au
     const result=await scanGenerationPrompt(source,{config,scanner:async sent => {body=sent;return allow();},now});
     assert.equal(result.providerAllowsGeneration,true);
     assert.equal(body.prompt,source.prompt);
-    assert.deepEqual(JSON.parse(body.prompt),{instruction:'  Keep the cafe\u0301 name.  ',facts:['Product: $19'],transcript:['The exact spoken line.'],comments:['Move this text.']});
+    assert.deepEqual(JSON.parse(body.prompt),{task:'',editableTexts:[],instruction:'  Keep the cafe\u0301 name.  ',facts:['Product: $19'],transcript:['The exact spoken line.'],comments:['Move this text.']});
   }
   for (const operationKind of ['render_export','autosave','image_generation','video_generation']) {
     assert.throws(() => generationScanInput({operationId:'operation_1',generationId:'generation_1',operationKind,instruction:'Create.'}),/INVALID_GENERATION_OPERATION/);
@@ -173,4 +173,31 @@ test('the assembled boundary counts Unicode code points including structure, not
   assert.equal(result.providerAllowsGeneration,true);
   assert.equal(sent,source.prompt);
   assert.throws(() => generationScanInput({...request,instruction:instruction+'😀'}),/PROMPT_TOO_LONG/);
+});
+
+test('valid edit and target-preparation requests need no fabricated instruction field', () => {
+  const scope={operationId:'operation_1',generationId:'generation_1'};
+  const edit=generationScanInputForRequest({...scope,request:{kind:'edit_request',comments:[{comment:'Move the logo.'}]}});
+  assert.equal(edit.operationKind,'agent_patch');
+  assert.deepEqual(JSON.parse(edit.prompt).comments,['Move the logo.']);
+  const prepare=generationScanInputForRequest({...scope,request:{kind:'agent_request',operation:'prepare_targets'},facts:['Price is $19']});
+  assert.equal(prepare.operationKind,'prepare_targets');
+  assert.deepEqual(JSON.parse(prepare.prompt).facts,['Price is $19']);
+  const create=generationScanInputForRequest({...scope,request:{kind:'agent_request',operation:'creative_generate'},
+    task:'Launch the course',editableTexts:['Exact headline']});
+  assert.equal(JSON.parse(create.prompt).task,'Launch the course');
+  assert.deepEqual(JSON.parse(create.prompt).editableTexts,['Exact headline']);
+  assert.throws(() => generationScanInputForRequest({...scope,request:{kind:'agent_request',operation:'prepare_targets'}}),/INVALID_SCAN_TEXT_PARTS/);
+});
+
+test('preflight returns a section-length explanation without echoing customer text', () => {
+  const privateText='PRIVATE_'+'x'.repeat(6000);
+  let failure;
+  try { generationScanInput({operationId:'operation_1',generationId:'generation_1',operationKind:'creative_generate',
+    task:privateText,transcript:['y'.repeat(5000)]}); } catch (error) { failure=error; }
+  assert.equal(failure.message,'PROMPT_TOO_LONG');
+  assert.equal(failure.statusCode,422);
+  assert.ok(failure.details.sections.task>6000);
+  assert.ok(failure.details.totalCodePoints>failure.details.maxCodePoints);
+  assert.equal(JSON.stringify(failure.details).includes(privateText),false);
 });

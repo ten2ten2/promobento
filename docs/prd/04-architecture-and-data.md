@@ -15,7 +15,7 @@
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
 
-不另引入数据库/部署厂商；Workers HTTP 只协调，不承担长时间 Chromium 或模型编排。返回持久 job ID，浏览器轮询不能成为交付依赖。
+不另引入数据库/部署厂商；Workers HTTP 只协调，不承担长时间 Chromium 或模型编排。创作、素材处理、预览和交付各自返回持久任务 ID，浏览器轮询不能成为交付依赖。
 
 ```mermaid
 flowchart TD
@@ -46,7 +46,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 作品统一保存在 `project_revisions`。每个版本的 CompositionManifest 固定源码、依赖、素材、布局、事实和音轨；检查报告与用户复核记录单独保存。版本、摘要、全目标冻结和资源准备的完整规则见[14](14-production-contracts.md#2-manifest目标与冻结准备)。品牌 `fontSelection` 只能引用已审核的平台字库、版本与回退，未选择时为 null，不能假定客户设备上的字体可用于渲染。
 
-本地完整预览使用基线版本的 runtime、源包、字体与音轨；未保存参数立即在本地显示，保存时才通过 CAS 生成新版本。具体预览状态、缩放与正式捕获边界见 [14](14-production-contracts.md#5-renderprotocol)。自动保存不触发模型、云 QA 或编码。可信截图/片段、预检和目标准备由明确操作发起，分别检查权益、缓存与费用预算。
+已获准本地执行的完整预览使用基线版本的 runtime、源包、字体与音轨；未保存参数立即在本地显示，保存时才通过 CAS 生成新版本。具体预览状态、缩放与正式捕获边界见 [14](14-production-contracts.md#5-renderprotocol)，本地执行的输出审核条件见下文。自动保存不触发模型、云 QA 或编码。可信截图/片段、预检和目标准备由明确操作发起，分别检查权益、缓存与费用预算。
 
 内容变化后，服务端重新计算当前稿的检查资格，允许相同输入复用有效报告并建立新版本关联；不能由客户端修改报告，也不能沿用不再匹配的通过结果。原购买快照保持不变。网站主题、Cookie 和浏览器语言不改变作品。
 
@@ -54,11 +54,23 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 [内容审核配置](../../config/content-safety.json)提供可选的 Waffo Prompt Sift，默认关闭，开关和凭据只在可信后台。`creative_generate`、`agent_patch`、`prepare_targets` 中每次产生新内容的模型调用，在发送前审核；纯编码、已审核内容的重放和自动保存不重复扫描。
 
-选用该提供方时，可信编排器用 `generationScanInput` 将本次使用的用户指令、事实文字（含相关素材提取文字）、转写和批注按固定 JSON 结构组装，保留文字与次序，不发送整仓源码、二进制附件或支付资料。审核结果绑定 operationId、generationId 和完整送审文本；修改输入或换一次生成调用不能沿用旧结果。当前本地上限为 10,000 个 Unicode code point，包含结构字符；提供方的具体计数边界仍待实测。超限返回 `PROMPT_TOO_LONG`，保留原稿并要求缩短，不能静默截断或漏掉一段后放行。固定系统提示和凭据不属于送审文本。
+选用该提供方时，可信编排器用 `generationScanInputForRequest` 映射业务请求，再由 `generationScanInput` 组装本次任务、用户指令、事实文字（含相关素材提取文字）、转写、批注和实际参与生成的可编辑文本。无独立 instruction 的批注改稿和目标准备不伪造指令；至少一项须有实际内容。固定 JSON 结构保留原文与次序，不发送整仓源码、二进制附件、支付资料、固定系统提示或凭据。结果绑定 operationId、generationId 和完整送审文本；输入或生成调用变化不能沿用旧结果。
+
+组装和长度预检在排队、次数及费用预留前执行。当前上限为 10,000 个 Unicode code point，包含结构字符；提供方具体计数边界仍待实测。超限返回 422 `PROMPT_TOO_LONG`，给出总长、上限和各部分长度供定位，保留原稿；不截断、不丢弃整段，也不在错误或日志回传原文。
 
 启用时使用 `semantic=enforce`，只有有效的 allow 且语义评分确实执行，`providerAllowsGeneration` 才为 true。关闭时返回 `provider_disabled` 和 false，表示该提供方未给出审核许可；总流程须取得当前审核方案的有效通过结果，不能把关闭 Waffo 当作整体放行或固定拒绝。review、block、降级、未知响应及超时均不能冒充通过。重试、超时和限流取配置及参考适配器，所有调用共用原操作预算。
 
-Prompt Sift 只覆盖输入审核。生成结果先完成独立的输出审核，再交给用户预览、下载或公开展示；两阶段实际接通是提交 Waffo AIGC 审核和开放客户生成的条件。审核日志只留 requestId、判定、理由、输入摘要及必要任务引用，访问和保留按第 6 节执行。当前只有参考适配与本地测试，真实调用、人工处理及输出审核仍待实现；来源和披露见 [09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
+Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理由、输入摘要及必要任务引用，访问和保留按第 6 节执行。当前参考适配与本地测试不代表真实调用、人工处理或两阶段审核已上线；来源和披露见 [09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
+
+### 输出审核
+
+方向卡和 Treatment 在展示前审核实际文字；候选、可信预览、导出和案例展示分别审核实际可见文字、画面与音频，不能用源码声明或少数封面代替动态内容。可信服务保存 Schema 的 `outputSafetyResult`，绑定项目、operation/revision、用途、实际内容 hash、策略版本、检查表示、覆盖范围和证据引用。`outputSafetyErrors` 检查这些绑定和状态；它是参考准入校验器，不能产生真实审核结论。媒体校验从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 分别取回执，并与实际字节核对；生成任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面要求文字与画面覆盖，视频/片段还要求音频覆盖。策略版本不进入创作 contentHash，策略更新仍可要求重新审核。
+
+只有 `allowed` 且覆盖当前用途的结果可放行；pending、review_required、blocked、unavailable、策略不符、示例或被撤销的证据均不能当作通过。审核状态独立于美学 QA，用户对普通 REVIEW 的确认不能豁免安全阻断。未通过的候选保持 withheld，不展示或按可用结果消费次数；修复、复核和有期限预留共用原 operation 预算，实际费用照记。
+
+审核表示分为 `text`、`trusted_media`、`verified_local_runtime`。已检查的可信视频不自动授权任意本地源码执行；本地回放须验证受限 runtime、资源和全部可触达状态，可信控制器据此放行。能力和覆盖尚未验证时，对外只提供已审核的可信媒体。用户自己的普通输入不逐键发起云审核，但保存后的新内容在可信预览、冻结、分享或导出前须重新取得对应结果，不能沿用旧 hash。
+
+真实审核提供方、覆盖策略、申诉处理和上述展示门禁须在开放客户生成前接通并实测；内部可信样片和参考测试不解除此门槛。
 
 ## 3 队列、资源与隔离
 
@@ -76,11 +88,11 @@ Composer/Renderer 都按 job/generation 隔离，结束销毁；不复用含客�
 
 身份：users、auth_identities、auth_flows、auth_action_intents、email_challenges、sessions；工作区：workspaces、memberships、invites。证明、identity 唯一性、登录恢复按 12。D1 查询显式限定租户，不依赖自动 RLS。
 
-试用：`trial_claims` 以内部 user_id 和 trial_project_id 分别唯一，保存 workspace_id、claimed_at 和政策版本。Owner 自领、项目创建、claim/grant 同事务；requestId 重试返回同项目，并发最多成功一次。`requestTrial` 默认 false；`trialStatus` 使用 not_requested/granted/unavailable，不可领取仍可建无权益草稿。身份或项目变化不重置 claim，最小去重关系按第 6 节保留；资格、次数和使用范围统一见 05/12。
+试用：`trial_claims` 以内部 user_id 和 trial_project_id 分别唯一，保存 workspace_id、claimed_at 和政策版本。Owner 自领、项目创建、claim/grant 同事务；requestId 重试返回同项目，并发最多成功一次。`requestTrial` 默认 false；创建响应的 `trialGrantStatus` 使用 not_requested/granted/unavailable，不可领取仍可建无权益草稿。项目响应的 `trialStatus` 中 active 表示已授予且仍在正常试用期，expired 表示该期限已过，not_granted 表示本项目未获授；次数余额独立计算，用完次数不把期限改成 expired。身份或项目变化不重置 claim，最小去重关系按第 6 节保留；资格、次数和使用范围统一见 05/12。
 
-内容：projects、product_facts、assets/asset_versions/asset_refs、upload_intents/rights_declarations、asset_transcripts、project_revisions、composition_sources/variants、creative_briefs/treatments、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests、quality_reports/quality_associations/quality_waivers、comments/edit_requests；独立展示授权为 showcase_consents。QA 关联绑定精确版本、目标、输入 hash 和策略，不修改创作内容；字段及状态见 14。可无 scene/element 标记，不强制场景结构。
+内容：projects、product_facts、assets/asset_versions/asset_refs、upload_intents/rights_declarations、asset_transcripts、project_revisions、composition_sources/variants、creative_briefs/treatments、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests、quality_reports/quality_associations/quality_waivers、output_safety_results、comments/edit_requests；独立展示授权为 showcase_consents。QA 和输出审核各自绑定精确内容与策略，不修改创作内容；字段及状态见 14。可无 scene/element 标记，不强制场景结构。
 
-交易：orders、active_checkout_slots、entitlement_grants、credit_reservations/credit_ledger、payment_inbox、refund_requests、export_snapshots/export_releases/export_artifacts、jobs/job_attempts、outbox、renderer_versions。creative_reservations/creative_ledger 与成片账本分开。按 05 的购买资格、项目初始槽/升级槽、依赖退款与重新购买条件建唯一约束；条件写和 outbox 同事务，不无条件读后减余额。消费与费用不能因退款改写，旧付款去重关系不能被新订单复用；保存范围和期限见第 6 节。
+交易：orders、checkout_disclosures/checkout_consent_receipts、active_checkout_slots、entitlement_grants、credit_reservations/credit_ledger、payment_inbox、refund_requests、export_snapshots/export_releases/export_artifacts、jobs/job_attempts、outbox、renderer_versions。creative_reservations/creative_ledger 与成片账本分开。按 05 的购买资格、项目初始槽/升级槽、依赖退款与重新购买条件建唯一约束；条件写和 outbox 同事务，不无条件读后减余额。消费与费用不能因退款改写，旧付款去重关系不能被新订单复用；保存范围和期限见第 6 节。
 
 货币使用整数最小单位，模型费用使用整数 USD micros；provider 单位由 adapter 明确转换。时间 UTC，UI 未知时区先标明 UTC，hydration 后可调整显示，但不改已确认的视频日期。素材、源码、事实、声音和 QA 构成引用图，清理必须先检查在途任务及有效购买。
 
@@ -115,16 +127,16 @@ URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源�
 
 项目复制只继承同工作区内获准的素材与源包引用。新项目没有试用或付费权益，原购买快照与 QA 授权也不转移；可查看和本地编辑，新增上传、云预览、QA 或创作前先购买 `project_pack` 的 `top_up_only` 权益。
 
-取消 run 或拒绝候选要核对请求 base 与该 run/候选的 base，但不要求它仍是当前草稿；接受候选才要求当前草稿的 CAS。作业查询返回真实阶段、完成/总帧数、安全错误码和可否重试，未知进度明确标为未知。
+取消 run 或拒绝候选要核对请求 base 与该 run/候选的 base，但不要求它仍是当前草稿；接受候选才要求当前草稿的 CAS。`jobs.get` 仅返回素材处理状态及 asset 引用；run、preview、export 各查自身持久资源，按任务能力返回真实阶段、进度、安全错误码和可否重试，未知进度明确标为未知。项目的活动任务与待接受候选引用用于刷新恢复，不依赖浏览器内存。
 
-审阅 token 只经专用 loader 读取限定版本的预览，不调用成员全量接口。普通评论不触发收费 AI，需要改稿时明确提交 edit-requests。金额、provider、回跳 origin、目标宽高、预算或权限不接受客户端任意覆盖。
+审阅 token 只经专用 loader 读取限定版本的预览，不调用成员全量接口。`comments.create` 保存普通讨论，不触发收费 AI；本地待提交批注经保存和版本确认后，成组提交 `edit_requests` 才发起改稿。金额、provider、回跳 origin、目标宽高、预算或权限不接受客户端任意覆盖。
 
 ### 关键接口语义
 
 路径 ID 与 body ID 必须相等；所有引用重新查验当前租户、项目、成员和生命周期。读接口无业务副作用，均 `private, no-store`。Schema 只校验结构，不能替代以下服务端判断：
 
 - **付款与上传授权。** `checkoutResult` 只返回本地 orderId、订单/会话状态和受控 URL/截止，不透传提供方对象。只有 ready 会话有 HTTPS checkoutUrl；pending/closed 均为 null，pending 不另开付款会话。服务端核对实际会话、允许的提供方主机和有效截止，禁止凭 HTTPS 字符串放行任意地址。上传 URL 同样只授权该 intent 的临时对象、PUT、长度/类型及期限；complete 再检查当前权限与实际字节，处理预算和费用不因重试重置。
-- **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；编辑或确认状态改变时递增记录版本。`version` 仅在正文改变时递增，用于防止陈旧确认，不进入计费身份。`textHash=digest(text)` 计算 JCS 字符串字节，包含 JSON 双引号；不是原文 UTF-8 的直接摘要。证据变化使受影响的当前确认和检查资格失效，不改变计费内容或旧快照证据。批内 factId 唯一，CAS 全部原子通过，移除不破坏旧快照。确认同时匹配 factId/version/textHash/expectedRecordVersion，确认人和时间取有效会话及服务端，Agent 不能代确认。
+- **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；编辑或确认状态改变时递增记录版本。`version` 仅在正文改变时递增，用于防止陈旧确认，不进入计费身份。`textHash=digest(text)` 计算 JCS 字符串字节，包含 JSON 双引号；不是原文 UTF-8 的直接摘要。证据变化使受影响的当前确认和检查资格失效，不改变计费内容或旧快照证据。批内 factId 唯一，CAS 全部原子通过，移除不破坏旧快照。正文变化按 14 同步参数、绑定和新 revision，响应给出新建及当前版本引用；仅确认不改 Composition。确认同时匹配 factId/version/textHash/expectedRecordVersion，确认人和时间取有效会话及服务端，Agent 不能代确认。
 - **证据与转写。** 事实的 `evidence` 只提交 assetId/sourceHash；服务端核验该项目已完成的 evidence 上传，并生成绑定来源字节及当前文案 hash 的 evidenceRefs。14 的事实分类及来源要求仍适用，客户确认不自动证明真实性。转写绑定不可变 assetId/sourceHash，expectedVersion=0 为首次，其后匹配当前转写版本；各段按时间升序、不重叠、落在实测时长内，合计原文不超过 6000 Unicode 码点。商业声称关联当前已确认的 factId/version/textHash，并接受文本覆盖检查；空 facts 不能绕过声称检查。`transcriptHash=digest({assetId,sourceHash,segments})`，确认人/时间由服务端写入；来源或事实变化须重新确认受影响的转写。
 - **展示与退款。** 展示 grant 必须当前 Owner、有权许可、已交付且确属该项目的 release、告知版本及明确所选渠道；scope 仅为该成片的 product_showcase，不延伸到原始素材或训练。revoke 使用当前版本，不要求仍有创作额度或媒体处于可编辑期，立即停止新增使用并安排撤下受控展示；旧 grant 的重放不能恢复已撤回授权。普通支持的可选 project/order 必须可见且关联一致；refund 分支额外核验订单 Owner，按 05 进入退款申请及依赖核查，不接受客户端金额/权益，不把 requested 当作退款到账。
 
@@ -158,7 +170,7 @@ URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源�
 
 订单对账、付款去重、防重复试用、争议与许可证明仅保留所需最小字段、条款/同意版本、授权记录和必要输出 hash，分别注明目的、访问权限、期限或终止条件；可用最小证明完成目的时，不持续保存完整源码、录屏或成片。退款不改写消费和费用历史，但个人信息仍遵守对应保存/删除要求。
 
-账号关闭、数据访问、更正、导出和删除请求通过已认证的设置或支持渠道处理，核实主体与租户权限。关闭账号前处理其工作区所有权和在途订单；关闭后撤销会话、说明保留的必要记录，不把关闭当作退款。提供自助关闭入口时再注册对应路由，P0 支持渠道也须实际可用。文件删除、到期和已取得的成片使用权分别按 05 处理。
+账号关闭、数据访问、更正、导出和删除请求通过已认证的设置或支持渠道受理，核实主体与租户权限。账号关闭可使用通用支持渠道；收件或创建工单不构成关闭授权。实际关闭前须按[12](12-routing-and-auth.md)取得绑定本人、`account_close` 动作及关闭意图的新身份验证证明，并处理其工作区所有权和在途订单；关闭后撤销会话、说明保留的必要记录，不把关闭当作退款。提供自助关闭入口时再注册对应路由，P0 支持渠道也须实际可用。文件删除、到期和已取得的成片使用权分别按 05 处理。
 
 ## 7 发布隔离
 

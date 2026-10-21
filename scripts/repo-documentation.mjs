@@ -316,12 +316,16 @@ export function platformBaseline(root,env=process.env) {
   const explicit=env.PROMOBENTO_BASE_REF?.trim();
   if (explicit&&/^0{40,64}$/.test(explicit)) return {reference:explicit,config:null,reason:'initial push'};
   const ci=env.CI==='true'||env.CI==='1'||env.GITHUB_ACTIONS==='true';
-  if (ci&&!explicit) throw Error('CI requires PROMOBENTO_BASE_REF (PR base SHA or push before SHA)');
+  if (ci&&!explicit) throw Error('CI requires PROMOBENTO_BASE_REF (PR base SHA or last successful ancestor)');
   let reference=explicit;
   if (!reference) {
-    const status=git(['status','--porcelain','--untracked-files=normal']);
-    if (status.status!==0) throw Error('Cannot read Git status for platform rules baseline');
-    reference=status.stdout.trim()?'HEAD':'HEAD^';
+    const upstream=git(['rev-parse','--verify','@{upstream}^{commit}']);
+    if (upstream.status===0) reference='@{upstream}';
+    else {
+      const status=git(['status','--porcelain','--untracked-files=normal']);
+      if (status.status!==0) throw Error('Cannot read Git status for platform rules baseline');
+      reference=status.stdout.trim()?'HEAD':'HEAD^';
+    }
   }
   const revision=git(['rev-parse','--verify','--end-of-options',reference+'^{commit}']);
   if (revision.status!==0) {

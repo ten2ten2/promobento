@@ -170,6 +170,23 @@ importers:
         specifier: workspace:*
         version: link:packages/contracts
 
+  apps/renderer:
+    dependencies:
+      '@promobento/composition-runtime':
+        specifier: workspace:*
+        version: link:../../packages/composition-runtime
+      '@promobento/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      playwright-core:
+        specifier: 1.62.1
+        version: 1.62.1
+      pngjs:
+        specifier: 7.0.0
+        version: 7.0.0
+
+  packages/composition-runtime: {}
+
   packages/contracts:
     dependencies:
       ajv:
@@ -201,6 +218,15 @@ packages:
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
+  playwright-core@1.62.1:
+    resolution: {integrity: sha512-wPYSwEBJY9GHraISXqyqtx0na0LpO3XEX7jNDhntbex7tzUS7kLnZsOlFruFJB4Hi/rhDMjXGqHewDZ68nYZVw==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
+
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
     engines: {node: '>=0.10.0'}
@@ -223,5 +249,9 @@ snapshots:
   fast-uri@3.1.8: {}
 
   json-schema-traverse@1.0.0: {}
+
+  playwright-core@1.62.1: {}
+
+  pngjs@7.0.0: {}
 
   require-from-string@2.0.2: {}

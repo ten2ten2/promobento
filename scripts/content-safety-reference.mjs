@@ -11,15 +11,36 @@ const withheld = (status,reasonCode,fields = {}) => ({status,providerAllowsGener
  * Pass the exact customer text used by the model, including relevant extracted text in facts.
  * Keep each section and its order; do not trim, summarize, normalize or silently drop overflow.
  */
-export function generationScanInput({operationId,operationKind,generationId,instruction,facts = [],transcript = [],comments = [],locale},config = contentSafetyConfig) {
-  if (typeof instruction !== 'string' || !instruction.trim()
-    || ![facts,transcript,comments].every(items => Array.isArray(items) && items.every(item => typeof item === 'string')))
+export function generationScanInput({operationId,operationKind,generationId,instruction = '',task = '',facts = [],transcript = [],comments = [],editableTexts = [],locale},config = contentSafetyConfig) {
+  if (typeof instruction !== 'string' || typeof task !== 'string'
+    || ![facts,transcript,comments,editableTexts].every(items => Array.isArray(items) && items.every(item => typeof item === 'string'))
+    || ![instruction,task,...facts,...transcript,...comments,...editableTexts].some(text => text.trim()))
     throw new Error('INVALID_SCAN_TEXT_PARTS');
-  const input={operationId,operationKind,generationId,prompt:canonical({instruction,facts,transcript,comments})};
+  const parts={task,instruction,facts,transcript,comments,editableTexts};
+  const input={operationId,operationKind,generationId,prompt:canonical(parts)};
   if (locale !== undefined) input.locale=locale;
   const problem=inputError(input,config);
-  if (problem) throw new Error(problem);
+  if (problem) {
+    const error=new Error(problem);
+    error.statusCode=422;
+    if (problem === 'PROMPT_TOO_LONG') error.details={
+      totalCodePoints:[...input.prompt].length,maxCodePoints:config.maxPromptCharacters,
+      sections:Object.fromEntries(Object.entries(parts).map(([key,value]) => [key,[...canonical(value)].length]))
+    };
+    throw error;
+  }
   return input;
+}
+
+/** Call before quota reservation, then use the same trusted text snapshot for the model call. */
+export function generationScanInputForRequest({request,operationId,generationId,task = '',facts = [],transcript = [],editableTexts = [],locale},config = contentSafetyConfig) {
+  const edit=request?.kind === 'edit_request';
+  const operationKind=edit ? 'agent_patch' : request?.operation;
+  if (!edit && request?.kind !== 'agent_request') throw Error('INVALID_GENERATION_OPERATION');
+  const comments=edit ? request.comments?.map(comment => comment.comment) : [];
+  if (!Array.isArray(comments)) throw Error('INVALID_SCAN_TEXT_PARTS');
+  return generationScanInput({operationId,operationKind,generationId,task,
+    instruction:edit ? '' : request.instruction ?? '',facts,transcript,comments,editableTexts,locale},config);
 }
 
 function inputError(input,config) {

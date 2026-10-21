@@ -2,7 +2,7 @@
 
 本章规定产品规格 v2.7 / 协议 `2.7.0` 中影响保存、验证、计费和交付的共同规则。字段类型以 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts)和[创作运行时](../../contracts/composition-runtime.d.ts)为准，界面流程见[02](02-ux-and-ui.md)。
 
-仓库已有结构校验、共享摘要函数和参考测试；真实构建器、数据库事务、浏览器运行时与交付服务仍待实现。生产校验使用 `{production:true}`，拒绝 `exampleOnly:true`。校验用的 context 必须来自可信存储和执行观察，不能直接接收请求体或 Agent 自报的权限、素材、摘要和检查结论。
+仓库提供共享契约与参考校验，实际实现范围以[实施状态](../implementation-status.md)为准；本章的完整要求不等于服务已经上线。生产校验使用 `{production:true}`，拒绝 `exampleOnly:true`。校验用的 context 必须来自可信存储和执行观察，不能直接接收请求体或 Agent 自报的权限、素材、摘要和检查结论。
 
 ## 1 唯一版本模型
 
@@ -17,15 +17,17 @@
 | fact_manifests | 保存事实内容、当前确认及证据引用；创作内容与确认记录分别计算摘要 |
 | quality_reports / quality_associations / quality_waivers | 报告保存检查结果；关联绑定当前 revision；豁免保存成员对指定 REVIEW 的确认，三者分别不可变 |
 
-所有对象的 workspace 从数据库归属推导，外键与事务条件必须拒绝跨项目 ID 拼接。接受候选时重新检查成员权限、项目期限、删除状态、baseRevision、If-Match、读写集合、资源和 QA；baseRevision 与 If-Match 同时提供时必须一致。再通过 CAS（仅在当前版本仍等于基线时写入）切换草稿、标记接受并写 outbox。同一基线的两个候选只能接受一个，另一个返回 409 并保留，不能自动合并不可信代码。
+所有对象的 workspace 从数据库归属推导，外键与事务条件必须拒绝跨项目 ID 拼接。空草稿的首次 `creative_generate` 使用 `baseRevision:null`；改稿与目标准备必须有已保存基线。三类操作统一通过 candidate 查询、接受和拒绝。接受时检查成员权限、项目期限、删除状态、候选 ready 状态、输出审核、baseRevision、If-Match、读写集合和资源；两个基线同时提供时必须一致。再通过 CAS（仅在当前版本仍等于基线时写入）切换草稿、标记接受并写 outbox。同一基线的两个候选只能接受一个，另一个返回 409 并保留，不能自动合并不可信代码。当前事实尚待确认可以作为草稿接受，冻结资格另按 §8 检查。
+
+候选操作先验证当前权限、作用域和幂等摘要；已有同键同请求返回原结果，不能因候选已 accepted/rejected 再次执行状态检查而拒绝重放。新接受操作才检查当前基线和准入条件；拒绝只改变候选状态，不要求其旧基线仍为当前草稿。
 
 恢复使用 `PATCH /api/projects/:projectId/draft` 的 restoreFromRevisionId，与changes互斥，创建新revision，可复用源包；不改订单或余额。素材清理后409 SOURCE_UNAVAILABLE。源包相同而revisionId/检查记录变化不必然是新的付费内容。
 
 普通参数保存检查权限、`baseRevision`、静态声明和值的范围，通过 CAS 创建新 revision；不调用模型，也不自动启动 Q0/Q1 或编码。修改事实绑定文本时，同一事务须更新所有绑定值、创建未确认事实版本并返回 `unconfirmedFactIds`。一次请求给同一事实写入不同文本时拒绝，不能由最后一项覆盖。绑定事实的文本保存时不能为空白；本地输入过程中可以暂时清空，但不能因此创建空事实。
 
-反向调用 `facts.update` 也要同步所有绑定值；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates` 和 `factValueUpdates` 只计算应更新哪些值，实际写入仍须在数据库事务内完成。
+反向调用 `facts.update` 也要同步所有绑定值及 bindings 的 `expectedText`；有绑定时必须提供当前 `baseRevision`，并同时检查事实记录版本。删除仍被引用的事实须先改源码解除绑定。`boundValueUpdates`、`factValueUpdates` 和 `factBindingUpdates` 只计算应更新的内容，事实、参数、绑定与新 revision 须在同一数据库事务写入。响应返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`，让界面切换到实际保存版本。
 
-`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态及整片、AI 改稿、成片余额；作业成功必须返回对应 revision、patch、asset、preview 或 release 引用，不能只报一个“完成”状态。
+`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`，刷新后按这些引用恢复任务。`jobs` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，并返回实际候选或产物引用。
 
 ### 数据库约束清单
 
@@ -44,15 +46,17 @@
 
 ## 2 Manifest、目标与冻结准备
 
-CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧、seed，以及源码、依赖、资源、布局、事实、runtime/renderer、平台规则和 `renderProfile`。每个 variant 的 `targetOverrideHash` 指向不可变适配内容，无覆盖时为 null。`styleLabel` 和内容语言元数据可省略；网站 Cookie/语言/主题不进入创作身份。
+CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧、seed，以及源码、依赖、资源、布局、事实内容、runtime/renderer、平台规则和 `renderProfile`。事实只引用 `factContentHash`；确认与证据不写入 Composition，完整 `factManifestHash` 在冻结快照固定。每个 variant 的 `targetOverrideHash` 指向不可变适配内容，无覆盖时为 null。`styleLabel` 和内容语言元数据可省略；网站 Cookie/语言/主题不进入创作身份。
 
 `resource_manifest` 保存实际素材的 path、sha256、byteLength、mediaType 和稳定 licenseRef。Asset broker 按 hash 解析不可变存储；可信构建/渲染记录实际访问的资源、音源和混音，与清单核对，不能只信 Agent 自报。源码包保存代码和静态创作声明，素材单独按资源 hash 引用；不包含自身 manifest、QA 输出、临时 URL 或日志。字体子集、塑形和回退配置一同冻结；按实际文字检查字素簇、塑形和回退，不能用 `document.fonts.ready` 证明无缺字。
 
-保存后的参数只有一个来源：不可变源码包中的 `values.json`。静态 editables 只声明类型、范围、`affectsTiming` 和可选 `factId`，不再保存另一份当前值。该文件参与源码摘要；可信检查与导出只能读取冻结值，本地未保存预览按 §5 使用临时覆盖。
+保存后的参数只有一个来源：不可变源码包中的 `values.json`，内容严格为 `{kind:"source_values",values:{...}}` 的 JCS UTF-8 字节，最多 1 MiB、256 项。它不携带请求协议版本；格式由固定的 runtime 和依赖解释，单纯升级 API 协议不能改写该文件。颜色按声明转成小写，其他用户原文不归一化。`sourceValuesBytes` 与 `parseSourceValues` 是共同入口。
+
+静态 editables 只声明类型、范围、`affectsTiming` 和可选 `factId`，不保存第二份当前值；首版所有目标共享同一套声明和值。每个目标的 `.mjs` 入口默认导出 `CompositionDefinition`，HTML 外壳由宿主提供。参数文件参与源码摘要；可信检查与导出只读冻结值，本地未保存预览按 §5 使用临时覆盖。可绘资源由可信素材登记生成 `drawableResourcePaths` 白名单，事实证明附件不能仅因出现在资源清单就被画进作品。
 
 首版不支持本地修改 `affectsTiming:true` 的字段，连同事实同步间接影响的字段一起拒绝，提示使用 AI 改稿。没有明确的时间补偿规则时，不能只改一个时间点却留下旧音轨、转场或录屏区间。AI 修改仍受固定总帧数和完整音画验证约束。
 
-**音频冻结：** AudioPlan 的未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
+**音频冻结：** AudioPlan 与冻结事件都使用稳定的 `eventId`，marker 通过 `audioEventId` 引用，不以数组下标定位。未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
 
 混音统一为 48 kHz、双声道；1 帧等于 1,600 个音频采样帧。最终 WAV 恰为 `totalFrames × 1600` 个采样帧，空白补静音，处理顺序与后处理由固定 `mixerVersion` 决定。`mixedAudio` 固定资源路径、真实 sha256、采样率、声道和 mixerVersion，必须解析到资源表中同路径/同 hash 的实际 WAV。可信解码观察 `audioMetadata` 按字节 hash 保存 sampleRate、channels、sampleFrames；校验音源为音频、源内时间范围及混音的采样率/声道/完整片长，不只检查清单自报值。
 
@@ -80,7 +84,7 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 | 身份 | 用途和边界 |
 | --- | --- |
-| factManifestHash | 固定完整事实清单，包括确认与证据 |
+| factManifestHash | 仅在快照固定完整事实清单，包括确认与证据 |
 | factContentHash | 只计事实文本与目标/帧区间绑定，不计确认、证据或记录版本 |
 | resourceContentHash | 计资源路径、真实字节摘要、长度与媒体类型，不计许可记账字段 |
 | compositionHash | 固定完整 Composition，用于源码关联和会话匹配 |
@@ -95,7 +99,9 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 `sourceHash = digest(targetSourceIdentity(build))`。可信构建器先解析目标依赖，再记录入口路径，以及实际执行所用的每个本地文件的路径、原始字节 SHA-256 和长度；必须包括 `values.json` 和共享依赖。文件按路径的 UTF-16 顺序排序，入口路径也参加摘要。同字节换入口、改参数或改共享文件都会改变对应摘要。`sourceFileDigests` 和 `targetSourceIdentity` 已可复用；依赖发现、沙箱构建和实际执行观察仍待实现，不能把调用方提交的文件列表当作可信构建结果。
 
-冻结和正式预检把每个目标的摘要与可信构建记录核对，缺记录、源包不匹配、入口不一致或摘要过期都拒绝。构建记录还提供从源码读出的声明和值，用于检查事实绑定；这不代替像素和语音 QA。整个 `sourceArchiveHash` 保留在作品身份里，不塞进每个目标摘要；只改另一个目标时，未受影响目标仍可复用 QA。
+`sourceArchiveHash = digest(sourceArchiveIdentity(files))` 固定完整源包的规范文件清单，每项包含路径、原始字节 SHA-256 和长度，按路径排序。它不是 ZIP 压缩字节的摘要；传输包可另校验字节 hash。可信 `sourceArchiveFiles` 必须由实际解包得到，并证明每个目标构建文件都属于该源包，`values.json` 的字节与构建读取的值完全一致。
+
+冻结和正式预检把每个目标的摘要与可信构建记录核对，缺记录、源包不匹配、入口不一致或摘要过期都拒绝。构建记录还提供从源码读出的声明和值，用于检查事实绑定；这不代替像素和语音 QA。整个 `sourceArchiveHash` 保留在作品身份里，不塞进每个目标摘要。仅目标专有文件改变时可复用已证明不受影响的目标 QA；首版共享参数文件或全局事实内容变化会使所有相关目标失效，不按 Agent 自报的影响范围省略依赖。
 
 QA、确认和授权证据、标记策略、采样配置、样式标签本身不增加成片次数。采样或标记改变时重算产物指纹并重检，已购快照保留原策略；系统修复关联原 release，免费生成新文件，原收据不覆盖。
 
@@ -117,19 +123,23 @@ AI 标记和观众披露分开：可信 markingProfile 按09及实际用途分�
 
 Directions、Treatment、AudioPlan 和 PatchResult 的字段以 Schema 为准；可信层检查总帧、半开区间和关联。计划、解读和摘要是过程证据，不单独改变 contentHash；真正修改执行源码、参数、事实、音频、资源或布局才改变创作内容。
 
+Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输入边界规范化颜色，不改变其他文字。
+
 购买请求按[05](05-waffo-billing.md)检查资格与并发槽。`top_up_only` 不带 snapshot；`purchase_and_export` 必须绑定已准备的全部目标快照。商品可暂停新售，但不能因此阻断既有订单的付款确认、已购权益或重下。
 
 ## 5 RenderProtocol
 
-可信控制器解析 revision/target、固定规则和 renderProfile 后建立短期 session；源码不能自选尺寸、快门、源包写入或支付/模型权限。生命周期为 created→initializing→idle→seeking→ready，后续 ready→seeking；活动态可 failed/disposed。init、seek/sample 与 inspect 共用串行画布，不并行覆盖待取样内容。默认 profile 为 standard；motion4/8 按 agent-policy 保持实验关闭，启用须由可信控制器验证实测预算，不能由 Agent 或浏览器自行升级采样。
+可信控制器解析 revision/target、固定规则和 renderProfile 后建立短期 session；源码不能自选尺寸、快门、源包写入或支付/模型权限。生命周期为 created→initializing→idle→seeking→ready，后续 ready→seeking；本地改值进入 applying-values，成功返回可用状态，拒绝恢复上一版；活动态可 failed/disposed。init、set-values、seek/sample 与 inspect 共用串行画布，同一会话最多一个在途命令。默认 profile 为 standard；motion4/8 按 agent-policy 保持实验关闭，启用须由可信控制器验证实测预算，不能由 Agent 或浏览器自行升级采样。
 
 命令和响应都带 protocolVersion、sessionId、requestId、sequence、revisionId 和 targetId；帧响应还回显帧号与 manifestHash。每次命令使用新 requestId 和递增 sequence。revision、target、profile 在会话内固定，变更后新建会话；旧会话、旧请求、已 dispose 的响应全部丢弃。`frameTimeout` 覆盖一帧的全部采样、合成和读回，不能逐样本重置。
 
-本地会话从 `previewEpoch:0` 开始，`init` 可带 `valuesOverlay`；后续用 `set-values` 提交完整覆盖表，序号递增且 epoch 必须是上一版加一。host 校验所有直接和间接绑定值，再用“冻结值 + 覆盖表”重新 prepare；空表表示恢复冻结值。seek、inspect 及其结果、错误都带当前 epoch，即使响应匹配旧请求，也不能覆盖更新后的画面。
+本地会话从 `previewEpoch:0` 开始，`init` 可带 `valuesOverlay`。后续 `set-values` 提交完整覆盖表及 `requestedEpoch=appliedEpoch+1`；host 校验直接和间接绑定值，再用“冻结值 + 覆盖表”重新 prepare。成功发 `values-applied` 才推进 `appliedEpoch`；失败发 `values-rejected` 并保持上一版，修正后可用新 requestId/sequence 重试同一待应用 epoch。空表恢复冻结值。seek、inspect 及其响应携带实际应用的 `previewEpoch`，旧响应不能覆盖新画面；prepare 失败必须保留或恢复上一版可用状态。
 
-临时覆盖只存在于本地会话，不写事实确认、正式身份、计费、QA 或导出。可信渲染拒绝 overlay 和本地 epoch。保存仍走 §1 的草稿 CAS；成功后用新 revision 开会话，保留保存期间继续输入的未保存值，不能让晚到的保存结果覆盖它们。
+临时覆盖只存在于本地会话，不写事实确认、正式身份、计费、QA 或导出。可信渲染拒绝 overlay 和本地 epoch。保存仍走 §1 的草稿 CAS；仅值变化且执行环境、源码逻辑不变时，可继续显示旧会话加已确认覆盖，待暂停或到期平滑换到新 revision 会话。新会话 ready 后才替换，不伪造旧会话的 revision/hash；源码变化或恢复操作必须新开会话。保存期间的后续输入和已删除字段的未保存文本须保留供用户处理。
 
-`inspect` 显式提交 frameIndex 与归一化坐标 x01/y01，返回同帧 `hit-result` 或 hit:null。结果只可引用静态 regionId；sourcePath/line 须与可信声明一致，不接受源码临时指定任意文件。无可检查区域时仍可保留画面坐标批注，不能伪造 DOM 定位。
+`inspect` 显式提交 frameIndex 与归一化坐标 x01/y01，返回同帧 `hit-result` 或 hit:null。坐标可等于 1，但半开区域的右/下边界不命中；区域重叠按静态声明顺序取最后一个。结果只可引用静态 regionId；sourcePath/line 须与可信声明一致，不接受源码临时指定任意文件。无可检查区域时仍可保留画面坐标批注，不能伪造 DOM 定位。提交批注前先保存，绑定实际显示且已保存的 revision/frame；保存冲突保留批注，不自动换绑其他版本。
+
+本地播放由 Studio 父页面持有时钟和混音播放器。`mixedAudioUrl` 与 `mixedAudioHash` 成对，URL 由当前任务的只读 broker 授权；源码不获得额外声音权限。自动播放受阻时显示播放按钮。低清回放只保留一个 seek 在途，按时钟追赶最新帧，允许跳过过时帧；可信导出仍逐帧完成。初始化、prepare、draw、缺视频帧、帧越界和命令冲突返回具体错误，不能以旧画面冒充就绪。
 
 所有 `seekFrame(n)` 只收整数 `0 ≤ n < N`，名义时间为 n/30；N 为 450 或 900。当前合法 renderProfile 只有 `standard=(1,0°)`、`motion4=(4,180°)`、`motion8=(8,180°)`，Schema、类型和运行时计算一致；能通过结构校验不代表实验功能已获启用。单样本直接取 n/30，多样本按冻结配置的 M 和快门角 A 计算第 j 个样本（0≤j<M）的秒数：
 
@@ -149,11 +159,11 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结；`fonts.ready` 只证明加载完成，缺字与塑形另做 QA。平台字体登记仍待实施，P0 不借此开放任意上传字体。
 
-预览策略以 [preview.json](../../config/preview.json) 为准。`preview-sessions` 只分配本地会话，不自动启动云 QA。可信捕获先检查当前有效创作权益与费用预算。截图必须是单帧；clip 必须给出非空半开区间，且不超过当前片长、单次片段上限、项目窗口和原试用 claim 的累计请求/帧数。计数包含进行中的预留，费用和次数须同事务检查、预留并幂等提交。`trustedPreviewErrors` 已实现准入规则，不是实际调度器或额度数据库；上限未标定时保持 null 和关闭。
+预览策略以 [preview.json](../../config/preview.json) 为准。`preview-sessions` 只分配本地会话，不自动启动云 QA。可信捕获在预留前检查路径项目、当前有效创作权益、费用预算、实际构建记录、事实确认和该目标有效 QA；调用方不能只传一个“已检查”布尔值。截图必须是单帧；clip 必须给出非空半开区间，且不超过当前片长、单次片段上限、项目窗口和原试用 claim 的累计请求/帧数。当前准入只接受 standard；motion4/8 须另行标定采样成本与上限。计数包含进行中的预留，费用和次数须同事务检查、预留并幂等提交。`trustedPreviewErrors` 与生产契约共同提供准入校验，不是实际调度器或额度数据库；上限未标定时保持 null 和关闭。
 
-品牌水印位于内容外的 footer band：本地由 host 绘制，编码预览由可信捕获合成器写入实际文件并检查可读性。干净内容 QA 和付费输出不带品牌水印；AI 标记另按 §4。低清和水印不保证防复制。
+品牌水印位于内容外的 footer band：本地由 Studio 父页面在作品 iframe 之外绘制，编码预览由可信捕获合成器写入实际文件并检查可读性。干净内容 QA 和付费输出不带品牌水印；AI 标记另按 §4。低清和水印不保证防复制。
 
-独立预览 origin 按任务隔离，不带主站 Cookie；精确校验 origin/source window/不可预测 nonce/消息 Schema。CSP 从 `default-src 'none'` 开始，仅给冻结 bundle 与任务 broker 开放实际必需的 script、style、connect、image/media/font 来源，禁止 object、base、form 和任意导航；不能以宽泛公网白名单代替资源代理。iframe 不授予 top-navigation、popup、download 等无关能力。实际域名与 CSP/iframe 组合在 M0b 验证，当前 previewOrigin:null 不表示接受 origin=null。只读审阅只给媒体投影，broker 权限可撤销。
+独立预览 origin 按任务隔离，不带主站 Cookie；精确校验 origin/source window/不可预测 nonce/消息 Schema。CSP 从 `default-src 'none'` 开始，仅给冻结 bundle 与任务 broker 开放实际必需的 script、style、connect、image/media/font 来源，禁止 object、base、form 和任意导航；不能以宽泛公网白名单代替资源代理。iframe 不授予 top-navigation、popup、download 等无关能力。CSP 不能单独证明所有出网路径已关闭；WebRTC 等通道及可信 Renderer 的网络隔离须在 M0b 实测。当前 previewOrigin:null 不表示接受 origin=null。只读审阅只给媒体投影，broker 权限可撤销。
 
 ## 6 AI操作、费用与成功次数
 
@@ -167,6 +177,8 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | render_export | 首批发布1个成片版本 | 按05/§4去重；重试、补平台、重下、ZIP、系统修复不重复收费 |
 
 商品、试用资格和次数返还见[05](05-waffo-billing.md)，数值取 agent-policy。账号、设备/IP 和全局限制同时生效；设备/IP 不代替 user_id。免费预览和内部片段也检查授权与预算。
+
+输出审核未通过的候选为 `withheld`，不能展示、接受或按可用结果消费次数。审核待处理期间只保留原操作的有期限预留；修复共用原预算，到期或终止释放未消费次数，实际审核与生成费用仍记账。通过审核的草稿候选可以等待用户确认事实，不能把候选可用与商业冻结混成同一状态。
 
 额度预留、run和outbox同事务。`UNIQUE(workspace_id,project_id,operation_id,kind)`；请求幂等另绑定actor/route/requestId/摘要。内部attempt/工具重试不另预留成功次数；不同操作竞争最后额度必须原子仲裁。
 
@@ -190,12 +202,13 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | Agent run | awaiting_user/paused_budget→resume→queued | 原权限/base/24小时窗口/剩余预算重查；同run |
 | Agent run | active/validating→budget_limit→paused_budget | 停止新调用，保存检查点与预算结算，释放资源 |
 | Agent run | active→candidate→validating | 保存候选不可变hash，暂不切当前指针 |
-| Agent run | validating→pass→succeeded | 重新核对权限/generation/项目/QA，原子候选ready+一次consume+outbox |
+| Agent run | validating→pass→succeeded | 重新核对权限/generation/项目、候选技术检查和输出审核，原子候选ready+一次consume+outbox；冻结资格另算 |
 | Agent run | validating→repair→active | 同预算且累计修复<2，不新增收费run |
 | Agent run | 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
 | Agent run | 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
-| 候选 | ready→accept→accepted | §1 CAS、权限与QA同时验证；同请求同候选幂等 |
-| 候选 | ready→reject→rejected | 不改当前稿，不返已交付成功次数 |
+| 候选 | withheld→审核通过→ready | 只由可信审核结果解锁；失败、未知或覆盖不足不能展示与消费 |
+| 候选 | ready→accept→accepted | §1 CAS、权限与输出审核同时验证；同请求同候选幂等 |
+| 候选 | ready/withheld→reject→rejected | 不改当前稿；ready不返已交付成功次数，withheld未交付则释放未消费预留 |
 
 冻结、付款、预留和交付发布按 §4 与[05](05-waffo-billing.md)执行。编码失败只重试失败指纹，最多 3 个真实编码 attempt；有效产物复用。源码修复与编码重试分别计数，共享累计费用上限。
 
@@ -205,7 +218,7 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 ## 8 事实与QA授权
 
-FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允许确认字段同时为 null；正式预检、ready 预览与商业冻结必须已确认且有相应依据。绑定的 expectedText 必须与事实原文一致。构建检查只能证明已声明的 values 与事实一致，不能自动认出源码硬编码、纹理、Canvas 或旁白中的所有商业句子；这些仍需运行时、像素/语音检查及覆盖说明。
+FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允许确认字段同时为 null；本地候选可提示待确认，正式预检、可信 ready 预览与商业冻结必须已确认且有相应依据。绑定的 expectedText 必须与事实原文一致。仅确认或补证不改写既有 Composition；正文改变则按 §1 同步事实、参数和绑定，生成新 revision。构建检查只能证明已声明的 values 与事实一致，不能自动认出源码硬编码、纹理、Canvas 或旁白中的所有商业句子；这些仍需运行时、像素/语音检查及覆盖说明。
 
 证据登记须绑定 workspace/project、来源字节和确认文案摘要。分类与撤销使用 `factVersionKey(projectId,fact)`，同时绑定 factId、版本和原文摘要，不能只按 factId 查找。新冻结检查当前事实；已购导出读取冻结的历史事实与证据。普通改稿不撤销旧作品，明确撤销才阻止相关输出。此机制核对来源和确认，不自动认证事实真伪。
 
@@ -223,7 +236,7 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 | REVIEW | 有意停顿/硬切、复杂商业文本覆盖不足、阅读与风格风险 | 当前有权成员确认指定 finding 与 revision/target/输入；作用域变化不得复用，已购冻结保留当时证据 |
 | INFO | 已声明的非关键视觉/节奏提示 | 展示，不阻断 |
 
-缺字、授权和事实错误必须修复；节奏、调色等风格判断不能冒充硬性错误。实际视听和覆盖验收按[06](06-testing-and-release.md)，不默认每单后台人工批准。
+缺字、授权和事实错误必须修复；节奏、调色等风格判断不能冒充硬性错误。输出审核按[04](04-architecture-and-data.md#输出审核)独立放行，`qualityWaiver` 不能豁免输出安全阻断或覆盖不足。实际视听和覆盖验收按[06](06-testing-and-release.md)，不默认每单后台人工批准。
 
 ## 9 资源、输入与保存
 
@@ -231,10 +244,10 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 ## 10 协议与发布版本
 
-普通参数编辑、AI 改稿和目标准备继承基线 revision 的 `runtimeVersion`、`dependencyManifestHash`、`presetRulesVersion`、`layoutRulesHash`、`rendererImageDigest`、`renderProfile` 和 `identityVersion`。`inheritRevisionEnvironment` 负责复制，`revisionEnvironmentErrors` 检查是否被替换。应用默认值升级只影响新作品，不能顺带改旧稿；恢复旧 revision 时也带回它固定的执行环境。
+普通参数编辑、AI 改稿和目标准备继承基线 revision 的 `runtimeVersion`、`dependencyManifestHash`、`presetRulesVersion`、`layoutRulesHash`、`rendererImageDigest`、`renderProfile` 和 `identityVersion`。`inheritRevisionEnvironment` 负责复制，`revisionEnvironmentErrors` 检查是否被替换。应用默认值升级只影响新作品，不能顺带改旧稿。恢复时从可信 `restoreFromComposition` 继承被恢复版本的执行环境，CAS 仍针对当前草稿；环境来源与并发基线不能混用。
 
-必须升级旧作品时，另建明确的兼容修复或迁移记录，保留原内容、快照和 release 关联。即使源码或身份算法必须改变，也按原 release 免费修复，不能把新 hash 当作一次新购买。
+必须升级旧作品时，另建明确的兼容修复或迁移记录，保留原内容、快照和 release 关联。仅镜像更新可保持内容 hash；runtime、源码或身份算法变化可能改变它，此时按原 release 免费修复或明确迁移映射，不能把新 hash 当作一次新购买。存在安全问题的旧镜像停止执行，已交付文件和原收据仍不可变；不能以兼容承诺要求继续运行不安全版本。
 
-未发布且已替换的开发规格直接删除。首次生产冻结后，发布登记固定 Schema/validator、identity 算法、平台配置、QA/marking 策略、runtime 与镜像 digest。加载时核对登记摘要，不能拿当前文件冒充旧版本；有效购买或在途作业引用的版本须保持可执行。
+未发布且已替换的开发规格直接删除。首次生产冻结后，发布登记固定 Schema/validator、identity 算法、平台配置、QA/marking 策略、runtime 与镜像 digest。加载时核对登记摘要，不能拿当前文件冒充旧版本；有效购买或在途作业引用的版本须可安全执行或有明确迁移与免费修复路径。
 
-平台执行规则改变必须更换 rulesVersion；仓库检查与实际 Git 基线比较，不能用同一次提交里互相匹配的版本表和文件证明不可变。正文来源日期或文案修正不强制改执行版本。跨版本解析按 discriminator 和明确协议版本分派，未知版本返回可定位错误，不尝试把任意旧请求当作当前结构。生产登记和旧版重放的真实实现、数据库迁移与恢复属于 M2，当前参考测试不宣称已具备这些服务。
+平台执行规则改变必须更换 rulesVersion；仓库检查与[08](08-codex-execution.md)定义的最近可信成功 Git 基线比较，失败或取消的提交不推进基线，不能用同一次提交里互相匹配的版本表和文件证明不可变。正文来源日期或文案修正不强制改执行版本。跨版本解析按 discriminator 和明确协议版本分派，未知版本返回可定位错误，不尝试把任意旧请求当作当前结构。生产登记和旧版重放的真实实现、数据库迁移与恢复属于 M2，当前参考测试不宣称已具备这些服务。

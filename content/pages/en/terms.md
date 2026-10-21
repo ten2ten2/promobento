@@ -38,7 +38,7 @@ An eligible account may claim one trial for one project. Team members share that
 
 Full-length previews use a reduced resolution and a {{brand.brandName}} watermark. They are for production, authorized review, and evaluation, and include the work's actual audio or chosen silence. They do not include formal downloads or permission to publish the preview publicly or use it in advertising.
 
-Paid purchases are one-time purchases for a particular project. There is no automatic renewal or shared credit wallet across projects. A single export buys the confirmed video and its included platform versions, without additional AI creation, revision, or media-processing allowances. You can buy a project pack before uploading or creating a video; it pays for the allowances shown before purchase. Upgrades add the stated difference without resetting prior usage, and add-ons require an eligible project purchase.
+Paid purchases are one-time purchases for a particular project. There is no automatic renewal or shared credit wallet across projects. A single export buys the confirmed video and its included platform versions, without additional AI creation, revision, or media-processing allowances. You can buy a project pack before uploading or creating a video; it pays for the allowances shown before purchase. Upgrades add the stated difference without resetting prior usage, and project extensions require an eligible project purchase.
 
 See [Pricing]({{links.pricing}}) and your purchase confirmation for the applicable features, allowances, and restrictions.
 
@@ -99,9 +99,9 @@ We may preserve necessary evidence and make legally required reports. Content re
 
 ## 10. Project access, storage, and deletion
 
-Trial projects have {{policy.trialActiveDays}} days of normal access from creation. Paid projects have {{policy.paidActiveDays}} days from the latest successful payment for that project that remains valid. An eligible upgrade or add-on extends the project's remaining allowances to that date.
+Trial projects have {{policy.trialActiveDays}} days of normal access from creation. Paid projects have {{policy.paidActiveDays}} days from the latest successful payment for that project that remains valid. An eligible upgrade or project extension extends the project's remaining allowances to that date.
 
-Normal access is followed by {{policy.readOnlyGraceDays}} days of read-only access. New cloud creation or processing is paused until an eligible purchase restores normal access. The restoration options depend on your existing purchases and work: a single export needs a valid confirmed video; a project pack can restore creation access before you prepare more work. Restoration is unavailable after the project's media has been deleted. The project shows its access and cleanup dates.
+Normal access is followed by {{policy.readOnlyGraceDays}} days of read-only access. New cloud creation or processing is paused until an eligible purchase restores normal access. The restoration options depend on your existing purchases and work: a single export needs a valid confirmed video; creation access can be restored through the project pack, project upgrade, or project extension your project is eligible to buy. Restoration is unavailable after the project's media has been deleted. The project shows its access and cleanup dates.
 
 Download your paid files while they are available and keep your own copies. These storage periods do not limit your continuing right to use lawfully acquired videos.
 

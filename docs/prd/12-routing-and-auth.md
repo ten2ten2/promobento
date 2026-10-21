@@ -36,7 +36,7 @@ GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF�
 
 事实、转写、展示授权、持久 export/snapshot 的 URI 与机器契约统一见 [04 §5](04-architecture-and-data.md#5-第一方-api)。读取 exportManifest 不依赖原浏览器、临时 job 或下载 URL，仍查当前成员、实际归属及保存期限；GET 不准备目标、创建订单或签发下载。路径/body 的 project、asset、release、snapshot ID 不一致即拒绝，上传完成从 uploadId 的服务端记录推导归属，不接受客户端换项目。
 
-事实、转写和展示同意按[04](04-architecture-and-data.md)核验当前用户、资源及版本，冲突返回 409。展示同意只允许 Owner 授予或撤回，拒绝或撤回不影响制作、付款和下载。`support.tickets.create` 的会话只证明谁在提交：普通支持还须核验所附资源可见性，退款须核验原订单工作区的当前 Owner，关闭账号申请须核验本人并按 04 处理所有权和未结事项。支持人员不能凭请求字段改变订单归属或金额。交易与撤回规则见 04/05。
+事实、转写和展示同意按[04](04-architecture-and-data.md)核验当前用户、资源及版本，冲突返回 409。展示同意只允许 Owner 授予或撤回，拒绝或撤回不影响制作、付款和下载。`support.tickets.create` 的会话只证明谁在提交：普通支持还须核验所附资源可见性，退款须核验原订单工作区的当前 Owner。账号关闭可由通用支持渠道受理，无需专用工单类别；实际执行仍须取得本章的 `account_close` 动作证明，并按 04 处理所有权和在途订单，不能仅凭收到工单执行。支持人员不能凭请求字段改变订单归属或金额。交易与撤回规则见 04/05。
 
 sitemap 只含已经发布的 index 页与样例 slug，须同时检查路由索引策略和内容发布状态，不含占位符、草稿、私有页或空语言；robots 不是保密措施，noindex 和授权独立。预发布整体 Access+不收录。后台验证 Access JWT 后映射应用管理员，不另设管理登录 URI。
 
@@ -102,7 +102,7 @@ Google authorization code flow 由同源 POST /api/auth/google/start 创建一�
 
 应用 Cookie `__Host-promobento_session`：至少 32 字节随机 token，D1 只保存 hash、user、创建/到期/撤销和安全版本；Secure/HttpOnly/SameSite=Lax/Path=/，无 Domain。每次授权校验 session 与当前 membership；新登录/关联轮换当前 token，不把匿名 flow token 升格为 session。30 天绝对到期，Max-Age 不超过剩余期限。
 
-logout_all、transfer_owner、delete_workspace 需要对应 actionIntent。原请求先验 session/Origin/CSRF/角色/资源/版本，缺证明返回 403 AUTH_REAUTH_REQUIRED 和 params.actionIntentId，不执行业务。意图固定 actor、原 session、动作、资源、target、版本和规范化请求摘要；reauth 只验该 actor 已关联方式。
+logout_all、transfer_owner、delete_workspace、account_close 需要对应 actionIntent。原请求先验 session/Origin/CSRF/角色/资源/版本，缺证明返回 403 AUTH_REAUTH_REQUIRED 和 params.actionIntentId，不执行业务。意图固定 actor、原 session、动作、资源、target、版本和规范化请求摘要；reauth 只验该 actor 已关联方式。支持受理账号关闭后也须取得绑定本人及关闭意图的新证明，不能以工单、旧登录或支持人员确认代替。
 
 证明后保持原业务 requestId/字段并附 actionIntentId 重提；校验原 session、上下文、摘要、证明，再原子消费 proof+业务更新。改 target/工作区/版本需新意图。摘要不含 CSRF/actionIntent 等传输字段；先前 403 不缓存成幂等成功。不同敏感动作不能复用 proof，也不用最近会话活动代替。
 
@@ -155,6 +155,7 @@ Owner 复制 /invite/:token 邀请链接，48 小时有效、限一次接受、�
 | AUTH-08 | 最后名额、重复/过期/撤销邀请、移除后重放和分享越权，无 Owner 丢失 |
 | AUTH-09 | 实际 Cloudflare 与受控 Gmail/Outlook/自定义域接收，记录接受/到达并在实际期限内成功登录 |
 | AUTH-10 | 同 user 跨工作区/关联登录方式并发仅一次试用；Owner 自领、Editor 共享、邀请/删除/转移不重置；领取失败仍可建空稿先购 |
+| AUTH-11 | 账号关闭仅有工单、旧/跨动作/跨账号 proof、未处理所有权或在途订单均不得执行；新身份验证绑定关闭意图，完成后撤销会话 |
 | URI-01 | 所有注册路径、默认跳转、深链接、404/405/410、robots/sitemap，无空语言或假 200 |
 
 安全依据：[一次性验证/防枚举](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)、[会话管理](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)。上述期限和次数是产品策略。实际登录、发信和会话验收与配置检查分别记录。

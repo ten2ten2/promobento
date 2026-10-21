@@ -23,11 +23,25 @@ export type Init = Envelope & {
   | { mode: 'local_preview'; pixelScale: 0.5; previewEpoch: 0; valuesOverlay?: ValuesOverlay }
   | { mode: 'trusted_render'; pixelScale: 1; previewEpoch?: never; valuesOverlay?: never }
 );
-/** Replaces the entire local overlay; accepted only at current previewEpoch + 1. */
+/**
+ * Replaces the entire local overlay. Only one state-changing command may be in flight.
+ * requestedEpoch must be the last applied epoch + 1. Studio advances only on values-applied.
+ */
 export interface LocalValues extends Envelope {
-  command: 'set-values'; manifestHash: Sha256; previewEpoch: number; valuesOverlay: ValuesOverlay;
+  command: 'set-values'; manifestHash: Sha256; requestedEpoch: number; valuesOverlay: ValuesOverlay;
 }
-/** previewEpoch is required in local sessions and forbidden in trusted render sessions. */
+export interface ValuesApplied extends Envelope {
+  event: 'values-applied'; manifestHash: Sha256; requestedEpoch: number; appliedEpoch: number;
+}
+export interface ValuesRejected extends Envelope {
+  event: 'values-rejected'; manifestHash: Sha256; requestedEpoch: number; appliedEpoch: number;
+  code: 'VALUES_INVALID' | 'EPOCH_STALE' | 'PREPARE_FAILED' | 'INVALID_SESSION' | 'COMMAND_IN_PROGRESS';
+}
+/**
+ * previewEpoch is the last successfully applied epoch in local sessions, absent in Renderer.
+ * Studio owns play/pause and the audio clock (monotonic parent clock for silence). It keeps
+ * one seek in flight and coalesces to the latest clock frame; autoplay denial pauses playback.
+ */
 export interface Seek extends Envelope { command: 'seek'; frameIndex: number; previewEpoch?: number }
 /** Internal command: authenticated Renderer sessions only. */
 export interface Sample extends Envelope { command: 'sample'; frameIndex: number; sampleIndex: number }
@@ -43,7 +57,9 @@ export interface SampleReady extends Envelope {
   event: 'sample-ready'; frameIndex: number; sampleIndex: number; manifestHash: Sha256;
 }
 export interface ProtocolFailure extends Envelope {
-  event: 'error'; code: 'FRAME_TIMEOUT' | 'ASSET_UNAVAILABLE' | 'CAPABILITY_UNAVAILABLE' | 'INVALID_SESSION';
+  event: 'error'; code: 'FRAME_TIMEOUT' | 'ASSET_UNAVAILABLE' | 'CAPABILITY_UNAVAILABLE' | 'INVALID_SESSION'
+    | 'INIT_TIMEOUT' | 'PREPARE_FAILED' | 'DRAW_FAILED' | 'VIDEO_FRAME_UNAVAILABLE'
+    | 'FRAME_OUT_OF_RANGE' | 'COMMAND_IN_PROGRESS';
   previewEpoch?: number;
 }
 export interface HitTarget {
@@ -71,8 +87,11 @@ export type EditableProperty = ({
 ));
 export interface CompositionBridge {
   init(input: Init): Promise<void>;
-  /** Local-only; recreate preparation from saved values plus this overlay. No save or cloud QA. */
-  setValues(input: LocalValues): Promise<void>;
+  /**
+   * Local-only, serialized with init/seek/inspect. Prepare before committing values and epoch;
+   * rejection retains the prior preparation and epoch. No save, model call or cloud QA.
+   */
+  setValues(input: LocalValues): Promise<ValuesApplied | ValuesRejected>;
   /** Local playback returns preview-frame-ready. Trusted sampling returns frame-ready. */
   seekFrame(input: Seek): Promise<FrameReady | PreviewFrameReady>;
   /** Serialize with seek/sample; the response must match this exact envelope and manifest. */
@@ -86,6 +105,6 @@ export interface RendererCompositionBridge extends Omit<CompositionBridge, 'setV
 }
 export type RenderCommand = Init | LocalValues | Seek | Inspect | Dispose;
 export type RendererCommand = Exclude<RenderCommand, LocalValues> | Sample;
-export type RenderResponse = FrameReady | PreviewFrameReady | HitResult | ProtocolFailure;
+export type RenderResponse = FrameReady | PreviewFrameReady | ValuesApplied | ValuesRejected | HitResult | ProtocolFailure;
 export type RendererResponse = FrameReady | SampleReady | HitResult | ProtocolFailure;
-export type RenderState = 'created' | 'initializing' | 'idle' | 'seeking' | 'ready' | 'failed' | 'disposed';
+export type RenderState = 'created' | 'initializing' | 'idle' | 'applying-values' | 'seeking' | 'ready' | 'failed' | 'disposed';

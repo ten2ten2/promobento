@@ -1,5 +1,6 @@
 {
   "schemaVersion": "2.7.0",
+  "policyVersion": "agent-policy-v1",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,

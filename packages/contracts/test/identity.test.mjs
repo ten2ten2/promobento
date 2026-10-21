@@ -14,7 +14,6 @@ const rules = read('config/platform-presets.json');
 
 function withFacts(manifest) {
   const result = structuredClone(composition);
-  result.factManifestHash = digest(manifest);
   result.factContentHash = digest(factContentIdentity(manifest));
   for (const variant of result.variants) variant.variantHash = digest(variantIdentity(result, variant, rules));
   return result;
@@ -47,7 +46,7 @@ test('protocol and descriptive metadata do not leak into billing through nested 
   const nextFacts = structuredClone(facts), nextResources = structuredClone(resources), next = structuredClone(composition);
   nextFacts.schemaVersion = nextResources.schemaVersion = next.schemaVersion = 'future-protocol';
   nextResources.resources.reverse(); nextFacts.facts.reverse(); nextFacts.bindings.reverse();
-  next.factManifestHash = digest(nextFacts); next.factContentHash = digest(factContentIdentity(nextFacts));
+  next.factContentHash = digest(factContentIdentity(nextFacts));
   next.resourceManifestHash = digest(nextResources); next.resourceContentHash = digest(resourceContentIdentity(nextResources));
   next.textMetadata = [{label:'Only descriptive metadata',language:'mul'}];
   for (const variant of next.variants) {
@@ -98,7 +97,7 @@ test('audio rights registration and descriptive cue labels do not create indirec
   assert.equal(digest(contentIdentity(next)), digest(contentIdentity(composition)));
   assert.notEqual(digest(nextResources), digest(resources));
   const ordered = structuredClone(resources);
-  ordered.audioEvents.push({...ordered.audioEvents[0], gainDb:-6});
+  ordered.audioEvents.push({...ordered.audioEvents[0], eventId:'other_event',gainDb:-6});
   const reversed = structuredClone(ordered); reversed.audioEvents.reverse();
   assert.notEqual(digest(audioIdentity(ordered)), digest(audioIdentity(reversed)));
 });

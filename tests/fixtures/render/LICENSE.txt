@@ -1,0 +1,8 @@
+CC0 1.0 Universal
+
+The PromoBento contributors dedicate the original geometry, bitmap glyph patterns,
+animation and fictional sample copy in this directory to the public domain under
+CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
+
+No customer assets, commercial factual claims, third-party fonts, music or images
+are included. This is an engineering render fixture, not a paid customer work.
