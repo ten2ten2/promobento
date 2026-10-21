@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {editableValuesErrors,localPreviewValues} from '../index.mjs';
+import {EDITABLE_MEDIA_TYPES,editableAssetDeclarationErrors,editableValuesErrors,localPreviewValues} from '../index.mjs';
 
 const context=()=>({editables:{
   title:{id:'title',type:'text',factId:'headline'},footer:{id:'footer',type:'text',factId:'headline'},
   tint:{id:'tint',type:'color'},size:{id:'size',type:'number',min:0,max:10,step:2},
   enabled:{id:'enabled',type:'boolean'},layout:{id:'layout',type:'enum',choices:['small','large']},
-  rows:{id:'rows',type:'data'},art:{id:'art',type:'asset'},beat:{id:'beat',type:'number',affectsTiming:true}},
+  rows:{id:'rows',type:'data'},art:{id:'art',type:'asset',acceptedMediaTypes:['image/png']},beat:{id:'beat',type:'number',affectsTiming:true}},
   sourceValues:{title:'Same',footer:'Same',tint:'#abcdef',size:3,enabled:true,layout:'small',rows:[],art:'art/photo.png',beat:90},
   resources:{'art/photo.png':{mediaType:'image/png'},'docs/evidence.pdf':{mediaType:'application/pdf'},'art/hidden.png':{mediaType:'image/png'}},
   drawableResourcePaths:['art/photo.png']});
@@ -22,6 +22,32 @@ test('browser and server share complete typed values, source limits, asset acces
   assert.throws(()=>localPreviewValues({title:'x'.repeat(6001)},ctx),/EDITABLE_TEXT_INVALID/);
   const missing={...ctx.sourceValues};delete missing.rows;
   assert(editableValuesErrors(missing,ctx).includes('EDITABLE_VALUE_MISSING'));
+});
+
+test('asset slots require both an explicit drawable grant and a matching trusted media type',()=>{
+  const ctx=context();
+  for(const production of [undefined,false,true]) {
+    const missing={...ctx,production};delete missing.drawableResourcePaths;
+    assert.throws(()=>localPreviewValues({},missing),/EDITABLE_ASSET_UNAVAILABLE/);
+  }
+  ctx.resources['art/renamed.png']={mediaType:'video/mp4'};
+  ctx.resources['art/no-type.png']={};
+  ctx.drawableResourcePaths.push('art/renamed.png','art/no-type.png');
+  for(const art of ['art/renamed.png','art/no-type.png'])
+    assert.throws(()=>localPreviewValues({art},ctx),/EDITABLE_ASSET_UNAVAILABLE/);
+  ctx.editables.art.acceptedMediaTypes=['image/png','video/mp4'];
+  assert.equal(localPreviewValues({art:'art/renamed.png'},ctx).art,'art/renamed.png',
+    'A declared video slot accepts admitted video bytes; a filename cannot override trusted type');
+  delete ctx.editables.art.acceptedMediaTypes;
+  assert.throws(()=>localPreviewValues({},ctx),/EDITABLE_MEDIA_TYPES_REQUIRED/);
+});
+
+test('asset media declarations are finite, nonempty and exclusive to asset slots',()=>{
+  for(const acceptedMediaTypes of [undefined,[],['image/*'],['application/pdf'],['image/png','image/png']])
+    assert(editableAssetDeclarationErrors({type:'asset',acceptedMediaTypes}).length);
+  for(const type of ['text','color','number','enum','data','boolean'])
+    assert.deepEqual(editableAssetDeclarationErrors({type,acceptedMediaTypes:['image/png']}),['EDITABLE_MEDIA_TYPES_NOT_ALLOWED']);
+  assert.deepEqual(editableAssetDeclarationErrors({type:'asset',acceptedMediaTypes:[...EDITABLE_MEDIA_TYPES]}),[]);
 });
 
 test('bound text edits reject conflicts and indirect timing changes; an empty overlay restores frozen source',()=>{

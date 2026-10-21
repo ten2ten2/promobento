@@ -10,4 +10,4 @@ export {
   artifactIdentity, outputArtifactIdentity, qaInputIdentity, audioIdentity
 } from './src/identity.mjs';
 
-export {editableValueErrors,editableValuesErrors,boundValueUpdates,checkedValueUpdates,localPreviewValues} from './src/editable-values.mjs';
+export {EDITABLE_MEDIA_TYPES,editableAssetDeclarationErrors,editableValueErrors,editableValuesErrors,boundValueUpdates,checkedValueUpdates,localPreviewValues} from './src/editable-values.mjs';

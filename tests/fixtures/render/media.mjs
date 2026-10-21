@@ -41,8 +41,8 @@ export default {
     // Cmap coverage is checked independently of the browser's font load barrier.
     for(const text of [headline,'PAPERPLANE / FICTIONAL DEMO','Your next idea, in motion.','Fewer tabs. More focus.',
       'A clearer view of every project.','Make time for what matters.'])
-      fonts.assertText(fontId,text);
-    fonts.assertText(monoId,'PREVIEW / 30 SECONDS');
+      fonts.assertText(fontId,text,600);
+    fonts.assertText(monoId,'PREVIEW / 30 SECONDS',400);
     const backdrop=element('div',{inset:'0',background});
     element('div',{left:'104px',top:'220px',width:'784px',fontSize:'23px',letterSpacing:'2px'},
       'PAPERPLANE / FICTIONAL DEMO','brand');

@@ -56,7 +56,7 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 保存后的参数只有一个来源：不可变源码包中的 `values.json`，内容严格为 `{kind:"source_values",values:{...}}` 的 JCS UTF-8 字节，最多 1 MiB、256 项。它不携带请求协议版本；格式由固定的 runtime 和依赖解释，单纯升级 API 协议不能改写该文件。颜色按声明转成小写，其他用户原文不归一化。`sourceValuesBytes` 与 `parseSourceValues` 是共同入口。
 
-静态 editables 只声明类型、范围、`affectsTiming` 和可选 `factId`，不保存第二份当前值；首版所有目标共享同一套声明和值。每个目标的 `.mjs` 入口默认导出 `CompositionDefinition`，HTML 外壳由宿主提供。参数文件参与源码摘要；可信检查与导出只读冻结值，本地未保存预览按 §5 使用临时覆盖。可绘资源由可信素材登记生成 `drawableResourcePaths` 白名单，事实证明附件不能仅因出现在资源清单就被画进作品。
+静态 editables 只声明类型、范围、`affectsTiming` 和可选 `factId`，不保存第二份当前值；首版所有目标共享同一套声明和值。`type:'asset'`必须声明非空、无重复的`acceptedMediaTypes`，其他类型禁止该字段；可选值以Schema为准，保留图片和视频槽位，按可信资源登记的实际MIME匹配，不按扩展名推断。每个目标的 `.mjs` 入口默认导出 `CompositionDefinition`，HTML 外壳由宿主提供。参数文件参与源码摘要；可信检查与导出只读冻结值，本地未保存预览按 §5 使用临时覆盖。可绘资源由可信素材登记生成 `drawableResourcePaths` 白名单，缺失白名单默认拒绝asset取值；MIME匹配与drawable授权必须同时成立，事实证明附件不能仅因出现在资源清单就被画进作品。
 
 首版不支持本地修改 `affectsTiming:true` 的字段，连同事实同步间接影响的字段一起拒绝，提示使用 AI 改稿。没有明确的时间补偿规则时，不能只改一个时间点却留下旧音轨、转场或录屏区间。AI 修改仍受固定总帧数和完整音画验证约束。
 
@@ -163,7 +163,7 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 创作模块静态声明 editables、markers、regions、videoUses 和 fonts；可信构建检查唯一 ID、区间和安全资源路径。`RuntimeContext.surface` 提供 host 创建的 root/canvas，width/height 始终是平台逻辑尺寸，DOM root 保持目标 CSS 逻辑尺寸，由外层 transform 缩放显示，指针坐标按相反变换映射回逻辑坐标；Canvas 缓冲尺寸显式乘以 pixelScale。本地预览不依赖设备 DPR，可信 Chromium 固定 DPR=1。`prepare` 固定输入和 tween 端点，`draw(time)` 完整重建该时间的像素/区域，不累积播放状态。禁止墙钟、未受控随机数、隐藏 CSS 时间、出网及采样时音效副作用；仿真可固定初态重放或预烘焙。画面采样不推进音频；冷/顺/逆序一致性与 WebGL 能力仍需真实验证。
 
-录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结；`fonts.ready`只证明加载完成，`fonts.assertText`检查登记cmap和回退覆盖，不能证明复杂塑形或布局。当前仅有08的固定工程字库和PTS提帧实现，完整平台字体登记及上传处理仍待实施，P0不开放任意上传字体。
+录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结，同一fontId的多个字重注册为同一个CSS family，family身份绑定全部冻结face。`fonts.ready`只证明加载完成；`fonts.assertText(fontId,text,weight)`要求显式已登记的主字体字重，回退字体按CSS字重匹配选定face后检查cmap，不能合并不同字重的覆盖来放行。cmap检查不能证明复杂塑形或布局。当前仅有08的固定工程字库和PTS提帧实现，完整平台字体登记及上传处理仍待实施，P0不开放任意上传字体。
 
 预览策略以 [preview.json](../../config/preview.json) 为准。`preview-sessions` 只分配本地会话，不自动启动云 QA。可信捕获在预留前检查路径项目、当前有效创作权益、费用预算、实际构建记录、事实确认和该目标有效 QA；调用方不能只传一个“已检查”布尔值。截图必须是单帧；clip 必须给出非空半开区间，且不超过当前片长、单次片段上限、项目窗口和原试用 claim 的累计请求/帧数。当前准入只接受 standard；motion4/8 须另行标定采样成本与上限。计数包含进行中的预留，费用和次数须同事务检查、预留并幂等提交。`trustedPreviewErrors` 与生产契约共同提供准入校验，不是实际调度器或额度数据库；上限未标定时保持 null 和关闭。
 
@@ -250,6 +250,8 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 覆盖清单的 `sourceRange` 固定 `kind`（video/image）、`sourceFrameCount` 和源时间线半开区间 `frameStart/frameEndExclusive`；纯文本为 null。候选和本地运行时预览覆盖实际 revision 的完整450/900帧，成片覆盖冻结 Composition 全片，封面覆盖实际 `coverFrame`，截图覆盖请求起点一帧，片段覆盖实际截取区间。视频 `frameCount` 为区间长度，`durationMs = ceil(frameCount × 1000 / 30)`；图片为1帧且时长为 null。清单内 `frames[].frameIndex` 相对本次输出从0开始，镜头标记从源绝对帧换算；不同区间即使帧数相同也不能互换。
 
 最低采样由 [output-safety-sampling.json](../../config/output-safety-sampling.json) 登记，当前为 `output-sampling-v1`：首末帧、从输出第0帧起每30帧，以及范围内全部可信镜头标记。候选、本地预览和媒体共用此规则；调用方的 `requiredFrameIndices` 只能加密，未知版本拒绝。控制器从实际 revision/Composition 与目标源码的可信 `runtime_declarations.markers` 派生范围、片长和标记，缺记录时拒绝，不能复制待审回执或其策略自证。参考入口由 `scopedSafetyCoveragePolicy` 完成派生：Studio 使用 revision 记录中的 `runtimeDeclarationsByTarget`，媒体检查使用对应 Composition 的可信声明。1秒间隔只是最低覆盖，不证明能发现每一处不安全变化；实际模态观察、完整音频覆盖、审核结论和当前撤销状态仍须同时成立。
+
+接入Agent前还须验收已准入文字绘制路径的可信时间轨迹，记录实际文字、出现区间和所选字体，并与实际输出关联，用于补充视觉采样。当前固定样例的DOM标签观察尚不是此能力；任意Canvas路径、图片内文字或短暂闪现也不能仅靠文字API hook证明已覆盖。未覆盖的内容如实标记，质量复核可按finding交有权用户处理，但用户确认或`qualityWaiver`不能豁免输出安全覆盖不足。
 
 审核数据先限额再规范化、求摘要及完整 Schema 校验。`evidenceRefs` 最多128项、`textHashes` 最多1024项、`audioSegments` 和采样 `frames` 各最多900项；记录字节、节点、深度和字符串上限由同一配置与有界检查约束。共享 Schema 入口也先执行已声明的集合/字符串上限，避免超大数组在报错前进入 canonical 或 Ajv 的元素遍历。
 

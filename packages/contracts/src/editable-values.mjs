@@ -2,12 +2,24 @@
 import {safePath,sourceValuesBytes} from './source-values.mjs';
 
 const own=(object,key)=>object && Object.hasOwn(object,key)?object[key]:undefined;
-const drawable=(path,context)=>context.production || context.drawableResourcePaths
-  ? context.drawableResourcePaths?.includes(path)===true : true;
+const drawable=(path,context)=>context.drawableResourcePaths?.includes(path)===true;
+export const EDITABLE_MEDIA_TYPES=Object.freeze([
+  'image/png','image/jpeg','image/webp','video/mp4','video/quicktime','video/webm'
+]);
+
+/** Slot types never grant access: the trusted drawable inventory must also include the resource. */
+export function editableAssetDeclarationErrors(definition) {
+  if(definition?.type!=='asset')return definition?.acceptedMediaTypes===undefined?[]:['EDITABLE_MEDIA_TYPES_NOT_ALLOWED'];
+  const types=definition.acceptedMediaTypes;
+  if(!Array.isArray(types)||!types.length)return ['EDITABLE_MEDIA_TYPES_REQUIRED'];
+  return types.length>EDITABLE_MEDIA_TYPES.length || new Set(types).size!==types.length
+    ||types.some(type=>!EDITABLE_MEDIA_TYPES.includes(type))?['EDITABLE_MEDIA_TYPES_INVALID']:[];
+}
 
 export function editableValueErrors(value,definition,context={}) {
   const errors=[],fail=(ok,code)=>{if(!ok)errors.push(code);};
   if(!definition)return ['EDITABLE_NOT_DECLARED'];
+  errors.push(...editableAssetDeclarationErrors(definition));
   switch(definition.type) {
     case 'text':fail(typeof value==='string' && [...value].length<=6000,'EDITABLE_TEXT_INVALID');break;
     case 'color':fail(typeof value==='string' && /^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/iu.test(value),'EDITABLE_COLOR_INVALID');break;
@@ -24,7 +36,8 @@ export function editableValueErrors(value,definition,context={}) {
     case 'asset': {
       const resource=own(context.resources,value);
       fail(typeof value==='string' && safePath(value) && !!resource && drawable(value,context)
-        && resource.mediaType!=='application/pdf','EDITABLE_ASSET_UNAVAILABLE');break;
+        && Array.isArray(definition.acceptedMediaTypes) && definition.acceptedMediaTypes.includes(resource.mediaType),
+        'EDITABLE_ASSET_UNAVAILABLE');break;
     }
     default:errors.push('EDITABLE_TYPE_INVALID');
   }

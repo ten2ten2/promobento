@@ -39,6 +39,15 @@ function assertTimings(report) {
     'Phases are non-overlapping wall time; capture and encoding share one phase');
   assert.equal(report.capture.encodingOverlapsCapture,true);
   assert.equal(Object.hasOwn(report.capture,'elapsedMs'),false);
+  const details=report.capture.diagnostics;
+  assert.equal(details.scope,'forward_capture_only');
+  assert.equal(details.frames,report.frameCount);
+  assert(Object.values(details.host).every(item=>item.count===report.frameCount&&item.totalMs>=0));
+  assert(Object.values(details.browserWithinSeek).every(item=>item.count===report.frameCount&&item.totalMs>=0));
+  assert(details.browserWithinSeek.resourceWaitMs.totalMs<=details.browserWithinSeek.drawMs.totalMs+0.01);
+  const measured=Object.values(details.host).reduce((sum,item)=>sum+item.totalMs,details.encoderFinishMs);
+  assert(measured<=report.timings.captureEncodeMs+2,'Nested browser details must not be added to host capture work');
+  assert(report.execution.cpu.availableParallelism>0&&report.execution.memory.hostTotalBytes>0);
 }
 
 test('15-second output and full regression use identical capture/encoding and real output checks',{timeout:600000},async()=>{

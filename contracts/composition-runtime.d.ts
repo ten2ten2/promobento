@@ -82,8 +82,11 @@ export interface RuntimeContext {
     /** Includes every declared fallback; glyph/shape QA is a separate trusted check. */
     readonly ready: Promise<void>;
     family(fontId: string): string;
-    /** Registered cmap + declared fallback coverage; does not certify complex shaping or layout. */
-    assertText(fontId: string, text: string): void;
+    /**
+     * Exact declared primary weight, with CSS weight matching in declared fallback families.
+     * Checks the selected faces' cmap; does not certify complex shaping or layout.
+     */
+    assertText(fontId: string, text: string, weight: number): void;
   };
   /**
    * random-at-v1: length-prefixed UTF-8, FNV-1a + fmix32, unsigned value / 2^32.

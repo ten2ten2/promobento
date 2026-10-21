@@ -4,6 +4,7 @@ import {fileURLToPath} from 'node:url';
 import {spawnSync,execFileSync} from 'node:child_process';
 import {parseCanonicalJson,digest,audioIdentity} from '@promobento/contracts';
 import {environmentLock,sha256,sha256File} from './environment.mjs';
+import {readFixtureLicense} from './fixture-license.mjs';
 import {fixtureAudioMarkers,fixtureCueFrequency,synthesizeFixtureAudio} from '../../../tests/fixtures/render/audio-fixture.mjs';
 
 export const AUDIO_SAMPLE_RATE=48000;
@@ -142,18 +143,14 @@ export function measureAudioLoudness(path) {
 }
 
 export function prepareFixtureAudio({outputDirectory,durationSeconds=30}) {
-  assertAudioEnvironment();
   if (durationSeconds!==30 || typeof outputDirectory!=='string'||!outputDirectory.trim()) fail('AUDIO_FIXTURE_OPTIONS_INVALID');
-  const licensePath='tests/fixtures/render/LICENSE.txt',generatorPath='tests/fixtures/render/audio-fixture.mjs';
-  const licenseBytes=readFileSync(join(root,licensePath)),generatorBytes=readFileSync(join(root,generatorPath));
-  if (!licenseBytes.toString('utf8').startsWith('CC0 1.0 Universal') || !/audio|waveform|score/i.test(licenseBytes.toString('utf8')))
-    fail('AUDIO_FIXTURE_LICENSE_MISSING');
+  const verifiedLicense=readFixtureLicense('tests/fixtures/render/audio-fixture.mjs');
+  assertAudioEnvironment();
+  const generatorBytes=readFileSync(join(root,verifiedLicense.generatorPath));
   const directory=join(resolve(outputDirectory),'audio');mkdirSync(directory,{recursive:true});
   const source=synthesizeFixtureAudio(durationSeconds),musicBytes=pcm16Wav(source.music),cueBytes=pcm16Wav(source.cue);
-  const musicHash=sha256(musicBytes),cueHash=sha256(cueBytes),licenseRef='rights_m0a_procedural_audio_cc0';
-  const license={license:'CC0-1.0',source:'original_procedural_score_and_waveforms',evidencePath:licensePath,
-    evidenceSha256:sha256(licenseBytes),generatorPath,generatorSha256:sha256(generatorBytes),
-    allowedUses:['process','mix','preview','export'],sourceHashes:[musicHash,cueHash]};
+  const musicHash=sha256(musicBytes),cueHash=sha256(cueBytes),licenseRef=verifiedLicense.licenseRef;
+  const license={...verifiedLicense,generatorSha256:sha256(generatorBytes),sourceHashes:[musicHash,cueHash]};
   const sources=new Map([[musicHash,musicBytes],[cueHash,cueBytes]]),licenses={[licenseRef]:license};
   const musicEvent={eventId:'music_bed',kind:'music',sourceHash:musicHash,licenseRef,frameStart:0,frameEndExclusive:900,
     sourceOffsetFrames:0,gainDb:0,fadeInFrames:15,fadeOutFrames:15,

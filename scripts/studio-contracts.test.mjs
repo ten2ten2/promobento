@@ -370,7 +370,7 @@ test('source values are complete, typed and derived from the sole static declara
 });
 
 test('editable assets use the trusted drawable catalog and one shared path rule', () => {
-  const trusted={...context(),editables:{art:{id:'art',label:'Art',type:'asset'}},sourceValues:{art:'media/allowed.png'},
+  const trusted={...context(),editables:{art:{id:'art',label:'Art',type:'asset',acceptedMediaTypes:['image/png']}},sourceValues:{art:'media/allowed.png'},
     resources:{'media/allowed.png':{mediaType:'image/png'},'media/evidence.png':{mediaType:'image/png'},
       'media/license.pdf':{mediaType:'application/pdf'}},drawableResourcePaths:['media/allowed.png','media/license.pdf']};
   assert.equal(localPreviewValues({},trusted).art,'media/allowed.png');
@@ -378,6 +378,22 @@ test('editable assets use the trusted drawable catalog and one shared path rule'
     trusted.resources[path] ??= {mediaType:'image/png'};
     assert.throws(()=>localPreviewValues({art:path},trusted),/EDITABLE_ASSET_UNAVAILABLE/);
   }
+});
+
+test('asset declaration schema and Studio semantics enforce the same finite slot media types',()=>{
+  const asset={id:'art',label:'Art',type:'asset',acceptedMediaTypes:['image/png','video/mp4']};
+  const value=sourceDeclarations();value.editables=[asset];
+  accepts('runtimeDeclarations',value,{...context(),totalFrames:450});
+  for(const acceptedMediaTypes of [undefined,[],['image/*'],['audio/wav'],['image/png','image/png']]) {
+    const invalid=clone(value);
+    if(acceptedMediaTypes===undefined)delete invalid.editables[0].acceptedMediaTypes;
+    else invalid.editables[0].acceptedMediaTypes=acceptedMediaTypes;
+    rejects('runtimeDeclarations',invalid);
+    assert(studioErrors(invalid,context(),helpers).some(error=>error.startsWith('EDITABLE_MEDIA_TYPES_')));
+  }
+  const misplaced=clone(value);misplaced.editables[0].type='text';
+  rejects('runtimeDeclarations',misplaced);
+  assert(studioErrors(misplaced,context(),helpers).includes('EDITABLE_MEDIA_TYPES_NOT_ALLOWED'));
 });
 
 test('runtime media declarations bind exact source intervals, font bytes and audio marker timing', () => {

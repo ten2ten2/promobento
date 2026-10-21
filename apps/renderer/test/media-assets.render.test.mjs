@@ -46,8 +46,41 @@ test('real VFR frames, licensed font fallback and bounded decode cache are ready
     assert.equal(admitted.resources['media/screen-demo.mp4'].mediaType,'video/mp4');
     assert.equal(Object.hasOwn(admitted.assets['media/screen-demo.mp4'],'mediaType'),false,
       'Only the trusted controller exposes admission metadata; the public runtime asset remains path/hash/url');
-    assert.equal(await page.evaluate(()=>window.media.fonts.assertText('geist-sans-fixture','Café\n◼ ready')),true);
-    await assert.rejects(page.evaluate(()=>window.media.fonts.assertText('geist-sans-fixture','中文')),/FONT_GLYPH_MISSING/);
+    assert.equal(await page.evaluate(()=>window.media.fonts.assertText('geist-sans-fixture','Café\n◼ ready',600)),true);
+    await assert.rejects(page.evaluate(()=>window.media.fonts.assertText('geist-sans-fixture','中文',600)),/FONT_GLYPH_MISSING/);
+    await assert.rejects(page.evaluate(()=>window.media.fonts.assertText('geist-sans-fixture','Ready',400)),/FONT_WEIGHT_UNDECLARED/);
+    // Reuse the two licensed faces under one test family: Mono 400 has U+25FC;
+    // Sans 600 does not. Different glyphs make both weight choice and coverage observable.
+    const multiFonts=media.manifest.fonts.map(font=>({...font,fontId:'fixture-weight-selection'}));
+    const multiParameters={definition:{fonts:[{fontId:'fixture-weight-selection',registryVersion:multiFonts[0].registryVersion,
+      weights:[400,600],fallbackFontIds:[],assets:[...multiFonts].sort((a,b)=>a.weight-b.weight)
+        .map(({weight,path,sha256})=>({weight,path,sha256}))}],videoUses:[]},
+      manifest:{...media.manifest,resources:media.manifest.resources.filter(resource=>resource.mediaType==='font/woff'),fonts:multiFonts,videos:[]}};
+    const selectedFaces=await page.evaluate(async parameters=>{
+      const multi=await window.createMediaController(parameters);
+      const paint=async(family,weight)=>{
+        const canvas=document.createElement('canvas');canvas.width=520;canvas.height=100;
+        const drawing=canvas.getContext('2d');drawing.font=`${weight} 42px ${family}`;
+        drawing.fillText('Minimum WAVE 012345',5,55);
+        const pixels=drawing.getImageData(0,0,canvas.width,canvas.height).data;
+        return [...new Uint8Array(await crypto.subtle.digest('SHA-256',pixels))].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+      };
+      try {
+        const family=multi.fonts.family('fixture-weight-selection');
+        let missing;
+        try {multi.fonts.assertText('fixture-weight-selection','◼',600);}catch(error){missing=error.message;}
+        return {families:multi.report().fonts.map(font=>font.family),missing,
+          monoGlyph:multi.fonts.assertText('fixture-weight-selection','◼',400),
+          primary400:await paint(family,400),primary600:await paint(family,600),
+          expected400:await paint(window.media.fonts.family('geist-mono-fixture'),400),
+          expected600:await paint(window.media.fonts.family('geist-sans-fixture'),600)};
+      } finally {multi.dispose();}
+    },multiParameters);
+    assert.equal(new Set(selectedFaces.families).size,1,'One registered family must contain both weights');
+    assert.equal(selectedFaces.primary400,selectedFaces.expected400);
+    assert.equal(selectedFaces.primary600,selectedFaces.expected600);
+    assert.notEqual(selectedFaces.primary400,selectedFaces.primary600,'The two fixture faces must be distinguishable');
+    assert.equal(selectedFaces.monoGlyph,true);assert.match(selectedFaces.missing,/FONT_GLYPH_MISSING/);
     const capture=async numerator=>page.evaluate(async numerator=>{
       const frame=await window.media.videoFrames.get('screen-demo',{numerator,denominator:30});
       const canvas=document.createElement('canvas');canvas.width=frame.image.width;canvas.height=frame.image.height;

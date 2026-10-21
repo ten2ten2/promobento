@@ -1,7 +1,7 @@
 // Reference validation of Studio boundaries; no API, rendering or authorization service runs here.
 import { readFileSync } from 'node:fs';
 import { canonical, createSchemaValidator, digest, parseCanonicalJson, safePath,
-  editableValuesErrors, boundValueUpdates, checkedValueUpdates, localPreviewValues } from '../packages/contracts/index.mjs';
+  editableAssetDeclarationErrors, editableValuesErrors, boundValueUpdates, checkedValueUpdates, localPreviewValues } from '../packages/contracts/index.mjs';
 import { outputSafetyErrors, scopedSafetyCoveragePolicy } from './output-safety.mjs';
 const previewPolicy = parseCanonicalJson(readFileSync(new URL('../config/preview.json',import.meta.url)));
 const schema = parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json',import.meta.url)));
@@ -11,8 +11,7 @@ const hash = value => typeof value === 'string' && /^[0-9a-f]{64}$/u.test(value)
 const apiKinds = new Set(['project_result','run_result','agent_request','edit_request','candidate_action_request','candidate_result',
   'draft_update_request','draft_update_result','job_result','preview_session_request','preview_session_result']);
 export const visibleText = value => typeof value === 'string' && /[^\s\p{Default_Ignorable_Code_Point}\u3164\uffa0]/u.test(value);
-const drawable = (path, context) => context.production || context.drawableResourcePaths
-  ? context.drawableResourcePaths?.includes(path) === true : true;
+const drawable = (path, context) => context.drawableResourcePaths?.includes(path) === true;
 const rational = value => value && Number.isSafeInteger(value.numerator) && value.numerator >= 0
   && Number.isSafeInteger(value.denominator) && value.denominator > 0
   ? {n:BigInt(value.numerator),d:BigInt(value.denominator)} : null;
@@ -396,6 +395,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (context.sharedEditables) fail(canonical(v.editables) === canonical(context.sharedEditables), 'TARGET_EDITABLE_DECLARATIONS_MISMATCH');
     for (const key of ['editables','markers','regions','videoUses']) fail(new Set((v[key] ?? []).map(item => item.id)).size === (v[key] ?? []).length, 'DUPLICATE_'+key.toUpperCase());
     for (const item of v.editables ?? []) {
+      errors.push(...editableAssetDeclarationErrors(item));
       if (item.factId !== undefined) fail(item.type === 'text', 'FACT_BINDING_REQUIRES_TEXT');
       if (item.type === 'enum') fail(Array.isArray(item.choices) && item.choices.length > 0, 'EDITABLE_CHOICES_REQUIRED');
       else fail(item.choices === undefined, 'EDITABLE_CHOICES_NOT_ALLOWED');

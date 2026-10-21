@@ -13,18 +13,20 @@ import {captureFrame,launchFixtureBrowser,withDeadline} from './frame-capture.mj
 import {prepareFixtureAudio,validateEncodedAudio} from './audio.mjs';
 import {prepareFixtureMedia,reviewedFixtureFonts} from './media-assets.mjs';
 import {assertTextLayout,observeFixtureText,observeOpticalPulse,observeEncodedOptical,assertOpticalMarkers,assertClipRange} from './fixture-qa.mjs';
-import squareDefinition from '../../../tests/fixtures/render/square.mjs';
-import inplaceDefinition from '../../../tests/fixtures/render/inplace.mjs';
-import mediaDefinition from '../../../tests/fixtures/render/media.mjs';
+import {fixtureDeclarationsPath,readFixtureDeclarations,parseFixtureDeclarations} from './fixture-declarations.mjs';
+import {createRenderDiagnostics,inspectExecutionResources} from './render-diagnostics.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
-// The harness imports only these reviewed implementations. A long-lived Node
+// The harness loads only these reviewed implementations. A long-lived Node
 // process must restart after edits, rather than pair cached code with new hashes.
 const implementationPaths=[
   'apps/renderer/src/render-sample.mjs','apps/renderer/src/frame-capture.mjs','apps/renderer/src/browser-bundle.mjs',
   'apps/renderer/src/environment.mjs','apps/renderer/src/audio.mjs','apps/renderer/src/media-assets.mjs','apps/renderer/src/fixture-qa.mjs',
+  'apps/renderer/src/fixture-declarations.mjs','apps/renderer/src/fixture-license.mjs',
+  'apps/renderer/src/render-diagnostics.mjs','packages/composition-runtime/src/diagnostics.mjs',
   'tests/fixtures/render/audio-fixture.mjs','tests/fixtures/render/media-spec.mjs',
   'tests/fixtures/render/square.mjs','tests/fixtures/render/inplace.mjs','tests/fixtures/render/media.mjs',
+  ...['square','inplace','media'].map(fixtureDeclarationsPath),
   'packages/contracts/index.mjs',...['canonical','digest','source','source-values','editable-values','identity','validation'].map(name=>'packages/contracts/src/'+name+'.mjs'),
   'config/platform-presets.json','contracts/production.schema.json','apps/renderer/environment.lock.json'
 ];
@@ -32,7 +34,6 @@ const loadedSourceHashes=new Map(implementationPaths.map(path=>[path,sha256File(
 const presets=parseCanonicalJson(readFileSync(join(root,'config/platform-presets.json')));
 const schema=parseCanonicalJson(readFileSync(join(root,'contracts/production.schema.json')));
 const validateSchema=createSchemaValidator(schema);
-const definitions={square:squareDefinition,inplace:inplaceDefinition,media:mediaDefinition};
 const fixtures=Object.freeze({
   square:Object.freeze({targetId:'instagram_feed:square',durationSeconds:15,path:'tests/fixtures/render/square.mjs'}),
   inplace:Object.freeze({targetId:'tiktok:portrait',durationSeconds:30,path:'tests/fixtures/render/inplace.mjs'}),
@@ -210,10 +211,11 @@ export async function renderSample(options={}) {
     if (name===null) finishedAt=now;
   };
   const {selected,input,encoding,valuesPath,frameCount}=fixtureConfiguration(fixture);
+  const captureDiagnostics=createRenderDiagnostics(frameCount);
   const hasMedia=fixture==='media';
-  const declarations={schemaVersion:'2.7.0',kind:'runtime_declarations',
-    ...Object.fromEntries(['editables','markers','regions','videoUses','fonts'].map(key=>[key,definitions[fixture][key]]))};
-  assert.deepEqual(validateSchema(declarations,schema.$defs.runtimeDeclarations),[],'Reviewed fixture declarations must pass the complete schema');
+  // Read inert metadata; composition modules execute only in the reviewed browser harness.
+  const declarationPath=fixtureDeclarationsPath(fixture),declarations=readFixtureDeclarations(fixture);
+  input.trustedDeclarations=declarations;
   const verification=fixtureVerificationPlan(frameCount,mode),regression=mode==='regression';
   const {width,height,targetId,durationSeconds}=input;
   const files=new Map([
@@ -221,6 +223,7 @@ export async function renderSample(options={}) {
     ['/host.mjs',['apps/renderer/src/host.mjs','text/javascript']],
     ['/composition.mjs',[selected.path,'text/javascript']],
     ['/packages/composition-runtime/src/index.mjs',['packages/composition-runtime/src/index.mjs','text/javascript']],
+    ['/packages/composition-runtime/src/diagnostics.mjs',['packages/composition-runtime/src/diagnostics.mjs','text/javascript']],
     ['/packages/contracts/src/source-values.mjs',['packages/contracts/src/source-values.mjs','text/javascript']],
     ['/packages/contracts/src/editable-values.mjs',['packages/contracts/src/editable-values.mjs','text/javascript']],
     ['/packages/contracts/src/canonical.mjs',['packages/contracts/src/canonical.mjs','text/javascript']],
@@ -237,11 +240,13 @@ export async function renderSample(options={}) {
   try {
     bundle=prepareBrowserBundle(environmentLock.browser);
     const environment=inspectEnvironment(bundle);
+    const execution=inspectExecutionResources();
     mkdirSync(out,{recursive:true});
     // Never merge with or remove a pre-existing caller directory on failure.
     mkdirSync(framesDirectory);
     ownsFramesDirectory=true;
     writeFileSync(join(out,'environment.json'),JSON.stringify(environment,null,2)+'\n');
+    writeFileSync(join(out,'execution.json'),JSON.stringify(execution,null,2)+'\n');
     const sourcePaths=[...new Set([...files.values()].map(([path])=>path).concat(implementationPaths,
       valuesPath,'apps/renderer/environment.lock.json','apps/renderer/fontconfig.conf','contracts/production.schema.json',
       'apps/renderer/src/render-sample.mjs','apps/renderer/src/frame-capture.mjs','apps/renderer/src/browser-bundle.mjs','apps/renderer/src/environment.mjs',
@@ -253,6 +258,7 @@ export async function renderSample(options={}) {
     for(const [path,hash] of loadedSourceHashes)
       assert.equal(sha256(sourceInputs.get(path)),hash,'FIXTURE_IMPLEMENTATION_CHANGED_RESTART_REQUIRED: '+path);
     input.values=parseSourceValues(sourceInputs.get(valuesPath)).values;
+    assert.deepEqual(parseFixtureDeclarations(sourceInputs.get(declarationPath)),declarations,'FIXTURE_DECLARATIONS_CHANGED');
     if(hasMedia) {
       media=prepareFixtureMedia({outputDirectory:out});
       audio=prepareFixtureAudio({outputDirectory:out,durationSeconds});
@@ -282,7 +288,7 @@ export async function renderSample(options={}) {
     server.listen(0,'127.0.0.1');
     await once(server,'listening');
     const origin='http://127.0.0.1:'+server.address().port;
-    const screenshot=(page,index,previewEpoch)=>captureFrame(page,index,{terminate:()=>handle.stop(),previewEpoch});
+    const screenshot=(page,index,previewEpoch,onTiming)=>captureFrame(page,index,{terminate:()=>handle.stop(),previewEpoch,onTiming});
     const evaluate=(page,operation,argument)=>withDeadline(()=>page.evaluate(operation,argument),
       {timeoutMs:environmentLock.prepareTimeoutMs,code:'FIXTURE_COMMAND_TIMEOUT',terminate:()=>handle.stop()});
     const open=(runtimeInput=input)=>withDeadline(async()=>{
@@ -320,24 +326,38 @@ export async function renderSample(options={}) {
     encoder=outputEncoder;
     console.log('M0a '+fixture+' ('+mode+'): rendering '+frameCount+' frames at '+width+'x'+height);
     for(let frame=0;frame<frameCount;frame++) {
-      const png=await screenshot(page,frame);
+      const measurement={frameFileWriteMs:0,opticalQaMs:0,textQaMs:0};
+      const measured=(key,operation)=>{
+        const start=performance.now();
+        try {return operation();}finally {measurement[key]=(measurement[key]??0)+performance.now()-start;}
+      };
+      const measuredAsync=async(key,operation)=>{
+        const start=performance.now();
+        try {return await operation();}finally {measurement[key]=(measurement[key]??0)+performance.now()-start;}
+      };
+      const png=await screenshot(page,frame,undefined,timing=>Object.assign(measurement,timing));
       maxFramePngBytes=Math.max(maxFramePngBytes,png.length);
       // Disk keeps the expected image available for a later mismatch, without N PNG buffers in RAM.
-      writeFileSync(join(framesDirectory,frame+'.png'),png);
-      const rgba=pixels(png);
-      hashes.push(sha256(rgba));
+      measured('frameFileWriteMs',()=>writeFileSync(join(framesDirectory,frame+'.png'),png));
+      const rgba=measured('pngDecodeMs',()=>pixels(png));
+      hashes.push(measured('pixelHashMs',()=>sha256(rgba)));
       if(hasMedia) {
-        observeOpticalPulse(rgba,input,frame,optical);
+        measured('opticalQaMs',()=>observeOpticalPulse(rgba,input,frame,optical));
         if(frame%30===0 || frame===frameCount-1) {
-          const observation=await observeFixtureText(page);
-          textChecks.push({frame,...assertTextLayout(observation,input),observations:observation});
+          await measuredAsync('textQaMs',async()=>{
+            const observation=await observeFixtureText(page);
+            textChecks.push({frame,...assertTextLayout(observation,input),observations:observation});
+          });
         }
       }
-      if(frame===Math.floor(frameCount/2)) writeFileSync(join(out,'poster.png'),png);
-      await outputEncoder.write(png);
+      if(frame===Math.floor(frameCount/2))measured('frameFileWriteMs',()=>writeFileSync(join(out,'poster.png'),png));
+      await measuredAsync('encoderWriteMs',()=>outputEncoder.write(png));
+      captureDiagnostics.frame(frame,measurement);
       if(frame%150===149) console.log('M0a '+fixture+': encoded '+(frame+1)+'/'+frameCount+' source frames');
     }
+    const finishStarted=performance.now();
     await outputEncoder.finish();
+    captureDiagnostics.finishEncoder(performance.now()-finishStarted);
     const compare=async(page,frame,label)=>{
       const actual=await screenshot(page,frame),actualHash=sha256(pixels(actual));
       if(actualHash!==hashes[frame]) {
@@ -442,14 +462,14 @@ export async function renderSample(options={}) {
     }
     assert.deepEqual(browserErrors,[]);
     report={kind:'m0a_render_result',scope:environmentLock.scope,runId,fixture,mode,targetId,profile:'standard',width,height,durationSeconds,frameCount,
-      environmentHash:environment.environmentHash,fixtureFiles,fixtureInputHash,pixelHashes:hashes,
+      environmentHash:environment.environmentHash,execution,fixtureFiles,fixtureInputHash,pixelHashes:hashes,
       verification,
       checks:{forwardFrames:frameCount,reverseFrames:verification.reverseFrameCount,repeatedFrames:verification.repeated.length,
         unorderedFrames:verification.unordered.length,coldFrames:verification.cold.length,invalidFrames:regression?3:0,
         disposedSession:regression?true:null,nativeAnimationsRejected:regression?true:null,retainedNodes:true,
         reducedMotionFrames:verification.reducedMotion.length,colorSwatches:verifySwatches(video,input)},
       capture:{frameTimeoutMs:environmentLock.frameTimeoutMs,sourceFrameStorage:'temporary_disk',maxFramePngBytes,
-        nodeMaxRssBytes:process.resourceUsage().maxRSS*1024,encodingOverlapsCapture:true},
+        nodeMaxRssBytes:process.resourceUsage().maxRSS*1024,encodingOverlapsCapture:true,diagnostics:captureDiagnostics.report()},
       video:{file:'sample.mp4',sha256:sha256File(video),byteLength:statSync(video).size},
       media:mediaChecks,probe,limitations:[hasMedia?'reviewed original media with a limited Latin font registry':'silent reviewed geometry fixture',
         'no arbitrary source intake','no customer sandbox or cloud isolation certification',

@@ -6118,12 +6118,48 @@
           },
           "minItems": 1,
           "uniqueItems": true
+        },
+        "acceptedMediaTypes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "video/mp4",
+              "video/quicktime",
+              "video/webm"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true
         }
       },
       "required": [
         "id",
         "label",
         "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": { "const": "asset" }
+            },
+            "required": ["type"]
+          },
+          "then": {
+            "properties": { "acceptedMediaTypes": {} },
+            "required": ["acceptedMediaTypes"]
+          },
+          "else": {
+            "not": {
+              "properties": { "acceptedMediaTypes": {} },
+              "required": ["acceptedMediaTypes"]
+            }
+          }
+        }
       ],
       "additionalProperties": false
     },

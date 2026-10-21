@@ -6,11 +6,13 @@ import {execFileSync} from 'node:child_process';
 import {PNG} from 'pngjs';
 import {parseCanonicalJson,digest} from '@promobento/contracts';
 import {sha256} from './environment.mjs';
-import {fontDeclarations,videoUses} from '../../../tests/fixtures/render/media-spec.mjs';
+import {readFixtureDeclarations,fixtureDeclarationsPath} from './fixture-declarations.mjs';
+import {readFixtureLicense,fixtureLicenseEvidence} from './fixture-license.mjs';
 
 const repository=fileURLToPath(new URL('../../../',import.meta.url));
 const registryPath='tests/fixtures/render/media-assets.json';
-const sourceLicensePath='tests/fixtures/render/LICENSE.txt';
+const sourceLicensePath=fixtureLicenseEvidence.evidencePath;
+const {fonts:fontDeclarations,videoUses}=readFixtureDeclarations('media');
 const width=320,height=180;
 export {fontDeclarations,videoUses};
 
@@ -83,7 +85,7 @@ export function woffGlyphCoverage(bytes) {
 
 export function reviewedFixtureFonts() {
   const registry=parseCanonicalJson(readFileSync(join(repository,registryPath))),routes=new Map(),resources=[],fonts=[];
-  const sourcePaths=[registryPath,'tests/fixtures/render/media-spec.mjs',sourceLicensePath];
+  const sourcePaths=[registryPath,fixtureDeclarationsPath('media'),sourceLicensePath];
   for(const font of registry.fonts) {
     // Verify the preserved license before decoding or processing the font bytes.
     const license=readFileSync(join(repository,font.licensePath));
@@ -138,9 +140,8 @@ const rational=(numerator,denominator)=>({numerator,denominator});
  */
 export function prepareFixtureMedia({outputDirectory}) {
   if(typeof outputDirectory!=='string'||!outputDirectory) throw new Error('MEDIA_OUTPUT_DIRECTORY_INVALID');
+  const license=readFixtureLicense('apps/renderer/src/media-assets.mjs');
   const fonts=reviewedFixtureFonts();
-  const license=readFileSync(join(repository,sourceLicensePath),'utf8');
-  if(!license.includes('CC0')) throw new Error('VIDEO_LICENSE_UNVERIFIED');
   const directory=join(outputDirectory,'media'),inputDirectory=join(directory,'source-frames'),framesDirectory=join(directory,'decoded-frames');
   mkdirSync(directory,{recursive:true});mkdirSync(inputDirectory);mkdirSync(framesDirectory);
   const sourcePath=join(directory,'screen-demo.mp4'),sourceFrameHashes=[];
@@ -171,7 +172,7 @@ export function prepareFixtureMedia({outputDirectory}) {
     if(readdirSync(framesDirectory).length!==pts.length) throw new Error('VIDEO_FRAME_UNAVAILABLE');
     const routes=new Map(fonts.routes),sourceUrl='/media-fixture/'+sourceSha256+'.mp4';
     routes.set(sourceUrl,{bytes:sourceBytes,contentType:'video/mp4',path:'media/screen-demo.mp4'});
-    const resources=[...fonts.resources,{path:'media/screen-demo.mp4',url:sourceUrl,sha256:sourceSha256,byteLength:sourceBytes.length,mediaType:'video/mp4',licenseRef:'fixture-original-cc0'}];
+    const resources=[...fonts.resources,{path:'media/screen-demo.mp4',url:sourceUrl,sha256:sourceSha256,byteLength:sourceBytes.length,mediaType:'video/mp4',licenseRef:license.licenseRef}];
     const frames=pts.map((sourcePts,index)=>{
       const bytes=readFileSync(join(framesDirectory,String(index+1).padStart(3,'0')+'.png')),hash=sha256(bytes),decoded=PNG.sync.read(bytes);
       if(decoded.width!==width||decoded.height!==height) throw new Error('VIDEO_FRAME_DIMENSIONS_INVALID');
@@ -186,7 +187,7 @@ export function prepareFixtureMedia({outputDirectory}) {
         variableFrameRate:true,sourceFrameHashes,sourcePts:pts,decodedFramePixelHashes:frames.map(frame=>frame.pixelSha256),
         frameSelection:'exact-containing-pts-interval-v1',decodePath:'trusted-ffmpeg-png',
         fonts:fonts.registry.fonts.map(font=>({fontId:font.fontId,sha256:font.sha256,licenseRef:font.licenseRef,licenseSha256:font.licenseSha256})),
-        sourceLicenseRef:'fixture-original-cc0',sourceLicenseSha256:sha256(Buffer.from(license)),
+        sourceLicenseRef:license.licenseRef,sourceLicenseSha256:license.evidenceSha256,sourceLicense:license,
         limitations:['reviewed synthetic app-screen only','Latin font registry fixture, not multilingual shaping certification','no arbitrary uploads or font registration']}};
   } finally {
     rmSync(inputDirectory,{recursive:true,force:true});rmSync(framesDirectory,{recursive:true,force:true});

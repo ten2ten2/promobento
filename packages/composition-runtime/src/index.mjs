@@ -1,9 +1,11 @@
 import {canonical} from '../../contracts/src/canonical.mjs';
 import {safePath,sourceValuesBytes} from '../../contracts/src/source-values.mjs';
-import {editableValuesErrors,localPreviewValues} from '../../contracts/src/editable-values.mjs';
+import {editableAssetDeclarationErrors,editableValuesErrors,localPreviewValues} from '../../contracts/src/editable-values.mjs';
+import {resourceWaitWithinDraw} from './diagnostics.mjs';
 
 /** Browser runtime for M0a's reviewed, self-contained standard-profile fixtures.
- * This is not the security boundary for customer code. Cloud admission is M0b.
+ * This is not the security boundary for customer code. Arbitrary source requires
+ * admission before M0a step 3; the Cloudflare execution target is verified in M0b.
  */
 export function frameTime(frameIndex, totalFrames) {
   if (!Number.isSafeInteger(frameIndex) || frameIndex < 0 || frameIndex >= totalFrames)
@@ -80,6 +82,8 @@ function declarationsFor(definition,totalFrames) {
   }
   if(declarations.editables.length>256)throw Error('SOURCE_VALUES_TOO_MANY');
   for(const item of declarations.editables) {
+    const assetErrors=editableAssetDeclarationErrors(item);
+    if(assetErrors.length)throw Error(assetErrors[0]);
     if(!['text','color','asset','number','boolean','enum','data'].includes(item.type)
       || typeof item.label!=='string' || !item.label.length || item.label.length>128
       || (item.affectsTiming!==undefined && typeof item.affectsTiming!=='boolean')
@@ -186,25 +190,41 @@ export async function createCompositionRuntime(input) {
   const draw=async(candidate,frameIndex)=>{
     const time=frameTime(frameIndex,totalFrames);
     assertSupportedDrawing(candidate.root);
-    const result=await candidate.prepared.draw(time);
+    const resourceSpans=[];candidate.resourceSpans=resourceSpans;
+    const drawStarted=performance.now();
+    let result;
+    try {result=await candidate.prepared.draw(time);}
+    finally {candidate.resourceSpans=null;}
+    const drawFinished=performance.now();
     const regions=checkedRegions(result?.regions??[],declarations.regions,width,height);
+    const regionsFinished=performance.now();
     await settleDirectDrawing(candidate.root);
-    return {frameIndex,time,regions};
+    const settled=performance.now();
+    return {frameIndex,time,regions,diagnostics:{drawMs:drawFinished-drawStarted,
+      resourceWaitMs:resourceWaitWithinDraw(resourceSpans,drawStarted,drawFinished),
+      regionChecksMs:regionsFinished-drawFinished,settleMs:settled-regionsFinished}};
   };
   const prepareCandidate=async(nextValues,frameIndex)=>{
     const inner=root.ownerDocument.createElement('div');
     Object.assign(inner.style,{position:'absolute',left:'0px',top:'0px',width:width+'px',height:height+'px',
       overflow:'hidden',transform:`scale(${pixelScale})`,transformOrigin:'0 0',visibility:'hidden'});
     root.append(inner);
+    const candidate={root:inner,resourceSpans:null};
+    const observedVideoFrames=Object.freeze({async get(useId,time) {
+      const spans=candidate.resourceSpans,span=[performance.now(),null];
+      spans?.push(span);
+      try {return await videoFrames.get(useId,time);}
+      finally {span[1]=performance.now();}
+    }});
     const context=Object.freeze({targetId,width,height,fps:30,totalFrames,seed,
-      values:snapshot(nextValues),assets:media?.assets??Object.freeze({}),fonts,videoFrames,
+      values:snapshot(nextValues),assets:media?.assets??Object.freeze({}),fonts,videoFrames:observedVideoFrames,
       surface:Object.freeze({mode,pixelScale,root:inner,
         createCanvas() {
           const canvas=root.ownerDocument.createElement('canvas');
           canvas.width=width*pixelScale;canvas.height=height*pixelScale;
           Object.assign(canvas.style,{width:width+'px',height:height+'px'});inner.append(canvas);return canvas;
         }}),randomAt:key=>randomAt(seed,key)});
-    const candidate={root:inner,context};
+    candidate.context=context;
     try {
       candidate.prepared=await prepare(context);
       if(!candidate.prepared || typeof candidate.prepared.draw!=='function' || typeof candidate.prepared.dispose!=='function')

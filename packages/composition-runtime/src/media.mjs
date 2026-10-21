@@ -14,6 +14,21 @@ const subtract=(a,b)=>[a[0]*b[1]-b[0]*a[1],a[1]*b[1]];
 const add=(a,b)=>[a[0]*b[1]+b[0]*a[1],a[1]*b[1]];
 const multiply=(a,b)=>[a[0]*b[0],a[1]*b[1]];
 
+/** CSS Fonts weight matching within one family; fallback families repeat this selection. */
+export function selectFontWeight(weights,requested) {
+  if(!Number.isSafeInteger(requested)||requested<100||requested>900) fail('FONT_WEIGHT_INVALID');
+  if(!Array.isArray(weights)||!weights.length||weights.some(weight=>!Number.isSafeInteger(weight)||weight<100||weight>900))
+    fail('FONT_WEIGHT_UNAVAILABLE');
+  const ascending=[...new Set(weights)].sort((a,b)=>a-b),below=ascending.filter(weight=>weight<requested).reverse();
+  if(ascending.includes(requested))return requested;
+  if(requested<400)return below[0]??ascending.find(weight=>weight>requested);
+  if(requested<=500)return ascending.find(weight=>weight>=requested&&weight<=500)??below[0]??ascending.find(weight=>weight>500);
+  return ascending.find(weight=>weight>=requested)??below[0];
+}
+
+const digestBytes=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))]
+  .map(byte=>byte.toString(16).padStart(2,'0')).join('');
+
 /** Exact containment, including VFR and subframes. Never a nearest-time seek. */
 export function selectVideoFrame(use,video,time) {
   if(!use||!video||use.assetPath!==video.assetPath||!Array.isArray(video.frames)||!video.frames.length) fail('VIDEO_USE_UNDECLARED');
@@ -70,7 +85,7 @@ async function verifiedBytes(resource) {
   if(!response.ok) fail('MEDIA_RESOURCE_UNAVAILABLE');
   const bytes=await response.arrayBuffer();
   if(bytes.byteLength!==resource.byteLength) fail('MEDIA_RESOURCE_HASH_MISMATCH');
-  const sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+  const sha256=await digestBytes(bytes);
   if(sha256!==resource.sha256) fail('MEDIA_RESOURCE_HASH_MISMATCH');
   return bytes;
 }
@@ -109,15 +124,23 @@ export async function createMediaController({definition,manifest}) {
   };
   try {
     for(const declaration of structuredClone(definition.fonts??[])) {
-      if(declarations.has(declaration.fontId)||!Array.isArray(declaration.weights)||!Array.isArray(declaration.assets)||!Array.isArray(declaration.fallbackFontIds)) fail('FONT_DECLARATION_INVALID');
+      if(declarations.has(declaration.fontId)||!Array.isArray(declaration.weights)||!declaration.weights.length
+        ||new Set(declaration.weights).size!==declaration.weights.length
+        ||declaration.weights.some(weight=>!Number.isSafeInteger(weight)||weight<100||weight>900)
+        ||!Array.isArray(declaration.assets)||new Set(declaration.assets.map(asset=>asset.weight)).size!==declaration.assets.length
+        ||!Array.isArray(declaration.fallbackFontIds)) fail('FONT_DECLARATION_INVALID');
       declarations.set(declaration.fontId,declaration);
       const entries=[];
+      // All weights of one registered family must participate in CSS face selection together.
+      // Scope the family to every frozen face so simultaneous preparations cannot substitute it.
+      const familyIdentity=[declaration.registryVersion,declaration.fontId,
+        [...declaration.assets].sort((a,b)=>a.weight-b.weight).map(asset=>[asset.weight,asset.sha256])];
+      const family='Fixture_'+await digestBytes(new TextEncoder().encode(JSON.stringify(familyIdentity)));
       for(const asset of declaration.assets) {
         const registered=frozen.fonts.find(font=>font.fontId===declaration.fontId&&font.weight===asset.weight),resource=resources.get(asset.path);
         if(!registered||registered.registryVersion!==declaration.registryVersion||registered.path!==asset.path||registered.sha256!==asset.sha256
           ||resource?.sha256!==asset.sha256||!declaration.weights.includes(asset.weight)||!Array.isArray(registered.coverage)) fail('FONT_REGISTRY_MISMATCH');
         for(const range of registered.coverage) if(!Array.isArray(range)||range.length!==2||!range.every(Number.isSafeInteger)||range[0]<0||range[1]<range[0]||range[1]>0x10ffff) fail('FONT_CMAP_INVALID');
-        const family='Fixture_'+declaration.fontId.replace(/[^a-zA-Z0-9_-]/g,'_')+'_'+asset.sha256.slice(0,16);
         const face=new FontFace(family,await verifiedBytes(resource),{weight:String(asset.weight),style:'normal'});
         await face.load();document.fonts.add(face);faces.push(face);entries.push({...registered,family});
       }
@@ -145,10 +168,15 @@ export async function createMediaController({definition,manifest}) {
     const fonts=Object.freeze({ready:Promise.resolve(),family(fontId) {
       if(disposed) fail('MEDIA_DISPOSED');
       return fontFamilies.get(fontId)??fail('FONT_UNDECLARED');
-    },assertText(fontId,text) {
+    },assertText(fontId,text,weight) {
       if(disposed) fail('MEDIA_DISPOSED');
       if(typeof text!=='string'||!text.isWellFormed()||text.length>16384) fail('FONT_TEXT_INVALID');
-      const available=chain(fontId).flatMap(id=>fontEntries.get(id).flatMap(entry=>entry.coverage));
+      const ids=chain(fontId);
+      if(!declarations.get(fontId).weights.includes(weight)) fail('FONT_WEIGHT_UNDECLARED');
+      const available=ids.flatMap(id=>{
+        const entries=fontEntries.get(id),selected=selectFontWeight(entries.map(entry=>entry.weight),weight);
+        return entries.find(entry=>entry.weight===selected).coverage;
+      });
       for(const character of text) {
         const point=character.codePointAt(0);
         if([9,10,13].includes(point)) continue;

@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {selectSuccessfulAncestor,resolveMainBaseline} from './select-ci-baseline.mjs';
+import {selectSuccessfulAncestor,resolveMainBaseline,baselineLookupLimits} from './select-ci-baseline.mjs';
 import {platformRuleErrors} from './repo-documentation.mjs';
 const sha=n=>String(n).repeat(40);
 const run=(n,extra={})=>({status:'completed',conclusion:'success',head_branch:'main',path:'.github/workflows/checks.yml',head_sha:sha(n),...extra});
@@ -99,4 +99,71 @@ test('network, permission and malformed responses cannot initialize a baseline',
   await assert.rejects(resolveMainBaseline({...options,fetcher:async()=>({ok:false,status:403})}),/CI_BASELINE_LOOKUP_FAILED: HTTP 403/);
   await assert.rejects(resolveMainBaseline({...options,fetcher:async()=>{throw new TypeError('network unavailable');}}),/CI_BASELINE_LOOKUP_FAILED: TypeError/);
   await assert.rejects(resolveMainBaseline({...options,fetcher:async()=>response([],1)}),/CI_BASELINE_RESPONSE_INVALID/);
+});
+
+test('long history exhausts a bounded request budget without trusting an unproved distant base',async()=>{
+  const hex=n=>n.toString(16).padStart(40,'0');
+  const headSha=hex(1000),distant=hex(1),unrelated=hex(2000);
+  const pending=Array.from({length:baselineLookupLimits.maxRequests+10},(_,index)=>hex(index+2));
+  for(const discovered of [distant,unrelated]) {
+    let requests=0;
+    const git=args=>{
+      if(args[0]==='rev-parse') return {status:0,stdout:headSha};
+      if(args[0]==='merge-base') return {status:args[2]===unrelated?1:0,stdout:''};
+      if(args[0]==='rev-list'&&args[1]==='--count') return {status:0,stdout:'999'};
+      if(args[0]==='rev-list') return {status:0,stdout:[headSha,...pending].join('\n')};
+      throw Error('Unexpected git command '+args.join(' '));
+    };
+    await assert.rejects(resolveMainBaseline({...context,headSha,git,fetcher:async url=>{
+      requests++;
+      return new URL(url).searchParams.has('head_sha')?response([]):response([successful(discovered)]);
+    }}),/CI_BASELINE_QUERY_BUDGET_EXCEEDED/);
+    assert.equal(requests,baselineLookupLimits.maxRequests,'parallel batches cannot overrun the total request budget');
+  }
+});
+
+test('the time budget includes a slow response and its body; neither can initialize a baseline',async()=>{
+  const headSha=sha(4);
+  for(const stage of ['headers','body']) {
+    let elapsed=0;
+    await assert.rejects(resolveMainBaseline({...context,headSha,git:bootstrapGit(headSha),now:()=>elapsed,
+      fetcher:async()=>{
+        if(stage==='headers') elapsed=baselineLookupLimits.totalTimeoutMs+1;
+        return {ok:true,json:async()=>{
+          if(stage==='body') elapsed=baselineLookupLimits.totalTimeoutMs+1;
+          return {workflow_runs:[],total_count:0};
+        }};
+      }}),/CI_BASELINE_TIME_BUDGET_EXCEEDED/);
+  }
+});
+
+test('each HTTP deadline is bounded by both its own cap and the remaining total time',async t=>{
+  const timeouts=[];
+  t.mock.method(AbortSignal,'timeout',milliseconds=>{
+    timeouts.push(milliseconds);
+    return new AbortController().signal;
+  });
+  const headSha=sha(4);
+  for(const beforeRequest of [0,baselineLookupLimits.totalTimeoutMs-17]) {
+    let elapsed=0;
+    const git=(args,options)=>{
+      assert(options.timeout>0 && options.timeout<=baselineLookupLimits.totalTimeoutMs-elapsed);
+      assert.equal(options.killSignal,'SIGKILL');
+      const result=bootstrapGit(headSha)(args);
+      if(args[0]==='rev-parse') elapsed=beforeRequest;
+      return result;
+    };
+    assert.equal(await resolveMainBaseline({...context,headSha,git,now:()=>elapsed,fetcher:async()=>response([])}),bootstrapSha);
+  }
+  assert.deepEqual(timeouts,[baselineLookupLimits.requestTimeoutMs,17]);
+});
+
+test('time spent resolving local history also consumes the lookup budget',async()=>{
+  const headSha=sha(4);
+  let elapsed=0,requests=0;
+  await assert.rejects(resolveMainBaseline({...context,headSha,now:()=>elapsed,git:args=>{
+    elapsed=baselineLookupLimits.totalTimeoutMs+1;
+    return bootstrapGit(headSha)(args);
+  },fetcher:async()=>{requests++;return response([]);}}),/CI_BASELINE_TIME_BUDGET_EXCEEDED/);
+  assert.equal(requests,0);
 });

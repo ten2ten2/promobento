@@ -14,7 +14,7 @@ async function harness(operation) {
   let handle,server;
   try {
     inspectEnvironment(bundle);
-    const paths=['packages/composition-runtime/src/index.mjs','packages/contracts/src/canonical.mjs',
+    const paths=['packages/composition-runtime/src/index.mjs','packages/composition-runtime/src/diagnostics.mjs','packages/contracts/src/canonical.mjs',
       'packages/contracts/src/source-values.mjs','packages/contracts/src/editable-values.mjs'];
     const files=new Map(paths.map(path=>['/'+path,readFileSync(new URL('../../../'+path,import.meta.url))]));
     files.set('/host.mjs',readFileSync(new URL('../src/host.mjs',import.meta.url)));
@@ -176,22 +176,26 @@ test('a pending real draw serializes edits, and a rejected epoch may be correcte
 test('runtime asset values require typed controller resources and an explicit drawable grant',{timeout:60000},async()=>{
   await harness(async({evaluate})=>{
     await evaluate(()=>{
-      window.definition.editables.push({id:'art',label:'Art',type:'asset'});
+      window.definition.editables.push({id:'art',label:'Art',type:'asset',acceptedMediaTypes:['video/mp4']});
       window.values.art='media/allowed.mp4';
       window.media={
         assets:{'media/allowed.mp4':{path:'media/allowed.mp4',sha256:'1'.repeat(64),url:'/allowed'},
           'fonts/fixture.woff2':{path:'fonts/fixture.woff2',sha256:'2'.repeat(64),url:'/font'},
-          'media/hidden.mp4':{path:'media/hidden.mp4',sha256:'3'.repeat(64),url:'/hidden'}},
+          'media/hidden.mp4':{path:'media/hidden.mp4',sha256:'3'.repeat(64),url:'/hidden'},
+          'media/image.mp4':{path:'media/image.mp4',sha256:'4'.repeat(64),url:'/image'}},
         resources:{'media/allowed.mp4':{mediaType:'video/mp4'},'fonts/fixture.woff2':{mediaType:'font/woff2'},
-          'media/hidden.mp4':{mediaType:'video/mp4'}},drawableResourcePaths:['media/allowed.mp4']};
+          'media/hidden.mp4':{mediaType:'video/mp4'},'media/image.mp4':{mediaType:'image/png'}},
+        drawableResourcePaths:['media/allowed.mp4','media/image.mp4']};
     });
     await evaluate(()=>window.initRuntime({media:window.media}));
-    for(const path of ['fonts/fixture.woff2','media/hidden.mp4']) {
+    for(const path of ['fonts/fixture.woff2','media/hidden.mp4','media/image.mp4']) {
       const rejected=await evaluate(path=>window.runtime.setValues({requestedEpoch:1,valuesOverlay:{art:path}}),path);
       assert.equal(rejected.code,'VALUES_INVALID');assert.equal(rejected.reason,'EDITABLE_ASSET_UNAVAILABLE');assert.equal(rejected.appliedEpoch,0);
     }
     assert.equal((await evaluate(()=>window.runtime.setValues({requestedEpoch:1,valuesOverlay:{art:'media/allowed.mp4'}}))).event,'values-applied');
     await assert.rejects(evaluate(()=>window.initRuntime({media:{assets:window.media.assets}})),/EDITABLE_ASSET_UNAVAILABLE/);
+    await evaluate(()=>{delete window.definition.editables.find(item=>item.id==='art').acceptedMediaTypes;});
+    await assert.rejects(evaluate(()=>window.initRuntime({media:window.media})),/EDITABLE_MEDIA_TYPES_REQUIRED/);
   });
 });
 
@@ -200,8 +204,10 @@ test('the loopback host snapshots an edit before its own serialized queue',{time
     await evaluate(async()=>{
       document.querySelector('#root').id='composition';
       await import('/host.mjs');
+      window.trustedDeclarations={schemaVersion:window.definition.apiVersion,kind:'runtime_declarations',
+        ...Object.fromEntries(['editables','markers','regions','videoUses','fonts'].map(key=>[key,structuredClone(window.definition[key])]))};
       await window.fixtureHost.init({targetId:'fixture:square',width:200,height:120,durationSeconds:30,seed:'host-test',
-        values:window.values,mode:'local_preview'});
+        values:window.values,mode:'local_preview',trustedDeclarations:window.trustedDeclarations});
       window.blockDraw=new Promise(resolve=>{window.releaseDraw=resolve;});
       window.hostDrawing=window.fixtureHost.seek(12,{previewEpoch:0});
       const command={requestedEpoch:1,valuesOverlay:{color:'#00ff00',rows:[{label:'host-submitted'}]}};
@@ -213,5 +219,11 @@ test('the loopback host snapshots an edit before its own serialized queue',{time
     assert.equal(result.draw.frameIndex,12);assert.equal(result.edit.appliedEpoch,1);
     assert.equal(result.state.values.color,'#00ff00');assert.equal(result.state.values.rows[0].label,'host-submitted');
     await evaluate(()=>window.fixtureHost.dispose());
+    await assert.rejects(evaluate(()=>window.fixtureHost.init({targetId:'fixture:square',width:200,height:120,durationSeconds:30,
+      seed:'host-test',values:window.values,mode:'local_preview'})),/FIXTURE_DECLARATIONS_MISMATCH/);
+    await evaluate(()=>{window.trustedDeclarations.markers.push({id:'invented',frame:60,label:'Invented'});});
+    await assert.rejects(evaluate(()=>window.fixtureHost.init({targetId:'fixture:square',width:200,height:120,durationSeconds:30,
+      seed:'host-test',values:window.values,mode:'local_preview',trustedDeclarations:window.trustedDeclarations})),/FIXTURE_DECLARATIONS_MISMATCH/);
+    assert.equal(await evaluate(()=>document.querySelector('#composition').children.length),0,'Mismatched declarations fail before prepare');
   });
 });

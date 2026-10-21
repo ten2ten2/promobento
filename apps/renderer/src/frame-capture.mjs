@@ -39,12 +39,17 @@ export async function launchFixtureBrowser(bundle) {
   } catch(error) { await stop();throw error; }
 }
 
-export function captureFrame(page,frameIndex,{terminate,timeoutMs=environmentLock.frameTimeoutMs,previewEpoch}) {
+export function captureFrame(page,frameIndex,{terminate,timeoutMs=environmentLock.frameTimeoutMs,previewEpoch,onTiming}) {
   return withDeadline(async()=>{
+    const started=performance.now();
     const receipt=await page.evaluate(({index,epoch})=>window.fixtureHost.seek(index,epoch===undefined?undefined:{previewEpoch:epoch}),
       {index:frameIndex,epoch:previewEpoch});
     assert.equal(receipt.frameIndex,frameIndex);
     assert.equal(receipt.previewEpoch,previewEpoch,'A stale local epoch cannot be captured');
-    return page.screenshot({type:'png',animations:'allow',caret:'hide',timeout:timeoutMs});
+    const ready=performance.now();
+    const png=await page.screenshot({type:'png',animations:'allow',caret:'hide',timeout:timeoutMs});
+    const captured=performance.now();
+    onTiming?.({seekMs:ready-started,screenshotMs:captured-ready,browser:receipt.diagnostics??null});
+    return png;
   },{timeoutMs,code:'FRAME_TIMEOUT: '+frameIndex,terminate});
 }

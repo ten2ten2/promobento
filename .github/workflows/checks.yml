@@ -58,6 +58,14 @@ jobs:
           version: 2026.10.13
           cache: false
       - run: mise run install
+      - name: Bind CI context and locate the pinned browser archive
+        id: browser-archive
+        run: mise exec -- node scripts/prepare-render-ci.mjs regression
+      - name: Restore the pinned browser archive
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-archive.outputs.archive-path }}
+          key: browser-archive-${{ runner.os }}-${{ runner.arch }}-${{ steps.browser-archive.outputs.archive-sha256 }}
       - name: Install browser system libraries and the pinned Ubuntu FFmpeg build
         run: |
           mise exec -- pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
@@ -71,7 +79,46 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: m0a-render-${{ github.sha }}-${{ github.run_attempt }}
+          name: m0a-regression-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/m0a/
+          retention-days: 30
+          if-no-files-found: warn
+
+  media-output:
+    needs: contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        with:
+          version: 2026.10.13
+          cache: false
+      - run: mise run install
+      - name: Bind CI context and locate the pinned browser archive
+        id: browser-archive
+        run: mise exec -- node scripts/prepare-render-ci.mjs output
+      - name: Restore the pinned browser archive
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-archive.outputs.archive-path }}
+          key: browser-archive-${{ runner.os }}-${{ runner.arch }}-${{ steps.browser-archive.outputs.archive-sha256 }}
+      - name: Install browser system libraries and the pinned Ubuntu FFmpeg build
+        run: |
+          mise exec -- pnpm --filter @promobento/renderer exec playwright-core install-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends --allow-downgrades ffmpeg=7:6.1.1-3ubuntu5
+      - name: Install and verify official Chrome for Testing
+        run: mise run install:renderer
+      - name: Measure the 30-second media fixture with required output checks
+        run: mise run render:fixture -- --fixture media --mode output
+      - name: Preserve output, timings, CI context and execution resources
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: m0a-media-output-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/m0a/
           retention-days: 30
           if-no-files-found: warn

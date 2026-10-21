@@ -1,11 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {reviewedFixtureFonts,woffGlyphCoverage} from '../src/media-assets.mjs';
-import {selectVideoFrame} from '../../../packages/composition-runtime/src/media.mjs';
+import {selectVideoFrame,selectFontWeight} from '../../../packages/composition-runtime/src/media.mjs';
 
 const time=(numerator,denominator=30)=>({numerator,denominator});
 const video={assetPath:'screen',duration:time(31),frames:[0,10,30].map((n,index)=>({index,pts:time(n)}))};
 const use={assetPath:'screen',sourceStart:time(0),sourceEndExclusive:time(30),timelineStart:time(0),playbackRate:time(1,1)};
+
+test('font fallback selects one CSS weight, including the special 400-to-500 interval',()=>{
+  for(const [weights,requested,expected] of [
+    [[100,400,900],300,100],[[400,500],450,500],[[300,600],400,300],
+    [[300,600],500,300],[[500,700],600,700],[[400,500],600,500],[[400,600],600,600]
+  ])assert.equal(selectFontWeight(weights,requested),expected);
+  for(const weight of [undefined,0,99,901,400.5,NaN])
+    assert.throws(()=>selectFontWeight([400,600],weight),/FONT_WEIGHT_INVALID/);
+});
 
 test('exact PTS containment uses the current VFR interval, including rational subframes',()=>{
   for(const [at,index] of [[time(0),0],[time(19,60),0],[time(10),1],[time(59,60),1]])

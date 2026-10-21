@@ -1,6 +1,7 @@
 import definition from '/composition.mjs';
 import {createCompositionRuntime} from '/packages/composition-runtime/src/index.mjs';
 import {createMediaController} from '/runtime-media.mjs';
+import {canonical} from '/packages/contracts/src/canonical.mjs';
 
 let runtime,media,pending=Promise.resolve();
 const serial=operation=>{
@@ -17,6 +18,11 @@ window.fixtureHost = {
     return serial(async()=>{
       await dispose();
       try {
+        const declarations={schemaVersion:definition.apiVersion,kind:'runtime_declarations',
+          ...Object.fromEntries(['editables','markers','regions','videoUses','fonts'].map(key=>[key,definition[key]]))};
+        // Fixture consistency only. Same-page code is not an arbitrary-source trust boundary.
+        if(!input.trustedDeclarations||canonical(declarations)!==canonical(input.trustedDeclarations))
+          throw Error('FIXTURE_DECLARATIONS_MISMATCH');
         if(input.mediaManifest)media=await createMediaController({definition,manifest:input.mediaManifest});
         runtime=await createCompositionRuntime({...input,definition,media,root:document.querySelector('#composition')});
       } catch(error){await dispose();throw error;}

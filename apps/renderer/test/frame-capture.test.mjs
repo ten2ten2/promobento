@@ -32,3 +32,17 @@ test('local capture rejects a stale applied epoch before reading pixels',async()
   await assert.rejects(captureFrame(page,8,{previewEpoch:3,timeoutMs:100,terminate:()=>{}}),/stale local epoch/);
   assert.equal(captured,false);
 });
+
+test('capture timings are diagnostic and emitted only after pixels complete',async()=>{
+  const expected=Buffer.from('frame'),browser={drawMs:1,resourceWaitMs:0.5,regionChecksMs:0,settleMs:2};
+  let captured=false,measurement;
+  const page={evaluate:async()=>({frameIndex:8,diagnostics:browser}),screenshot:async()=>{captured=true;return expected;}};
+  assert.equal(await captureFrame(page,8,{timeoutMs:100,terminate:()=>assert.fail('Unexpected termination'),
+    onTiming:value=>{assert(captured);measurement=value;}}),expected);
+  assert.equal(measurement.browser,browser);
+  assert(measurement.seekMs>=0&&measurement.screenshotMs>=0);
+  let emitted=false;
+  await assert.rejects(captureFrame({...page,screenshot:async()=>{throw Error('READBACK_FAILED');}},8,
+    {timeoutMs:100,terminate:()=>{},onTiming:()=>{emitted=true;}}),/READBACK_FAILED/);
+  assert.equal(emitted,false);
+});

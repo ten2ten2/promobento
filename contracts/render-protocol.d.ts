@@ -14,6 +14,8 @@ export interface Envelope {
   revisionId: string; targetId: TargetId;
 }
 export type EditableValue = string | number | boolean | ReadonlyArray<Record<string, string | number | boolean | null>>;
+/** A slot restriction; source admission and a task-scoped drawable grant remain required. */
+export type EditableMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'video/mp4' | 'video/quicktime' | 'video/webm';
 export type ValuesOverlay = Readonly<Record<string, EditableValue>>;
 export type Init = Envelope & {
   command: 'init'; manifestHash: Sha256; frameCount: FrameCount;
@@ -78,7 +80,8 @@ export type EditableProperty = ({
 } & (
   /** Bound text saves update the fact version and clear its confirmation in the same draft CAS. */
   | { type: 'text'; factId?: string }
-  | { type: 'color' | 'asset' }
+  | { type: 'color' }
+  | { type: 'asset'; acceptedMediaTypes: ReadonlyArray<EditableMediaType> }
   /** step is a UI increment; accepted finite values are bounded by min/max, not quantized. */
   | { type: 'number'; min?: number; max?: number; step?: number }
   | { type: 'boolean' }
