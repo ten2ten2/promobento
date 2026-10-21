@@ -28,6 +28,9 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `install:renderer` | 获取并校验完整 Chrome for Testing 固定归档，保存到私有缓存 |
 | `render:fixture` | 只渲染已审阅样例；默认30秒`media`、`output`模式，记录出片和媒体检查；另可选择静音`square`/`inplace`及完整`regression` |
 | `test:render` | 独立媒体回归：15/30秒MP4、模式像素一致、正/逆序/重复/乱序及冷启、真实字体/VFR取帧/冻结音轨、编辑保存与区域定位、截图片段及故障检查 |
+| `build:admission` | 构建固定Linux/amd64的受限源码执行与可信绘制镜像，记录实际imageId及sourceTreeHash |
+| `test:admission` | 在真实Docker容器验证受限源码、网络/文件/资源限额、超时/取消/回收，并生成30秒几何样片；缺Docker或匹配镜像明确失败 |
+| `render:admission` | `--source DIRECTORY`读取有界单模块源包，运行canvas-commands-v1及必需确定性检查，生成静音MP4、封面和输入绑定报告 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
 
@@ -81,7 +84,7 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 
 ### M0a 渲染环境
 
-本地 Renderer 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。命令只接受仓库中经审阅的`square`/`inplace`/`media`样例，不接收任意路径、URL或Agent源码。当前浏览器以`chromiumSandbox:false`启动；私有目录、CSP及请求拦截不构成客户代码隔离。环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
+`render:fixture` 的入口是默认导出 `CompositionDefinition` 的 ES 模块，HTML 外壳由宿主提供；实际阶段状态见[实施状态](../implementation-status.md)。该命令只接受仓库中经审阅的`square`/`inplace`/`media`样例，不接收任意路径、URL或Agent源码。当前浏览器以`chromiumSandbox:false`启动；私有目录、CSP及请求拦截不构成客户代码隔离。未知源码另走下述[受限几何入口](#本地canvas-commands-v1入口)，不扩展fixture白名单。浏览器和编码器环境约定见 [environment.lock.json](../../apps/renderer/environment.lock.json)，固定 Linux x64 / Ubuntu 24.04、Node、Playwright、Chrome for Testing 和 FFmpeg 的版本及浏览器/编码器文件摘要。
 
 Linux x64 / Ubuntu 24.04 的运行步骤：
 
@@ -134,7 +137,7 @@ Node从固定白名单的`*.declarations.json`读取静态声明，使用共享J
 
 同一固定环境内比较解码后的帧像素；不同环境单独设定观感/布局容差。本地浏览器预览不承诺与可信输出逐像素一致，交付文件另外保存实际字节摘要。启用 motion4/8 前再固定线性光采样合成、alpha、舍入和各配置超时。
 
-### Agent源码执行准入（待实现）
+### Agent源码执行准入
 
 以下条件须在第三步首次执行模型源码前完成，包含模块加载和求值，不能等到首帧`seek`才检查：
 
@@ -145,7 +148,38 @@ Node从固定白名单的`*.declarations.json`读取静态声明，使用共享J
 - 在实际受限环境中验证无业务凭据、外网及宿主非授权资源不可达；素材只读且按任务授权，临时目录隔离，CPU/内存/磁盘/进程数量与总时长有硬上限。API替换、CSP和`getAnimations()`不代替隔离。
 - 候选按版本化策略与正序基准做重复、乱序和冷启复取，结论绑定`qaInputHash`所覆盖的源码、资源、目标、环境与输出配置；失败为Q0 BLOCK。新增能力补对应样例，抽样一致不证明任意程序确定性或安全。
 
-当前白名单样例及`fixture-determinism-v1`仅用于验证宿主工程路径，尚未实现上述Agent准入或候选QA绑定；不得接入任意源码。
+`render:fixture`及`fixture-determinism-v1`继续只验证经审阅浏览器样例。新增源码入口按能力profile分别验收；一个profile通过不能放行其他绘制API、资源或执行环境。实际验收进度见[实施状态](../implementation-status.md)。
+
+#### 本地canvas-commands-v1入口
+
+先运行有明确来源的[原创几何样例](../../tests/fixtures/admission/composition.mjs)：
+
+```bash
+mise run build:admission
+mise run test:admission
+mise run render:admission -- --source tests/fixtures/admission
+```
+
+宿主须有可用的Docker Engine或Docker Desktop，能运行`linux/amd64`、执行默认seccomp策略并落实cgroup v2限额；非x64宿主还须具备相应仿真能力。构建阶段从官方来源取得固定Ubuntu、Node、依赖、Chrome及FFmpeg；版本与字节身份见[admission.environment.json](../../apps/renderer/admission.environment.json)、[Dockerfile](../../apps/renderer/docker/Dockerfile)和既有渲染环境锁。执行阶段无下载、安装或联网。Docker、镜像或实际限额不可用时命令失败，不退回宿主Node、浏览器执行或无隔离模式。
+
+`build:admission`记录`artifacts/admission-image.json`，绑定构建输入的`sourceTreeHash`和Docker实际`imageId`；运行前重新核对当前输入、镜像身份及标签。镜像包含的代码、契约、配置、依赖或测试素材改变后须重建，不能复用旧回执。检查日志和生成的媒体产物不写入该源码身份。
+
+`--source`只接受一个扁平目录，必须包含以下四个文件，可另带`LICENSE.txt`；拒绝额外文件、子目录、符号链接、无效UTF-8和超限输入：
+
+- `candidate.json`：按[源码清单Schema](../../contracts/admission-source.schema.json)指定`canvas-commands-v1`、合法target、15/30秒及seed；尺寸和编码由既有平台配置推导。
+- `composition.mjs`：无需构建的自包含ES模块，默认导出[CommandCompositionDefinition](../../contracts/composition-runtime.d.ts)。不允许import、依赖安装、构建脚本或宿主API。
+- `declarations.json`：完整`runtime_declarations`，与模块声明一致；此profile要求fonts/videoUses为空，不接asset和事实绑定参数或音频事件。
+- `values.json`：沿用14的规范`source_values`封装和共享校验，不能以清单中的任意字段替代参数文件。
+
+宿主先静态解析和校验源包，不导入作品；源码随后进入独立Docker任务内的`quickjs-emscripten` 0.32.0。QuickJS的独立VM承载模块求值、同步`prepare/draw/dispose`，作品只取得冻结参数、绝对有理时间及共享`randomAt`，无真实时钟、随机源、计时器、网络、文件或进程接口；异步结果和待执行任务直接拒绝。引擎内存预算是整个WASM线性内存的硬上限，包含VM开销，不等于可用作品堆大小。内存、栈、每次调用、输出，以及容器CPU/内存/进程/临时磁盘、传输和总时长上限统一见[admission.policy.json](../../apps/renderer/admission.policy.json)，由外部宿主管理。
+
+`draw`只返回[几何JSON](../../contracts/admission-commands.schema.json)：带显式颜色和透明度的矩形/圆角矩形、圆及多边形，可附已声明区域的边界。命令数、点数、坐标、半径和字节均有上限，未知字段及伪造就绪/身份字段拒绝。共享`parseCanonicalJson`、完整Ajv和`checkedRegions`分别处理入站文本、结构及区域语义；源码不能选择任意Canvas方法、SVG、CSS或URL。字体、图片、视频、声音、DOM、原生动画和WebGL尚未进入此profile，现有媒体fixture不因此获得未知源码执行许可。
+
+每个执行阶段新建非root容器，根文件系统只读、网络关闭、不继承业务凭据，撤销Linux capabilities并启用no-new-privileges。首次容器运行正序、重复和乱序命令，第二个全新容器验证冷启；可信宿主绑定返回帧序号并比较命令数据。另一个可信捕获容器只读取这些JSON，不接收创作源码；固定浏览器重绘450/900帧，再按`admission-determinism-v1`比较重复、乱序及重启浏览器后的冷启像素。`test:admission`还实测资源耗尽、模块/prepare/draw/dispose挂起、越权能力、外网和元数据地址、只读挂载及容器回收。
+
+CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器强制移除本次创建的容器并清理临时数据；不等待作品释放自己，也不停止其他任务。回收失败须按报告中的容器名处理，不能记作完成。输出默认在`artifacts/admission/<runId>/`，可用`--output-directory`指定空目录。成功保留MP4、poster、环境、实际限额、逐帧命令摘要及像素hash、捕获报告和总报告；执行失败写`failure.json`并以BLOCK退出，源包或镜像预检失败直接报错。总报告以共享`qaInputIdentity`绑定源码、参数、目标、空资源/声音、镜像、配置和验证策略，保留`productionEligible:false`。
+
+这是几何源码的本地技术执行入口。真实模型创作仍须按第三步补商业事实与权利、内容审核、所需媒体能力和预算；客户本地播放器、生产QA关联及Cloudflare目标环境分别按M1/M2/M0b推进。几何样例的点阵字形不等于文字轨迹或安全审核通过。QuickJS及其WASM封装均采用MIT许可，来源见[QuickJS官方](https://bellard.org/quickjs/)、[quickjs-emscripten仓库](https://github.com/justjake/quickjs-emscripten)、[封装许可证](https://github.com/justjake/quickjs-emscripten/blob/main/LICENSE)及[API文档](https://github.com/justjake/quickjs-emscripten/blob/main/doc/packages.md)；依赖许可不授予候选源码或客户素材使用权。
 
 ### 媒体验证与结果交接
 
@@ -153,13 +187,17 @@ Node从固定白名单的`*.declarations.json`读取静态声明，使用共享J
 
 | 环境 | 另需验证 |
 | --- | --- |
-| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`，保留样片、环境与验证报告 |
+| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`及独立Docker `test:admission`，分别保留样片、环境与验证报告 |
 | Workers Builds | 显式安装工具并设置路径，干净检出可构建，不假定平台读取 mise |
 | workerd | compatibility_date/flags/bindings；SSR、认证、签名、存储和队列 |
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
 
-CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。契约检查通过后，完整`test:render`与真实30秒`media --mode output`分别在独立job执行；后者单独记录工程出片时间，不混入倒序/故障回归。两者把`artifacts/m0a/`上传为artifact，名称含精确commit SHA、run ID/attempt和模式，保留30天；`ci-context.json`补充任务与锁定浏览器归档身份，报告另存实际机器资源。只缓存以完整SHA-256为key的官方归档，每次仍校验字节并私有解压。长期准入证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各项结果，以及关联的报告、样片和环境文件；核对环境/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留“媒体未验证”，不改lock绕过环境校验。确定性样例可重新生成，模型作品或盲审材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
+CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。[工作流](../../.github/workflows/checks.yml)的`contracts`通过后，`render`、`media-output`和`admission`在独立job执行。`render`运行完整`test:render`；`media-output`运行真实30秒`media --mode output`，单独记录工程出片时间，不混入倒序/故障回归。这两项把`artifacts/m0a/`上传为artifact，名称含精确commit SHA、run ID/attempt和模式，保留30天；`ci-context.json`补充任务与锁定浏览器归档身份，报告另存实际机器资源。只缓存以完整SHA-256为key的官方归档，每次仍校验字节并私有解压。
+
+`admission`使用Ubuntu 24.04 runner，job期限35分钟，冻结安装后依次运行`build:admission`、`test:admission`。它单独验收真实容器隔离、恶意模块、限额、取消/回收与30秒几何出片，不沿用fixture结果。无论成功或失败，上传已有的`artifacts/admission-tests/`与`artifacts/admission-image.json`，artifact名为`m0a-admission-<commit SHA>-<run ID>-<attempt>`，保留30天。镜像构建时间包含在job期限内，不计入单次作品捕获耗时。
+
+长期准入证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的媒体或源码准入项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或盲审材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 
 首次生产冻结时按14建立发布版本登记；当前未发布草稿直接更新，不建 legacy 目录。已购作品的环境继承、修复和保留按14执行，不用浮动 latest 重放。媒体许可见09，关键实测按06留证，不另写迁移日记。
 

@@ -1,0 +1,8 @@
+{
+  "ubuntuImage": "ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac",
+  "nodeVersion": "26.12.0",
+  "nodeArchiveSha256": "fd47865ecd6391ebb431fc815e01b9135bf83ded5cf373247e9331e196b7aded",
+  "pnpmVersion": "12.14.0",
+  "quickjsVersion": "0.32.0",
+  "platform": "linux/amd64"
+}

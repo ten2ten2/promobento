@@ -16,7 +16,10 @@
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
     "install:renderer": "node apps/renderer/scripts/install-browser.mjs",
     "render:fixture": "node apps/renderer/scripts/render-fixture.mjs",
-    "test:render": "node scripts/run-tests.mjs --render"
+    "test:render": "node scripts/run-tests.mjs --render",
+    "build:admission": "node apps/renderer/scripts/build-admission.mjs",
+    "render:admission": "node apps/renderer/scripts/render-admission.mjs",
+    "test:admission": "node apps/renderer/scripts/test-admission.mjs"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"

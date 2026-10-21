@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "2.7.0",
+  "kind": "admission_candidate",
+  "capabilityProfile": "canvas-commands-v1",
+  "targetId": "tiktok:portrait",
+  "durationSeconds": 30,
+  "seed": "admission-original-1"
+}

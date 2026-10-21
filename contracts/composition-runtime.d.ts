@@ -122,3 +122,48 @@ export interface CompositionDefinition {
   /** Resolve endpoints, immutable resources and fonts; a value edit creates a new preparation. */
   prepare(context: RuntimeContext): PreparedComposition | Promise<PreparedComposition>;
 }
+
+/**
+ * canvas-commands-v1 author profile: self-contained ESM in the isolated QuickJS
+ * task. No imports, DOM, native canvas objects, resources, fonts, audio, wall
+ * clocks, random sources or timers. The trusted host selects this profile; an
+ * author cannot opt into capabilities or choose execution/output limits.
+ * Existing CompositionDefinition remains the reviewed browser-fixture API.
+ */
+export interface CommandRuntimeContext {
+  readonly targetId: TargetId; readonly width: number; readonly height: number;
+  readonly fps: 30; readonly totalFrames: FrameCount; readonly seed: string;
+  readonly values: Readonly<Record<string, EditableValue>>;
+  /** The same random-at-v1 helper as RuntimeContext; maximum key length 65,536 UTF-16 units. */
+  readonly randomAt: (key: string) => number;
+}
+/** Geometry only. Colors are six-digit hexadecimal RGB; opacity is in [0,1]. */
+export type CanvasCommand = (
+  | { readonly op: 'rect'; readonly x: number; readonly y: number;
+      readonly width: number; readonly height: number; readonly radius?: number }
+  | { readonly op: 'circle'; readonly x: number; readonly y: number; readonly radius: number }
+  | { readonly op: 'polygon'; readonly points: ReadonlyArray<{readonly x: number; readonly y: number}> }
+) & { readonly color: `#${string}`; readonly opacity: number };
+export interface CommandDrawResult {
+  /** At most 4,096 commands; polygon 3–64 points, at most 16,384 points in total. */
+  readonly commands: ReadonlyArray<CanvasCommand>;
+  /** Bounds only reference statically declared regions. No protocol or readiness fields. */
+  readonly regions?: ReadonlyArray<RegionBounds>;
+}
+export interface PreparedCommandComposition {
+  /** Synchronous, complete state at the absolute time. Promises and pending jobs are rejected. */
+  draw(time: RationalTime): CommandDrawResult;
+  /** Synchronous cleanup. The external host terminates a stuck or failed task. */
+  dispose(): void;
+}
+export interface CommandCompositionDefinition {
+  readonly apiVersion: '2.7.0';
+  readonly editables: ReadonlyArray<EditableProperty>;
+  readonly markers: ReadonlyArray<TimelineMarker>;
+  readonly regions: ReadonlyArray<RegionDeclaration>;
+  /** Media and font capabilities require a separately admitted profile. */
+  readonly videoUses: readonly [];
+  readonly fonts: readonly [];
+  /** Declarations must match the independently validated declarations.json before prepare. */
+  prepare(context: CommandRuntimeContext): PreparedCommandComposition;
+}

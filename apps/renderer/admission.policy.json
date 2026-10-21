@@ -1,0 +1,11 @@
+{
+  "version": "canvas-commands-admission-v1",
+  "capabilityProfile": "canvas-commands-v1",
+  "taskTimeoutMs": 600000,
+  "engine": {"memoryBytes": 33554432, "stackBytes": 262144, "callTimeoutMs": 1000, "maxOutputBytes": 1048576},
+  "sourceMaxBytes": 262144,
+  "declarationsMaxBytes": 65536,
+  "maxTransportBytes": 67108864,
+  "engineContainer": {"memoryBytes": 268435456, "cpus": 1, "pids": 32, "tmpBytes": 33554432},
+  "captureContainer": {"memoryBytes": 3221225472, "cpus": 2, "pids": 256, "tmpBytes": 1073741824}
+}

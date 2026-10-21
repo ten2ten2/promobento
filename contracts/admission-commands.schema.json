@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/admission-commands.schema.json",
+  "title": "canvas-commands-v1 geometry result",
+  "type": "object",
+  "required": ["commands"],
+  "additionalProperties": false,
+  "properties": {
+    "commands": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/command"}},
+    "regions": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/region"}}
+  },
+  "$defs": {
+    "coordinate": {"type": "number", "minimum": -16384, "maximum": 16384},
+    "size": {"type": "number", "minimum": 0, "maximum": 16384},
+    "color": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "minLength": 7, "maxLength": 7},
+    "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+    "point": {
+      "type": "object", "required": ["x", "y"], "additionalProperties": false,
+      "properties": {"x": {"$ref": "#/$defs/coordinate"}, "y": {"$ref": "#/$defs/coordinate"}}
+    },
+    "command": {"oneOf": [{"$ref": "#/$defs/rect"}, {"$ref": "#/$defs/circle"}, {"$ref": "#/$defs/polygon"}]},
+    "rect": {
+      "type": "object", "required": ["op", "x", "y", "width", "height", "color", "opacity"], "additionalProperties": false,
+      "properties": {
+        "op": {"const": "rect"}, "x": {"$ref": "#/$defs/coordinate"}, "y": {"$ref": "#/$defs/coordinate"},
+        "width": {"$ref": "#/$defs/size"}, "height": {"$ref": "#/$defs/size"}, "radius": {"$ref": "#/$defs/size"},
+        "color": {"$ref": "#/$defs/color"}, "opacity": {"$ref": "#/$defs/opacity"}
+      }
+    },
+    "circle": {
+      "type": "object", "required": ["op", "x", "y", "radius", "color", "opacity"], "additionalProperties": false,
+      "properties": {
+        "op": {"const": "circle"}, "x": {"$ref": "#/$defs/coordinate"}, "y": {"$ref": "#/$defs/coordinate"},
+        "radius": {"$ref": "#/$defs/size"}, "color": {"$ref": "#/$defs/color"}, "opacity": {"$ref": "#/$defs/opacity"}
+      }
+    },
+    "polygon": {
+      "type": "object", "required": ["op", "points", "color", "opacity"], "additionalProperties": false,
+      "properties": {
+        "op": {"const": "polygon"}, "points": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"$ref": "#/$defs/point"}},
+        "color": {"$ref": "#/$defs/color"}, "opacity": {"$ref": "#/$defs/opacity"}
+      }
+    },
+    "region": {
+      "type": "object", "required": ["id", "x", "y", "width", "height"], "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", "maxLength": 128},
+        "x": {"$ref": "#/$defs/size"}, "y": {"$ref": "#/$defs/size"}, "width": {"$ref": "#/$defs/size"}, "height": {"$ref": "#/$defs/size"}
+      }
+    }
+  }
+}

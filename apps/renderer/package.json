@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@promobento/contracts": "workspace:*",
     "@promobento/composition-runtime": "workspace:*",
+    "@promobento/contracts": "workspace:*",
     "playwright-core": "1.62.1",
-    "pngjs": "7.0.0"
+    "pngjs": "7.0.0",
+    "quickjs-emscripten": "0.32.0"
   }
 }

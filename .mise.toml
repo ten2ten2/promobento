@@ -49,3 +49,18 @@ run = "node scripts/run-tests.mjs --render"
 description = "Render a reviewed fixture with output or full regression checks"
 dir = "{{config_root}}"
 run = "node apps/renderer/scripts/render-fixture.mjs"
+
+[tasks."build:admission"]
+description = "Build the pinned, credential-free M0a admission image"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/build-admission.mjs"
+
+[tasks."render:admission"]
+description = "Run a restricted geometry source in isolated task containers"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/render-admission.mjs"
+
+[tasks."test:admission"]
+description = "Verify real task isolation, attack sources, cleanup and 30-second MP4"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/test-admission.mjs"
