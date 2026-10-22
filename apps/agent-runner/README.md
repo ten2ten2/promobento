@@ -81,7 +81,9 @@ mise run agent:local -- methods --topics software,workflow
 mise run agent:local -- methods --method-ids format:before-after,language:data-story
 ```
 
-创作 VM 的 `prepare(context)` 同时提供缓动/弹簧、2D 相机、路径、绘图与七类画面组件，具体用法随 [MOTION_API](../../packages/composition-runtime/MOTION_API.md) 一起进入导演上下文。中文须选目录内 CJK 字体，所有字体、字重与换行都按实际覆盖/墨迹检查。
+创作 VM 的 `prepare(context)` 同时提供缓动/弹簧、2D 相机、路径、绘图与七类画面组件，具体用法随 [MOTION_API](../../packages/composition-runtime/MOTION_API.md) 一起进入导演上下文。中文须选已获项目准入的 CJK 字体，所有字体、字重与换行都按实际覆盖/墨迹检查。
+
+使用新字体前，负责人须在项目 `rights` 中列出它的 `resourceId`（如 `hm-noto-sans-sc`）及真实 `evidenceRef`、`confirmedBy`、`confirmedAt`；目录收录与 API 示例不代替项目确认。导演上下文用 `approvedResourceIds` 和各目录项的 `projectApproved` 明确权限，`declarations.fonts` 只提供可直接复制的完整准入声明，含精确字重、文件身份与 fallback。缺少 fallback 准入时不推荐该字体；原有 Geist Sans 使用仍须同时准入 Geist Mono。控制器不为旧项目自动补字体权限，底层 `mediaDeclarations()` 的默认两字体合同保持不变。
 
 项目可选 `methodIds` 指定最多 16 个已可用方法 ID；不指定时自动选择。`methods` 无需模型凭据，不发收费请求。方向比较仍使用实际关键帧；配色另可把明确的 `[{"id":"fit","colors":["#F5F5F5","#202020","#2563EB"]}]` 输入 `mise run creative:tools -- palette --input palettes.json --output-directory artifacts/palettes`，查看色板和可解释警告，不能从自由文字中猜测实测色彩占比。
 
