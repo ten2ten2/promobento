@@ -22,7 +22,11 @@
     "test:admission": "node apps/renderer/scripts/test-admission.mjs",
     "agent:local": "node apps/agent-runner/scripts/local-agent.mjs",
     "test:admission-media": "node apps/renderer/scripts/test-admission-media.mjs",
-    "benchmark:m0a": "node scripts/benchmark-m0a.mjs"
+    "benchmark:m0a": "node scripts/benchmark-m0a.mjs",
+    "creative:tools": "node apps/renderer/scripts/creative-tools.mjs",
+    "creative:audio": "node apps/renderer/scripts/creative-audio.mjs",
+    "test:creative": "node apps/renderer/scripts/test-creative.mjs",
+    "test:creative-audio": "node apps/renderer/scripts/test-creative-audio.mjs"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"
