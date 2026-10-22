@@ -228,9 +228,11 @@ CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
 
-CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。[工作流](../../.github/workflows/checks.yml)的`contracts`通过后，`render`、`media-output`和`admission`在独立job执行。`render`运行完整`test:render`；`media-output`运行真实30秒`media --mode output`，单独记录工程出片时间，不混入倒序/故障回归。这两项把`artifacts/m0a/`上传为artifact，名称含精确commit SHA、run ID/attempt和模式，保留30天；`ci-context.json`补充任务与锁定浏览器归档身份，报告另存实际机器资源。只缓存以完整SHA-256为key的官方归档，每次仍校验字节并私有解压。
+CI 支持手动`workflow_dispatch`，可选择实验分支运行完整检查。[工作流](../../.github/workflows/checks.yml)的`contracts`通过后，`render`、`media-output`、`admission`和`creative`在独立job执行。`render`运行完整`test:render`；`media-output`运行真实30秒`media --mode output`，单独记录工程出片时间，不混入倒序/故障回归。这两项把`artifacts/m0a/`上传为artifact，名称含精确commit SHA、run ID/attempt和模式，保留30天；`ci-context.json`补充任务与锁定浏览器归档身份，报告另存实际机器资源。只缓存以完整SHA-256为key的官方归档，每次仍校验字节并私有解压。
 
 `admission`使用Ubuntu 24.04 runner，job期限35分钟，冻结安装后依次运行`build:admission`、`test:admission`、`test:admission-media`。它单独验收真实容器隔离、恶意模块、限额、取消/回收、30秒几何及媒体源码出片，不沿用fixture结果。无论成功或失败，上传已有的`artifacts/admission-tests/`、`artifacts/admission-media/`与`artifacts/admission-image.json`，artifact名为`m0a-admission-<commit SHA>-<run ID>-<attempt>`，保留30天。镜像构建时间包含在job期限内，不计入单次作品捕获耗时。
+
+`creative`使用同一固定容器，期限35分钟。`test:creative`渲染七类画面语法、中文和授权声音，逐帧比较单路与双路捕获，并实绘42个导入字体文件；`test:creative-audio`验证授权PCM分析、错误授权拒绝和带插值说明的SRT。完整产物保存为`creative-toolkit-<commit SHA>-<run ID>-<attempt>`；另存`creative-preview-<commit SHA>-<run ID>-<attempt>`，包含关键帧、字体总览及验证摘要，供实际画面检查。两者均保留30天，机器通过不替代正常速度视听与用户验收。
 
 长期准入证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的媒体或源码准入项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或盲审材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 
