@@ -1,0 +1,75 @@
+name: G1 pre-probe
+
+# Deploys a temporary probe Worker + container to the Cloudflare account, runs the
+# pre-G1 checks from docs/plans/cloud-motion-v3.md, uploads the report and deletes the Worker.
+on:
+  push:
+    branches: ['probe/g1-pre']
+    paths: ['apps/render-container/probes/g1-pre/**', '.github/workflows/g1-pre-probe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: g1-pre-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROBE_DIR: apps/render-container/probes/g1-pre
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Tool versions
+        run: node --version && docker --version
+      - name: Fetch huashu-motion 4236053 (read only, nothing executed)
+        run: |
+          git init -q /tmp/hm
+          git -C /tmp/hm remote add origin https://github.com/alchaincyf/huashu-motion.git
+          git -C /tmp/hm fetch -q --depth=1 origin 42360539c10d35397b352461347c073a2966031b
+          git -C /tmp/hm -c core.hooksPath=/dev/null checkout -q --detach FETCH_HEAD
+      - name: Assemble test site
+        working-directory: ${{ env.PROBE_DIR }}/container
+        run: node prepare-site.mjs /tmp/hm "$GITHUB_WORKSPACE/packages/composition-runtime/vendor/huashu-motion/fonts"
+      - name: Install worker tools and precompile validators
+        working-directory: ${{ env.PROBE_DIR }}/worker
+        run: |
+          npm install --no-audit --no-fund
+          node gen-validators.mjs "$GITHUB_WORKSPACE"
+      - name: Deploy probe Worker and container image
+        working-directory: ${{ env.PROBE_DIR }}/worker
+        run: |
+          npx wrangler deploy 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          test -n "$url"
+          echo "PROBE_URL=$url" >> "$GITHUB_ENV"
+          key=$(openssl rand -hex 24)
+          echo "::add-mask::$key"
+          echo "PROBE_KEY=$key" >> "$GITHUB_ENV"
+          printf '%s' "$key" | npx wrangler secret put PROBE_KEY
+          sleep 20
+      - name: Run probes
+        working-directory: ${{ env.PROBE_DIR }}
+        run: node run-probes.mjs "$PROBE_URL" "$PROBE_KEY" results
+      - name: Print report
+        if: always()
+        run: cat "$PROBE_DIR/results/report.json" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: g1-pre-probe-report
+          path: ${{ env.PROBE_DIR }}/results/
+          if-no-files-found: warn
+      - name: Delete probe Worker
+        if: always()
+        working-directory: ${{ env.PROBE_DIR }}/worker
+        run: |
+          npx wrangler delete --force || true
+          npx wrangler containers list || true

@@ -1,0 +1,8 @@
+{
+  "name": "promobento-g1-pre-probe-container",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "1.62.1"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "promobento-g1-pre-probe-worker",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "wrangler": "4.152.0"
+  }
+}

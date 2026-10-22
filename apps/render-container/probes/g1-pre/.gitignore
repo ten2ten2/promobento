@@ -1,0 +1,6 @@
+container/site/
+worker/node_modules/
+worker/src/validators.js
+worker/src/examples.json
+worker/.wrangler/
+results/

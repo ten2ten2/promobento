@@ -1,0 +1,27 @@
+{
+  // G1 pre-probe: the plan's production combination (ctx.container + durable_object scheduling
+  // + interceptOutboundHttp broker + Workflows). Deployed from CI only; deleted after the run.
+  "name": "promobento-g1-pre-probe",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  "containers": [
+    {
+      "name": "promobento-g1-pre-render",
+      "class_name": "ProbeDO",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "render": { "dockerfile": "../container/Dockerfile" }
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "PROBE_DO", "class_name": "ProbeDO" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["ProbeDO"] }],
+  "workflows": [
+    { "name": "promobento-g1-pre-workflow", "binding": "PROBE_WF", "class_name": "ProbeWorkflow" }
+  ]
+}
