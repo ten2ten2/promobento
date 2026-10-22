@@ -9,6 +9,7 @@ import {readAdmissionSource,admissionQaIdentity} from '../src/admission-source.m
 import {sandboxArguments,verifySandboxConfiguration} from '../src/admission-sandbox.mjs';
 import {admissionPolicy,admissionEnvironment} from '../src/admission-image.mjs';
 import {admissionVerificationPlan} from '../src/admission-capture.mjs';
+import {admissionVerification} from '../src/admission-verification.mjs';
 import {ADMISSION_DRAW_MAX_BYTES} from '../src/admission-commands.mjs';
 
 function fixture(operation) {
@@ -41,10 +42,12 @@ test('unavailable media, invalid targets and mismatched editable values fail bef
   writeFileSync(join(dir,'declarations.json'),JSON.stringify(declarations));assert.throws(()=>readAdmissionSource(dir),/VALUES/);
 }));
 test('technical QA identity changes with source, execution image and verification policy',()=>fixture(dir=>{
-  const candidate=readAdmissionSource(dir),plan=admissionVerificationPlan(900),image={imageId:'sha256:'+'a'.repeat(64),sourceTreeHash:'b'.repeat(64)};
+  const candidate=readAdmissionSource(dir),plan=admissionVerification(900),image={imageId:'sha256:'+'a'.repeat(64),sourceTreeHash:'b'.repeat(64)};
   const initial=admissionQaIdentity(candidate,image,plan).qaInputHash;
   assert.notEqual(admissionQaIdentity(candidate,{...image,imageId:'sha256:'+'c'.repeat(64)},plan).qaInputHash,initial);
   assert.notEqual(admissionQaIdentity(candidate,image,{...plan,version:'next'}).qaInputHash,initial);
+  assert.match(admissionQaIdentity(candidate,image,plan).qaProfileVersion,/^admission-verification-v2:/);
+  assert.notEqual(admissionQaIdentity(candidate,image,admissionVerificationPlan(900)).qaInputHash,initial,'Sampled-only v1 evidence is not reused');
   writeFileSync(join(dir,'composition.mjs'),'different raw bytes');assert.notEqual(admissionQaIdentity(readAdmissionSource(dir),image,plan).qaInputHash,initial);
 }));
 test('sandbox command uses immutable image and mandatory limits, never host env or daemon mounts',()=>{

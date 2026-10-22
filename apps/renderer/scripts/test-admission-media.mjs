@@ -15,6 +15,9 @@ try {
   const image=verifiedAdmissionImage(),directory=join(temporary,'source');writeMediaCandidate(directory);
   const result=await renderAdmission({sourceDirectory:directory,outputDirectory:join(out,'render')});
   assert.equal(result.report.capabilityProfile,'canvas-media-v1');assert.equal(result.report.capture.frameCount,900);
+  assert.equal(result.report.verification.version,'admission-verification-v2');
+  assert.equal(result.report.commandChecks.coldReverseFrames,900);
+  assert.deepEqual(result.report.capture.verification,result.report.verification.pixels);
   assert.equal(result.report.capture.media.encodedAudio.interval.effectiveSampleFrames,1440000);
   assert(result.report.capture.media.encodedAudio.mixedAudioComparison.correlation>=0.97);
   assert(result.report.capture.media.observations.every(item=>item.videos.length===1));

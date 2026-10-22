@@ -149,7 +149,7 @@ Node从固定白名单的`*.declarations.json`读取静态声明，使用共享J
 - 宿主使用独立的真实单调时钟控制加载、准备、逐帧和任务总期限；作品不能修改该时钟、延长期限或阻止回收。
 - 只开放已验收的绘制与媒体能力。图片解码、字体字形、视频PTS取帧各有就绪条件，并绑定实际资源字节；缺失或未准入能力直接拒绝，不能沿用旧画面。WebGL另行准入。
 - 在实际受限环境中验证无业务凭据、外网及宿主非授权资源不可达；素材只读且按任务授权，临时目录隔离，CPU/内存/磁盘/进程数量与总时长有硬上限。API替换、CSP和`getAnimations()`不代替隔离。
-- 候选按版本化策略与正序基准做重复、乱序和冷启复取，结论绑定`qaInputHash`所覆盖的源码、资源、目标、环境与输出配置；失败为Q0 BLOCK。新增能力补对应样例，抽样一致不证明任意程序确定性或安全。
+- 候选按版本化策略与正序基准做重复、乱序和冷启复取，结论绑定`qaInputHash`所覆盖的源码、资源、目标、环境与输出配置；失败为Q0 BLOCK。命令与像素检查分别版本化：命令层在全新容器中逆序重算全部帧，像素层仍为抽样。新增能力补对应样例；全帧逆序与抽样一致都不证明任意程序确定性或安全，可用动画写法仍须约束。
 
 `render:fixture`及`fixture-determinism-v1`继续只验证经审阅浏览器样例。新增源码入口按能力profile分别验收；一个profile通过不能放行其他绘制API、资源或执行环境。实际验收进度见[实施状态](../implementation-status.md)。
 
@@ -176,13 +176,13 @@ mise run render:admission -- --source tests/fixtures/admission
 
 宿主先静态解析和校验源包，不导入作品；源码随后进入独立Docker任务内的`quickjs-emscripten` 0.32.0。QuickJS的独立VM承载模块求值、同步`prepare/draw/dispose`，作品只取得冻结参数、绝对有理时间及共享`randomAt`，无真实时钟、随机源、计时器、网络、文件或进程接口；异步结果和待执行任务直接拒绝。引擎内存预算是整个WASM线性内存的硬上限，包含VM开销，不等于可用作品堆大小。内存、栈、每次调用、输出，以及容器CPU/内存/进程/临时磁盘、传输和总时长上限统一见[admission.policy.json](../../apps/renderer/admission.policy.json)，由外部宿主管理。
 
-单帧峰值、单容器累计传输和执行时间是独立限制，满足单帧Schema不保证整片可运行。`maxTransportBytes`按实际UTF-8 JSON行计量，包含消息封装、换行及复取；首轮为全部正序帧加重复/乱序帧，冷启容器另计。worker在生成下一帧前等待当前行完成写入，并在超过累计上限前停止；宿主另行计量，超限为`ADMISSION_TRANSPORT_LIMIT`，不靠OOM代替预算判断。高密度画面可以短时达到单帧上限，持续高密度仍须满足累计预算。
+单帧峰值、单容器累计传输和执行时间是独立限制，满足单帧Schema不保证整片可运行。`maxTransportBytes`按实际UTF-8 JSON行计量，包含消息封装、换行及复取；首轮为全部正序帧加重复/乱序帧，冷启容器的全帧逆序另计。worker在生成下一帧前等待当前行完成写入，并在超过累计上限前停止；宿主另行计量，超限为`ADMISSION_TRANSPORT_LIMIT`，不靠OOM代替预算判断。高密度画面可以短时达到单帧上限，持续高密度仍须满足累计预算。
 
-`engineStageTimeoutMs`是正序及冷启共用的宿主单调墙钟期限，覆盖容器启动、隔离检查、VM准备/绘制/释放、命令校验和传输等待；新容器不重置它。耗尽为`ADMISSION_ENGINE_BUDGET_EXHAUSTED`。单次VM调用期限及包含可信捕获的`taskTimeoutMs`继续生效。这是当前本地profile的资源保护，不能据此推导生产p95或费用预算。
+`engineStageTimeoutMs`是正序及冷启全帧逆序共用的宿主单调墙钟期限，覆盖容器启动、隔离检查、VM准备/绘制/释放、命令校验和传输等待；新容器不重置它。冷启增加一次完整命令计算，所需时间取决于作品及运行环境；正序和逆序必须共同满足原期限。耗尽为`ADMISSION_ENGINE_BUDGET_EXHAUSTED`。单次VM调用期限及包含可信捕获的`taskTimeoutMs`继续生效。这是当前本地profile的资源保护，不能据此推导生产p95或费用预算。
 
 `draw`只返回[几何JSON](../../contracts/admission-commands.schema.json)：带显式颜色和透明度的矩形/圆角矩形、圆及多边形，可附已声明区域的边界。命令数、点数、坐标、半径和字节均有上限，未知字段及伪造就绪/身份字段拒绝。共享`parseCanonicalJson`、完整Ajv和`checkedRegions`分别处理入站文本、结构及区域语义；源码不能选择任意Canvas方法、SVG、CSS或URL。字体、图片、视频、声音、DOM、原生动画和WebGL尚未进入此profile，现有媒体fixture不因此获得未知源码执行许可。
 
-每个执行阶段新建非root容器，根文件系统只读、网络关闭、不继承业务凭据，撤销Linux capabilities并启用no-new-privileges。首次容器运行正序、重复和乱序命令，第二个全新容器验证冷启；可信宿主绑定返回帧序号并比较命令数据。另一个可信捕获容器只读取这些JSON，不接收创作源码；固定浏览器重绘450/900帧，再按`admission-determinism-v1`比较重复、乱序及重启浏览器后的冷启像素。`test:admission`还实测预算内高密度全片和单帧命令峰值、累计传输超限、逐帧未超时但累计超时、资源耗尽、模块/prepare/draw/dispose挂起、越权能力、外网和元数据地址、只读挂载及容器回收。
+每个执行阶段新建非root容器，根文件系统只读、网络关闭、不继承业务凭据，撤销Linux capabilities并启用no-new-privileges。检查策略为`admission-verification-v2`，命令与像素分开：首次容器运行正序、重复和乱序命令；第二个全新容器按`admission-command-determinism-v1`从末帧到首帧重算全部450/900帧，逐帧比较规范化命令与区域，第一处差异即以`ADMISSION_DETERMINISM_BLOCK`停止，`failure.json`的`details`记录`check`、`frameIndex`与调用序号。可信宿主绑定返回帧序号并比较命令数据。另一个可信捕获容器只读取这些JSON，不接收创作源码；固定浏览器重绘450/900帧，再按`admission-determinism-v1`比较重复、乱序及重启浏览器后的冷启像素，抽样数量不随命令层增加。该检查覆盖每一帧在正序与冷启逆序两种调用历史下的命令差异，不涵盖所有调用历史。`test:admission`还实测只在未抽样第42帧依赖调用次数的源码被逆序命令比对BLOCK、预算内高密度全片和单帧命令峰值、累计传输超限、逐帧未超时但累计超时、资源耗尽、模块/prepare/draw/dispose挂起、越权能力、外网和元数据地址、只读挂载及容器回收。
 
 CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器强制移除本次创建的容器并清理临时数据；不等待作品释放自己，也不停止其他任务。回收失败须按报告中的容器名处理，不能记作完成。输出默认在`artifacts/admission/<runId>/`，可用`--output-directory`指定空目录。成功保留MP4、poster、环境、实际限额、逐帧命令摘要及像素hash、捕获报告和总报告；执行失败写`failure.json`并以BLOCK退出，源包或镜像预检失败直接报错。失败报告保留`errorCode`、容器名/模式/实际限额、已接收帧数和传输字节，以及可取得的`sandboxState`（退出码和`oomKilled`）；无法取得状态时为null。引擎和捕获容器的OOM分别为`ADMISSION_ENGINE_OOM`、`ADMISSION_CAPTURE_OOM`，不再用空错误描述。回收失败保留原始失败原因。总报告以共享`qaInputIdentity`绑定源码、参数、目标、空资源/声音、镜像、配置和验证策略，保留`productionEligible:false`。
 

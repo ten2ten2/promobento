@@ -9,8 +9,10 @@ import {runAdmissionSandbox} from '../src/admission-sandbox.mjs';
 import {renderAdmission} from '../src/admission-run.mjs';
 import {admissionFailure} from '../src/admission-failure.mjs';
 import {admissionVerificationPlan} from '../src/admission-capture.mjs';
+import {admissionVerification,admissionEngineRequests} from '../src/admission-verification.mjs';
+import {admissionEngineBudget} from '../src/admission-budget.mjs';
 import {admissionEngineCases,admissionValidSource,admissionCaseInput,admissionCaseDeclarations} from '../test/admission-engine.cases.mjs';
-import {admissionDenseSource,admissionTransportLimitSource,admissionSlowSource} from '../test/admission-resource.cases.mjs';
+import {admissionDenseSource,admissionTransportLimitSource,admissionSlowSource,admissionHistorySource,admissionHistoryFrame} from '../test/admission-resource.cases.mjs';
 
 const image=verifiedAdmissionImage(),results=[],started=Date.now();
 const createdNames=[];
@@ -20,7 +22,8 @@ const temporary=mkdtempSync(join(tmpdir(),'promobento-admission-tests-'));
 const out=join(repository,'artifacts/admission-tests',String(started));mkdirSync(out,{recursive:true});
 const resourceInput={...admissionCaseInput,totalFrames:900};
 const verification=admissionVerificationPlan(resourceInput.totalFrames);
-const resourceFrames=[...Array.from({length:resourceInput.totalFrames},(_,frame)=>frame),...verification.repeated,...verification.unordered];
+const enginePlan=admissionEngineRequests(admissionVerification(resourceInput.totalFrames));
+const resourceFrames=enginePlan.first.map(request=>request.frame),coldResourceFrames=enginePlan.cold.map(request=>request.frame);
 const resourceJob=source=>({source,input:resourceInput,declarations:admissionCaseDeclarations,frames:resourceFrames});
 // Trusted expected JSON, not evaluation or import of a candidate composition.
 const rectangleDraw=(frame,count)=>({commands:Array.from({length:count},(_,index)=>({op:'rect',x:frame,y:index,
@@ -102,30 +105,37 @@ try {
 
   const densePlannedBytes=plannedDrawBytes(frame=>frame===1?4096:600);
   assert(densePlannedBytes<admissionPolicy.maxTransportBytes-4096,'The dense case must fit without raising the transport cap');
-  let denseSequence=0,denseIsolation=false,denseComplete=false,denseBytes=0;
-  const denseReceipt=await sandbox({image,mode:'evaluate',input:resourceJob(admissionDenseSource),
-    timeoutMs:admissionPolicy.engineStageTimeoutMs,onLine(message){
-      denseBytes+=Buffer.byteLength(JSON.stringify(message)+'\n');
-      assert(!denseComplete,'No output may follow complete');
-      if(message.kind==='isolation') {
-        assert(!denseIsolation);assert.equal(denseSequence,0);assert.equal(message.status,'passed');
-        denseIsolation=true;return;
-      }
-      assert(denseIsolation);
-      if(message.kind==='complete') {
-        assert.deepEqual(message,{kind:'complete',count:resourceFrames.length});
-        assert.equal(denseSequence,resourceFrames.length);denseComplete=true;return;
-      }
-      const frame=resourceFrames[denseSequence];
-      assert.deepEqual(message,{kind:'draw',sequence:denseSequence,frameIndex:frame,
-        draw:rectangleDraw(frame,frame===1?4096:600)});
-      denseSequence++;
-    }});
-  assert(denseComplete);assert.equal(denseReceipt.transportBytes,denseBytes);
-  assert(denseBytes<=admissionPolicy.maxTransportBytes);
+  const denseRemaining=admissionEngineBudget(admissionPolicy.engineStageTimeoutMs),densePasses=[];
+  for(const [check,frames] of [['forward',resourceFrames],['cold_reverse',coldResourceFrames]]) {
+    const passStarted=performance.now();
+    let denseSequence=0,denseIsolation=false,denseComplete=false,denseBytes=0;
+    const denseReceipt=await sandbox({image,mode:'evaluate',input:{...resourceJob(admissionDenseSource),frames},
+      timeoutMs:denseRemaining(),timeoutCode:'ADMISSION_ENGINE_BUDGET_EXHAUSTED',onLine(message){
+        denseBytes+=Buffer.byteLength(JSON.stringify(message)+'\n');
+        assert(!denseComplete,'No output may follow complete');
+        if(message.kind==='isolation') {
+          assert(!denseIsolation);assert.equal(denseSequence,0);assert.equal(message.status,'passed');
+          denseIsolation=true;return;
+        }
+        assert(denseIsolation);
+        if(message.kind==='complete') {
+          assert.deepEqual(message,{kind:'complete',count:frames.length});
+          assert.equal(denseSequence,frames.length);denseComplete=true;return;
+        }
+        const frame=frames[denseSequence];
+        assert.deepEqual(message,{kind:'draw',sequence:denseSequence,frameIndex:frame,
+          draw:rectangleDraw(frame,frame===1?4096:600)});
+        denseSequence++;
+      }});
+    assert(denseComplete);assert.equal(denseReceipt.transportBytes,denseBytes);
+    assert(denseBytes<=admissionPolicy.maxTransportBytes);
+    denseRemaining();
+    densePasses.push({check,frames:denseSequence,transportBytes:denseBytes,elapsedMs:Math.round(performance.now()-passStarted)});
+  }
   results.push({kind:'resource-test',name:'dense-full-frame-plan',status:'passed',forwardFrames:900,
     repeatedFrames:verification.repeated.length,unorderedFrames:verification.unordered.length,
-    maxCommands:4096,plannedDrawBytes:densePlannedBytes,transportBytes:denseReceipt.transportBytes});
+    coldReverseFrames:900,sharedEngineTimeoutMs:admissionPolicy.engineStageTimeoutMs,passes:densePasses,
+    maxCommands:4096,plannedDrawBytes:densePlannedBytes,transportBytes:densePasses[0].transportBytes});
 
   const overLimitBytes=plannedDrawBytes(()=>1000);
   assert(overLimitBytes>admissionPolicy.maxTransportBytes,'The oversized case must exceed the actual task cap');
@@ -168,10 +178,25 @@ try {
   assert.equal(parseCanonicalJson(readFileSync(join(rejectedOut,'failure.json'))).status,'BLOCK');
   assert(!existsSync(join(rejectedOut,'sample.mp4')));
   results.push({kind:'determinism-test',name:'stateful-source-blocked',status:'passed'});
+  // Passes forward/repeated/unordered and every pixel-cold sample; only the full cold-reverse command pass sees frame 42.
+  const historyOut=join(out,'history-frame-rejected');
+  await assert.rejects(renderAdmission({sourceDirectory:writeSource('history-frame',admissionHistorySource),outputDirectory:historyOut,onCreated}),
+    new RegExp('^Error: ADMISSION_DETERMINISM_BLOCK: '+admissionHistoryFrame+'$'));
+  const historyFailure=parseCanonicalJson(readFileSync(join(historyOut,'failure.json')));
+  assert.equal(historyFailure.status,'BLOCK');assert.equal(historyFailure.errorCode,'ADMISSION_DETERMINISM_BLOCK');
+  assert.deepEqual(historyFailure.details,{check:'cold_reverse',frameIndex:admissionHistoryFrame,sequence:899-admissionHistoryFrame});
+  assert.equal(historyFailure.resources.length,1,'Forward container completed; the cold-reverse container stopped before capture');
+  assert(!existsSync(join(historyOut,'sample.mp4')));
+  results.push({kind:'determinism-test',name:'history-at-unsampled-frame-blocked',status:'passed',frameIndex:admissionHistoryFrame,
+    check:'cold_reverse',failure:'history-frame-rejected/failure.json'});
   const rendered=await renderAdmission({sourceDirectory:join(repository,'tests/fixtures/admission'),outputDirectory:join(out,'render'),onCreated});
   assert.equal(rendered.report.capture.frameCount,900);
   assert.equal(rendered.report.productionEligible,false);
-  results.push({kind:'media-test',status:'passed',frameCount:900,qaInputHash:rendered.report.qaInputHash});
+  assert.equal(rendered.report.verification.version,'admission-verification-v2');
+  assert.deepEqual(rendered.report.commandChecks,{forwardFrames:900,repeatedFrames:verification.repeated.length,
+    unorderedFrames:verification.unordered.length,coldReverseFrames:900,newContainer:true,pixelSamplesUnchanged:true});
+  assert.deepEqual(rendered.report.capture.verification,verification,'Pixel samples are unchanged by the command pass');
+  results.push({kind:'media-test',status:'passed',frameCount:900,qaInputHash:rendered.report.qaInputHash,timings:rendered.report.timings});
   // Check only this invocation's random names, including failing and successful render tasks.
   const containers=execFileSync('docker',['ps','--all','--filter','name=promobento-admission-','--format','{{.Names}}'],{encoding:'utf8',timeout:30000}).trim();
   assert(!containers.split('\n').some(name=>createdNames.includes(name)),'This test must remove its containers after success, interruption and OOM');

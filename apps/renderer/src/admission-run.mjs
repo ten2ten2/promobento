@@ -6,14 +6,15 @@ import {canonical,parseCanonicalJson,digest} from '@promobento/contracts';
 import {admissionPolicy,verifiedAdmissionImage,repository} from './admission-image.mjs';
 import {readAdmissionSource,admissionQaIdentity} from './admission-source.mjs';
 import {runAdmissionSandbox} from './admission-sandbox.mjs';
-import {admissionVerificationPlan,admissionKeyframePlan} from './admission-capture.mjs';
+import {admissionKeyframePlan} from './admission-capture.mjs';
+import {admissionVerification,admissionEngineRequests} from './admission-verification.mjs';
 import {validateAdmissionDraw} from './admission-commands.mjs';
 import {admissionEngineBudget} from './admission-budget.mjs';
 import {admissionFailure} from './admission-failure.mjs';
 
 export async function renderAdmission({sourceDirectory,outputDirectory,signal,onCreated}) {
   const started=performance.now(),candidate=readAdmissionSource(sourceDirectory),image=verifiedAdmissionImage();
-  const verification=admissionVerificationPlan(candidate.input.totalFrames),initialQa=admissionQaIdentity(candidate,image,verification);
+  const verification=admissionVerification(candidate.input.totalFrames),initialQa=admissionQaIdentity(candidate,image,verification);
   let qa=initialQa;
   const profile=candidate.manifest.capabilityProfile;
   const out=resolve(outputDirectory??join(repository,'artifacts/admission',randomUUID()));
@@ -26,8 +27,7 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
   const remaining=()=>{const value=admissionPolicy.taskTimeoutMs-(performance.now()-started);if(value<=0)throw Error('ADMISSION_TASK_TIMEOUT');return value;};
   const engineRemaining=admissionEngineBudget(admissionPolicy.engineStageTimeoutMs);
   const engineInput={...candidate.input};delete engineInput.durationSeconds;
-  const forward=Array.from({length:candidate.input.totalFrames},(_,frame)=>({frame,path:'forward/'+frame+'.json'}));
-  const check=(name,frames)=>frames.map((frame,i)=>({frame,path:name+'/'+i+'.json'}));
+  const enginePlan=admissionEngineRequests(verification),commandChecks={};
   const run=async requests=>{
     let sequence=0,complete=false,isolation;
     const taskMs=remaining(),engineMs=engineRemaining();
@@ -51,22 +51,29 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
           ||message.sequence!==sequence||message.frameIndex!==expected.frame)throw Error('ADMISSION_FRAME_IDENTITY');
         const draw=validateAdmissionDraw(message.draw,{...candidate.input,declarations:candidate.declarations,profile,resourceRequest:candidate.resourceRequest});
         const hash=digest(draw);
-        if(expected.path.startsWith('forward/')) {
+        if(expected.check==='forward') {
           hashes[expected.frame]=hash;
           const score=draw.commands.length+draw.commands.reduce((total,command)=>total+(command.op==='text'?command.text.length:0),0);
           if(score>density){density=score;denseFrame=expected.frame;}
         }
-        else if(hashes[expected.frame]!==hash)throw Error('ADMISSION_DETERMINISM_BLOCK: '+expected.frame);
-        const path=join(data,expected.path);mkdirSync(dirname(path),{recursive:true,mode:0o755});
-        writeFileSync(path,canonical(draw),{mode:0o644,flag:'wx'});sequence++;
+        else if(hashes[expected.frame]!==hash) {
+          // Canonical commands and regions differ from the forward baseline at this exact call.
+          const error=Error('ADMISSION_DETERMINISM_BLOCK: '+expected.frame);
+          error.details={check:expected.check,frameIndex:expected.frame,sequence};throw error;
+        }
+        for(const file of expected.paths) {
+          const path=join(data,file);mkdirSync(dirname(path),{recursive:true,mode:0o755});
+          writeFileSync(path,canonical(draw),{mode:0o644,flag:'wx'});
+        }
+        commandChecks[expected.check]=(commandChecks[expected.check]??0)+1;sequence++;
       }});
     if(!complete)throw Error('ADMISSION_INCOMPLETE');resources.push({...receipt,isolation});
   };
   try {
     let stage=performance.now();
-    await run([...forward,...check('repeated',verification.repeated),...check('unordered',verification.unordered)]);
+    await run(enginePlan.first);
     stages.executeMs=Math.round(performance.now()-stage);stage=performance.now();
-    await run(check('cold',verification.cold));
+    await run(enginePlan.cold);
     engineRemaining();
     stages.coldMs=Math.round(performance.now()-stage);stage=performance.now();
     writeFileSync(join(data,'job.json'),canonical({input:candidate.input,encoding:candidate.encoding,declarations:candidate.declarations,
@@ -94,10 +101,12 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
       targetSourceFiles:candidate.targetFiles,
       qaInputHash:qa.qaInputHash,qaProfileVersion:qa.qaProfileVersion,qaInput:qa.identity,
       capabilityProfile:profile,image,policy:admissionPolicy,verification,
+      commandChecks:{forwardFrames:commandChecks.forward,repeatedFrames:commandChecks.repeated,unorderedFrames:commandChecks.unordered,
+        coldReverseFrames:commandChecks.cold_reverse,newContainer:true,pixelSamplesUnchanged:true},
       commandHashes:hashes,resources,capture,productionEligible:false,
       limitations:[profile==='canvas-media-v1'?'registered licensed media and unshaped Latin text; no arbitrary upload, DOM, imports or build scripts':'geometry-only synchronous single module; no DOM, media, imports or build scripts',
         'no content-safety, factual verification, customer authorization or production quality association',
-        'bounded determinism checks; Cloudflare execution remains unverified'],
+        'full cold-reverse command comparison and sampled pixel checks are bounded evidence, not proof of purity; Cloudflare execution remains unverified'],
       timings:{...stages,totalMs:Math.round(performance.now()-started)}};
     writeFileSync(join(out,'report.json'),JSON.stringify(report,null,2)+'\n',{flag:'wx'});
     return {out,report};

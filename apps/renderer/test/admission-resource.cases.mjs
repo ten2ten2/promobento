@@ -16,8 +16,8 @@ const rectangles=count=>`export default {
   }
 };`;
 
-// Frame 1 is not in the repeated/unordered plan, so exactly one response reaches
-// the 4096-command ceiling; the other 910 responses remain within the 64 MiB task cap.
+// Frame 1 is not in the repeated/unordered plan, so exactly one response per
+// container reaches the 4096-command ceiling; both plans fit the 64 MiB task cap.
 export const admissionDenseSource=rectangles('time.numerator===1?4096:600');
 export const admissionTransportLimitSource=rectangles('1000');
 
@@ -31,6 +31,25 @@ export const admissionSlowSource=`export default {
         let value=time.numerator;
         for(let index=0;index<500000;index++)value=(value+index)%997;
         return {commands:[{op:'rect',x:value,y:0,width:1,height:1,color:'#123456',opacity:1}],regions:[]};
+      },
+      dispose() {}
+    };
+  }
+};`;
+
+// Frame 42 is outside every repeated, unordered and pixel-cold sample. Only on the
+// forward pass is it the 43rd call, so a sampled cold check passes while the full
+// cold-reverse command comparison must BLOCK at exactly this frame.
+export const admissionHistoryFrame=42;
+export const admissionHistorySource=`export default {
+  apiVersion:'2.7.0',editables:[],markers:[],regions:[],videoUses:[],fonts:[],
+  prepare() {
+    let calls=0;
+    return {
+      draw(time) {
+        calls++;
+        const changed=time.numerator===${admissionHistoryFrame}&&calls!==${admissionHistoryFrame+1};
+        return {commands:[{op:'rect',x:time.numerator,y:0,width:10,height:10,color:changed?'#00ff00':'#123456',opacity:1}],regions:[]};
       },
       dispose() {}
     };
