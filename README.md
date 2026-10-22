@@ -10,6 +10,7 @@
 | --- | --- |
 | 产品、交易、授权与验收规则 | [PRD 索引](docs/prd/README.md) |
 | 接手、工具链与实施顺序 | [AGENTS](AGENTS.md)、[08 实施与交付](docs/prd/08-codex-execution.md) |
+| 下一阶段改造（已批准，未实施） | [云端动效管线改造方案](docs/plans/cloud-motion-v3.md) |
 | 契约实现与机器结构 | [共享契约库](packages/contracts/index.mjs)、[Schema](contracts/production.schema.json)、[14 生产契约](docs/prd/14-production-contracts.md) |
 | 创作运行时与帧桥接 | [创作 API](contracts/composition-runtime.d.ts)、[渲染协议](contracts/render-protocol.d.ts) |
 | 受限源码到 MP4 | [几何入口](docs/prd/08-codex-execution.md#本地canvas-commands-v1入口)、[文字与媒体入口](docs/prd/08-codex-execution.md#本地canvas-media-v1入口)、[原创工程样例](tests/fixtures/admission/composition.mjs) |
