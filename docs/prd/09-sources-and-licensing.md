@@ -31,14 +31,16 @@ canvas-media-v1的[可信目录](../../apps/renderer/src/admission-media.mjs)单
 
 ## 2 视频创作上游
 
-参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。[本地基线](../../research/m0a/baseline.json)使用此版本的实际CLI作隔离对照，上游代码下载到研究产物目录，不整包并入产品。以下其他代码仍为候选来源；实际采用时记录文件、commit、许可、修改和验证结果。
+参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。[本地基线](../../research/m0a/baseline.json)使用此版本的实际CLI作隔离对照，上游代码下载到研究产物目录，不整包并入产品。已选择性移植的方法、2D绘图/动画、字体、声音和诊断见[创作工具](../creative-toolkit.md)；各目录保留确切文件、commit、许可与修改范围，未移植的网页宿主和依赖仍只用于隔离基线。
 
 | 来源范围 | 用途 |
 | --- | --- |
 | skills/huashu-motion/SKILL.md 与 references/ | 导演、节奏、色彩、运动语言、连续性和受众适配参考 |
-| runtime/clip/、camera-rig、om-engine 与 cli/lib/frames、render-om、beats、swatch | Canvas 绘制、按绝对时间取样、相机和视听诊断 |
+| runtime/clip/ 与 showcase 的 art-motion 派生代码；cli/lib/qa、beats、swatch | 2D数学/画面语法/材质与有界视听诊断；保留clip/art-motion独立MIT和NOTICE，不引入3D camera-rig或网页宿主 |
 | cli/lib/check、qa、score、sound、composer、dsp | 源码/帧检查与确定性声音；乐谱、采样和依赖单独审核 |
 | studio/studio.js、cli/lib/inbox.js、learn.js | 点选、源码定位和用户可控经验；权限和多租户由本产品实现 |
+
+新字体按OFL逐文件登记，其中中文字体为固定子集，不能把缺字替成系统字体。真实乐器采样只引入固定VSCO 2 CE的已核CC0文件，原始许可与来源随资源保存；Salamander钢琴和CC-BY电钢琴不进入默认素材包。新生成音轨使用独立`LicenseRef-PromoBento-Generated-Audio`记录组成材料，算法MIT不冒充输出CC0。自由ABC须有与请求/时长绑定的独立权利审批，模型源包不能自签，变更后重核。
 
 [上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
 

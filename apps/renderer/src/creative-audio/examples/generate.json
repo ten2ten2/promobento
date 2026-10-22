@@ -1,0 +1,11 @@
+{
+  "totalFrames": 450,
+  "source": {
+    "id": "launch-score",
+    "kind": "abc_score",
+    "algorithmVersion": "huashu-audio-v1",
+    "seed": 12,
+    "scoreId": "launch",
+    "marks": []
+  }
+}

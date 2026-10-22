@@ -36,3 +36,38 @@ test('workflow rejects a fabricated AudioPlan source hash after actual renderer 
   const operation=parseCanonicalJson(readFileSync(join(directory,'operations/audio/run.json')));
   assert.equal(rendered,3);assert.equal(operation.outputStatus,'withheld');assert.equal(operation.usage.costMicros,360);assert.equal(operation.candidates.length,0);
 });
+
+test('generated source author alias binds to the exact trusted request and wrong licenses remain rejected',async()=>{
+  const {bindGeneratedAudioPlan}=await import('../src/audio-binding.mjs');
+  const {verifyAudioRights,generatedAudioRequestHash}=await import('../../renderer/src/creative-audio/index.mjs');
+  const generated={id:'music',kind:'procedural_score',algorithmVersion:'huashu-audio-v1',seed:7,style:'pulse',bpm:112,root:60,sections:[{id:'open',frameIndex:0,energy:.5}],ending:'button'};
+  const frozen={eventId:'music-event',kind:'music',sourceId:'music',frameStart:0,frameEndExclusive:450,sourceOffsetFrames:0,gainDb:-3,fadeInFrames:3,fadeOutFrames:15};
+  const resources={resourceIds:['music'],generatedAudio:[generated],audioEvents:[frozen]},p={totalFrames:450,events:[{...frozen,licenseRef:'generated:music'}]};delete p.events[0].sourceId;
+  const bound=bindGeneratedAudioPlan(p,resources,{totalFrames:450}),rights=verifyAudioRights([generated],450);
+  assert.equal(bound.events[0].licenseRef,rights[0].licenseRef);assertAudioPlanResources(bound,resources);
+  assert.throws(()=>assertAudioPlanResources({...bound,events:[{...bound.events[0],licenseRef:'invented-rights'}]},resources),/MISMATCH/);
+  const abc={id:'music',kind:'abc_score',algorithmVersion:'huashu-audio-v1',seed:7,abc:'X:1\nM:4/4\nL:1/4\nQ:1/4=120\nK:C\nC D E F|',marks:[]};
+  assert.throws(()=>bindGeneratedAudioPlan(p,{...resources,generatedAudio:[abc]},{totalFrames:450}),/AUDIO_RIGHTS_REQUIRED/);
+  const audioRights={schemaVersion:'2.7.0',kind:'admission_audio_rights',approvals:[{sourceId:'music',requestHash:generatedAudioRequestHash(abc,450),basis:'original_composition_reviewed',evidenceRef:'unit-test-only',reviewer:'operator',allowedUses:['process','mix','preview','export']}]};
+  const approved=bindGeneratedAudioPlan(p,{...resources,generatedAudio:[abc]},{totalFrames:450,audioRights});
+  assertAudioPlanResources(approved,{...resources,generatedAudio:[abc]},{audioRights});
+  assert.throws(()=>bindGeneratedAudioPlan(p,{...resources,generatedAudio:[{...abc,seed:8}]},{totalFrames:450,audioRights}),/BINDING_MISMATCH/);
+});
+
+test('director saves resolved generated rights and refuses raw ABC without operator approval before rendering',async t=>{
+  const {verifyAudioRights}=await import('../../renderer/src/creative-audio/index.mjs');
+  const directory=mkdtempSync(join(tmpdir(),'generated-agent-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));
+  const input=project();input.audioMode='music';await initializeProject({directory,project:input});
+  const generated={id:'music',kind:'abc_score',algorithmVersion:'huashu-audio-v1',seed:1,scoreId:'launch',marks:[]},rights=verifyAudioRights([generated],450)[0];
+  const p=plan();p.audioPlan={totalFrames:450,events:[{...event(),licenseRef:'generated:music'}]};
+  p.source.resources={schemaVersion:'2.7.0',kind:'admission_resources',resourceIds:['music'],generatedAudio:[generated],audioEvents:[{...event(),sourceId:'music'}]};
+  await createWork({directory,projectId:input.id,config:config(),operationId:'generated',provider:provider({plans:[p]}),method:mockMethod,render:async args=>{
+    assert.equal(args.audioRights,null);const result=await mockRender(args);result.report.capture.media={resourceManifest:{audioEvents:[{...event(),licenseRef:rights.licenseRef,sourceHash:'b'.repeat(64)}]}};return result;
+  }});
+  const stored=parseCanonicalJson(readFileSync(join(directory,'operations/generated/run.json')));
+  assert.equal(stored.plans[0].audioPlan.events[0].licenseRef,rights.licenseRef);assert.equal(stored.outputStatus,'withheld');
+  delete p.source.resources.generatedAudio[0].scoreId;p.source.resources.generatedAudio[0].abc='X:1\nK:C\nC D E F|';let rendered=0,calls=0;
+  const api=provider({plans:[p]}),generate=api.generate;api.generate=async input=>{calls++;return generate(input);};
+  await assert.rejects(createWork({directory,projectId:input.id,config:config(),operationId:'raw-unapproved',provider:api,method:mockMethod,render:async()=>{rendered++;}}),/AUDIO_RIGHTS_REQUIRED/);
+  assert.equal(rendered,0);assert.equal(calls,1);
+});

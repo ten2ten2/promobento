@@ -34,7 +34,7 @@ test('media source is inert, profile-separated and editable images remain defaul
 });
 test('resource IDs are trusted registrations, never URLs or author-provided rights',()=>{
   const {resources,declarations}=candidate(),context={declarations,totalFrames:900};
-  assert.equal(validateAdmissionResources(resources,context).length,admittedMediaCatalog().resources.length);
+  assert.equal(validateAdmissionResources(resources,context).length,resources.resourceIds.length);
   for(const request of [{...resources,resourceIds:[...resources.resourceIds,'unreviewed']},
     {...resources,licenses:[{approved:true}]},{...resources,resourceIds:['https://example.test/image.png']},
     {...resources,resourceIds:['../../private']},{...resources,resourceIds:[...resources.resourceIds,'screen-still']}])

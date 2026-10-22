@@ -13,6 +13,7 @@
 | 契约实现与机器结构 | [共享契约库](packages/contracts/index.mjs)、[Schema](contracts/production.schema.json)、[14 生产契约](docs/prd/14-production-contracts.md) |
 | 创作运行时与帧桥接 | [创作 API](contracts/composition-runtime.d.ts)、[渲染协议](contracts/render-protocol.d.ts) |
 | 受限源码到 MP4 | [几何入口](docs/prd/08-codex-execution.md#本地canvas-commands-v1入口)、[文字与媒体入口](docs/prd/08-codex-execution.md#本地canvas-media-v1入口)、[原创工程样例](tests/fixtures/admission/composition.mjs) |
+| 创作工具移植 | [绘图、字体、声音、诊断与改稿工具](docs/creative-toolkit.md) |
 | 本地导演与 M0a 对照 | [导演、改稿与预算](apps/agent-runner/README.md)、[题目与研究入口](research/m0a/README.md) |
 | 用户流程与设计 | [02 UX 与 UI](docs/prd/02-ux-and-ui.md)、[离线 Studio](docs/design/agent-studio-reference.html) |
 | 品牌、图标与分享卡片 | [素材与接入](public/brand/README.md)、[品牌配置](config/brand.json) |

@@ -60,7 +60,7 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 
 本地受限源码另用[08的canvas-commands-v1入口](08-codex-execution.md#本地canvas-commands-v1入口)：`composition.mjs`默认导出`CommandCompositionDefinition`，同步返回[固定几何命令](../../contracts/admission-commands.schema.json)，没有浏览器对象或资源能力。静态声明仍使用`runtime_declarations`，源码清单另按[admission-source.schema.json](../../contracts/admission-source.schema.json)校验；新增类型不扩大`CompositionDefinition`或`RenderProtocol`的已准入能力。该profile仅接受空字体/视频声明和无asset/事实绑定的参数，不处理客户素材或商业事实。
 
-[canvas-media-v1](08-codex-execution.md#本地canvas-media-v1入口)是独立媒体profile，不改变上述几何契约。它增加可信登记资源ID、固定单行Latin文字/图片/PTS视频命令及冻结声音；`resources.json`不能自授权资源。实际字体度量、逐帧文字及目标安全区由可信层检查，文字轨迹和关键帧绑定实际成片。当前无任意上传、复杂塑形或事实绑定参数；本地研究控制器保存题目事实与输入身份并要求负责人审核，不能冒充生产的事实编辑联动和`qualityAssociation`。
+[canvas-media-v1](08-codex-execution.md#本地canvas-media-v1入口)是独立媒体profile，不改变上述几何契约。它增加可信登记资源ID、有界路径/变换/渐变/裁剪、Latin/CJK文字布局、图片/PTS视频命令及冻结生成声音；`resources.json`不能自授权资源。实际字体度量、逐帧文字及目标安全区由可信层检查，文字轨迹和关键帧绑定实际成片。当前无任意上传、复杂塑形或事实绑定参数；本地研究控制器保存题目事实与输入身份并要求负责人审核，不能冒充生产的事实编辑联动和`qualityAssociation`。
 
 首版不支持本地修改 `affectsTiming:true` 的字段，连同事实同步间接影响的字段一起拒绝，提示使用 AI 改稿。没有明确的时间补偿规则时，不能只改一个时间点却留下旧音轨、转场或录屏区间。AI 修改仍受固定总帧数和完整音画验证约束。
 

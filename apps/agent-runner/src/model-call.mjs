@@ -7,12 +7,12 @@ export function modelIdentity(config,provider=config.provider,id=config.model) {
 }
 
 /** Shared paid-call boundary for both experimental arms. No automatic HTTP retry. */
-export async function runModelCall({config,ledger,provider,instructions,input,signal}) {
+export async function runModelCall({config,ledger,provider,instructions,input,signal,images=[]}) {
   signal?.throwIfAborted();
   const reservation=ledger.reserve({usdMicros:usageCost({inputTokens:config.maxInputTokens,outputTokens:config.maxOutputTokens},config.prices),
     provider:provider.id,model:config.model});
   let result;
-  try {result=await provider.generate({instructions,input:canonical(input),signal});}
+  try {result=await provider.generate({instructions,input:canonical(input),images,signal});}
   catch(error) {
     if(error.notBilled)ledger.settle(reservation,{usdMicros:0,usage:[],reason:'Generation was not dispatched; token-count/preflight failed.'});
     throw error;

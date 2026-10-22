@@ -153,3 +153,45 @@ jobs:
           path: artifacts/m0a/
           retention-days: 30
           if-no-files-found: warn
+
+  creative:
+    needs: contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        with:
+          version: 2026.10.13
+          cache: false
+      - run: mise run install
+      - name: Build the pinned credential-free execution image
+        run: mise run build:admission
+      - name: Render seven grammars, imported font faces and exact serial/parallel comparisons
+        run: mise run test:creative
+      - name: Exercise licensed audio analysis and caption tools
+        run: mise run test:creative-audio
+      - name: Preserve complete creative samples and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: creative-toolkit-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/creative/
+            artifacts/creative-audio/
+            artifacts/admission-image.json
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Preserve small visual inspection bundle
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: creative-preview-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/creative/*/serial/keyframe-*.png
+            artifacts/creative/*/fonts/poster.png
+            artifacts/creative/*/verification.json
+          retention-days: 30
+          if-no-files-found: warn

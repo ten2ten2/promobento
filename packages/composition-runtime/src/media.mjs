@@ -49,7 +49,7 @@ export function selectVideoFrame(use,video,time) {
 
 function validateManifest(manifest) {
   if(manifest?.version!=='m0a-media-v1'||!Array.isArray(manifest.resources)||!Array.isArray(manifest.fonts)||!Array.isArray(manifest.videos)
-    ||manifest.resources.length>32||manifest.fonts.length>8||manifest.videos.length>3
+    ||manifest.resources.length>64||manifest.fonts.length>64||manifest.videos.length>3
     ||!Number.isSafeInteger(manifest.limits?.maxDecodedFrames)||manifest.limits.maxDecodedFrames<1||manifest.limits.maxDecodedFrames>32
     ||!Number.isSafeInteger(manifest.limits.maxDecodedBytes)||manifest.limits.maxDecodedBytes<1||manifest.limits.maxDecodedBytes>64*1024*1024)
     fail('MEDIA_MANIFEST_INVALID');

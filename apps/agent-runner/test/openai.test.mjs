@@ -31,3 +31,13 @@ test('mock HTTP: refusal/incomplete retain usage for settlement; missing credent
   let requests=0;const provider=createOpenAIProvider(config(),{apiKey:'mock-key',fetchImpl:async()=>++requests===1?json({input_tokens:1}):json({status:'incomplete',usage:{input_tokens:1,output_tokens:2000},output:[]})});
   const result=await provider.generate({instructions:'JSON',input:'a'});assert.equal(result.status,'incomplete');assert.equal(result.usage.outputTokens,2000);assert.equal(result.text,null);
 });
+
+test('mock HTTP: the same bounded multimodal input is counted and generated, never a text-only image URL',async()=>{
+  const requests=[],provider=createOpenAIProvider(config(),{apiKey:'mock-key',fetchImpl:async(url,options)=>{
+    requests.push(parseCanonicalJson(options.body));return requests.length===1?json({input_tokens:20}):json({model:'mock-model',status:'completed',usage:{input_tokens:20,output_tokens:1},output:[{type:'message',content:[{type:'output_text',text:'{}'}]}]});
+  }});
+  await provider.generate({instructions:'Return JSON.',input:'saved-frame identity',images:[{label:'full frame 42',dataUrl:'data:image/png;base64,aGVsbG8='}]});
+  assert.deepEqual(requests[0].input,requests[1].input);assert.equal(requests[1].input[0].content[2].type,'input_image');assert.equal(requests[1].input[0].content[2].detail,'high');
+  await assert.rejects(provider.generate({instructions:'JSON',input:'x',images:[{label:'external',dataUrl:'https://untrusted.test/image.png'}]}),error=>error.message==='LOCAL_AGENT_PROVIDER_IMAGES_INVALID'&&error.notBilled===true);
+  assert.equal(requests.length,2);
+});

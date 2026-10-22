@@ -1,7 +1,8 @@
 import {DefaultIntrinsics,newQuickJSWASMModule,newVariant,RELEASE_SYNC} from 'quickjs-emscripten';
 import {canonical,parseCanonicalJson} from '@promobento/contracts';
 import {randomAt} from '@promobento/composition-runtime';
-import {admissionTextMeasurement} from './admission-fonts.mjs';
+import {admissionTextMeasurement,prepareAdmissionFontMetrics} from './admission-fonts.mjs';
+import {createMotionTools} from '../../../packages/composition-runtime/src/motion-tools.mjs';
 
 const declarationNames=['editables','markers','regions','videoUses','fonts'];
 const clock=performance.now.bind(performance);
@@ -154,7 +155,9 @@ const bootstrap=String.raw`(() => {
     prepare(contextText,randomAt,maxBytes,checkSync,measureText) {
       const context=parse(contextText);outputLimit=maxBytes;assertSync=checkSync;
       define(context,'randomAt',{value:randomAt,enumerable:true});
-      if(measureText)define(context,'measureText',{value:(fontId,text,fontSize,weight)=>harden(parse(measureText(fontId,text,fontSize,weight))),enumerable:true});
+      if(measureText)define(context,'measureText',{value:(fontId,text,fontSize,weight,layout)=>harden(parse(measureText(fontId,text,fontSize,weight,layout===undefined?'':serialize(layout,4096)))),enumerable:true});
+      const tools=(${createMotionTools.toString()})(context);
+      for(const key of names(tools))define(context,key,{value:tools[key],enumerable:true});
       harden(context);
       prepared=apply(data(definition,'prepare'),definition,[context]);
       assertSync(prepared);
@@ -183,6 +186,9 @@ const bootstrap=String.raw`(() => {
 export async function createAdmissionEngine(options) {
   const checked=admissionEngineOptions(options),{source,inputText,declarationsText,limits}=checked;
   const input=parseCanonicalJson(inputText);
+  // Licensed font decoding belongs to trusted preparation, not the guest draw
+  // deadline; subsequent native measurements use immutable cached metrics.
+  if(options.profile==='canvas-media-v1')prepareAdmissionFontMetrics(options.declarations.fonts.map(font=>font.fontId));
   // 0.32.0's Emscripten malloc_usable_size is unavailable: QuickJS's reported
   // allocation counter can count only per-block overhead. Its runtime limit is
   // supplementary; the supplied WebAssembly.Memory enforces the actual bytes.
@@ -256,10 +262,11 @@ export async function createAdmissionEngine(options) {
     const actual=parseCanonicalJson(readText(invoke('declarations',methods.inspect,[module,declarationLimit]),1048576));
     if(canonical(actual)!==declarationsText)throw Error('ADMISSION_DECLARATIONS_MISMATCH');
     const context=retain(vm.newString(inputText)),outputLimit=retain(vm.newNumber(limits.maxOutputBytes));
-    const measurement=options.profile==='canvas-media-v1'?retain(vm.newFunction('measureText',(fontId,text,fontSize,weight)=>{
-      if(vm.typeof(fontId)!=='string'||vm.typeof(text)!=='string'||vm.typeof(fontSize)!=='number'||vm.typeof(weight)!=='number')throw Error('ADMISSION_TEXT_INVALID');
-      const {width,ascent,descent}=admissionTextMeasurement(options.declarations,vm.getString(fontId),vm.getString(text),vm.getNumber(fontSize),vm.getNumber(weight));
-      return vm.newString(canonical({width,ascent,descent}));
+    const measurement=options.profile==='canvas-media-v1'?retain(vm.newFunction('measureText',(fontId,text,fontSize,weight,layout)=>{
+      if(vm.typeof(fontId)!=='string'||vm.typeof(text)!=='string'||vm.typeof(fontSize)!=='number'||vm.typeof(weight)!=='number'||vm.typeof(layout)!=='string')throw Error('ADMISSION_TEXT_INVALID');
+      const raw=vm.getString(layout);if(raw.length>4096)throw Error('ADMISSION_TEXT_LAYOUT_INVALID');
+      const {width,ascent,descent,height,lineHeight,lineCount}=admissionTextMeasurement(options.declarations,vm.getString(fontId),vm.getString(text),vm.getNumber(fontSize),vm.getNumber(weight),raw?parseCanonicalJson(raw):undefined);
+      return vm.newString(canonical({width,ascent,descent,height,lineHeight,lineCount}));
     })):vm.undefined;
     invoke('prepare',methods.prepare,[context,random,outputLimit,synchronous,measurement]).dispose();
     return Object.freeze({

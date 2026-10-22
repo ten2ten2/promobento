@@ -125,6 +125,15 @@ try {
   else if(mode==='hang'){await input();while(true){}}
   else if(mode==='oom'){await input();const retained=[];while(true)retained.push(Buffer.alloc(8*1024*1024,1));}
   else if(mode==='capture'){await input();await capture();}
+  else if(mode==='audio-tools'){
+    const {runCreativeAudioJob}=await import('../src/creative-audio-worker.mjs');
+    await runCreativeAudioJob(await input());await output({kind:'audio-tools-complete'});
+  }
+  else if(mode==='edit-evidence'){
+    await input();const {writeEditEvidence}=await import('../src/edit-evidence.mjs');
+    const evidence=writeEditEvidence({...parseCanonicalJson(readFileSync('/input/job.json')),mediaPath:'/input/video.mp4',outputDirectory:'/output'});
+    await output({kind:'edit-evidence-complete',frameIndex:evidence.frameIndex});
+  }
   else throw Error('WORKER_MODE_INVALID');
 } catch(error) {
   process.stderr.write(JSON.stringify({kind:'admission_failure',...admissionFailure(error)})+'\n');process.exitCode=1;

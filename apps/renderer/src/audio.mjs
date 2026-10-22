@@ -70,7 +70,11 @@ function licensedSource(event,sources,licenses) {
   const source=sources.get(event.sourceHash),license=licenses?.[event.licenseRef];
   // The caller supplies trusted admission records, never creator assertions.
   // Check them before decoding any source bytes, including a source later muted in the mix.
-  if (!license || license.license!=='CC0-1.0' || license.sourceHashes?.includes(event.sourceHash)!==true
+  const approvedKind=license?.license==='CC0-1.0'||(license?.license==='LicenseRef-PromoBento-Generated-Audio'
+    &&license.algorithmVersion==='huashu-audio-v1'&&/^[a-f0-9]{64}$/.test(license.requestHash)
+    &&['original_composition_reviewed','licensed_composition_reviewed','reviewed_original_engineering_score','reviewed_mit_procedural_material'].includes(license.basis)
+    &&license.compositionEvidence&&license.algorithmLicense==='MIT');
+  if (!approvedKind || license.sourceHashes?.includes(event.sourceHash)!==true
     || !['process','mix','preview','export'].every(use=>license.allowedUses?.includes(use))) fail('AUDIO_LICENSE_REQUIRED');
   if (!source || sha256(source)!==event.sourceHash) fail('AUDIO_SOURCE_HASH_MISMATCH');
   return readPcm16Wav(source);

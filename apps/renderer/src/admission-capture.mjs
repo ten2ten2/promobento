@@ -14,6 +14,8 @@ import {paintAdmissionCanvas,validateAdmissionDraw,validateAdmissionTextInk} fro
 import {prepareAdmissionMedia} from './admission-media.mjs';
 import {validateEncodedAudio} from './audio.mjs';
 import {repository} from './admission-image.mjs';
+import {orderedCapture} from './ordered-capture.mjs';
+import {inspectMotion} from './creative-diagnostics.mjs';
 import {admissionObservationBudget,ADMISSION_MEDIA_OBSERVATION_MAX_BYTES} from './admission-observations.mjs';
 
 const presets=parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json',import.meta.url)));
@@ -77,10 +79,11 @@ function startEncoder(output,encoding,frameCount,audioPath) {
 
 /** Only validated geometry crosses into this browser. drawFrame reads trusted guest-output data. */
 export async function captureAdmission({input,encoding,outputDirectory,drawFrame,verification,declarations={regions:[]},
-  profile='canvas-commands-v1',resourceRequest,denseFrame}) {
+  profile='canvas-commands-v1',resourceRequest,denseFrame,audioRights=null,captureWorkers=1}) {
   const frameCount=configuration(input,encoding),expectedPlan=admissionVerificationPlan(frameCount);
   if(verification!==undefined&&canonical(verification)!==canonical(expectedPlan))throw new Error('ADMISSION_VERIFICATION_INVALID');
   verification=expectedPlan;
+  if(![1,2].includes(captureWorkers))throw Error('CAPTURE_CONCURRENCY_INVALID');
   if(typeof drawFrame!=='function')throw new Error('ADMISSION_DRAW_READER_REQUIRED');
   if(typeof outputDirectory!=='string'||!outputDirectory.trim())throw new Error('ADMISSION_OUTPUT_DIRECTORY_REQUIRED');
   const started=performance.now(),out=resolve(outputDirectory),{width,height,durationSeconds,targetId}=input;
@@ -108,7 +111,7 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
     framesDirectory=mkdtempSync(join(out,'sampled-frames-'));
     if(profile==='canvas-media-v1') {
       mediaDirectory=mkdtempSync(join(out,'media-prepare-'));
-      media=prepareAdmissionMedia({request:resourceRequest,declarations,input,outputDirectory:mediaDirectory});
+      media=prepareAdmissionMedia({request:resourceRequest,declarations,input,audioRights,outputDirectory:mediaDirectory});
       if(media.audio)copyFileSync(media.audio.mixedPath,join(out,'mixed.wav'));
     } else if(profile!=='canvas-commands-v1')throw Error('ADMISSION_PROFILE_INVALID');
     writeFileSync(join(out,'environment.json'),JSON.stringify(environment,null,2)+'\n',{flag:'wx'});
@@ -124,7 +127,8 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
         const asset=media.routes.get(url.pathname);
         if(asset)return route.fulfill({body:asset.bytes,contentType:asset.contentType});
         if(['/apps/renderer/src/admission-media-browser.mjs','/packages/composition-runtime/src/media.mjs',
-          '/packages/composition-runtime/src/command-text.mjs'].includes(url.pathname))
+          '/packages/composition-runtime/src/command-text.mjs','/packages/composition-runtime/src/command-geometry.mjs',
+          '/packages/composition-runtime/src/command-painter.mjs'].includes(url.pathname))
           return route.fulfill({contentType:'text/javascript',body:readFileSync(join(repository,url.pathname.slice(1)))});
         return route.abort('blockedbyclient');
       });
@@ -146,7 +150,7 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
         const observation=await page.evaluate(data=>globalThis.paintAdmissionMedia(data),{commands:draw.commands,width,height,frame});
         validateAdmissionTextInk(observation,{targetId,width,height});
         if(record) {
-          const item={frame,...observation};observationBytes=chargeObservation(item);mediaFrames.push(item);
+          const item={frame,...observation};observationBytes=chargeObservation(item);mediaFrames[frame]=item;
         }
       } else await page.evaluate(paintAdmissionCanvas,{commands:draw.commands,width,height});
       return page.screenshot({type:'png',animations:'allow',caret:'hide',timeout:frameTimeoutMs});
@@ -156,12 +160,16 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
       throw error;
     });
     handle=await launchFixtureBrowser(bundle);
-    const {context,page}=await open();
+    const captures=[];
+    for(let worker=0;worker<captureWorkers;worker++)captures.push(await open());
+    const {page}=captures[0];
     stage('captureEncodeMs');
     const video=join(out,'sample.mp4');
     encoder=startEncoder(video,encoding,frameCount,media?.audio?.mixedPath);
-    for(let frame=0;frame<frameCount;frame++) {
-      const png=await screenshot(page,frame,undefined,true),decoded=PNG.sync.read(png);
+    await orderedCapture({count:frameCount,workers:captureWorkers,
+      produce:(frame,worker)=>screenshot(captures[worker].page,frame,undefined,true),
+      consume:async(png,frame)=>{
+      const decoded=PNG.sync.read(png);
       assert.equal(decoded.width,width);assert.equal(decoded.height,height);
       maxFramePngBytes=Math.max(maxFramePngBytes,png.length);
       hashes.push(sha256(decoded.data));
@@ -170,7 +178,7 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
       const keyframe=keyframePlan.find(item=>item.frameIndex===frame);
       if(keyframe)writeFileSync(join(out,keyframe.file),png,{flag:'wx'});
       await encoder.write(png);
-    }
+    }});
     await encoder.finish();
     stage('determinismChecksMs');
     const compare=async(page,frame,label,options)=>{
@@ -183,7 +191,7 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
     };
     for(const frame of verification.repeated)await compare(page,frame,'Repeated draw');
     for(const frame of verification.unordered)await compare(page,frame,'Unordered draw');
-    await context.close();await handle.stop();
+    await Promise.all(captures.map(item=>item.context.close()));await handle.stop();
     handle=await launchFixtureBrowser(bundle);
     const cold=await open();
     for(const [index,frame] of verification.cold.entries())await compare(cold.page,frame,'Cold draw',index===0?{cold:true}:undefined);
@@ -229,7 +237,7 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
       }
       mediaReport={...media.report,textTrack:file('text-track.json'),drawnTextTracks:tracks.length,observations:mediaFrames,
         observationBytes,maxObservationBytes:ADMISSION_MEDIA_OBSERVATION_MAX_BYTES,
-        textQa:{checkedFrames:frameCount,layout:'selected_face_unshaped_latin',safeArea:'all_drawn_text_with_positive_opacity',
+        textQa:{checkedFrames:frameCount,layout:'selected_face_metrics_latin_cjk_explicit_wrap',safeArea:'all_drawn_text_with_positive_opacity',
           safeAreaMeasurements:['shared_font_advances','actual_browser_ink'],overflow:'block'},
         frozenAudio:media.audio?file('mixed.wav'):null,encodedAudio:audioCheck};
     }
@@ -237,9 +245,9 @@ export async function captureAdmission({input,encoding,outputDirectory,drawFrame
       targetId,width,height,durationSeconds,frameCount,environmentHash:environment.environmentHash,execution,
       verification,pixelHashes:hashes,checks:{forwardFrames:frameCount,repeatedFrames:verification.repeated.length,
         unorderedFrames:verification.unordered.length,coldFrames:verification.cold.length,coldBrowserRestarted:true,sourceCodeInBrowser:false},
-      capture:{frameTimeoutMs,sourceFrameStorage:'temporary_sampled_disk',maxFramePngBytes,encodingOverlapsCapture:true},
+      capture:{frameTimeoutMs,workers:captureWorkers,maxInFlightFrames:captureWorkers,sourceFrameStorage:'temporary_sampled_disk',maxFramePngBytes,encodingOverlapsCapture:true},
       video:file('sample.mp4'),poster:{...file('poster.png'),sourceFrame:Math.floor(frameCount/2),pixelSha256:hashes[Math.floor(frameCount/2)]},
-      keyframes,
+      keyframes,editorialQa:{...inspectMotion(video,frameCount),videoSha256:sha256File(video)},
       files:['sample.mp4','poster.png','environment.json','execution.json',...(media?['text-track.json','keyframes.json',...keyframePlan.map(item=>item.file)]:[]),
         ...(media?.audio?['mixed.wav']:[])].map(file),probe,media:mediaReport};
   } finally {

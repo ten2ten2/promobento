@@ -10,11 +10,16 @@ import {admissionKeyframePlan} from './admission-capture.mjs';
 import {admissionVerification,admissionEngineRequests} from './admission-verification.mjs';
 import {validateAdmissionDraw} from './admission-commands.mjs';
 import {admissionEngineBudget} from './admission-budget.mjs';
+import {creativeQaPolicy} from './creative-diagnostics.mjs';
+import {verifyAudioRights} from './creative-audio/index.mjs';
 import {admissionFailure} from './admission-failure.mjs';
 
-export async function renderAdmission({sourceDirectory,outputDirectory,signal,onCreated}) {
-  const started=performance.now(),candidate=readAdmissionSource(sourceDirectory),image=verifiedAdmissionImage();
-  const verification=admissionVerification(candidate.input.totalFrames),initialQa=admissionQaIdentity(candidate,image,verification);
+export async function renderAdmission({sourceDirectory,outputDirectory,signal,onCreated,audioRights=null,captureWorkers=1}) {
+  if(![1,2].includes(captureWorkers))throw Error('CAPTURE_CONCURRENCY_INVALID');
+  const started=performance.now(),candidate=readAdmissionSource(sourceDirectory);
+  verifyAudioRights(candidate.resourceRequest?.generatedAudio??[],candidate.input.totalFrames,audioRights);
+  const image=verifiedAdmissionImage(),capturePolicy={version:'trusted-capture-v2',captureWorkers,editorialQa:creativeQaPolicy,audioRights};
+  const verification=admissionVerification(candidate.input.totalFrames),initialQa=admissionQaIdentity(candidate,image,verification,undefined,capturePolicy);
   let qa=initialQa;
   const profile=candidate.manifest.capabilityProfile;
   const out=resolve(outputDirectory??join(repository,'artifacts/admission',randomUUID()));
@@ -77,7 +82,7 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
     engineRemaining();
     stages.coldMs=Math.round(performance.now()-stage);stage=performance.now();
     writeFileSync(join(data,'job.json'),canonical({input:candidate.input,encoding:candidate.encoding,declarations:candidate.declarations,
-      profile,resourceRequest:candidate.resourceRequest,denseFrame}),{mode:0o644});
+      profile,resourceRequest:candidate.resourceRequest,denseFrame,audioRights,captureWorkers}),{mode:0o644});
     let captured=false;
     resources.push(await runAdmissionSandbox({image,mode:'capture',input:{},kind:'capture',signal,onCreated,timeoutMs:remaining(),
       mounts:[{source:data,target:'/input'},{source:captureOut,target:'/output',readonly:false}],
@@ -95,16 +100,16 @@ export async function renderAdmission({sourceDirectory,outputDirectory,signal,on
     }
     stages.captureMs=Math.round(performance.now()-stage);
     remaining();
-    if(capture.media)qa=admissionQaIdentity(candidate,image,verification,capture.media.resourceManifest);
+    if(capture.media)qa=admissionQaIdentity(candidate,image,verification,capture.media.resourceManifest,capturePolicy);
     const report={kind:'m0a_admission_result',status:'passed',scope:profile+' technical execution admission',
       sourceHash:candidate.sourceHash,sourceArchiveHash:candidate.sourceArchiveHash,sourceFiles:candidate.files,
       targetSourceFiles:candidate.targetFiles,
       qaInputHash:qa.qaInputHash,qaProfileVersion:qa.qaProfileVersion,qaInput:qa.identity,
-      capabilityProfile:profile,image,policy:admissionPolicy,verification,
+      capabilityProfile:profile,image,policy:admissionPolicy,verification,capturePolicy,
       commandChecks:{forwardFrames:commandChecks.forward,repeatedFrames:commandChecks.repeated,unorderedFrames:commandChecks.unordered,
         coldReverseFrames:commandChecks.cold_reverse,newContainer:true,pixelSamplesUnchanged:true},
       commandHashes:hashes,resources,capture,productionEligible:false,
-      limitations:[profile==='canvas-media-v1'?'registered licensed media and unshaped Latin text; no arbitrary upload, DOM, imports or build scripts':'geometry-only synchronous single module; no DOM, media, imports or build scripts',
+      limitations:[profile==='canvas-media-v1'?'registered licensed media, generated audio and bounded Latin/CJK text layout; no arbitrary upload, DOM, imports or build scripts':'geometry-only synchronous single module; no DOM, media, imports or build scripts',
         'no content-safety, factual verification, customer authorization or production quality association',
         'full cold-reverse command comparison and sampled pixel checks are bounded evidence, not proof of purity; Cloudflare execution remains unverified'],
       timings:{...stages,totalMs:Math.round(performance.now()-started)}};

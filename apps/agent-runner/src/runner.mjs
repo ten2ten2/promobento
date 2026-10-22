@@ -9,9 +9,13 @@ import {withStore,checkedId} from './store.mjs';
 import {createCostLedger,latestCosts} from './costs.mjs';
 import {createOpenAIProvider} from './openai.mjs';
 import {runModelCall,modelIdentity} from './model-call.mjs';
-import {assertAudioPlanResources,assertAudioPlanFrozen} from './audio-binding.mjs';
+import {assertAudioPlanResources,assertAudioPlanFrozen,bindGeneratedAudioPlan} from './audio-binding.mjs';
 import {publicErrorCode,privateErrorDiagnostic} from './errors.mjs';
 import {compositionMethod,DIRECTOR_INSTRUCTIONS,METHOD_VERSION} from './prompts.mjs';
+import {collectEditEvidence} from './edit-evidence.mjs';
+import {recallProjectExperience} from './experience.mjs';
+import {methodTopics} from './method-library.mjs';
+const captureSavedFrame=async args=>(await import('../../renderer/src/edit-evidence.mjs')).captureEditEvidence(args);
 
 const uid=prefix=>prefix+'-'+randomUUID();
 const operationPath=id=>'operations/'+checkedId(id)+'/run.json';
@@ -51,9 +55,9 @@ function newOperation(store,record,kind,operationId) {
 }
 function assertRights(source,project) {
   if(!source.resources||!Array.isArray(source.resources.resourceIds)||!Array.isArray(source.resources.audioEvents))throw Error('LOCAL_AGENT_RESOURCES_INVALID');
-  const permitted=new Set(project.rights.map(right=>right.resourceId));
+  const permitted=new Set([...project.rights.map(right=>right.resourceId),...(source.resources.generatedAudio??[]).map(item=>item.id)]);
   if(source.resources.resourceIds.some(id=>!permitted.has(id)))throw Error('LOCAL_AGENT_RESOURCE_RIGHTS_REQUIRED');
-  if(project.audioMode==='silent'&&source.resources.audioEvents.length)throw Error('LOCAL_AGENT_SILENT_PROJECT');
+  if(project.audioMode==='silent'&&(source.resources.audioEvents.length||source.resources.generatedAudio?.length))throw Error('LOCAL_AGENT_SILENT_PROJECT');
 }
 function writeSource(store,source,project,candidateId,targetId) {
   assertSchema(source,'source');assertRights(source,project);
@@ -66,13 +70,13 @@ function writeSource(store,source,project,candidateId,targetId) {
   const checked=readAdmissionSource(directory); // Static parsing only; source never imports on host.
   return {path,sourceHash:checked.sourceHash,sourceArchiveHash:checked.sourceArchiveHash};
 }
-async function renderSource({store,source,audioPlan,project,candidateId,targetId,ledger,signal,render}) {
+async function renderSource({store,source,audioPlan,project,candidateId,targetId,ledger,signal,render,audioRights=null}) {
   signal?.throwIfAborted();
   const written=writeSource(store,source,project,candidateId,targetId);
   const output='renders/'+candidateId+'/'+safeTarget(targetId);mkdirSync(join(store.root,'renders',candidateId),{recursive:true,mode:0o700});
   const reservation=ledger.reserve({usdMicros:600*ledger.renderRate,provider:'local-docker',targetId,purpose:'target_preparation'});
   const started=performance.now();let result;
-  try {result=await render({sourceDirectory:join(store.root,written.path),outputDirectory:join(store.root,output),signal});}
+  try {result=await render({sourceDirectory:join(store.root,written.path),outputDirectory:join(store.root,output),signal,audioRights});}
   finally {
     const elapsed=Math.ceil(performance.now()-started);
     ledger.settle(reservation,{usdMicros:Math.ceil(elapsed*ledger.renderRate/1000),usage:[{metric:'wall_ms',unit:'millisecond',quantity:elapsed}],
@@ -86,7 +90,7 @@ async function renderSource({store,source,audioPlan,project,candidateId,targetId
   if(!Array.isArray(actual)||!actual.length)throw Error('LOCAL_AGENT_RENDER_KEYFRAMES_REQUIRED');
   const keyframes=actual.map(frame=>({id:candidateId+'-'+safeTarget(targetId)+'-frame-'+frame.frameIndex,
     ...frame,path:output+'/'+frame.file}));
-  return {...written,output,report:output+'/report.json',media:output+'/sample.mp4',poster:output+'/poster.png',keyframes,qaInputHash:result.report.qaInputHash};
+  return {...written,output,report:output+'/report.json',media:output+'/sample.mp4',poster:output+'/poster.png',keyframes,qaInputHash:result.report.qaInputHash,...(result.report.capture?.video?.sha256?{mediaSha256:result.report.capture.video.sha256}:{})};
 }
 function operationLedger(store,config,project,operation) {
   const ledger=createCostLedger(store,config,project,operation.id,operation.id+'-attempt-'+operation.attempt);
@@ -109,19 +113,20 @@ export async function initializeProject({directory,project}) {
   });
 }
 export async function createWork({directory,projectId,config,kind='creative_generate',operationId,comments=[],provider,signal,
-  render=renderAdmission,method=compositionMethod}) {
+  render=renderAdmission,method=compositionMethod,capture=captureSavedFrame,audioRights=null,expectedRevisionId}) {
   assertConfig(config);
   if(!['creative_generate','agent_patch'].includes(kind))throw Error('LOCAL_AGENT_OPERATION_INVALID');
   return withStore(directory,async store=>{
     const record=projectRecord(store,projectId),project=record.input;
     if(operationId&&store.exists(operationPath(operationId))) {
       const previous=store.read(operationPath(operationId));
-      if(previous.projectInputHash!==record.inputHash||previous.kind!==kind||canonical(previous.comments??[])!==canonical(comments))throw Error('LOCAL_AGENT_OPERATION_REPLAY_MISMATCH');
+      if(previous.projectInputHash!==record.inputHash||previous.kind!==kind||canonical(previous.comments??[])!==canonical(comments)||digest(previous.audioRights??null)!==digest(audioRights)||(expectedRevisionId!==undefined&&previous.baseRevisionId!==expectedRevisionId))throw Error('LOCAL_AGENT_OPERATION_REPLAY_MISMATCH');
       return publicStatus(previous);
     }
     let base=null,renderTargetIds=[project.targetIds[0]];
     if(kind==='agent_patch') {
       if(!record.current.revisionId)throw Error('LOCAL_AGENT_REVISION_REQUIRED');
+      if(expectedRevisionId!==undefined&&expectedRevisionId!==record.current.revisionId)throw Error('LOCAL_AGENT_BASE_CONFLICT');
       const accepted=store.read(operationPath(record.current.candidateOperationId));
       const candidate=accepted.candidates.find(candidate=>candidate.id===record.current.revisionId);
       if(!candidate)throw Error('LOCAL_AGENT_REVISION_MISSING');
@@ -133,20 +138,35 @@ export async function createWork({directory,projectId,config,kind='creative_gene
       base={candidate,plan:accepted.plans.find(plan=>plan.candidateId===candidate.id)};
       if(!base.plan)throw Error('LOCAL_AGENT_REVISION_MISSING');
     }
-    const operation=newOperation(store,record,kind,operationId);operation.comments=comments;
+    const operation=newOperation(store,record,kind,operationId);operation.comments=comments;operation.audioRights=audioRights;
     operation.renderTargetIds=renderTargetIds;
     operation.model=modelIdentity(config,provider?.id??config.provider);saveOperation(store,operation);
     const started=performance.now();let ledger;
     try {
       const api=provider??createOpenAIProvider(config);
-      const methods=await method({...project,targetIds:kind==='agent_patch'?renderTargetIds:project.targetIds});
-      const input={methodVersion:METHOD_VERSION,project,mode:kind==='agent_patch'?'patch':project.direct?'direct':'explore',method:methods,base,comments,renderTargetIds};
+      const methods=await method({...project,targetIds:kind==='agent_patch'?renderTargetIds:project.targetIds,stage:kind==='agent_patch'?'patch':'create'});
+      const experience=recallProjectExperience(store,project,methodTopics(project.audience,project.task,...comments.map(comment=>comment.comment)));
+      operation.methodIdentity=methods.methods?.identity??{version:METHOD_VERSION};
+      operation.methodSelection={stage:methods.methods?.stage??null,ids:methods.methods?.selected?.map(card=>card.id)??[]};
+      operation.experienceIdentity={generation:experience.generation,contentHash:experience.contentHash};
+      let edit={evidence:[],images:[]};
+      if(base) {
+        operation.state='active';operation.phase='capturing_edit_evidence';saveOperation(store,operation);
+        ledger=operationLedger(store,config,project,operation);
+        const reservation=ledger.reserve({usdMicros:600*ledger.renderRate,provider:'local-docker',purpose:'quality'}),captureStarted=performance.now();
+        const captureSignal=AbortSignal.any([...(signal?[signal]:[]),AbortSignal.timeout(600000)]);
+        try{edit=await collectEditEvidence({store,project,base,comments,operationId:operation.id,capture,signal:captureSignal});}
+        finally{const elapsed=Math.ceil(performance.now()-captureStarted);ledger.settle(reservation,{usdMicros:Math.ceil(elapsed*ledger.renderRate/1000),usage:[{metric:'wall_ms',unit:'millisecond',quantity:elapsed}],reason:'Measured isolated edit evidence extraction from the accepted MP4.'});}
+        if(Math.ceil((performance.now()-captureStarted)*ledger.renderRate/1000)>reservation.usdMicros)throw Error('LOCAL_AGENT_RENDER_EXCEEDED_RESERVATION');
+      }
+      operation.editEvidence=edit.evidence;
+      const input={methodVersion:METHOD_VERSION,project,mode:kind==='agent_patch'?'patch':project.direct?'direct':'explore',method:methods,experience,base,comments,renderTargetIds,editEvidence:edit.evidence};
       let repair=null;
       for(let attempt=1;attempt<=3;attempt++) {
         const attemptSignal=AbortSignal.any([...(signal?[signal]:[]),AbortSignal.timeout(600000)]);
         operation.attempt=attempt;operation.state='active';operation.phase=repair?'repair':'directing';
         ledger=operationLedger(store,config,project,operation);saveOperation(store,operation);
-        const generated=await runModelCall({config,ledger,provider:api,instructions:DIRECTOR_INSTRUCTIONS,input:{...input,repair},signal:attemptSignal});
+        const generated=await runModelCall({config,ledger,provider:api,instructions:DIRECTOR_INSTRUCTIONS,input:{...input,repair},images:edit.images,signal:attemptSignal});
         operation.model=generated.model;recordReturnedModel(operation,generated.returnedModel);operation.phase='validating';operation.state='validating';saveOperation(store,operation);
         const expected=kind==='agent_patch'||project.direct?1:3;
         const value=generated.value;
@@ -154,11 +174,12 @@ export async function createWork({directory,projectId,config,kind='creative_gene
           if(!value||Object.keys(value).join(',')!=='plans'||!Array.isArray(value.plans)||value.plans.length!==expected)throw Error('LOCAL_AGENT_PLANS_INVALID');
           const plans=[],candidates=[];
           for(const plan of value.plans) {
+            plan.audioPlan=bindGeneratedAudioPlan(plan.audioPlan,plan.source?.resources,{totalFrames:project.durationSeconds*30,audioRights});
             assertPlan(plan,project.durationSeconds*30);
-            assertAudioPlanResources(plan.audioPlan,plan.source.resources);
+            assertAudioPlanResources(plan.audioPlan,plan.source.resources,{audioRights});
             const candidateId=uid('candidate'),renderedTargets={};
             for(const targetId of renderTargetIds)
-              renderedTargets[targetId]=await renderSource({store,source:plan.source,audioPlan:plan.audioPlan,project,candidateId,targetId,ledger,signal:attemptSignal,render});
+              renderedTargets[targetId]=await renderSource({store,source:plan.source,audioPlan:plan.audioPlan,project,candidateId,targetId,ledger,signal:attemptSignal,render,audioRights});
             const direction={...plan.direction,keyframeIds:Object.values(renderedTargets).flatMap(target=>target.keyframes.map(frame=>frame.id))};
             plans.push({...plan,direction,candidateId});
             candidates.push({id:candidateId,operationId:operation.id,baseRevisionId:operation.baseRevisionId,model:generated.model,
@@ -170,7 +191,7 @@ export async function createWork({directory,projectId,config,kind='creative_gene
           if(expected===1)operation.selectedCandidateId=candidates[0].id;
           break;
         } catch(error) {
-          if(attemptSignal.aborted||attempt===3||/BUDGET|CANCEL|AUTHORIZATION|CLEANUP|IMAGE|DAEMON|HOST/.test(error.message))throw error;
+          if(attemptSignal.aborted||attempt===3||/BUDGET|CANCEL|AUTHORIZATION|CLEANUP|IMAGE|DAEMON|HOST|AUDIO_RIGHTS/.test(error.message))throw error;
           operation.internalRepairs++;repair={error:String(error.message).slice(0,2048),previousResponse:value};
           operation.lastRepairError=repair.error;saveOperation(store,operation);
         }
@@ -230,7 +251,7 @@ export async function prepareTargets({directory,projectId,config,operationId,sig
     const sourcePlan=accepted.plans.find(plan=>plan.candidateId===record.current.revisionId);
     if(!sourcePlan)throw Error('LOCAL_AGENT_REVISION_MISSING');
     const operation=newOperation(store,record,'prepare_targets',operationId),candidateId=uid('candidate');
-    operation.attempt=1;operation.model=accepted.model;
+    operation.attempt=1;operation.model=accepted.model;operation.audioRights=accepted.audioRights??null;
     operation.targetRulesVersion=presets.rulesVersion;operation.preparedTargetIds=legalTargets(presets).map(target=>target.targetId);
     const ledger=operationLedger(store,config,project,operation),started=performance.now();
     try {
@@ -239,7 +260,7 @@ export async function prepareTargets({directory,projectId,config,operationId,sig
       const existing=accepted.candidates.find(candidate=>candidate.id===record.current.revisionId);
       for(const targetId of operation.preparedTargetIds) {
         signal?.throwIfAborted();
-        targets[targetId]=existing.targets[targetId]??await renderSource({store,source:sourcePlan.source,audioPlan:sourcePlan.audioPlan,project,candidateId,targetId,ledger,signal,render});
+        targets[targetId]=existing.targets[targetId]??await renderSource({store,source:sourcePlan.source,audioPlan:sourcePlan.audioPlan,project,candidateId,targetId,ledger,signal,render,audioRights:operation.audioRights});
       }
       operation.plans=[{...sourcePlan,candidateId}];operation.candidates=[{id:candidateId,operationId:operation.id,baseRevisionId:record.current.revisionId,
         model:accepted.model,targets,productionEligible:false}];operation.selectedCandidateId=candidateId;

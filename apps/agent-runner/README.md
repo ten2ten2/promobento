@@ -8,7 +8,7 @@ mise run agent:local -- plan --directory artifacts/local-agent --project-id PROJ
 mise run agent:local -- status --directory artifacts/local-agent --operation-id OPERATION_ID
 ```
 
-`project.json` 的完整结构见 [project 定义](src/schema.mjs)。它包含软件/课程题目、15/30 秒、既有目标、固定 seed、事实原文及其证据/确认人/确认时间、资源许可确认、声音选择和本地研究责任人。题目卡中的待确认信息不能自行填成用户确认。当前只能使用 Renderer 已登记媒体；公开网页不自动成为获准素材。
+`project.json` 的完整结构见 [project 定义](src/schema.mjs)。它包含软件/课程题目、15/30 秒、既有目标、固定 seed、事实原文及其证据/确认人/确认时间、资源许可确认、声音选择和本地研究责任人。题目卡中的待确认信息不能自行填成用户确认。素材使用 Renderer 已登记媒体，或受控 generatedAudio 请求生成的冻结音源；公开网页不自动成为获准素材。
 
 ## 真实调用须有单独的研究授权
 
@@ -71,3 +71,59 @@ mise run agent:local -- prepare --directory artifacts/local-agent --project-id P
 每个 attempt 的响应、渲染报告和原始失败原因保存到 `operations/ID/attempts/N/`；费用仍只用同一个 append-only 账本，渲染失败也计实际耗时。重试不清零费用，不能改用其他项目、模型设置、授权或预算。任何未结算预留都会阻止修复。
 
 `operation.model` 是请求身份（`config.model`、provider、settingsHash），用于预登记实验匹配；`operation.returnedModels` 按 `{attempt, provider, id}` 保留 API 实际返回的模型版本，包含已计费但输出无效的响应。模型别名不能覆盖或丢弃实际 snapshot；基线同一操作内实际版本漂移会停止，基准比较还需核对两个实验臂使用同一实际版本。
+
+## 按题目选用导演方法，不整包灌提示
+
+[方法库](methods/README.md)保留固定 huashu-motion 版本的 MIT 来源，包含 11 份导演方法、18 类影片形式、20 种视觉语言和 32 条改写后的适用经验。`compositionMethod()` 按题目、软件/课程与创作/改稿阶段实际选入正文，保存方法版本和内容身份。没有准入的 3D、折射、角色与真人口播不会进入生成指导。
+
+```bash
+mise run agent:local -- methods --topics software,workflow
+mise run agent:local -- methods --method-ids format:before-after,language:data-story
+```
+
+创作 VM 的 `prepare(context)` 同时提供缓动/弹簧、2D 相机、路径、绘图与七类画面组件，具体用法随 [MOTION_API](../../packages/composition-runtime/MOTION_API.md) 一起进入导演上下文。中文须选目录内 CJK 字体，所有字体、字重与换行都按实际覆盖/墨迹检查。
+
+项目可选 `methodIds` 指定最多 16 个已可用方法 ID；不指定时自动选择。`methods` 无需模型凭据，不发收费请求。方向比较仍使用实际关键帧；配色另可把明确的 `[{"id":"fit","colors":["#F5F5F5","#202020","#2563EB"]}]` 输入 `mise run creative:tools -- palette --input palettes.json --output-directory artifacts/palettes`，查看色板和可解释警告，不能从自由文字中猜测实测色彩占比。
+
+## 改稿会看见所指的帧
+
+`patch` 在模型调用前，从已接受版本的实际 MP4 用固定隔离容器取出每条批注的**准确整数帧**，不限于已有关键帧。有 `normalizedPoint:{x,y}` 时，同时提供以该点为中心、边缘处平移到画幅内的半幅裁片，再放大 2 倍。全帧与细节作为真实 `input_image` 送进模型；token 预检和生成使用同一多模态输入。接口形状按 [OpenAI 图像输入文档](https://developers.openai.com/api/docs/guides/images-vision?api-mode=responses)，当前只做 mock HTTP 验证，未用付费模型验收。
+
+```bash
+mise run agent:local -- patch --directory artifacts/local-agent \
+  --project-id PROJECT_ID --expected-revision ACCEPTED_REVISION_ID \
+  --config authorized-config.json --comments comments.json
+```
+
+建议总是带 `--expected-revision`，旧版本请求在取图/付费前停止。证据保存于 `operations/OPERATION_ID/edit-evidence.json` 及相邻 PNG；记录 revision、target、frame、批注摘要、源包、QA 与实际视频/图片身份。缺媒体、路径替换、错误帧或旧证据不会降级为只发文字；失败不改原版本。`screenshotAssetId` 不用于选择任意文件，`selectedElementId` 不冒充可信命中。提取耗时计入同一操作的预算账本，图片不复制进公开状态正文。
+
+## 生成音轨仍绑定可信权利
+
+导演接收完整 `generatedAudio` Schema、合成音色、固定工程谱和 CC0 采样目录。可输出 `abc_score` 的已登记 `scoreId`、`procedural_score` 或 `sfx`，放入 `source.resources.generatedAudio`，并在 `resourceIds` 和实际 `audioEvents` 中引用。来源先冻结为 WAV，AudioPlan 再与冻结事件核对。模型给生成事件写 `licenseRef:"generated:<sourceId>"`；控制器只将这个明确的创作别名解析为可信许可记录，保存后的生产 AudioPlan 不保留别名。错误的登记素材许可不会被自动修正。
+
+自由 ABC 另需责任人提供 [独立音频权利回执](../../contracts/admission-audio-rights.schema.json)，通过 `plan/patch --audio-rights FILE` 传入。它不属于模型源码，精确绑定乐谱、seed、marks 和 450/900 帧请求；改谱后旧回执失效，缺回执立即停止，不自动批准或付费重试。`prepare` 继承已接受候选的原回执，不能换一份许可来补目标。静音项目不声明或合成音源。录音采样不随机器缓存变化，无自动 TTS/ASR 调用。
+
+字幕和上传配乐分析走独立的[音频工具入口](../renderer/src/creative-audio/README.md)。例如已确认稿件和人工复核的发声区间可以执行 `mise run creative:audio -- --captions request.json --output artifacts/captions`，得到 `captions.srt` 与保留依据的 `report.json`。插值词时间始终标为 `interpolated`，不是实际识别的逐词边界；这些工具不自动增加当前项目的口播权限、替换原话或把未确认稿件变成事实。
+
+## 项目经验默认关闭，随时撤销
+
+经验仅在当前研究目录、项目、责任人和 workspace 内生效。使用 `experience` 明确启用；不会从评论、作品或私有源码自动采集，也没有共享的主目录经验库。它是本地单写者控制器，不代替生产租户授权。
+
+```bash
+mise run agent:local -- experience --directory artifacts/local-agent \
+  --project-id PROJECT_ID --actor-user-id USER_ID --workspace-id WORKSPACE_ID --action list
+mise run agent:local -- experience --directory artifacts/local-agent \
+  --project-id PROJECT_ID --actor-user-id USER_ID --workspace-id WORKSPACE_ID \
+  --action put --entry preference.json --expected-generation 0
+mise run agent:local -- experience --directory artifacts/local-agent \
+  --project-id PROJECT_ID --actor-user-id USER_ID --workspace-id WORKSPACE_ID \
+  --action enable --expected-generation 1
+```
+
+`preference.json` 示例（内容必须来自该用户实际表达）：
+
+```json
+{"id":"reading-hold","kind":"preference","topics":["rhythm"],"text":"用户原话：关键数字落稳后再切镜。","evidence":[{"kind":"user_quote","ref":"该项目的真实反馈记录"}]}
+```
+
+`put` 同 ID 更新；每次变更都要提供 `list` 返回的当前 generation。`disable` 保留记录但不再召回；`enable` 恢复；`delete --entry-id ID` 实际删除该条。四类记录为 `preference`（有用户原话依据）、`observed`（单次线索）、`verified`（测量或至少两份不同观察依据）、`superseded`（附 replacement、不再召回）。启用后下一次导演调用自动带入全部明确偏好和按主题匹配的经验；关闭、删除或失效后下一次不再带入。每项目最多 64 条，不会把单项目偏好升级为通用规则。当前要求与已确认事实始终优先。

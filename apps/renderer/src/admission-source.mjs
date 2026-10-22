@@ -68,7 +68,7 @@ export function readAdmissionSource(directory) {
 }
 
 /** Technical Q0 input identity only; no production quality association or content-safety grant. */
-export function admissionQaIdentity(candidate,image,verification,resourceManifest={resources:[],audioEvents:[],mixedAudio:null}) {
+export function admissionQaIdentity(candidate,image,verification,resourceManifest={resources:[],audioEvents:[],mixedAudio:null},capturePolicy) {
   const resourceContentHash=digest(resourceContentIdentity(resourceManifest));
   const target=targets(admissionPresets).find(target=>target.targetId===candidate.input.targetId);
   const c={...candidate.input,runtimeVersion:candidate.manifest.capabilityProfile,
@@ -77,7 +77,7 @@ export function admissionQaIdentity(candidate,image,verification,resourceManifes
     presetRulesVersion:admissionPresets.rulesVersion,renderProfile:'standard'};
   const v={targetId:c.targetId,sourceHash:candidate.sourceHash,targetOverrideHash:digest({}),resourceContentHash,
     audioHash:digest(audioIdentity(resourceManifest)),resourceManifestHash:digest(resourceManifest),coverFrame:Math.floor(c.totalFrames/2)};
-  const qaProfileVersion=verification.version+':'+digest({policy:admissionPolicy,verification});
+  const qaProfileVersion=verification.version+':'+digest({policy:admissionPolicy,verification,...(capturePolicy?{capturePolicy}:{})});
   const identity=qaInputIdentity(c,v,qaProfileVersion,admissionPresets);
   return {qaProfileVersion,qaInputHash:digest(identity),identity};
 }

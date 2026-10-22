@@ -7,7 +7,7 @@ import {parseCanonicalJson,canonical,targets} from '../../../packages/contracts/
 import {presets} from '../src/schema.mjs';
 import {initializeProject,createWork,getOperation,recordReview,selectCandidate,acceptCandidate,prepareTargets,generateResearchArtifact,runResearchRender,reconcileCharge} from '../src/runner.mjs';
 import {latestCosts} from '../src/costs.mjs';
-import {project,config,plan,provider,mockRender,mockMethod} from './fixtures.mjs';
+import {project,config,plan,provider,mockRender,mockMethod,mockCapture} from './fixtures.mjs';
 
 function temp(t){const path=mkdtempSync(join(tmpdir(),'agent-runner-'));t.after(()=>rmSync(path,{recursive:true,force:true}));return path;}
 const raw=(directory,id)=>parseCanonicalJson(readFileSync(join(directory,'operations',id,'run.json')));
@@ -16,7 +16,7 @@ const receipt=subjectHash=>({reviewerId:'human-test-operator',reviewedAt:new Dat
   evidenceRef:'Mock test record, not an actual human acceptance.',checks:{facts:true,rights:true,contentSafety:true,normalSpeedAudiovisual:true,silentReadability:true}});
 async function create(t,{input=project(),api=provider(),render=mockRender}={}) {
   const directory=temp(t);await initializeProject({directory,project:input});
-  const result=await createWork({directory,projectId:input.id,config:config(),operationId:'op-create',provider:api,render,method:mockMethod});
+  const result=await createWork({directory,projectId:input.id,config:config(),operationId:'op-create',provider:api,render,capture:mockCapture,method:mockMethod});
   return {directory,result};
 }
 async function accept(directory,result) {
@@ -71,7 +71,7 @@ test('mock request replay returns the same result without another paid call',asy
 });
 test('mock patch is one round, rejects oversized comments before calls and never changes accepted base automatically',async t=>{
   const {directory,result}=await create(t);const revision=await accept(directory,result);
-  const args={directory,projectId:project().id,config:config(),kind:'agent_patch',provider:provider(),render:mockRender,method:mockMethod};
+  const args={directory,projectId:project().id,config:config(),kind:'agent_patch',provider:provider(),render:mockRender,capture:mockCapture,method:mockMethod};
   const comment={targetId:'tiktok:portrait',frameIndex:100,comment:'Change accent color only.',editScope:'shot'};
   await assert.rejects(createWork({...args,comments:[{...comment,comment:'😀'.repeat(4001)}]}),/COMMENTS_INVALID/);
   const patch=await createWork({...args,operationId:'op-patch',comments:[comment]});
@@ -122,7 +122,7 @@ test('mock patch after preparation renders newly prepared comment targets and in
   const comment=targetId=>({targetId,frameIndex:100,comment:'Change headline placement.',editScope:'variant'});
   let methodTargets;
   const patch=await createWork({directory,projectId:input.id,config:config(),operationId:'op-new-target-patch',kind:'agent_patch',
-    comments:[comment('youtube:landscape'),comment('instagram_feed:square')],provider:provider(),method:async data=>{methodTargets=data.targetIds;return mockMethod();},
+    comments:[comment('youtube:landscape'),comment('instagram_feed:square')],provider:provider(),capture:mockCapture,method:async data=>{methodTargets=data.targetIds;return mockMethod();},
     render:async args=>{calls.push(parseCanonicalJson(readFileSync(join(args.sourceDirectory,'candidate.json'))).targetId);return mockRender(args);}});
   assert.deepEqual(calls,['youtube:landscape','instagram_feed:square']);assert.deepEqual(methodTargets,calls);
   const candidate=raw(directory,'op-new-target-patch').candidates[0];
@@ -134,7 +134,7 @@ test('mock patch after preparation renders newly prepared comment targets and in
   await acceptCandidate({directory,operationId:'op-new-target-patch',expectedRevisionId:preparedRevision});
   assert.equal(current().revisionId,candidate.id);
   await assert.rejects(createWork({directory,projectId:input.id,config:config(),operationId:'op-unready-target',kind:'agent_patch',
-    comments:[comment('tiktok:portrait')],provider:provider(),method:mockMethod,render:mockRender}),/COMMENTS_INVALID/);
+    comments:[comment('tiktok:portrait')],provider:provider(),capture:mockCapture,method:mockMethod,render:mockRender}),/COMMENTS_INVALID/);
 });
 test('mock all-variants patch validates every prepared target and any render failure preserves the old revision',async t=>{
   const {directory,result}=await create(t),originalRevision=await accept(directory,result);
@@ -142,7 +142,7 @@ test('mock all-variants patch validates every prepared target and any render fai
   await recordReview({directory,operationId:'op-prepare',receipt:receipt(prepared.subjectHash)});
   await acceptCandidate({directory,operationId:'op-prepare',expectedRevisionId:originalRevision});
   const revision=raw(directory,'op-prepare').selectedCandidateId,calls=[];
-  const args={directory,projectId:project().id,config:config(),kind:'agent_patch',provider:provider(),method:mockMethod,
+  const args={directory,projectId:project().id,config:config(),kind:'agent_patch',provider:provider(),capture:mockCapture,method:mockMethod,
     comments:[{targetId:'youtube:landscape',frameIndex:30,comment:'Update accent on every target.',editScope:'all-variants'}]};
   await createWork({...args,operationId:'op-global-patch',render:async options=>{calls.push(parseCanonicalJson(readFileSync(join(options.sourceDirectory,'candidate.json'))).targetId);return mockRender(options);}});
   assert.deepEqual(calls.toSorted(),targets(presets).map(target=>target.targetId).toSorted());
@@ -154,12 +154,12 @@ test('mock all-variants patch validates every prepared target and any render fai
 test('mock cancellation settles a late provider response but never publishes a candidate',async t=>{
   const directory=temp(t);await initializeProject({directory,project:project()});const controller=new AbortController();
   const api=provider();const generate=api.generate;api.generate=async args=>{const result=await generate(args);controller.abort(Error('LOCAL_AGENT_CANCELLED'));return result;};
-  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-cancel',provider:api,render:mockRender,method:mockMethod,signal:controller.signal}),/CANCELLED/);
+  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-cancel',provider:api,render:mockRender,capture:mockCapture,method:mockMethod,signal:controller.signal}),/CANCELLED/);
   const operation=raw(directory,'op-cancel');assert.equal(operation.state,'cancelled');assert.equal(operation.usage.costMicros,120);assert.deepEqual(operation.candidates,[]);
 });
 test('mock unknown usage retains worst case; evidence-bound reconciliation does not erase history',async t=>{
   const directory=temp(t);await initializeProject({directory,project:project()});const api={id:'mock',generate:async()=>{throw Error('network unavailable');}};
-  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-unknown',provider:api,render:mockRender,method:mockMethod}),/network unavailable/);
+  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-unknown',provider:api,render:mockRender,capture:mockCapture,method:mockMethod}),/network unavailable/);
   const prior=latestCosts(events(directory))[0];assert.equal(prior.status,'estimated');assert.equal(prior.usdMicros,14000);
   assert.equal(raw(directory,'op-unknown').model.provider,'mock');assert.equal(raw(directory,'op-unknown').model.id,'mock-model');
   assert.match(raw(directory,'op-unknown').model.settingsHash,/^[a-f0-9]{64}$/);
@@ -183,6 +183,6 @@ test('mock baseline source and renderer share one operation budget and ledger',a
 });
 test('mock unauthorized media never reaches the renderer and cannot be self-granted by source',async t=>{
   const directory=temp(t);await initializeProject({directory,project:project()});const p=plan();p.source.resources.resourceIds=['screen-still'];let renders=0;
-  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-rights',provider:provider({plans:[p]}),method:mockMethod,
+  await assert.rejects(createWork({directory,projectId:project().id,config:config(),operationId:'op-rights',provider:provider({plans:[p]}),capture:mockCapture,method:mockMethod,
     render:async()=>{renders++;return mockRender();}}),/RESOURCE_RIGHTS_REQUIRED/);assert.equal(renders,0);
 });

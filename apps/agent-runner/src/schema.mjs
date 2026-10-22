@@ -15,7 +15,7 @@ export const localSchema={
   $defs:{
     project:object({id,caseId:id,audience:{enum:['software','course']},task:text,durationSeconds:{enum:[15,30]},
       targetIds:{type:'array',minItems:1,maxItems:7,uniqueItems:true,items:{enum:targets(presets).map(item=>item.targetId)}},
-      seed:id,facts:{type:'array',minItems:1,maxItems:100,items:object({id,text,...confirmation})},
+      methodIds:{type:'array',maxItems:16,uniqueItems:true,items:id},seed:id,facts:{type:'array',minItems:1,maxItems:100,items:object({id,text,...confirmation})},
       rights:{type:'array',maxItems:32,items:object({resourceId:id,...confirmation})},audioMode:{enum:['silent','music']},
       direct:{type:'boolean'},actorUserId:id,workspaceId:id},['id','audience','task','durationSeconds','targetIds','seed','facts','rights','audioMode','direct','actorUserId','workspaceId']),
     config:object({version:{const:'local-agent-v1'},mode:{const:'local_research'},provider:{const:'openai'},model:text,

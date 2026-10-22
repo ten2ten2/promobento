@@ -136,6 +136,11 @@ export interface CommandRuntimeContext {
   readonly values: Readonly<Record<string, EditableValue>>;
   /** The same random-at-v1 helper as RuntimeContext; maximum key length 65,536 UTF-16 units. */
   readonly randomAt: (key: string) => number;
+  readonly motion: MotionMath;
+  readonly camera: CommandCamera;
+  readonly path: CommandPaths;
+  readonly paint: CommandPaint;
+  readonly components: CommandComponents;
 }
 /** Geometry only. Colors are six-digit hexadecimal RGB; opacity is in [0,1]. */
 export type CanvasCommand = (
@@ -172,20 +177,113 @@ export interface CommandCompositionDefinition {
  * the trusted renderer catalog and resources.json; guest modules get no bytes,
  * URLs, DOM, audio clock, networking or browser objects.
  */
-export interface MediaCommandRuntimeContext extends CommandRuntimeContext {
-  /** Pure metrics from the licensed selected WOFF faces. Single-line unshaped
-   * Latin only; the painter uses identical per-codepoint advances with no kerning.
-   */
-  measureText(fontId: string, text: string, fontSize: number, weight: number): {
-    readonly width: number; readonly ascent: number; readonly descent: number;
-  };
+export interface TextLayout {
+  readonly wrap?: 'none' | 'word-cjk'; readonly lineHeight?: number; readonly padding?:number; readonly align?: 'left' | 'center' | 'right';
 }
-export type MediaCanvasCommand = CanvasCommand | (
-  | { readonly op:'text'; readonly id:string; readonly fontId:string; readonly text:string;
-      readonly fontSize:number; readonly weight:number; readonly color:`#${string}` }
-  | { readonly op:'image'; readonly resourceId:string }
-  | { readonly op:'video'; readonly useId:string }
-) & { readonly x:number; readonly y:number; readonly width:number; readonly height:number; readonly opacity:number };
+export interface TextMeasurement {
+  readonly width:number; readonly ascent:number; readonly descent:number; readonly height:number;
+  readonly lineHeight:number; readonly lineCount:number;
+}
+export interface MediaCommandRuntimeContext extends CommandRuntimeContext {
+  /** Exact WOFF advances, no implicit font fallback. Explicit layout enables
+   * newlines/word-CJK wrapping. No RTL, combining-mark or emoji shaping. */
+  measureText(fontId:string,text:string,fontSize:number,weight:number,layout?:TextLayout & {readonly width:number}):TextMeasurement;
+}
+export type AffineTransform=readonly [number,number,number,number,number,number];
+export interface CommandClip {readonly x:number;readonly y:number;readonly width:number;readonly height:number;readonly radius?:number}
+export interface CommandStroke {
+  readonly color:`#${string}`;readonly width:number;readonly cap?:'butt'|'round'|'square';readonly join?:'round'|'bevel'|'miter';
+  readonly dash?:ReadonlyArray<number>;readonly dashOffset?:number;
+}
+export interface CommandGradient {
+  readonly kind:'linear'|'radial';readonly x0:number;readonly y0:number;readonly x1:number;readonly y1:number;
+  readonly r0?:number;readonly r1?:number;readonly stops:ReadonlyArray<{readonly offset:number;readonly color:`#${string}`}>;
+}
+export type CommandPathSegment=
+  | {readonly kind:'move'|'line';readonly x:number;readonly y:number}
+  | {readonly kind:'quadratic';readonly cx:number;readonly cy:number;readonly x:number;readonly y:number}
+  | {readonly kind:'cubic';readonly cx1:number;readonly cy1:number;readonly cx2:number;readonly cy2:number;readonly x:number;readonly y:number}
+  | {readonly kind:'close'};
+export type MediaCanvasCommand=(
+  | (CanvasCommand & {readonly fill?:boolean;readonly stroke?:CommandStroke;readonly gradient?:CommandGradient})
+  | {readonly op:'path';readonly segments:ReadonlyArray<CommandPathSegment>;readonly color:`#${string}`;readonly opacity:number;
+      readonly fill?:boolean;readonly stroke?:CommandStroke;readonly gradient?:CommandGradient}
+  | ({readonly op:'texture';readonly style:'paper'|'grain'|'halftone'|'mosaic'|'brush';readonly color:`#${string}`;
+      readonly accent:`#${string}`;readonly seed:number;readonly scale?:number} & CommandClip & {readonly opacity:number})
+  | ((
+    | {readonly op:'text';readonly id:string;readonly fontId:string;readonly text:string;
+        readonly fontSize:number;readonly weight:number;readonly color:`#${string}`;readonly layout?:TextLayout}
+    | {readonly op:'image';readonly resourceId:string;readonly crop?:CommandClip;
+        readonly effect?:{readonly style:'halftone'|'mosaic'|'brush';readonly cell:number;readonly seed:number}}
+    | {readonly op:'video';readonly useId:string;readonly crop?:CommandClip}
+  ) & {readonly x:number;readonly y:number;readonly width:number;readonly height:number;readonly opacity:number})
+) & {readonly transform?:AffineTransform;readonly clip?:CommandClip};
+/** Geometry profile callers retain the original command subset; helpers that
+ * create text/resources/effects require the separately admitted media profile. */
+export interface MotionMath {
+  clamp(value:number,min?:number,max?:number):number;lerp(a:number,b:number,p:number):number;
+  seg(t:number,start:number,end:number):number;at(t:number,start:number,duration:number):number;
+  anim(t:number,start:number,duration:number,ease?:(p:number)=>number):number;step(t:number,fps?:number):number;
+  smooth(p:number):number;smoothCE(p:number,inflection?:number):number;thereAndBack(p:number):number;
+  rushInto(p:number):number;rushFrom(p:number):number;doubleSmooth(p:number):number;wiggle(p:number,wiggles?:number):number;
+  lagged(index:number,count:number,p:number,ratio?:number):number;linear(p:number):number;sineInOut(p:number):number;
+  cubicIn(p:number):number;cubicOut(p:number):number;cubicInOut(p:number):number;quartOut(p:number):number;quintOut(p:number):number;
+  quintInOut(p:number):number;expoIn(p:number):number;expoOut(p:number):number;expoInOut(p:number):number;
+  backOut(p:number,overshoot?:number):number;elasticOut(p:number):number;
+  bezier(x1:number,y1:number,x2:number,y2:number):(p:number)=>number;
+  appleOut(p:number):number;emphasized(p:number):number;k75(p:number):number;easyEase(p:number):number;longTail(p:number):number;
+  spring(t:number,options?:{duration?:number;bounce?:number;v0?:number}):number;
+  smoothSpring(t:number):number;snappy(t:number):number;bouncy(t:number):number;springHz(t:number,frequency?:number,decay?:number):number;
+  settle(t:number,amplitude:number,frequency?:number,decay?:number):number;float(t:number,amplitude?:number,period?:number,phase?:number):number;
+  count(time:number,start:number,duration:number,a:number,b:number,ease?:(p:number)=>number):number;formatNumber(value:number,decimals?:number):string;
+  invert(ease:(p:number)=>number,y:number,iterations?:number):number;beat(n:number,bpm?:number):number;onBeat(barTime:number,revealProgress:number,duration:number):number;
+}
+export interface CommandPoint {readonly x:number;readonly y:number}
+export interface CameraPose {readonly x?:number;readonly y?:number;readonly z?:number;readonly r?:number}
+export interface CommandCamera {
+  matrix(camera:CameraPose):AffineTransform;zlerp(a:number,b:number,p:number):number;
+  toScreen(camera:CameraPose,x:number,y:number):CommandPoint;toWorld(camera:CameraPose,x:number,y:number):CommandPoint;
+  coverZoom(radius:number,x?:number,y?:number):number;anchor(x:number,y:number,z:number,sx:number,sy:number):CameraPose;
+  at(keys:ReadonlyArray<CameraPose & {readonly t:number;readonly ease?:(p:number)=>number}>,t:number):CameraPose;
+  parallax(camera:CameraPose,depth:number):CameraPose;drift(t:number,amplitude?:number,seed?:number):readonly [number,number];
+  apply(commands:ReadonlyArray<MediaCanvasCommand>,camera:CameraPose):ReadonlyArray<MediaCanvasCommand>;
+  region(region:RegionBounds,camera:CameraPose):RegionBounds;
+  pushTo(base:CameraPose,x:number,y:number,z:number,p:number,centering?:number,to?:CommandPoint):CameraPose;
+}
+export interface CommandPaths {
+  densify(points:ReadonlyArray<CommandPoint>,per?:number):ReadonlyArray<CommandPoint>;
+  resample(points:ReadonlyArray<CommandPoint>,count?:number):ReadonlyArray<CommandPoint>;
+  ribbon(points:ReadonlyArray<CommandPoint>,width?:number|((p:number,index:number)=>number),color?:`#${string}`):MediaCanvasCommand;
+  cumulative(points:ReadonlyArray<CommandPoint>):ReadonlyArray<number>;pointAt(points:ReadonlyArray<CommandPoint>,p:number):CommandPoint;
+  partial(points:ReadonlyArray<CommandPoint>,p:number):ReadonlyArray<CommandPoint>;
+  cubic(a:CommandPoint,b:CommandPoint,c:CommandPoint,d:CommandPoint,count?:number):ReadonlyArray<CommandPoint>;
+  arc(x:number,y:number,rx:number,ry:number,start:number,end:number,count?:number):ReadonlyArray<CommandPoint>;
+  morph(a:ReadonlyArray<CommandPoint>,b:ReadonlyArray<CommandPoint>,p:number):ReadonlyArray<CommandPoint>;
+  hand(points:ReadonlyArray<CommandPoint>,key?:string,amplitude?:number):ReadonlyArray<CommandPoint>;
+  line(points:ReadonlyArray<CommandPoint>,color?:`#${string}`,width?:number,p?:number):MediaCanvasCommand;
+}
+export interface CommandPaint {
+  tornPaper(x:number,y:number,width:number,height:number,options?:{key?:string;color?:`#${string}`;amplitude?:number}):MediaCanvasCommand;
+  rect(x:number,y:number,width:number,height:number,color:`#${string}`,radius?:number):MediaCanvasCommand;
+  circle(x:number,y:number,radius:number,color:`#${string}`):MediaCanvasCommand;
+  text(id:string,text:string,x:number,y:number,width:number,options?:TextLayout & {fontId?:string;fontSize?:number;weight?:number;color?:`#${string}`}):MediaCanvasCommand;
+  texture(style:'paper'|'grain'|'halftone'|'mosaic'|'brush',x:number,y:number,width:number,height:number,
+    options?:{color?:`#${string}`;accent?:`#${string}`;seed?:number;scale?:number;opacity?:number}):MediaCanvasCommand;
+  transform(commands:ReadonlyArray<MediaCanvasCommand>,options?:{x?:number;y?:number;scale?:number;rotation?:number;originX?:number;originY?:number}):ReadonlyArray<MediaCanvasCommand>;
+  /** Wipes are for geometry/images; partial text clipping fails admission. */
+  wipe(commands:ReadonlyArray<MediaCanvasCommand>,p:number,options?:CommandClip & {direction?:'left'|'right'}):ReadonlyArray<MediaCanvasCommand>;
+  lightSweep(x:number,y:number,width:number,height:number,p:number,color?:`#${string}`):MediaCanvasCommand;
+}
+export interface ComponentBox {id?:string;x?:number;y?:number;width?:number;height?:number;fontId?:string;weight?:number;progress?:number}
+export interface CommandComponents {
+  ui(options?:ComponentBox & {title?:string;navigation?:ReadonlyArray<string>;cards?:ReadonlyArray<{label:string;value:string}>;resourceId?:string;crop?:CommandClip}):ReadonlyArray<MediaCanvasCommand>;
+  mechanism(options?:ComponentBox & {nodes?:ReadonlyArray<{label:string;x?:number;y?:number;color?:`#${string}`}>;edges?:ReadonlyArray<readonly [number,number]>;formula?:string}):ReadonlyArray<MediaCanvasCommand>;
+  chart(options?:ComponentBox & {kind?:'line'|'bar';title?:string;data?:ReadonlyArray<{label:string;value:number;color?:`#${string}`}>}):ReadonlyArray<MediaCanvasCommand>;
+  flatWorld(options?:ComponentBox & {time?:number;color?:`#${string}`;nodes?:ReadonlyArray<string>}):ReadonlyArray<MediaCanvasCommand>;
+  collage(options?:ComponentBox & {cards?:ReadonlyArray<{title:string;text?:string;resourceId?:string}>}):ReadonlyArray<MediaCanvasCommand>;
+  whiteboard(options?:ComponentBox & {points?:ReadonlyArray<CommandPoint>;title?:string;annotation?:string}):ReadonlyArray<MediaCanvasCommand>;
+  kineticType(options?:ComponentBox & {words?:ReadonlyArray<string>;fontSize?:number;highlight?:number;color?:`#${string}`}):ReadonlyArray<MediaCanvasCommand>;
+}
 export interface MediaCommandCompositionDefinition {
   readonly apiVersion:'2.7.0';
   readonly editables:ReadonlyArray<EditableProperty>;

@@ -80,6 +80,12 @@
         },
         {
           "$ref": "#/$defs/video"
+        },
+        {
+          "$ref": "#/$defs/path"
+        },
+        {
+          "$ref": "#/$defs/texture"
         }
       ]
     },
@@ -119,6 +125,21 @@
         },
         "opacity": {
           "$ref": "#/$defs/opacity"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        },
+        "gradient": {
+          "$ref": "#/$defs/gradient"
+        },
+        "fill": {
+          "type": "boolean"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
         }
       }
     },
@@ -151,6 +172,21 @@
         },
         "opacity": {
           "$ref": "#/$defs/opacity"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        },
+        "gradient": {
+          "$ref": "#/$defs/gradient"
+        },
+        "fill": {
+          "type": "boolean"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
         }
       }
     },
@@ -180,6 +216,21 @@
         },
         "opacity": {
           "$ref": "#/$defs/opacity"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        },
+        "gradient": {
+          "$ref": "#/$defs/gradient"
+        },
+        "fill": {
+          "type": "boolean"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
         }
       }
     },
@@ -275,6 +326,42 @@
         },
         "color": {
           "$ref": "#/$defs/color"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "layout": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "wrap": {
+              "enum": [
+                "none",
+                "word-cjk"
+              ]
+            },
+            "lineHeight": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 1024
+            },
+            "align": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ]
+            },
+            "padding": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 128
+            }
+          }
         }
       }
     },
@@ -313,6 +400,43 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "maxLength": 128
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "crop": {
+          "$ref": "#/$defs/crop"
+        },
+        "effect": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "style",
+            "cell",
+            "seed"
+          ],
+          "properties": {
+            "style": {
+              "enum": [
+                "halftone",
+                "mosaic",
+                "brush"
+              ]
+            },
+            "cell": {
+              "type": "integer",
+              "minimum": 4,
+              "maximum": 32
+            },
+            "seed": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            }
+          }
         }
       }
     },
@@ -351,6 +475,420 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "maxLength": 128
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        },
+        "crop": {
+          "$ref": "#/$defs/crop"
+        }
+      }
+    },
+    "transform": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "number",
+        "minimum": -16384,
+        "maximum": 16384
+      }
+    },
+    "clip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "width": {
+          "$ref": "#/$defs/size"
+        },
+        "height": {
+          "$ref": "#/$defs/size"
+        },
+        "radius": {
+          "$ref": "#/$defs/size"
+        }
+      }
+    },
+    "stroke": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "color",
+        "width"
+      ],
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 64
+        },
+        "cap": {
+          "enum": [
+            "butt",
+            "round",
+            "square"
+          ]
+        },
+        "join": {
+          "enum": [
+            "round",
+            "bevel",
+            "miter"
+          ]
+        },
+        "dash": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1024
+          }
+        },
+        "dashOffset": {
+          "$ref": "#/$defs/coordinate"
+        }
+      }
+    },
+    "gradient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "x0",
+        "y0",
+        "x1",
+        "y1",
+        "stops"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "linear",
+            "radial"
+          ]
+        },
+        "x0": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y0": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "x1": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y1": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "r0": {
+          "$ref": "#/$defs/size"
+        },
+        "r1": {
+          "$ref": "#/$defs/size"
+        },
+        "stops": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "offset",
+              "color"
+            ],
+            "properties": {
+              "offset": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "color": {
+                "$ref": "#/$defs/color"
+              }
+            }
+          }
+        }
+      }
+    },
+    "segment": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "kind": {
+              "const": "move"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "kind": {
+              "const": "line"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "cx",
+            "cy",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "kind": {
+              "const": "quadratic"
+            },
+            "cx": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "cx1",
+            "cy1",
+            "cx2",
+            "cy2",
+            "x",
+            "y"
+          ],
+          "properties": {
+            "kind": {
+              "const": "cubic"
+            },
+            "cx1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy1": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cx2": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "cy2": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "x": {
+              "$ref": "#/$defs/coordinate"
+            },
+            "y": {
+              "$ref": "#/$defs/coordinate"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "close"
+            }
+          }
+        }
+      ]
+    },
+    "path": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op",
+        "segments",
+        "color",
+        "opacity"
+      ],
+      "properties": {
+        "op": {
+          "const": "path"
+        },
+        "segments": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        },
+        "fill": {
+          "type": "boolean"
+        },
+        "stroke": {
+          "$ref": "#/$defs/stroke"
+        },
+        "gradient": {
+          "$ref": "#/$defs/gradient"
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        }
+      }
+    },
+    "texture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "op",
+        "x",
+        "y",
+        "width",
+        "height",
+        "color",
+        "accent",
+        "opacity",
+        "style",
+        "seed"
+      ],
+      "properties": {
+        "op": {
+          "const": "texture"
+        },
+        "x": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "y": {
+          "$ref": "#/$defs/coordinate"
+        },
+        "width": {
+          "$ref": "#/$defs/size"
+        },
+        "height": {
+          "$ref": "#/$defs/size"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "accent": {
+          "$ref": "#/$defs/color"
+        },
+        "opacity": {
+          "$ref": "#/$defs/opacity"
+        },
+        "style": {
+          "enum": [
+            "paper",
+            "grain",
+            "halftone",
+            "mosaic",
+            "brush"
+          ]
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.25,
+          "maximum": 16
+        },
+        "transform": {
+          "$ref": "#/$defs/transform"
+        },
+        "clip": {
+          "$ref": "#/$defs/clip"
+        }
+      }
+    },
+    "crop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
         }
       }
     }

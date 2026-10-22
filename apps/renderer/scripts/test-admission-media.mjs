@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {PNG} from 'pngjs';
+import {captureEditEvidence} from '../src/edit-evidence.mjs';
 import {canonical,parseCanonicalJson} from '@promobento/contracts';
 import {repository,verifiedAdmissionImage} from '../src/admission-image.mjs';
 import {renderAdmission} from '../src/admission-run.mjs';
@@ -32,6 +34,22 @@ try {
   const keyframes=parseCanonicalJson(readFileSync(join(result.out,'keyframes.json')));
   assert.equal(keyframes.videoSha256,result.report.capture.video.sha256);
   for(const frame of [0,30,450,899])assert(keyframes.keyframes.some(item=>item.frameIndex===frame));
+  assert.equal(result.report.capture.editorialQa.frameCount,900);
+  assert.equal(result.report.capture.editorialQa.videoSha256,result.report.capture.video.sha256);
+  const evidence=await captureEditEvidence({mediaPath:join(result.out,'sample.mp4'),frameIndex:450,
+    width:result.report.capture.width,height:result.report.capture.height,totalFrames:900,expectedMediaSha256:result.report.capture.video.sha256,point:{x01:.501,y01:.499},outputDirectory:join(out,'edit-evidence')});
+  let mismatchedContainers=0;
+  await assert.rejects(captureEditEvidence({mediaPath:join(result.out,'sample.mp4'),frameIndex:450,
+    width:result.report.capture.width,height:result.report.capture.height,totalFrames:900,expectedMediaSha256:'0'.repeat(64),
+    outputDirectory:join(out,'wrong-media-evidence'),onCreated:()=>{mismatchedContainers++;}}),/EDIT_EVIDENCE_MEDIA_IDENTITY/u);
+  assert.equal(mismatchedContainers,0,'A substituted video must fail before capture begins');
+  const full=PNG.sync.read(readFileSync(evidence.full.path)),detail=PNG.sync.read(readFileSync(evidence.detail.path));
+  const crop=evidence.detail.crop;
+  for(const [x,y] of [[0,0],[20,30],[crop.width-1,crop.height-1]]) {
+    const original=((crop.y+y)*full.width+crop.x+x)*4;
+    const enlarged=(y*2*detail.width+x*2)*4;
+    assert.deepEqual(detail.data.subarray(enlarged,enlarged+4),full.data.subarray(original,original+4));
+  }
   const editDirectory=join(temporary,'edited');writeMediaCandidate(editDirectory,{title:'Stories into motion',image:'screen-detail'});
   const candidate=readAdmissionSource(editDirectory),input={...candidate.input};delete input.durationSeconds;
   const frames=[0,300,899,0],draws=[];
@@ -45,7 +63,7 @@ try {
   assert.notEqual(candidate.sourceHash,result.report.sourceHash);
   writeFileSync(join(out,'verification.json'),JSON.stringify({status:'passed',profile:'canvas-media-v1',image,
     checks:{fullFrames:900,encodedAudio:true,trustedTextTrack:true,pts:true,editedFrames:frames.length,
-      editedEvidence:'isolated_vm_commands',editedText:true,editedImage:true},
+      editorialMotionQa:true,savedFrameEditEvidence:true,exactCrop2x:true,editedEvidence:'isolated_vm_commands',editedText:true,editedImage:true},
     sourceHash:result.report.sourceHash,editedSourceHash:candidate.sourceHash,render:result.out},null,2)+'\n');
   console.log(JSON.stringify({status:'passed',out}));
 } finally {rmSync(temporary,{recursive:true,force:true});}

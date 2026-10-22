@@ -30,9 +30,13 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `test:render` | 独立媒体回归：15/30秒MP4、模式像素一致、正/逆序/重复/乱序及冷启、真实字体/VFR取帧/冻结音轨、编辑保存与区域定位、截图片段及故障检查 |
 | `build:admission` | 构建固定Linux/amd64的受限源码执行与可信绘制镜像，记录实际imageId及sourceTreeHash |
 | `test:admission` | 在真实Docker容器验证受限源码、网络/文件/资源限额、超时/取消/回收，并生成30秒几何样片；缺Docker或匹配镜像明确失败 |
+| `test:creative` | 真实容器渲染七画面语法/中文/采样配乐，逐帧比较单路与双路像素/命令/冻音，绘制全部42个导入字体face |
+| `test:creative-audio` | 真实容器验证合法音源生成、授权PCM分析与有来源时序的字幕工具 |
 | `test:admission-media` | 在真实容器验证canvas-media-v1的字体度量、图片、PTS录屏、冻结声音、可信文字轨迹、关键帧与30秒出片 |
 | `render:admission` | `--source DIRECTORY`读取有界单模块源包，按canvas-commands-v1或canvas-media-v1执行必需确定性检查，生成MP4、封面和输入绑定报告 |
 | `agent:local` | 本地研究的导演/改稿/全目标控制器、预算账本、人工审核与版本接受；真实模型调用须单独授权 |
+| `creative:audio` | 在可信容器合成已审音源、分析授权PCM拍点/能量或生成有时序来源的字幕；`--catalog`列目录 |
+| `creative:tools` | `palette --input FILE --output-directory DIR`输出明确色板的可视比较与雷同提示 |
 | `benchmark:m0a` | 题目矩阵、同预算双臂初稿/改稿、固定huashu-motion基线、费用汇总与独立盲审包；证据缺失明确不通过 |
 
 检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；媒体测试使用 `*.render.test.*` 并由 `test:render` 运行；外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
@@ -192,13 +196,17 @@ CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器
 
 同一`render:admission`入口另支持`canvas-media-v1`，保留几何profile原有源包和调用契约。媒体源包增加[resources.json](../../contracts/admission-resources.schema.json)，`draw`使用[媒体命令Schema](../../contracts/admission-media-commands.schema.json)。可从[媒体回归源包生成器](../../apps/renderer/test/admission-media.cases.mjs)或[两个原创工程样片](../../research/m0a/showcase.mjs)开始；先构建镜像，再运行`mise run test:admission-media`。
 
-源码仍只在QuickJS中求值，浏览器只消费校验后的数据。几何之外新增单行文字、图片和视频命令；冻结音频事件在可信混音器处理，不由`draw`播放。资源ID只能引用[可信登记](../../apps/renderer/src/admission-media.mjs)的固定OFL字体、自制PNG/变帧率录屏及CC0程序音轨。候选不能提交URL、字体字节或自签许可；首次处理前核对实际字节和许可。新增素材提供方须先登记来源与处理限额，当前不支持任意上传。
+源码仍只在QuickJS中求值，浏览器只消费校验后的数据。媒体profile支持文字、图片/视频、有界路径/描边、变换、渐变、裁剪、图片裁切与材质；动画数学、2D相机和七类可组合画面语法通过可信纯函数注入。冻结音频事件在可信混音器处理，不由`draw`播放。资源ID只能引用[可信登记](../../apps/renderer/src/admission-media.mjs)的固定OFL字体、自制PNG/变帧率录屏、已核许可的程序音轨、生成声音和CC0真实乐器采样。候选不能提交URL、字体字节或自签许可；首次处理前核对实际字节和许可。新增素材提供方须先登记来源与处理限额，当前不支持任意上传。
 
-`context.measureText`读取已核验WOFF的cmap、hmtx、head和hhea度量；可信浏览器按相同逐码位advance绘制，不依赖系统回退或kerning。当前为`single-line-unshaped-latin-v1`，只覆盖U+0020–007E、U+00A0–00FF；CJK、RTL、组合字符及复杂塑形未准入，不能悄悄替换原文。逐帧检查实际文字字形、布局边界及所选平台安全区，输出绑定MP4的`text-track.json`。这条轨迹记录实际命令文字，几何模拟的字形和图片内部文字仍须人工或另行可信检查。
+`context.measureText`读取已核验WOFF的cmap、hmtx、head和hhea度量；可信浏览器按相同逐码位advance绘制，不依赖系统回退或kerning。原fixture字体和未指定layout的单行调用保持原合同。显式选择新登记字体可使用实际覆盖的Latin/CJK字形，显式layout支持换行/自动折行；中文子集缺字直接拒绝，不用系统字体或替字补齐。RTL、组合字符及复杂塑形未准入。逐帧检查实际文字字形、布局边界及所选平台安全区，输出绑定MP4的`text-track.json`。这条轨迹记录实际命令文字，几何模拟的字形和图片内部文字仍须人工或另行可信检查。
 
 图片与PTS录屏沿用经核验的解码路径和有界缓存。音轨按冻结事件生成完整48kHz双声道WAV，检查真实响度、真峰值、AAC有效区间及其与冻结WAV的一致性；这不证明任意源码的画面事件与音效对齐，具体落点还需视觉标记检查与正常速度试听。不合格混音须改增益/ducking，不能通过放宽阈值放行。媒体资源及实际混音进入`qaInputHash`，不再使用几何profile的空资源身份。
 
-成功输出额外保留实际开场、中段、最密命令帧、末帧及有界marker关键帧，索引记录帧号、角色、路径和实际字节/像素身份；模型方向引用这些图片，不以生成描述或封面代替。技术报告仍为`productionEligible:false`，完整内容审核、商业事实覆盖与正常速度试听分别记录。
+生成声音通过`generatedAudio`声明ABC、程序配乐或音效；自由ABC在首次处理前要求独立`--audio-rights FILE`，精确绑定请求/片长/用途，不接受候选自签。实际混音、权利记录和可信算法版本进入QA身份。许可及完整入口见[创作工具](../creative-toolkit.md)。
+
+捕获默认单路，`--capture-workers 2`最多两帧在途，按原序编码，不增加guest执行、不减确定性检查、不扩大容器限额。出片后对实际MP4做有界动作诊断，提示突变、硬切、静止段与运动曲线，供人工复查。
+
+成功输出额外保留实际开场、中段、最密命令帧、末帧及有界marker关键帧，索引记录帧号、角色、路径和实际字节/像素身份；模型方向引用这些图片，不以生成描述或封面代替。定点改稿另从已保存MP4的真实评论帧捕获整图和点位2×细节，核对revision、目标、帧与媒体身份后作为模型图片输入。技术报告仍为`productionEligible:false`，完整内容审核、商业事实覆盖与正常速度试听分别记录。
 
 #### 本地导演与对照研究
 
@@ -214,7 +222,7 @@ CLI收到SIGINT/SIGTERM、超过宿主期限或发生错误时，外部控制器
 
 | 环境 | 另需验证 |
 | --- | --- |
-| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`及独立Docker `test:admission`、`test:admission-media`，分别保留样片、环境与验证报告 |
+| 本地/CI | 工具实际版本、冻结安装；运行真实 `test:render`及独立Docker `test:admission`、`test:admission-media`，及`test:creative`、`test:creative-audio`，分别保留样片、环境与验证报告 |
 | Workers Builds | 显式安装工具并设置路径，干净检出可构建，不假定平台读取 mise |
 | workerd | compatibility_date/flags/bindings；SSR、认证、签名、存储和队列 |
 | Cloudflare Renderer | 06 的复杂片、媒体、隔离与回收，镜像可重复获取 |

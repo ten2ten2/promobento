@@ -1,0 +1,118 @@
+{
+  "version": "vsco-bounded-v1",
+  "license": {
+    "licenseRef": "vsco-2-ce-cc0-4403009",
+    "license": "CC0-1.0",
+    "sourceRepository": "https://github.com/sgossner/VSCO-2-CE",
+    "commit": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+    "credit": "Versilian Studios / Sam Gossner",
+    "evidenceFile": "VSCO-LICENSE",
+    "evidenceSha256": "36ffd9dc085d529a7e60e1276d73ae5a030b020313e6c5408593a6ae2af39673",
+    "reviewedAt": "2026-10-22",
+    "allowedUses": [
+      "process",
+      "mix",
+      "preview",
+      "export"
+    ],
+    "scope": "The six unmodified source WAV files listed in resources."
+  },
+  "resources": [
+    {
+      "id": "vsco_violin",
+      "file": "violin-a4.wav",
+      "family": "bowed_strings",
+      "rootMidi": 69,
+      "pitchRangeMidi": [
+        57,
+        81
+      ],
+      "sha256": "72817a53dfd2eb61eca94658c14e1cab6017629ca2f27bab8e394c6675bfaad7",
+      "byteLength": 1890316,
+      "sourcePath": "Strings/Violin Section/susVib/VlnEns_susVib_A3_v1.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Violin%20Section/susVib/VlnEns_susVib_A3_v1.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    },
+    {
+      "id": "vsco_flute",
+      "file": "flute-a4.wav",
+      "family": "woodwind",
+      "rootMidi": 69,
+      "pitchRangeMidi": [
+        57,
+        81
+      ],
+      "sha256": "6fc8d707afddfaaf3003551b95a83b52f514adbe488bfea1c8c5250080a07278",
+      "byteLength": 2706216,
+      "sourcePath": "Woodwinds/Flute/susNV/LDFlute_susNV_A3_v1_1.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susNV/LDFlute_susNV_A3_v1_1.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    },
+    {
+      "id": "vsco_horn",
+      "file": "horn-c4.wav",
+      "family": "brass",
+      "rootMidi": 60,
+      "pitchRangeMidi": [
+        48,
+        72
+      ],
+      "sha256": "c0c0b157dcde094c4417b7c165d645897cde9ea6d74247bbab0c0e75355e78c3",
+      "byteLength": 2240888,
+      "sourcePath": "Brass/F Horn/sus/MOHorn_sus_C3_v2_1.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Brass/F%20Horn/sus/MOHorn_sus_C3_v2_1.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    },
+    {
+      "id": "vsco_harp",
+      "file": "harp-a4.wav",
+      "family": "plucked_strings",
+      "rootMidi": 69,
+      "pitchRangeMidi": [
+        57,
+        81
+      ],
+      "sha256": "3665f3975cad4a33f46784aa4f896f4b4319ba2b7831e892d975bc38c9f09f23",
+      "byteLength": 2143618,
+      "sourcePath": "Strings/Harp/KSHarp_A4_mf.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Harp/KSHarp_A4_mf.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    },
+    {
+      "id": "vsco_marimba",
+      "file": "marimba-c5.wav",
+      "family": "pitched_percussion",
+      "rootMidi": 72,
+      "pitchRangeMidi": [
+        60,
+        84
+      ],
+      "sha256": "4af539d47a452d7fad26e171b1c8adcca272cee97191f040d192680462c880b8",
+      "byteLength": 1016564,
+      "sourcePath": "Percussion/Marimba/Marimba_hit_Outrigger_C4_loud_01.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Percussion/Marimba/Marimba_hit_Outrigger_C4_loud_01.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    },
+    {
+      "id": "vsco_snare",
+      "file": "snare-mf.wav",
+      "family": "unpitched_percussion",
+      "rootMidi": 60,
+      "pitchRangeMidi": [
+        60,
+        60
+      ],
+      "sha256": "8deb654b739f6dfb01f192b7043a9aad92b7973995246252571240fe712d0876",
+      "byteLength": 360722,
+      "sourcePath": "Percussion/Snare2-HitSN_v5_rr1_Sum.wav",
+      "sourceUrl": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Percussion/Snare2-HitSN_v5_rr1_Sum.wav",
+      "licenseRef": "vsco-2-ce-cc0-4403009",
+      "modification": "none"
+    }
+  ]
+}

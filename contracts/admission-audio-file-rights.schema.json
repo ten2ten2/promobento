@@ -1,0 +1,14 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://promobento.com/contracts/admission-audio-file-rights.schema.json",
+  "type":"object","additionalProperties":false,
+  "required":["kind","basis","sourceHash","evidenceRef","reviewer","allowedUses"],
+  "properties":{
+    "kind":{"const":"reviewed_audio_file"},
+    "basis":{"enum":["original_recording_reviewed","licensed_recording_reviewed","CC0-1.0"]},
+    "sourceHash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+    "evidenceRef":{"type":"string","minLength":1,"maxLength":128},
+    "reviewer":{"type":"string","minLength":1,"maxLength":128},
+    "allowedUses":{"type":"array","minItems":2,"maxItems":2,"uniqueItems":true,"items":{"enum":["process","analyze"]}}
+  }
+}

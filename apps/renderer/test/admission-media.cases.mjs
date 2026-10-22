@@ -1,4 +1,4 @@
-import {mediaDeclarations,admittedMediaCatalog} from '../src/admission-media.mjs';
+import {mediaDeclarations} from '../src/admission-media.mjs';
 import {canonical,sourceValuesBytes} from '@promobento/contracts';
 import {writeFileSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
@@ -9,7 +9,7 @@ export function mediaCandidate({durationSeconds=30,title='Ideas into motion',ima
     editables:[{id:'headline',label:'Headline',type:'text'},{id:'image',label:'Image',type:'asset',acceptedMediaTypes:['image/png']}],
     markers:[{id:'open',frame:30,label:'Opening accent',audioEventId:'opening'}],
     regions:[{id:'screen',label:'Product screen',sourcePath:'composition.mjs'}],...mediaDeclarations({durationSeconds})};
-  const resources={schemaVersion:'2.7.0',kind:'admission_resources',resourceIds:admittedMediaCatalog().resources.map(resource=>resource.id),
+  const resources={schemaVersion:'2.7.0',kind:'admission_resources',resourceIds:['geist-sans-fixture','geist-mono-fixture','screen-still','screen-detail','screen-demo','original-score','original-cue'],
     audioEvents:[{eventId:'score',kind:'music',sourceId:'original-score',frameStart:0,frameEndExclusive:totalFrames,
       sourceOffsetFrames:0,gainDb:0,fadeInFrames:15,fadeOutFrames:15},
     {eventId:'opening',kind:'sfx',sourceId:'original-cue',frameStart:30,frameEndExclusive:36,sourceOffsetFrames:0,gainDb:-6,fadeInFrames:0,fadeOutFrames:2}]};

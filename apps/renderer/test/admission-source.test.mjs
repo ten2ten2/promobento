@@ -46,6 +46,10 @@ test('technical QA identity changes with source, execution image and verificatio
   const initial=admissionQaIdentity(candidate,image,plan).qaInputHash;
   assert.notEqual(admissionQaIdentity(candidate,{...image,imageId:'sha256:'+'c'.repeat(64)},plan).qaInputHash,initial);
   assert.notEqual(admissionQaIdentity(candidate,image,{...plan,version:'next'}).qaInputHash,initial);
+  assert.notEqual(admissionQaIdentity(candidate,image,plan,undefined,{captureWorkers:1,audioRights:null}).qaInputHash,
+    admissionQaIdentity(candidate,image,plan,undefined,{captureWorkers:2,audioRights:null}).qaInputHash);
+  assert.notEqual(admissionQaIdentity(candidate,image,plan,undefined,{captureWorkers:1,audioRights:{approvals:[]}}).qaInputHash,
+    admissionQaIdentity(candidate,image,plan,undefined,{captureWorkers:1,audioRights:null}).qaInputHash);
   assert.match(admissionQaIdentity(candidate,image,plan).qaProfileVersion,/^admission-verification-v2:/);
   assert.notEqual(admissionQaIdentity(candidate,image,admissionVerificationPlan(900)).qaInputHash,initial,'Sampled-only v1 evidence is not reused');
   writeFileSync(join(dir,'composition.mjs'),'different raw bytes');assert.notEqual(admissionQaIdentity(readAdmissionSource(dir),image,plan).qaInputHash,initial);

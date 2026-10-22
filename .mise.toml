@@ -79,3 +79,23 @@ run = "node apps/renderer/scripts/test-admission-media.mjs"
 description = "Run and summarize the paired M0a model, baseline, cost and blind-review study"
 dir = "{{config_root}}"
 run = "node scripts/benchmark-m0a.mjs"
+
+[tasks."creative:tools"]
+description = "Compare explicit direction palettes and emit bounded editorial diagnostics"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/creative-tools.mjs"
+
+[tasks."creative:audio"]
+description = "Generate, analyze or caption explicitly authorized audio in the pinned container"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/creative-audio.mjs"
+
+[tasks."test:creative"]
+description = "Render seven grammars, all imported fonts and exact serial/parallel media comparisons"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/test-creative.mjs"
+
+[tasks."test:creative-audio"]
+description = "Verify generated audio, authorized analysis and caption tools in actual containers"
+dir = "{{config_root}}"
+run = "node apps/renderer/scripts/test-creative-audio.mjs"

@@ -1,0 +1,17 @@
+{
+  "operation": "captions",
+  "script": "Choose a rhythm. 让想法动起来。",
+  "scriptConfirmed": true,
+  "durationSeconds": 6,
+  "speechSpans": [
+    [
+      0,
+      2.5
+    ],
+    [
+      3,
+      5.8
+    ]
+  ],
+  "spanBasis": "human_confirmed"
+}

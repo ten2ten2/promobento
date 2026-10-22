@@ -12,7 +12,7 @@ async function boundedJson(response) {
 /** Credentials are only held by this trusted HTTP adapter, never prompts, records or rendering containers. */
 export function createOpenAIProvider(config,{apiKey=process.env.OPENAI_API_KEY,fetchImpl=fetch}={}) {
   assertConfig(config);if(typeof apiKey!=='string'||!apiKey.trim())throw Error('LOCAL_AGENT_OPENAI_API_KEY_REQUIRED');
-  return {id:'openai',model:config.model,async generate({instructions,input,signal}) {
+  return {id:'openai',model:config.model,async generate({instructions,input,images=[],signal}) {
     const requestSignal=AbortSignal.any([...(signal?[signal]:[]),AbortSignal.timeout(config.requestTimeoutMs)]);
     let generationStarted=false;
     const post=async(url,body)=>{
@@ -22,7 +22,10 @@ export function createOpenAIProvider(config,{apiKey=process.env.OPENAI_API_KEY,f
       return boundedJson(response);
     };
     try {
-      const base={model:config.model,instructions,input};
+      if(!Array.isArray(images)||images.length>10||images.some(image=>typeof image?.label!=='string'||image.label.length>1024||typeof image.dataUrl!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image.dataUrl))||images.reduce((n,image)=>n+image.dataUrl.length,0)>32*1024*1024)throw Error('LOCAL_AGENT_PROVIDER_IMAGES_INVALID');
+      const content=images.length?[{role:'user',content:[{type:'input_text',text:input},...images.flatMap(image=>[
+        {type:'input_text',text:image.label},{type:'input_image',image_url:image.dataUrl,detail:'high'}])]}]:input;
+      const base={model:config.model,instructions,input:content};
       const counted=await post(API+'/input_tokens',base);
       if(!Number.isSafeInteger(counted.input_tokens)||counted.input_tokens<0)throw Error('LOCAL_AGENT_PROVIDER_TOKEN_COUNT');
       if(counted.input_tokens>config.maxInputTokens)throw Error('LOCAL_AGENT_INPUT_TOKEN_LIMIT');
