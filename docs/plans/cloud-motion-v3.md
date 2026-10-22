@@ -10,6 +10,7 @@
   - **Chromium 沙箱已实测可用**：2026-10-22 在 Cloudflare Containers 上 3 次探针均为 SANDBOX_FULL（第 5.5 节）。
   - **按需调度已实测可用**：2026-10-22 本账户直接可用 `scheduling_policy: "durable_object"`，同一应用按次启动 standard-1（1 核、4.2 GiB）、standard-3（2 核、8.2 GiB）与自定义 1 vCPU/3 GiB 均生效，就绪 0.7–4.0 秒（第 9.1 节）。
   - **安全保留、确定性降级**：负责人 2026-10-22 决定（D4、第 5.6 节）。
+  - **前置实测（2026-10-22）**：断网、broker、令牌隔离、页面攻击、取消、OOM、跨机器确定性、接缝容差、2D/3D 单帧耗时已在 Cloudflare 上实测，结论见附录 A，已据此修改正文。
   - **项目未上线，不考虑历史兼容。** 旧 profile、旧契约、本地 JSONL 研究链路和它们的测试、证据一律删除或重写，不保留冻结层或迁移路径。PRD 升到 **v3.0**，协议升到 **3.0.0**。
 
 ---
@@ -204,6 +205,7 @@ source/
   - 存储：`localStorage`、IndexedDB、cookie；
   - 音频播放：`AudioContext`，声音全部走声明式（第 8.2 节）；
   - `<video>`，视频只能通过 `OM` 的抽帧显示接口使用。
+  - `<iframe>`（含 `srcdoc`）：2026-10-22 实测 CSP 下 `srcdoc` iframe 里的脚本仍会执行，且不受作品主时间轴控制。shim 禁止创建，Q0 判为 BLOCK。
 - `values.json` 与 `data-composition-variables` 必须一致。可编辑类型沿用 `EditableProperty`（text、number、color、asset、boolean、enum、data，以及 group 和 `affectsTiming`）。
 - 点选：用 `data-om-id` 和 `OM.region` / `OM3.region`；场景用时间轴标签 `scene:<id>`。
 - 时长：根元素必须有 `data-duration`，取值为 15 或 30，与项目一致。场景标签落在片长之后时报 `scene-after-end`（页面层检查，见第 7 节 Q1）。
@@ -220,6 +222,7 @@ shim 分两个阶段生效：
 - **私有真实计时器**：shim 在覆盖全局之前，先把真实的 `setTimeout`、`clearTimeout`、`requestAnimationFrame`、`performance.now` 保存在闭包里，只交给随后注入的 `engine.js` 一次（交接后删除交接口）。引擎用它们做绘制等待和超时，作者代码拿不到。
 - **时间**：两个阶段都生效。`Date`、`Date.now`、`performance.now`、`performance.timeOrigin` 返回虚拟时间 `T`；加载阶段 `T = 0`，渲染阶段由引擎在每次 seek 时设置。
 - **rAF**：渲染阶段的 `requestAnimationFrame` 回调进入队列，seek 后由引擎以时间戳 `T` 刷新，至多 2 轮（对应上游的 `paintWaits` 默认值 2）。
+- **绘制等待**：seek 后等待绘制的上限取 `frameTimeoutMs`，不能沿用上游 `om-engine` 写死的 5 秒。2026-10-22 实测 `object-3d` 在 standard-3 上首帧绘制约 31 秒、之后每帧 3.5–4.5 秒，5 秒上限会稳定报"rAF never fired"。
 - **定时器**：渲染阶段调用 `setTimeout`、`setInterval` 即抛 `RUNTIME_TIMER_FORBIDDEN`。
 - **随机**：`Math.random` 替换为新定义的 `random-seq-v1`：以项目 seed 和调用序号做哈希（算法写进契约并附固定向量；它不同于按字符串键取值的 `random-at-v1`）。调用序号依赖执行顺序，所以**每次 seek 前把序号重置为 0**，同一时刻的调用序列因此一致。`crypto.getRandomValues` 抛错。`om.js` 自带的种子随机不受影响。
 - **GSAP**：
@@ -285,8 +288,8 @@ RenderJob {
 
 | 阶段 | 期限 |
 | --- | --- |
-| 容器冷启动加握手 | 30 秒（探针实测：沙箱开启时浏览器启动 1.4–2.9 秒，另加实例冷启动） |
-| 分段：每帧 | `frameTimeoutMs`，运动模糊时乘以子帧数 |
+| 容器冷启动加握手 | 30 秒；页面用到 WebGL 时 60 秒（实测 WebGL 首帧绘制约 31 秒）（探针实测：沙箱开启时浏览器启动 1.4–2.9 秒，另加实例冷启动） |
+| 分段：每帧 | `frameTimeoutMs`（2D 5 秒；用到 WebGL 时 10 秒，实测最慢一帧 4.5 秒），运动模糊时乘以子帧数 |
 | 分段：整段 | `段帧数 × 0.6 秒 + 30 秒`，运动模糊时按子帧数放大。探针实测 1080p 单帧 PNG 截图 50–140 毫秒（首帧 110–180 毫秒，简单页面），0.6 秒/帧为复杂页面、观测和编码留出余量，M0b 用模板语料复标 |
 | 拼接（只封装和混音） | 60 秒 |
 | 拼接（含整片重编码兜底） | `总帧数 × 0.2 秒 + 60 秒`（30 秒片 240 秒），只在码率窗口超限时使用 |
@@ -340,7 +343,7 @@ RenderJob {
 - **运行时约束**：第 4.2 节的虚拟时钟、`random-seq-v1`、计时器禁用和静默 seek 照常执行；Q0 的 `random`、`clock`、`raf`、`interval` 规则提示导演改写。
 - **接缝检查**：每个接缝 `a`，比对上一段顺序渲染得到的末帧 `a-1` 与下一段冷启动渲染的重叠帧 `a-1`：
   - 摘要相同：通过。
-  - 摘要不同：用两张无损 PNG 做容差比对（逐通道最大差 ≤ 2，差异像素 ≤ 0.1%）。通过时记录 `seamTolerance:true` 和两段的 `cpuFlagsHash`；不通过判为 `RENDER_SEAM_BLOCK`（作品错误，说明作品有历史依赖），连同两张 PNG 返回导演。
+  - 摘要不同：用两张无损 PNG 做容差比对（逐通道最大差 ≤ 2，差异像素 ≤ 0.1%）。这是常态而不是例外：2026-10-22 实测 `kinetic-type` 冷启动帧与顺序渲染帧摘要从不相同，差异都是最大 1 个色阶、0.003–0.010% 像素的抗锯齿噪声，预渲染若干帧也不能消除；3D 模板实测则完全相同。通过时记录 `seamTolerance:true` 和两段的 `cpuFlagsHash`；不通过判为 `RENDER_SEAM_BLOCK`（作品错误，说明作品有历史依赖），连同两张 PNG 返回导演。
 - **不再做**：独立复核实例、随机抽帧乱序复核、按 CPU 特性分类的判定、旧镜像重渲染冻结快照。段内的历史依赖不检查：段内本来就是顺序渲染，和上游 `om render` 一致。
 - 预览与成片只要求"看起来一致"：预览是 0.5 倍、可能在不同机器上，QA 和交付只以 final 成片为准。
 
@@ -534,8 +537,9 @@ RenderJob {
   - 渲染器登记表（D1 `renderer_releases`）记录每个版本对应的 `images` 键和镜像摘要；交付冻结的是成片字节，旧镜像在没有进行中的渲染后即可下线（登记表状态改为 `retired`）。
 - Container 类设置：
   - 类属性 `enableInternet = false`，启动时再次显式传 `enableInternet: false`；不开 `interceptHttps`（第 2 节）；
-  - `static outboundByHost = { 'broker.internal': brokerHandler }`，不设 `allowedHosts`，也不设兜底 `outbound`，其他一律拒绝；Worker 入口模块按 `@cloudflare/containers` 的要求重新导出 `ContainerProxy`；
-  - `sleepAfter` 只是兜底（设为 `30s`）：分段完成后由 RenderDO 主动调用 `stop()`，不依赖空闲超时；控制器收到 SIGTERM 时立即中止并上报。
+  - `outboundByHost = { 'broker.internal': brokerHandler }`，必须在 `static { this.outboundByHost = … }` 中赋值（经库的静态 setter 注册）；写成 `static outboundByHost = …` 类字段不会注册，实测请求被代理以 520 "Origin is disallowed" 拒绝。不设 `allowedHosts`，也不设兜底 `outbound`，其他一律拒绝；Worker 入口模块按 `@cloudflare/containers` 的要求重新导出 `ContainerProxy`；
+  - `sleepAfter` 只是兜底（设为 `30s`）：分段完成后由 RenderDO 主动调用 `stop()`，不依赖空闲超时。控制器是容器里的 1 号进程，**必须显式处理 SIGTERM**（否则信号被忽略）：实测未处理时 `stop()` 后 20 秒任务仍在运行、状态仍为 healthy；处理后 48 毫秒内中止、状态变为 stopped。
+  - 控制器只在真正的任务请求结束后退出；平台会先向端口发就绪探测，探测请求不能触发退出（实测会导致"Container suddenly disconnected"）。
 - 每个渲染分段使用新的 DO ID（`render:<renderId>:shard:<n>:<attempt>`），保证不复用实例。
 
 ### 9.2 broker（`apps/cloud/src/broker.mjs`）
@@ -628,7 +632,7 @@ RenderDO 获取全局许可时由一个全局协调 DO 计数，超出时排队�
 | preview 30 秒 | ≤ 45 秒 |
 | `still` 4 帧 | ≤ 15 秒 |
 | 7 个目标准备（各目标并行） | ≤ 6 分钟 |
-| 含 3D（SwiftShader）的 30 秒片 | ≤ 180 秒，否则按段数加倍 |
+| 含 3D（SwiftShader）的 30 秒片 | ≤ 300 秒。实测每帧 3.5–4.5 秒、首帧绘制约 31 秒，900 帧约需 3,300 秒 CPU 时间，需 24 段左右（`shardsPerRender` 对 WebGL 作品提到 24）；计算费用约 $0.2/片。180 秒目标在无 GPU 的 standard-3 上做不到 |
 
 **计算成本估算**（Cloudflare Containers 价目：CPU $0.00002/vCPU·秒，只按实际使用计；内存 $0.0000025/GiB·秒）：
 
@@ -739,6 +743,7 @@ RenderDO 获取全局许可时由一个全局协调 DO 计数，超出时排队�
     - 实测真实镜像的大小、首次调度到新宿主的冷启动、握手、单帧截图（PNG 默认与 `optimizeForSpeed`、无损 WebP 对比）与每段墙钟，据此修订第 5.3 节期限、第 11 节目标和截图格式；
     - 实例在 `stop()` 后确实释放，并发计数正确；沙箱自检为 SANDBOX_FULL。
     - 结果按 06 写入 `docs/evidence/`。接缝不一致时先修 shim/engine，再继续。
+    - 2026-10-22 已用简化实验预跑过一遍（附录 A），G1 仍须用第 4 步的正式渲染容器和完整 shim 重跑，并补上 30 秒时长与 3D 整片。
 5. **资产容器**（`apps/asset-container`）：probe、extract、proxy、asr、tts、fontcheck；Dockerfile。
 6. **云端**（`apps/cloud`）：Worker 路由、OperationDO、RenderDO、AssetDO、协调 DO、broker、Container 类、Queues outbox、D1 迁移、R2 键；分段计划模块 `src/render/plan.mjs`；接缝检查；失败白名单；环境预检；`cloud:dev`。
 7. **导演**（`apps/cloud/src/director`）：迁入第 3.3 节列出的模块；Anthropic 适配器与 OpenAI tool calling；工具实现；探索、直接制作、改稿、准备、冷审流程；D1 上的预算与账本；离线 mock provider。
@@ -766,6 +771,27 @@ RenderDO 获取全局许可时由一个全局协调 DO 计数，超出时排队�
 - 已实测：Chromium 沙箱在 Cloudflare Containers 上完整可用（第 5.5 节），无需降级决定。探针结果保存在负责人本机 `~/Downloads/sandbox-probe-results/`，M0b 时用生产镜像复测并按 06 写入 `docs/evidence/`。
 
 ---
+
+## 附录 A：2026-10-22 前置实测
+
+在负责人的 Cloudflare 账户上用临时实验（standard-3、断网、非 root、沙箱开启、上游 `4236053` 的 `kinetic-type` 与 `object-3d` 模板、虚拟时钟加静默 seek 的简化 shim）测得。实验分支与云端资源测后删除。
+
+| 项目 | 结果 | 对正文的影响 |
+| --- | --- | --- |
+| 跨机器确定性（2D） | `kinetic-type` 在 3 台实例上整片 240 帧逐帧摘要完全相同，其中两台 CPU 不同（AMD family 25 model 1 与 model 17） | 第 5.6 节去掉跨 CPU 分类判定是安全的 |
+| 接缝 | 冷启动帧与顺序帧摘要从不相同，差异最大 1 个色阶、≤ 0.010% 像素，全部在容差内；3D 模板完全相同 | 第 5.6 节容差比对是常态路径 |
+| 拼接 | 4 段 Annex B 拼接后 240 帧、PTS 单调、每 15 帧一个关键帧、无 B 帧 | 第 5.2 节方案成立 |
+| 2D 单帧耗时 | seek 约 35 毫秒，PNG 截图 125–300 毫秒，JS 解码 PNG 50–100 毫秒；model 1 主机约慢一倍；60 帧一段 17–38 秒 | 0.6 秒/帧期限够用；`optimizeForSpeed` 使解码快约 30%、摘要不变，默认开启 |
+| 3D 单帧耗时 | 首帧绘制约 31 秒，之后每帧 3.5–4.5 秒（1080p、SwiftShader） | 第 4.2 节绘制等待、第 5.3 节期限、第 11 节 3D 目标已改 |
+| 断网 | 外网 HTTP/HTTPS、直连 IP、DNS、TCP、UDP 全部超时失败 | 第 10 节第 1 项成立 |
+| broker | 正确注册后 `GET /r/…` 返回 200，其他请求由处理函数返回 403 | 第 9.1 节注册方式已写明 |
+| 令牌隔离 | 控制器删除自身环境中的令牌后启动 Chromium，7 个 Chromium 进程环境中都没有令牌，页面无 `process` | 第 10 节第 2 项成立 |
+| 页面攻击（带 CSP） | 外部请求、Worker、WASM、eval、`new Function` 被拦；`localStorage`、IndexedDB、cookie、`srcdoc` iframe 脚本未被拦 | 第 4.1 节：存储与 iframe 由 shim 禁止 |
+| 崩溃与死循环 | 内存炸弹约 4.7 秒后渲染进程崩溃，控制器收到 crash 事件，浏览器存活；死循环可由期限中止 | 第 5.4 节分类成立 |
+| 控制器 OOM | 容器被直接终止，Worker 收到 "Container suddenly disconnected" | 按平台错误处理（第 5.4 节） |
+| 取消 | 处理 SIGTERM 后，`stop()` 48 毫秒内中止任务，状态变为 stopped | 第 9.1 节已写明 |
+| 并发 | `max_instances` 14 时同时约 11 个任务即报 "no Container instance available"，旧实例仍占名额 | 协调 DO 以实例实际状态计数（第 9.5 节、第 10a 节告警） |
+| 镜像 | 约 1.55 GB；本机推送大层反复失败，GitHub Actions 构建并推送约 3 分钟 | 第 3.2a 节：只从 CI 部署 |
 
 ## 参考
 
