@@ -42,7 +42,7 @@ canvas-media-v1的[可信目录](../../apps/renderer/src/admission-media.mjs)单
 
 [上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
 
-**生产运行时不使用 GSAP，按绝对时间计算画面。** [GSAP 标准许可](https://gsap.com/community/standard-license/)限制与 Webflow 竞争的可视化动画构建用途。生产引入前须取得适用于本产品的书面许可结论并重审架构。本地基线仅按[研究范围](../../research/m0a/README.md)在断网容器运行固定上游CLI和原创建例，保留其独立GSAP许可；不把该运行库打包、托管或交付到客户产品。
+**生产运行时不使用 GSAP，按绝对时间计算画面。** [GSAP 标准许可](https://gsap.com/community/standard-license/)限制与 Webflow 竞争的可视化动画构建用途。生产引入前须取得适用于本产品的书面许可结论并重审架构。本地基线仅按[研究范围](../../research/m0a/README.md)在断网容器运行固定上游CLI和原创建例，保留其独立GSAP许可；不把该运行库打包、托管或交付到客户产品。[QuickJS兼容性探针](../../research/gsap-quickjs/README.md)只记录本地研究结果，不改变本条。
 
 ## 3 适用规则与产品边界
 
