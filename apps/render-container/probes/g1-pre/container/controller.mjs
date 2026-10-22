@@ -71,7 +71,7 @@ async function openTemplate(handle, template, {dpr = 1, width = 1920, height = 1
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: dpr, mobile: false});
-  await page.addInitScript(`window.__omConfig=${JSON.stringify({paintWaits: 2})};\n${ENGINE}`);
+  await page.addInitScript(`window.__omConfig=${JSON.stringify({paintWaits: 2, settleTimeout: 120000})};\n${ENGINE}`);
   const started = now();
   await page.goto(`http://127.0.0.1:8090/${template}/index.html`, {waitUntil: 'load', timeout: 180000});
   await page.waitForFunction(() => window.__omReady || window.__omBootFailed, null, {timeout: 240000, polling: 200});

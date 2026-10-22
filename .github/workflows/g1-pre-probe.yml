@@ -57,7 +57,9 @@ jobs:
           sleep 20
       - name: Run probes
         working-directory: ${{ env.PROBE_DIR }}
-        run: node run-probes.mjs "$PROBE_URL" "$PROBE_KEY" results
+        run: |
+          if [ -f probe-only.txt ]; then export PROBE_ONLY="$(tr -d '[:space:]' < probe-only.txt)"; fi
+          node run-probes.mjs "$PROBE_URL" "$PROBE_KEY" results
       - name: Print report
         if: always()
         run: cat "$PROBE_DIR/results/report.json" || true
@@ -72,4 +74,8 @@ jobs:
         working-directory: ${{ env.PROBE_DIR }}/worker
         run: |
           npx wrangler delete --force || true
+          # Deleting the Worker leaves the container application behind; remove it too.
+          for id in $(npx wrangler containers list 2>/dev/null | awk -F'│' '/promobento-g1-pre-render/ {gsub(/ /, "", $2); print $2}'); do
+            yes | npx wrangler containers delete "$id" || true
+          done
           npx wrangler containers list || true

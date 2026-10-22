@@ -51,7 +51,9 @@ async function waitStopped(doName, limitMs = 90000, everyMs = 500) {
   return {stillRunningAfterMs: Date.now() - t0, state};
 }
 const used = new Set();
+const only = process.env.PROBE_ONLY ? process.env.PROBE_ONLY.split(',') : null;
 const run = async (name, fn) => {
+  if (only && !only.includes(name)) return;
   log(`== ${name}`);
   try { report[name] = await fn(); } catch (error) { report[name] = {probeError: String(error.stack ?? error)}; }
   save();
@@ -87,6 +89,14 @@ await run('webglStandard4', async () => {
   return out;
 });
 
+await run('captureStandard4', async () => {
+  used.add('capture-s4');
+  const out = {start: await start('capture-s4', {instance: 'standard-4'})};
+  out.capture = await task('capture-s4', 'capture', {frames: 90});
+  out.destroy = await call('/do/capture-s4/destroy');
+  return out;
+});
+
 await run('snapshotRestore', async () => {
   const id = report.webglStandard3?.snapshot?.id;
   if (!id) return {skipped: 'no snapshot id', snapshot: report.webglStandard3?.snapshot};
@@ -110,9 +120,9 @@ await run('sigterm', async () => {
 await run('inactivity', async () => {
   used.add('idle-set'); used.add('idle-default');
   const out = {
-    setStart: await start('idle-set', {instance: 'standard-1'}),
+    setStart: await start('idle-set', {instance: 'standard-1', monitor: false}),
     setTimeout: await call('/do/idle-set/inactivity', {ms: 30000}),
-    defaultStart: await start('idle-default', {instance: 'standard-1'})
+    defaultStart: await start('idle-default', {instance: 'standard-1', monitor: false})
   };
   log('idle for 150 s without touching either Durable Object');
   await sleep(150000);

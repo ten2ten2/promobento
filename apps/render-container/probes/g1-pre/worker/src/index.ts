@@ -88,7 +88,8 @@ export class ProbeDO extends DurableObject<Env> {
     const broker = (this.ctx as any).exports.Broker({props: {token, read: ['probe.txt'], writePrefix: 'out/'}});
     await this.ctx.container.interceptOutboundHttp('broker.internal', broker);
     this.exitInfo = null;
-    this.ctx.container.monitor()
+    // monitor() holds off eviction for up to 15 minutes, so the inactivity probe can turn it off.
+    if (body.monitor !== false) this.ctx.container.monitor()
       .then(() => ({exit: 'clean'}), (error: any) => ({exit: 'error', exitCode: error?.exitCode, message: String(error?.message ?? error)}))
       .then(info => { this.exitInfo = {...info, at: Date.now()}; });
     const port = this.ctx.container.getTcpPort(8080);
