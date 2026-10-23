@@ -974,22 +974,23 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 写入 `config/agent-policy.json`。下表为初值，S1、S2 实测后由负责人复核。
 
-每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定，原则是：能用纯文本完成的用 DeepSeek V4.1 Flash 1017；需要看图的便宜步骤用 Gemini 3.8 Flash；需要看图且要判断力的用 Claude Sonnet 5.5；最关键的一步（规格）用 Claude Opus 5.5。
+每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5；冷审用网关的 Claude Sonnet 5.5，与导演的 DeepSeek 不同家族。Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
 
 | 步骤 | 绑定名 | 需要的能力 | 初始模型 | 推理强度 | 调用上限 | 费用上限 |
 | --- | --- | --- | --- | --- | --- | --- |
 | A1 事实整理 | `facts` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
-| A2 素材理解 | `assets` | 看图、JSON | `gemini-3.8-flash` | low | 每个素材 1 次 | $0.04 |
+| A2 素材理解 | `assets` | 看图、JSON | `deepseek-v4.1-flash-1017` | low | 每个素材 1 次 | $0.04 |
 | B 方向 | `directions` | JSON | `deepseek-v4.1-flash-1017` | high | 3 | $0.40 |
 | C 规格 | `spec` | JSON、强推理 | `claude-opus-5-5` | high | 3 | $0.40 |
-| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `claude-sonnet-5-5` | medium | 12 | $0.35 |
-| E 整片 review | `review` | 看图、工具 | `claude-sonnet-5-5` | medium | 6 | $0.30 |
-| F 冷审 | `coldReview` | 看图、JSON | `gemini-3.8-flash` | medium | 2 | $0.05 |
+| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | medium | 12 | $0.35 |
+| E 整片 review | `review` | 看图、工具 | `deepseek-v4.1-flash-1017` | medium | 6 | $0.30 |
+| F 冷审 | `coldReview` | 看图、JSON | `claude-sonnet-5-5`（网关） | medium | 2 | $0.05 |
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
 - B（方向）是创意上影响最大的步骤之一，按"纯文本用 DeepSeek"的原则初始绑到 DeepSeek。S1 评测时与 Opus 5.5 做对照，效果明显落后时换绑。
-- F 用与导演（Claude）不同家族的模型，冷审更容易发现导演的盲点。
+- D、E 写代码和看整片的质量直接决定成片，DeepSeek 在这两步的效果未经验证。S2 评测时与官方 Anthropic API 的 Sonnet 5.5 对照，按每个可用结果的费用和负责人评分决定是否换绑；换绑官方 Sonnet 需要负责人另存 `ANTHROPIC_API_KEY`。
+- F 用与写片的 DeepSeek 不同家族的模型，冷审更容易发现盲点。F 不需要工具，所以网关的 Claude 可以用。
 - 改稿中的镜头内修改用 `scenes`，结构修改沿用 `spec` 和 `review`。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
@@ -1023,10 +1024,6 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
       "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic"},
       "prices": {"input": 500000, "cacheRead": 10000, "output": 2000000}
     },
-    "modelswitch/gemini-3.8-flash": {
-      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": null, "reasoningEffort": "accepted", "promptCache": "unreported"},
-      "prices": {"input": 420000, "cacheWrite": 420000, "cacheRead": 42000, "output": 2100000}
-    },
     "modelswitch/claude-sonnet-5-5": {
       "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic", "hiddenPromptTokens": 6500},
       "prices": {"input": 1300000, "cacheWrite5m": 1625000, "cacheWrite1h": 2600000, "cacheRead": 65000, "output": 6500000}
@@ -1046,12 +1043,12 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   },
   "steps": {
     "facts":      "modelswitch/deepseek-v4.1-flash-1017",
-    "assets":     "modelswitch/gemini-3.8-flash",
+    "assets":     "modelswitch/deepseek-v4.1-flash-1017",
     "directions": "modelswitch/deepseek-v4.1-flash-1017",
     "spec":       "modelswitch/claude-opus-5-5",
-    "scenes":     "modelswitch/claude-sonnet-5-5",
-    "review":     "modelswitch/claude-sonnet-5-5",
-    "coldReview": "modelswitch/gemini-3.8-flash",
+    "scenes":     "modelswitch/deepseek-v4.1-flash-1017",
+    "review":     "modelswitch/deepseek-v4.1-flash-1017",
+    "coldReview": "modelswitch/claude-sonnet-5-5",
     "triage":     "modelswitch/deepseek-v4.1-flash-1017"
   }
 }
@@ -1063,7 +1060,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 没有一个模型遵守 `json_schema`；结构化输出一律用 `json_object` 或提示约束，再在本地按 Schema 校验。
   - DeepSeek V4.1 Flash 能看图、工具调用正确、缓存生效、最快最便宜。
   - Gemini 3.8 Flash 首 token 约 25 秒、单次约 50 秒，工具参数丢失，缓存字段不返回。
-  - **因此上面的 `steps` 中 `scenes`、`review` 不能保持绑在网关的 Claude 上**（需要工具）；新的绑定待负责人确认后写入。运行时拒绝把需要工具的步骤绑到 `tools: false` 的模型。
+  - 因此需要工具的 `scenes`、`review` 绑到 DeepSeek（负责人 2026-10-23 确认），网关的 Claude 只用于不需要工具的 `spec` 和 `coldReview`。运行时拒绝把需要工具的步骤绑到 `tools: false` 的模型。
   - 换绑或新增模型前都要重跑探针（`.github/workflows/model-probe.yml`）。
 - **换供应商**：
   1. 在 `providers` 填 `baseUrl`、币种和汇率，用 `wrangler secret put` 写入密钥；
@@ -1110,7 +1107,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 ```json
 {
   "purposes": ["calibration", "evaluation"],
-  "models": ["modelswitch/deepseek-v4.1-flash-1017", "modelswitch/gemini-3.8-flash", "modelswitch/claude-sonnet-5-5",
+  "models": ["modelswitch/deepseek-v4.1-flash-1017", "modelswitch/claude-sonnet-5-5",
              "modelswitch/claude-opus-5-5", "anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5-5"],
   "catalogVersion": "models-2026-10-23",
   "approvedBy": "tianyu (tianyu@tinkerland.ai)",
@@ -1120,7 +1117,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 }
 ```
 
-- 模幻空间的四个模型由负责人 2026-10-23 指定加入。
+- 模幻空间的模型由负责人 2026-10-23 指定加入（Gemini 3.8 Flash 经探针后不再使用）。
 - 用途名随里程碑调整：原来的 `m0b_calibration`、`m0a_comparison` 对应切片 S1–S3 的标定和第 12.5 节的评测。额度、期限和批准人不变；模型改用 `供应商/模型` 的形式登记。
 - 换到 OpenAI 兼容服务时，负责人把对应的 `供应商/模型` 加入 `models`；`maxUsdMicros` 按全部供应商累计。
 - **每次付费调用前同时检查**：
