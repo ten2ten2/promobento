@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "eval_topics",
+  "decidedBy": "tianyu",
+  "decidedAt": "2026-10-23",
+  "rights": {
+    "scope": "internal_eval_only",
+    "rule": "Real brand material (screenshots, recordings, logos) may be used only for internal evaluation. It is stored in the staging R2 bucket, never in Git; renders are not published, shared outside the team or used as marketing samples.",
+    "factsConfirmedBy": "owner_before_each_run"
+  },
+  "variants": {"durationsSeconds": [15, 30], "aspects": ["landscape", "portrait"]},
+  "topics": [
+    {"id": "deepseek", "segment": "software", "subject": "DeepSeek", "fictional": false, "assets": "pending", "facts": "pending"},
+    {"id": "minimax", "segment": "software", "subject": "MiniMax", "fictional": false, "assets": "pending", "facts": "pending"},
+    {"id": "duolingo", "segment": "software", "subject": "Duolingo", "fictional": false, "assets": "pending", "facts": "pending"},
+    {"id": "ielts-course", "segment": "course", "subject": "IELTS preparation course", "fictional": true, "assets": "pending", "facts": "pending"},
+    {"id": "jlpt-course", "segment": "course", "subject": "JLPT preparation course", "fictional": true, "assets": "pending", "facts": "pending"},
+    {"id": "leetcode-course", "segment": "course", "subject": "LeetCode interview preparation course", "fictional": true, "assets": "pending", "facts": "pending"},
+    {"id": "iphone-duo", "segment": "hardware_boundary", "subject": "iPhone Duo", "fictional": false, "assets": "pending", "facts": "pending", "countsTowardGate": false}
+  ],
+  "note": "S1 gate: the owner would publish at least 4 of the 6 software and course topics at normal speed. iphone-duo is outside the two launch segments and is tracked as a boundary case only."
+}

@@ -1413,14 +1413,14 @@ runtime/<runtimeVersion>/...                  预览 origin 分发的运行库�
 由负责人在 Cloudflare 控制台完成，执行 Agent 不接触控制台。
 
 1. **Workers 付费计划**：已于 2026-10-22 完成。
-2. **平台能力**：Containers 与 `scheduling_policy: "durable_object"` 已于 2026-10-22 实测可用。Browser Run 和 Workers AI 在实施时确认。
+2. **平台能力**：Containers 与 `scheduling_policy: "durable_object"` 已于 2026-10-22 实测可用。Workers AI 已于 2026-10-23 由 [cloud-account-check 工作流](../../.github/workflows/cloud-account-check.yml)用部署 Token 实际调用成功。Browser Run 在实施时确认。
 3. **资源**：创建预发布与生产两套 D1 数据库、R2 桶（私有）和 Queues，名称写入 `wrangler.jsonc` 的两个环境。2026-10-23 已由 [cloud-resources 工作流](../../.github/workflows/cloud-resources.yml)创建（名称见 `apps/cloud/resources.json`，可重复运行），并在 `apps/cloud/wrangler.jsonc` 的 `staging`、`production` 环境绑定为 `DB`、`MEDIA`、`OUTBOX`。
 4. **部署用 API Token**：已于 2026-10-22 创建，含 Containers、D1、Queues、R2、Browser Run、Workers Observability 的 Edit 权限，限本账户与 `promobento.com`。缺少 Workers AI 和 Workflows 权限时补上，权限项名称以创建页面为准。
 5. **凭据放置**：
    - `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`：放在 GitHub Actions 的仓库 secrets，已于 2026-10-22 写入；本地开发放在 shell 环境变量。**不写进仓库，不贴进对话或模型上下文。**
    - 运行时密钥：用 `wrangler secret put` 分别写入预发布和生产 Worker。
 6. **预览 origin**：
-   - 注册一个独立的注册域名（不是 promobento.com 的子域），写入 `config/preview.json` 的 `previewOrigin`（现在为 null）。预发布与生产各用一个主机名。
+   - 独立注册域名 `promobentousercontent.com`（不是 promobento.com 的子域）已于 2026-10-23 在本账户生效。`config/preview.json` 记录生产 `https://p.promobentousercontent.com` 与预发布 `https://staging-p.promobentousercontent.com`；DNS 与 Worker 路由在 S2 部署预览播放器时配置，部署用 Token 的区域权限届时加入这个域名。
    - 预发布环境的 API 用独立域名或 `workers.dev` 子域。
 
 ---
@@ -1577,10 +1577,11 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
 ### 12.5 评测集与成本验收（替代 M0a；`research/evals/`；`mise run eval`）
 
 - **题目**：
-  - 主体：S1 的 4–6 个有真实素材授权的自有或合作产品，它们同时是 PRD 01 要求的首发样片。
+  - 主体：下面的内部评测题目。它们只用于内部评测，不能作为 PRD 01 要求的首发样片；首发样片另用有真实素材授权的自有或合作产品制作。
   - 补充：覆盖两类人群各种任务的合成题，用虚构品牌和原创素材。
   - 每题做 15 秒和 30 秒，横竖两种画幅。
-  - 现有 M0a 题目（DeepSeek、MiniMax、GPT-6 Astra、Duolingo）不能使用官方界面和素材，测不到"真实素材优先"，不再使用。
+  - 2026-10-23 负责人确定的题目见 [`research/evals/topics.json`](../../research/evals/topics.json)：软件 DeepSeek、MiniMax、Duolingo；课程为虚构的 IELTS、JLPT 与 LeetCode 备考课；iPhone Duo 不属于两类首发用户，只作边界题，不计入 S1 的 4/6。
+  - 真实品牌的截图、录屏和 Logo 只用于内部评测：存放在预发布 R2，不进 Git；成片不发布、不对外展示，也不作为营销样片。事实在每次运行前由负责人确认。
 - **指标**：
   - 每个可用结果的模型与计算费用，按阶段拆分；
   - 第 1.2 节的各时间节点；

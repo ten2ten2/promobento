@@ -72,8 +72,10 @@
     "localPlaybackIsNotEncodedArtifactEvidence": true
   },
   "isolation": {
-    "previewOrigin": null,
-    "deploymentGate": "M0b",
+    "previewOrigin": "https://p.promobentousercontent.com",
+    "stagingPreviewOrigin": "https://staging-p.promobentousercontent.com",
+    "previewRegistrableDomain": "promobentousercontent.com",
+    "deploymentGate": "S2",
     "status": "origin_and_sandbox_not_verified",
     "separateFromAppOrigin": true,
     "taskScoped": true,
