@@ -1,0 +1,89 @@
+[
+  {"schema":"film","file":"contracts/film.example.json"},
+  {"schema":"production","file":"contracts/fact-manifest.example.json"},
+  {"schema":"model-config","file":"config/model-providers.json"},
+  {"schema":"model-config","file":"config/model-authorization.json"},
+  {
+    "schema":"block",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"block_manifest","id":"hook-title","version":"1.0.0",
+      "category":"opening","aspects":["landscape","portrait","feed","square"],
+      "params":{"type":"object","additionalProperties":false},"editable":[],"cost":"low",
+      "events":[],"regions":[],"usesGsap":true,"usesWebgl":false,"goldenFrames":[0,30,60]
+    }
+  },
+  {
+    "schema":"render-job",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"render_job","renderId":"render_test","operationId":"operation_test",
+      "candidateId":"candidate_test","sourceHash":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "runtimeVersion":"runtime-test","rendererRelease":"render-test","aspectId":"portrait",
+      "durationSeconds":15,"totalFrames":450,"quality":"final",
+      "renderProfile":{"sampleCount":1,"shutterAngle":0,"sampling":"centered-box-v1","edgePolicy":"clamp-v1"},"resources":[]
+    }
+  },
+  {
+    "schema":"frame-observation",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"frame_observation","renderId":"render_test","aspectId":"square",
+      "frame":0,"texts":[],"regions":[],"findings":[]
+    }
+  },
+  {
+    "schema":"direction",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"direction_set",
+      "cards":[
+        {
+          "key":"fit","language":"keynote-ui",
+          "palette":[{"color":"#101010","role":"bg","source":"brand"},{"color":"#ffffff","role":"ink","source":"brand"}],
+          "logline":"Show the actual product.","feel":{"route":"continuous","bpm":100,"eventsPerBar":2},
+          "sound":"Soft percussion.","risk":"Small interface text.","usesDepth":false,
+          "skeleton":[{"purpose":"Hook","approach":"block:hook-title"},{"purpose":"Proof","approach":"block:ui-showcase"},{"purpose":"Action","approach":"block:cta-endcard"}]
+        },
+        {
+          "key":"amplify","language":"kinetic-type",
+          "palette":[{"color":"#101010","role":"bg","source":"brand"},{"color":"#ffffff","role":"ink","source":"brand"}],
+          "logline":"Build a rhythmic product reveal.","feel":{"route":"montage","bpm":120,"eventsPerBar":4},
+          "sound":"Bright percussion.","risk":"Reading speed.","usesDepth":false,
+          "skeleton":[{"purpose":"Hook","approach":"block:hook-title"},{"purpose":"Proof","approach":"block:ui-showcase"},{"purpose":"Action","approach":"block:cta-endcard"}]
+        },
+        {
+          "key":"unexpected","language":"whiteboard",
+          "palette":[{"color":"#ffffff","role":"bg","source":"direction"},{"color":"#101010","role":"ink","source":"brand"}],
+          "logline":"Explain the product with a visual metaphor.","feel":{"route":"hybrid","bpm":90,"eventsPerBar":1},
+          "sound":"Plucked notes.","risk":"The metaphor needs a clear payoff.","usesDepth":false,
+          "skeleton":[{"purpose":"Hook","approach":"custom"},{"purpose":"Proof","approach":"block:ui-showcase"},{"purpose":"Action","approach":"block:cta-endcard"}]
+        }
+      ]
+    }
+  },
+  {
+    "schema":"audio-plan",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"audio_plan","totalFrames":450,"sampleRate":48000,"channels":2,
+      "loudnessTarget":-14,"truePeakMax":-1,"music":{"kind":"none"},"events":[],"sources":[]
+    }
+  },
+  {
+    "schema":"asset-insight",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"asset_insight","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "promptVersion":"insight-test","model":"modelswitch/deepseek-v4.1-flash-1017","assetKind":"screenshot",
+      "description":"Product dashboard.","regions":[],"dominantColors":["#112233"],"visibleText":[],"suitableBlocks":["ui-showcase"]
+    }
+  },
+  {
+    "schema":"agent-tools",
+    "value":{"schemaVersion":"3.0.0","kind":"tool_call","tool":"still","input":{"frames":[0,90],"aspect":"square","scale":0.5}}
+  },
+  {
+    "schema":"unit-economics",
+    "value":{
+      "schemaVersion":"3.0.0","kind":"unit_economics_input",
+      "group":{"modelSettingId":"test","durationSeconds":15,"targetIds":["tiktok:portrait"]},
+      "unitCosts":{"creations":null,"patchRounds":null,"assetSegments":null,"targetBatches":null,"deliveryBatches":null},
+      "cohort":null,"scenarios":[]
+    }
+  }
+]

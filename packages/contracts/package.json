@@ -5,7 +5,14 @@
   "type": "module",
   "exports": {
     ".": "./index.mjs",
-    "./canonical": "./src/canonical.mjs",
+    "./canonical": {
+      "types": "./src/canonical.d.mts",
+      "default": "./src/canonical.mjs"
+    },
+    "./validators/*": {
+      "types": "./generated/*.d.mts",
+      "default": "./generated/*.mjs"
+    },
     "./validation": "./src/validation.mjs",
     "./identity": "./src/identity.mjs"
   },

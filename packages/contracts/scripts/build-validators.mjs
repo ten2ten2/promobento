@@ -8,10 +8,11 @@ import standaloneCode from 'ajv/dist/standalone/index.js';
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {parseCanonicalJson} from '../src/canonical.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const VALIDATOR_SCHEMAS = Object.freeze(['film', 'block', 'render-job', 'frame-observation', 'direction', 'audio-plan',
-  'asset-insight', 'agent-tools', 'model-config', 'production']);
+  'asset-insight', 'agent-tools', 'model-config', 'production', 'unit-economics']);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
 export function standaloneModule(schema) {
@@ -34,9 +35,10 @@ export function buildValidators(outDir = join(root, 'packages/contracts/generate
   mkdirSync(outDir, {recursive: true});
   const written = [];
   for (const name of VALIDATOR_SCHEMAS) {
-    const schema = JSON.parse(readFileSync(join(root, 'contracts', `${name}.schema.json`), 'utf8'));
+    const schema = parseCanonicalJson(readFileSync(join(root, 'contracts', `${name}.schema.json`)));
     const file = join(outDir, `${name}.mjs`);
     writeFileSync(file, standaloneModule(schema));
+    writeFileSync(join(outDir, `${name}.d.mts`), "import type {StandaloneValidator} from '../standalone-validator.mjs';\nexport const validate: StandaloneValidator;\n");
     written.push(file);
   }
   return written;

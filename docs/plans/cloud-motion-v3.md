@@ -7,7 +7,7 @@
   - 修正 v3.0 的事实错误。
 
   此后的修改直接在本文件进行，并在提交说明中写明改了什么。
-- 状态：**已批准，尚未实施**。现有能力以[实施状态](../implementation-status.md)为准，本文描述的是目标，不是已有功能。
+- 状态：**已批准，S0 清场与基础契约已完成，S1 尚未开始**。现有能力以[实施状态](../implementation-status.md)为准；后续切片仍是目标。
 - 基准：
   - PromoBento：`ten2ten2/promobento@1faef1c`（PRD v2.7、协议 2.7.0）。
   - huashu-motion：`alchaincyf/huashu-motion@4236053`（v0.2.0）。它是方法和代码的固定参考，本方案不追随它后续的版本。
@@ -1631,7 +1631,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | [platform-presets.json](../../config/platform-presets.json) | 在 `presets[]` 每一项增加 `loudnessTarget`（单位 LUFS，现有 6 个预设都为 −14）；编码 profile 仍共用 `mp4_h264_1080_v1` | S0 |
 | [input-capabilities.json](../../config/input-capabilities.json) | `fetch` 和 `customFontUpload` 保持 false，直到对应能力实现、并由负责人按 PRD 开放；增加 `tts.enabled`（false）。v3.0 的 D8 和 §8.1 与这两个字段矛盾，第 13 节也没有列出本文件 | S0、S3 |
 | [preview.json](../../config/preview.json) | `previewOrigin` 写入独立注册域名；增加视频代理与 `film.json` 值覆盖 | S2 |
-| `.mise.toml`、`package.json` | 新任务：`build:containers`、`test`、`test:browser`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff`；删除第 3.3 节的旧任务；锁定 TypeScript 与 wrangler 的精确版本 | S0 |
+| `.mise.toml`、`package.json` | S0：`test`、`typecheck`、`build:validators`，删除第 3.3 节的旧任务，锁定 TypeScript 与 wrangler 的精确版本。其余任务 `build:containers`、`test:browser`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 随 S1–S3 的真实实现加入，不建空命令 | S0–S3 |
 | `.github/workflows/checks.yml` | job 改为：`contracts`（check:repo 加单元测试）、`browser`（buildx 层缓存）、`cloud-local`（`cloud:dev` 全流程 mock）；另设 `deploy`，手动或 main 触发，构建并推送镜像，部署预发布 | S0、S1 |
 
 ---
@@ -1671,6 +1671,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 - 规格与协议已升到 v3.0 / 3.0.0。`production.schema.json` 只升了版本号，Manifest 改为引用 film-v1 的语义变更放在 S1，与 PRD 14 §2 一起改。
 - 声音实现（`creative-audio`）和 `motion-tools` 没有在 S0 迁出：S1 从 Git 历史（提交 `1faef1c`）按 `packages/audio`、`packages/film-runtime` 的新结构改写。S0 只迁出了 CC0 采样和字体。
 - `apps/cloud` 只有健康检查路由；容器应用的骨架随 S1 的真实实现加入，不建空模块。
+- 全部 11 个 Schema 已有预编译 ESM、TypeScript 导入入口及固定结构回归用例；Node 禁运行时代码生成的测试覆盖所有入口。JCS 固定摘要向量保留，页面与 film-v1 源码身份向量随 S1 的页面生成器加入。导入与构建方式见[共享契约库](../../packages/contracts/README.md)。
 
 ### S1 一条龙：真实题目从需求到成片
 

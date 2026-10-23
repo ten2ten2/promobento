@@ -24,8 +24,8 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `check:repo` | 当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；PRD/协议版本入口；v2 旧标识符不得出现（方案与留证目录除外）；并执行契约与离线参考检查 |
 | `check:contracts` | 生产 Schema 样例、语义、摘要、合法目标与 API 清单；目标与画幅、分段并发；模型配置与授权、价格目录一致 |
 | `test` | 运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
-| `typecheck` | 生成 Worker 运行时类型并对 `apps/cloud` 做 TypeScript 检查 |
-| `build:validators` | 把 v3 Schema 预编译为不含运行时代码生成的独立验证器，供 Workers 使用 |
+| `typecheck` | 先构建契约验证器，再生成 Worker 运行时类型并检查 `apps/cloud`，包含共享契约导入的类型用例 |
+| `build:validators` | 把全部 11 个 v3 Schema（含单位经济）预编译为独立 ESM 验证器及类型声明；Workers 从 `@promobento/contracts/validators/<name>` 导入，见[共享契约库](../../packages/contracts/README.md) |
 | `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
 
 `build:containers`、`test:browser`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 随 S1–S3 的真实实现加入，见[改造方案](../plans/cloud-motion-v3.md)第 13 节。

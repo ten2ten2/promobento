@@ -15,7 +15,7 @@
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
-    "typecheck": "pnpm --filter @promobento/cloud typecheck"
+    "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"

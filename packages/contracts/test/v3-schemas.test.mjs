@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { createSchemaValidator, parseCanonicalJson } from '../index.mjs';
 import { VALIDATOR_SCHEMAS, buildValidators } from '../scripts/build-validators.mjs';
 
 const read = path => parseCanonicalJson(readFileSync(new URL('../../../' + path, import.meta.url)));
 const sha = 'a'.repeat(64);
+const vectors = read('packages/contracts/test/schema-vectors.json').map(({schema, file, value}) => ({schema, value: file ? read(file) : value}));
+
+test('the standalone build covers every contract Schema and every Schema has a positive vector', () => {
+  const names = readdirSync(new URL('../../../contracts/', import.meta.url))
+    .filter(name => name.endsWith('.schema.json')).map(name => name.replace('.schema.json', '')).sort();
+  assert.deepEqual([...VALIDATOR_SCHEMAS].sort(), names);
+  assert.deepEqual([...new Set(vectors.map(vector => vector.schema))].sort(), names);
+});
 
 test('every v3 Schema compiles in strict mode with all definitions', () => {
   for (const name of VALIDATOR_SCHEMAS.filter(name => name !== 'production')) {
@@ -46,16 +54,38 @@ test('asset insights carry content, never directives', () => {
   assert.ok(validate({...insight, instructions: 'do this'}).length > 0);
 });
 
-test('standalone validators build without runtime code generation and agree with Ajv', async () => {
-  const dir = mkdtempSync(join(new URL('../', import.meta.url).pathname, 'generated-test-'));
-  try {
-    buildValidators(dir);
-    const {validate: film} = await import(join(dir, 'film.mjs'));
-    const example = read('contracts/film.example.json');
-    assert.equal(film(example), true);
-    assert.equal(film({...example, durationSeconds: 45}), false);
-    const {validate: production} = await import(join(dir, 'production.mjs'));
-    assert.equal(production(read('contracts/fact-manifest.example.json')), true);
-    for (const name of VALIDATOR_SCHEMAS) assert.doesNotMatch(readFileSync(join(dir, `${name}.mjs`), 'utf8'), /new Function|\beval\(/);
-  } finally { rmSync(dir, {recursive: true, force: true}); }
+test('public standalone imports validate all Schemas without runtime code generation and agree with Ajv', async () => {
+  const files = buildValidators();
+  const cases = [];
+  for (const {schema, value} of vectors) {
+    const {validate} = await import(`@promobento/contracts/validators/${schema}`);
+    const reference = createSchemaValidator(read(`contracts/${schema}.schema.json`));
+    // Fixed positive vectors, plus version, required-field, additional-property and type failures.
+    const inputs = [value, {...value, schemaVersion: 'unknown'}, {...value, unexpected: true}, {}, null, []];
+    for (const [index, input] of inputs.entries()) {
+      const before = structuredClone(input), expected = index === 0;
+      assert.equal(reference(input).length === 0, expected, schema + ': reference vector ' + index);
+      assert.equal(validate(input), expected, schema + ': standalone vector ' + index);
+      assert.deepEqual(input, before, schema + ': validation must not mutate input');
+      cases.push({schema, input, expected});
+    }
+  }
+  for (const file of files) {
+    const code = readFileSync(file, 'utf8');
+    assert.doesNotMatch(code, /new Function|\beval\(/);
+    // Only Ajv runtime helpers/formats may be dependencies, never the compiler entry point.
+    for (const [, dependency] of code.matchAll(/import \w+ from "([^"]+)"/g))
+      assert.match(dependency, /^(?:ajv\/dist\/runtime\/[^/]+|ajv-formats\/dist\/formats)\.js$/);
+  }
+  const result = spawnSync(process.execPath, ['--disallow-code-generation-from-strings', '--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import {readFileSync} from 'node:fs';
+    import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
+    for (const {schema, input, expected} of parseCanonicalJson(readFileSync(0))) {
+      const {validate} = await import('@promobento/contracts/validators/' + schema);
+      assert.equal(validate(parseCanonicalJson(canonical(input))), expected, schema);
+    }
+    assert.throws(() => parseCanonicalJson('{"a":1,"a":2}'), /DUPLICATE_JSON_KEY/);
+  `], {cwd: new URL('../', import.meta.url), input: JSON.stringify(cases), encoding: 'utf8'});
+  assert.equal(result.status, 0, result.error?.message ?? result.stderr);
 });

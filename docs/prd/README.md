@@ -34,7 +34,7 @@
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
-| [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、Ajv 校验与 Workers 用的预编译验证器、FilmSpec 跨字段规则、模型费用、源码依赖摘要和版本环境继承 |
+| [共享契约库](../../packages/contracts/README.md)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json)、[Schema 回归用例](../../packages/contracts/test/schema-vectors.json) | JCS、JSON 解析、Ajv 校验与 Workers 用的预编译验证器、FilmSpec 跨字段规则、模型费用、源码依赖摘要和版本环境继承 |
 | [生产 Schema](../../contracts/production.schema.json)、[FilmSpec](../../contracts/film.schema.json)、[积木](../../contracts/block.schema.json)、[渲染任务](../../contracts/render-job.schema.json)、[帧观测](../../contracts/frame-observation.schema.json)、[方向卡](../../contracts/direction.schema.json)、[声音计划](../../contracts/audio-plan.schema.json)、[素材理解](../../contracts/asset-insight.schema.json)、[导演工具](../../contracts/agent-tools.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | v3.0 结构；类型不等于运行时已经实现 |
 | [片子运行时 API](../../contracts/film-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 积木与自写镜头可依赖的页面接口；可信渲染宿主的分段与预览桥接 |
 | [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
