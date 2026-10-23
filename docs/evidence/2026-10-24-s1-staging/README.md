@@ -17,3 +17,11 @@
 ## 负责人决定与后续范围
 
 2026-10-24 负责人允许峰值内存显式记为未提供，继续本次内部出片，G1 此项保留未验证。后续回执使用 `peakMemoryMiB:null` 与 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，不改写本轮实际阻断结果。媒体、隔离和预算门槛不变；已通过的 studio 帧路径复用证据。官方 Anthropic 继续按负责人决定未接通；S1 仍未完成。
+
+## 继续出片：计算成功，提交失败
+
+[40038946955](https://github.com/ten2ten2/promobento/actions/runs/40038946955) 部署 `860df139a6d40053860462cb22f93a79f4b2286b`，镜像 `sha256:8c0a1c628e582578ae2914e9bf79cf0b70957dc82e6cb1513e7bf597ae0a80d9`，Worker `a2740a18-bfc8-47c7-b527-05628aa7e546`。三个分段、声音及拼接均成功，峰值回执正确为 null 加原因；约 99.47 秒生成 450 帧、1920×1080/30 fps、AAC 的 15 秒工程片（5,318,671 bytes，一秒峰值码率 8,490,632 bit/s）。两处接缝均完全一致。计算保守费用上界合计 12,998 usd_micros，五笔均已结算并停止。
+
+该轮**没有提交或交付成功**：`commit-render` 的首次错误为 `NOT_JSON`，默认重试随后把它掩盖成 `RENDER_DEADLINE`；harness 在 240 秒超时后取消操作。D1 初次只读查询 [40040029787](https://github.com/ten2ten2/promobento/actions/runs/40040029787)确认计算成功；补读 Workflow 的 [40040227722](https://github.com/ten2ten2/promobento/actions/runs/40040227722)定位了原始错误。[完整只读回执](film-attempt/inspection.json)保留步骤、结果引用与结算，未再次渲染。
+
+后续修复将复合步骤值改为共享规范 JSON 文本边界，并禁止最终提交默认重试。Node 26.12.0 下只运行了一次实际提交代码的回执回放（392 ms，通过），没有重跑媒体或导演套件；修复后的云端提交尚待实测。

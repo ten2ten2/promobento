@@ -16,11 +16,11 @@ export async function checkedBytes(env: PipelineEnv, blob: BlobRef) {
 }
 export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: string}> {
   async run(event: WorkflowEvent<{renderId: string}>, step: WorkflowStep) {
-    const row = await step.do('load-render', async () => {
+    const row = parseCanonicalJson(await step.do('load-render', async () => {
       const value = await this.env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=?').bind(event.payload.renderId).first<Json>();
-      if (!value) throw Error('RENDER_NOT_FOUND'); return value;
-    });
-    const input = await step.do('load-input', async () => getJson(this.env, row.job_key));
+      if (!value) throw Error('RENDER_NOT_FOUND'); return canonical(value);
+    })) as Json;
+    const input = parseCanonicalJson(await step.do('load-input', async () => canonical(await getJson(this.env, row.job_key)))) as Json;
     assertRenderJob(input.job);
     const deadlineAt = await step.do<number>('deadline', async () => Number(row.created_at) + (input.job.quality === 'review' ? policy.render.totalMs.review : input.job.durationSeconds === 15 ? policy.render.totalMs.final15 : policy.render.totalMs.final30));
     const op = await operation(this.env, row.operation_id, row.generation);
@@ -33,7 +33,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
     const film = await getJson(this.env, filmBlob.key), partition = planShards(input.job, film, {seed: input.options.seed});
     const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
       const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
-      return step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '10 minutes'}, async () => {
+      return parseCanonicalJson(await step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '10 minutes'}, async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const payload = {schemaVersion: '3.0.0', kind: 'render_task', taskId: attemptId, mode, instance,
@@ -44,12 +44,12 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
           const result = parseCanonicalJson(await this.env.SHARDS.getByName(attemptId).execute(canonical(payload))) as Json;
           if (!await this.env.SHARDS.getByName(attemptId).isStopped()) throw Error('COMPUTE_STOP_UNCONFIRMED');
           await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=? WHERE id=?')
-            .bind('succeeded', Date.now(), canonical(result), attemptId).run(); return result;
+            .bind('succeeded', Date.now(), canonical(result), attemptId).run(); return canonical(result);
         } catch (error) {
           await this.env.SHARDS.getByName(attemptId).stopAndSettle();
           await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=? WHERE id=?').bind('failed', Date.now(), attemptId).run(); throw error;
         }
-      });
+      })) as Json;
     };
     try {
       await step.do('mark-sharding', async () => { await this.env.DB.prepare('UPDATE pipeline_renders SET status=? WHERE id=?').bind('sharding', row.id).run(); return true; });
@@ -61,7 +61,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const output = (result: Json, suffix: string): BlobRef => {
         const value = result.outputs?.find((blob: BlobRef) => blob.key.endsWith(suffix)); if (!value) throw Error('RENDER_OUTPUT_MISSING'); return value;
       };
-      const seamReport = await step.do('verify-shards', async () => {
+      const seamReport = parseCanonicalJson(await step.do('verify-shards', async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const seams = [];
@@ -78,12 +78,12 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
           }
         }
         const report = {schemaVersion: '3.0.0', kind: 'seam_report', renderId: row.id, seams};
-        await immutableJson(this.env, `renders/${row.id}/seams.json`, report); return report;
-      });
+        await immutableJson(this.env, `renders/${row.id}/seams.json`, report); return canonical(report);
+      })) as Json;
       await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'assembling'}));
       const assembled = await task('assemble', 'assemble', 'standard-2', {coverFrame: input.coverFrame, inputs: [
         ...shards.map((result, index) => ({...output(result, '/shard.h264'), name: 'shard:' + index})), {...output(audio, '/mixed.wav'), name: 'audio'}]});
-      return await step.do('commit-render', async () => {
+      return parseCanonicalJson(await step.do('commit-render', {retries:{limit:0,delay:'1 second'}}, async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const peakMemory = {status: shards.some(result=>result.report.peakMemoryMiB===null)?'unverified':'measured',
@@ -91,11 +91,17 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
             ...(result.report.peakMemoryMiB===null?{peakMemoryUnavailableReason:result.report.peakMemoryUnavailableReason}:{})}))};
         const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport, peakMemory,
           observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/')))};
+        let resultJson: string;
+        try { resultJson=canonical(result); }
+        catch {
+          const invalid=Object.entries(result).find(([,value])=>{try{canonical(value);return false;}catch{return true;}});
+          throw Error('RENDER_RESULT_'+(invalid?.[0]??'root').replace(/([a-z])([A-Z])/g,'$1_$2').toUpperCase()+'_NOT_JSON');
+        }
         const changed = await this.env.DB.prepare("UPDATE pipeline_renders SET status='passed',result_json=?,finished_at=? WHERE id=? AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')")
-          .bind(canonical(result), Date.now(), row.id, op.id, op.generation).run();
+          .bind(resultJson, Date.now(), row.id, op.id, op.generation).run();
         if (changed.meta.changes !== 1) throw Error('OPERATION_FENCED');
-        await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'passed'}));return result;
-      });
+        await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'passed'}));return resultJson;
+      })) as Json;
     } catch (error) {
       const active = await this.env.DB.prepare("SELECT id FROM pipeline_attempts WHERE render_id=? AND status='active'").bind(row.id).all<{id: string}>();
       const stops = await Promise.allSettled(active.results.map(attempt => this.env.SHARDS.getByName(attempt.id).stopAndSettle()));

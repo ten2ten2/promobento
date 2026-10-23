@@ -23,6 +23,14 @@ on:
         description: Confirm stop and reconcile this one failed/cancelled internal operation before smoke
         type: string
         default: ''
+      staging_renderer_sha:
+        description: Existing renderer source SHA for a Worker-only repair; requires its registry digest
+        type: string
+        default: ''
+      staging_renderer_digest:
+        description: Existing renderer registry digest; renderer inputs must be unchanged from staging_renderer_sha
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -143,4 +151,6 @@ jobs:
       reuse_deployment: ${{ inputs.staging_sha }}
       inspect_run: ${{ inputs.staging_inspect_run }}
       reconcile_operation: ${{ inputs.staging_reconcile_operation }}
+      renderer_sha: ${{ inputs.staging_renderer_sha }}
+      renderer_digest: ${{ inputs.staging_renderer_digest }}
     secrets: inherit
