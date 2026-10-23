@@ -15,6 +15,10 @@ on:
         description: Already deployed SHA; staging-only harness repair without rebuilding or redeploying
         type: string
         default: ''
+      staging_inspect_run:
+        description: Read-only diagnosis of this prior staging run; no deployment, keys or render
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -133,4 +137,5 @@ jobs:
     uses: ./.github/workflows/cloud-deploy.yml
     with:
       reuse_deployment: ${{ inputs.staging_sha }}
+      inspect_run: ${{ inputs.staging_inspect_run }}
     secrets: inherit

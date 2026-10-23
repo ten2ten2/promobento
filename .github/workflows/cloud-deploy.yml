@@ -6,6 +6,9 @@ on:
       reuse_deployment:
         type: string
         default: ''
+      inspect_run:
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -21,6 +24,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       STAGING_URL: https://promobento-staging.woffordvivian.workers.dev
       DEPLOYED_SHA: ${{ inputs.reuse_deployment || github.sha }}
+      INSPECT_RUN: ${{ inputs.inspect_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,14 +34,14 @@ jobs:
           version: 2026.10.13
           cache: false
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-        if: inputs.reuse_deployment == ''
+        if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
       - name: Install pinned dependencies and precompile validators
         run: mise run install && mise run build:validators
       - name: Apply staging migration
-        if: inputs.reuse_deployment == ''
+        if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
         run: mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-staging --env staging --remote
       - name: Build and push renderer, deploy Worker
-        if: inputs.reuse_deployment == ''
+        if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
         shell: bash
         run: |
           set -euo pipefail
@@ -48,6 +52,7 @@ jobs:
           test -n "$url"
           echo "STAGING_URL=$url" >> "$GITHUB_ENV"
       - name: Bind a masked run-only internal key
+        if: inputs.inspect_run == ''
         shell: bash
         run: |
           [[ "$DEPLOYED_SHA" =~ ^[a-f0-9]{40}$ ]]
@@ -58,7 +63,11 @@ jobs:
           echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"
           printf '%s' "$key" | mise exec -- pnpm --filter @promobento/cloud exec wrangler secret put EVAL_API_KEY --env staging
       - name: One real 2D render through the deployed pipeline
+        if: inputs.inspect_run == ''
         run: mise exec -- node apps/cloud/scripts/smoke-render.mjs
+      - name: Read-only diagnosis of a prior staging run
+        if: inputs.inspect_run != ''
+        run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Revoke the run-only internal key
         if: always() && env.EVAL_API_KEY != ''
         run: mise exec -- pnpm --filter @promobento/cloud exec wrangler secret delete EVAL_API_KEY --env staging
