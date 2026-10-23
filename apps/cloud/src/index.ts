@@ -30,6 +30,7 @@ export default {
     if (request.method === 'GET' && path === '/healthz') return Response.json({ok: true, protocol: PROTOCOL_VERSION});
     if (!path.startsWith('/internal/s1/') || !authorized(request, env)) return new Response('Not found', {status: 404});
     try {
+      if(request.method==='GET'&&path==='/internal/s1/capacity')return Response.json(await env.COORDINATOR.getByName('global-v1').counts());
       if(request.method==='GET'&&path.startsWith('/internal/s1/artifacts/')){
         const key=decodeURIComponent(path.slice('/internal/s1/artifacts/'.length));let owner:Json|null=null,resources:Json[]=[];
         if(key.startsWith('renders/')){

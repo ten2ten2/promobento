@@ -32,6 +32,8 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = [], we
 export function assertRenderTask(task) {
   if (!validate(task) || task.kind !== 'render_task') throw Error('TASK_INVALID');
   assertRenderJob(task.job);
+  if (task.job.renderProfile.sampleCount !== 1 || task.job.renderProfile.shutterAngle !== 0) throw Error('RENDER_PROFILE_NOT_IMPLEMENTED');
+  if (task.mode === 'studio' && task.job.crops?.length) throw Error('STUDIO_CROP_NOT_IMPLEMENTED');
   if (new Set(task.inputs.map(input => input.name)).size !== task.inputs.length) throw Error('TASK_INPUT_DUPLICATE');
   const bytes = task.inputs.reduce((sum, input) => sum + input.byteLength, 0);
   if (bytes > (task.mode === 'assemble' ? 512 : 200) * 1048576) throw Error('TASK_INPUT_BUDGET_EXCEEDED');

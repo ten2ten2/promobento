@@ -38,6 +38,7 @@ async function execute(input) {
   const font = face => {
     const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
     if (!installed) throw Error('FONT_FACE_UNAVAILABLE');
+    if (face.licenseRef !== installed.licenseRef) throw Error('FONT_LICENSE_MISMATCH');
     return readFileSync('/opt/fonts/' + installed.file);
   };
   const resource = async resourceId => {
@@ -57,6 +58,7 @@ async function execute(input) {
     input.options.fonts = input.options.fonts.map(face => {
       const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
       if (!installed) throw Error('FONT_FACE_UNAVAILABLE');
+      if (face.licenseRef !== installed.licenseRef) throw Error('FONT_LICENSE_MISMATCH');
       return {...face, codePoints: installed.codePoints};
     });
     if (input.options.target.width !== config.width || input.options.target.height !== config.height) throw Error('TARGET_SCOPE_MISMATCH');

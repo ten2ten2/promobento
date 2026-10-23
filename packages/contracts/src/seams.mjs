@@ -1,4 +1,5 @@
 import {inflateSync} from 'node:zlib';
+import {Buffer} from 'node:buffer';
 
 /** Bounded decoder for trusted CDP RGB/RGBA PNGs (8 bit, non-interlaced), shared by Worker and container. */
 export function pngPixels(bytes) {

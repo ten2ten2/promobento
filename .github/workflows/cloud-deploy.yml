@@ -30,9 +30,25 @@ jobs:
       - name: Build and push renderer, deploy Worker
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/staging
           mise exec -- pnpm --filter @promobento/cloud exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/deploy.log
           printf '%s\n' "$GITHUB_SHA" > artifacts/staging/deployed-sha.txt
+          url=$(grep -oE 'https://promobento-staging\.[a-z0-9-]+\.workers\.dev' artifacts/staging/deploy.log | head -1)
+          test -n "$url"
+          echo "STAGING_URL=$url" >> "$GITHUB_ENV"
+      - name: Bind a masked run-only internal key
+        shell: bash
+        run: |
+          key=$(openssl rand -hex 32)
+          echo "::add-mask::$key"
+          echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"
+          printf '%s' "$key" | mise exec -- pnpm --filter @promobento/cloud exec wrangler secret put EVAL_API_KEY --env staging
+      - name: One real 2D render through the deployed pipeline
+        run: mise exec -- node apps/cloud/scripts/smoke-render.mjs
+      - name: Revoke the run-only internal key
+        if: always() && env.EVAL_API_KEY != ''
+        run: mise exec -- pnpm --filter @promobento/cloud exec wrangler secret delete EVAL_API_KEY --env staging
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
