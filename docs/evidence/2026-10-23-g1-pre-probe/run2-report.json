@@ -1,0 +1,412 @@
+{
+  "startedAt": "2026-10-22T17:48:12.098Z",
+  "worker": "https://promobento-g1-pre-probe.<subdomain>.workers.dev",
+  "webglStandard3": {
+    "start": {
+      "ready": true,
+      "readyMs": 11758,
+      "controller": {
+        "ok": true,
+        "pid": 10,
+        "uid": 10001
+      },
+      "instance": "standard-3",
+      "fromSnapshot": false,
+      "callMs": 12285
+    },
+    "dpr1": {
+      "status": "done",
+      "result": {
+        "kind": "webgl",
+        "ok": true,
+        "ms": 96400,
+        "result": {
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          },
+          "dpr": 1,
+          "userDataDir": "/chrome/webgl-cache",
+          "fresh": {
+            "launchMs": 588,
+            "loadMs": 28258,
+            "firstFrameMs": 3820,
+            "perFrameMs": {
+              "n": 6,
+              "mean": 3897.3,
+              "p50": 3850.1,
+              "p95": 3940.6,
+              "max": 4155.4
+            },
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "cacheAfterFirst": {
+            "path": "/chrome/webgl-cache",
+            "du": "14472\t/chrome/webgl-cache"
+          },
+          "relaunchSameProfile": {
+            "launchMs": 104,
+            "loadMs": 23166,
+            "firstFrameMs": 8105,
+            "perFrameMs": {
+              "n": 2,
+              "mean": 4243.1,
+              "p50": 3933.5,
+              "p95": 3933.5,
+              "max": 4552.6
+            },
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          }
+        }
+      },
+      "finishedAt": 1792691400854,
+      "wallMs": 99038
+    },
+    "dpr075": {
+      "status": "done",
+      "result": {
+        "kind": "webgl",
+        "ok": true,
+        "ms": 110510,
+        "result": {
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          },
+          "dpr": 0.75,
+          "userDataDir": "/chrome/webgl-075",
+          "fresh": {
+            "launchMs": 123,
+            "loadMs": 26828,
+            "firstFrameMs": 10126,
+            "perFrameMs": {
+              "n": 6,
+              "mean": 4475.2,
+              "p50": 4226.2,
+              "p95": 4835.2,
+              "max": 5112.7
+            },
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          },
+          "cacheAfterFirst": {
+            "path": "/chrome/webgl-075",
+            "du": "14472\t/chrome/webgl-075"
+          },
+          "relaunchSameProfile": {
+            "launchMs": 116,
+            "loadMs": 34201,
+            "firstFrameMs": 2576,
+            "perFrameMs": {
+              "n": 2,
+              "mean": 4661,
+              "p50": 4543.9,
+              "p95": 4543.9,
+              "max": 4778.1
+            },
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          }
+        }
+      },
+      "finishedAt": 1792691515316,
+      "wallMs": 110581
+    },
+    "snapshot": {
+      "id": "84566e1b-6f5b-4c69-ac0c-df1511d15894",
+      "size": 26126496,
+      "name": "g1-pre-webgl",
+      "snapshotMs": 5963
+    },
+    "destroy": {
+      "destroyMs": 260,
+      "runningAfter": false
+    }
+  },
+  "captureStandard4": {
+    "start": {
+      "ready": true,
+      "readyMs": 1681,
+      "controller": {
+        "ok": true,
+        "pid": 10,
+        "uid": 10001
+      },
+      "instance": "standard-4",
+      "fromSnapshot": false,
+      "callMs": 2127
+    },
+    "capture": {
+      "status": "done",
+      "result": {
+        "kind": "capture",
+        "ok": true,
+        "ms": 60308,
+        "result": {
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 4,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "12790032 kB"
+          },
+          "template": "kinetic-type",
+          "results": {
+            "png": {
+              "loadMs": 711,
+              "frames": 90,
+              "msPerFrameLoop": 172.7,
+              "msPerFrameIncludingEncodeDrain": 174.6,
+              "seekMs": {
+                "n": 90,
+                "mean": 29,
+                "p50": 28.5,
+                "p95": 40.3,
+                "max": 50.6
+              },
+              "captureMs": {
+                "n": 90,
+                "mean": 137.6,
+                "p50": 129,
+                "p95": 183.3,
+                "max": 454.8
+              },
+              "pipeWriteMs": {
+                "n": 90,
+                "mean": 6.1,
+                "p50": 0.1,
+                "p95": 1.8,
+                "max": 488.8
+              },
+              "meanBytes": 108169,
+              "encoderExit": 0,
+              "h264Bytes": 454479
+            },
+            "jpeg90": {
+              "loadMs": 642,
+              "frames": 90,
+              "msPerFrameLoop": 145.9,
+              "msPerFrameIncludingEncodeDrain": 146.9,
+              "seekMs": {
+                "n": 90,
+                "mean": 27.3,
+                "p50": 27.8,
+                "p95": 35.7,
+                "max": 42.2
+              },
+              "captureMs": {
+                "n": 90,
+                "mean": 113.2,
+                "p50": 110.1,
+                "p95": 136.3,
+                "max": 177.6
+              },
+              "pipeWriteMs": {
+                "n": 90,
+                "mean": 5.4,
+                "p50": 0.1,
+                "p95": 0.1,
+                "max": 481.2
+              },
+              "meanBytes": 75424,
+              "encoderExit": 0,
+              "h264Bytes": 461951
+            },
+            "jpeg92": {
+              "loadMs": 409,
+              "frames": 90,
+              "msPerFrameLoop": 135.7,
+              "msPerFrameIncludingEncodeDrain": 136.7,
+              "seekMs": {
+                "n": 90,
+                "mean": 26.7,
+                "p50": 25.7,
+                "p95": 34.9,
+                "max": 40.6
+              },
+              "captureMs": {
+                "n": 90,
+                "mean": 108,
+                "p50": 103.3,
+                "p95": 139.5,
+                "max": 158
+              },
+              "pipeWriteMs": {
+                "n": 90,
+                "mean": 1,
+                "p50": 0.1,
+                "p95": 0.1,
+                "max": 85.9
+              },
+              "meanBytes": 81081,
+              "encoderExit": 0,
+              "h264Bytes": 455928
+            },
+            "jpeg95": {
+              "loadMs": 435,
+              "frames": 90,
+              "msPerFrameLoop": 163.9,
+              "msPerFrameIncludingEncodeDrain": 165.2,
+              "seekMs": {
+                "n": 90,
+                "mean": 29.8,
+                "p50": 29.5,
+                "p95": 39.6,
+                "max": 48.8
+              },
+              "captureMs": {
+                "n": 90,
+                "mean": 128.3,
+                "p50": 126.5,
+                "p95": 160.8,
+                "max": 189.5
+              },
+              "pipeWriteMs": {
+                "n": 90,
+                "mean": 5.8,
+                "p50": 0.1,
+                "p95": 0.1,
+                "max": 512.9
+              },
+              "meanBytes": 98392,
+              "encoderExit": 0,
+              "h264Bytes": 447926
+            }
+          },
+          "ssimVsPng": {
+            "jpeg90": [
+              0.997255,
+              0.997826,
+              0.998022
+            ],
+            "jpeg92": [
+              0.997733,
+              0.998208,
+              0.998387
+            ],
+            "jpeg95": [
+              0.998524,
+              0.998853,
+              0.998998
+            ]
+          },
+          "sampleFrames": [
+            0,
+            45,
+            89
+          ]
+        }
+      },
+      "finishedAt": 1792691584559,
+      "wallMs": 61525
+    },
+    "destroy": {
+      "destroyMs": 304,
+      "runningAfter": false
+    }
+  },
+  "snapshotRestore": {
+    "start": {
+      "ready": true,
+      "readyMs": 1740,
+      "controller": {
+        "ok": true,
+        "pid": 10,
+        "uid": 10001
+      },
+      "instance": "standard-3",
+      "fromSnapshot": true,
+      "callMs": 2148
+    },
+    "webgl": {
+      "status": "done",
+      "result": {
+        "kind": "webglFromSnapshot",
+        "ok": true,
+        "ms": 46075,
+        "result": {
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          },
+          "profileBeforeRun": {
+            "path": "/chrome/webgl-cache",
+            "du": "14496\t/chrome/webgl-cache"
+          },
+          "run": {
+            "launchMs": 833,
+            "loadMs": 31165,
+            "firstFrameMs": 4515,
+            "perFrameMs": {
+              "n": 2,
+              "mean": 4607.3,
+              "p50": 4590.5,
+              "p95": 4590.5,
+              "max": 4624.1
+            },
+            "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+          }
+        }
+      },
+      "finishedAt": 1792691634427,
+      "wallMs": 49498
+    },
+    "destroy": {
+      "destroyMs": 244,
+      "runningAfter": false
+    }
+  },
+  "inactivity": {
+    "setStart": {
+      "ready": true,
+      "readyMs": 1932,
+      "controller": {
+        "ok": true,
+        "pid": 10,
+        "uid": 10001
+      },
+      "instance": "standard-1",
+      "fromSnapshot": false,
+      "callMs": 2336
+    },
+    "setTimeout": {
+      "ok": true
+    },
+    "defaultStart": {
+      "ready": true,
+      "readyMs": 13013,
+      "controller": {
+        "ok": true,
+        "pid": 10,
+        "uid": 10001
+      },
+      "instance": "standard-1",
+      "fromSnapshot": false,
+      "callMs": 13329
+    },
+    "setStateAfter150s": {
+      "running": false,
+      "inspect": null,
+      "exitInfo": null,
+      "at": 1792691804115
+    },
+    "defaultStateAfter150s": {
+      "running": false,
+      "inspect": null,
+      "exitInfo": null,
+      "at": 1792691804304
+    }
+  },
+  "finishedAt": "2026-10-22T17:56:44.315Z"
+}

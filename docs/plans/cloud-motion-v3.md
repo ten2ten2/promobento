@@ -25,7 +25,7 @@
   - **Chromium 沙箱已实测可用**：2026-10-22 在 Cloudflare Containers 上做了 3 次探针，均为 SANDBOX_FULL（第 5.5 节）。
   - **按需调度已实测可用**：2026-10-22 本账户可以直接使用 `scheduling_policy: "durable_object"`（仍为 public beta）。
     - 同一应用按次启动 standard-1、standard-3 与自定义 1 vCPU/3 GiB，均生效，就绪 0.7–4.0 秒。
-    - 该策略下不能使用 `@cloudflare/containers` 的 `Container` 类（第 9.1 节）。附录 A 的 broker 实验用的是 `Container` 类，必须在 G1 用生产组合重测。
+    - 该策略下不能使用 `@cloudflare/containers` 的 `Container` 类（第 9.1 节）。2026-10-23 的 G1 预探针已用生产组合（`ctx.container` + `interceptOutboundHttp` broker）实测通过（附录 C）。
   - **安全保留、确定性降级**：负责人 2026-10-22 决定（D4、第 5.6 节）。
   - **前置实测**（2026-10-22）：见附录 A。探针和结果目前只在负责人本机，G1 用正式镜像复测，并按 06 写入 `docs/evidence/`。
   - **项目未上线，不考虑历史兼容。**
@@ -564,15 +564,14 @@ FilmSpec {
   - 2026-10-22 探针在 Cloudflare standard-3 上实测，沙箱开启时 WebGL 2.0 可用，渲染器为 `ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)))`。
   - 渲染器登记表记录 `webgl: 'swiftshader'` 和该渲染器字符串，控制器每次启动都核对，不一致即 `RENDER_ENVIRONMENT_MISMATCH`（平台错误）。
 - **只能用 CPU**：2026-10-23 核对，Cloudflare Containers 没有 GPU 实例，也没有公布计划，3D 一律按 CPU 渲染规划。
-- **代价**：附录 A 实测 `object-3d` 1080p 首帧约 31 秒，之后每帧 3.5–4.5 秒（standard-3）。
+- **代价**（附录 C，`object-3d` 1080p）：页面加载（场景建立）standard-3 约 23–34 秒、standard-4 约 17 秒；之后每帧 standard-3 约 3.9 秒、standard-4 约 2.3 秒。附录 A 的"首帧约 31 秒"在附录 C 中没有重现（首帧 2–10 秒），固定成本主要在页面加载。
 - **对策**：
   1. **规格层**：3D 积木声明为高代价。导演在规格阶段看到 3D 镜头的时长预算：默认单片 WebGL 帧占比 ≤ 30%，超出要写明理由，并按第 1.2 节的 3D 时间目标执行。
-  2. **分段**：按代价分配段长（第 5.2 节）；含 WebGL 的段用 standard-4（4 vCPU），G1 与 standard-3 对比后定。
+  2. **分段**：按代价分配段长（第 5.2 节）；含 WebGL 的段用 standard-4（4 vCPU），实测每帧比 standard-3 快约 1.7 倍（附录 C）。每段要付一次约 17 秒的页面加载，所以 WebGL 段不宜切得太短。
   3. **初始化**：
      - OM3 的环境贴图预先烘焙为素材，不在运行时生成；
-     - G1 验证：在镜像中预热 ANGLE/SwiftShader 着色器缓存，以及用容器快照（beta，只有 `durable_object` 策略可用），能否省掉每段的首帧初始化；
-     - 快照只能取自未加载过任何作品的干净状态，不能跨用户复用加载过作品的快照。
-  4. **内部分辨率**：3D 画布支持 `renderScale`（默认 1.0）。G1 比较 0.75 的画质与耗时后定默认值。
+     - 附录 C 实测：复用着色器磁盘缓存没有稳定收益；容器快照只保存文件系统、不保存进程，恢复后加载与首帧都没有变快。两者都不采用。
+  4. **内部分辨率**：附录 C 实测 dpr 0.75 每帧没有变快（瓶颈不在像素填充），所以不做 `renderScale`；改为由 3D 积木控制场景代价（后期效果、阴影、几何），积木的代价等级按 studio 实测标定。
   5. **studio 实例**：WebGL 只初始化一次，still/check 不重复付出首帧代价。
 
 ### 4.7 握手
@@ -628,10 +627,9 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
    2. 除第一段外，每段先冷启动 seek 到重叠帧 `a-1`，用 PNG 截图并记录摘要，不编码；然后顺序渲染 `[a, b)`。每段的末帧 `b-1` 也另存 PNG。
       - 运动模糊时，每帧按 `centered-box-v1` 采 N 个子帧，在控制器内以浮点平均。
    3. **捕获**：
-      - CDP `Page.captureScreenshot` 取 JPEG，质量初值 92，开启 `optimizeForSpeed`。字节直接写入 ffmpeg（`-f image2pipe -c:v mjpeg`），控制器不解码。
+      - CDP `Page.captureScreenshot` 取 JPEG，质量 92，开启 `optimizeForSpeed`。字节直接写入 ffmpeg（`-f image2pipe -c:v mjpeg`），控制器不解码。
       - `frame-digests.json` 记录每帧 JPEG 字节的 sha256，仅作诊断。
-      - G1 对比 PNG 与 JPEG 90/92/95 的耗时和 SSIM 后锁定格式。
-      - 为什么改：上游渲染用 JPEG q95 直送 ffmpeg。当前仓库用 PNG 截图（125–300 毫秒），还要在 JS 里再解码一次（50–100 毫秒），CPU 已经饱和——仓库 CI 实测两路并行只快 11%。
+      - 附录 C 实测（`kinetic-type` 1080p）：CDP 直送、不在 JS 里解码时，PNG 每帧 193 ms（standard-3）/ 173 ms（standard-4），JPEG 92 为 168 / 136 ms，相对 PNG 的 SSIM 0.998。收益主要来自去掉 JS 解码和 Playwright 截图开销（附录 A 为 0.28–0.63 秒/帧）；JPEG 本身再快 13–21%。
    4. 在观测帧集合（第 7 节 Q1）上执行 CDP 观测；观测帧另取 PNG。
    5. **编码**：x264 参数与最终 profile 相同，所有分段完全一致。
       - 宽高、`yuv420p`、BT.709、profile 与 level 一致；
@@ -1203,7 +1201,9 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
     - 断网时，其他端口被阻断，DNS 只解析被拦截的名字。
     - 拦截在实例运行期间不能撤销，每个实例最多 128 条。
   - **生命周期**：用 `setInactivityTimeout()`。shard 设为期限加 60 秒，studio 设为 10 分钟。任务完成后由 DO 主动停止实例，并确认状态。
-- **v3.0 的写法作废**：v3.0 第 9.1 节在该策略下用的 `static { this.outboundByHost = … }`、`sleepAfter`、`ContainerProxy` 都属于 `Container` 类。附录 A 的 broker 结果来自 `Container` 类，G1 必须用 `ctx.container` 重测。
+  - **不要让 `monitor()` 一直挂着**：附录 C 实测挂着 `monitor()` 的实例空闲 150 秒后仍在运行（无论是否设了 `setInactivityTimeout`），不挂时 150 秒内停止。DO 只在有任务时等待 `monitor()`，并以显式 `destroy()` 为准（实测 0.2–0.5 秒停止）。
+  - **部署**：上一个同名容器应用还在 provisioning 时，`wrangler deploy` 会报设置未完全应用；CI 部署前确认应用状态，失败时重试。
+- **v3.0 的写法作废**：v3.0 第 9.1 节在该策略下用的 `static { this.outboundByHost = … }`、`sleepAfter`、`ContainerProxy` 都属于 `Container` 类。`ctx.container` 的写法已于 2026-10-23 实测通过（附录 C）。
 
 **规格**（[限额](https://developers.cloudflare.com/containers/platform-details/limits/)）：
 
@@ -1435,11 +1435,11 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
 
 - **standard-3 分段，约 40 秒**：CPU 最多 2 × 40 × 0.00002 = $0.0016，内存 8 × 40 × 0.0000025 = $0.0008，磁盘约 $0.00004，合计约 $0.0025。冷启动另计，可以忽略。
 - **纯 2D 的 30 秒成片**：6 个分段、1 次拼接、1 次声音，约 **$0.02**；4 个画幅约 **$0.08**。
-- **WebGL 帧**：在 standard-3 上每帧约 4 秒，约 $0.00024/帧；每段的首帧初始化约 31 秒，约 $0.002/段。WebGL 帧占 30% 的 30 秒片：
+- **WebGL 帧**：在 standard-4 上每帧约 2.3 秒，约 $0.00026/帧；每段的页面加载约 17 秒，约 $0.002/段（附录 C）。WebGL 帧占 30% 的 30 秒片：
   - 每个画幅约 $0.10–0.15；
   - 4 个画幅约 $0.4–0.6。
 
-  第 4.6 节的对策生效后，按 G1 实测更新。
+  按 S1 的整片实测更新。
 - **studio 实例**：每个操作约 15 分钟，约 $0.03。
 - **其他平台费用**：Workflows、DO、D1、R2、Queues 和 Workers AI（ASR 约 $0.0005/分钟）在这个规模下可以忽略，但都要进入成本事件。
 
@@ -1494,7 +1494,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
 4. **方案选型实测**：
    - 捕获格式：PNG、JPEG 90/92/95；
    - WebGL 实例规格：standard-3 对比 standard-4；
-   - `renderScale`、着色器缓存、容器快照。
+   - `renderScale`、着色器缓存、容器快照：附录 C 已测，均无收益，不再测。
 5. **接缝**：统计摘要不一致和需要容差的比例，记录 `cpuFlagsHash` 分布。
 6. **取消**：渲染中途取消，确认所有实例停止、R2 只有已提交的对象、费用已结算。
 7. **沙箱**：生产镜像复现探针的 SANDBOX_FULL，并记录到证据。
@@ -1722,9 +1722,9 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | 接缝 | 冷启动帧与顺序帧的摘要从不相同，差异最大 1 个色阶、≤ 0.010% 像素，全部在容差内；3D 模板完全相同 | 第 5.6 节容差比对是常态路径；第 12.2 节的分段对比用容差，不要求摘要相等 |
 | 拼接 | 4 段 Annex B 拼接后为 240 帧，PTS 单调，每 15 帧一个关键帧，无 B 帧 | 第 5.2 节方案成立 |
 | 2D 单帧耗时 | seek 约 35 毫秒；PNG 截图 125–300 毫秒；JS 解码 PNG 50–100 毫秒；model 1 主机约慢一倍；60 帧一段 17–38 秒 | 测的是 PNG 加 JS 解码；JPEG 直送 ffmpeg 未测，由 G1 测（第 5.2 节） |
-| 3D 单帧耗时 | 首帧绘制约 31 秒，之后每帧 3.5–4.5 秒（1080p、SwiftShader） | 第 4.5、4.6、5.3 节已据此修改 |
+| 3D 单帧耗时 | 首帧绘制约 31 秒，之后每帧 3.5–4.5 秒（1080p、SwiftShader） | 附录 C 未重现 31 秒首帧；第 4.6 节按附录 C 修改 |
 | 断网 | 外网 HTTP/HTTPS、直连 IP、DNS、TCP、UDP 全部超时失败 | 第 10 节第 1 项成立 |
-| broker | 正确注册后 `GET /r/…` 返回 200，其他请求由处理函数返回 403 | 用的是 `Container` 类的 `outboundByHost`，生产组合须在 G1 重测（第 9.1 节） |
+| broker | 正确注册后 `GET /r/…` 返回 200，其他请求由处理函数返回 403 | 用的是 `Container` 类的 `outboundByHost`；生产组合已在附录 C 实测通过 |
 | 令牌隔离 | 控制器删除自身环境中的令牌后再启动 Chromium，7 个 Chromium 进程的环境中都没有令牌，页面没有 `process` | 删除后令牌仍在控制器的 `/proc/<pid>/environ` 里，所以第 9.2 节改为经请求体传递 |
 | 页面攻击（带 CSP） | 外部请求、Worker、WASM、eval、`new Function` 被拦；`localStorage`、IndexedDB、cookie 和 `srcdoc` iframe 里的脚本没有被拦 | 第 4.4 节：存储与 iframe 由 shim 禁止 |
 | 崩溃与死循环 | 内存炸弹约 4.7 秒后渲染进程崩溃，控制器收到 crash 事件，浏览器存活；死循环可由期限中止 | 第 5.4 节的分类成立 |
@@ -1734,6 +1734,28 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | 镜像 | 约 1.55 GB；本机推送大层反复失败，GitHub Actions 构建并推送约 3 分钟 | 第 3.2a 节：只从 CI 部署 |
 
 探针脚本与结果目前只在负责人本机的 `~/Downloads/sandbox-probe-results/`。G1 用正式镜像复测，并按 06 写入 `docs/evidence/`；探针脚本入库到 `apps/render-container/probes/`。
+
+---
+
+## 附录 C：2026-10-23 G1 预探针
+
+用临时 Worker 与容器在 Cloudflare 上实测（[证据与原始报告](../evidence/2026-10-23-g1-pre-probe/README.md)，[探针代码](../../apps/render-container/probes/g1-pre/)）。
+
+| 项目 | 结果 | 对正文的影响 |
+| --- | --- | --- |
+| 生产组合与 broker | `ctx.container` + `durable_object` + `interceptOutboundHttp` + `ctx.exports.Broker({props})` 可用；带令牌读写正常，无令牌、越权键、越权前缀均为 403 | 第 9.1、9.2 节成立 |
+| 断网 | 外网 HTTP/HTTPS、DNS、TCP 443、UDP 53 超时，直连 IP 被重置，非 80 端口不通；`dns.lookup('broker.internal')` 超时，但对它的 HTTP 请求正常 | 第 10 节第 1 项成立；控制器访问 broker 不要先做显式 DNS 查询 |
+| 令牌与分离 uid | 同 uid 进程能读到已删除的环境变量令牌和控制器内存；uid 10002 读不到；Chromium 以 uid 10002 运行仍为 SANDBOX_FULL | 第 5.5、9.2 节成立 |
+| 停止与回收 | `destroy()` 0.2–0.5 秒后 `running:false`；`signal(15)` 0.4 秒内停止；12 个实例并发启停无数量上限错误 | 第 9.1、9.5 节成立 |
+| 空闲 | 挂着 `monitor()` 时空闲 150 秒仍在运行；不挂时 150 秒内停止 | 第 9.1 节：不长期挂 `monitor()`，以显式 `destroy()` 为准 |
+| 快照 | 只保存文件系统；恢复后 WebGL 加载与首帧没有变快 | 第 4.6 节不采用 |
+| Workflows 链路 | `step.do` → DO 启动容器 → `step.waitForEvent` ← DO `sendEvent`，2.6 秒完成 | 第 9.6 节成立 |
+| Ajv standalone | 完整 `production.schema.json` 预编译 1.67 MB，Worker 包 gzip 227 KB；workerd 内运行时编译报 `EvalError` | D12 成立 |
+| 2D 捕获 | JPEG 92 每帧 168 ms（standard-3）/ 136 ms（standard-4），PNG 193 / 173 ms；SSIM 0.998 | 第 5.2 节锁定 JPEG 92；第 5.2 节 30 秒片 6 段的初值可行（约 25 秒/段） |
+| WebGL | 页面加载 standard-3 23–34 秒、standard-4 17 秒；每帧 3.9 / 2.3 秒；dpr 0.75 与着色器缓存无收益 | 第 4.6 节：WebGL 段用 standard-4，不做 `renderScale` |
+| 接缝 | 冷 seek 与顺序帧差 1 个色阶、0.003% 像素 | 第 5.6 节成立 |
+
+未测：部署或运行时重启时正在流式的模型调用如何中断与重试；Browser Run 抓取；Workers AI ASR；真实作品的 30 秒整片分段渲染与拼接。
 
 ---
 
