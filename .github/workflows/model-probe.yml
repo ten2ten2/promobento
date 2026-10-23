@@ -22,6 +22,7 @@ jobs:
       - name: Probe models
         env:
           MODEL_COMPAT_API_KEY: ${{ secrets.MODEL_COMPAT_API_KEY }}
+          PROBE_MODELS: claude-sonnet-5-5,deepseek-v4.1-flash-1017
         run: node research/model-probe/probe.mjs https://api.modelswitch.org/v1 research/model-probe/results
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()

@@ -107,6 +107,16 @@ async function probe(model) {
   r.jsonSchema = {...brief(structured), parsed: Boolean(parsed), ok: parsed?.durationSeconds === 15 && Array.isArray(parsed?.scenes) && parsed.scenes.length > 0,
     sample: text(structured).slice(0, 160)};
 
+  // Simpler variants, to separate gateway limits from probe details.
+  const tools2 = await call({model, max_tokens: 256, messages: [{role: 'user', content: 'Call get_time for the city "Paris".'}],
+    tools: [{type: 'function', function: {name: 'get_time', description: 'Get the time in a city', parameters: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']}}}]});
+  const call2 = tools2.json?.choices?.[0]?.message?.tool_calls?.[0];
+  r.toolsSimple = {...brief(tools2), called: call2?.function?.name ?? null, args: call2?.function?.arguments ?? null};
+  const jsonObject = await call({model, max_tokens: 200, response_format: {type: 'json_object'},
+    messages: [{role: 'user', content: 'Return a JSON object {"durationSeconds":15,"scenes":[{"id":"a","start":0,"end":450}]} and nothing else.'}]});
+  let jo = null; try { jo = JSON.parse(text(jsonObject)); } catch {}
+  r.jsonObject = {...brief(jsonObject), parsed: Boolean(jo), sample: text(jsonObject).slice(0, 120)};
+
   const effort = await call({model, max_tokens: 64, reasoning_effort: 'low', messages: [{role: 'user', content: 'Reply with exactly: ok'}]});
   r.reasoningEffort = {...brief(effort), accepted: effort.status === 200};
 
