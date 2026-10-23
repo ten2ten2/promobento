@@ -34,7 +34,7 @@ export async function mediaFixture(output, rules, lock) {
     sourceHash: filmSourceHash(raw), runtimeVersion: 'film-runtime-v1', rendererRelease: 'ci-image-not-production', aspectId: 'landscape',
     durationSeconds: 15, totalFrames: 450, quality: 'final', renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'},
     audioPlanHash: audioPlanHash(plan,{seed:options.seed}), resources: [{resourceId: 'res_fixture_dashboard', kind: 'svg', sha256: sha256Bytes(resourceBytes)}]};
-  const shards = planShards(job, spec, {seed: options.seed}).shards, receipts = [], seams = [], paths = [];
+  const shards = planShards(job, spec, {seed: options.seed}).shards, receipts = [], seams = [], paths = [], failures = [];
   for (const shard of shards) {
     const path = join(directory, 'shard-' + shard.index); mkdirSync(path);
     const receipt = await renderShard({job, shard, raw, options, resource, font, directory: path, browserVersion: lock.browser.version,
@@ -45,12 +45,12 @@ export async function mediaFixture(output, rules, lock) {
     for (const observation of observations) {
       assert.ok(validateObservation(observation), canonical(validateObservation.errors));
       assert.ok(observation.texts.length, 'a reading hold must expose real CDP text');
-      assert.deepEqual(observation.findings.filter(finding => finding.severity === 'BLOCK'), [], canonical(observation));
+      if (observation.findings.some(finding => finding.severity === 'BLOCK')) failures.push({code:'QA_BLOCK',frame:observation.frame,findings:observation.findings});
     }
     if (shard.index) {
       const seam = {frame: shard.start - 1, ...compareSeam(readFileSync(join(directory, 'shard-' + (shard.index - 1), 'seam-frames', (shard.start - 1) + '-last.png')),
         readFileSync(join(path, 'seam-frames', (shard.start - 1) + '-cold.png')))};
-      seams.push(seam); assert.notEqual(seam.verdict, 'RENDER_SEAM_BLOCK', canonical(seam));
+      seams.push(seam); if (seam.verdict === 'RENDER_SEAM_BLOCK') failures.push({code:'RENDER_SEAM_BLOCK',...seam});
     }
   }
   const audio = await renderAudio({plan, inputs: {seed: options.seed, clearedSources: new Map(plan.sources.map(source => [source.sourceId,
@@ -68,6 +68,7 @@ export async function mediaFixture(output, rules, lock) {
       }
     } finally { await session.close(); }
   }
-  const report = {scope: 'CI original engineering fixture; not G1 or product aesthetic acceptance', status: 'passed', receipts, seams, audio, movie, goldenFrames};
-  writeFileSync(join(directory, 'report.json'), canonical(report)); return {status: 'passed', movie, seams, goldenFrames: goldenFrames.length};
+  const report = {scope: 'CI original engineering fixture; not G1 or product aesthetic acceptance', status: failures.length ? 'failed' : 'passed', failures, diagnosticOnly: Boolean(failures.length), receipts, seams, audio, movie, goldenFrames};
+  writeFileSync(join(directory, 'report.json'), canonical(report));
+  assert.deepEqual(failures, [], canonical(failures)); return {status: 'passed', movie, seams, goldenFrames: goldenFrames.length};
 }

@@ -49,5 +49,5 @@ CREATE INDEX IF NOT EXISTS pipeline_cost_operation ON cost_reservations(operatio
 
 CREATE TABLE IF NOT EXISTS pipeline_contexts (
   operation_id TEXT PRIMARY KEY REFERENCES pipeline_operations(id), request_key TEXT NOT NULL,
-  directions_key TEXT, directions_hash TEXT, choice TEXT, choice_hash TEXT
+  directions_key TEXT, directions_hash TEXT, previews_key TEXT, choice TEXT, choice_hash TEXT
 );

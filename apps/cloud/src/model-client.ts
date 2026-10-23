@@ -10,7 +10,8 @@ import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
-  request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void) {
+  request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {
+  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
   const op=await operation(env,operationId,generation), ref=providers.steps[stage], model=providers.models[ref], provider=providers.providers[ref?.split('/')[0]];
   if(!ref||!model?.capabilities.verified||!authorization.models.includes(ref)||!authorization.purposes.includes(op.purpose)
     ||Date.now()>=Date.parse(authorization.expiresAt)||providers.catalogVersion!==authorization.catalogVersion)throw Error('MODEL_NOT_AUTHORIZED');
@@ -40,7 +41,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   const budgetStage=stage==='assets'?'assets:'+digest(request.messages).slice(0,32):stage;
   await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,limits.maxMicros,
     limits.maxCalls??limits.maxCallsPerAsset??1);
-  const result=await streamModel({...input,secret},{timeoutMs:policy.limits.requestTimeoutMs});
+  const result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});
   const actual=modelCallCostMicros(ref,result.usage,providers,{maxOutputTokens:input.maxOutputTokens});
   if(!actual.estimated)await settle(env,callId,actual.usdMicros,{model:ref,usage:result.usage,firstTokenMs:result.firstTokenMs,totalMs:result.totalMs});
   const value=(result.toolCalls.length?{toolCalls:result.toolCalls}:parseCanonicalJson(result.text)) as Json;

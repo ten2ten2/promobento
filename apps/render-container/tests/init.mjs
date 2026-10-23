@@ -15,7 +15,7 @@ chrome.stderr.on('data',chunk=>{
   process.stderr.write(chunk);
   if(!started&&String(chunk).includes('DevTools listening on')){
     started=true;
-    controller=spawn('setpriv',[...drop(10001),'node','apps/render-container/tests/browser.render.test.mjs'],
+    controller=spawn('setpriv',[...drop(10001),'node',process.env.PROMOBENTO_MEDIA_ONLY==='1'?'apps/render-container/tests/media.render.test.mjs':'apps/render-container/tests/browser.render.test.mjs'],
       {env:{...env,HOME:'/work',PROMOBENTO_BROWSER_TEST_CONTAINER:'1',PROMOBENTO_TEST_IMAGE_DIGEST:process.env.PROMOBENTO_TEST_IMAGE_DIGEST??''},stdio:'inherit'});
     controller.on('exit',code=>{chrome.kill('SIGTERM');process.exitCode=code??1;});
   }

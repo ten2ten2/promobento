@@ -109,7 +109,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     await rights(this.env, op, task.job.resources);
     const release = await this.env.DB.prepare('SELECT * FROM renderer_releases WHERE id=? AND status=\'active\'').bind(task.job.rendererRelease).first<Json>();
     if (!release || release.runtime_version !== task.job.runtimeVersion || release.image_digest !== task.imageDigest || release.image_digest !== await this.imageDigest()) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-    const limit = task.mode === 'studio' ? 1200000 : task.mode === 'shard' ? (task.shard.end - task.shard.start) * (task.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
+    const intrinsicLimit = task.mode === 'studio' ? 1200000 : task.mode === 'shard' ? (task.shard.end - task.shard.start) * (task.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
+    const limit = task.deadlineAt === undefined ? intrinsicLimit : Math.min(intrinsicLimit, Number(task.deadlineAt) - Date.now());
+    if (!Number.isFinite(limit) || limit < 1) throw Error('RENDER_DEADLINE');
     const leaseKind = task.mode === 'studio' ? 'studio' : 'shard';
     if (!await coordinator(this.env).acquire(task.taskId, op.workspace_id, leaseKind, Date.now() + limit + 30000)) throw Error('COMPUTE_CAPACITY');
     await coordinator(this.env).arm();
@@ -121,7 +123,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance});
       await this.ctx.storage.setAlarm(Date.now() + limit);
       this.token = crypto.randomUUID() + crypto.randomUUID();
-      const {generation: _generation, imageDigest: _imageDigest, ...input} = task;
+      const {generation: _generation, imageDigest: _imageDigest, deadlineAt: _deadline, ...input} = task;
       input.brokerToken = this.token; assertRenderTask(input);
       const suffix = task.mode === 'shard' ? '/shards/' + task.shard.index : task.mode === 'audio' ? '/audio' : '/out';
       const broker = this.ctx.exports.Broker({props: {token: this.token, operationId: op.id, generation: op.generation,

@@ -66,7 +66,7 @@ export interface AssetHandle {
 export interface TextSlotHandle {
   slotId: string; text: string; role: 'headline' | 'body' | 'label' | 'number' | 'quote' | 'caption' | 'cta';
   /** Mounts the slot's text into an element with auto-fit to the role's minimum size; returns that element. */
-  mount(parent: Element, options?: { maxLines?: number; align?: 'start' | 'center' | 'end' }): HTMLElement;
+  mount(parent: Element, options?: { maxLines?: number; maxFontSize?: number; align?: 'start' | 'center' | 'end' }): HTMLElement;
 }
 
 export interface SceneContext {

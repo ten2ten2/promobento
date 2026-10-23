@@ -30,6 +30,27 @@ export default {
     if (request.method === 'GET' && path === '/healthz') return Response.json({ok: true, protocol: PROTOCOL_VERSION});
     if (!path.startsWith('/internal/s1/') || !authorized(request, env)) return new Response('Not found', {status: 404});
     try {
+      if(request.method==='GET'&&path.startsWith('/internal/s1/artifacts/')){
+        const key=decodeURIComponent(path.slice('/internal/s1/artifacts/'.length));let owner:Json|null=null,resources:Json[]=[];
+        if(key.startsWith('renders/')){
+          const renderId=key.split('/')[1];
+          const render=await env.DB.prepare("SELECT * FROM pipeline_renders WHERE id=? AND status='passed'").bind(renderId).first<Json>();
+          const result=render?.result_json?parseCanonicalJson(render.result_json) as Json:null;
+          if(!result?.outputs.some((output:Json)=>output.key===key))return new Response(null,{status:404});
+          owner=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(render!.operation_id).first<Json>();
+          if(owner?.generation!==render!.generation)return new Response(null,{status:404});
+          resources=(await getJson(env,render!.job_key)).job.resources;
+        }else if(key.startsWith('operations/')){
+          const id=key.split('/')[1],context=await env.DB.prepare('SELECT * FROM pipeline_contexts WHERE operation_id=?').bind(id).first<Json>();
+          const previews=context?.previews_key?await getJson(env,context.previews_key) as unknown as Json[]:[];
+          if(!previews.some(preview=>preview.key===key))return new Response(null,{status:404});
+          owner=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
+          resources=(await getJson(env,context!.request_key)).resources;
+        }
+        if(!owner||!['active','awaiting_user','succeeded'].includes(owner.status))return new Response(null,{status:404});
+        await rights(env,owner as any,resources);const object=await env.MEDIA.get(key);if(!object)return new Response(null,{status:404});
+        return new Response(object.body,{headers:{'content-type':object.httpMetadata?.contentType??'application/octet-stream','cache-control':'private, no-store'}});
+      }
       if (request.method === 'POST' && path === '/internal/s1/operations') {
         const input = await readJson(request);
         if (!validId(input.id) || !validId(input.workspaceId) || !validId(input.projectId) || !['evaluation','calibration'].includes(input.purpose)
@@ -92,9 +113,9 @@ export default {
       }
       const contextRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if(contextRoute&&request.method==='GET'){
-        const row=await env.DB.prepare('SELECT o.*,c.directions_key,c.directions_hash,c.choice FROM pipeline_operations o LEFT JOIN pipeline_contexts c ON c.operation_id=o.id WHERE o.id=?').bind(contextRoute[1]).first<Json>();
+        const row=await env.DB.prepare('SELECT o.*,c.directions_key,c.directions_hash,c.previews_key,c.choice FROM pipeline_operations o LEFT JOIN pipeline_contexts c ON c.operation_id=o.id WHERE o.id=?').bind(contextRoute[1]).first<Json>();
         if(!row)return new Response(null,{status:404});
-        return Response.json({...row,...(row.directions_key?{directions:await getJson(env,row.directions_key)}:{})});
+        return Response.json({...row,...(row.directions_key?{directions:await getJson(env,row.directions_key),previews:await getJson(env,row.previews_key)}:{})});
       }
       if (request.method === 'POST' && path === '/internal/s1/renders') {
         const input = await readJson(request); assertRenderJob(input.job);

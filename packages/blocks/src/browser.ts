@@ -22,9 +22,9 @@ const region = (regionId: string, element: HTMLElement, root: HTMLElement): Scen
   const box = element.getBoundingClientRect(), scene = root.getBoundingClientRect();
   return {x: box.x - scene.x, y: box.y - scene.y, width: box.width, height: box.height};
 }});
-const text = (ctx: SceneContext, value: unknown, parent: HTMLElement, maxLines = 4): HTMLElement => {
+const text = (ctx: SceneContext, value: unknown, parent: HTMLElement, maxLines = 4, maxFontSize?: number): HTMLElement => {
   if (typeof value !== 'string') throw Error('TEXT_SLOT_UNKNOWN');
-  return ctx.text(value).mount(parent, {maxLines});
+  return ctx.text(value).mount(parent, {maxLines, ...(maxFontSize === undefined ? {} : {maxFontSize})});
 };
 
 window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.0', build(ctx, params) {
@@ -115,7 +115,7 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
     const art = item.assetKey ? node(card, {position: 'absolute', right: '5%', top: '8%', width: wide ? '90%' : '24%', height: wide ? '38%' : '84%'}) : undefined;
     if (art && item.assetKey) drawings.push(picture(ctx, item.assetKey, art));
     const copy = node(card, {position: 'absolute', left: '7%', top: art && wide ? '52%' : '12%', width: art && !wide ? '62%' : '86%', height: item.subtitleSlot ? '42%' : art && wide ? '40%' : '76%'});
-    text(ctx, item.textSlot, copy, 3);
+    text(ctx, item.textSlot, copy, 3, wide ? 84 : 64);
     if (item.subtitleSlot) text(ctx, item.subtitleSlot, node(card, {position: 'absolute', left: '7%', top: '61%', width: art && !wide ? '62%' : '86%', height: '30%'}), 2);
     // Pure geometry, not an unbound visible numeric module label.
     node(card, {position: 'absolute', left: '7%', bottom: '6%', width: `${Math.min(40, 10 + index * 6)}%`, height: '4px', background: ctx.style.palette.accent ?? ''});
@@ -144,11 +144,11 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
   return {async render(time) {
     const position = clamp01((time - .4) / travel) * (panels.length - 1);
     panels.forEach((panel, index) => { const distance = index - position;
-      panel.style.visibility = Math.abs(distance) < 1.05 ? 'visible' : 'hidden';
-      panel.style.opacity = String(clamp01(1 - Math.abs(distance) * .85));
+      panel.style.visibility = Math.abs(distance) < 1 ? 'visible' : 'hidden';
+      panel.style.opacity = String(clamp01(1 - Math.abs(distance)));
       panel.style.transform = `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;
     });
-    for (let index = 0; index < drawings.length; index++) if (Math.abs(index - position) < 1.05) await drawings[index]!(time);
+    for (let index = 0; index < drawings.length; index++) if (Math.abs(index - position) < 1) await drawings[index]!(time);
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};
 }});
 
@@ -186,7 +186,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'talking-head', version: '1.
     borderRadius: '28px', overflow: 'hidden'});
   const draw = picture(ctx, String(params.assetKey), portrait);
   const title = node(safe, {position: 'absolute', left: wide ? '65%' : '0', top: wide ? '34%' : '75%', width: wide ? '35%' : '100%', height: wide ? '38%' : '17%'});
-  text(ctx, params.textSlot, title, 3);
+  text(ctx, params.textSlot, title, 3, wide ? 96 : 72);
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', left: wide ? '65%' : '0', top: wide ? '76%' : '93%',
     width: wide ? '35%' : '100%', height: wide ? '20%' : '7%'}), 2);
   return {async render(time) { await draw(time); const p = easeOut(time / .5);

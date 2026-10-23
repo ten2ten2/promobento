@@ -49,8 +49,10 @@ function textSlot(slotId: string): TextSlotHandle {
       const landscape = current.target.aspect === 'landscape';
       const minimum = slot.role === 'cta' ? landscape ? 28 : 32 : landscape ? 32 : 36;
       const scale = {compact: 0.85, regular: 1, large: 1.15}[current.spec.style.type.scale];
-      const start = display ? Math.max(minimum, Math.min(150, current.target.width * 0.085) * scale) : 40 * scale;
-      Object.assign(el.style, {display: 'block', width: '100%', whiteSpace: 'pre-wrap', overflowWrap: 'break-word',
+      const natural = display ? Math.max(minimum, Math.min(150, current.target.width * 0.085) * scale) : Math.max(minimum, 40 * scale);
+      if (options.maxFontSize !== undefined && (!Number.isFinite(options.maxFontSize) || options.maxFontSize < minimum)) throw Error('TEXT_SIZE_INVALID');
+      const start = Math.min(natural, options.maxFontSize ?? natural);
+      Object.assign(el.style, {display: 'block', width: '100%', whiteSpace: 'pre-wrap', overflowWrap: 'normal', wordBreak: 'normal',
         fontFamily: fontFamily(font.fontId), fontWeight: String(font.weight), fontStyle: font.style ?? 'normal',
         lineHeight: '1.1', letterSpacing: display ? '-0.045em' : '-0.015em', color: current.spec.style.palette.roles.ink,
         textAlign: options.align ?? 'start'});

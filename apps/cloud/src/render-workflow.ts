@@ -7,6 +7,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {validate as observationValid} from '@promobento/contracts/validators/frame-observation';
 import {validate as renderValid} from '@promobento/contracts/validators/render-job';
 import {operation, rights, immutableJson, getJson} from './store.ts';
+import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
 export async function checkedBytes(env: PipelineEnv, blob: BlobRef) {
@@ -21,6 +22,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
     });
     const input = await step.do('load-input', async () => getJson(this.env, row.job_key));
     assertRenderJob(input.job);
+    const deadlineAt = await step.do<number>('deadline', async () => Number(row.created_at) + (input.job.quality === 'review' ? policy.render.totalMs.review : input.job.durationSeconds === 15 ? policy.render.totalMs.final15 : policy.render.totalMs.final30));
     const op = await operation(this.env, row.operation_id, row.generation);
     if (input.job.operationId !== op.id || input.job.renderId !== row.id) throw Error('RENDER_SCOPE_INVALID');
     const release = await this.env.DB.prepare('SELECT image_digest FROM renderer_releases WHERE id=? AND status=\'active\'').bind(input.job.rendererRelease).first<{image_digest: string}>();
@@ -32,9 +34,10 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
     const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
       const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
       return step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '10 minutes'}, async () => {
+        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const payload = {schemaVersion: '3.0.0', kind: 'render_task', taskId: attemptId, mode, instance,
-          generation: op.generation, imageDigest: release.image_digest, job: input.job, ...additions};
+          generation: op.generation, deadlineAt, imageDigest: release.image_digest, job: input.job, ...additions};
         await this.env.DB.prepare('INSERT OR IGNORE INTO pipeline_attempts(id,render_id,operation_id,generation,mode,shard_index,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?,?)')
           .bind(attemptId, row.id, op.id, op.generation, mode, additions.shard?.index ?? null, instance, 'active', Date.now()).run();
         try {
@@ -59,6 +62,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         const value = result.outputs?.find((blob: BlobRef) => blob.key.endsWith(suffix)); if (!value) throw Error('RENDER_OUTPUT_MISSING'); return value;
       };
       const seamReport = await step.do('verify-shards', async () => {
+        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const seams = [];
         for (const [index, result] of shards.entries()) {
@@ -80,6 +84,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const assembled = await task('assemble', 'assemble', 'standard-2', {coverFrame: input.coverFrame, inputs: [
         ...shards.map((result, index) => ({...output(result, '/shard.h264'), name: 'shard:' + index})), {...output(audio, '/mixed.wav'), name: 'audio'}]});
       return await step.do('commit-render', async () => {
+        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport,
           observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/')))};
@@ -89,9 +94,10 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'passed'}));return result;
       });
     } catch (error) {
-      const active = await this.env.DB.prepare("SELECT id FROM pipeline_attempts WHERE operation_id=? AND status='active'").bind(op.id).all<{id: string}>();
+      const active = await this.env.DB.prepare("SELECT id FROM pipeline_attempts WHERE render_id=? AND status='active'").bind(row.id).all<{id: string}>();
       const stops = await Promise.allSettled(active.results.map(attempt => this.env.SHARDS.getByName(attempt.id).stopAndSettle()));
-      await this.env.DB.prepare('UPDATE pipeline_renders SET status=?,finished_at=? WHERE id=?').bind('blocked', Date.now(), row.id).run();
+      const code=error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'RENDER_INTERNAL_ERROR';
+      await this.env.DB.prepare('UPDATE pipeline_renders SET status=?,finished_at=?,result_json=? WHERE id=?').bind('blocked', Date.now(), canonical({status:'blocked',code}), row.id).run();
       if (stops.some(result => result.status === 'rejected')) throw Error('COMPUTE_STOP_UNCONFIRMED'); throw error;
     }
   }

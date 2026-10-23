@@ -50,9 +50,21 @@ export async function observe(cdp, plan, renderId, frame) {
       const [a, b, w, h] = layout.bounds[parentRow];
       if (x < a - 1 || y < b - 1 || x + width > a + w + 1 || y + height > b + h + 1) clipped = true;
     }
-    const hit = await cdp.send('DOM.getNodeForLocation', {x: Math.round(x + width / 2), y: Math.round(y + height / 2), ignorePointerEventsNone: true});
-    const hitNode = nodes.backendNodeId.indexOf(hit.backendNodeId);
-    const covered = hitNode >= 0 && !ancestor(hitNode, node) && !ancestor(node, hitNode);
+    // Hit-test the visible intersection, never an off-viewport center. Fully clipped text is
+    // already a BLOCK above; absence of a hit inside the viewport is conservative occlusion review.
+    const left = Math.max(0, x), top = Math.max(0, y), right = Math.min(plan.target.width, x + width), bottom = Math.min(plan.target.height, y + height);
+    let covered = false;
+    if (right > left && bottom > top) {
+      try {
+        const hit = await cdp.send('DOM.getNodeForLocation', {x: Math.min(plan.target.width - 1, Math.floor((left + right) / 2)),
+          y: Math.min(plan.target.height - 1, Math.floor((top + bottom) / 2)), ignorePointerEventsNone: true});
+        const hitNode = nodes.backendNodeId.indexOf(hit.backendNodeId);
+        covered = hitNode < 0 || !ancestor(hitNode, node) && !ancestor(node, hitNode);
+      } catch (error) {
+        if (!String(error.message).includes('No node found at given location')) throw error;
+        covered = true;
+      }
+    }
     texts.push({slotId, text: descendants, box, fonts: fonts.map(font => ({family: font.familyName, glyphCount: font.glyphCount})),
       fallbackUsed, missingGlyphs, contrastRatio: Math.max(1, Math.min(21, ratio)), largeText: Number.parseFloat(style(node, 'font-size')) >= 32,
       insideSafeArea, clipped, covered});

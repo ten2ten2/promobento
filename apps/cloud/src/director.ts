@@ -1,6 +1,6 @@
 import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflare:workers';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest} from '@promobento/contracts/digest';
+import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {filmSpecErrors} from '@promobento/contracts/film';
 import {validate as validFilm} from '@promobento/contracts/validators/film';
@@ -41,10 +41,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const row=await this.env.DB.prepare('SELECT * FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
     if(!row)throw Error('DIRECTOR_CONTEXT_MISSING');
     const context=await getJson(this.env,row.request_key);
+    const startedAt=await step.do('active-start',async()=>Date.now());let pausedMs=0;
+    const deadline=()=>startedAt+20*60000+pausedMs;
+    const checkDeadline=()=>{if(Date.now()>=deadline())throw Error('OPERATION_DEADLINE');};
     const sourceResources=context.resources.map((asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind}));
     const progress=async(status:string)=>this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,status}));
-    const validateSpec=(value:Json)=>{
-      if(!validFilm(value)||value.scenes.some((scene:Json)=>scene.kind!=='block')||value.durationSeconds!==context.durationSeconds)throw Error('FILM_SCHEMA_INVALID');
+    const validateSpec=(value:Json,preview=false)=>{
+      if(!validFilm(value)||value.scenes.some((scene:Json)=>scene.kind!=='block')||value.durationSeconds!==(preview?15:context.durationSeconds))throw Error('FILM_SCHEMA_INVALID');
       const blocks=new Map(blockCatalog.map(block=>[block.id,{major:1,validateParams:(params:object)=>validBlock({block:block.id+'@1',params})?[]:['BLOCK_PARAMS_INVALID']}]));
       const result=filmSpecErrors(value as FilmSpec,{blocks,resources:new Map(context.resources.map((asset:Json)=>[asset.resourceId,{...asset,rightsCleared:true}])),
         fontIds:new Set<string>(context.fonts.map((font:Json)=>font.fontId)),confirmedFactIds:new Set<string>(context.confirmedFactIds)});
@@ -55,17 +58,18 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const image=async(blob:BlobRef)=>({mediaType:blob.mediaType??'image/png',base64:toBase64(await checkedBytes(this.env,blob))});
     const runModel=async(name:string,stage:string,request:Json,check:(value:Json)=>void):Promise<Json>=>{
       const serialized=await step.do<string>(name,{retries:{limit:0,delay:'1 second'},timeout:'12 minutes'},async()=>{
-        await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
-        return canonical(await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+name,{system,...request} as any,check));
+        checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
+        return canonical(await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+name,{system,...request} as any,check,deadline()));
       });
       return (parseCanonicalJson(serialized) as Json).value;
     };
     const render=async(film:Json,name:string,aspect:string,quality:'review'|'final')=>{
-      const renderId=op.id+'-'+name+'-'+aspect;
+      const renderId='render-'+digest({operationId:op.id,name,aspect}).slice(0,48);
       const serialized=await step.do<string>('render-'+name+'-'+aspect,{retries:{limit:0,delay:'1 second'},timeout:'8 minutes'},async()=>{
+        checkDeadline();
         const source=await immutableJson(this.env,`operations/${op.id}/${name}/film.json`,film),audioPlan=deriveAudioPlan(film,filmBlockEvents(film as any));
         const audio=await immutableJson(this.env,`operations/${op.id}/${name}/audio-plan.json`,audioPlan);
-        const input={job:{schemaVersion:'3.0.0',kind:'render_job',renderId,operationId:op.id,candidateId:op.id+'-candidate',sourceHash:filmSourceHash(canonical(film)),
+        const input={job:{schemaVersion:'3.0.0',kind:'render_job',renderId,operationId:op.id,candidateId:'candidate-'+digest({operationId:op.id}).slice(0,48),sourceHash:filmSourceHash(canonical(film)),
           runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality,
           renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},audioPlanHash:audioPlanHash(audioPlan,{seed:context.seed}),resources:sourceResources},
           options:{target:{aspect,...(platform.aspectLayouts as Json)[aspect],fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
@@ -79,10 +83,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         await enqueueRender(this.env,input,op.generation);
         const started=Date.now();
         while(Date.now()-started<360000){
+          checkDeadline();
           await operation(this.env,op.id,op.generation);
           const result=await this.env.DB.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').bind(renderId).first<Json>();
           if(result?.status==='passed')return result.result_json as string;
-          if(result?.status==='blocked')throw Error('RENDER_BLOCKED');await sleep(1000);
+          if(result?.status==='blocked')throw Error((parseCanonicalJson(result.result_json) as Json).code??'RENDER_BLOCKED');await sleep(1000);
         }throw Error('RENDER_DEADLINE');
       });
       return parseCanonicalJson(serialized) as Json;
@@ -111,19 +116,47 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         }));
       }
       await progress('directions');
-      const directions=await runModel('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose Fit, Amplify, Unexpected directions with different visual/sonic hypotheses. Blocks only.',context,facts,insights,blocks:blockCatalog,schema:directionSchema})}],schema:directionSchema,maxOutputTokens:3000},value=>{
+      const directions=await runModel('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose Fit, Amplify, Unexpected directions with different visual/sonic hypotheses. Blocks only. Each card must include keyframeFilm: a complete silent 15-second FilmSpec using the exact confirmed facts, actual resources and fonts from context. Its representative frame must convey that direction. No custom code.',context,facts,insights,blocks:blockCatalog,keyframeFilmSchema:filmSchema,schema:directionSchema})}],schema:directionSchema,maxOutputTokens:12000},value=>{
         if(!validDirections(value)||canonical(value.cards.map((card:Json)=>card.key).sort())!==canonical(['amplify','fit','unexpected']))throw Error('DIRECTIONS_INVALID');
+        for(const card of value.cards){if(!card.keyframeFilm)throw Error('DIRECTION_KEYFRAME_MISSING');validateSpec(card.keyframeFilm,true);}
       });
+      const previews:Json[]=[];
+      for(const card of directions.cards){
+        const blob=await step.do<string>('direction-frame-'+card.key,{retries:{limit:0,delay:'1 second'},timeout:'2 minutes'},async()=>{
+          checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
+          const film=card.keyframeFilm,source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
+          const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
+          const taskId='still-'+digest({operationId:op.id,direction:card.key}).slice(0,48),frame=45;
+          const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:'standard-3',taskId,generation:op.generation,deadlineAt:deadline(),
+            imageDigest:(await this.env.DB.prepare("SELECT image_digest FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>())?.image_digest,
+            job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:'candidate-'+digest({operationId:op.id}).slice(0,48),sourceHash:filmSourceHash(canonical(film)),runtimeVersion:context.runtimeVersion,
+              rendererRelease:context.rendererRelease,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[frame],
+              renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:sourceResources},
+            options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:450},seed:context.seed,fonts:context.fonts,
+              resources:context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,initTimeoutMs:30000,frameTimeoutMs:5000},
+            inputs:[{...source,name:'film'},...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))]};
+          try{
+            await this.env.OPERATIONS.getByName(op.id).studio(op.id,canonical(task));
+            const response=await this.env.OPERATIONS.getByName(op.id).frame(op.id,frame);if(!response.ok)throw Error('DIRECTION_FRAME_FAILED');
+            const bytes=new Uint8Array(await response.arrayBuffer()),hash=sha256Bytes(bytes),key=`operations/${op.id}/directions/${card.key}/frame-${frame}.png`;
+            const old=await this.env.MEDIA.head(key);if(old&&old.customMetadata?.sha256!==hash)throw Error('IMMUTABLE_OBJECT_CONFLICT');
+            if(!old)await this.env.MEDIA.put(key,bytes,{onlyIf:new Headers({'If-None-Match':'*'}),customMetadata:{sha256:hash},httpMetadata:{contentType:'image/png'}});
+            return canonical({direction:card.key,key,sha256:hash,byteLength:bytes.length,mediaType:'image/png',aspect,frame});
+          }finally{await this.env.OPERATIONS.getByName(op.id).closeStudio();}
+        });
+        previews.push(parseCanonicalJson(blob) as Json);
+      }
       const directionHash=digest(directions);
-      await step.do('await-direction',async()=>{
+      const waitStarted=await step.do('await-direction',async()=>{
         const object=await immutableJson(this.env,`operations/${op.id}/directions.json`,directions);
-        await this.env.DB.batch([this.env.DB.prepare('UPDATE pipeline_contexts SET directions_key=?,directions_hash=? WHERE operation_id=?').bind(object.key,directionHash,op.id),
+        const previewsObject=await immutableJson(this.env,`operations/${op.id}/direction-previews.json`,previews);
+        await this.env.DB.batch([this.env.DB.prepare('UPDATE pipeline_contexts SET directions_key=?,directions_hash=?,previews_key=? WHERE operation_id=?').bind(object.key,directionHash,previewsObject.key,op.id),
           this.env.DB.prepare("UPDATE pipeline_operations SET status='awaiting_user' WHERE id=? AND generation=? AND status='active'").bind(op.id,op.generation)]);
-        await progress('awaiting_user');
+        await progress('awaiting_user');return Date.now();
       });
       const choice=await step.waitForEvent<{key:string;directionsHash:string}>('direction-choice',{type:'direction-choice',timeout:'24 hours'});
       if(choice.payload.directionsHash!==directionHash||!directions.cards.some((card:Json)=>card.key===choice.payload.key))throw Error('DIRECTION_CHOICE_INVALID');
-      await step.do('resume-after-choice',async()=>{await this.env.DB.prepare("UPDATE pipeline_operations SET status='active' WHERE id=? AND generation=? AND status='awaiting_user'").bind(op.id,op.generation).run();});
+      const resumedAt=await step.do('resume-after-choice',async()=>{await this.env.DB.prepare("UPDATE pipeline_operations SET status='active' WHERE id=? AND generation=? AND status='awaiting_user'").bind(op.id,op.generation).run();return Date.now();});pausedMs=resumedAt-waitStarted;
       await progress('spec');
       let film=await runModel('spec','spec',{messages:[{role:'user',text:canonical({task:'Write one FilmSpec, with exact supplied factual copy and readable holds. Use the chosen direction; no custom scenes. Assets/fonts must come from context. All target aspects must fit.',context,facts,insights,direction:directions.cards.find((card:Json)=>card.key===choice.payload.key),blocks:blockCatalog,schema:filmSchema})}],schema:filmSchema,maxOutputTokens:8192},validateSpec);
       let submitted=false;
@@ -146,13 +179,15 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       });
       if(cold.verdict!=='pass')throw Error('COLD_REVIEW_BLOCK');
       return await step.do('deliver-candidate',async()=>{
-        await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
+        checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         const candidate={kind:'s1_internal_candidate',operationId:op.id,film,final,cold,publicUseCleared:false,ownerNormalSpeedReview:'pending'};
         const object=await immutableJson(this.env,`operations/${op.id}/candidate.json`,candidate);
         const changed=await this.env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=?,finished_at=? WHERE id=? AND generation=? AND status='active'")
           .bind(object.key,Date.now(),op.id,op.generation).run();if(changed.meta.changes!==1)throw Error('OPERATION_FENCED');await progress('succeeded');return candidate;
       });
     }catch(error){
+      const active=await this.env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(op.id).all<{id:string}>();
+      await Promise.all(active.results.map(attempt=>this.env.SHARDS.getByName(attempt.id).stopAndSettle()));
       await this.env.OPERATIONS.getByName(op.id).closeStudio();
       await this.env.DB.prepare("UPDATE pipeline_operations SET status='failed',finished_at=? WHERE id=? AND generation=? AND status IN ('active','awaiting_user')")
         .bind(Date.now(),op.id,op.generation).run();throw error;
