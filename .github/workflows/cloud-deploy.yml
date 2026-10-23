@@ -37,7 +37,6 @@ jobs:
       RECONCILE_OPERATION: ${{ inputs.reconcile_operation }}
       RENDERER_SHA: ${{ inputs.renderer_sha }}
       RENDERER_DIGEST: ${{ inputs.renderer_digest }}
-      WORKER_CONFIG: ${{ runner.temp }}/promobento-worker-only.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,6 +60,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts/staging
           if [[ -n "$RENDERER_DIGEST" ]]; then
+            export WORKER_CONFIG="$RUNNER_TEMP/promobento-worker-only.json"
             mise exec -- node apps/cloud/scripts/prepare-worker-deploy.mjs
             mise exec -- pnpm --filter @promobento/cloud exec wrangler deploy --env staging --config "$WORKER_CONFIG" 2>&1 | tee artifacts/staging/deploy.log
           else
