@@ -1,10 +1,24 @@
 {
-  // Cloud motion plan §3.1 and §9. Bindings (D1, R2, Queues, containers, Workflows, Durable Objects)
-  // are added in S1 together with the code that uses them; resources are created from CI only.
+  // Cloud motion plan §3.1 and §9. Resources are created from CI by .github/workflows/cloud-resources.yml
+  // (names in resources.json). Containers, Workflows and Durable Objects are added in S1 with their code.
   "name": "promobento",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-20",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "promobento-staging",
+      "d1_databases": [{ "binding": "DB", "database_name": "promobento-staging", "database_id": "e621c179-dcb0-4f20-b5a3-236ba92e5580" }],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "promobento-staging-media" }],
+      "queues": { "producers": [{ "binding": "OUTBOX", "queue": "promobento-staging-outbox" }] }
+    },
+    "production": {
+      "name": "promobento-prod",
+      "d1_databases": [{ "binding": "DB", "database_name": "promobento-prod", "database_id": "f227aaf6-6fde-4a1a-ade2-2480bd0b381f" }],
+      "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "promobento-prod-media" }],
+      "queues": { "producers": [{ "binding": "OUTBOX", "queue": "promobento-prod-outbox" }] }
+    }
+  }
 }

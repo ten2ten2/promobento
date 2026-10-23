@@ -1414,7 +1414,7 @@ runtime/<runtimeVersion>/...                  预览 origin 分发的运行库�
 
 1. **Workers 付费计划**：已于 2026-10-22 完成。
 2. **平台能力**：Containers 与 `scheduling_policy: "durable_object"` 已于 2026-10-22 实测可用。Browser Run 和 Workers AI 在实施时确认。
-3. **资源**：创建预发布与生产两套 D1 数据库、R2 桶（私有）和 Queues，名称写入 `wrangler.jsonc` 的两个环境。
+3. **资源**：创建预发布与生产两套 D1 数据库、R2 桶（私有）和 Queues，名称写入 `wrangler.jsonc` 的两个环境。2026-10-23 已由 [cloud-resources 工作流](../../.github/workflows/cloud-resources.yml)创建（名称见 `apps/cloud/resources.json`，可重复运行），并在 `apps/cloud/wrangler.jsonc` 的 `staging`、`production` 环境绑定为 `DB`、`MEDIA`、`OUTBOX`。
 4. **部署用 API Token**：已于 2026-10-22 创建，含 Containers、D1、Queues、R2、Browser Run、Workers Observability 的 Edit 权限，限本账户与 `promobento.com`。缺少 Workers AI 和 Workflows 权限时补上，权限项名称以创建页面为准。
 5. **凭据放置**：
    - `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`：放在 GitHub Actions 的仓库 secrets，已于 2026-10-22 写入；本地开发放在 shell 环境变量。**不写进仓库，不贴进对话或模型上下文。**
@@ -1668,7 +1668,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 
 - 规格与协议已升到 v3.0 / 3.0.0。`production.schema.json` 只升了版本号，Manifest 改为引用 film-v1 的语义变更放在 S1，与 PRD 14 §2 一起改。
 - 声音实现（`creative-audio`）和 `motion-tools` 没有在 S0 迁出：S1 从 Git 历史（提交 `1faef1c`）按 `packages/audio`、`packages/film-runtime` 的新结构改写。S0 只迁出了 CC0 采样和字体。
-- `apps/cloud` 只有健康检查路由；容器应用的骨架随 S1 的真实实现加入，不建空模块。D1、R2、Queues 尚未创建。
+- `apps/cloud` 只有健康检查路由；容器应用的骨架随 S1 的真实实现加入，不建空模块。
 
 ### S1 一条龙：真实题目从需求到成片
 
