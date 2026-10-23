@@ -462,8 +462,11 @@
           }
         },
         "peakMemoryMiB": {
-          "type": "integer",
+          "type": ["integer", "null"],
           "minimum": 0
+        },
+        "peakMemoryUnavailableReason": {
+          "const": "cgroup_peak_not_exposed"
         },
         "outputs": {
           "type": "object",
@@ -493,7 +496,15 @@
             }
           }
         }
-      }
+      },
+      "allOf": [{
+        "if": {"properties": {"peakMemoryMiB": {"type": "null"}}},
+        "then": {
+          "required": ["peakMemoryUnavailableReason"],
+          "properties": {"peakMemoryUnavailableReason": {"const": "cgroup_peak_not_exposed"}}
+        },
+        "else": {"properties": {"peakMemoryUnavailableReason": false}}
+      }]
     },
     "seamReport": {
       "type": "object",

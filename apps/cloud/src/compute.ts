@@ -143,7 +143,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         } catch {}
         await sleep(250);
       }
-      if(task.mode==='shard'&&typeof environmentHealth==='object'&&environmentHealth?.memoryPeak?.available===false){
+      const peak=typeof environmentHealth==='object'?environmentHealth?.memoryPeak:null;
+      // Owner-approved missing interface remains explicit; permission/invalid-value failures still block.
+      if(task.mode==='shard'&&peak?.available===false&&!(peak.mib===null&&peak.bytes===null&&peak.unavailableReason==='cgroup_peak_not_exposed')){
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:'RENDER_MEMORY_METRIC_UNAVAILABLE',environmentHealth}),task.taskId).run();
         throw Error('RENDER_MEMORY_METRIC_UNAVAILABLE');
       }

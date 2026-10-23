@@ -7,8 +7,6 @@ import {filmSession} from './browser.mjs';
 import {shardEncoder} from './media.mjs';
 import {memoryPeak} from './memory.mjs';
 
-const peakMemoryMiB = () => memoryPeak().mib;
-
 export async function renderShard({job, shard, options, raw, resource, videoFrame, font, directory, browserVersion, imageDigest,
   encoding, threads, signal, killBrowser}) {
   if (job.renderProfile.sampleCount !== 1 || job.renderProfile.shutterAngle !== 0)
@@ -50,13 +48,13 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
     await encoder.finish((shard.end - shard.start) / stride, 30000);
     writeFileSync(join(directory, 'frame-digests.json'), canonical(frameDigests));
     writeFileSync(join(directory, 'observations.json'), canonical(observations));
-    const cpuInfo = readFileSync('/proc/cpuinfo', 'utf8');
+    const cpuInfo = readFileSync('/proc/cpuinfo', 'utf8'), peak = memoryPeak();
     const receipt = {schemaVersion: '3.0.0', kind: 'shard_receipt', renderId: job.renderId, shardIndex: shard.index,
       start: shard.start, end: shard.end, imageDigest, chromiumVersion: browserVersion,
       cpuModel: cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1] ?? 'unknown',
       cpuFlagsHash: digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1] ?? '').split(/\s+/).sort()), sandbox: session.sandbox,
       captureFormat: 'jpeg92', timings: {...session.timings, renderMs, encodeDrainMs: Math.round(performance.now() - draining)},
-      peakMemoryMiB: peakMemoryMiB(), outputs: {
+      peakMemoryMiB: peak.mib, ...(peak.mib===null?{peakMemoryUnavailableReason:peak.unavailableReason}:{}), outputs: {
         shard: sha(readFileSync(join(directory, 'shard.h264'))), frameDigests: sha(readFileSync(join(directory, 'frame-digests.json'))),
         seamFrames, observations: sha(readFileSync(join(directory, 'observations.json')))}};
     writeFileSync(join(directory, 'receipt.json'), canonical(receipt));

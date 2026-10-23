@@ -86,7 +86,10 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       return await step.do('commit-render', async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
-        const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport,
+        const peakMemory = {status: shards.some(result=>result.report.peakMemoryMiB===null)?'unverified':'measured',
+          measurements: shards.map(result=>({shardIndex:result.report.shardIndex,peakMemoryMiB:result.report.peakMemoryMiB,
+            ...(result.report.peakMemoryMiB===null?{peakMemoryUnavailableReason:result.report.peakMemoryUnavailableReason}:{})}))};
+        const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport, peakMemory,
           observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/')))};
         const changed = await this.env.DB.prepare("UPDATE pipeline_renders SET status='passed',result_json=?,finished_at=? WHERE id=? AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')")
           .bind(canonical(result), Date.now(), row.id, op.id, op.generation).run();
