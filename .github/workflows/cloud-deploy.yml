@@ -72,6 +72,11 @@ jobs:
       - name: Read-only diagnosis of a prior staging run
         if: inputs.inspect_run != ''
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
+      - name: Preserve failed render diagnosis without another render
+        if: failure() && inputs.inspect_run == '' && env.EVAL_API_KEY != ''
+        env:
+          INSPECT_RUN: ${{ github.run_id }}
+        run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Revoke the run-only internal key
         if: always() && env.EVAL_API_KEY != ''
         run: mise exec -- pnpm --filter @promobento/cloud exec wrangler secret delete EVAL_API_KEY --env staging

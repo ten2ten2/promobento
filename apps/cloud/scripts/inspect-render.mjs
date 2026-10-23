@@ -5,12 +5,16 @@ const {CLOUDFLARE_API_TOKEN:token,CLOUDFLARE_ACCOUNT_ID:account,INSPECT_RUN:run,
 if(process.env.GITHUB_ACTIONS!=='true'||!/^\d{8,20}$/.test(run??'')||!/^([a-f0-9]{40})$/.test(sha??'')||!token||!account)throw Error('INSPECTION_SCOPE_INVALID');
 const config=parseCanonicalJson(readFileSync('apps/cloud/wrangler.jsonc','utf8').replace(/^\/\/.*\n/,''));
 const operationId='smoke-'+sha.slice(0,12)+'-'+run;
+const workflowResponse=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/workflows/promobento-staging-render/instances/render-${operationId}`,{
+ headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(20000)});
+const workflow=parseCanonicalJson(await workflowResponse.text());
+if(!workflowResponse.ok||!workflow.success)throw Error('WORKFLOW_INSPECTION_HTTP_'+workflowResponse.status);
 const query=async(sql)=>{
  const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${config.env.staging.d1_databases[0].database_id}/query`,{
   method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:canonical({sql,params:[operationId]}),signal:AbortSignal.timeout(20000)});
  const value=parseCanonicalJson(await response.text());if(!response.ok||!value.success)throw Error('D1_INSPECTION_HTTP_'+response.status);return value.result[0].results;
 };
-const report={scope:'read_only_staging_diagnosis',deploymentSha:sha,operationId,
+const report={scope:'read_only_staging_diagnosis',deploymentSha:sha,operationId,workflow:workflow.result,
  operations:await query('SELECT id,status,generation,created_at,finished_at FROM pipeline_operations WHERE id=?'),
  renders:await query('SELECT id,status,created_at,finished_at,result_json FROM pipeline_renders WHERE operation_id=?'),
  attempts:await query('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=?'),
