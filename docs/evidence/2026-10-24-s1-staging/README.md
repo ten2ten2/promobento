@@ -1,4 +1,4 @@
-# S1 正式形态 staging：studio 通过，内存接口缺失
+# S1 正式形态 staging：工程片出片通过，峰值内存未提供
 
 [Actions 39987356301](https://github.com/ten2ten2/promobento/actions/runs/39987356301) 部署 `3942ffc06162efd658cca757d1f7409a08ac2ded`；正式 runtime 镜像摘要 `sha256:c042583ad9ecdb58ea348e10bc55fe85da440fd1af89567b4346fcdf3bc4048c`，Worker 版本 `45749dc4-e696-4d5d-82bc-3434eced59bc`。不是临时探针，也不是完整 G1。
 
@@ -24,4 +24,18 @@
 
 该轮**没有提交或交付成功**：`commit-render` 的首次错误为 `NOT_JSON`，默认重试随后把它掩盖成 `RENDER_DEADLINE`；harness 在 240 秒超时后取消操作。D1 初次只读查询 [40040029787](https://github.com/ten2ten2/promobento/actions/runs/40040029787)确认计算成功；补读 Workflow 的 [40040227722](https://github.com/ten2ten2/promobento/actions/runs/40040227722)定位了原始错误。[完整只读回执](film-attempt/inspection.json)保留步骤、结果引用与结算，未再次渲染。
 
-后续修复将复合步骤值改为共享规范 JSON 文本边界，并禁止最终提交默认重试。Node 26.12.0 下只运行了一次实际提交代码的回执回放（392 ms，通过），没有重跑媒体或导演套件；修复后的云端提交尚待实测。
+修复将复合步骤值改为共享规范 JSON 文本边界，并禁止最终提交默认重试。Node 26.12.0 下只运行了一次实际提交代码的回执回放（392 ms，通过），没有重跑媒体或导演套件。
+
+## 修复后：真实云端出片、提交与下载通过
+
+[40040999452](https://github.com/ten2ten2/promobento/actions/runs/40040999452) 在 `f5b431a4f2729326048acf1563c93c4b05d76f13` 通过。只部署 Worker（版本 `391d6c84-7f8b-43d4-a789-09b1f8021094`），确认渲染输入未变化后[复用上述镜像](film-success/renderer-reuse.json)，未重建或推送容器。事实卡、真实模型、配乐风格、九积木帧图和完整 G1 均未重跑。
+
+[原始出片报告](film-success/smoke-report.json)：
+
+- Worker → Workflow → 三个独立分段、声音 → 接缝/观测 → 拼接 → generation-fenced 提交 → 私有下载全部通过；harness 总计 113.865 秒，包含准备/上传/轮询/下载，不作任务 p95。
+- 15 秒、450 帧、1920×1080、30 fps、AAC，5,320,462 bytes，一秒滑动峰值码率 8,487,520 bit/s，未触发整片重编码。这是按输入要求静音的工程片，不是配乐试听或六题作品。
+- 149、299 两处 PNG 接缝均完全一致；三个分段的内存均为 `null` 加 `cgroup_peak_not_exposed`，汇总为 `unverified`，不计 G1 内存通过。
+- 影片与封面已下载至本机 `artifacts/s1-staging-40040999452/`，Actions 产物名 `s1-staging-deployment`。已查看实际封面，并用独立临时 Chrome 155.0.8059.85 解码 MP4 的 45、165、375 帧，开场、产品图和 CTA 清晰；未将该查看记作完整正常速度视听验收。
+- 成片提交时 lease 已清空；结束取消与临时密钥删除成功。此轮未单独采集账单金额，不纳入成本分位基准。先前失败轮的结算见上一节，不能混作本轮费用。
+
+云端渲染仍为 Chromium 151.0.7922.34、FFmpeg `7:6.1.1-3ubuntu5`、Node 26.12.0；部署工具 Wrangler 4.152.0、pnpm 12.14.0。峰值内存契约只跑一次定点检查（20.6 ms，通过），最终提交只跑上述一次本地回放；两次出片之间先读取原始错误修复，未反复运行完整 CI。S1 出口仍缺完整 G1、生产 Manifest 迁移、六题真实评测及负责人试听；官方 Anthropic 继续按负责人决定保留未验证。
