@@ -20,7 +20,7 @@
 - 前提：
   - **GSAP 已确定使用**：决定人 tianyu（tianyu@tinkerland.ai），2026-10-22。
     - GSAP 字节随渲染镜像分发。负责人已确认本产品可以使用 GSAP（2026-10-23 再次确认），这一决定即 PRD 09 要求的许可结论，不再另设外部输入。
-    - 积木和运行时核心不依赖 GSAP，原因是确定性（积木是时间的纯函数，见第 4.3 节），不是许可。
+    - 积木和自写镜头都可以用 GSAP（负责人 2026-10-23 决定）。确定性靠静默 seek 和第 4.3、5.6 节的检查保证。
   - **Cloudflare 账户已具备**：2026-10-22 已升级 Workers 付费计划。凭据和准备项见第 9.8 节。
   - **Chromium 沙箱已实测可用**：2026-10-22 在 Cloudflare Containers 上做了 3 次探针，均为 SANDBOX_FULL（第 5.5 节）。
   - **按需调度已实测可用**：2026-10-22 本账户可以直接使用 `scheduling_policy: "durable_object"`（仍为 public beta）。
@@ -158,7 +158,7 @@
 | D7 | 交互预览在用户浏览器里运行：同一页面放在独立注册域名下的 sandbox iframe 中，CSP 禁网；视频镜头用代理 MP4 近似 seek。预览只用于制作和审阅，QA 以成片为准 | 实时预览零服务器成本，和上游 studio 同构 |
 | D8 | 素材：上传走 R2 预签名；网址抓取用 Browser Run；视频与图片在断网的资产实例里处理；ASR 用 Workers AI。每个素材生成一次"素材理解"，按摘要缓存 | 实现上游的"真实素材优先"。导演读素材摘要，不反复看原图 |
 | D9 | 多目标按画幅渲染：7 个目标对应 4 个画幅。`__omTarget` 只给画幅与安全区，不给 targetId；同画幅的目标共用同一份成片字节。积木天然适配 4 种画幅，只有 Q1 失败的自写镜头才调用模型 | 6 个预设共用 `mp4_h264_1080_v1`，安全区按画幅定义。将来某平台的安全区不同时再拆开 |
-| D10 | 许可：GSAP 按负责人决定使用，随镜像分发，自写镜头可以使用；积木和运行时核心不依赖它（D1 的确定性要求）。Three.js r186 为 MIT；上游代码为 MIT；字体用 OFL；采样只用 CC0；不采购曲库，程序配乐用第 8.3 节的 CC0 采样包。不加片尾署名，不用作者形象 | 客户委托作品不能带第三方署名 |
+| D10 | 许可：GSAP 按负责人决定使用，随镜像分发，积木和自写镜头都可以用。Three.js r186 为 MIT；上游代码为 MIT；字体用 OFL；采样只用 CC0；不采购曲库，程序配乐用第 8.3 节的 CC0 采样包。不加片尾署名，不用作者形象 | 客户委托作品不能带第三方署名 |
 | D11 | 上游关系：以 `4236053` 为固定参考，把需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明。不 vendor 整个上游，也不追求模板逐帧对等 | 上游 2026-10-18 才发布 0.1.0，只在 macOS 上测试过，现在已有 v0.3.x。逐模板对等会把我们绑在一个快速变化的项目上 |
 | D12 | 新代码使用 TypeScript（strict）。Workers 内的 Schema 校验只用 Ajv standalone 预编译的验证器 | Workers 禁止 `new Function`，现有 `packages/contracts` 在运行时编译 Schema。类型检查能拦下 Agent 写代码时的常见错误 |
 
@@ -378,7 +378,7 @@ source/
   5. 自写镜头模块。
 - **运行库由可信宿主在固定路径提供**，版本由 `runtimeVersion` 决定，并进入源码身份：
   - `/runtime/film-runtime.js`、`/runtime/blocks/<blockId>@<version>.js`、`/runtime/clip/*`；
-  - `/runtime/gsap.min.js`：只有含自写镜头的页面加载；
+  - `/runtime/gsap.min.js`：所用积木或自写镜头需要时加载；
   - `/runtime/three.min.js` 与 `/runtime/om-three.js`：只有含 3D 积木或 3D 自写镜头的页面加载。
 - **素材与字体路径**：
   - 素材只能经 `/r/<resourceId>` 引用。
@@ -450,7 +450,10 @@ FilmSpec {
 - 积木是可信代码，由 `defineBlock({ id, version, params, aspects, editable, cost, build(ctx, params) })` 定义。
   - `params` 是 JSON Schema；
   - `build` 返回 `{ render(localTime), events, regions }`。
-- `render` 是时间的纯函数：基于移植的 clip lib 与自写补间，不依赖 GSAP，不读真实时钟。所以积木自身没有历史依赖。
+- `render` 必须是时间的纯函数：同一时刻无论从哪一帧 seek 过来，画面都相同，不读真实时钟。
+  - 可以用 GSAP 时间轴（暂停，由引擎 `seek(t, true)` 驱动）、移植的 clip lib 或自写补间。
+  - 用 GSAP 时不能依赖回调里累积的状态（`onUpdate` 改写外部变量等）。
+  - 由黄金帧测试保证：每个积木在四种画幅下做顺序、乱序和冷启动 seek，结果必须一致（容差同第 5.6 节）。
 
 **每个积木都必须做到**：
 
@@ -540,7 +543,7 @@ FilmSpec {
 - **合成**：
   - 引擎按帧确定活跃镜头（含转场重叠），调用积木的 `render(localTime)`，或 seek 自写镜头的时间轴。
   - 引擎管理镜头可见性、转场和画幅布局。
-- **GSAP**（只在自写镜头中）：
+- **GSAP**（积木与自写镜头）：
   - `gsap.ticker.lagSmoothing(0)`，并移除自动 ticker；
   - 所有在 `__timelines` 注册的时间轴都 `pause()`；
   - 引擎调用 `tl.seek(t, true)` 抑制回调，从源头消除带状态的 `onUpdate` 造成的历史依赖。上游用 `seek(t, false)`。
@@ -756,7 +759,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **运行时约束**：
   - 照常执行第 4.5 节的虚拟时钟、`random-seq-v1`、计时器禁用和静默 seek。
   - Q0 的 `random`、`clock`、`raf`、`interval` 规则提示导演改写。
-  - 积木是时间的纯函数，接缝问题只可能来自自写镜头。
+  - 积木经黄金帧测试保证是时间的纯函数，接缝问题主要来自自写镜头。
 - **接缝检查**：对每个接缝 `a`，比较两张 PNG：上一段顺序渲染得到的末帧 `a-1`，和下一段冷启动渲染的重叠帧 `a-1`。
   - 摘要相同：通过。
   - 摘要不同：做容差比对，要求逐通道最大差 ≤ 2、差异像素 ≤ 0.1%。
@@ -1573,7 +1576,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | --- | --- | --- |
 | `README.md`、`AGENTS.md` | 改为新结构与命令入口。AGENTS："创作代码只能在隔离环境运行"改写为分段与 studio 实例规则；契约入口改为 `contracts/film-runtime.d.ts`、`contracts/render-protocol.d.ts`；增加"Workers 内只用预编译验证器"；删除与旧 profile 相关的维护规则 | S0 |
 | PRD 索引与全部 PRD 的版本行 | 改为 v3.0、协议 3.0.0；删除描述 QuickJS、`canvas-*` profile、准入链路、fixture 宿主和本地研究控制器的段落，不留"已废弃"说明 | S0 |
-| [13](../prd/13-agent-native-production.md) §1、§3–§6 | §1：作品形态为 film-v1（规格 + 积木 + 自写镜头）；删去"生产运行时不依赖 GSAP"，写明 GSAP 只在自写镜头中可用，WebGL 按 CPU 渲染。§3：方向卡与 Treatment 落在 `film.json`。§4：分阶段导演与模型分工，沿用"事实整理、意图分类、素材摘要可用经过验证的便宜模型"的原则。§5：有旁白时必须有来自已确认转写稿的字幕层，由 Q2 静音可读 BLOCK。§6：改为第 7 节的 Q0–Q3 | S1–S2 |
+| [13](../prd/13-agent-native-production.md) §1、§3–§6 | §1：作品形态为 film-v1（规格 + 积木 + 自写镜头）；删去"生产运行时不依赖 GSAP"，写明积木与自写镜头都可用 GSAP（由负责人决定），WebGL 按 CPU 渲染。§3：方向卡与 Treatment 落在 `film.json`。§4：分阶段导演与模型分工，沿用"事实整理、意图分类、素材摘要可用经过验证的便宜模型"的原则。§5：有旁白时必须有来自已确认转写稿的字幕层，由 Q2 静音可读 BLOCK。§6：改为第 7 节的 Q0–Q3 | S1–S2 |
 | [14](../prd/14-production-contracts.md) §2、§5、§7 | §2：Manifest 与 capability profile 只有 film-v1。§5：RenderProtocol 3.0.0，包括分段、接缝、按画幅渲染、增量复用。§7：渲染状态机增加 sharding、verifying、assembling | S1 |
 | [04](../prd/04-architecture-and-data.md) | 第 2 节的架构图；Workflows 与 DO 的分工、`ctx.container`、broker、D1 表、R2 键、Workers AI 数据流 | S1 |
 | [03](../prd/03-platform-presets.md) §1–§2 | 7 个目标对应 4 个画幅渲染，同画幅共用成片字节 | S2 |
