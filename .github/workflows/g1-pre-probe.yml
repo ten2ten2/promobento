@@ -7,6 +7,11 @@ on:
     branches: ['probe/g1-pre']
     paths: ['apps/render-container/probes/g1-pre/**', '.github/workflows/g1-pre-probe.yml']
   workflow_dispatch:
+    inputs:
+      only:
+        description: Comma-separated probe names (empty runs all)
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -55,10 +60,15 @@ jobs:
           echo "PROBE_KEY=$key" >> "$GITHUB_ENV"
           printf '%s' "$key" | npx wrangler secret put PROBE_KEY
           sleep 20
+      - name: Record image size
+        run: docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -v '<none>' | head -5
       - name: Run probes
+        env:
+          ONLY_INPUT: ${{ inputs.only }}
         working-directory: ${{ env.PROBE_DIR }}
         run: |
           if [ -f probe-only.txt ]; then export PROBE_ONLY="$(tr -d '[:space:]' < probe-only.txt)"; fi
+          if [ -n "$ONLY_INPUT" ]; then export PROBE_ONLY="$ONLY_INPUT"; fi
           node run-probes.mjs "$PROBE_URL" "$PROBE_KEY" results
       - name: Print report
         if: always()

@@ -340,10 +340,25 @@ async function webglFromSnapshotTask({dpr = 1, userDataDir = '/chrome/webgl-cach
   return {machine: machine(), profileBeforeRun: before, run};
 }
 
+// Cold-start probe: what a fresh shard instance pays before its first usable frame.
+async function firstFrameTask({template = 'kinetic-type'} = {}) {
+  const t0 = now();
+  const handle = await openBrowser();
+  const launchedMs = now() - t0;
+  try {
+    const {page, cdp, loadMs} = await openTemplate(handle, template);
+    const a = now(); await seek(page, 0);
+    const image = await capture(cdp, 'jpeg', 92);
+    const captureMs = now() - a;
+    await page.close();
+    return {template, launchMs: round(launchedMs), loadMs, captureMs: round(captureMs), totalMs: round(now() - t0), bytes: image.length, machine: machine()};
+  } finally { await closeBrowser(handle); }
+}
+
 const TASKS = {
   info: async () => ({machine: machine(), uid: process.getuid(), pid: process.pid}),
   network: networkTask, isolation: isolationTask, sandbox: sandboxTask,
-  capture: captureTask, seam: seamTask, webgl: webglTask, webglFromSnapshot: webglFromSnapshotTask,
+  capture: captureTask, firstFrame: firstFrameTask, seam: seamTask, webgl: webglTask, webglFromSnapshot: webglFromSnapshotTask,
   sleep: async ({ms = 120000} = {}) => { await new Promise(resolve => setTimeout(resolve, ms)); return {slept: ms}; }
 };
 

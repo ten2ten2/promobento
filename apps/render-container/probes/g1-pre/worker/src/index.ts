@@ -52,6 +52,7 @@ export class ProbeDO extends DurableObject<Env> {
         case '/start': return Response.json(await this.start(body));
         case '/state': return Response.json(await this.state());
         case '/task': return Response.json(await this.runTask(body));
+        case '/firstFrameSync': return Response.json(await this.callContainer('firstFrame', body.params ?? {}));
         case '/result': return Response.json(this.tasks.get(body.taskId) ?? (await this.ctx.storage.get(`task:${body.taskId}`)) ?? {status: 'unknown'});
         case '/destroy': {
           const started = Date.now();

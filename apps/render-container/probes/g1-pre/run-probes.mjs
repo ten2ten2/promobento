@@ -159,6 +159,44 @@ await run('workflowChain', async () => {
   return {created, status, elapsedMs: Date.now() - t0};
 });
 
+// Cold start of a fresh instance (as every shard is), with enough samples for p50/p95:
+// 10 sequential, two parallel waves of 6 (one render's shards), then 3 more after 10 idle minutes.
+const pct = (values, p) => { const v = values.filter(Number.isFinite).sort((a, b) => a - b); return v.length ? v[Math.min(v.length - 1, Math.ceil(p * v.length) - 1)] : null; };
+async function coldOne(name, instance) {
+  used.add(name);
+  const t0 = Date.now();
+  const started = await start(name, {instance});
+  const first = started.ready ? await call(`/do/${name}/firstFrameSync`) : null;
+  const sample = {name, instance, readyMs: started.readyMs, ready: started.ready, firstFrame: first?.result ?? first, endToEndMs: Date.now() - t0};
+  await call(`/do/${name}/destroy`);
+  return sample;
+}
+const summarize = samples => {
+  const pick = key => samples.map(s => key(s));
+  return Object.fromEntries(Object.entries({readyMs: s => s.readyMs, launchMs: s => s.firstFrame?.launchMs, loadMs: s => s.firstFrame?.loadMs,
+    firstFrameTotalMs: s => s.firstFrame?.totalMs, endToEndMs: s => s.endToEndMs}).map(([k, f]) => [k, {p50: pct(pick(f), 0.5), p95: pct(pick(f), 0.95), max: pct(pick(f), 1), n: pick(f).filter(Number.isFinite).length}]));
+};
+await run('coldStart', async () => {
+  const out = {sequential: [], waves: [], afterIdle: []};
+  for (let i = 0; i < 10; i++) { out.sequential.push(await coldOne(`cold-seq-${i}`, 'standard-3')); save(); }
+  for (let w = 0; w < 2; w++) {
+    const t0 = Date.now();
+    const samples = await Promise.all(Array.from({length: 6}, (_, i) => coldOne(`cold-wave${w}-${i}`, 'standard-3')));
+    out.waves.push({wallMs: Date.now() - t0, samples});
+    save();
+  }
+  log('idle 10 minutes before the last cold starts');
+  await sleep(600000);
+  for (let i = 0; i < 3; i++) out.afterIdle.push(await coldOne(`cold-idle-${i}`, 'standard-3'));
+  out.summary = {
+    sequential: summarize(out.sequential),
+    waves: summarize(out.waves.flatMap(w => w.samples)),
+    afterIdle: summarize(out.afterIdle),
+    all: summarize([...out.sequential, ...out.waves.flatMap(w => w.samples), ...out.afterIdle])
+  };
+  return out;
+});
+
 await run('cleanup', async () => {
   const results = {};
   for (const name of used) results[name] = await call(`/do/${name}/destroy`);
