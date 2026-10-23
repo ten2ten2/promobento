@@ -1,0 +1,6 @@
+{
+  "environments": {
+    "staging": {"d1": "promobento-staging", "r2": "promobento-staging-media", "queue": "promobento-staging-outbox"},
+    "production": {"d1": "promobento-prod", "r2": "promobento-prod-media", "queue": "promobento-prod-outbox"}
+  }
+}
