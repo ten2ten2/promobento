@@ -1,0 +1,18 @@
+import {createOM} from './om.js';
+import './clip/util.js';
+import './clip/motion.js';
+import './clip/camera.js';
+import './clip/paint.js';
+import './clip/kit.js';
+import './clip/diagram.js';
+import './clip/typo.js';
+import './clip/chart.js';
+import './clip/ui.js';
+import './clip/collage.js';
+import './clip/toon.js';
+if (!window.gsap) throw Error('GSAP_UNAVAILABLE');
+window.gsap.ticker.lagSmoothing(0);
+window.gsap.ticker.remove(window.gsap.updateRoot);
+window.gsap.ticker.sleep();
+Object.defineProperty(window, '__pbCreateOM', {value: createOM, writable: false, configurable: false});
+Object.defineProperty(window, 'CLIP', {value: Object.freeze({U, MO, CAM, PAINT, KIT, DG, TY, CH, UI, CL, TOON}), writable: false, configurable: false});

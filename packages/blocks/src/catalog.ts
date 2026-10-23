@@ -5,7 +5,7 @@ const common = {
   goldenFrames: [0, 12, 45], editable: []
 };
 export const blockCatalog = [
-  { ...common, id: 'hook-title', category: 'opening', regions: ['headline'],
+  { ...common, id: 'hook-title', category: 'opening', usesGsap: true, regions: ['headline'],
     events: [{name: 'title-land', description: 'Headline settles into its reading position.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot } } },
@@ -16,5 +16,48 @@ export const blockCatalog = [
   { ...common, id: 'cta-endcard', category: 'closing', regions: ['cta'],
     events: [{name: 'cta-land', description: 'Call to action reaches its reading hold.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
-      properties: { textSlot: slot, subtitleSlot: slot, logoKey: slot } } }
+      properties: { textSlot: slot, subtitleSlot: slot, logoKey: slot } } },
+  { ...common, id: 'feature-grid', category: 'software', regions: ['features'],
+    events: [{name: 'feature-land', description: 'Feature cards finish their staggered reveal.'}],
+    params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
+      textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
+        required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot, assetKey: slot}}}}}},
+  { ...common, id: 'curriculum', category: 'course', regions: ['modules'],
+    events: [{name: 'module-land', description: 'The final curriculum module is revealed.'}],
+    params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
+      textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
+        required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}}}}},
+  { ...common, id: 'ui-journey', category: 'software', cost: 'medium', regions: ['journey'],
+    events: [{name: 'product-land', description: 'The camera arrives at the final interface.'}],
+    params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
+      items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
+        required: ['assetKey', 'textSlot'], properties: {textSlot: slot, assetKey: slot}}}}}},
+  { ...common, id: 'metric', category: 'data', regions: ['metric'],
+    events: [{name: 'metric-land', description: 'The fact-bound number reaches its final value.'}],
+    params: {type: 'object', additionalProperties: false, required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}},
+  { ...common, id: 'captions', category: 'course', regions: ['captions'],
+    events: [{name: 'caption-land', description: 'The first confirmed caption is shown.'}],
+    params: {type: 'object', additionalProperties: false, required: ['cues'], properties: {assetKey: slot,
+      cues: {type: 'array', minItems: 1, maxItems: 100, items: {type: 'object', additionalProperties: false,
+        required: ['textSlot', 'start', 'end'], properties: {textSlot: slot, start: {type: 'integer', minimum: 0, maximum: 899},
+          end: {type: 'integer', minimum: 1, maximum: 900}}}}}}},
+  { ...common, id: 'talking-head', category: 'course', cost: 'medium', regions: ['speaker'],
+    events: [{name: 'speaker-land', description: 'The speaker nameplate settles.'}],
+    params: {type: 'object', additionalProperties: false, required: ['assetKey', 'textSlot'], properties: {
+      assetKey: slot, textSlot: slot, subtitleSlot: slot}}}
 ] as const;
+
+/** All visible copy and drawable references, including nested card/caption collections. */
+export function blockReferences(params: Record<string, unknown>): {texts: string[]; assets: string[]} {
+  const texts: string[] = [], assets: string[] = [];
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (['textSlot', 'subtitleSlot'].includes(key) && typeof child === 'string') texts.push(child);
+      else if (['assetKey', 'logoKey'].includes(key) && typeof child === 'string') assets.push(child);
+      else walk(child);
+    }
+  };
+  walk(params); return {texts, assets};
+}

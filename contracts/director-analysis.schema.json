@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/director-analysis/3.0.0",
+  "title": "S1 fact organization and independent cold review",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/facts"
+    },
+    {
+      "$ref": "#/$defs/cold"
+    }
+  ],
+  "$defs": {
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "factIds",
+        "summary"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "fact_analysis"
+        },
+        "factIds": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      }
+    },
+    "cold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "verdict",
+        "issues"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "cold_review"
+        },
+        "verdict": {
+          "enum": [
+            "pass",
+            "block"
+          ]
+        },
+        "issues": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "detail",
+              "frames"
+            ],
+            "properties": {
+              "detail": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "frames": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 899
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

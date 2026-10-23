@@ -25,7 +25,7 @@
       "subject": "DeepSeek",
       "fictional": false,
       "assets": "sources_identified_not_ingested",
-      "facts": "sourced_owner_to_confirm",
+      "facts": "confirmed_for_s1_eval",
       "factCard": "research/evals/fact-cards/deepseek.json"
     },
     {
@@ -34,7 +34,7 @@
       "subject": "MiniMax",
       "fictional": false,
       "assets": "sources_identified_not_ingested",
-      "facts": "sourced_owner_to_confirm",
+      "facts": "confirmed_for_s1_eval",
       "factCard": "research/evals/fact-cards/minimax.json"
     },
     {
@@ -43,35 +43,35 @@
       "subject": "Duolingo",
       "fictional": false,
       "assets": "sources_identified_not_ingested",
-      "facts": "sourced_owner_to_confirm",
+      "facts": "confirmed_for_s1_eval",
       "factCard": "research/evals/fact-cards/duolingo.json"
     },
     {
-      "id": "ielts-course",
+      "id": "ielts-ready",
       "segment": "course",
-      "subject": "IELTS preparation course",
-      "fictional": true,
-      "assets": "pending",
-      "facts": "draft_owner_to_confirm",
-      "factCard": "research/evals/fact-cards/ielts-course.json"
+      "subject": "IELTS Ready",
+      "fictional": false,
+      "assets": "sources_identified_not_ingested",
+      "facts": "confirmed_for_s1_eval",
+      "factCard": "research/evals/fact-cards/ielts-ready.json"
     },
     {
-      "id": "jlpt-course",
+      "id": "marugoto",
       "segment": "course",
-      "subject": "JLPT preparation course",
-      "fictional": true,
-      "assets": "pending",
-      "facts": "draft_owner_to_confirm",
-      "factCard": "research/evals/fact-cards/jlpt-course.json"
+      "subject": "Marugoto Japanese Online Course",
+      "fictional": false,
+      "assets": "sources_identified_not_ingested",
+      "facts": "confirmed_for_s1_eval",
+      "factCard": "research/evals/fact-cards/marugoto.json"
     },
     {
-      "id": "leetcode-course",
+      "id": "hf-llm-course",
       "segment": "course",
-      "subject": "LeetCode interview preparation course",
-      "fictional": true,
-      "assets": "pending",
-      "facts": "draft_owner_to_confirm",
-      "factCard": "research/evals/fact-cards/leetcode-course.json"
+      "subject": "LLM Course",
+      "fictional": false,
+      "assets": "sources_identified_not_ingested",
+      "facts": "confirmed_for_s1_eval",
+      "factCard": "research/evals/fact-cards/hf-llm-course.json"
     },
     {
       "id": "iphone-duo",
@@ -83,5 +83,16 @@
       "countsTowardGate": false
     }
   ],
-  "note": "S1 gate: the owner would publish at least 4 of the 6 software and course topics at normal speed. iphone-duo is outside the two launch segments and is tracked as a boundary case only."
+  "note": "S1 gate: the owner would publish at least 4 of the 6 software and course topics at normal speed. iphone-duo is outside the two launch segments and is tracked as a boundary case only.",
+  "courseSelection": {
+    "approvedBy": "owner",
+    "approvedAt": "2026-10-23",
+    "decision": "Replace fictional courses with verifiable public real courses, for internal evaluation only; remove unsupported performance claims."
+  },
+  "factConfirmation": {
+    "confirmedBy": "owner",
+    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "scope": "s1-first-internal-evaluation",
+    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders."
+  }
 }

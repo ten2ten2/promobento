@@ -3,135 +3,1030 @@
   "$id": "https://promobento.com/contracts/render-job/3.0.0",
   "title": "Render jobs, shard plans, shard receipts and seam reports",
   "oneOf": [
-    {"$ref": "#/$defs/renderJob"},
-    {"$ref": "#/$defs/shardPlan"},
-    {"$ref": "#/$defs/shardReceipt"},
-    {"$ref": "#/$defs/seamReport"}
+    {
+      "$ref": "#/$defs/renderJob"
+    },
+    {
+      "$ref": "#/$defs/shardPlan"
+    },
+    {
+      "$ref": "#/$defs/shardReceipt"
+    },
+    {
+      "$ref": "#/$defs/seamReport"
+    },
+    {
+      "$ref": "#/$defs/controllerTask"
+    }
   ],
   "$defs": {
-    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{4,96}$"},
-    "aspectId": {"enum": ["landscape", "portrait", "feed", "square"]},
-    "frame": {"type": "integer", "minimum": 0, "maximum": 900},
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{4,96}$"
+    },
+    "aspectId": {
+      "enum": [
+        "landscape",
+        "portrait",
+        "feed",
+        "square"
+      ]
+    },
+    "frame": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 900
+    },
     "renderProfile": {
       "oneOf": [
-        {"type": "object", "additionalProperties": false, "required": ["sampleCount", "shutterAngle", "sampling", "edgePolicy"],
-          "properties": {"sampleCount": {"const": 1}, "shutterAngle": {"const": 0}, "sampling": {"const": "centered-box-v1"}, "edgePolicy": {"const": "clamp-v1"}}},
-        {"type": "object", "additionalProperties": false, "required": ["sampleCount", "shutterAngle", "sampling", "edgePolicy"],
-          "properties": {"sampleCount": {"enum": [4, 8]}, "shutterAngle": {"const": 180}, "sampling": {"const": "centered-box-v1"}, "edgePolicy": {"const": "clamp-v1"}}}
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sampleCount",
+            "shutterAngle",
+            "sampling",
+            "edgePolicy"
+          ],
+          "properties": {
+            "sampleCount": {
+              "const": 1
+            },
+            "shutterAngle": {
+              "const": 0
+            },
+            "sampling": {
+              "const": "centered-box-v1"
+            },
+            "edgePolicy": {
+              "const": "clamp-v1"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sampleCount",
+            "shutterAngle",
+            "sampling",
+            "edgePolicy"
+          ],
+          "properties": {
+            "sampleCount": {
+              "enum": [
+                4,
+                8
+              ]
+            },
+            "shutterAngle": {
+              "const": 180
+            },
+            "sampling": {
+              "const": "centered-box-v1"
+            },
+            "edgePolicy": {
+              "const": "clamp-v1"
+            }
+          }
+        }
       ]
     },
     "renderJob": {
-      "type": "object", "additionalProperties": false,
-      "required": ["schemaVersion", "kind", "renderId", "operationId", "candidateId", "sourceHash", "runtimeVersion", "rendererRelease", "aspectId", "durationSeconds", "totalFrames", "quality", "renderProfile", "resources"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "renderId",
+        "operationId",
+        "candidateId",
+        "sourceHash",
+        "runtimeVersion",
+        "rendererRelease",
+        "aspectId",
+        "durationSeconds",
+        "totalFrames",
+        "quality",
+        "renderProfile",
+        "resources"
+      ],
       "properties": {
-        "schemaVersion": {"const": "3.0.0"},
-        "kind": {"const": "render_job"},
-        "renderId": {"$ref": "#/$defs/id"},
-        "operationId": {"$ref": "#/$defs/id"},
-        "revisionId": {"$ref": "#/$defs/id"},
-        "candidateId": {"$ref": "#/$defs/id"},
-        "sourceHash": {"$ref": "#/$defs/sha256"},
-        "runtimeVersion": {"type": "string", "minLength": 1, "maxLength": 80},
-        "rendererRelease": {"type": "string", "minLength": 1, "maxLength": 120},
-        "aspectId": {"$ref": "#/$defs/aspectId"},
-        "durationSeconds": {"enum": [15, 30]},
-        "totalFrames": {"enum": [450, 900]},
-        "quality": {"enum": ["still", "review", "final"]},
-        "renderProfile": {"$ref": "#/$defs/renderProfile"},
-        "resources": {
-          "type": "array", "maxItems": 200,
-          "items": {"type": "object", "additionalProperties": false, "required": ["resourceId", "sha256", "kind"],
-            "properties": {"resourceId": {"type": "string", "pattern": "^res_[A-Za-z0-9_-]{4,64}$"}, "sha256": {"$ref": "#/$defs/sha256"}, "kind": {"enum": ["image", "video", "audio", "font", "svg"]}}}
+        "schemaVersion": {
+          "const": "3.0.0"
         },
-        "audioPlanHash": {"$ref": "#/$defs/sha256"},
-        "frozenAudioHash": {"$ref": "#/$defs/sha256"},
-        "frames": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/frame"}},
+        "kind": {
+          "const": "render_job"
+        },
+        "renderId": {
+          "$ref": "#/$defs/id"
+        },
+        "operationId": {
+          "$ref": "#/$defs/id"
+        },
+        "revisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "candidateId": {
+          "$ref": "#/$defs/id"
+        },
+        "sourceHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "runtimeVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "rendererRelease": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "aspectId": {
+          "$ref": "#/$defs/aspectId"
+        },
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
+        "quality": {
+          "enum": [
+            "still",
+            "review",
+            "final"
+          ]
+        },
+        "renderProfile": {
+          "$ref": "#/$defs/renderProfile"
+        },
+        "resources": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "resourceId",
+              "sha256",
+              "kind"
+            ],
+            "properties": {
+              "resourceId": {
+                "type": "string",
+                "pattern": "^res_[A-Za-z0-9_-]{4,64}$"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "kind": {
+                "enum": [
+                  "image",
+                  "video",
+                  "audio",
+                  "font",
+                  "svg"
+                ]
+              }
+            }
+          }
+        },
+        "audioPlanHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "frozenAudioHash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "frames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/frame"
+          }
+        },
         "crops": {
-          "type": "array", "maxItems": 8,
-          "items": {"type": "object", "additionalProperties": false, "required": ["frame", "x01", "y01", "scale"],
-            "properties": {"frame": {"$ref": "#/$defs/frame"}, "x01": {"type": "number", "minimum": 0, "maximum": 1}, "y01": {"type": "number", "minimum": 0, "maximum": 1}, "scale": {"const": 2}}}
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "frame",
+              "x01",
+              "y01",
+              "scale"
+            ],
+            "properties": {
+              "frame": {
+                "$ref": "#/$defs/frame"
+              },
+              "x01": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y01": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "scale": {
+                "const": 2
+              }
+            }
+          }
         },
         "reuse": {
-          "type": "array", "maxItems": 64,
-          "items": {"type": "object", "additionalProperties": false, "required": ["shardKey", "renderId", "shardIndex"],
-            "properties": {"shardKey": {"$ref": "#/$defs/sha256"}, "renderId": {"$ref": "#/$defs/id"}, "shardIndex": {"type": "integer", "minimum": 0, "maximum": 63}}}
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "shardKey",
+              "renderId",
+              "shardIndex"
+            ],
+            "properties": {
+              "shardKey": {
+                "$ref": "#/$defs/sha256"
+              },
+              "renderId": {
+                "$ref": "#/$defs/id"
+              },
+              "shardIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63
+              }
+            }
+          }
         }
       }
     },
     "shardPlan": {
-      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "renderId", "totalFrames", "shards"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "renderId",
+        "totalFrames",
+        "shards"
+      ],
       "properties": {
-        "schemaVersion": {"const": "3.0.0"},
-        "kind": {"const": "shard_plan"},
-        "renderId": {"$ref": "#/$defs/id"},
-        "totalFrames": {"enum": [450, 900]},
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "shard_plan"
+        },
+        "renderId": {
+          "$ref": "#/$defs/id"
+        },
+        "totalFrames": {
+          "enum": [
+            450,
+            900
+          ]
+        },
         "shards": {
-          "type": "array", "minItems": 1, "maxItems": 64,
-          "items": {"type": "object", "additionalProperties": false, "required": ["index", "start", "end", "instance", "shardKey"],
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "start",
+              "end",
+              "instance",
+              "shardKey"
+            ],
             "properties": {
-              "index": {"type": "integer", "minimum": 0, "maximum": 63},
-              "start": {"$ref": "#/$defs/frame"},
-              "end": {"$ref": "#/$defs/frame"},
-              "instance": {"enum": ["standard-3", "standard-4"]},
-              "shardKey": {"$ref": "#/$defs/sha256"},
-              "reused": {"type": "boolean"}
-            }}
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63
+              },
+              "start": {
+                "$ref": "#/$defs/frame"
+              },
+              "end": {
+                "$ref": "#/$defs/frame"
+              },
+              "instance": {
+                "enum": [
+                  "standard-3",
+                  "standard-4"
+                ]
+              },
+              "shardKey": {
+                "$ref": "#/$defs/sha256"
+              },
+              "reused": {
+                "type": "boolean"
+              }
+            }
+          }
         }
       }
     },
     "shardReceipt": {
-      "type": "object", "additionalProperties": false,
-      "required": ["schemaVersion", "kind", "renderId", "shardIndex", "start", "end", "imageDigest", "chromiumVersion", "cpuModel", "cpuFlagsHash", "sandbox", "captureFormat", "timings", "peakMemoryMiB", "outputs"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "renderId",
+        "shardIndex",
+        "start",
+        "end",
+        "imageDigest",
+        "chromiumVersion",
+        "cpuModel",
+        "cpuFlagsHash",
+        "sandbox",
+        "captureFormat",
+        "timings",
+        "peakMemoryMiB",
+        "outputs"
+      ],
       "properties": {
-        "schemaVersion": {"const": "3.0.0"},
-        "kind": {"const": "shard_receipt"},
-        "renderId": {"$ref": "#/$defs/id"},
-        "shardIndex": {"type": "integer", "minimum": 0, "maximum": 63},
-        "start": {"$ref": "#/$defs/frame"},
-        "end": {"$ref": "#/$defs/frame"},
-        "imageDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-        "chromiumVersion": {"type": "string", "minLength": 1, "maxLength": 40},
-        "cpuModel": {"type": "string", "maxLength": 120},
-        "cpuFlagsHash": {"$ref": "#/$defs/sha256"},
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "shard_receipt"
+        },
+        "renderId": {
+          "$ref": "#/$defs/id"
+        },
+        "shardIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 63
+        },
+        "start": {
+          "$ref": "#/$defs/frame"
+        },
+        "end": {
+          "$ref": "#/$defs/frame"
+        },
+        "imageDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "chromiumVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "cpuModel": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "cpuFlagsHash": {
+          "$ref": "#/$defs/sha256"
+        },
         "sandbox": {
-          "type": "object", "additionalProperties": false, "required": ["seccomp", "nestedPidNamespace", "separateUserNamespace", "chromiumUid"],
-          "properties": {"seccomp": {"type": "boolean"}, "nestedPidNamespace": {"type": "boolean"}, "separateUserNamespace": {"type": "boolean"}, "chromiumUid": {"type": "integer"}}
-        },
-        "captureFormat": {"enum": ["jpeg92", "png"]},
-        "timings": {
-          "type": "object", "additionalProperties": false, "required": ["readyMs", "handshakeMs", "renderMs", "encodeDrainMs"],
-          "properties": {"readyMs": {"type": "integer", "minimum": 0}, "handshakeMs": {"type": "integer", "minimum": 0}, "renderMs": {"type": "integer", "minimum": 0}, "encodeDrainMs": {"type": "integer", "minimum": 0}}
-        },
-        "peakMemoryMiB": {"type": "integer", "minimum": 0},
-        "outputs": {
-          "type": "object", "additionalProperties": false, "required": ["shard", "frameDigests", "seamFrames", "observations"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seccomp",
+            "nestedPidNamespace",
+            "separateUserNamespace",
+            "chromiumUid"
+          ],
           "properties": {
-            "shard": {"$ref": "#/$defs/sha256"}, "frameDigests": {"$ref": "#/$defs/sha256"}, "observations": {"$ref": "#/$defs/sha256"},
-            "seamFrames": {"type": "array", "maxItems": 2, "items": {"$ref": "#/$defs/sha256"}}
+            "seccomp": {
+              "type": "boolean"
+            },
+            "nestedPidNamespace": {
+              "type": "boolean"
+            },
+            "separateUserNamespace": {
+              "type": "boolean"
+            },
+            "chromiumUid": {
+              "type": "integer"
+            }
+          }
+        },
+        "captureFormat": {
+          "enum": [
+            "jpeg92",
+            "png"
+          ]
+        },
+        "timings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "readyMs",
+            "handshakeMs",
+            "renderMs",
+            "encodeDrainMs"
+          ],
+          "properties": {
+            "readyMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "handshakeMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "renderMs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "encodeDrainMs": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "peakMemoryMiB": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shard",
+            "frameDigests",
+            "seamFrames",
+            "observations"
+          ],
+          "properties": {
+            "shard": {
+              "$ref": "#/$defs/sha256"
+            },
+            "frameDigests": {
+              "$ref": "#/$defs/sha256"
+            },
+            "observations": {
+              "$ref": "#/$defs/sha256"
+            },
+            "seamFrames": {
+              "type": "array",
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
           }
         }
       }
     },
     "seamReport": {
-      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "renderId", "seams"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "renderId",
+        "seams"
+      ],
       "properties": {
-        "schemaVersion": {"const": "3.0.0"},
-        "kind": {"const": "seam_report"},
-        "renderId": {"$ref": "#/$defs/id"},
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "seam_report"
+        },
+        "renderId": {
+          "$ref": "#/$defs/id"
+        },
         "seams": {
-          "type": "array", "maxItems": 63,
-          "items": {"type": "object", "additionalProperties": false, "required": ["frame", "identical", "maxChannelDiff", "diffPixelPct", "verdict"],
+          "type": "array",
+          "maxItems": 63,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "frame",
+              "identical",
+              "maxChannelDiff",
+              "diffPixelPct",
+              "verdict"
+            ],
             "properties": {
-              "frame": {"$ref": "#/$defs/frame"},
-              "identical": {"type": "boolean"},
-              "maxChannelDiff": {"type": "integer", "minimum": 0, "maximum": 255},
-              "diffPixelPct": {"type": "number", "minimum": 0, "maximum": 100},
-              "verdict": {"enum": ["pass", "pass_within_tolerance", "RENDER_SEAM_BLOCK"]},
-              "sceneId": {"type": "string", "maxLength": 48}
-            }}
+              "frame": {
+                "$ref": "#/$defs/frame"
+              },
+              "identical": {
+                "type": "boolean"
+              },
+              "maxChannelDiff": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255
+              },
+              "diffPixelPct": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "verdict": {
+                "enum": [
+                  "pass",
+                  "pass_within_tolerance",
+                  "RENDER_SEAM_BLOCK"
+                ]
+              },
+              "sceneId": {
+                "type": "string",
+                "maxLength": 48
+              }
+            }
+          }
         }
       }
+    },
+    "controllerTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "taskId",
+        "mode",
+        "instance",
+        "brokerToken",
+        "job",
+        "inputs"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "render_task"
+        },
+        "taskId": {
+          "$ref": "#/$defs/id"
+        },
+        "mode": {
+          "enum": [
+            "shard",
+            "studio",
+            "assemble",
+            "audio"
+          ]
+        },
+        "instance": {
+          "enum": [
+            "standard-1",
+            "standard-2",
+            "standard-3",
+            "standard-4"
+          ]
+        },
+        "brokerToken": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 16384
+        },
+        "job": {
+          "$ref": "#/$defs/renderJob"
+        },
+        "inputs": {
+          "type": "array",
+          "maxItems": 300,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "key",
+              "sha256",
+              "byteLength"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 209715200
+              },
+              "mediaType": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            }
+          }
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target",
+            "seed",
+            "fonts",
+            "resources",
+            "confirmedFactIds",
+            "initTimeoutMs",
+            "frameTimeoutMs"
+          ],
+          "properties": {
+            "target": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "aspect",
+                "width",
+                "height",
+                "fps",
+                "totalFrames",
+                "safeInsets"
+              ],
+              "properties": {
+                "aspect": {
+                  "$ref": "#/$defs/aspectId"
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 4096
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 4096
+                },
+                "fps": {
+                  "const": 30
+                },
+                "totalFrames": {
+                  "enum": [
+                    450,
+                    900
+                  ]
+                },
+                "safeInsets": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "top",
+                    "right",
+                    "bottom",
+                    "left"
+                  ],
+                  "properties": {
+                    "top": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMaximum": 0.5
+                    },
+                    "right": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMaximum": 0.5
+                    },
+                    "bottom": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMaximum": 0.5
+                    },
+                    "left": {
+                      "type": "number",
+                      "minimum": 0,
+                      "exclusiveMaximum": 0.5
+                    }
+                  }
+                }
+              }
+            },
+            "seed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "fonts": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "fontId",
+                  "weight",
+                  "style",
+                  "licenseRef",
+                  "rightsCleared"
+                ],
+                "properties": {
+                  "fontId": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,63}$"
+                  },
+                  "weight": {
+                    "type": "integer",
+                    "minimum": 100,
+                    "maximum": 900
+                  },
+                  "style": {
+                    "enum": [
+                      "normal",
+                      "italic"
+                    ]
+                  },
+                  "licenseRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rightsCleared": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "resources": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "resourceId",
+                  "kind",
+                  "width",
+                  "height",
+                  "licenseRef",
+                  "rightsCleared"
+                ],
+                "properties": {
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^res_[A-Za-z0-9_-]{4,64}$"
+                  },
+                  "kind": {
+                    "enum": [
+                      "image",
+                      "svg",
+                      "video"
+                    ]
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4096
+                  },
+                  "licenseRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rightsCleared": {
+                    "const": true
+                  },
+                  "videoStartSeconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 60
+                  },
+                  "videoFrames": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 1800,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "pts",
+                        "duration",
+                        "index"
+                      ],
+                      "properties": {
+                        "pts": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "duration": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "index": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1799
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "confirmedFactIds": {
+              "type": "array",
+              "maxItems": 200,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              }
+            },
+            "initTimeoutMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60000
+            },
+            "frameTimeoutMs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        },
+        "shard": {
+          "$ref": "#/$defs/shardPlan/properties/shards/items"
+        },
+        "audioInputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "seed",
+            "clearedSources"
+          ],
+          "properties": {
+            "seed": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "clearedSources": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sourceId",
+                  "licenseRef",
+                  "rightsCleared"
+                ],
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "licenseRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "rightsCleared": {
+                    "const": true
+                  },
+                  "sha256": {
+                    "$ref": "#/$defs/sha256"
+                  },
+                  "requestHash": {
+                    "$ref": "#/$defs/sha256"
+                  }
+                }
+              }
+            },
+            "scores": {
+              "type": "array",
+              "maxItems": 1,
+              "items": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "string",
+                    "maxLength": 65536
+                  }
+                ],
+                "minItems": 2,
+                "maxItems": 2,
+                "items": false
+              }
+            }
+          }
+        },
+        "coverFrame": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 899
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "shard",
+                  "studio"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "options": {}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "shard"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "shard"
+            ],
+            "properties": {
+              "shard": {}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "assemble"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "coverFrame"
+            ],
+            "properties": {
+              "coverFrame": {}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "audio"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "audioInputs"
+            ],
+            "properties": {
+              "audioInputs": {}
+            }
+          }
+        }
+      ]
     }
   }
 }

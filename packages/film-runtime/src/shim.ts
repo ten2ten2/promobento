@@ -6,6 +6,10 @@ function installShim(): void {
 const nativeRaf = window.requestAnimationFrame.bind(window);
 const nativeTimeout = window.setTimeout.bind(window);
 const nativeClear = window.clearTimeout.bind(window);
+const nativeInterval = window.setInterval.bind(window);
+const nativeClearInterval = window.clearInterval.bind(window);
+const nativeCancelRaf = window.cancelAnimationFrame.bind(window);
+const loadingTimers = new Set<number>(), loadingIntervals = new Set<number>(), loadingRafs = new Set<number>();
 const NativeDate = Date;
 let seconds = 0, rendering = false;
 let random = randomSequence('loading');
@@ -51,27 +55,37 @@ document.createElement = ((tag: string, options?: ElementCreationOptions) => {
 
 replace(window, 'setTimeout', (...args: Parameters<typeof window.setTimeout>) => {
   if (rendering) throw Error('RUNTIME_TIMER_FORBIDDEN');
-  return nativeTimeout(...args);
+  const [handler, delay, ...values] = args;
+  if (typeof handler !== 'function') throw Error('RUNTIME_EVAL_FORBIDDEN');
+  const id = nativeTimeout(() => { loadingTimers.delete(id); handler(...values); }, delay);
+  loadingTimers.add(id); return id;
 });
-const nativeInterval = window.setInterval.bind(window);
 replace(window, 'setInterval', (...args: Parameters<typeof window.setInterval>) => {
   if (rendering) throw Error('RUNTIME_TIMER_FORBIDDEN');
-  return nativeInterval(...args);
+  if (typeof args[0] !== 'function') throw Error('RUNTIME_EVAL_FORBIDDEN');
+  const id = nativeInterval(...args); loadingIntervals.add(id); return id;
 });
+replace(window, 'clearTimeout', (id?: number): void => { if (id !== undefined) { loadingTimers.delete(id); nativeClear(id); } });
+replace(window, 'clearInterval', (id?: number): void => { if (id !== undefined) { loadingIntervals.delete(id); nativeClearInterval(id); } });
 replace(window, 'requestAnimationFrame', (callback: FrameRequestCallback): number => {
-  if (!rendering) return nativeRaf(callback);
+  if (!rendering) { const id = nativeRaf(time => { loadingRafs.delete(id); callback(time); }); loadingRafs.add(id); return id; }
   const id = nextRafId++; callbacks.set(id, callback); return id;
 });
-const nativeCancelRaf = window.cancelAnimationFrame.bind(window);
 replace(window, 'cancelAnimationFrame', (id: number): void => {
-  if (rendering) callbacks.delete(id); else nativeCancelRaf(id);
+  callbacks.delete(id); loadingRafs.delete(id); nativeCancelRaf(id);
 });
 document.addEventListener('transitionrun', () => {
   if (rendering) window.__omBootFailed = 'RUNTIME_CSS_TRANSITION_FORBIDDEN';
 });
 
 const clock: PrivateClock = Object.freeze({
-  begin(seed: string) { random = randomSequence(seed); seconds = 0; rendering = true; },
+  begin(seed: string) {
+    for (const id of loadingTimers) nativeClear(id);
+    for (const id of loadingIntervals) nativeClearInterval(id);
+    for (const id of loadingRafs) nativeCancelRaf(id);
+    loadingTimers.clear(); loadingIntervals.clear(); loadingRafs.clear();
+    random = randomSequence(seed); seconds = 0; rendering = true;
+  },
   seek(time: number) {
     seconds = time; random.reset();
     for (let round = 0; round < 2; round++) {

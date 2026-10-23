@@ -1,20 +1,77 @@
 {
-  "schemaVersion":"3.0.0","kind":"eval_fact_card","topicId":"deepseek","status":"sourced_owner_to_confirm","fictional":false,
-  "brand":"DeepSeek","product":"DeepSeek","videoLanguage":"en",
-  "audience":"People exploring an AI chat service and developers evaluating API access",
-  "brief":"Show the actual official entry points: chat on the web, then the developer platform. Keep claims functional rather than comparative.",
-  "checkedAt":"2026-10-23","cta":{"text":"Explore DeepSeek","urlLabel":"deepseek.com"},
-  "facts":[
-    {"id":"web","text":"DeepSeek provides a web chat entry point.","claim":true,"sourceId":"homepage"},
-    {"id":"api","text":"DeepSeek links to an API platform and API documentation.","claim":true,"sourceId":"homepage"},
-    {"id":"desktop","text":"The official site lists DeepSeek Harness as a desktop product.","claim":true,"sourceId":"homepage"}
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "deepseek",
+  "status": "confirmed_for_s1_eval",
+  "fictional": false,
+  "brand": "DeepSeek",
+  "product": "DeepSeek",
+  "videoLanguage": "en",
+  "audience": "People exploring an AI chat service and developers evaluating API access",
+  "brief": "Show the actual official entry points: chat on the web, then the developer platform. Keep claims functional rather than comparative.",
+  "checkedAt": "2026-10-23",
+  "cta": {
+    "text": "Explore DeepSeek",
+    "urlLabel": "deepseek.com"
+  },
+  "facts": [
+    {
+      "id": "web",
+      "text": "DeepSeek provides a web chat entry point.",
+      "claim": true,
+      "sourceId": "homepage"
+    },
+    {
+      "id": "api",
+      "text": "DeepSeek links to an API platform and API documentation.",
+      "claim": true,
+      "sourceId": "homepage"
+    },
+    {
+      "id": "desktop",
+      "text": "The official site lists DeepSeek Harness as a desktop product.",
+      "claim": true,
+      "sourceId": "homepage"
+    }
   ],
-  "sources":[{"id":"homepage","url":"https://www.deepseek.com/en/","title":"DeepSeek official homepage","basis":"first_party_product_statement","checkedAt":"2026-10-23"}],
-  "assetSources":[
-    {"kind":"webpage_screenshot","url":"https://www.deepseek.com/en/","capture":"Homepage hero and product navigation"},
-    {"kind":"interface_screenshot","url":"https://chat.deepseek.com/","capture":"Initial public screen only; no personal chat or account details"}
+  "sources": [
+    {
+      "id": "homepage",
+      "url": "https://www.deepseek.com/en/",
+      "title": "DeepSeek official homepage",
+      "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-23"
+    }
   ],
-  "assets":"sources_identified_not_ingested",
-  "rights":{"scope":"internal_eval_only","decisionRef":"research/evals/topics.json#/rights","publicUseCleared":false,"storage":"staging_R2_after_rights_check"},
-  "notes":"No superiority, benchmark, privacy, pricing or availability promise. Confirm current claims before each run. Source links are metadata, not captured material."
+  "assetSources": [
+    {
+      "kind": "webpage_screenshot",
+      "url": "https://www.deepseek.com/en/",
+      "capture": "Homepage hero and product navigation"
+    },
+    {
+      "kind": "interface_screenshot",
+      "url": "https://chat.deepseek.com/",
+      "capture": "Initial public screen only; no personal chat or account details"
+    }
+  ],
+  "assets": "sources_identified_not_ingested",
+  "rights": {
+    "scope": "internal_eval_only",
+    "decisionRef": "research/evals/topics.json#/rights",
+    "publicUseCleared": false,
+    "storage": "staging_R2_after_rights_check"
+  },
+  "notes": "No superiority, benchmark, privacy, pricing or availability promise. Confirm current claims before each run. Source links are metadata, not captured material.",
+  "confirmation": {
+    "confirmedBy": "owner",
+    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "scope": "s1-first-internal-evaluation",
+    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders.",
+    "factIds": [
+      "web",
+      "api",
+      "desktop"
+    ]
+  }
 }

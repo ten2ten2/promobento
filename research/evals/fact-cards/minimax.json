@@ -1,20 +1,77 @@
 {
-  "schemaVersion":"3.0.0","kind":"eval_fact_card","topicId":"minimax","status":"sourced_owner_to_confirm","fictional":false,
-  "brand":"MiniMax","product":"MiniMax Code","videoLanguage":"en",
-  "audience":"Software teams exploring an agent workspace for coding and other work",
-  "brief":"Show a goal becoming a multi-step workflow, using real product material. Distinguish the product's claims from independently measured results.",
-  "checkedAt":"2026-10-23","cta":{"text":"Explore MiniMax Code","urlLabel":"agent.minimax.io"},
-  "facts":[
-    {"id":"modes","text":"MiniMax describes Coding and Work modes for its coding harness.","claim":true,"sourceId":"homepage"},
-    {"id":"agents","text":"The product page describes agents teaming up to tackle tasks.","claim":true,"sourceId":"homepage"},
-    {"id":"creation","text":"The product description includes working with images, video and audio, and creating scripts and voiceovers.","claim":true,"sourceId":"homepage"}
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "minimax",
+  "status": "confirmed_for_s1_eval",
+  "fictional": false,
+  "brand": "MiniMax",
+  "product": "MiniMax Code",
+  "videoLanguage": "en",
+  "audience": "Software teams exploring an agent workspace for coding and other work",
+  "brief": "Show a goal becoming a multi-step workflow, using real product material. Distinguish the product's claims from independently measured results.",
+  "checkedAt": "2026-10-23",
+  "cta": {
+    "text": "Explore MiniMax Code",
+    "urlLabel": "agent.minimax.io"
+  },
+  "facts": [
+    {
+      "id": "modes",
+      "text": "MiniMax describes Coding and Work modes for its coding harness.",
+      "claim": true,
+      "sourceId": "homepage"
+    },
+    {
+      "id": "agents",
+      "text": "The product page describes agents teaming up to tackle tasks.",
+      "claim": true,
+      "sourceId": "homepage"
+    },
+    {
+      "id": "creation",
+      "text": "The product description includes working with images, video and audio, and creating scripts and voiceovers.",
+      "claim": true,
+      "sourceId": "homepage"
+    }
   ],
-  "sources":[{"id":"homepage","url":"https://www.minimax.io/","title":"MiniMax official homepage — MiniMax Code","basis":"first_party_product_statement","checkedAt":"2026-10-23"}],
-  "assetSources":[
-    {"kind":"webpage_screenshot","url":"https://www.minimax.io/","capture":"MiniMax Code product section; avoid unrelated model benchmark claims"},
-    {"kind":"product_page_screenshot","url":"https://agent.minimax.io/download","capture":"Official desktop product/download page; no account content"}
+  "sources": [
+    {
+      "id": "homepage",
+      "url": "https://www.minimax.io/",
+      "title": "MiniMax official homepage — MiniMax Code",
+      "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-23"
+    }
   ],
-  "assets":"sources_identified_not_ingested",
-  "rights":{"scope":"internal_eval_only","decisionRef":"research/evals/topics.json#/rights","publicUseCleared":false,"storage":"staging_R2_after_rights_check"},
-  "notes":"No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests."
+  "assetSources": [
+    {
+      "kind": "webpage_screenshot",
+      "url": "https://www.minimax.io/",
+      "capture": "MiniMax Code product section; avoid unrelated model benchmark claims"
+    },
+    {
+      "kind": "product_page_screenshot",
+      "url": "https://agent.minimax.io/download",
+      "capture": "Official desktop product/download page; no account content"
+    }
+  ],
+  "assets": "sources_identified_not_ingested",
+  "rights": {
+    "scope": "internal_eval_only",
+    "decisionRef": "research/evals/topics.json#/rights",
+    "publicUseCleared": false,
+    "storage": "staging_R2_after_rights_check"
+  },
+  "notes": "No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests.",
+  "confirmation": {
+    "confirmedBy": "owner",
+    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "scope": "s1-first-internal-evaluation",
+    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders.",
+    "factIds": [
+      "modes",
+      "agents",
+      "creation"
+    ]
+  }
 }

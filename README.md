@@ -14,7 +14,7 @@
 | 契约实现与机器结构 | [共享契约库与 Worker 导入方式](packages/contracts/README.md)、[FilmSpec Schema](contracts/film.schema.json)、[生产 Schema](contracts/production.schema.json)、[14 生产契约](docs/prd/14-production-contracts.md) |
 | 片子运行时与帧桥接 | [积木与自写镜头 API](contracts/film-runtime.d.ts)、[渲染协议](contracts/render-protocol.d.ts) |
 | 模型与供应商 | [模型与步骤绑定](config/model-providers.json)、[模型授权](config/model-authorization.json) |
-| 云端 Worker | [apps/cloud](apps/cloud/wrangler.jsonc)（S0 骨架）、[渲染环境锁](apps/render-container/environment.lock.json) |
+| 云端 Worker | [apps/cloud](apps/cloud/wrangler.jsonc)（内部 S1 链路，实际验收见状态）、[渲染环境锁](apps/render-container/environment.lock.json) |
 | 用户流程与设计 | [02 UX 与 UI](docs/prd/02-ux-and-ui.md)、[离线 Studio](docs/design/agent-studio-reference.html) |
 | 品牌、图标与分享卡片 | [素材与接入](public/brand/README.md)、[品牌配置](config/brand.json) |
 | 网站政策正文与接入 | [内容维护](content/pages/README.md)：Terms、Privacy、Refund 英文草稿及待补事实 |

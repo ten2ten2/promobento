@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-S1 的首批运行时实现：`hook-title`、`ui-showcase`、`cta-endcard` 三个积木，四种画幅，以及 cut、crossfade、push、whip 转场。积木使用原创 DOM/CSS 和按时间计算的补间；尚未接入上游 clip、OM、GSAP 或 3D。
+S1 运行时已有九个可信积木、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数和 CSS-3D 界面旅程，不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
 
 ## 构建和调用
 
@@ -10,18 +10,20 @@ mise run build:film-runtime
 
 这是构建入口；开发期间不默认跑测试或 CI，确有必要时只运行一次最小检查，规则见 [AGENTS](../../AGENTS.md)。
 
-Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/page.ts)）：先经共享解析器、完整 Ajv 和 FilmSpec 跨字段校验，再生成 HTML、CSP 和 PagePlan。`options` 由可信宿主提供画幅、seed、事实确认集合、已清权素材/字体及期限，不接受客户自报清权状态。页内只加载固定 `/runtime/` 脚本、`/r/<resourceId>` 图片和 `/f/<fontId>/<weight>.woff2`。
+Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/page.ts)）：先经共享解析器、完整 Ajv 和 FilmSpec 跨字段校验，再生成 HTML、CSP 和 PagePlan。`options` 由可信宿主提供画幅、seed、事实确认集合、已清权素材/字体及期限，不接受客户自报清权状态。页内只加载固定 `/runtime/` 脚本、`/r/<resourceId>` 图片、`/frames/<resourceId>/<index>.webp` 视频帧和 `/f/<fontId>/<weight>-<style>.woff2`。视频按 PTS 取帧，有有界位图缓存；缺帧明确失败。
 
-输出文件在被忽略的 `dist/`，HTML 由后续控制器提供。`PagePlan.manifestHash` 当前仅为规范 FilmSpec 的摘要，供页面握手校对；生产 Manifest、源包身份、冻结与计费尚未迁移到 film-v1，不能拿这个值替代 Composition 的身份。
+输出文件在被忽略的 `dist/`，HTML 由后续控制器提供。`PagePlan.manifestHash` 当前仅为规范 FilmSpec 的摘要，供页面握手校对；内部渲染另用共享 `filmSourceHash` 固定规范 `film.json` 文件身份，并绑定 seed、资源、字体和运行环境。生产 Manifest、冻结与计费尚未迁移到 film-v1，不能拿 PagePlan 摘要替代 Composition 的身份。
 
 控制器先用 CDP `Page.addScriptToEvaluateOnNewDocument` 注入构建后的 `shim.js`，再导航到页面；页面就绪后按 [RenderProtocol](../../contracts/render-protocol.d.ts) 发送 `init`、串行 `seek`/`sample`、`inspect`、`dispose`。当前只接受 `trusted_render`、standard 单采样。Shim 的真实绘制时钟只向引擎交接一次，页面使用虚拟时间和每次 seek 重置的 `random-seq-v1`。镜头时间为本镜头起点后的秒数，积木事件与区域函数使用镜头内帧号。
 
 ## 浏览器检查只在 CI 容器中运行
 
-`mise run test:browser` 是容器内入口，本机直接运行会明确失败。CI 的 `browser` job 构建 [`tests/Dockerfile`](../../apps/render-container/tests/Dockerfile)，不推送镜像、不部署服务；测试包含四画幅的顺序、逆序及冷 seek 像素容差比较、实际文字安全区和 webfont、桥接、虚拟时间/随机源、API 禁用和超长文本失败。截图与报告随 `film-runtime-browser` artifact 提供。
+`mise run test:browser` 是容器内入口，本机直接运行会明确失败。CI 的 `browser` job 构建 [`Dockerfile`](../../apps/render-container/Dockerfile) 的 `browser-test` target，不推送镜像、不部署服务；检查包含真实 JPEG→H.264 分段→接缝→混音→MP4、九积木四画幅帧集，以及既有顺序/逆序/冷 seek、文字安全区与字体、桥接、时钟、API 禁用和超长文本失败。另生成 13 种程序风格各 30 秒的试听 WAV。截图与报告随 `film-runtime-browser` artifact 提供。
 
 启动器使用方案规定的固定栅格化参数；日志管道使用带 `pipefail` 的 Bash，容器失败会使 job 失败。比较失败时保留具体画幅、帧号及对比 PNG，报告记录已完成的比较和失败状态；容差仍为最大通道差 ≤2、差异像素 ≤0.1%。当前实际通过范围和待验证问题见[实施状态](../../docs/implementation-status.md)。
 
 测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
 
-自写镜头、视频取帧、纹理、布局覆盖、本地预览改值、音频合成、完整字体登记/缺字检查、其余六个 ★ 积木和生产渲染控制器继续按 S1/S2 实现。未实现的页面能力明确拒绝；页面不播放音轨。当前截图回归不能代替 Q1/Q2、成片验收或负责人的审美签字。
+九积木为 `hook-title`、`ui-showcase`、`cta-endcard`、`feature-grid`、`curriculum`、`ui-journey`、`metric`、`captions`、`talking-head`。后两者消费已清权、已确认的素材/字幕；数值和 CTA 必须绑定事实。字体由镜像转换并登记 cmap，宿主补齐覆盖范围；缺字和实际字体回退分别由静态检查与 CDP 检查。
+
+自写镜头、WebGL 积木、纹理、布局覆盖和本地改值预览仍明确拒绝。当前阅读停留观测不等于 S2 的完整动态 Q1/Q2，也不能替代负责人正常速度试听及审美签字；页面本身不播放音轨。

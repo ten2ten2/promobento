@@ -1,5 +1,5 @@
-# CI browser regression image; not the deployable render service.
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+# One environment for the render service and its CI browser/media checks.
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS environment
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
     ca-certificates curl xz-utils unzip fontconfig ffmpeg libatomic1 util-linux python3-fonttools python3-brotli \
@@ -22,13 +22,25 @@ RUN node scripts/build-film-runtime.mjs \
     && curl -fsSL --retry 5 --max-time 180 https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip -o /tmp/chrome.zip \
     && echo '3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14  /tmp/chrome.zip' | sha256sum -c - \
     && unzip -q /tmp/chrome.zip -d /opt && rm /tmp/chrome.zip \
-    && mkdir -p /opt/fonts \
-    && base64 -d packages/fonts/geist/geist-sans-latin-600-normal.woff.base64 > /tmp/geist.woff \
-    && python3 -c "from fontTools.ttLib import TTFont; f=TTFont('/tmp/geist.woff', recalcTimestamp=False); f.flavor='woff2'; f.save('/opt/fonts/geist-sans-600.woff2')" \
-    && cp packages/fonts/geist/geist-sans-OFL.txt /opt/fonts/ \
+    && node scripts/build-render-fonts.mjs /opt/fonts \
+    && curl -fsSL --retry 5 --max-time 180 https://registry.npmjs.org/gsap/-/gsap-3.14.2.tgz -o /tmp/gsap.tgz \
+    && tar -xzf /tmp/gsap.tgz -C /tmp package/dist/gsap.min.js \
+    && echo 'c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280  /tmp/package/dist/gsap.min.js' | sha256sum -c - \
+    && cp /tmp/package/dist/gsap.min.js packages/film-runtime/dist/browser/gsap.js \
+    && curl -fsSL --retry 5 --max-time 60 https://gsap.com/community/standard-license/ -o /opt/GSAP-LICENSE.html \
+    && head -n 9 /tmp/package/dist/gsap.min.js > /opt/GSAP-LICENSE.txt \
+    && rm -rf /tmp/package /tmp/gsap.tgz \
     && dpkg-query -W > /opt/environment-packages.txt \
-    && useradd --uid 10001 --create-home controller && useradd --uid 10002 --create-home chromium \
+    && useradd --uid 10001 --create-home controller && useradd --uid 10002 --create-home chromium && useradd --uid 10003 --no-create-home supervisor \
     && mkdir /work /chrome && chown 10001:10001 /work && chown 10002:10002 /chrome
-USER 10001:10001
 ENV HOME=/work FONTCONFIG_FILE=/app/apps/render-container/tests/fontconfig.conf
+
+FROM environment AS browser-test
+USER 10001:10001
 CMD ["node", "apps/render-container/tests/browser.render.test.mjs"]
+
+FROM environment AS runtime
+# PID 1 creates uid-separated children and immediately drops itself to uid 10003 (no capabilities).
+USER 0:0
+EXPOSE 8080
+ENTRYPOINT ["node", "apps/render-container/src/init.mjs"]

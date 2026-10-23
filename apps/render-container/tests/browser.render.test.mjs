@@ -5,6 +5,8 @@ import {execFileSync} from 'node:child_process';
 import {chromium} from 'playwright-core';
 import {generateFilmPage} from '../../../packages/film-runtime/dist/page.mjs';
 import {parseCanonicalJson} from '../../../packages/contracts/index.mjs';
+import {audioSamples} from './audio-samples.mjs';
+import {mediaFixture} from './media-fixture.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')
@@ -25,10 +27,10 @@ const server=http.createServer((req,res)=>{
   const path=new URL(req.url,'http://localhost').pathname;
   const page=pages.get(path);
   if(page){res.writeHead(200,{'content-type':'text/html; charset=utf-8','content-security-policy':page.csp}).end(page.html);return;}
-  if(/^\/runtime\/(shim|engine|blocks|boot)\.js$/.test(path)){
+  if(/^\/runtime\/(shim|engine|gsap|compat|blocks|boot)\.js$/.test(path)){
     res.writeHead(200,{'content-type':'text/javascript'}).end(read('packages/film-runtime/dist/browser/'+path.split('/').at(-1)));return;
   }
-  if(path==='/f/geist-sans/600.woff2'){res.writeHead(200,{'content-type':'font/woff2'}).end(readFileSync('/opt/fonts/geist-sans-600.woff2'));return;}
+  if(path==='/f/geist-sans/600-normal.woff2'){res.writeHead(200,{'content-type':'font/woff2'}).end(readFileSync('/opt/fonts/geist-sans-600.woff2'));return;}
   if(path==='/r/res_fixture_dashboard'){res.writeHead(200,{'content-type':'image/svg+xml'}).end(read('apps/render-container/tests/product.svg'));return;}
   res.writeHead(404).end();
 });
@@ -72,7 +74,7 @@ async function open(aspect,path='/'+aspect+'.html',expectReady=true){
 }
 async function checkLayout(handle,aspect){
   const layout=rules.aspectLayouts[aspect];
-  const visible=await handle.page.evaluate(()=>[...document.querySelectorAll('[data-pb-slot]')].filter(el=>getComputedStyle(el).visibility==='visible').map(el=>{
+  const visible=await handle.page.evaluate(()=>[...document.querySelectorAll('[data-pb-slot]')].filter(el=>getComputedStyle(el).visibility==='visible'&&el.getClientRects().length).map(el=>{
     const r=el.getBoundingClientRect(),style=getComputedStyle(el);
     return{slot:el.dataset.pbSlot,x:r.x,y:r.y,width:r.width,height:r.height,fontSize:parseFloat(style.fontSize),role:el.dataset.pbSlot==='cta'?'cta':'other'};
   }));
@@ -89,6 +91,8 @@ async function checkLayout(handle,aspect){
   }
 }
 try{
+  report.media=await mediaFixture(output,rules,lock);
+  report.programStyleSamples=await audioSamples(output+'/audio-samples');
   for(const aspect of Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};

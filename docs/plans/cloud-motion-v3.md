@@ -7,7 +7,7 @@
   - 修正 v3.0 的事实错误。
 
   此后的修改直接在本文件进行，并在提交说明中写明改了什么。
-- 状态：**已批准，S0 已完成，S1 实施中**。首批页面运行时与三个可信积木已实现，范围见[实施状态](../implementation-status.md)；S1 其余能力及后续切片仍是目标。
+- 状态：**已批准，S0 已完成，S1 实施中**。页面运行时、九个可信积木和内部渲染/云端编排代码已加入，范围见[实施状态](../implementation-status.md)；S1 其余能力及后续切片仍是目标。
 - 基准：
   - PromoBento：`ten2ten2/promobento@1faef1c`（PRD v2.7、协议 2.7.0）。
   - huashu-motion：`alchaincyf/huashu-motion@4236053`（v0.2.0）。它是方法和代码的固定参考，本方案不追随它后续的版本。
@@ -974,7 +974,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 写入 `config/agent-policy.json`。下表为初值，S1、S2 实测后由负责人复核。
 
-每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5；冷审用网关的 Claude Sonnet 5.5，与导演的 DeepSeek 不同家族。Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
+每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5；最新网关复测丢图后，规格与冷审改绑官方 Anthropic Opus/Sonnet，与导演的 DeepSeek 不同家族；负责人暂不添加官方密钥，真实集成保留未验证。Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
 
 | 步骤 | 绑定名 | 需要的能力 | 初始模型 | 推理强度 | 调用上限 | 费用上限 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -984,13 +984,13 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 | C 规格 | `spec` | JSON、强推理 | `claude-opus-5-5` | high | 3 | $0.40 |
 | D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | medium | 12 | $0.35 |
 | E 整片 review | `review` | 看图、工具 | `deepseek-v4.1-flash-1017` | medium | 6 | $0.30 |
-| F 冷审 | `coldReview` | 看图、JSON | `claude-sonnet-5-5`（网关） | medium | 2 | $0.05 |
+| F 冷审 | `coldReview` | 看图、JSON | `anthropic/claude-sonnet-5-5` | medium | 2 | $0.05 |
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
 - B（方向）是创意上影响最大的步骤之一，按"纯文本用 DeepSeek"的原则初始绑到 DeepSeek。S1 评测时与 Opus 5.5 做对照，效果明显落后时换绑。
 - D、E 写代码和看整片的质量直接决定成片，DeepSeek 在这两步的效果未经验证。S2 评测时与官方 Anthropic API 的 Sonnet 5.5 对照，按每个可用结果的费用和负责人评分决定是否换绑；换绑官方 Sonnet 需要负责人另存 `ANTHROPIC_API_KEY`。
-- F 用与写片的 DeepSeek 不同家族的模型，冷审更容易发现盲点。F 不需要工具，所以网关的 Claude 可以用。
+- F 用与写片的 DeepSeek 不同家族的模型，冷审更容易发现盲点。最新两轮网关 Claude 视觉失败，F 改用官方 Anthropic；密钥未配置时，整个真实导演流程在首个付费调用前停止。
 - 改稿中的镜头内修改用 `scenes`，结构修改沿用 `spec` 和 `review`。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
@@ -1581,7 +1581,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
   - 主体：下面的内部评测题目。它们只用于内部评测，不能作为 PRD 01 要求的首发样片；首发样片另用有真实素材授权的自有或合作产品制作。
   - 补充：覆盖两类人群各种任务的合成题，用虚构品牌和原创素材。
   - 每题做 15 秒和 30 秒，横竖两种画幅。
-  - 2026-10-23 负责人确定的题目见 [`research/evals/topics.json`](../../research/evals/topics.json)：软件 DeepSeek、MiniMax、Duolingo；课程为虚构的 IELTS、JLPT 与 LeetCode 备考课；iPhone Duo 不属于两类首发用户，只作边界题，不计入 S1 的 4/6。
+  - 2026-10-23 负责人确定的题目见 [`research/evals/topics.json`](../../research/evals/topics.json)：软件 DeepSeek、MiniMax、Duolingo；课程为公开真实的 IELTS Ready、Marugoto Japanese Online Course 和 Hugging Face LLM Course；六张官网事实卡已由负责人确认为本次内部评测使用，素材本体仍须逐项核验许可后采集；iPhone Duo 不属于两类首发用户，只作边界题，不计入 S1 的 4/6。
   - 真实品牌的截图、录屏和 Logo 只用于内部评测：存放在预发布 R2，不进 Git；成片不发布、不对外展示，也不作为营销样片。事实在每次运行前由负责人确认。
 - **指标**：
   - 每个可用结果的模型与计算费用，按阶段拆分；

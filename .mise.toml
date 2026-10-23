@@ -26,12 +26,12 @@ dir = "{{config_root}}"
 run = "pnpm run build:validators && node scripts/run-tests.mjs"
 
 [tasks."build:film-runtime"]
-description = "Build the trusted film page generator, clock shim, engine and first three blocks"
+description = "Build the trusted film page generator, clock shim, OM/clip helpers and nine trusted blocks"
 dir = "{{config_root}}"
 run = "node scripts/build-film-runtime.mjs"
 
 [tasks."test:browser"]
-description = "Run the Chromium film-runtime regression inside the CI test container"
+description = "Run the offline browser/media check and style sample generation inside the CI image"
 dir = "{{config_root}}"
 run = "node apps/render-container/tests/browser.render.test.mjs"
 

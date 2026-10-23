@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cloudflare Worker, Workflows and Durable Objects (cloud motion plan \u00a73.1). S0 skeleton: health route only.",
+  "description": "Cloudflare Worker, Workflows and Durable Objects (cloud motion plan \u00a73.1). Internal S1 staging pipeline; customer execution remains disabled.",
   "scripts": {
     "typecheck": "wrangler types --env-interface Env src/worker-configuration.d.ts && tsc --noEmit"
   },

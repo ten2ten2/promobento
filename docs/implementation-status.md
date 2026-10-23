@@ -1,21 +1,26 @@
 # 当前实施状态
 
-当前为 PRD **v3.0**、协议 **3.0.0**。动效管线按[云端动效管线改造方案](plans/cloud-motion-v3.md)的切片实施，**S0 已完成，S1 实施中**。首批 [film-runtime](../packages/film-runtime/README.md) 已实现页面生成、确定性逐帧绘制与三个可信积木；生产渲染控制器、导演和云端链路仍待实现，当前不能交付成片。客户 Studio、数据库、认证和支付服务仍待实现。
+当前为 PRD **v3.0**、协议 **3.0.0**。按[云端动效管线方案](plans/cloud-motion-v3.md)实施：**S0 已完成，S1 尚未完成**。已加入九积木、OM/clip、渲染/声音控制器和内部云端编排代码；媒体检查、正式 G1、六题成片与负责人正常速度试听尚未完成。客户网站、认证、购买、冻结交付与生产 Agent 均未开放。
 
-已在 Cloudflare 实测的只有临时探针，不是产品代码：Chromium 沙箱（SANDBOX_FULL，含独立 uid）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时。模型网关的能力探针见 [2026-10-23 模型探针](evidence/2026-10-23-model-probe/README.md)；最新复测显示网关 Claude 视觉失效，冷审 F 接入前需恢复视觉能力或改绑。Workers AI 语音识别、Browser Run 与生产形态镜像的冷启动见 [S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)。[评测输入](../research/evals/README.md)已补三家产品的官方事实与素材来源，事实待负责人确认，素材本体尚未采集；三门课程仍是虚构题目。
+[六张事实卡](../research/evals/README.md)为 DeepSeek、MiniMax、Duolingo、IELTS Ready、Marugoto Japanese Online Course、Hugging Face LLM Course。负责人已确认官网可核对的功能/课程内容用于**本次内部评测**；不使用虚构成绩、收益或业绩，不公开成片。来源与许可线索已记录，素材本体尚未采集到预发布 R2；事实确认不等于素材清权。
 
-| 部分 | 已有内容 | 仍需实现或验证 |
+网关 Claude 最新两轮复测丢图，C/F 已改绑官方 Anthropic Opus/Sonnet。负责人决定暂不添加 `ANTHROPIC_API_KEY`，这两项真实集成保留未验证。导演预检在任何付费调用前检查后续必需的密钥；缺失时停止，不暗中降级或先消费其他模型。原始证据见[模型探针](evidence/2026-10-23-model-probe/README.md)。
+
+| 部分 | 已有代码/材料 | 仍缺的实现或验收 |
 | --- | --- | --- |
-| 契约 | v3.0 Schema：[FilmSpec](../contracts/film.schema.json)（含示例）、积木、渲染任务与分段、帧观测、方向卡、声音计划、素材理解、导演工具、模型配置、单位经济；[片子运行时 API](../contracts/film-runtime.d.ts) 与[渲染协议](../contracts/render-protocol.d.ts) 3.0.0（按画幅渲染）；FilmSpec 跨字段规则（覆盖、转场重叠、事实绑定、素材权利、积木与字体）；全部 11 个 Schema 的[预编译 ESM 与类型入口](../packages/contracts/README.md)，固定结构用例与禁运行时代码生成的 Node 回归测试 | [生产 Schema](../contracts/production.schema.json) 的 Manifest 仍是 v2 结构，S1 改为引用 film-v1；页面生成与 film-v1 源码身份向量随 S1 补齐；产品 Worker 接入和真实 workerd 验证随云端链路实现 |
-| 模型配置 | [供应商与步骤绑定](../config/model-providers.json)：ModelSwitch 网关（CNY 价格与汇率）与 Anthropic；各导演步骤按能力探针结果绑定，配置检查拒绝能力不符、未验证或未授权的模型；[授权](../config/model-authorization.json)含有效期与总额上限；按价格目录把用量换算为美元微单位并向上取整 | 模型适配器、缓存、预算预留与离线 mock 在 S1 实现；S2 评测时比较网关与官方 Sonnet |
-| 策略与配置 | `agent-policy` 的渲染期限、分段并发、阶段预算与 effort、负责人确认的单位成本目标；平台预设的 `loudnessTarget`（−14 LUFS）；`input-capabilities` 的 `tts.enabled=false` | 期限与段数在 G1 后按实测修订 |
-| 云端 | [`apps/cloud`](../apps/cloud/wrangler.jsonc) TypeScript 骨架（只有健康检查路由）与 `typecheck`；[渲染环境锁](../apps/render-container/environment.lock.json)记录 Chrome for Testing 151.0.7922.34 与 GSAP 3.14.2 的摘要 | 预发布与生产的 D1、R2（私有）、Queues 已由 [cloud-resources 工作流](../.github/workflows/cloud-resources.yml)创建并在 `wrangler.jsonc` 绑定，但尚无迁移、读写代码或部署；Workflows、DO、broker、渲染与资产容器均在 S1/S3 实现 |
-| 片子运行时 | [页面生成器、shim、engine](../packages/film-runtime/README.md)；四画幅布局代码；cut/crossfade/push/whip；三个原创积木 `hook-title`、`ui-showcase`、`cta-endcard`；完整 Schema/引用与权利上下文检查，过长文字报错；standard 桥接和点选 | 首轮浏览器冷 seek 像素差异 0.2827%，超过 0.1% 门槛，未通过；已补齐固定栅格化启动参数，尚未复测。其余六个 ★ 积木、OM/clip/GSAP、视频帧、完整字体登记与缺字、声音和生产控制器未实现；自写镜头与本地预览明确拒绝，未做 G1 或审美签字 |
-| 素材 | [字体](../packages/fonts/huashu/LICENSES.md)（huashu-motion 登记的 OFL WOFF 与 Geist）；[CC0 乐器采样](../packages/audio/samples/catalog.json) | 声音引擎与 `motion-tools` 纯函数在 S1 从 Git 历史（提交 `1faef1c`）按新结构改写 |
-| 共享契约库 | JSON/JCS、浏览器与 Node 共用参数语义、源包可移植路径和摘要、环境继承、Ajv 校验 | 服务接入和数据库事务 |
-| Studio 与品牌 | 离线交互参考、品牌图标和分享图、明暗配色与网站字体配置 | 生产网站、完整手机/平板交互、字体加载和浏览器验收 |
-| 审核与购买接受 | 默认关闭的Prompt Sift适配；输出抽样、预览与购买同意的参考逻辑 | 实际输入/输出审核、持久化和Waffo接入 |
-| 网站政策 | [Terms、Privacy、Refund 英文草稿](../content/pages/README.md)及模板变量示例 | 主体和供应商事实、页面渲染器、发布校验及实际流程 |
-| 工程检查 | 精确工具链与冻结 lockfile；`contracts` job 运行 `check:repo`、单元测试和 cloud/runtime 类型检查；`browser` job 在 CI 构建带固定 Chromium 的离线测试镜像，保存截图和报告；已修正日志管道吞掉容器失败退出码的问题 | 浏览器首轮只产出横屏截图，整套四画幅回归未完成，不能以旧 job 的成功状态作为验收。`cloud-local`、`deploy` job 随 S1 云端实现加入；当前测试镜像不部署、不推送，不是生产渲染镜像 |
+| 契约 | 12 个 v3 Schema 与派生积木参数的预编译校验；新增私有 render_task、事实整理/冷审结构；共享 film-v1 文件身份、分段规划、PNG 接缝比较 | 产品 `production.schema.json` 的 Manifest/Composition、冻结与计费仍为旧结构，尚未迁移；内部 filmSourceHash 不替代它 |
+| 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、固定参考 OM/clip 通用函数；PTS 视频帧清单与有界缓存；字体 cmap/缺字检查 | 上轮冷 seek 差异 0.2827% 超过 0.1%，已修定时器泄漏、隐藏镜头和固定栅格化参数，新媒体检查待结果；实际黄金帧仍待查看；WebGL 积木、自写镜头、纹理/布局覆盖未实现 |
+| 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色检查与真实帧封面；review 540p/15 fps | 新代码尚未完成实际媒体验收；阅读停留观测不是完整动态 Q1/Q2；生产形态 supervisor、studio 回收和 broker 需正式 G1 |
+| 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、与积木共用事件点、授权检查、48 kHz 双声道、两遍 loudnorm 与最终响度测量 | 13 风格各 30 秒的试听生成入口已接入媒体检查，尚未产出/试听；显式 lead-in 音效计划及导演的外部音轨/ABC 准入仍需补齐 |
+| 云端 | [内部 staging 链路](../apps/cloud/README.md)：RenderWorkflow、ShardDO、CoordinatorDO、OperationDO、broker；generation 栅栏、lease、私有 R2、outbox、D1 内部任务/费用预留与结算迁移；[手动 Actions 部署](../.github/workflows/cloud-deploy.yml) | 未部署这些产品形态代码、未应用新迁移；未完成正式 G1、整体期限/重试/故障恢复与计费对账；全流程本地 mock 尚缺。生产配置保持关闭 |
+| 导演 | OperationWorkflow 的 A–C/E/F 代码与方向选择 waitForEvent；两种流式适配器、缓存、授权、阶段调用/费用预留、真实 usage 结算 | 官方线路按负责人决定未接通；方向关键帧、完整阶段 mock、环境健康预检、历史费用衔接和失败修复仍需完善；六题真实调用、成本/时间指标未测 |
+| 素材与模型配置 | 固定 OFL 字体与六个 CC0 乐器采样；官网事实卡；模型能力按最新网关证据修正 | 实际素材采集、逐项许可证据与预发布 R2 入库未完成；资产容器/ASR/抓取在 S3；官方模型真实能力未测 |
+| 网站/业务 | Studio 离线参考、品牌、政策正文、共享业务契约 | 客户 Studio、Google/邮箱认证、租户权限、试用/购买账本与 Waffo、真实冻结交付均未实现 |
 
-继续 S1：补齐其余 ★ 积木、OM/clip/GSAP 和生产渲染控制器，再接云端链路、分阶段导演、声音及 G1，顺序和出口见[08](prd/08-codex-execution.md#2-里程碑与退出关口)。真实题目评测前需确认事实卡、采集素材到预发布 R2 并核验权利；这些输入不阻塞独立代码。生产 Agent 保持 `enabled=false`；真实调用只在模型授权范围和总额内进行。长期验收证据按[06](prd/06-testing-and-release.md#5-发布与证据)管理。
+## 当前有效证据
+
+- **本地构建/类型**：Node 26.12.0、pnpm 12.14.0、TypeScript 7.0.2、Wrangler 4.152.0。已修复私有任务 Schema 的 strictRequired 与 Worker RPC/Workflow 类型错误；预编译生成、cloud 和 runtime/blocks 类型检查通过。未重复运行全量 Node 测试或完整 CI。
+- **本次媒体检查**：准备只运行一次受影响的最小 CI：新增管线/D1 预留 SQL、两种模型适配器、六张确认卡，以及离线 Chromium/媒体链路。结果未出，不能记作通过。
+- **Cloudflare 已实测范围仍仅是临时探针**：[G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)与[S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)覆盖 sandbox、broker/断网、实例停止/回收、Workflow 事件、捕获格式、WebGL 单帧耗时与冷启动；它们不替代正式镜像和新代码的 G1。
+
+继续完成媒体主链路与现有失败，再补云端缺口、正式 G1 和真实评测。S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。

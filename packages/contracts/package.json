@@ -13,11 +13,35 @@
       "types": "./generated/*.d.mts",
       "default": "./generated/*.mjs"
     },
-    "./validation": { "types": "./src/validation.d.mts", "default": "./src/validation.mjs" },
-    "./film": { "types": "./src/film.d.mts", "default": "./src/film.mjs" },
-    "./random": { "types": "./src/random.d.mts", "default": "./src/random.mjs" },
-    "./digest": { "types": "./src/digest.d.mts", "default": "./src/digest.mjs" },
-    "./identity": "./src/identity.mjs"
+    "./validation": {
+      "types": "./src/validation.d.mts",
+      "default": "./src/validation.mjs"
+    },
+    "./film": {
+      "types": "./src/film.d.mts",
+      "default": "./src/film.mjs"
+    },
+    "./random": {
+      "types": "./src/random.d.mts",
+      "default": "./src/random.mjs"
+    },
+    "./digest": {
+      "types": "./src/digest.d.mts",
+      "default": "./src/digest.mjs"
+    },
+    "./identity": "./src/identity.mjs",
+    "./render": {
+      "types": "./src/render.d.mts",
+      "default": "./src/render.mjs"
+    },
+    "./seams": {
+      "types": "./src/seams.d.mts",
+      "default": "./src/seams.mjs"
+    },
+    "./film-source": {
+      "types": "./src/film-source.d.mts",
+      "default": "./src/film-source.mjs"
+    }
   },
   "dependencies": {
     "ajv": "8.20.0",

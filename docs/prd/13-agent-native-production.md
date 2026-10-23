@@ -8,7 +8,7 @@
 
 作品形态为 film-v1：`film.json` 片子规格加镜头积木，必要时为个别镜头自写代码。积木和自写镜头可使用 HTML/CSS/JS、SVG、Canvas、GSAP、WebGL、Three.js、Shader，画面必须是时间的纯函数，按[片子运行时接口](../../contracts/film-runtime.d.ts)实现；WebGL 按 CPU 渲染，不可用时明确报错。GSAP 的使用决定见 09。
 
-首批页面运行时与三个可信积木已实现；完整创作范围仍按[改造方案](../plans/cloud-motion-v3.md)第 14 节推进，实际范围见[实施状态](../implementation-status.md)。
+九个可信积木及内部导演/渲染编排代码已加入，真实成片与正式云端验收尚未完成；完整创作范围仍按[改造方案](../plans/cloud-motion-v3.md)第 14 节推进，实际范围见[实施状态](../implementation-status.md)。
 
 创作始终受素材授权、真实商业事实、租户权限、依赖许可、资源预算和输出规格约束。网站主题和语言不进入创作身份；用户文案任意混排，翻译只能按明确指令作用于指定内容。客户确认不等于平台为商业主张真实性担保。
 

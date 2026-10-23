@@ -1,0 +1,72 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "ielts-ready",
+  "status": "confirmed_for_s1_eval",
+  "fictional": false,
+  "brand": "British Council",
+  "product": "IELTS Ready",
+  "videoLanguage": "en",
+  "audience": "IELTS learners preparing through official practice and short courses",
+  "brief": "Show the actual learning content and progression, using only attributed factual statements.",
+  "checkedAt": "2026-10-23",
+  "cta": {
+    "text": "Explore IELTS Ready",
+    "urlLabel": "takeielts.britishcouncil.org"
+  },
+  "facts": [
+    {
+      "id": "practice",
+      "text": "IELTS Ready includes practice activities and mock tests.",
+      "claim": true,
+      "sourceId": "official"
+    },
+    {
+      "id": "courses",
+      "text": "The free package lists short courses in Speaking and Listening.",
+      "claim": true,
+      "sourceId": "official"
+    },
+    {
+      "id": "webinars",
+      "text": "The package includes live expert webinars.",
+      "claim": true,
+      "sourceId": "official"
+    }
+  ],
+  "sources": [
+    {
+      "id": "official",
+      "url": "https://takeielts.britishcouncil.org/prepare/ielts-ready",
+      "title": "IELTS Ready — official course page",
+      "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-23"
+    }
+  ],
+  "assetSources": [
+    {
+      "kind": "webpage_screenshot",
+      "url": "https://takeielts.britishcouncil.org/prepare/ielts-ready",
+      "capture": "Course overview and curriculum only; exclude portraits, testimonials, personal accounts and third-party embedded videos."
+    }
+  ],
+  "assets": "sources_identified_not_ingested",
+  "rights": {
+    "scope": "internal_eval_only",
+    "decisionRef": "research/evals/topics.json#/rights",
+    "publicUseCleared": false,
+    "storage": "staging_R2_after_rights_check"
+  },
+  "notes": "Do not imply guaranteed band improvement or present the Premium package as unconditionally included. Do not reuse learner testimonials, scores or portraits.",
+  "confirmation": {
+    "confirmedBy": "owner",
+    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "scope": "s1-first-internal-evaluation",
+    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders.",
+    "factIds": [
+      "practice",
+      "courses",
+      "webinars"
+    ]
+  }
+}

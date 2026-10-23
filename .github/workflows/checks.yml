@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: Run only the necessary check
+        type: choice
+        options: [all, contracts, browser]
+        default: all
 
 permissions:
   contents: read
@@ -17,6 +23,7 @@ concurrency:
 
 jobs:
   contracts:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'browser'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -49,8 +56,9 @@ jobs:
         run: mise run typecheck
 
   browser:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'contracts'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -59,12 +67,17 @@ jobs:
       - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          file: apps/render-container/tests/Dockerfile
+          file: apps/render-container/Dockerfile
+          target: browser-test
           tags: promobento-film-runtime-tests:ci
           load: true
           push: false
           cache-from: type=gha,scope=film-runtime-tests
           cache-to: type=gha,mode=max,scope=film-runtime-tests
+      - name: Check only the changed pipeline contracts, adapters and confirmed eval cards
+        run: |
+          docker run --rm --network none --entrypoint node promobento-film-runtime-tests:ci --test \
+            packages/contracts/test/render-pipeline.test.mjs packages/models/test/adapters.test.mjs tests/evals/input-cards.test.mjs
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         shell: bash
         run: |
@@ -72,6 +85,7 @@ jobs:
           chmod 0777 artifacts/film-runtime
           sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
           docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
+            -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
             promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log

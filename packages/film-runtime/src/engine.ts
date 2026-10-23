@@ -11,6 +11,8 @@ const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance
 const fitters: Array<() => void> = [];
 const textRegions = new Map<string, SceneRegion[]>();
 const requestIds = new Set<string>();
+const videoCache = new Map<string, ImageBitmap>();
+let videoBytes = 0;
 let plan: PagePlan | undefined, envelope: Init | undefined, busy = false, disposed = false, frame = -1, lastSequence = 0;
 window.__omReady = false;
 Object.defineProperty(window, 'PB', {value: Object.freeze({
@@ -22,9 +24,9 @@ Object.defineProperty(window, 'PB', {value: Object.freeze({
   scene(): never { throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED'); }
 }), writable: false, configurable: false});
 const requiredPlan = (): PagePlan => { if (!plan) throw Error('INVALID_SESSION'); return plan; };
-const check = (input: Envelope): void => {
+const check = (input: Envelope & {command: string}, command: string): void => {
   if (busy) throw Error('COMMAND_IN_PROGRESS');
-  if (!envelope || disposed || input.protocolVersion !== '3.0.0' || input.sessionId !== envelope.sessionId
+  if (!input || input.command !== command || !envelope || disposed || input.protocolVersion !== '3.0.0' || input.sessionId !== envelope.sessionId
     || input.revisionId !== envelope.revisionId || input.aspectId !== envelope.aspectId
     || !input.requestId || requestIds.has(input.requestId) || !Number.isSafeInteger(input.sequence) || input.sequence !== lastSequence + 1) throw Error('INVALID_SESSION');
   lastSequence = input.sequence;
@@ -57,6 +59,9 @@ function textSlot(slotId: string): TextSlotHandle {
       if (!sceneRoot?.dataset.scene) throw Error('TEXT_SCENE_MISSING');
       const regions = textRegions.get(sceneRoot.dataset.scene) ?? [];
       regions.push({regionId: slotId, boxAt() {
+        if (!el.getClientRects().length || getComputedStyle(el).visibility !== 'visible') return null;
+        for (let parent: HTMLElement | null = el; parent && parent !== sceneRoot; parent = parent.parentElement)
+          if (Number(getComputedStyle(parent).opacity) === 0) return null;
         const box = el.getBoundingClientRect(), sceneBox = sceneRoot.getBoundingClientRect();
         return {x: box.x - sceneBox.x, y: box.y - sceneBox.y, width: box.width, height: box.height};
       }});
@@ -83,14 +88,15 @@ async function draw(frameIndex: number): Promise<void> {
     clock!.seek(frameIndex / 30);
     const layers = frameLayers(current.spec.scenes, frameIndex);
     for (const value of instances.values()) {
-      value.root.style.visibility = 'hidden'; value.root.style.opacity = '1'; value.root.style.transform = 'none'; value.root.style.filter = 'none';
+      value.root.style.display = 'none'; value.root.style.visibility = 'hidden'; value.root.style.opacity = '1'; value.root.style.transform = 'none'; value.root.style.filter = 'none';
     }
     for (const layer of layers) {
       const value = instances.get(layer.id)!;
+      value.root.style.display = 'block';
       value.random.reset();
       value.instance.timeline?.pause();
       value.instance.timeline?.seek(layer.seconds, true);
-      value.instance.render?.(layer.seconds);
+      await value.instance.render?.(layer.seconds);
       value.root.style.visibility = 'visible'; value.root.style.opacity = String(layer.opacity);
       value.root.style.transform = `translateX(${layer.x * current.target.width}px)`;
       value.root.style.filter = layer.blur ? `blur(${layer.blur}px)` : 'none';
@@ -108,6 +114,7 @@ const engine: FilmEngine = {
     if (plan || disposed) throw Error('INVALID_SESSION');
     plan = input;
     Object.defineProperty(window, '__omTarget', {value: Object.freeze({...input.target, safeInsets: Object.freeze({...input.target.safeInsets})}), writable: false});
+    window.CLIP.U.setStage(input.target.width, input.target.height);
     const stage = document.getElementById('film');
     if (!stage) throw Error('RUNTIME_STAGE_MISSING');
     const fontLoads = input.fonts.map(font => document.fonts.load(`${font.style} ${font.weight} 36px ${fontFamily(font.fontId)}`));
@@ -122,16 +129,43 @@ const engine: FilmEngine = {
       Object.assign(root.style, {position: 'absolute', inset: '0', overflow: 'hidden', visibility: 'hidden', background: input.spec.style.palette.roles.bg});
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
+      const helperRegions: SceneRegion[] = [];
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: [],
+        OM: window.__pbCreateOM({root, target: window.__omTarget}, helperRegions), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
-        asset(key) { const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN'); return asset; }
+        asset(key) {
+          const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
+          if (asset.kind !== 'video') return asset;
+          return {...asset, async frameAt(seconds: number) {
+            if (!Number.isFinite(seconds) || seconds < 0) throw Error('VIDEO_FRAME_UNAVAILABLE');
+            const time = seconds + (asset.videoStartSeconds ?? 0), frames = asset.videoFrames!;
+            let low = 0, high = frames.length - 1, index = -1;
+            while (low <= high) { const middle = (low + high) >>> 1;
+              if (frames[middle]!.pts <= time + 1e-8) { index = middle; low = middle + 1; } else high = middle - 1;
+            }
+            const selected = frames[index];
+            if (!selected || time >= selected.pts + selected.duration + 1e-8) throw Error('VIDEO_FRAME_UNAVAILABLE');
+            const key = asset.resourceId + '/' + selected.index;
+            const cached = videoCache.get(key); if (cached) return cached;
+            const image = new Image(); image.src = '/frames/' + key + '.webp';
+            try { await image.decode(); } catch { throw Error('VIDEO_FRAME_UNAVAILABLE'); }
+            const bitmap = await createImageBitmap(image);
+            const bytes = bitmap.width * bitmap.height * 4;
+            if (bytes > 128 << 20) { bitmap.close(); throw Error('VIDEO_FRAME_CACHE_LIMIT'); }
+            while (videoBytes + bytes > 128 << 20 || videoCache.size >= 16) {
+              const oldest = videoCache.keys().next().value!; const old = videoCache.get(oldest)!;
+              videoBytes -= old.width * old.height * 4; old.close(); videoCache.delete(oldest);
+            }
+            videoCache.set(key, bitmap); videoBytes += bytes; return bitmap;
+          }};
+        }
       };
       const instance = definition.build(ctx, scene.params);
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');
       instance.timeline?.pause();
-      instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...(textRegions.get(scene.id) ?? [])]}, random});
+      instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...helperRegions, ...(textRegions.get(scene.id) ?? [])]}, random});
     }
     await Promise.all([...document.images].map(image => image.decode()));
     if (disposed) throw Error('INVALID_SESSION');
@@ -143,7 +177,7 @@ const engine: FilmEngine = {
   },
   async init(input: Init) {
     const current = requiredPlan();
-    if (envelope || !window.__omReady || input.protocolVersion !== '3.0.0' || input.mode !== 'trusted_render'
+    if (!input || input.command !== 'init' || envelope || !window.__omReady || input.protocolVersion !== '3.0.0' || input.mode !== 'trusted_render'
       || input.pixelScale !== 1 || 'valuesOverlay' in input || input.manifestHash !== current.manifestHash
       || input.frameCount !== current.spec.totalFrames || input.width !== current.target.width || input.height !== current.target.height
       || input.aspectId !== current.target.aspect || input.fps !== 30 || input.seed !== current.seed
@@ -154,19 +188,19 @@ const engine: FilmEngine = {
     clock!.begin(current.seed);
   },
   async seekFrame(input: Seek) {
-    check(input);
+    check(input, 'seek');
     if ('previewEpoch' in input) throw Error('INVALID_SESSION');
     await draw(input.frameIndex);
     return {...input, event: 'frame-ready' as const, manifestHash: requiredPlan().manifestHash};
   },
   async sampleSubframe(input: Sample) {
-    check(input);
+    check(input, 'sample');
     if (input.sampleIndex !== 0) throw Error('FRAME_OUT_OF_RANGE');
     await draw(input.frameIndex);
     return {...input, event: 'sample-ready' as const, manifestHash: requiredPlan().manifestHash};
   },
   async inspect(input: Inspect): Promise<HitResult> {
-    check(input);
+    check(input, 'inspect');
     if (input.frameIndex !== frame || !Number.isFinite(input.x01) || !Number.isFinite(input.y01)
       || input.x01 < 0 || input.x01 > 1 || input.y01 < 0 || input.y01 > 1 || 'previewEpoch' in input) throw Error('FRAME_OUT_OF_RANGE');
     const current = requiredPlan();
@@ -186,7 +220,8 @@ const engine: FilmEngine = {
     return {...input, event: 'hit-result', manifestHash: current.manifestHash, hit};
   },
   async dispose(input: Dispose) {
-    check(input); disposed = true; instances.clear(); textRegions.clear(); fitters.length = 0;
+    check(input, 'dispose'); disposed = true; instances.clear(); textRegions.clear(); fitters.length = 0;
+    for (const bitmap of videoCache.values()) bitmap.close(); videoCache.clear(); videoBytes = 0;
     document.getElementById('film')?.replaceChildren(); window.__omReady = false;
   }
 };

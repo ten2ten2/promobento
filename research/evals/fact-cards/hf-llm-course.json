@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "hf-llm-course",
+  "status": "confirmed_for_s1_eval",
+  "fictional": false,
+  "brand": "Hugging Face",
+  "product": "LLM Course",
+  "videoLanguage": "en",
+  "audience": "Python programmers learning NLP and large language models",
+  "brief": "Show the actual learning content and progression, using only attributed factual statements.",
+  "checkedAt": "2026-10-23",
+  "cta": {
+    "text": "Explore LLM Course",
+    "urlLabel": "huggingface.co"
+  },
+  "facts": [
+    {
+      "id": "tools",
+      "text": "The course teaches LLMs and NLP using the Hugging Face ecosystem.",
+      "claim": true,
+      "sourceId": "official"
+    },
+    {
+      "id": "curriculum",
+      "text": "Topics include Transformer models, fine-tuning, Datasets and Tokenizers.",
+      "claim": true,
+      "sourceId": "official"
+    },
+    {
+      "id": "prerequisites",
+      "text": "The course expects good Python knowledge and recommends introductory deep learning study.",
+      "claim": true,
+      "sourceId": "official"
+    }
+  ],
+  "sources": [
+    {
+      "id": "official",
+      "url": "https://huggingface.co/learn/llm-course/chapter1/1",
+      "title": "LLM Course — official course page",
+      "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-23"
+    },
+    {
+      "id": "details",
+      "url": "https://raw.githubusercontent.com/huggingface/course/main/LICENSE",
+      "title": "Official details or license",
+      "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-23"
+    }
+  ],
+  "assetSources": [
+    {
+      "kind": "webpage_screenshot",
+      "url": "https://huggingface.co/learn/llm-course/chapter1/1",
+      "capture": "Course overview and curriculum only; exclude portraits, testimonials, personal accounts and third-party embedded videos."
+    }
+  ],
+  "assets": "sources_identified_not_ingested",
+  "rights": {
+    "scope": "internal_eval_only",
+    "decisionRef": "research/evals/topics.json#/rights",
+    "publicUseCleared": false,
+    "storage": "staging_R2_after_rights_check"
+  },
+  "notes": "Course materials are released under Apache-2.0; preserve attribution, license and modification notices for reused materials. This does not grant trademark or portrait rights. No job, salary, certification or completion claims.",
+  "confirmation": {
+    "confirmedBy": "owner",
+    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "scope": "s1-first-internal-evaluation",
+    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders.",
+    "factIds": [
+      "tools",
+      "curriculum",
+      "prerequisites"
+    ]
+  }
+}

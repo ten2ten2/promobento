@@ -81,6 +81,33 @@ export interface SceneContext {
   beats: ReadonlyArray<number>;
   /** A seeded random stream (random-seq-v1); identical for the same seek time. */
   random(): number;
+  OM: MotionHelpers;
+  CLIP: ClipHelpers;
+}
+
+export interface MotionTimeline extends GsapTimelineLike {
+  fromTo(target: object, from: Record<string, unknown>, to: Record<string, unknown>, at?: number): MotionTimeline;
+}
+export interface MotionCamera {
+  set(pose: Record<string, unknown>): MotionCamera;
+  to(timeline: MotionTimeline | null, at: number, pose: Record<string, unknown>): MotionCamera;
+  apply?(seconds: number): unknown;
+}
+export interface MotionHelpers {
+  clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
+  beat(n: number, bpm: number): number;
+  random(seed: number): () => number;
+  spring(bounce: number): (progress: number) => number;
+  springValue(from: number, changes: Array<{at: number; to: number}>, time: number, options?: {bounce?: number; settle?: number}): number;
+  camera(world: HTMLElement | string, options?: Record<string, unknown>): MotionCamera;
+  space(world: HTMLElement | string, options?: Record<string, unknown>): MotionCamera;
+  region(id: string, boxAt: (seconds: number) => [number, number, number, number] | null): MotionHelpers;
+}
+/** Canvas helper namespaces from the pinned clip library; full signatures are in the shipped JS sources. */
+export interface ClipHelpers {
+  U: {setStage(width: number, height: number): void};
+  MO: Record<string, (...args: number[]) => number>;
+  CAM: object; PAINT: object; KIT: object; DG: object; TY: object; CH: object; UI: object; CL: object; TOON: object;
 }
 
 export interface SceneEvent { name: string; frame: number }
@@ -93,7 +120,7 @@ export interface BlockDefinition<Params = Record<string, unknown>> {
 }
 export interface BlockInstance {
   /** Draws the scene at a scene-local time in seconds. Either this or a paused GSAP timeline. */
-  render?(localSeconds: number): void;
+  render?(localSeconds: number): void | Promise<void>;
   timeline?: GsapTimelineLike;
   events: ReadonlyArray<SceneEvent>;
   regions: ReadonlyArray<SceneRegion>;

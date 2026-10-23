@@ -9,9 +9,9 @@
 | 网站/API | React、TypeScript、React Router/Vite、Cloudflare Workers/Static Assets；SSR、鉴权和协调 |
 | UI | Tailwind、shadcn/ui Base UI、Lucide；视觉与交互按 02，语言与主题行为按 10 |
 | 状态/文件 | D1 保存业务记录；私有 R2 保存不可变的素材、源码、音轨、帧、输出和必要证据 |
-| 调度 | Queues 传递任务，DO 协调并发；事务发件箱 outbox 防漏发，租约与 generation 防止过期任务提交 |
+| 调度 | Workflows 持久编排，Queues 分发 outbox，DO 协调实例与并发；generation 拒绝过期提交 |
 | AI | 一个可信 Orchestrator + 工具 + Model Router；Workers AI 可处理轻量任务，编码模型经真实基准配置 |
-| 计算 | Composer/Renderer 独立沙箱，Node/Chromium/FFmpeg/ffprobe；都可能执行不可信代码 |
+| 计算 | 按任务隔离的渲染容器；可信 Node 控制器、Chromium 沙箱、FFmpeg/ffprobe；创作代码只在 Chromium 内执行 |
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
 
@@ -82,13 +82,15 @@ Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理�
 
 成功结果持久化后 ack；可恢复失败先原子写 attempt 和定时重试 outbox 再 ack；持久化失败不 ack。重试由一套应用调度控制，不同时叠加 Queue 重投与应用重试次数。渲染最多 3 次实际执行，退避 15/60 秒；模型内部修复最多 2 轮，累计预算共享。无效素材、未确认事实、确定性违规不盲重试。
 
-[算力配置](../../config/agent-policy.json) 的全局 4 个物理容器覆盖素材、Composer、预览、音频、QA、Renderer 全部类别；工作区最多 2，创作/渲染各 1。子工具复用同容器令牌或另申请，不能持有全部令牌等子任务造成死锁。等待用户/预算暂停释放容器，已收款任务有预留容量和优先级。单次尝试、心跳与无心跳核查期限取配置；硬超时不是公开 SLA。
+[算力配置](../../config/agent-policy.json) 分开限制 shard（全局 64、工作区 24）、studio（全局 32）与 asset（全局 8），分段数取同一配置。CoordinatorDO 的 lease 直到实例确认停止才归还；超时不是停止证据。等待用户/预算暂停释放 studio，不能持有所有 slot 等待子任务。已收款履约的预留与优先级按 05。
 
-Composer/Renderer 都按 job/generation 隔离，结束销毁；不复用含客户源码、内存或文件的长期进程。实例是信任边界，不以不同 Linux 用户冒充隔离。默认禁公网，不携带支付、模型、D1/R2 管理或云平台凭据；资产代理只给当前任务的只读输入与有限输出。依赖离线镜像、锁定和许可审核，禁止未审查生命周期脚本。
+shard、assemble、audio、studio 实例都按 operation/generation/attempt 隔离，结束销毁；不复用含客户源码、内存或文件的长期进程。实例是信任边界，不以不同 Linux 用户冒充隔离。默认禁公网，不携带支付、模型、D1/R2 管理或云平台凭据；资产代理只给当前任务的只读输入与有限输出。依赖离线镜像、锁定和许可审核，禁止未审查生命周期脚本。
 
-不信源码自报 QA。预览使用独立 origin、无主站 Cookie、CSP/iframe 限权，bridge 校验 origin/source/nonce/session/schema；具体按 14。普通退出不取消已付款渲染，成员撤销/项目墓碑阻止未提交创作副作用。M0b 在真实 Cloudflare 验字体、视频 seek、WebGL 能力、编码、销毁重建和跨任务残留；本地 PoC 不替代。
+不信源码自报 QA。预览使用独立 origin、无主站 Cookie、CSP/iframe 限权，bridge 校验 origin/source/nonce/session/schema；具体按 14。普通退出不取消已付款渲染，成员撤销/项目墓碑阻止未提交创作副作用。G1 在真实 Cloudflare 验字体、视频 seek、WebGL 能力、编码、销毁重建和跨任务残留；本地 PoC 不替代。
 
 ## 4 实体与原子性
+
+S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 `renderer_releases`（[迁移](../../apps/cloud/migrations/0001_s1_pipeline.sql)）；只服务预发布评测，不具备下列客户身份、权益或订单能力。计算费用先记录分配资源的保守运行上界，不能记作账单实测值。
 
 身份：users、auth_identities、auth_flows、auth_action_intents、email_challenges、sessions；工作区：workspaces、memberships、invites。证明、identity 唯一性、登录恢复按 12。D1 查询显式限定租户，不依赖自动 RLS。
 

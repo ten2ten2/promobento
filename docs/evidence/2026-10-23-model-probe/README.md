@@ -14,7 +14,7 @@
   - 推理强度：传 `reasoning_effort: "low"`，看是否被接受。
   - 缓存：约 4.5k token 的相同前缀连发两次，读第二次的 `prompt_tokens_details.cached_tokens`。
 
-## 结果
+## 第一、二轮结果（历史）
 
 | 能力 | deepseek-v4.1-flash-1017 | gemini-3.8-flash | claude-sonnet-5-5 | claude-opus-5-5 |
 | --- | --- | --- | --- | --- |
@@ -29,7 +29,7 @@
 | 缓存命中字段 | ✅ 4096 / 4336 | ❌ 未返回 | ✅ 6580 / 7235 | ✅ 19885 / 21075 |
 | 隐藏提示 token | 无（"pong" 计 27 token） | 无（计 6 token） | **约 6.5k**（"pong" 计 6533 token） | **约 6.8k**（计 6799 token） |
 
-## 结论
+## 第一、二轮结论（后续已更新）
 
 - 网关的 Claude 线路**不支持工具调用**，所以 D（自写镜头）、E（整片 review）这类需要工具的步骤不能绑到网关的 Claude 上。
 - 网关的 Claude 线路在每次调用前**注入约 6.5–6.8k token 的隐藏提示**，按输入计费（多数会被缓存），内容不明，可能影响模型行为；这也说明网关的 Claude 很可能不是直连官方 API。
@@ -60,3 +60,7 @@
 ## 未测
 
 真实提示长度下的质量、长输出的稳定性、并发限流、成本对账（需要在平台"使用统计"中核对）。
+
+## 当前步骤绑定
+
+`config/model-providers.json` 已按第三、四轮修正网关 Claude：工具可用、视觉不可用。规格 C 改绑官方 Anthropic Opus，冷审 F 改绑官方 Sonnet；负责人暂不添加 `ANTHROPIC_API_KEY`，两项真实集成仍未验证。现有报告不证明官方线路或真实宣传片质量已通过。

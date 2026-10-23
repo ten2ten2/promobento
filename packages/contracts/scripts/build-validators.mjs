@@ -8,11 +8,12 @@ import standaloneCode from 'ajv/dist/standalone/index.js';
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {blockCatalog} from '../../blocks/src/catalog.ts';
 import {parseCanonicalJson} from '../src/canonical.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const VALIDATOR_SCHEMAS = Object.freeze(['film', 'block', 'render-job', 'frame-observation', 'direction', 'audio-plan',
-  'asset-insight', 'agent-tools', 'model-config', 'production', 'unit-economics']);
+  'asset-insight', 'director-analysis', 'agent-tools', 'model-config', 'production', 'unit-economics']);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
 export function standaloneModule(schema) {
@@ -41,10 +42,17 @@ export function buildValidators(outDir = join(root, 'packages/contracts/generate
     writeFileSync(join(outDir, `${name}.d.mts`), "import type {StandaloneValidator} from '../standalone-validator.mjs';\nexport const validate: StandaloneValidator;\n");
     written.push(file);
   }
+  const blockSchema = {$id: 'https://promobento.com/contracts/block-params/3.0.0', type: 'object',
+    required: ['block', 'params'], properties: {block: {type: 'string'}, params: {type: 'object'}}, additionalProperties: false,
+    oneOf: blockCatalog.map(block => ({properties: {block: {const: block.id + '@1'}, params: block.params}}))};
+  const blockFile = join(outDir, 'block-params.mjs');
+  writeFileSync(blockFile, standaloneModule(blockSchema));
+  writeFileSync(join(outDir, 'block-params.d.mts'), "import type {StandaloneValidator} from '../standalone-validator.mjs';\nexport const validate: StandaloneValidator;\n");
+  written.push(blockFile);
   return written;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const files = buildValidators(process.argv[2] ? resolve(process.argv[2]) : undefined);
-  console.log(`Built ${files.length} standalone validators.`);
+  console.log(`Built ${files.length} standalone validators (including derived block parameters).`);
 }
