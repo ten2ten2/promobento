@@ -69,10 +69,11 @@ jobs:
         run: |
           mkdir -p artifacts/film-runtime
           chmod 0777 artifacts/film-runtime
-          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
+          sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
+          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs
+            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:

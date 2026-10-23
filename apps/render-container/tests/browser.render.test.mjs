@@ -114,6 +114,9 @@ try{
     const point=await handle.page.evaluate(()=>{const r=document.querySelector('[data-pb-slot="cta"]').getBoundingClientRect();return{x01:(r.x+r.width/2)/window.__omTarget.width,y01:(r.y+r.height/2)/window.__omTarget.height};});
     const hit=await handle.page.evaluate(input=>window.__omEngine.inspect(input),{...handle.envelope,requestId:'inspect',sequence:handle.next(),command:'inspect',frameIndex:375,...point});
     assert.equal(hit.hit.regionId,'cta');
+    const urlPoint=await handle.page.evaluate(()=>{const r=document.querySelector('[data-pb-slot="url"]').getBoundingClientRect();return{x01:(r.x+r.width/2)/window.__omTarget.width,y01:(r.y+r.height/2)/window.__omTarget.height};});
+    const urlHit=await handle.page.evaluate(input=>window.__omEngine.inspect(input),{...handle.envelope,requestId:'inspect-url',sequence:handle.next(),command:'inspect',frameIndex:375,...urlPoint});
+    assert.equal(urlHit.hit.regionId,'url');
     await assert.rejects(handle.seek(450),/FRAME_OUT_OF_RANGE/);
     await handle.page.evaluate(input=>window.__omEngine.dispose(input),{...handle.envelope,requestId:'dispose',sequence:handle.next(),command:'dispose'});
     await assert.rejects(handle.seek(0),/INVALID_SESSION/);

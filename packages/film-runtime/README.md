@@ -20,6 +20,6 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 `mise run test:browser` 是容器内入口，本机直接运行会明确失败。CI 的 `browser` job 构建 [`tests/Dockerfile`](../../apps/render-container/tests/Dockerfile)，不推送镜像、不部署服务；测试包含四画幅的顺序、逆序及冷 seek 像素容差比较、实际文字安全区和 webfont、桥接、虚拟时间/随机源、API 禁用和超长文本失败。截图与报告随 `film-runtime-browser` artifact 提供。
 
-测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp/AppArmor 以允许嵌套用户命名空间，子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
+测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
 
 自写镜头、视频取帧、纹理、布局覆盖、本地预览改值、音频合成、完整字体登记/缺字检查、其余六个 ★ 积木和生产渲染控制器继续按 S1/S2 实现。未实现的页面能力明确拒绝；页面不播放音轨。当前截图回归不能代替 Q1/Q2、成片验收或负责人的审美签字。

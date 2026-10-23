@@ -1,5 +1,5 @@
 import { randomSequence } from '@promobento/contracts/random';
-import type { BlockDefinition, BlockInstance, FilmScene, SceneContext, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
+import type { BlockDefinition, BlockInstance, FilmScene, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import type { PagePlan, FilmEngine } from './types.ts';
@@ -9,17 +9,18 @@ if (!clock) throw Error('RUNTIME_CLOCK_HANDOFF_MISSING');
 const blocks = new Map<string, BlockDefinition>();
 const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>}>();
 const fitters: Array<() => void> = [];
+const textRegions = new Map<string, SceneRegion[]>();
 const requestIds = new Set<string>();
 let plan: PagePlan | undefined, envelope: Init | undefined, busy = false, disposed = false, frame = -1, lastSequence = 0;
 window.__omReady = false;
-window.PB = Object.freeze({
+Object.defineProperty(window, 'PB', {value: Object.freeze({
   info: Object.freeze({apiVersion: '3.0.0' as const, specVersion: 'film-v1' as const}),
   defineBlock<Params>(definition: BlockDefinition<Params>): void {
     if (plan || blocks.has(definition.id)) throw Error('BLOCK_REGISTRATION_CLOSED');
     blocks.set(definition.id, definition as BlockDefinition);
   },
   scene(): never { throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED'); }
-});
+}), writable: false, configurable: false});
 const requiredPlan = (): PagePlan => { if (!plan) throw Error('INVALID_SESSION'); return plan; };
 const check = (input: Envelope): void => {
   if (busy) throw Error('COMMAND_IN_PROGRESS');
@@ -52,6 +53,14 @@ function textSlot(slotId: string): TextSlotHandle {
         lineHeight: '1.1', letterSpacing: display ? '-0.045em' : '-0.015em', color: current.spec.style.palette.roles.ink,
         textAlign: options.align ?? 'start'});
       parent.append(el);
+      const sceneRoot = el.closest<HTMLElement>('[data-scene]');
+      if (!sceneRoot?.dataset.scene) throw Error('TEXT_SCENE_MISSING');
+      const regions = textRegions.get(sceneRoot.dataset.scene) ?? [];
+      regions.push({regionId: slotId, boxAt() {
+        const box = el.getBoundingClientRect(), sceneBox = sceneRoot.getBoundingClientRect();
+        return {x: box.x - sceneBox.x, y: box.y - sceneBox.y, width: box.width, height: box.height};
+      }});
+      textRegions.set(sceneRoot.dataset.scene, regions);
       fitters.push(() => {
         const maxLines = options.maxLines ?? slot.maxLines ?? (display ? 4 : 3);
         const parentHeight = parent.getBoundingClientRect().height;
@@ -122,7 +131,7 @@ const engine: FilmEngine = {
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');
       instance.timeline?.pause();
-      instances.set(scene.id, {scene, root, instance, random});
+      instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...(textRegions.get(scene.id) ?? [])]}, random});
     }
     await Promise.all([...document.images].map(image => image.decode()));
     if (disposed) throw Error('INVALID_SESSION');
@@ -163,6 +172,7 @@ const engine: FilmEngine = {
     const current = requiredPlan();
     let hit: HitResult['hit'] = null;
     for (const layer of frameLayers(current.spec.scenes, frame).reverse()) {
+      if (layer.opacity <= 0) continue;
       for (const region of [...instances.get(layer.id)!.instance.regions].reverse()) {
         const box = region.boxAt(frame - instances.get(layer.id)!.scene.start);
         const x = input.x01 * current.target.width - layer.x * current.target.width, y = input.y01 * current.target.height;
@@ -176,8 +186,8 @@ const engine: FilmEngine = {
     return {...input, event: 'hit-result', manifestHash: current.manifestHash, hit};
   },
   async dispose(input: Dispose) {
-    check(input); disposed = true; instances.clear(); fitters.length = 0;
+    check(input); disposed = true; instances.clear(); textRegions.clear(); fitters.length = 0;
     document.getElementById('film')?.replaceChildren(); window.__omReady = false;
   }
 };
-window.__omEngine = Object.freeze(engine);
+Object.defineProperty(window, '__omEngine', {value: Object.freeze(engine), writable: false, configurable: false});
