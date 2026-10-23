@@ -1020,19 +1020,19 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   },
   "models": {
     "modelswitch/deepseek-v4.1-flash-1017": {
-      "capabilities": {"verified": false, "tools": null, "vision": false, "jsonSchema": null, "reasoningEffort": null, "promptCache": "automatic"},
+      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic"},
       "prices": {"input": 500000, "cacheRead": 10000, "output": 2000000}
     },
     "modelswitch/gemini-3.8-flash": {
-      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": "automatic"},
+      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": null, "reasoningEffort": "accepted", "promptCache": "unreported"},
       "prices": {"input": 420000, "cacheWrite": 420000, "cacheRead": 42000, "output": 2100000}
     },
     "modelswitch/claude-sonnet-5-5": {
-      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": null},
+      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic", "hiddenPromptTokens": 6500},
       "prices": {"input": 1300000, "cacheWrite5m": 1625000, "cacheWrite1h": 2600000, "cacheRead": 65000, "output": 6500000}
     },
     "modelswitch/claude-opus-5-5": {
-      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": null},
+      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": null, "reasoningEffort": "accepted", "promptCache": "automatic", "hiddenPromptTokens": 6800},
       "prices": {"input": 2600000, "cacheWrite5m": 3250000, "cacheWrite1h": 5200000, "cacheRead": 130000, "output": 13000000}
     },
     "anthropic/claude-opus-5-5": {
@@ -1058,10 +1058,13 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 ```
 
 - 价格单位是每百万 token 的整数 micros，币种取所属供应商的 `currency`。记账时按 `usdRate` 换算成 USD micros（向上取整），成本事件同时记录原币金额、汇率和 `catalogVersion`。每个模型另记 `priceSource` 与 `checkedAt`（示例中省略）。
-- **能力必须实测**：模幻空间的文档只写了 `model`、`messages`、`stream`、`temperature`、`max_tokens`，没有说明工具调用、看图、JSON Schema、推理强度和缓存命中字段是否透传。所以它的模型先标为 `verified: false`（`null` 表示未知）。S1 开始时先跑能力探针（第 12.3 节第 10 项），按结果填写能力并置为 `verified: true`；未验证或能力不满足的模型不能被调用。探针不合格时：
-  - `scenes`、`review` 换绑到 `anthropic/` 下的同名模型（官方 API）；
-  - `assets`、`coldReview` 换绑到其他已验证的看图模型；
-  - `facts`、`directions`、`triage` 在不支持 JSON Schema 时用提示词约束加本地校验（第 6.1 节）。
+- **能力必须实测**：2026-10-23 已用探针实测（[证据](../evidence/2026-10-23-model-probe/README.md)），结果已写进上面的能力字段：
+  - 网关的 Claude 线路**不支持工具调用**（返回 502），并在每次调用前注入约 6.5–6.8k token 的隐藏提示（按输入计费，多数被缓存，内容不明）。
+  - 没有一个模型遵守 `json_schema`；结构化输出一律用 `json_object` 或提示约束，再在本地按 Schema 校验。
+  - DeepSeek V4.1 Flash 能看图、工具调用正确、缓存生效、最快最便宜。
+  - Gemini 3.8 Flash 首 token 约 25 秒、单次约 50 秒，工具参数丢失，缓存字段不返回。
+  - **因此上面的 `steps` 中 `scenes`、`review` 不能保持绑在网关的 Claude 上**（需要工具）；新的绑定待负责人确认后写入。运行时拒绝把需要工具的步骤绑到 `tools: false` 的模型。
+  - 换绑或新增模型前都要重跑探针（`.github/workflows/model-probe.yml`）。
 - **换供应商**：
   1. 在 `providers` 填 `baseUrl`、币种和汇率，用 `wrangler secret put` 写入密钥；
   2. 在 `models` 登记模型、价格和实测能力；

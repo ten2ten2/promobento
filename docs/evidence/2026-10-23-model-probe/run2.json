@@ -1,0 +1,290 @@
+{
+  "at": "2026-10-23T05:17:16.208Z",
+  "baseUrl": "https://api.modelswitch.org/v1",
+  "models": {
+    "claude-sonnet-5-5": {
+      "model": "claude-sonnet-5-5",
+      "basic": {
+        "status": 200,
+        "ms": 2350,
+        "usage": {
+          "prompt_tokens": 6533,
+          "completion_tokens": 1,
+          "total_tokens": 6534
+        },
+        "finish": "end_turn",
+        "reply": "pong"
+      },
+      "stream": {
+        "status": 200,
+        "ms": 1821,
+        "firstTokenMs": 1659,
+        "chunks": 8,
+        "usageInStream": true,
+        "usage": {
+          "prompt_tokens": 6560,
+          "completion_tokens": 8,
+          "total_tokens": 6568
+        }
+      },
+      "tools": {
+        "status": 502,
+        "ms": 1095,
+        "error": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class=\"no-js\" lang=\"en-US\"> <!--<![endif]-->\n<head>\n\n<title>modelswitch.org | 502: Bad gateway</title>\n<meta charset=\"UTF-8\" />\n<m",
+        "called": null,
+        "args": null,
+        "ok": false
+      },
+      "vision": {
+        "status": 200,
+        "ms": 2256,
+        "usage": {
+          "prompt_tokens": 6575,
+          "completion_tokens": 3,
+          "total_tokens": 6578
+        },
+        "finish": "end_turn",
+        "reply": "red blue",
+        "ok": true
+      },
+      "jsonSchema": {
+        "status": 200,
+        "ms": 9655,
+        "usage": {
+          "prompt_tokens": 7074,
+          "completion_tokens": 473,
+          "total_tokens": 7547
+        },
+        "finish": "end_turn",
+        "parsed": false,
+        "ok": false,
+        "sample": "I'm assuming 30 fps, since 450 frames over 15 seconds works out to that. Frame 450 is the end boundary, so the last frame rendered is 449.\n\nStructure: setup, bu"
+      },
+      "toolsSimple": {
+        "status": 502,
+        "ms": 2995,
+        "error": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class=\"no-js\" lang=\"en-US\"> <!--<![endif]-->\n<head>\n\n<title>modelswitch.org | 502: Bad gateway</title>\n<meta charset=\"UTF-8\" />\n<m",
+        "called": null,
+        "args": null
+      },
+      "jsonObject": {
+        "status": 200,
+        "ms": 4269,
+        "usage": {
+          "prompt_tokens": 176,
+          "completion_tokens": 37,
+          "total_tokens": 213
+        },
+        "finish": "end_turn",
+        "parsed": true,
+        "sample": "{\"durationSeconds\":15,\"scenes\":[{\"id\":\"a\",\"start\":0,\"end\":450}]}"
+      },
+      "reasoningEffort": {
+        "status": 200,
+        "ms": 3212,
+        "usage": {
+          "prompt_tokens": 134,
+          "completion_tokens": 4,
+          "total_tokens": 138
+        },
+        "finish": "end_turn",
+        "accepted": true
+      },
+      "cacheAutomatic": {
+        "first": {
+          "status": 200,
+          "ms": 15248,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251,
+            "prompt_tokens_details": {
+              "cached_tokens": 6869
+            }
+          },
+          "finish": "max_tokens"
+        },
+        "second": {
+          "status": 200,
+          "ms": 10577,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251,
+            "prompt_tokens_details": {
+              "cached_tokens": 6507
+            }
+          },
+          "finish": "max_tokens"
+        },
+        "cachedTokensSecond": 6507
+      },
+      "cacheControl": {
+        "first": {
+          "status": 200,
+          "ms": 15677,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251,
+            "prompt_tokens_details": {
+              "cached_tokens": 6507
+            }
+          },
+          "finish": "max_tokens"
+        },
+        "second": {
+          "status": 200,
+          "ms": 12336,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251,
+            "prompt_tokens_details": {
+              "cached_tokens": 6580
+            }
+          },
+          "finish": "max_tokens"
+        },
+        "cachedTokensSecond": 6580
+      }
+    },
+    "deepseek-v4.1-flash-1017": {
+      "model": "deepseek-v4.1-flash-1017",
+      "basic": {
+        "status": 200,
+        "ms": 4745,
+        "usage": {
+          "prompt_tokens": 27,
+          "completion_tokens": 3,
+          "total_tokens": 30
+        },
+        "finish": "stop",
+        "reply": "pong"
+      },
+      "stream": {
+        "status": 200,
+        "ms": 2188,
+        "firstTokenMs": 1838,
+        "chunks": 33,
+        "usageInStream": true,
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": 29,
+          "total_tokens": 41
+        }
+      },
+      "tools": {
+        "status": 200,
+        "ms": 2369,
+        "usage": {
+          "prompt_tokens": 300,
+          "completion_tokens": 61,
+          "total_tokens": 361,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          }
+        },
+        "finish": "tool_calls",
+        "called": "set_scene",
+        "args": {
+          "id": "hook",
+          "frames": 90
+        },
+        "ok": true
+      },
+      "vision": {
+        "status": 200,
+        "ms": 2237,
+        "usage": {
+          "prompt_tokens": 216,
+          "completion_tokens": 2,
+          "total_tokens": 218
+        },
+        "finish": "stop",
+        "reply": "red blue",
+        "ok": true
+      },
+      "jsonSchema": {
+        "status": 200,
+        "ms": 5952,
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 588,
+          "total_tokens": 609
+        },
+        "finish": "stop",
+        "parsed": false,
+        "ok": false,
+        "sample": "# 15-Second Film Plan (Frames 0–450 @ 30fps)\n\n**Concept:** *\"First Light\"* — A lone hiker reaches a mountain summit at dawn.\n\n---\n\n## Scene 1 — Frames 0–150 (0:"
+      },
+      "toolsSimple": {
+        "status": 200,
+        "ms": 2767,
+        "usage": {
+          "prompt_tokens": 288,
+          "completion_tokens": 49,
+          "total_tokens": 337,
+          "prompt_tokens_details": {
+            "cached_tokens": 128
+          }
+        },
+        "finish": "tool_calls",
+        "called": "get_time",
+        "args": "{\"city\": \"Paris\"}"
+      },
+      "jsonObject": {
+        "status": 200,
+        "ms": 3368,
+        "usage": {
+          "prompt_tokens": 52,
+          "completion_tokens": 112,
+          "total_tokens": 164
+        },
+        "finish": "stop",
+        "parsed": true,
+        "sample": "{\"durationSeconds\":15,\"scenes\":[{\"id\":\"a\",\"start\":0,\"end\":450}]}"
+      },
+      "reasoningEffort": {
+        "status": 200,
+        "ms": 3283,
+        "usage": {
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "total_tokens": 2
+        },
+        "finish": "stop",
+        "accepted": true
+      },
+      "cacheAutomatic": {
+        "first": {
+          "status": 200,
+          "ms": 4151,
+          "usage": {
+            "prompt_tokens": 4336,
+            "completion_tokens": 1,
+            "total_tokens": 4337,
+            "prompt_tokens_details": {
+              "cached_tokens": 4096
+            }
+          },
+          "finish": "stop"
+        },
+        "second": {
+          "status": 200,
+          "ms": 2443,
+          "usage": {
+            "prompt_tokens": 4336,
+            "completion_tokens": 1,
+            "total_tokens": 4337,
+            "prompt_tokens_details": {
+              "cached_tokens": 4096
+            }
+          },
+          "finish": "stop"
+        },
+        "cachedTokensSecond": 4096
+      }
+    }
+  }
+}
