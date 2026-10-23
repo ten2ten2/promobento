@@ -1,0 +1,728 @@
+{
+  "startedAt": "2026-10-23T07:13:25.779Z",
+  "worker": "https://<probe>.<subdomain>.workers.dev",
+  "coldStart": {
+    "sequential": [
+      {
+        "name": "cold-seq-0",
+        "instance": "standard-3",
+        "readyMs": 11309,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 717.6,
+          "loadMs": 622,
+          "captureMs": 409.4,
+          "totalMs": 1819.3,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 13826
+      },
+      {
+        "name": "cold-seq-1",
+        "instance": "standard-3",
+        "readyMs": 1410,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 836.6,
+          "loadMs": 853,
+          "captureMs": 436.5,
+          "totalMs": 2210.5,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 4128
+      },
+      {
+        "name": "cold-seq-2",
+        "instance": "standard-3",
+        "readyMs": 1237,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 750.3,
+          "loadMs": 656,
+          "captureMs": 422.3,
+          "totalMs": 1902.6,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3557
+      },
+      {
+        "name": "cold-seq-3",
+        "instance": "standard-3",
+        "readyMs": 1290,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 876.7,
+          "loadMs": 628,
+          "captureMs": 414.3,
+          "totalMs": 1988,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3665
+      },
+      {
+        "name": "cold-seq-4",
+        "instance": "standard-3",
+        "readyMs": 1201,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 924.9,
+          "loadMs": 760,
+          "captureMs": 386.4,
+          "totalMs": 2137.8,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3765
+      },
+      {
+        "name": "cold-seq-5",
+        "instance": "standard-3",
+        "readyMs": 1174,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 914,
+          "loadMs": 680,
+          "captureMs": 436.9,
+          "totalMs": 2111.3,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3752
+      },
+      {
+        "name": "cold-seq-6",
+        "instance": "standard-3",
+        "readyMs": 1269,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 928,
+          "loadMs": 797,
+          "captureMs": 452.8,
+          "totalMs": 2250.5,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3890
+      },
+      {
+        "name": "cold-seq-7",
+        "instance": "standard-3",
+        "readyMs": 1196,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 541.1,
+          "loadMs": 773,
+          "captureMs": 378.7,
+          "totalMs": 1759.4,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3435
+      },
+      {
+        "name": "cold-seq-8",
+        "instance": "standard-3",
+        "readyMs": 1183,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 958.6,
+          "loadMs": 702,
+          "captureMs": 452.2,
+          "totalMs": 2195.6,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3795
+      },
+      {
+        "name": "cold-seq-9",
+        "instance": "standard-3",
+        "readyMs": 1190,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 560.5,
+          "loadMs": 747,
+          "captureMs": 376.3,
+          "totalMs": 1753.3,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3310
+      }
+    ],
+    "waves": [
+      {
+        "wallMs": 12171,
+        "samples": [
+          {
+            "name": "cold-wave0-0",
+            "instance": "standard-3",
+            "readyMs": 917,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 572.5,
+              "loadMs": 555,
+              "captureMs": 385.5,
+              "totalMs": 1573.1,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 2818
+          },
+          {
+            "name": "cold-wave0-1",
+            "instance": "standard-3",
+            "readyMs": 8954,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 1068.3,
+              "loadMs": 752,
+              "captureMs": 470.4,
+              "totalMs": 2381.2,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 11911
+          },
+          {
+            "name": "cold-wave0-2",
+            "instance": "standard-3",
+            "readyMs": 8670,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 1099.4,
+              "loadMs": 809,
+              "captureMs": 472.4,
+              "totalMs": 2478.6,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 11544
+          },
+          {
+            "name": "cold-wave0-3",
+            "instance": "standard-3",
+            "readyMs": 1217,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 918.7,
+              "loadMs": 837,
+              "captureMs": 402.7,
+              "totalMs": 2233.3,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3903
+          },
+          {
+            "name": "cold-wave0-4",
+            "instance": "standard-3",
+            "readyMs": 900,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 527.9,
+              "loadMs": 519,
+              "captureMs": 380.5,
+              "totalMs": 1502.1,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 2781
+          },
+          {
+            "name": "cold-wave0-5",
+            "instance": "standard-3",
+            "readyMs": 1401,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 1158.7,
+              "loadMs": 622,
+              "captureMs": 415.2,
+              "totalMs": 2268.9,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 4209
+          }
+        ]
+      },
+      {
+        "wallMs": 5186,
+        "samples": [
+          {
+            "name": "cold-wave1-0",
+            "instance": "standard-3",
+            "readyMs": 1154,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 615.1,
+              "loadMs": 741,
+              "captureMs": 368.6,
+              "totalMs": 1800.9,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3340
+          },
+          {
+            "name": "cold-wave1-1",
+            "instance": "standard-3",
+            "readyMs": 1298,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 615.6,
+              "loadMs": 575,
+              "captureMs": 389.5,
+              "totalMs": 1652.1,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3291
+          },
+          {
+            "name": "cold-wave1-2",
+            "instance": "standard-3",
+            "readyMs": 2264,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 1022.9,
+              "loadMs": 706,
+              "captureMs": 447.6,
+              "totalMs": 2281,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 4968
+          },
+          {
+            "name": "cold-wave1-3",
+            "instance": "standard-3",
+            "readyMs": 956,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 526.1,
+              "loadMs": 732,
+              "captureMs": 363.1,
+              "totalMs": 1689.1,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3771
+          },
+          {
+            "name": "cold-wave1-4",
+            "instance": "standard-3",
+            "readyMs": 1451,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 849.5,
+              "loadMs": 787,
+              "captureMs": 362.3,
+              "totalMs": 2065.9,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3906
+          },
+          {
+            "name": "cold-wave1-5",
+            "instance": "standard-3",
+            "readyMs": 1237,
+            "ready": true,
+            "firstFrame": {
+              "template": "kinetic-type",
+              "launchMs": 850.8,
+              "loadMs": 799,
+              "captureMs": 389.3,
+              "totalMs": 2121.6,
+              "bytes": 91844,
+              "machine": {
+                "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+                "cpu": "AMD EPYC",
+                "cpuFamilyModel": "25/17",
+                "nproc": 2,
+                "cgroupCpuMax": "unavailable: ENOENT",
+                "memTotal": "8595728 kB"
+              }
+            },
+            "endToEndMs": 3751
+          }
+        ]
+      }
+    ],
+    "afterIdle": [
+      {
+        "name": "cold-idle-0",
+        "instance": "standard-3",
+        "readyMs": 1564,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 583.1,
+          "loadMs": 790,
+          "captureMs": 384.8,
+          "totalMs": 1833.9,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3989
+      },
+      {
+        "name": "cold-idle-1",
+        "instance": "standard-3",
+        "readyMs": 1202,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 777.3,
+          "loadMs": 779,
+          "captureMs": 400.7,
+          "totalMs": 2023.7,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 3679
+      },
+      {
+        "name": "cold-idle-2",
+        "instance": "standard-3",
+        "readyMs": 1888,
+        "ready": true,
+        "firstFrame": {
+          "template": "kinetic-type",
+          "launchMs": 1231.9,
+          "loadMs": 1339,
+          "captureMs": 175,
+          "totalMs": 2867.2,
+          "bytes": 91844,
+          "machine": {
+            "kernel": "Linux version 6.18.54-cloudflare-microvm-2026.9.16",
+            "cpu": "AMD EPYC",
+            "cpuFamilyModel": "25/17",
+            "nproc": 2,
+            "cgroupCpuMax": "unavailable: ENOENT",
+            "memTotal": "8595728 kB"
+          }
+        },
+        "endToEndMs": 5255
+      }
+    ],
+    "summary": {
+      "sequential": {
+        "readyMs": {
+          "p50": 1201,
+          "p95": 11309,
+          "max": 11309,
+          "n": 10
+        },
+        "launchMs": {
+          "p50": 836.6,
+          "p95": 958.6,
+          "max": 958.6,
+          "n": 10
+        },
+        "loadMs": {
+          "p50": 702,
+          "p95": 853,
+          "max": 853,
+          "n": 10
+        },
+        "firstFrameTotalMs": {
+          "p50": 1988,
+          "p95": 2250.5,
+          "max": 2250.5,
+          "n": 10
+        },
+        "endToEndMs": {
+          "p50": 3752,
+          "p95": 13826,
+          "max": 13826,
+          "n": 10
+        }
+      },
+      "waves": {
+        "readyMs": {
+          "p50": 1237,
+          "p95": 8954,
+          "max": 8954,
+          "n": 12
+        },
+        "launchMs": {
+          "p50": 849.5,
+          "p95": 1158.7,
+          "max": 1158.7,
+          "n": 12
+        },
+        "loadMs": {
+          "p50": 732,
+          "p95": 837,
+          "max": 837,
+          "n": 12
+        },
+        "firstFrameTotalMs": {
+          "p50": 2065.9,
+          "p95": 2478.6,
+          "max": 2478.6,
+          "n": 12
+        },
+        "endToEndMs": {
+          "p50": 3771,
+          "p95": 11911,
+          "max": 11911,
+          "n": 12
+        }
+      },
+      "afterIdle": {
+        "readyMs": {
+          "p50": 1564,
+          "p95": 1888,
+          "max": 1888,
+          "n": 3
+        },
+        "launchMs": {
+          "p50": 777.3,
+          "p95": 1231.9,
+          "max": 1231.9,
+          "n": 3
+        },
+        "loadMs": {
+          "p50": 790,
+          "p95": 1339,
+          "max": 1339,
+          "n": 3
+        },
+        "firstFrameTotalMs": {
+          "p50": 2023.7,
+          "p95": 2867.2,
+          "max": 2867.2,
+          "n": 3
+        },
+        "endToEndMs": {
+          "p50": 3989,
+          "p95": 5255,
+          "max": 5255,
+          "n": 3
+        }
+      },
+      "all": {
+        "readyMs": {
+          "p50": 1237,
+          "p95": 8954,
+          "max": 11309,
+          "n": 25
+        },
+        "launchMs": {
+          "p50": 849.5,
+          "p95": 1158.7,
+          "max": 1231.9,
+          "n": 25
+        },
+        "loadMs": {
+          "p50": 747,
+          "p95": 853,
+          "max": 1339,
+          "n": 25
+        },
+        "firstFrameTotalMs": {
+          "p50": 2065.9,
+          "p95": 2478.6,
+          "max": 2867.2,
+          "n": 25
+        },
+        "endToEndMs": {
+          "p50": 3771,
+          "p95": 11911,
+          "max": 13826,
+          "n": 25
+        }
+      }
+    }
+  },
+  "finishedAt": "2026-10-23T07:24:46.351Z"
+}

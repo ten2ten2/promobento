@@ -1,0 +1,529 @@
+{
+  "startedAt": "2026-10-23T07:15:49.937Z",
+  "speech": {
+    "models": {
+      "asr": [
+        {
+          "name": "@cf/openai/whisper",
+          "description": "Whisper is a general-purpose speech recognition model. It is trained on a large dataset of diverse audio and is also a m",
+          "price": null
+        },
+        {
+          "name": "@cf/deepgram/flux",
+          "description": "Flux is the first conversational speech recognition model built specifically for voice agents.",
+          "price": [
+            {
+              "unit": "per audio minute (websocket)",
+              "price": 0.0077,
+              "currency": "USD"
+            }
+          ]
+        },
+        {
+          "name": "@cf/deepgram/nova-3",
+          "description": "Transcribe audio using Deepgram’s speech-to-text model",
+          "price": [
+            {
+              "unit": "per audio minute",
+              "price": 0.0052,
+              "currency": "USD"
+            },
+            {
+              "unit": "per audio minute (websocket)",
+              "price": 0.0092,
+              "currency": "USD"
+            }
+          ]
+        },
+        {
+          "name": "@cf/openai/whisper-tiny-en",
+          "description": "Whisper is a pre-trained model for automatic speech recognition (ASR) and speech translation. Trained on 680k hours of l",
+          "price": null
+        },
+        {
+          "name": "@cf/openai/whisper-large-v3-turbo",
+          "description": "Whisper is a pre-trained model for automatic speech recognition (ASR) and speech translation. ",
+          "price": [
+            {
+              "unit": "per audio minute",
+              "price": 0.000513,
+              "currency": "USD"
+            }
+          ]
+        }
+      ],
+      "tts": [
+        {
+          "name": "@cf/myshell-ai/melotts",
+          "description": "MeloTTS is a high-quality multi-lingual text-to-speech library by MyShell.ai.",
+          "price": [
+            {
+              "unit": "per audio minute",
+              "price": 0.000205,
+              "currency": "USD"
+            }
+          ]
+        },
+        {
+          "name": "@cf/deepgram/aura-2-es",
+          "description": "Aura-2 is a context-aware text-to-speech (TTS) model that applies natural pacing, expressiveness, and fillers based on t",
+          "price": [
+            {
+              "unit": "per 1k characters",
+              "price": 0.03,
+              "currency": "USD"
+            }
+          ]
+        },
+        {
+          "name": "@cf/deepgram/aura-1",
+          "description": "Aura is a context-aware text-to-speech (TTS) model that applies natural pacing, expressiveness, and fillers based on the",
+          "price": [
+            {
+              "unit": "per 1k characters",
+              "price": 0.015,
+              "currency": "USD"
+            }
+          ]
+        },
+        {
+          "name": "@cf/deepgram/aura-2-en",
+          "description": "Aura-2 is a context-aware text-to-speech (TTS) model that applies natural pacing, expressiveness, and fillers based on t",
+          "price": [
+            {
+              "unit": "per 1k characters",
+              "price": 0.03,
+              "currency": "USD"
+            }
+          ]
+        }
+      ]
+    },
+    "runs": [
+      {
+        "lang": "en",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 1549,
+        "text": "Meet Leak Code Sprint 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 15,
+        "detectedLanguage": "en",
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 1529,
+        "text": "Meet LeetCode Sprint 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 14,
+        "detectedLanguage": "en",
+        "errorRate": 0,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "clean",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 1137,
+        "text": "Meet leak code Sprint 42 days, 300 problems and weekly mock interviews. Start free today.",
+        "words": 15,
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "clean",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 643,
+        "text": "Meet LeetCode Sprint forty two days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 15,
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 1767,
+        "text": "Meet Leak Code Sprint 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 15,
+        "detectedLanguage": "en",
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 619,
+        "text": "Meet LeetCode Sprint 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 14,
+        "detectedLanguage": "en",
+        "errorRate": 0,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 1362,
+        "text": "Meet wheat code Sprint 42 days, 300 problems and weekly mock interviews. Start free today.",
+        "words": 15,
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "en",
+        "variant": "musicBed",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 6.203288,
+        "reference": "Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.",
+        "ms": 203,
+        "text": "Meet LeetCode Sprint forty two days, 300 problems, and weekly mock interviews. Start free today.",
+        "words": 15,
+        "errorRate": 0.143,
+        "metric": "WER"
+      },
+      {
+        "lang": "zh",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 1048,
+        "text": "用DeepSick鞋代码 只有30秒,新版支持128K上下文 现在免费试用",
+        "words": 25,
+        "detectedLanguage": "zh",
+        "errorRate": 0.118,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 904,
+        "text": "用 DeepSeek 携带码,只有30秒,新版支持128K上下文,现在免费试用",
+        "words": 24,
+        "detectedLanguage": "zh",
+        "errorRate": 0.088,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "clean",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 748,
+        "text": "Repeat 6 鞋带吗?只要30秒,新版支持128天上下文现在免费是用",
+        "words": 6,
+        "errorRate": 0.353,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "clean",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 133,
+        "error": "[{\"message\":\"AiError: AiError: Bad Request: No such model/language/tier combination found. (62d36a79-fd83-4c82-8d6d-0b8a057d1d49)\",\"code\":8007}]",
+        "errorRate": null,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 1518,
+        "text": "用DeepSick鞋代码 只有30秒 新版支持128K上下文 现在免贼试用",
+        "words": 25,
+        "detectedLanguage": "zh",
+        "errorRate": 0.147,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 1270,
+        "text": "DeepSeek 鞋代码,只有30秒,新版支持128K上下文,现在免贼试用",
+        "words": 24,
+        "detectedLanguage": "zh",
+        "errorRate": 0.118,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 1056,
+        "text": "日Beapstick鞋带吗?只要30秒,新版支持128K上下文现在练罪是用",
+        "words": 4,
+        "errorRate": 0.353,
+        "metric": "CER"
+      },
+      {
+        "lang": "zh",
+        "variant": "musicBed",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 7.313356,
+        "reference": "用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。",
+        "ms": 175,
+        "error": "[{\"message\":\"AiError: AiError: Bad Request: No such model/language/tier combination found. (fe75a8c4-ea30-46dc-a42a-2caa90e24bc9)\",\"code\":8007}]",
+        "errorRate": null,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 1814,
+        "text": "日本語能力試験2に90日で合格を目指しましょう。 毎日15分の練習で10分です。",
+        "words": 29,
+        "detectedLanguage": "ja",
+        "errorRate": 0.081,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "clean",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 1696,
+        "text": "日本語能力試験2に90日で合格を目指しましょう。毎日15分の練習で10分です。",
+        "words": 29,
+        "detectedLanguage": "ja",
+        "errorRate": 0.081,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "clean",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 11926,
+        "text": "日本語の売り置く試験に、90日で合格を目指しましょう。毎日15分の練習で10分です。",
+        "words": 2,
+        "errorRate": 0.243,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "clean",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 334,
+        "text": "日本語 能力 試験 に 二、 九 十 日 で 合 格 を目指 しましょう。 毎日 十 五 分の練習 で 十分 です。",
+        "words": 20,
+        "errorRate": 0.189,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 1682,
+        "text": "日本語の売り億試験2に90日で合格を目指しましょう。 毎日15分の練習で10分です。",
+        "words": 31,
+        "detectedLanguage": "ja",
+        "errorRate": 0.189,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper-large-v3-turbo+vocabulary",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 2547,
+        "text": "日本語の売り億試験2に90日で合格を目指しましょう。毎日15分の練習で10分です。",
+        "words": 31,
+        "detectedLanguage": "ja",
+        "errorRate": 0.189,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "musicBed",
+        "model": "@cf/openai/whisper",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 28973,
+        "text": "日本語の売り置く試験に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "words": 2,
+        "errorRate": 0.189,
+        "metric": "CER"
+      },
+      {
+        "lang": "ja",
+        "variant": "musicBed",
+        "model": "@cf/deepgram/nova-3",
+        "audioSeconds": 8.807483,
+        "reference": "日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。",
+        "ms": 274,
+        "text": "日本語 能力 試験 に 二、 九 十 日 で 合 格 を目指 しましょう。 毎日 十 五 分の練習 で 十分 です。",
+        "words": 20,
+        "errorRate": 0.189,
+        "metric": "CER"
+      }
+    ],
+    "asrModelsTried": [
+      "@cf/openai/whisper-large-v3-turbo",
+      "@cf/openai/whisper-large-v3-turbo+vocabulary",
+      "@cf/openai/whisper",
+      "@cf/deepgram/nova-3"
+    ]
+  },
+  "browser": {
+    "runs": [
+      {
+        "url": "https://example.com/",
+        "markdown": {
+          "ok": true,
+          "status": 200,
+          "ms": 2314,
+          "chars": 991,
+          "head": "---\ntitle: \"Example Domain\"\n---\n\nThis domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for tes",
+          "headers": {
+            "x-browser-ms-used": "2178.10888671875"
+          }
+        },
+        "screenshot": {
+          "status": 200,
+          "ms": 2389,
+          "bytes": 89909,
+          "isImage": true,
+          "headers": {
+            "x-browser-ms-used": "2223.8740234375"
+          }
+        }
+      },
+      {
+        "url": "https://www.duolingo.com/",
+        "markdown": {
+          "ok": true,
+          "status": 200,
+          "ms": 4750,
+          "chars": 13145,
+          "head": "---\ntitle: \"Duolingo - The world’s most popular way to learn\"\nmeta:\n  description: \"Free, fun, and effective courses in languages and more. Learn with quick, sc",
+          "headers": {
+            "x-browser-ms-used": "4453.881103515625"
+          }
+        },
+        "screenshot": {
+          "status": 200,
+          "ms": 5347,
+          "bytes": 95575,
+          "isImage": true,
+          "headers": {
+            "x-browser-ms-used": "5152.220703125"
+          }
+        }
+      },
+      {
+        "url": "https://www.deepseek.com/",
+        "markdown": {
+          "ok": true,
+          "status": 200,
+          "ms": 5157,
+          "chars": 4102,
+          "head": "---\ntitle: \"DeepSeek | Into the Unknown\"\nmeta:\n  description: \"DeepSeek is an AI research company focused on building world-leading general artificial intellige",
+          "headers": {
+            "x-browser-ms-used": "4999.846923828125"
+          }
+        },
+        "screenshot": {
+          "status": 200,
+          "ms": 4462,
+          "bytes": 264998,
+          "isImage": true,
+          "headers": {
+            "x-browser-ms-used": "4291.99169921875"
+          }
+        }
+      },
+      {
+        "url": "https://www.minimax.io/",
+        "markdown": {
+          "ok": true,
+          "status": 200,
+          "ms": 2977,
+          "chars": 12502,
+          "head": "---\ntitle: MiniMax\nmeta:\n  author: MiniMax\n  description: \"Building AGI with our mission Intelligence with Everyone. Global leader in multi-modal models and AI-",
+          "headers": {
+            "x-browser-ms-used": "2760.17041015625"
+          }
+        },
+        "screenshot": {
+          "status": 200,
+          "ms": 4059,
+          "bytes": 315788,
+          "isImage": true,
+          "headers": {
+            "x-browser-ms-used": "3303.248779296875"
+          }
+        }
+      },
+      {
+        "url": "https://leetcode.com/",
+        "markdown": {
+          "ok": true,
+          "status": 200,
+          "ms": 4950,
+          "chars": 5174,
+          "head": "---\ntitle: \"LeetCode - The World's Leading Online Programming Learning Platform\"\nmeta:\n  description: \"Level up your coding skills and quickly land a job. This ",
+          "headers": {
+            "x-browser-ms-used": "4592.845703125"
+          }
+        },
+        "screenshot": {
+          "status": 200,
+          "ms": 5394,
+          "bytes": 201952,
+          "isImage": true,
+          "headers": {
+            "x-browser-ms-used": "5226.576416015625"
+          }
+        }
+      }
+    ],
+    "path /browser-rendering": {
+      "ok": true,
+      "status": 200
+    },
+    "prefix": "/browser-rendering"
+  },
+  "finishedAt": "2026-10-23T07:17:42.708Z"
+}

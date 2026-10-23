@@ -2,7 +2,7 @@
 
 当前为 PRD **v3.0**、协议 **3.0.0**。动效管线按[云端动效管线改造方案](plans/cloud-motion-v3.md)的切片实施，**S0 清场与契约已完成，S1 尚未开始**。仓库里目前没有可以出片的渲染器、导演或云端服务：v2 的本地渲染器、受限源码执行、本地导演和研究工具已在 S0 删除，S1 按新结构重写。客户 Studio、数据库、认证和支付服务仍待实现。
 
-已在 Cloudflare 实测的只有临时探针，不是产品代码：Chromium 沙箱（SANDBOX_FULL，含独立 uid）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时。模型网关的能力探针见 [2026-10-23 模型探针](evidence/2026-10-23-model-probe/README.md)。
+已在 Cloudflare 实测的只有临时探针，不是产品代码：Chromium 沙箱（SANDBOX_FULL，含独立 uid）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时。模型网关的能力探针见 [2026-10-23 模型探针](evidence/2026-10-23-model-probe/README.md)。Workers AI 语音识别、Browser Run 与生产形态镜像的冷启动见 [S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)。评测题目与三门虚构课程的事实卡草稿在 [research/evals](../research/evals/topics.json)，事实待负责人确认。
 
 | 部分 | 已有内容 | 仍需实现或验证 |
 | --- | --- | --- |

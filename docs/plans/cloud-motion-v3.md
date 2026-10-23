@@ -127,7 +127,7 @@
 
 ### 1.3 效果
 
-- **评测集**：PRD 01 要求首发至少 6 个自有或获授权样片，覆盖软件发布、功能更新、App、课程招生、模板上新和会员权益。这 6 个样片同时是评测集的主体（第 12.5 节）。
+- **评测集**：评测集的主体是负责人选定的内部评测题目（第 12.5 节），只用于内部评测。PRD 01 要求的首发至少 6 个自有或获授权样片（覆盖软件发布、功能更新、App、课程招生、模板上新和会员权益）另行制作，同样按本节判断。
 - **负责人试听**：按正常速度试听，判断"愿意发布"。初值如下：
   - S1 出口：不少于 4/6；
   - 完成标准：不少于 5/6，且软件、课程各至少 2 个。
@@ -664,7 +664,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
 
 | 阶段 | 期限 |
 | --- | --- |
-| 实例冷启动加握手 | 30 秒；页面用到 WebGL 时 60 秒。参考值：当前冷启动中位约 0.65 秒（Cloudflare 自测），沙箱开启时浏览器启动 1.4–2.9 秒，WebGL 首帧约 31 秒 |
+| 实例冷启动加握手 | 30 秒；页面用到 WebGL 时 60 秒。参考值（2026-10-23，1.05 GB 镜像、standard-3、25 个新实例，[前置探针](../evidence/2026-10-23-pre-s1-probe/README.md)）：就绪 p50 1.24 秒、p95 8.95 秒；沙箱内 Chromium 启动约 0.85 秒，2D 页面首帧合计 p50 2.07 秒；从发起启动到首帧 p50 3.8 秒、p95 11.9 秒。慢启动都出现在部署后的前几次启动，所以 `cloud:deploy` 部署后要先启动几个实例预热。WebGL 首帧约 31 秒 |
 | 每帧 | `frameTimeoutMs`：2D 5 秒；用到 WebGL 时 10 秒（实测最慢一帧 4.5 秒）。运动模糊时乘以子帧数 |
 | 每段 | `段帧数 × 每帧基数 + 30 秒`。每帧基数初值：2D 1.0 秒，WebGL 6 秒。G1 后按实测 p99 × 1.5 复标 |
 | 拼接（只封装和混音） | 60 秒 |
@@ -1180,6 +1180,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
     - 计算样式里的主色和字体名称。
   - SSRF 防护：只允许公网 http(s)，禁止私网、链路本地和元数据地址，限制重定向次数并逐跳复核。
   - 网页上的文字只当内容。
+  - 检查抓取到的正文是否有效：有的站点在无头浏览器里前端报错，返回 200 却没有正文（2026-10-23 实测 deepseek.com）。无效时提示用户上传截图或粘贴文字，不把报错页当作素材或事实来源。
 - **权利确认**：沿用项目 `rights` 结构。上线前由负责人确认，上线后按 09 由用户提供依据。
   - 确认后，素材从 `quarantine/` 移入 `res/<sha256>` 并登记进 `resources`。
   - 字体的 `projectApproved` 由此产生。
@@ -1196,7 +1197,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
     - 用 Kokoro（Apache-2.0，模型按摘要下载）生成旁白；
     - 上游注明 Kokoro 读中文没有声调、难以听懂，所以不对中文开放；
     - 合成后用 ASR 取得逐词时间，不用插值。
-- **ASR**：用 Workers AI 的 `@cf/openai/whisper-large-v3-turbo`，带逐词时间戳，约 $0.0005/分钟。
+- **ASR**：用 Workers AI 的 `@cf/openai/whisper-large-v3-turbo`，带逐词时间戳，约 $0.0005/分钟。把 brief 中已确认的产品名和术语作为 `initial_prompt` 传入。2026-10-23 用合成口播实测（[前置探针](../evidence/2026-10-23-pre-s1-probe/README.md)）：英文 WER 0；中文 CER 0.09–0.12、日文 CER 0.08–0.19，残余错误主要是同音字和 N2 这类缩写。`deepgram/nova-3` 不支持中文，不作备选。
   - 生成的转写稿状态为 `pending_confirmation`。用户确认后（流程同事实确认），才能用于字幕、`OM.cue` 锚点和事实绑定。
   - 超过 1.2 秒的词标记为待复核。
   - 这条数据流按 09 和 04 补充披露。
@@ -1413,7 +1414,7 @@ runtime/<runtimeVersion>/...                  预览 origin 分发的运行库�
 由负责人在 Cloudflare 控制台完成，执行 Agent 不接触控制台。
 
 1. **Workers 付费计划**：已于 2026-10-22 完成。
-2. **平台能力**：Containers 与 `scheduling_policy: "durable_object"` 已于 2026-10-22 实测可用。Workers AI 已于 2026-10-23 由 [cloud-account-check 工作流](../../.github/workflows/cloud-account-check.yml)用部署 Token 实际调用成功。Browser Run 在实施时确认。
+2. **平台能力**：Containers 与 `scheduling_policy: "durable_object"` 已于 2026-10-22 实测可用。Workers AI 已于 2026-10-23 由 [cloud-account-check 工作流](../../.github/workflows/cloud-account-check.yml)用部署 Token 实际调用成功。Browser Run 的 REST 接口（`/browser-rendering/`）同日用部署 Token 抓取 5 个公开页面成功（[前置探针](../evidence/2026-10-23-pre-s1-probe/README.md)）。
 3. **资源**：创建预发布与生产两套 D1 数据库、R2 桶（私有）和 Queues，名称写入 `wrangler.jsonc` 的两个环境。2026-10-23 已由 [cloud-resources 工作流](../../.github/workflows/cloud-resources.yml)创建（名称见 `apps/cloud/resources.json`，可重复运行），并在 `apps/cloud/wrangler.jsonc` 的 `staging`、`production` 环境绑定为 `DB`、`MEDIA`、`OUTBOX`。
 4. **部署用 API Token**：已于 2026-10-22 创建，含 Containers、D1、Queues、R2、Browser Run、Workers Observability 的 Edit 权限，限本账户与 `promobento.com`。缺少 Workers AI 和 Workflows 权限时补上，权限项名称以创建页面为准。
 5. **凭据放置**：
