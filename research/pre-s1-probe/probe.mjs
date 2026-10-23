@@ -33,12 +33,13 @@ async function api(method, path, body, {raw = false} = {}) {
 
 // ---------- speech recognition ----------
 const SCRIPTS = {
-  en: 'Meet LeetCode Sprint: forty-two days, three hundred problems, and weekly mock interviews. Start free today.',
-  zh: '用 DeepSeek 写代码，只要三十秒。新版支持一百二十八 K 上下文，现在免费试用。',
-  ja: '日本語能力試験N2に、九十日で合格を目指しましょう。毎日十五分の練習で十分です。'
+  en: 'Meet LeetCode Sprint: 42 days, 300 problems, and weekly mock interviews. Start free today.',
+  zh: '用 DeepSeek 写代码，只要 30 秒。新版支持 128K 上下文，现在免费试用。',
+  ja: '日本語能力試験N2に、90日で合格を目指しましょう。毎日15分の練習で十分です。'
 };
 
 const norm = (text, lang) => {
+  // Scores words and characters, not formatting: punctuation, case and spacing are ignored.
   let t = text.normalize('NFKC').toLowerCase().replace(/[\p{P}\p{S}]/gu, '');
   return lang === 'en' ? t.replace(/\s+/g, ' ').trim() : t.replace(/\s+/g, '');
 };
@@ -86,8 +87,11 @@ function withBed(voice, lang) {
   return file;
 }
 
+// Product names the owner would confirm in the brief; passed as Whisper's initial prompt.
+const VOCABULARY = 'LeetCode, DeepSeek, MiniMax, Duolingo, JLPT N2, IELTS, 128K';
 const ASR = {
   '@cf/openai/whisper-large-v3-turbo': (audio, lang) => ({audio: audio.toString('base64'), language: lang}),
+  '@cf/openai/whisper-large-v3-turbo+vocabulary': (audio, lang) => ({audio: audio.toString('base64'), language: lang, initial_prompt: VOCABULARY}),
   '@cf/openai/whisper': audio => ({audio: [...audio]}),
   '@cf/deepgram/nova-3': null // listed only if present; called with raw audio below
 };
@@ -103,7 +107,7 @@ async function transcribe(model, audio, lang) {
     const alt = json.result?.results?.channels?.[0]?.alternatives?.[0];
     return response.ok ? {ms, text: alt?.transcript ?? '', words: alt?.words?.length ?? 0} : {ms, error: scrub(JSON.stringify(json.errors ?? json)).slice(0, 400)};
   }
-  const r = await api('POST', `/ai/run/${model}`, ASR[model](audio, lang));
+  const r = await api('POST', `/ai/run/${model.split('+')[0]}`, ASR[model](audio, lang));
   if (!r.ok) return {ms: r.ms, error: r.errors};
   const words = r.result.words?.length ?? r.result.segments?.reduce((n, s) => n + (s.words?.length ?? 0), 0) ?? 0;
   return {ms: r.ms, text: r.result.text ?? '', words, detectedLanguage: r.result.transcription_info?.language};
@@ -113,7 +117,7 @@ log('== speech');
 report.speech = {models: {asr: await models('Automatic Speech Recognition'), tts: await models('Text-to-Speech')}, runs: []};
 save();
 const available = new Set((Array.isArray(report.speech.models.asr) ? report.speech.models.asr : []).map(m => m.name));
-const asrModels = Object.keys(ASR).filter(m => available.has(m));
+const asrModels = Object.keys(ASR).filter(m => available.has(m.split('+')[0]));
 report.speech.asrModelsTried = asrModels;
 for (const [lang, text] of Object.entries(SCRIPTS)) {
   const voice = await synthesize(lang, text);
