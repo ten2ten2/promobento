@@ -801,15 +801,15 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **模型接入**：两种适配器，换供应商只改配置、不改代码（负责人 2026-10-23 要求，配置见第 6.12 节）：
   - `openai-compatible`：OpenAI 兼容的 Chat Completions 接口（`POST {baseUrl}/chat/completions`），`baseUrl`、密钥和模型名都来自配置，可接任何兼容此接口的服务。
   - `anthropic`：Claude Messages API。
-  - 两者共用一个接口：消息与图片、函数工具、结构化输出、流式、token 预估、预留、usage 结算、未知用量保留最坏值。导演各阶段只认这个接口和第 6.11 节的模型档位，不认具体供应商。
+  - 两者共用一个接口：消息与图片、函数工具、结构化输出、流式、token 预估、预留、usage 结算、未知用量保留最坏值。导演各步骤只认这个接口和第 6.11 节的步骤绑定，不认具体供应商。
   - 各供应商能力不同，按模型登记的能力降级，不写死某一家的特性：
 
     | 能力 | `anthropic` | `openai-compatible` | 模型不支持时 |
     | --- | --- | --- | --- |
-    | 工具调用 | `tools` | `tools`（function） | 不能绑定到需要工具的档位 |
+    | 工具调用 | `tools` | `tools`（function） | 不能绑定到需要工具的步骤 |
     | 结构化输出 | `output_config.format` 或 `strict` 工具 | `response_format`（`json_schema`） | 用工具参数输出，本地校验，不合格时把错误结构化返回并重试一次 |
     | 推理强度 | `output_config.effort` | `reasoning_effort` | 忽略 |
-    | 看图 | base64 图片块 | `image_url`（data URL） | 不能绑定到需要看图的档位 |
+    | 看图 | base64 图片块 | `image_url`（data URL） | 不能绑定到需要看图的步骤 |
     | 提示缓存 | 显式 `cache_control`（1 小时） | 服务的自动前缀缓存 | 只靠前缀稳定 |
     | 拒答 | `stop_reason: "refusal"` | `finish_reason: "content_filter"` | 统一为 `MODEL_REFUSED`，照常记账 |
 
@@ -817,7 +817,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 不假定任何供应商支持强制 `tool_choice`。Claude 的其他约束（Opus 5.5、Sonnet 5.5 不能关闭思考等）以实施时 Anthropic 的文档为准。
 - **缓存**：
   - 方法包、积木目录和工具定义组成静态前缀，放在最前且字节稳定。`anthropic` 用 1 小时显式缓存；`openai-compatible` 依赖服务的自动前缀缓存。
-  - 同一档位的阶段（B、C、E）用同一份工具列表和静态前缀，阶段说明放在前缀之后，这样可以共享缓存。
+  - 绑定到同一模型的步骤用同一份工具列表和静态前缀，步骤说明放在前缀之后，这样可以共享缓存。
   - 缓存命中的 token（`cache_read_input_tokens` 或 `prompt_tokens_details.cached_tokens`）进入成本事件；模型登记为支持缓存、重复前缀的命中却为 0 时告警。
 - **编辑自写镜头的工具**：两种适配器都用同一个自定义函数工具 `edit_file`，语义与 Anthropic 文本编辑工具相同（view、create、str_replace、insert）。
   - 在 R2 工作区上实现，路径限定在 `scenes/<id>/`。
@@ -826,7 +826,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.2 阶段 A：理解
 
-- **模型档位**：`fast`（需要看图，第 6.11 节）。S1 验证所绑定模型的看图质量，不达标时换绑更强的模型。
+- **模型**：事实整理用步骤绑定 `facts`（纯文本）；素材理解用 `assets`（看图）。见第 6.11 节。S1 验证 `assets` 所绑模型的看图质量，不达标时换绑更强的模型。
 - **事实整理**：从用户确认的事实和输入中整理出可用卖点、受众、CTA 和缺失项。缺失的不补造（PRD 13 §3）。
 - **素材理解**：每个已获权利的素材做一次，按 sha256 加提示版本缓存（`asset-insight.schema.json`）。
   - 内容：描述、关键区域框（按钮、价格、图表等）、主色、适合的积木；
@@ -837,7 +837,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.3 阶段 B：方向
 
-- **模型档位**：`lead`，一次结构化调用。
+- **模型**：步骤绑定 `directions`，一次结构化调用（纯文本；素材以阶段 A 的文字摘要提供）。
 - **3 张方向卡**（Fit / Amplify / Unexpected），字段按上游 director §4：
   - 视觉语言；
   - 色板：每个颜色写明来源；
@@ -856,7 +856,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.4 阶段 C：规格
 
-- **模型档位**：`lead`。
+- **模型**：步骤绑定 `spec`（全流程中唯一用最强模型的步骤）。
 - **输入**：
   - 所选方向、`ProjectBrief`、素材理解；
   - 积木目录：每个积木的参数 Schema 和示意图摘要；
@@ -877,7 +877,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.5 阶段 D：自写镜头
 
-- **模型档位**：`code`。S2 用评测集比较候选绑定（例如更便宜的模型配较高推理强度，或 `lead` 的模型配较低推理强度），按每个可用结果的费用选定。
+- **模型**：步骤绑定 `scenes`（看图、工具）。S2 用评测集比较候选绑定，按每个可用结果的费用选定。
 - **并行**：每个自写镜头一个子流程，并行执行。上下文只有：
   - 本镜头的 brief；
   - 相邻镜头的首尾帧；
@@ -895,7 +895,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.6 阶段 E：整片 review
 
-- **模型档位**：`lead`。
+- **模型**：步骤绑定 `review`（看图、工具）。
 - **`review` 工具**一次返回：
   - 0.5 倍全片的每秒缩略图拼图，每个画幅一张；
   - Q0–Q2 的发现，结构化并按严重度排序；
@@ -906,7 +906,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.7 阶段 F：冷审与提交
 
-- **冷审**：模型档位 `review`，独立上下文，不带导演的对话。
+- **冷审**：步骤绑定 `coldReview`（看图；宜与导演用不同的模型家族），独立上下文，不带导演的对话。
   - 只给以下材料：
     - 需求；
     - 成片的每秒缩略图拼图和关键帧；
@@ -943,7 +943,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
    - 版本、画幅、帧号、坐标；
    - 云端用 CDP 复核过的 `regionId`；
    - 所在镜头和当前值。
-2. **分流**：用模型档位 `fast` 把每条评论归为三类之一：
+2. **分流**：用步骤绑定 `triage`（纯文本）把每条评论归为三类之一：
    - **直接改值**：改文字、颜色、替换素材、改可编辑参数。生成 `spec_patch`，不调导演。涉及事实的文字按 PRD 13 §7 重新确认。
    - **镜头内修改**：只加载该镜头的积木参数或自写镜头文件、评论帧和 2× 局部图、相邻镜头的首尾帧，用阶段 D 的模型修改。
    - **结构或全局修改**：节奏、镜头增删、风格变化。走阶段 C、E 的修补流程，并先向用户展示影响范围（PRD 13 §7）。
@@ -974,17 +974,23 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 写入 `config/agent-policy.json`。下表为初值，S1、S2 实测后由负责人复核。
 
-| 阶段 | 模型档位 | 推理强度 | 调用上限 | 费用上限 |
-| --- | --- | --- | --- | --- |
-| A 理解 | `fast`（看图） | low | 每个素材 1 次，加 1 次整理 | $0.05 |
-| B 方向 | `lead`（看图） | high | 3 | $0.40 |
-| C 规格 | `lead` | high | 3 | $0.40 |
-| D 每个自写镜头 | `code`（看图、工具） | 按绑定 | 12 | $0.35 |
-| E 整片 review | `lead`（看图、工具） | medium | 6 | $0.30 |
-| F 冷审 | `review`（看图） | medium | 2 | $0.05 |
-| 改稿分流 | `fast` | low | 1 | $0.01 |
+每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定，原则是：能用纯文本完成的用 DeepSeek V4.1 Flash 1017；需要看图的便宜步骤用 Gemini 3.8 Flash；需要看图且要判断力的用 Claude Sonnet 5.5；最关键的一步（规格）用 Claude Opus 5.5。
 
-- 档位只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
+| 步骤 | 绑定名 | 需要的能力 | 初始模型 | 推理强度 | 调用上限 | 费用上限 |
+| --- | --- | --- | --- | --- | --- | --- |
+| A1 事实整理 | `facts` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
+| A2 素材理解 | `assets` | 看图、JSON | `gemini-3.8-flash` | low | 每个素材 1 次 | $0.04 |
+| B 方向 | `directions` | JSON | `deepseek-v4.1-flash-1017` | high | 3 | $0.40 |
+| C 规格 | `spec` | JSON、强推理 | `claude-opus-5-5` | high | 3 | $0.40 |
+| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `claude-sonnet-5-5` | medium | 12 | $0.35 |
+| E 整片 review | `review` | 看图、工具 | `claude-sonnet-5-5` | medium | 6 | $0.30 |
+| F 冷审 | `coldReview` | 看图、JSON | `gemini-3.8-flash` | medium | 2 | $0.05 |
+| 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
+
+- 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
+- B（方向）是创意上影响最大的步骤之一，按"纯文本用 DeepSeek"的原则初始绑到 DeepSeek。S1 评测时与 Opus 5.5 做对照，效果明显落后时换绑。
+- F 用与导演（Claude）不同家族的模型，冷审更容易发现导演的盲点。
+- 改稿中的镜头内修改用 `scenes`，结构修改沿用 `spec` 和 `review`。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
 - **阶段上限用尽时**：结构化返回"预算用尽"，流水线按规则降级（例如自写镜头改用最接近的积木），不追加调用。
@@ -993,7 +999,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   1. 缓存命中与前缀稳定性；
   2. 减少自写镜头的数量和调用轮数；
   3. 降低推理强度；
-  4. 换绑档位（尤其是 `code` 和 `fast`）到更便宜的模型；
+  4. 把 `scenes`、`review` 等步骤换绑到更便宜的模型；
   5. 扩充积木的覆盖范围。
 
 ### 6.12 模型、价格与预算授权
@@ -1002,53 +1008,82 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 **模型配置** `config/model-providers.json`（新增，进仓库，不含密钥）。负责人 2026-10-23 要求：默认走 OpenAI 兼容接口，随时可以换供应商，也要能换成 Claude API。换供应商或模型只改这个文件和对应的 Worker secret，不改代码。
 
+当前选定的 OpenAI 兼容服务是模幻空间（ModelSwitch，`https://api.modelswitch.org/v1`）。它的价格以平台额度标示，平台说明"$1 额度 = ¥1"，所以按人民币记录，并用登记的汇率换算成美元记账。下面的价格取自 2026-10-23 的模型列表"Default 固定线路分组"；API 密钥必须固定在这个分组，不能选 Auto（Auto 按实际路由的分组计费，价格不固定）。
+
 ```json
 {
   "catalogVersion": "models-2026-10-23",
   "providers": {
-    "compat":    {"kind": "openai-compatible", "baseUrl": "<负责人选定的服务地址>", "secret": "MODEL_COMPAT_API_KEY"},
-    "anthropic": {"kind": "anthropic", "baseUrl": "https://api.anthropic.com", "secret": "ANTHROPIC_API_KEY"}
+    "modelswitch": {"kind": "openai-compatible", "baseUrl": "https://api.modelswitch.org/v1", "secret": "MODEL_COMPAT_API_KEY",
+                    "currency": "CNY", "usdRate": 6.6863, "usdRateSource": "平台标注的 2026-10-16 参考汇率", "group": "default"},
+    "anthropic":   {"kind": "anthropic", "baseUrl": "https://api.anthropic.com", "secret": "ANTHROPIC_API_KEY", "currency": "USD"}
   },
   "models": {
+    "modelswitch/deepseek-v4.1-flash-1017": {
+      "capabilities": {"verified": false, "tools": null, "vision": false, "jsonSchema": null, "reasoningEffort": null, "promptCache": "automatic"},
+      "prices": {"input": 500000, "cacheRead": 10000, "output": 2000000}
+    },
+    "modelswitch/gemini-3.8-flash": {
+      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": "automatic"},
+      "prices": {"input": 420000, "cacheWrite": 420000, "cacheRead": 42000, "output": 2100000}
+    },
+    "modelswitch/claude-sonnet-5-5": {
+      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": null},
+      "prices": {"input": 1300000, "cacheWrite5m": 1625000, "cacheWrite1h": 2600000, "cacheRead": 65000, "output": 6500000}
+    },
+    "modelswitch/claude-opus-5-5": {
+      "capabilities": {"verified": false, "tools": null, "vision": null, "jsonSchema": null, "reasoningEffort": null, "promptCache": null},
+      "prices": {"input": 2600000, "cacheWrite5m": 3250000, "cacheWrite1h": 5200000, "cacheRead": 130000, "output": 13000000}
+    },
     "anthropic/claude-opus-5-5": {
-      "capabilities": {"tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
-      "context": 1000000, "maxOutput": 128000,
-      "prices": {"input": 4000000, "cacheWrite5m": 5000000, "cacheWrite1h": 8000000, "cacheRead": 200000, "output": 20000000},
-      "priceSource": "https://platform.claude.com/docs/en/models/opus-5-5/overview", "checkedAt": "2026-10-23"
+      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
+      "prices": {"input": 4000000, "cacheWrite5m": 5000000, "cacheWrite1h": 8000000, "cacheRead": 200000, "output": 20000000}
     },
     "anthropic/claude-sonnet-5-5": {
-      "capabilities": {"tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
-      "context": 1000000, "maxOutput": 128000,
-      "prices": {"input": 2000000, "cacheWrite5m": 2500000, "cacheWrite1h": 4000000, "cacheRead": 200000, "output": 10000000},
-      "priceSource": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview", "checkedAt": "2026-10-23"
+      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
+      "prices": {"input": 2000000, "cacheWrite5m": 2500000, "cacheWrite1h": 4000000, "cacheRead": 200000, "output": 10000000}
     }
   },
-  "roles": {
-    "lead":   "anthropic/claude-opus-5-5",
-    "code":   "anthropic/claude-sonnet-5-5",
-    "review": "anthropic/claude-sonnet-5-5",
-    "fast":   "anthropic/claude-sonnet-5-5"
+  "steps": {
+    "facts":      "modelswitch/deepseek-v4.1-flash-1017",
+    "assets":     "modelswitch/gemini-3.8-flash",
+    "directions": "modelswitch/deepseek-v4.1-flash-1017",
+    "spec":       "modelswitch/claude-opus-5-5",
+    "scenes":     "modelswitch/claude-sonnet-5-5",
+    "review":     "modelswitch/claude-sonnet-5-5",
+    "coldReview": "modelswitch/gemini-3.8-flash",
+    "triage":     "modelswitch/deepseek-v4.1-flash-1017"
   }
 }
 ```
 
-- **初始绑定**用上表的 Claude 模型，因为它们是目前唯一已登记价格并获授权的模型。负责人选定 OpenAI 兼容服务后：
-  1. 在 `providers.compat` 填 `baseUrl`，用 `wrangler secret put MODEL_COMPAT_API_KEY` 写入密钥；
-  2. 在 `models` 登记要用的模型：能力、上下文、输出上限、价格、价格来源与核对日期；
-  3. 在授权文件中加入这些模型，然后改 `roles` 的绑定；
+- 价格单位是每百万 token 的整数 micros，币种取所属供应商的 `currency`。记账时按 `usdRate` 换算成 USD micros（向上取整），成本事件同时记录原币金额、汇率和 `catalogVersion`。每个模型另记 `priceSource` 与 `checkedAt`（示例中省略）。
+- **能力必须实测**：模幻空间的文档只写了 `model`、`messages`、`stream`、`temperature`、`max_tokens`，没有说明工具调用、看图、JSON Schema、推理强度和缓存命中字段是否透传。所以它的模型先标为 `verified: false`（`null` 表示未知）。S1 开始时先跑能力探针（第 12.3 节第 10 项），按结果填写能力并置为 `verified: true`；未验证或能力不满足的模型不能被调用。探针不合格时：
+  - `scenes`、`review` 换绑到 `anthropic/` 下的同名模型（官方 API）；
+  - `assets`、`coldReview` 换绑到其他已验证的看图模型；
+  - `facts`、`directions`、`triage` 在不支持 JSON Schema 时用提示词约束加本地校验（第 6.1 节）。
+- **换供应商**：
+  1. 在 `providers` 填 `baseUrl`、币种和汇率，用 `wrangler secret put` 写入密钥；
+  2. 在 `models` 登记模型、价格和实测能力；
+  3. 在授权文件中加入这些模型，然后改 `steps` 的绑定；
   4. 跑评测集（第 12.5 节），第 1.1 节的单位成本和第 1.3 节的效果不回退才算换绑完成。
 - **校验**（`check-production-contracts.mjs` 与运行时都做）：
-  - 每个档位绑定的模型都已登记，且能力满足档位要求（看图、工具）；
+  - 每个步骤绑定的模型都已登记、已验证，且能力满足该步骤（第 6.11 节）；
   - 价格字段齐全；没有价格的模型不能被绑定，也不能被调用；
   - 绑定的模型在授权文件中；
   - 任何改动都要更新 `catalogVersion`，成本事件记录它。
 - **计价**：
   - `anthropic`：普通输入、5 分钟缓存写、1 小时缓存写、缓存读和输出五种计价，以返回的 usage 为准。
-  - `openai-compatible`：`prompt_tokens` 中扣除 `prompt_tokens_details.cached_tokens` 的部分按输入价，缓存命中部分按 `cacheRead`（未登记时按输入价），`completion_tokens`（含推理 token）按输出价。服务的计费口径不同时（例如缓存写另收费、分档价格），在模型登记中写明并按它计算。
+  - `openai-compatible`：`prompt_tokens` 中扣除 `prompt_tokens_details.cached_tokens` 的部分按输入价，缓存命中部分按 `cacheRead`（未登记时按输入价），`completion_tokens`（含推理 token）按输出价。服务另收缓存写或分档计价时，在模型登记中写明并按它计算。
+  - 每月用平台的"使用统计"与账本对账一次，差异超过 5% 时排查计价规则。
   - usage 缺失或字段不全时保留最坏预留：全部输入按普通输入价计，输出按上限计。
   - 现有 `usageCost` 是按单一供应商语义写的，不迁入。
-- **数据处理**：新增任何供应商前，按 04 和 09 补充数据流与隐私披露（客户素材、文案和画面会发给该服务）。
-- 2026-10-23 的修正：Sonnet 5.5 的缓存读价格是 $0.20/M（v3.0 写成 $0.10/M）。原 `config/model-prices.json` 并入本文件，不再单独存在。
+- **模幻空间的风险**（2026-10-23 查看）：
+  - 可用性：状态页显示 26 个模型中 20 个可用、可用率 73.69%，Claude 5.5 的健康检查耗时 141 秒。第 1.2 节的时间目标要在它上面实测。
+  - 它是第三方转售网关，价格约为官方的一成；数据保留条款未公开，也无法核实背后的模型。客户素材、文案和画面会经过它。面向客户使用前，按 04 和 09 补充数据流与隐私披露，并由负责人决定是否接受这类渠道。
+  - 因此 `anthropic` 适配器和官方价格一直保留，作为随时可切换的备用线路。
+- **数据处理**：新增任何供应商前，都按 04 和 09 补充数据流与隐私披露。
+- 2026-10-23 的修正：Sonnet 5.5 的官方缓存读价格是 $0.20/M（v3.0 写成 $0.10/M）。原 `config/model-prices.json` 并入本文件，不再单独存在。
 
 **止损预算**：写入 `config/agent-policy.json` 的 `cost` 段，单位 USD micros。
 
@@ -1072,7 +1107,8 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 ```json
 {
   "purposes": ["calibration", "evaluation"],
-  "models": ["anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5-5"],
+  "models": ["modelswitch/deepseek-v4.1-flash-1017", "modelswitch/gemini-3.8-flash", "modelswitch/claude-sonnet-5-5",
+             "modelswitch/claude-opus-5-5", "anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5-5"],
   "catalogVersion": "models-2026-10-23",
   "approvedBy": "tianyu (tianyu@tinkerland.ai)",
   "approvedAt": "2026-10-22T18:12:00+08:00",
@@ -1081,6 +1117,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 }
 ```
 
+- 模幻空间的四个模型由负责人 2026-10-23 指定加入。
 - 用途名随里程碑调整：原来的 `m0b_calibration`、`m0a_comparison` 对应切片 S1–S3 的标定和第 12.5 节的评测。额度、期限和批准人不变；模型改用 `供应商/模型` 的形式登记。
 - 换到 OpenAI 兼容服务时，负责人把对应的 `供应商/模型` 加入 `models`；`maxUsdMicros` 按全部供应商累计。
 - **每次付费调用前同时检查**：
@@ -1487,7 +1524,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
   - D1 迁移与查询在 Miniflare 上测试：CAS 冲突、操作重放、未知用量的预留与对账。
 - **QA 规则**：Q0 每条规则一个正例和一个反例；Treatment 检查；冷审输入的构造。
 - **费用与路由**：
-  - 预算的预留与结算；两种适配器的 usage 计价（含字段缺失时的最坏预留）；模型配置校验（档位能力、价格、授权）。
+  - 预算的预留与结算；两种适配器的 usage 计价（含字段缺失时的最坏预留、人民币换算）；模型配置校验（步骤能力、验证状态、价格、授权）。
   - AudioPlan 的生成与拍点网格。
   - 改稿分流路由（mock）。
 
@@ -1526,6 +1563,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
 7. **沙箱**：生产镜像复现探针的 SANDBOX_FULL，并记录到证据。
 8. **回收**：停止后确认实例状态，并发计数正确。
 9. **studio 实例**：still/check 的延迟分布；操作结束后确认已销毁。
+10. **模型能力探针**：对 `config/model-providers.json` 中每个被绑定的模型，实测工具调用、看图、JSON Schema、推理强度、缓存命中字段、流式、首 token 与整体延迟，并用一次已知 token 数的调用核对计价。结果写回模型登记（`verified`），不合格的按第 6.12 节换绑。这一项不需要 Cloudflare 资源，有模型密钥即可在 CI 中运行。
 
 结果按 06 写入 `docs/evidence/`。探针脚本入库到 `apps/render-container/probes/`，不再只存在于负责人本机。
 
@@ -1727,7 +1765,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 
 | 输入 | 提供方 | 何时需要 |
 | --- | --- | --- |
-| 选定的模型服务（OpenAI 兼容服务地址或 Claude）、API Key 与消费上限，以及所用模型的价格（第 6.12 节） | 负责人 | S1 开始前 |
+| 模幻空间的 API Key：存为 GitHub secret `MODEL_COMPAT_API_KEY`，分组固定为 Default；平台为预充值，余额即消费上限（第 6.12 节） | 负责人 | S1 开始前 |
 | 4–6 个有真实素材授权的自有或合作产品，及其已确认的事实 | 负责人 | S1 |
 | 按正常速度试听各程序风格的 30 秒样曲 | 负责人 | S1 |
 | 预览用的独立注册域名 | 负责人 | S2 |
