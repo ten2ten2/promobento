@@ -19,8 +19,8 @@
   - 产品上需要开关或计费规则的能力，代码与测试在本方案内完成，开关按 PRD 默认关闭。
 - 前提：
   - **GSAP 已确定使用**：决定人 tianyu（tianyu@tinkerland.ai），2026-10-22。
-    - GSAP 字节随渲染镜像分发。v3.1 把 GSAP 限定在自写镜头里，积木和运行时核心都不依赖它（D10）。
-    - 上游随附的 GSAP 标准许可，禁止用于与 Webflow 竞争的无代码可视化动画工具；PRD 09 要求生产引入前取得书面许可结论。该结论列为外部输入（第 14 节），在公开售卖前取得。
+    - GSAP 字节随渲染镜像分发。负责人已确认本产品可以使用 GSAP（2026-10-23 再次确认），这一决定即 PRD 09 要求的许可结论，不再另设外部输入。
+    - 积木和运行时核心不依赖 GSAP，原因是确定性（积木是时间的纯函数，见第 4.3 节），不是许可。
   - **Cloudflare 账户已具备**：2026-10-22 已升级 Workers 付费计划。凭据和准备项见第 9.8 节。
   - **Chromium 沙箱已实测可用**：2026-10-22 在 Cloudflare Containers 上做了 3 次探针，均为 SANDBOX_FULL（第 5.5 节）。
   - **按需调度已实测可用**：2026-10-22 本账户可以直接使用 `scheduling_policy: "durable_object"`（仍为 public beta）。
@@ -57,7 +57,7 @@
 **本方案不做**：
 
 - 网站页面、登录、Waffo 支付、邮件、多品牌管理，这些按原 PRD 推进。
-- 工程 ZIP 对外交付。GSAP 等运行库能否随源码交付给客户，取决于 09 的许可结论。
+- 工程 ZIP 对外交付（PRD 01 的 P1，涉及把运行库随源码交给客户，另行规划）。
 
 本方案只提供它们要调用的创作与渲染后端 API、嵌入式预览播放器和评论采集组件。
 
@@ -158,7 +158,7 @@
 | D7 | 交互预览在用户浏览器里运行：同一页面放在独立注册域名下的 sandbox iframe 中，CSP 禁网；视频镜头用代理 MP4 近似 seek。预览只用于制作和审阅，QA 以成片为准 | 实时预览零服务器成本，和上游 studio 同构 |
 | D8 | 素材：上传走 R2 预签名；网址抓取用 Browser Run；视频与图片在断网的资产实例里处理；ASR 用 Workers AI。每个素材生成一次"素材理解"，按摘要缓存 | 实现上游的"真实素材优先"。导演读素材摘要，不反复看原图 |
 | D9 | 多目标按画幅渲染：7 个目标对应 4 个画幅。`__omTarget` 只给画幅与安全区，不给 targetId；同画幅的目标共用同一份成片字节。积木天然适配 4 种画幅，只有 Q1 失败的自写镜头才调用模型 | 6 个预设共用 `mp4_h264_1080_v1`，安全区按画幅定义。将来某平台的安全区不同时再拆开 |
-| D10 | 许可：积木和运行时核心不依赖 GSAP（用移植的 MIT 代码和自写补间），GSAP 只给自写镜头。Three.js r186 为 MIT；上游代码为 MIT；字体用 OFL；采样只用 CC0；授权曲库按第 8.3 节。不加片尾署名，不用作者形象 | 把 GSAP 许可风险限制在自写镜头里。客户委托作品不能带第三方署名 |
+| D10 | 许可：GSAP 按负责人决定使用，随镜像分发，自写镜头可以使用；积木和运行时核心不依赖它（D1 的确定性要求）。Three.js r186 为 MIT；上游代码为 MIT；字体用 OFL；采样只用 CC0；不采购曲库，程序配乐用第 8.3 节的 CC0 采样包。不加片尾署名，不用作者形象 | 客户委托作品不能带第三方署名 |
 | D11 | 上游关系：以 `4236053` 为固定参考，把需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明。不 vendor 整个上游，也不追求模板逐帧对等 | 上游 2026-10-18 才发布 0.1.0，只在 macOS 上测试过，现在已有 v0.3.x。逐模板对等会把我们绑在一个快速变化的项目上 |
 | D12 | 新代码使用 TypeScript（strict）。Workers 内的 Schema 校验只用 Ajv standalone 预编译的验证器 | Workers 禁止 `new Function`，现有 `packages/contracts` 在运行时编译 Schema。类型检查能拦下 Agent 写代码时的常见错误 |
 
@@ -228,7 +228,7 @@ packages/
   contracts/           v3.0 Schema 的预编译校验、规范化、摘要与身份计算（canonical/digest/identity 底层保留）
   film-runtime/        页面生成器、shim、engine、转场、积木 API、自写镜头 API、OM 兼容层、clip 画面语法、OM3（Three.js）
   blocks/              镜头积木库（第 4.3 节）：每个积木含参数 Schema、四画幅布局、黄金帧
-  audio/               声音引擎（程序配乐、ABC 作曲、音效、混音、响度）、拍点网格计算、曲库元数据
+  audio/               声音引擎（程序配乐、ABC 作曲、音效、混音、响度）、拍点网格计算、CC0 采样包清单
   preview-player/      客户浏览器端的 iframe 宿主、bridge、评论采集，供网站引用
   methods/             导演方法包（从上游 4236053 改写，英文优先，补课程类目），带版本与内容摘要
   fonts/               字体登记目录与 WOFF/WOFF2 文件（渲染与预览共用）
@@ -273,7 +273,7 @@ scripts/
      - `runtime/camera-rig.js`：上游没有任何地方引用，不吸收。
    - `templates/**` 只作积木设计参考和冒烟测试语料（第 12.2 节），不进作品可见的路径。
    - `cli/lib/check.js` 改写为 Q0 规则，`cli/lib/qa.js` 改写为 Q2 运动诊断。
-   - `cli/lib/beats.js` 用于曲库与用户配乐的拍点分析；上游没有把它接入任何命令。
+   - `cli/lib/beats.js` 用于用户配乐的拍点分析；上游没有把它接入任何命令。
 2. **`toon.js` 与作者形象**：上游 THIRD_PARTY 写明，"豆子花叔"形象是作者本人的卡通肖像，不在 MIT 范围内。而 `keynote-ui`、`whiteboard`、`kinetic-type`、`finance-chart`、`vox-collage`、`kurzgesagt`、`math-3b1b`、`storytime` 8 个模板都加载 `toon.js`。处理方式：
    - `film-runtime` 的 `toon.js` 只保留通用部分：`flat`、`glow`、`vgrad`、`circle`、`ellipse`、`env`、`mouth`、`poseAt`、`blinkAt`、`alive`、`sweat`、`mark`，以及 `TOON.POSES`（上游第 35–42 行）和 `LINE` 常量（第 34 行）。删除角色绘制函数 `TOON.bean`（第 43 行起）及其专属代码。
    - 新写原创中性角色 `TOON.figure(c, o)`，参数对象和返回值与 `TOON.bean(c, o)` 相同：`o` 含 `x`、`y`、`s`、`pose`、`expr`、`mouth`、`blink`、`squash` 等，返回 `{hl, hr, head}`。形象几何化，没有标志性服饰和配饰，配色取自风格 tokens。y4_storytime 改为调用 `TOON.figure`。
@@ -401,7 +401,7 @@ FilmSpec {
   },
   audio: {
     music: { kind: "procedural", style, bpm, ... } | { kind: "score", scoreRef }
-         | { kind: "library", trackId, editId } | { kind: "upload", resourceId } | { kind: "none" },
+         | { kind: "upload", resourceId } | { kind: "none" },
     voice?: { resourceId, transcriptId } | { tts: { voiceId, transcriptId } },
     sfx: "auto" | [ { at: { sceneId, event } | { frame }, id, gain? } ],
     captions: "auto" | "off"
@@ -1142,7 +1142,6 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **音乐来源**（第 4.2 节的 `music` 字段）：
   - `procedural`：13 种程序风格；
   - `score`：ABC 作曲，用上游 composer 的方言与扩展；
-  - `library`：授权曲库，见第 8.3 节；
   - `upload`：用户提供的授权配乐，拍点用 beats 分析；
   - `none`。
 - **音效**：`sfx: "auto"` 时，按积木事件和转场自动对位（上游每种 cue 都有默认音效）。共 23 种合成音效、5 种音色组；大音效出现时音乐让位。
@@ -1154,25 +1153,17 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 只用 CC0 子集；上游采样包里 CC-BY 的 Salamander 钢琴和 Wurlitzer 不用。每个事件都带 `licenseRef`。
   - 自由 ABC 乐谱需要单独的音源权利记录，结构写进 `audio-plan.schema.json`（由原 `admission-audio-rights` 的字段改写）。
 
-### 8.3 授权曲库
+### 8.3 CC0 采样包（不采购曲库）
 
-是否采购内容由负责人决定；本方案实现全部通路。
+负责人 2026-10-23 决定不采购曲库。现有代码和上游都不带成品配乐，配乐全部由程序生成；质量差距主要在真实乐器采样，所以改为补齐 CC0 采样。
 
-- **代码与契约在本方案内完成**：
-  - `library` 音乐类型；
-  - 曲目元数据：BPM、拍点、小节、段落、15/30 秒的剪辑点、能量曲线、分轨；
-  - 拍点分析与人工核对工具；
-  - 按剪辑点确定性裁剪；
-  - 许可记录，存于 D1 `music_tracks`。
-- **内容采购是外部输入。建议的做法**：
-  1. S1 采购 5 首做盲听试点，与程序配乐对照，由负责人按正常速度试听。
-  2. 曲库胜出时，上线前补到 30–40 首，覆盖 13 种风格的高、低能量。
-  3. 优先选一次性买断、带分轨的定制曲目；其次选允许平台向客户再授权的曲库合同。
-- **许可必须满足**（并按 09 记录）：
-  - 可商用，可用于客户委托的作品，并随成片永久授权给客户；
-  - 无需署名；
-  - 允许云端处理和剪辑；
-  - **没有登记 YouTube Content ID 等内容识别系统**，否则客户发布后会被认领。
+- **来源**：沿用上游 `cli/lib/samples-build.js` 按固定提交拉取的 CC0 库：
+  - VSCO 2 CE、VCSL（Versilian Studios）：弦乐声部、圆号、竖琴、木琴等；
+  - Karoryfer：二胡、身体打击乐、Unruly Drums、Big Rusty Drums；
+  - FreePats：合成打击乐、西班牙古典吉他、指弹贝斯。
+- **排除**：上游的 Salamander 三角钢琴和 Greg Sullivan Wurlitzer 是 CC-BY-3.0，需要署名，不用。先在上述 CC0 库中找钢琴替代；找不到时用合成钢琴，并在试听时单独评估。
+- **构建**：在镜像构建时按固定提交下载、核对摘要、裁剪并重采样（上游做法），清单与每个文件的来源、许可、摘要写进 `packages/audio` 的采样清单；每个音频事件带 `licenseRef`。Versilian 要求不单独转售采样，只用于成片渲染不受影响。
+- **验收**：S1 用每种程序风格各渲染一段 30 秒样曲，由负责人按正常速度试听。达不到要求的风格调整配器或停用；整体仍不满意时由负责人重新决定是否采购。
 
 ---
 
@@ -1264,7 +1255,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - 渲染：`renders`、`render_shards`（含分段键，供增量复用）、`render_seams`、`observations`（摘要与 R2 指针）。
 - 素材：`resources`、`resource_rights`、`asset_jobs`、`asset_insights`、`transcripts`。
 - 评论：`comment_threads`、`comments`（含 `followUpOf`）。
-- 其他：`renderer_releases`、`music_tracks`（曲库元数据与许可引用）、`experience_entries`（PRD 13 §8，按工作区存放，用户选择启用）。
+- 其他：`renderer_releases`、`experience_entries`（PRD 13 §8，按工作区存放，用户选择启用）。
 
 导演的账本、预留与结算、审核回执、CAS、操作幂等重放，按原有语义在 D1 上重写，代码在 `apps/cloud/src/store/`。不保留 JSONL 实现；本地开发由 Miniflare 提供 D1。
 
@@ -1557,7 +1548,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | [06](../prd/06-testing-and-release.md) §3、§4 | §3：混音响度由"约 −16 LUFS"改为按预设的 `loudnessTarget`（−14 LUFS）。§4：性能与成本门槛换成第 1 节 | S1 |
 | [07](../prd/07-growth-and-experiments.md) §4 | `m0a-economics` 改名为 `unit-economics`；单位成本目标引用第 1 节 | S1 |
 | [08](../prd/08-codex-execution.md) | 里程碑改为第 14 节的 S0–S3 与 G1；命令表换成新任务；Chromium 沙箱降级必须有书面决定 | S0 |
-| [09](../prd/09-sources-and-licensing.md) §1–§2 | S0：GSAP 的使用决定与范围（只在自写镜头中，书面许可结论待取得；版本 3.14.2 与摘要；进镜像不进 Git）；上游固定参考改为 `4236053`；Three.js r186 为 MIT；不加署名；作者形象不采用，用原创角色替代。S3：CC0 采样（排除 CC-BY 钢琴与 Wurlitzer）；授权曲库的许可要求（含 Content ID）；Workers AI 与 Browser Run 的数据流 | S0、S3 |
+| [09](../prd/09-sources-and-licensing.md) §1–§2 | S0：GSAP 的使用决定（负责人决定，即许可结论；版本 3.14.2 与摘要；进镜像不进 Git）；上游固定参考改为 `4236053`；Three.js r186 为 MIT；不加署名；作者形象不采用，用原创角色替代。S3：CC0 采样包的来源、固定提交与许可（排除 CC-BY 钢琴与 Wurlitzer）；不采购曲库；Workers AI 与 Browser Run 的数据流 | S0、S3 |
 | `docs/creative-toolkit.md` | 删除，内容并入 13 和 `packages/methods/README.md` | S0 |
 | [实施状态](../implementation-status.md) | 每个切片结束时，按实际具备和尚未验证的能力重写 | 每个切片 |
 | [agent-policy.json](../../config/agent-policy.json) | 新增 `render` 期限段、`limits` 新字段、阶段预算与 effort、`requestTimeoutMs`、变体开关；`cost` 段按第 6.12 节填写；`schemaVersion` 改为 3.0.0 | S0、S1 |
@@ -1623,7 +1614,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
    - 阶段 A–C 与 E（不含自写镜头），以及冷审 F；
    - Anthropic 适配器、缓存、预算、授权检查、离线 mock；
    - OperationWorkflow，含方向选择的 `waitForEvent`。
-6. **声音**：程序配乐与 ABC 作曲、音效自动对位、响度；曲库通路，以及 5 首试点（负责人批准采购时）。
+6. **声音**：程序配乐与 ABC 作曲、CC0 采样包（第 8.3 节）、音效自动对位、响度；每种风格各渲染一段 30 秒样曲供负责人试听。
 7. **评测集首轮**：真实题目，每题做 15 秒和 30 秒，横竖两种画幅。
 
 **出口**：
@@ -1674,7 +1665,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
    - 第 4.3 节未标 ★ 的全部积木和转场；
    - 课程类方法与格式；
    - 可控经验（PRD 13 §8）。
-3. **曲库扩充**：负责人批准时进行。
+3. **配乐调整**：按 S1 试听意见调整各风格的配器，停用不合格的风格。
 4. **可观测与验收**：
    - 可观测性与告警（第 10a 节）；
    - `test:cloud` 全量（第 12.3 节）；
@@ -1704,8 +1695,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | Claude Console 的 Workspace、消费上限与 API Key（第 6.12 节） | 负责人 | S1 开始前 |
 | 把 Haiku 5.5 加入授权 | 负责人 | S1（未加入时用 Sonnet 5.5） |
 | 4–6 个有真实素材授权的自有或合作产品，及其已确认的事实 | 负责人 | S1 |
-| 是否采购 5 首曲库试点，以及之后是否扩充 | 负责人 | S1；S2 结束时 |
-| GSAP 的书面许可结论（PRD 09） | 负责人或法务 | 公开售卖前 |
+| 按正常速度试听各程序风格的 30 秒样曲 | 负责人 | S1 |
 | 预览用的独立注册域名 | 负责人 | S2 |
 | Cloudflare 控制台准备（第 9.8 节） | 负责人 | S1 |
 | 真实目标用户盲审 | 负责人 | S3 之后 |
@@ -1776,8 +1766,8 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | `om qa` | Q2 运动诊断 |
 | `om still`、`om look` | `still` 工具，含 2× 局部 |
 | `om render`：JPEG 管道、多 worker、运动模糊 | 分段渲染：JPEG 直送 ffmpeg、跨实例并行、子帧模糊 |
-| `om sound`，以及 score、composer、dsp、fx、samples | 已移植的部分迁入 `packages/audio`，另加曲库通路 |
-| `cli/lib/beats.js`（上游未接入任何命令） | 用于曲库与用户配乐的拍点分析 |
+| `om sound`，以及 score、composer、dsp、fx、samples | 已移植的部分迁入 `packages/audio`；补齐上游的 CC0 采样（第 8.3 节） |
+| `cli/lib/beats.js`（上游未接入任何命令） | 用于用户配乐的拍点分析 |
 | `om voice`：say/Kokoro TTS、whisper.cpp | TTS 用资产实例里的 Kokoro；ASR 用 Workers AI |
 | `om grab` | 用 Browser Run 抓取（含 SSRF 防护），另有上传 |
 | `om studio`、`inbox`、`look`、`done` | PromoBento Studio、预览播放器和评论流程 |
