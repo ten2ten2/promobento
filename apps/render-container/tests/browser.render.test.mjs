@@ -13,7 +13,7 @@ const root=new URL('../../../',import.meta.url),read=path=>readFileSync(new URL(
 const rules=parseCanonicalJson(read('config/platform-presets.json'));
 const lock=parseCanonicalJson(read('apps/render-container/environment.lock.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
-const report={scope:'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
+const report={status:'running',scope:'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 const thirty=filmFixture(),thirtyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
@@ -38,13 +38,16 @@ assert.ok(browser.version().includes(lock.browser.version));
 const context=browser.contexts()[0],shim=read('packages/film-runtime/dist/browser/shim.js').toString();
 const externalRequests=[];
 const rgba=buffer=>execFileSync('ffmpeg',['-v','error','-i','pipe:0','-f','rawvideo','-pix_fmt','rgba','pipe:1'],{input:buffer,maxBuffer:32<<20});
-function compare(a,b){
+function compare(a,b,label){
   if(a.equals(b))return{maxChannelDiff:0,diffPixelPct:0};
   const x=rgba(a),y=rgba(b);assert.equal(x.length,y.length);
   let max=0,pixels=0;
   for(let i=0;i<x.length;i+=4){const d=Math.max(...[0,1,2,3].map(j=>Math.abs(x[i+j]-y[i+j])));max=Math.max(max,d);if(d)pixels++;}
   const share=pixels/(x.length/4)*100;
-  assert.ok(max<=2&&share<=.1,`pixel regression: max=${max}, changed=${share}%`);
+  if(max>2||share>.1){
+    writeFileSync(`${output}/${label}-expected.png`,a);writeFileSync(`${output}/${label}-actual.png`,b);
+  }
+  assert.ok(max<=2&&share<=.1,`${label}: pixel regression: max=${max}, changed=${share}%`);
   return{maxChannelDiff:max,diffPixelPct:share};
 }
 async function open(aspect,path='/'+aspect+'.html',expectReady=true){
@@ -88,6 +91,7 @@ async function checkLayout(handle,aspect){
 try{
   for(const aspect of Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),checks=[];
+    report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
       {...handle.envelope,requestId:'init',sequence:handle.upcoming(),command:'seek',frameIndex:0}),/INVALID_SESSION/);
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -98,8 +102,8 @@ try{
       const png=await handle.capture();baseline.set(frame,png);writeFileSync(`${output}/${aspect}-${frame}.png`,png);
       if([45,165,375].includes(frame))await checkLayout(handle,aspect);
     }
-    for(const frame of [...frames].reverse()){await handle.seek(frame);checks.push({frame,mode:'reverse',...compare(baseline.get(frame),await handle.capture())});}
-    for(const frame of frames){const cold=await open(aspect);await cold.seek(frame);checks.push({frame,mode:'cold',...compare(baseline.get(frame),await cold.capture())});await cold.page.close();}
+    for(const frame of [...frames].reverse()){await handle.seek(frame);checks.push({frame,mode:'reverse',...compare(baseline.get(frame),await handle.capture(),`${aspect}-${frame}-reverse`)});}
+    for(const frame of frames){const cold=await open(aspect);await cold.seek(frame);checks.push({frame,mode:'cold',...compare(baseline.get(frame),await cold.capture(),`${aspect}-${frame}-cold`)});await cold.page.close();}
     await handle.seek(375);
     const time=await handle.page.evaluate(()=>({date:Date.now(),constructed:new Date().getTime(),performance:performance.now(),origin:performance.timeOrigin,random:Math.random(),targetKeys:Object.keys(window.__omTarget)}));
     assert.equal(time.date,12500);assert.equal(time.constructed,12500);assert.equal(time.performance,12500);assert.equal(time.origin,0);
@@ -120,7 +124,7 @@ try{
     await assert.rejects(handle.seek(450),/FRAME_OUT_OF_RANGE/);
     await handle.page.evaluate(input=>window.__omEngine.dispose(input),{...handle.envelope,requestId:'dispose',sequence:handle.next(),command:'dispose'});
     await assert.rejects(handle.seek(0),/INVALID_SESSION/);
-    report.aspects[aspect]={frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
+    report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
   const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
@@ -135,7 +139,12 @@ try{
   assert.ok(renderers.length>0);assert.ok(renderers.every(item=>item.uid===10002&&item.seccomp===2&&item.noNewPrivs===1&&item.pidNamespaceDepth>=2),JSON.stringify(renderers));
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
   report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));
   console.log(JSON.stringify(report,null,2));
+}catch(error){
+  report.status='failed';report.failure=String(error.stack??error);
+  writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
+  throw error;
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

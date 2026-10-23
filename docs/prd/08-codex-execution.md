@@ -10,13 +10,13 @@
 git clone https://github.com/ten2ten2/promobento.git
 cd promobento
 bash scripts/agent-setup.sh
-mise run check:repo
-mise run test
 ```
 
 已有工作区先保留未提交改动，再同步 remote main。配置或契约变更须同步使用它们的代码与文档；参考页模板、tokens 或商品配置变化后，运行 `mise run build:agent-reference`。
 
-setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm，缺工具先给明确提示。工具来源为 [mise 官方](https://mise.jdx.dev/getting-started.html)、[Node 官方发行](https://nodejs.org/en/download)及 [pnpm 官方安装](https://pnpm.io/installation)，也可使用已核验的内部镜像；不因某个沙箱下载方便而接受第三方重打包二进制。无 mise 时使用相同版本执行 `pnpm install --frozen-lockfile`、`pnpm run check:repo` 和 `pnpm run test`，其他已登记任务对应 `pnpm run <任务名>`。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
+开发期间非必要不跑测试，也不反复触发 CI；必须验证时只运行一次最小检查，已有适用结果直接复用。下表列出可用命令，不是每次接手或提交都要执行的清单；生产发布的必需检查保持不变。
+
+setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm，缺工具先给明确提示。工具来源为 [mise 官方](https://mise.jdx.dev/getting-started.html)、[Node 官方发行](https://nodejs.org/en/download)及 [pnpm 官方安装](https://pnpm.io/installation)，也可使用已核验的内部镜像；不因某个沙箱下载方便而接受第三方重打包二进制。无 mise 时使用相同版本执行 `pnpm install --frozen-lockfile`，需要的已登记任务对应 `pnpm run <任务名>`。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
 
 | 任务 | 实际范围 |
 | --- | --- |
@@ -36,7 +36,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 
 ## 2 里程碑与退出关口
 
-动效管线按[云端动效管线改造方案](../plans/cloud-motion-v3.md)第 14 节的切片 S0–S3 推进；网站、交易、团队与上线按 M1–M4，可在 S0 契约就绪后并行。切片只决定顺序和检查点，终版能力都在方案内实现；每次提交都要让当时存在的检查和测试通过，每个切片结束时如实更新实施状态。
+动效管线按[云端动效管线改造方案](../plans/cloud-motion-v3.md)第 14 节的切片 S0–S3 推进；网站、交易、团队与上线按 M1–M4，可在 S0 契约就绪后并行。切片只决定顺序和检查点，终版能力都在方案内实现；保留现有检查契约，不把已知失败或未运行项记为通过，每个切片结束时如实更新实施状态。
 
 | 切片 | 实施内容 | 退出条件 |
 | --- | --- | --- |
@@ -105,10 +105,10 @@ CI 支持手动 `workflow_dispatch`。[工作流](../../.github/workflows/checks
 
 appUrl、回调、发信和支持地址取 brand/routes/auth。密钥只交给需要它的可信服务，沙箱不带凭据；新增服务纳入费用预算。完成报告写清变更、实际验证、未实现项、样片/费用和外部条件；仅在能力变化时更新实施进度。
 
-验证按 AGENTS 的改动影响规则执行，不要求每次提交等待完整 CI。CI 结果只描述所验证的提交；后续未改变相关代码、配置和输入时，可复用相应结果，补充受影响的本地检查即可，不因快进合并或纯文档修改重跑全量。需要 CI 时记录实际提交和覆盖范围；生产发布仍要求最终发布 SHA 的必需检查通过。被新提交替代的检查可以取消。
+验证按 AGENTS 的最小检查规则执行，不默认跑全套测试或为每次提交触发 CI。CI 结果只描述所验证的提交；后续未改变相关代码、配置和输入时直接复用，不因快进合并或纯文档修改重跑全量。必须验证的当前问题只做一次最小检查，失败先分析日志和产物。需要 CI 时记录实际提交和覆盖范围；生产发布仍要求最终发布 SHA 的必需检查通过。
 
 平台规则比较使用 main 上相同检查工作流中、按 Git 祖先距离最近的成功提交；运行时间不决定距离，失败/取消不推进基线。选择器先从一页成功历史发现候选，再对候选与 HEAD 之间的祖先逐 SHA 分批核验，避开全局筛选列表上限及旧提交反复重跑的排序问题；最多128次请求、总期限60秒，单次请求最多30秒且不能超过剩余期限，Git子进程共用总期限。超预算明确失败，不将已找到但未证实最近的候选当作基线；PR 使用其 base SHA。
 
 只有 API 明确返回零成功历史时，`ten2ten2/promobento` 才可使用脚本内固定的初始基线 `a55939e4e080b4a0731b0b43315b22d0ad7ec902`，且该提交必须为 HEAD 的严格祖先。不得用环境变量替换初始 SHA。API/网络失败、异常响应、已有成功历史却无合格祖先均阻断，不退回 `event.before`、HEAD 或全零 SHA。CI 显式基线必须为严格祖先；本地允许用 `origin/main=HEAD` 比较尚未提交的改动。默认比较已获取的上游，无上游时才按工作区状态比较 HEAD/HEAD^；可用 `PROMOBENTO_BASE_REF` 显式指定已核实基线。
 
-失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境后重跑。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。
+失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境，是否再验证仍按最小检查规则判断，不自动重跑 CI。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS，并行工作汇总后推送。

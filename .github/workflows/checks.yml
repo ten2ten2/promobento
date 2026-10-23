@@ -66,6 +66,7 @@ jobs:
           cache-from: type=gha,scope=film-runtime-tests
           cache-to: type=gha,mode=max,scope=film-runtime-tests
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
+        shell: bash
         run: |
           mkdir -p artifacts/film-runtime
           chmod 0777 artifacts/film-runtime
@@ -74,6 +75,7 @@ jobs:
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
             promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log
+          test -s artifacts/film-runtime/report.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
