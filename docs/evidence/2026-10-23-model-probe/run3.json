@@ -1,0 +1,463 @@
+{
+  "at": "2026-10-23T07:45:57.854Z",
+  "baseUrl": "https://api.modelswitch.org/v1",
+  "models": {
+    "deepseek-v4.1-flash-1017": {
+      "model": "deepseek-v4.1-flash-1017",
+      "basic": {
+        "status": 200,
+        "ms": 4213,
+        "usage": {
+          "prompt_tokens": 10,
+          "completion_tokens": 2,
+          "total_tokens": 12
+        },
+        "finish": "stop",
+        "reply": "pong"
+      },
+      "stream": {
+        "status": 200,
+        "ms": 3286,
+        "firstTokenMs": 2814,
+        "chunks": 44,
+        "usageInStream": true,
+        "usage": {
+          "prompt_tokens": 12,
+          "completion_tokens": 40,
+          "total_tokens": 52
+        }
+      },
+      "tools": {
+        "status": 200,
+        "ms": 3411,
+        "usage": {
+          "prompt_tokens": 300,
+          "completion_tokens": 54,
+          "total_tokens": 354
+        },
+        "finish": "tool_calls",
+        "called": "set_scene",
+        "args": {
+          "id": "hook",
+          "frames": 90
+        },
+        "ok": true
+      },
+      "vision": {
+        "status": 200,
+        "ms": 4332,
+        "usage": {
+          "prompt_tokens": 216,
+          "completion_tokens": 2,
+          "total_tokens": 218
+        },
+        "finish": "stop",
+        "reply": "red blue",
+        "ok": true
+      },
+      "jsonSchema": {
+        "status": 200,
+        "ms": 19910,
+        "usage": {
+          "prompt_tokens": 21,
+          "completion_tokens": 657,
+          "total_tokens": 678
+        },
+        "finish": "stop",
+        "parsed": false,
+        "ok": false,
+        "sample": "# 15-Second Film Plan (450 frames @ 30fps)\n\n## Scenes with the provided timing:\n\n---\n\n### Scene 1: \"The Glance\" (Frames 0–150, 0–5s)\n**Location:** Rain-soaked c"
+      },
+      "toolsSimple": {
+        "status": 200,
+        "ms": 3796,
+        "usage": {
+          "prompt_tokens": 273,
+          "completion_tokens": 37,
+          "total_tokens": 310
+        },
+        "finish": "tool_calls",
+        "called": "get_time",
+        "args": "{\"city\": \"Paris\"}"
+      },
+      "jsonObject": {
+        "status": 200,
+        "ms": 2545,
+        "usage": {
+          "prompt_tokens": 35,
+          "completion_tokens": 23,
+          "total_tokens": 58
+        },
+        "finish": "stop",
+        "parsed": true,
+        "sample": "{\"durationSeconds\":15,\"scenes\":[{\"id\":\"a\",\"start\":0,\"end\":450}]}"
+      },
+      "reasoningEffort": {
+        "status": 200,
+        "ms": 2896,
+        "usage": {
+          "prompt_tokens": 35,
+          "completion_tokens": 21,
+          "total_tokens": 56
+        },
+        "finish": "stop",
+        "accepted": true
+      },
+      "cacheAutomatic": {
+        "first": {
+          "status": 200,
+          "ms": 3521,
+          "usage": {
+            "prompt_tokens": 4336,
+            "completion_tokens": 1,
+            "total_tokens": 4337
+          },
+          "finish": "stop"
+        },
+        "second": {
+          "status": 200,
+          "ms": 2859,
+          "usage": {
+            "prompt_tokens": 4336,
+            "completion_tokens": 1,
+            "total_tokens": 4337,
+            "prompt_tokens_details": {
+              "cached_tokens": 4096
+            }
+          },
+          "finish": "stop"
+        },
+        "cachedTokensSecond": 4096
+      }
+    },
+    "gemini-3.8-flash": {
+      "model": "gemini-3.8-flash",
+      "basic": {
+        "status": 502,
+        "ms": 59329,
+        "error": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 7]>    <html class=\"no-js ie7 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if IE 8]>    <html class=\"no-js ie8 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if gt IE 8]><!--> <html class=\"no-js\" lang=\"en-US\"> <!--<![endif]-->\n<head>\n\n<title>modelswitch.org | 502: Bad gateway</title>\n<meta charset=\"UTF-8\" />\n<m",
+        "reply": ""
+      }
+    },
+    "claude-sonnet-5-5": {
+      "model": "claude-sonnet-5-5",
+      "basic": {
+        "status": 200,
+        "ms": 4195,
+        "usage": {
+          "prompt_tokens": 6743,
+          "completion_tokens": 1,
+          "total_tokens": 6744
+        },
+        "finish": "stop",
+        "reply": "pong"
+      },
+      "stream": {
+        "status": 200,
+        "ms": 4634,
+        "firstTokenMs": 4266,
+        "chunks": 10,
+        "usageInStream": true,
+        "usage": {
+          "prompt_tokens": 134,
+          "completion_tokens": 30,
+          "total_tokens": 164
+        }
+      },
+      "tools": {
+        "status": 200,
+        "ms": 5577,
+        "usage": {
+          "prompt_tokens": 564,
+          "completion_tokens": 57,
+          "total_tokens": 621
+        },
+        "finish": "tool_calls",
+        "called": "set_scene",
+        "args": {
+          "frames": 90,
+          "id": "hook"
+        },
+        "ok": true
+      },
+      "vision": {
+        "status": 200,
+        "ms": 6286,
+        "usage": {
+          "prompt_tokens": 1778,
+          "completion_tokens": 44,
+          "total_tokens": 1822,
+          "prompt_tokens_details": {
+            "cached_tokens": 103
+          }
+        },
+        "finish": "stop",
+        "reply": "i don't see an image in our conversation, only text came through. could you atta",
+        "ok": false
+      },
+      "jsonSchema": {
+        "status": 200,
+        "ms": 16653,
+        "usage": {
+          "prompt_tokens": 157,
+          "completion_tokens": 373,
+          "total_tokens": 530,
+          "prompt_tokens_details": {
+            "cached_tokens": 103
+          }
+        },
+        "finish": "stop",
+        "parsed": false,
+        "ok": false,
+        "sample": "Assuming 30 fps, 15 seconds is 450 frames. I'll treat the range as 0-449 (frame 450 is the exclusive end point). If you're at 24 fps, the same 15s would be 360 "
+      },
+      "toolsSimple": {
+        "status": 200,
+        "ms": 9432,
+        "usage": {
+          "prompt_tokens": 7150,
+          "completion_tokens": 6,
+          "total_tokens": 7156
+        },
+        "finish": "tool_calls",
+        "called": "get_time",
+        "args": "{\"city\": \"Paris\"}"
+      },
+      "jsonObject": {
+        "status": 200,
+        "ms": 5663,
+        "usage": {
+          "prompt_tokens": 6962,
+          "completion_tokens": 93,
+          "total_tokens": 7055
+        },
+        "finish": "stop",
+        "parsed": true,
+        "sample": "{\"durationSeconds\":15,\"scenes\":[{\"id\":\"a\",\"start\":0,\"end\":450}]}"
+      },
+      "reasoningEffort": {
+        "status": 200,
+        "ms": 58326,
+        "usage": {
+          "prompt_tokens": 6743,
+          "completion_tokens": 1,
+          "total_tokens": 6744
+        },
+        "finish": "stop",
+        "accepted": true
+      },
+      "cacheAutomatic": {
+        "first": {
+          "status": 200,
+          "ms": 16411,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251
+          },
+          "finish": "length"
+        },
+        "second": {
+          "status": 200,
+          "ms": 12318,
+          "usage": {
+            "prompt_tokens": 7235,
+            "completion_tokens": 16,
+            "total_tokens": 7251,
+            "prompt_tokens_details": {
+              "cached_tokens": 6797
+            }
+          },
+          "finish": "length"
+        },
+        "cachedTokensSecond": 6797
+      },
+      "cacheControl": {
+        "first": {
+          "status": 200,
+          "ms": 46176,
+          "usage": {
+            "prompt_tokens": 13525,
+            "completion_tokens": 7,
+            "total_tokens": 13532
+          },
+          "finish": "stop"
+        },
+        "second": {
+          "status": 200,
+          "ms": 9568,
+          "usage": {
+            "prompt_tokens": 13565,
+            "completion_tokens": 13,
+            "total_tokens": 13578,
+            "prompt_tokens_details": {
+              "cached_tokens": 12172
+            }
+          },
+          "finish": "stop"
+        },
+        "cachedTokensSecond": 12172
+      }
+    },
+    "claude-opus-5-5": {
+      "model": "claude-opus-5-5",
+      "basic": {
+        "status": 200,
+        "ms": 2693,
+        "usage": {
+          "prompt_tokens": 7009,
+          "completion_tokens": 1,
+          "total_tokens": 7010
+        },
+        "finish": "stop",
+        "reply": "pong"
+      },
+      "stream": {
+        "status": 200,
+        "ms": 2174,
+        "firstTokenMs": 2015,
+        "chunks": 8,
+        "usageInStream": true,
+        "usage": {
+          "prompt_tokens": 62726,
+          "completion_tokens": 8,
+          "total_tokens": 62734
+        }
+      },
+      "tools": {
+        "status": 200,
+        "ms": 4050,
+        "usage": {
+          "prompt_tokens": 65595,
+          "completion_tokens": 9,
+          "total_tokens": 65604
+        },
+        "finish": "tool_calls",
+        "called": "set_scene",
+        "args": {
+          "id": "hook",
+          "frames": 90
+        },
+        "ok": true
+      },
+      "vision": {
+        "status": 200,
+        "ms": 6062,
+        "usage": {
+          "prompt_tokens": 7052,
+          "completion_tokens": 39,
+          "total_tokens": 7091,
+          "prompt_tokens_details": {
+            "cached_tokens": 136
+          }
+        },
+        "finish": "stop",
+        "reply": "i don't see an image attached to your message. could you upload it again? once i",
+        "ok": false
+      },
+      "jsonSchema": {
+        "status": 200,
+        "ms": 14480,
+        "usage": {
+          "prompt_tokens": 157,
+          "completion_tokens": 595,
+          "total_tokens": 752,
+          "prompt_tokens_details": {
+            "cached_tokens": 134
+          }
+        },
+        "finish": "stop",
+        "parsed": false,
+        "ok": false,
+        "sample": "450 frames over 15 seconds means 30 fps. Here's a three-scene plan with a simple arc: arrival, discovery, release. I picked the concept \"a paper boat's journey\""
+      },
+      "toolsSimple": {
+        "status": 200,
+        "ms": 2515,
+        "usage": {
+          "prompt_tokens": 7416,
+          "completion_tokens": 6,
+          "total_tokens": 7422
+        },
+        "finish": "tool_calls",
+        "called": "get_time",
+        "args": "{\"city\": \"Paris\"}"
+      },
+      "jsonObject": {
+        "status": 200,
+        "ms": 4194,
+        "usage": {
+          "prompt_tokens": 7051,
+          "completion_tokens": 76,
+          "total_tokens": 7127
+        },
+        "finish": "stop",
+        "parsed": true,
+        "sample": "{\"durationSeconds\":15,\"scenes\":[{\"id\":\"a\",\"start\":0,\"end\":450}]}"
+      },
+      "reasoningEffort": {
+        "status": 200,
+        "ms": 2836,
+        "usage": {
+          "prompt_tokens": 7009,
+          "completion_tokens": 1,
+          "total_tokens": 7010
+        },
+        "finish": "stop",
+        "accepted": true
+      },
+      "cacheAutomatic": {
+        "first": {
+          "status": 200,
+          "ms": 6002,
+          "usage": {
+            "prompt_tokens": 75359,
+            "completion_tokens": 3,
+            "total_tokens": 75362
+          },
+          "finish": "stop"
+        },
+        "second": {
+          "status": 200,
+          "ms": 4192,
+          "usage": {
+            "prompt_tokens": 75410,
+            "completion_tokens": 3,
+            "total_tokens": 75413,
+            "prompt_tokens_details": {
+              "cached_tokens": 70211
+            }
+          },
+          "finish": "stop"
+        },
+        "cachedTokensSecond": 70211
+      },
+      "cacheControl": {
+        "first": {
+          "status": 200,
+          "ms": 7751,
+          "usage": {
+            "prompt_tokens": 8821,
+            "completion_tokens": 7,
+            "total_tokens": 8828
+          },
+          "finish": "stop"
+        },
+        "second": {
+          "status": 200,
+          "ms": 67404,
+          "usage": {
+            "prompt_tokens": 5434,
+            "completion_tokens": 2,
+            "total_tokens": 5436,
+            "prompt_tokens_details": {
+              "cached_tokens": 4890
+            }
+          },
+          "finish": "stop"
+        },
+        "cachedTokensSecond": 4890
+      }
+    }
+  }
+}
