@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "ielts-course",
+  "status": "draft_owner_to_confirm",
+  "fictional": true,
+  "brand": "Lumbra",
+  "product": "Lumbra IELTS 7+ 冲刺营",
+  "videoLanguage": "zh-CN, with English exam terms",
+  "audience": "在职或大三、大四学生，目标雅思总分 7 分以上，用于留学或移民申请，每天只有 1 小时左右",
+  "brief": "8 周把雅思从 6 分提到 7 分：口语和写作是重点，每周有真人老师批改和模考。",
+  "cta": {"text": "免费测一次口语，拿到你的分项诊断", "urlLabel": "lumbra.example/ielts"},
+  "facts": [
+    {"id": "duration", "text": "课程为 8 周，每周 5 天，每天约 60 分钟", "claim": true},
+    {"id": "price", "text": "标准版 ¥2,980；含 4 次一对一口语的进阶版 ¥4,580", "claim": true},
+    {"id": "feedback", "text": "写作每周 2 篇，48 小时内由真人老师逐句批改并给出分项分", "claim": true},
+    {"id": "mock", "text": "第 4 周和第 8 周各有一次全真机考模考，含口语录音评分", "claim": true},
+    {"id": "teachers", "text": "老师均有雅思 8 分以上成绩或 CELTA 证书", "claim": true},
+    {"id": "result", "text": "上一期 312 名学员中，68% 在结课后 3 个月内达到目标分", "claim": true},
+    {"id": "refund", "text": "开课 7 天内可无理由退款", "claim": true},
+    {"id": "format", "text": "录播课加每周 2 次直播答疑，手机和电脑都能学", "claim": false}
+  ],
+  "assets": "Original only: fictional app screens (lesson list, essay with tracked corrections, score report), no real exam materials or IDP/British Council marks.",
+  "notes": "All numbers are invented for evaluation. The owner may change any fact before the first run."
+}

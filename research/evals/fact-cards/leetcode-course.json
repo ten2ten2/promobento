@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "eval_fact_card",
+  "topicId": "leetcode-course",
+  "status": "draft_owner_to_confirm",
+  "fictional": true,
+  "brand": "Stackwise",
+  "product": "Stackwise LeetCode Interview Sprint",
+  "videoLanguage": "en",
+  "audience": "Software engineers with 1–5 years of experience preparing for coding interviews at large tech companies within the next 2–3 months",
+  "brief": "Six weeks to interview-ready: learn the 16 patterns behind most LeetCode questions, then prove it in weekly mock interviews with engineers.",
+  "cta": {"text": "Take the free 20-minute pattern assessment", "urlLabel": "stackwise.example/sprint"},
+  "facts": [
+    {"id": "duration", "text": "6-week program, about 8 hours per week", "claim": true},
+    {"id": "price", "text": "$349 one-time, or $79 per month", "claim": true},
+    {"id": "patterns", "text": "16 problem patterns covered through 180 hand-picked problems", "claim": true},
+    {"id": "languages", "text": "Solutions and walkthroughs in Python, Java, C++ and JavaScript", "claim": true},
+    {"id": "mocks", "text": "4 live mock interviews with working engineers, with written feedback", "claim": true},
+    {"id": "result", "text": "73% of last cohort's 540 learners reported an onsite interview within 3 months", "claim": true},
+    {"id": "guarantee", "text": "Full refund within 14 days if you have completed fewer than 20% of the lessons", "claim": true},
+    {"id": "independence", "text": "Stackwise is not affiliated with LeetCode", "claim": false}
+  ],
+  "assets": "Original only: fictional course screens (pattern map, code editor with a walkthrough, mock interview feedback). The LeetCode name appears only in text; no LeetCode logo or UI.",
+  "notes": "All numbers are invented for evaluation. The owner may change any fact before the first run."
+}
