@@ -7,7 +7,7 @@
   - 修正 v3.0 的事实错误。
 
   此后的修改直接在本文件进行，并在提交说明中写明改了什么。
-- 状态：**已批准，S0 清场与基础契约已完成，S1 尚未开始**。现有能力以[实施状态](../implementation-status.md)为准；后续切片仍是目标。
+- 状态：**已批准，S0 已完成，S1 实施中**。首批页面运行时与三个可信积木已实现，范围见[实施状态](../implementation-status.md)；S1 其余能力及后续切片仍是目标。
 - 基准：
   - PromoBento：`ten2ten2/promobento@1faef1c`（PRD v2.7、协议 2.7.0）。
   - huashu-motion：`alchaincyf/huashu-motion@4236053`（v0.2.0）。它是方法和代码的固定参考，本方案不追随它后续的版本。

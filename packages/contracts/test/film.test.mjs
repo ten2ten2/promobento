@@ -28,7 +28,7 @@ test('custom scene modules stay inside scenes/<id>/index.js', () => {
 
 test('scenes must cover the whole film, overlapping only by their transition', () => {
   const gap = example(); gap.scenes[1].start = 100;
-  assert.deepEqual(codes(filmSpecErrors(gap)), ['COVERAGE_GAP']);
+  assert.deepEqual(codes(filmSpecErrors(gap)), ['COVERAGE_GAP', 'TRANSITION_WITHOUT_OVERLAP']);
   const short = example(); short.scenes[3].end = 440;
   assert.deepEqual(codes(filmSpecErrors(short)), ['COVERAGE_SHORT']);
   const overlap = example(); overlap.scenes[2].start = 320;
@@ -55,4 +55,17 @@ test('assets, blocks and fonts must exist and be cleared', () => {
   assert.deepEqual(codes(filmSpecErrors(example(), context)), ['ASSET_RIGHTS_PENDING', 'BLOCK_UNKNOWN', 'FONT_UNKNOWN']);
   const logoOnly = filmSpecErrors(example(), {resources: new Map([['res_dashboard_png', {rightsCleared: true, kind: 'logo'}], ['res_logo_svg', {rightsCleared: true, kind: 'logo'}]])});
   assert.deepEqual(logoOnly.reviews.map(review => review.code), ['only-logo']);
+});
+
+test('transitions require exactly one outgoing scene and real overlap, and cuts have no duration',()=>{
+  const gap=example();gap.scenes[2].end=390;
+  assert.ok(codes(filmSpecErrors(gap)).includes('TRANSITION_WITHOUT_OVERLAP'));
+  const cut=example();cut.scenes[1].transitionIn.type='cut';
+  assert.ok(codes(filmSpecErrors(cut)).includes('CUT_WITH_DURATION'));
+  const first=example();first.scenes[0].transitionIn={type:'crossfade',frames:6};
+  assert.ok(codes(filmSpecErrors(first)).includes('TRANSITION_WITHOUT_PREVIOUS'));
+  const triple=example();triple.scenes[0].end=340;triple.scenes[1].end=350;
+  assert.ok(codes(filmSpecErrors(triple)).includes('TRANSITION_TRIPLE_OVERLAP'));
+  const module=example();module.scenes[2].module='scenes/other/index.js';
+  assert.ok(codes(filmSpecErrors(module)).includes('SCENE_MODULE_ID_MISMATCH'));
 });

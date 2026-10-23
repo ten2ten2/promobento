@@ -1,0 +1,16 @@
+.git
+**/node_modules
+artifacts
+renders
+coverage
+test-results
+**/.wrangler
+**/dist
+.env*
+.dev.vars*
+**/.env*
+**/.dev.vars*
+.aws
+.agents
+.codex
+**/*.log

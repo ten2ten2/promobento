@@ -20,6 +20,38 @@ export interface StyleTokens {
 export interface FontRef { fontId: string; weight: number; style?: 'normal' | 'italic' }
 export interface Box { x: number; y: number; width: number; height: number }
 
+/** Data accepted by film.schema.json; executable code is never carried in this object. */
+export interface FilmSpec {
+  schemaVersion: '3.0.0'; specVersion: 'film-v1'; audience: 'software' | 'course';
+  durationSeconds: 15 | 30; fps: 30; totalFrames: 450 | 900;
+  style: Omit<StyleTokens, 'palette'> & {
+    palette: { roles: Record<string, string>; sources: Record<string, string> };
+    texture?: { kind: 'none' | 'grain' | 'paper' | 'glow'; amount?: number };
+  };
+  audio: {
+    music: { kind: 'procedural'; style: string; bpm?: number } | { kind: 'score'; scoreRef: string }
+      | { kind: 'upload'; resourceId: string } | { kind: 'none' };
+    voice?: { resourceId: string; transcriptId: string } | { tts: { voiceId: string; transcriptId: string } };
+    sfx: 'auto' | Array<{ at: { sceneId: string; event: string } | { frame: number }; id: string; gain?: number }>;
+    captions: 'auto' | 'off'; mute?: boolean;
+  };
+  texts: Record<string, { text: string; role: TextSlotHandle['role']; factIds: string[]; lang?: string; maxLines?: number; editable?: boolean }>;
+  assets: Record<string, { resourceId: string; roi?: Box[]; crop?: Box; editable?: boolean }>;
+  scenes: FilmScene[];
+  treatment: {
+    message: string; hook: string; energyCurve: Array<{ frame: number; level: number }>;
+    holds?: Array<{ start: number; end: number; reason: string }>; continuity: string;
+  };
+}
+export type FilmScene = {
+  id: string; start: number; end: number; purpose: string; focusFrom?: string; focusTo?: string;
+  layout?: Partial<Record<AspectId, Record<string, unknown>>>;
+  transitionIn?: { type: 'cut' | 'crossfade' | 'push' | 'whip' | 'wipe' | 'zoom-through' | 'match-handoff'; frames: number };
+} & (
+  | { kind: 'block'; block: string; params: Record<string, unknown> }
+  | { kind: 'custom'; module: string; brief: string; params?: Record<string, unknown> }
+);
+
 /** A frozen asset as the page sees it; video frames come from the runtime, never a <video> element. */
 export interface AssetHandle {
   resourceId: string; kind: 'image' | 'video' | 'svg'; width: number; height: number;

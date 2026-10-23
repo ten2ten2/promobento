@@ -24,24 +24,27 @@
       "segment": "software",
       "subject": "DeepSeek",
       "fictional": false,
-      "assets": "pending",
-      "facts": "pending"
+      "assets": "sources_identified_not_ingested",
+      "facts": "sourced_owner_to_confirm",
+      "factCard": "research/evals/fact-cards/deepseek.json"
     },
     {
       "id": "minimax",
       "segment": "software",
       "subject": "MiniMax",
       "fictional": false,
-      "assets": "pending",
-      "facts": "pending"
+      "assets": "sources_identified_not_ingested",
+      "facts": "sourced_owner_to_confirm",
+      "factCard": "research/evals/fact-cards/minimax.json"
     },
     {
       "id": "duolingo",
       "segment": "software",
       "subject": "Duolingo",
       "fictional": false,
-      "assets": "pending",
-      "facts": "pending"
+      "assets": "sources_identified_not_ingested",
+      "facts": "sourced_owner_to_confirm",
+      "factCard": "research/evals/fact-cards/duolingo.json"
     },
     {
       "id": "ielts-course",

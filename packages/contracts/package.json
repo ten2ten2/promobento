@@ -13,7 +13,10 @@
       "types": "./generated/*.d.mts",
       "default": "./generated/*.mjs"
     },
-    "./validation": "./src/validation.mjs",
+    "./validation": { "types": "./src/validation.d.mts", "default": "./src/validation.mjs" },
+    "./film": { "types": "./src/film.d.mts", "default": "./src/film.mjs" },
+    "./random": { "types": "./src/random.d.mts", "default": "./src/random.mjs" },
+    "./digest": { "types": "./src/digest.d.mts", "default": "./src/digest.mjs" },
     "./identity": "./src/identity.mjs"
   },
   "dependencies": {

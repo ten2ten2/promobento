@@ -23,7 +23,17 @@ run = "node scripts/check-production-contracts.mjs"
 [tasks."test"]
 description = "Run Node unit tests in scripts, packages, apps and tests"
 dir = "{{config_root}}"
-run = "node scripts/run-tests.mjs"
+run = "pnpm run build:validators && node scripts/run-tests.mjs"
+
+[tasks."build:film-runtime"]
+description = "Build the trusted film page generator, clock shim, engine and first three blocks"
+dir = "{{config_root}}"
+run = "node scripts/build-film-runtime.mjs"
+
+[tasks."test:browser"]
+description = "Run the Chromium film-runtime regression inside the CI test container"
+dir = "{{config_root}}"
+run = "node apps/render-container/tests/browser.render.test.mjs"
 
 [tasks."build:agent-reference"]
 description = "build:agent-reference: current specifications and references only"
@@ -41,6 +51,6 @@ dir = "{{config_root}}"
 run = "node packages/contracts/scripts/build-validators.mjs"
 
 [tasks."typecheck"]
-description = "Build contract validators, generate Worker runtime types and type-check apps/cloud"
+description = "Build validators and type-check the cloud Worker, film runtime and blocks"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
+run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"

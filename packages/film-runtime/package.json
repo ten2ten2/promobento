@@ -1,0 +1,5 @@
+{
+  "name": "@promobento/film-runtime", "version": "0.0.0", "private": true, "type": "module",
+  "exports": { "./page": "./src/page.ts", "./motion": "./src/motion.ts" },
+  "dependencies": { "@promobento/contracts": "workspace:*" }
+}

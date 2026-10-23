@@ -11,13 +11,18 @@
   "scripts": {
     "check:repo": "node scripts/check-repo.mjs",
     "check:contracts": "node scripts/check-production-contracts.mjs",
-    "test": "node scripts/run-tests.mjs",
+    "test": "pnpm run build:validators && node scripts/run-tests.mjs",
+    "build:film-runtime": "node scripts/build-film-runtime.mjs",
+    "test:browser": "node apps/render-container/tests/browser.render.test.mjs",
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
-    "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
+    "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"
   },
   "devDependencies": {
-    "@promobento/contracts": "workspace:*"
+    "@promobento/contracts": "workspace:*",
+    "esbuild": "0.28.2",
+    "playwright-core": "1.62.1",
+    "typescript": "7.0.2"
   }
 }

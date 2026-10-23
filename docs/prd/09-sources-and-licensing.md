@@ -27,6 +27,8 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 渲染与预览共用 [packages/fonts](../../packages/fonts/huashu/LICENSES.md) 的字体：huashu-motion 登记的 OFL WOFF，以及 `@fontsource` 固定 `5.0.3` 归档的 Geist Sans/Mono（未修改字节，保留 OFL 原文）。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
 
+S1 首批浏览器回归在 CI 镜像中将 Geist Sans 600 原件转成 WOFF2，保留 OFL；生成字节不写回 Git。转换器与系统包版本随测试环境清单记录。这只是测试字体，完整平台字库、双格式摘要和回退登记尚未完成。
+
 客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）可经负责人决定使用第三方品牌的公开截图、录屏和 Logo，但只限内部评测：素材存放在预发布 R2、不进 Git，成片不发布或对外展示，也不作营销样片。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
 
 ## 2 视频创作上游

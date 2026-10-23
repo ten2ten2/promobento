@@ -1,0 +1,20 @@
+{
+  "schemaVersion":"3.0.0","kind":"eval_fact_card","topicId":"duolingo","status":"sourced_owner_to_confirm","fictional":false,
+  "brand":"Duolingo","product":"Duolingo language learning","videoLanguage":"en",
+  "audience":"People who want to build a regular language-learning habit",
+  "brief":"Show an actual lesson and a visible learning path. Emphasize small daily actions rather than promising a fluency outcome.",
+  "checkedAt":"2026-10-23","cta":{"text":"Start learning with Duolingo","urlLabel":"duolingo.com"},
+  "facts":[
+    {"id":"lessons","text":"Duolingo organizes language study into bite-sized lessons.","claim":true,"sourceId":"guide"},
+    {"id":"skills","text":"Language lessons include speaking, writing, reading and listening exercises.","claim":true,"sourceId":"guide"},
+    {"id":"practice","text":"Personalized practice reviews course content and mistakes made by the learner.","claim":true,"sourceId":"guide"}
+  ],
+  "sources":[{"id":"guide","url":"https://blog.duolingo.com/duolingo-101-how-to-learn-a-language-on-duolingo/","title":"How to Use Duolingo for Language Learning","basis":"first_party_product_statement","checkedAt":"2026-10-23"}],
+  "assetSources":[
+    {"kind":"official_article_images","url":"https://blog.duolingo.com/duolingo-101-how-to-learn-a-language-on-duolingo/","capture":"Official course-selection and exercise screenshots, with source image URL retained when ingested"},
+    {"kind":"press_resources","url":"https://press.duolingo.com/","capture":"Press page requires a browser; no asset download or license verified yet"}
+  ],
+  "assets":"sources_identified_not_ingested",
+  "rights":{"scope":"internal_eval_only","decisionRef":"research/evals/topics.json#/rights","publicUseCleared":false,"storage":"staging_R2_after_rights_check"},
+  "notes":"No pass rate, fluency deadline, university equivalence, user-count or subscription-price claims. Screenshots and characters remain Duolingo materials, not repository-owned assets."
+}
