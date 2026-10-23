@@ -2,7 +2,7 @@
 
 当前为 PRD **v2.7**、协议 **2.7.0**。M0a 前两步已有真实15/30秒MP4与媒体回归；第三、四步已补本地导演/改稿/目标准备控制器、独立`canvas-media-v1`源码入口，以及固定huashu-motion双臂研究工具。真实模型账户与总预算尚未确认，模型作品、负责人视听及独立目标用户盲审未完成，**M0a尚未整体通过**。客户Studio、Cloudflare隔离、数据库、认证和支付服务仍待实现。
 
-下一阶段按已批准但尚未实施的[云端动效管线改造方案](plans/cloud-motion-v3.md)推进：作品改为片子规格加镜头积木和自写镜头，导演分阶段运行，按切片 S0–S3 实施，S0 定义新契约时升级规格与协议版本。方案中已在 Cloudflare 实测的只有：Chromium 沙箱（SANDBOX_FULL）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格；其余均为计划。
+下一阶段按已批准但尚未实施的[云端动效管线改造方案](plans/cloud-motion-v3.md)推进：作品改为片子规格加镜头积木和自写镜头，导演分阶段运行，按切片 S0–S3 实施，S0 定义新契约时升级规格与协议版本。方案中已在 Cloudflare 实测的只有：Chromium 沙箱（SANDBOX_FULL，含 Chromium 以独立 uid 运行）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时；这些都是临时探针，不是产品代码，其余均为计划。
 
 | 部分 | 已有内容 | 仍需实现或验证 |
 | --- | --- | --- |
