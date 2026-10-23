@@ -9,7 +9,7 @@ on:
       suite:
         description: Run only the necessary check
         type: choice
-        options: [all, contracts, browser, media]
+        options: [all, contracts, browser, media, audio]
         default: all
 
 permissions:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   contracts:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'media')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'media' && inputs.suite != 'audio')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -75,11 +75,12 @@ jobs:
           cache-from: type=gha,scope=film-runtime-tests
           cache-to: type=gha,mode=max,scope=film-runtime-tests
       - name: Check only the changed pipeline contracts, adapters and confirmed eval cards
-        if: inputs.suite != 'media'
+        if: inputs.suite != 'media' && inputs.suite != 'audio'
         run: |
           docker run --rm --network none --entrypoint node promobento-film-runtime-tests:ci --test \
             packages/contracts/test/render-pipeline.test.mjs packages/models/test/adapters.test.mjs tests/evals/input-cards.test.mjs
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
+        if: inputs.suite != 'audio'
         shell: bash
         run: |
           mkdir -p artifacts/film-runtime
@@ -91,6 +92,16 @@ jobs:
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
             promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log
+          test -s artifacts/film-runtime/report.json
+      - name: Master only the two failed program styles
+        if: inputs.suite == 'audio'
+        shell: bash
+        run: |
+          mkdir -p artifacts/film-runtime
+          chmod 0777 artifacts/film-runtime
+          docker run --rm --network none --user 10001:10001 --cpus 4 --memory 6g \
+            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
+            promobento-film-runtime-tests:ci apps/render-container/tests/audio.render.test.mjs 2>&1 | tee artifacts/film-runtime/container.log
           test -s artifacts/film-runtime/report.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
