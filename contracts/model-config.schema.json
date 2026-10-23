@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/model-config/3.0.0",
+  "title": "Model providers, per-step bindings and research authorization",
+  "description": "config/model-providers.json and config/model-authorization.json. Cross-file rules (bound models verified, capable, priced and authorized; shared catalogVersion) live in scripts/check-production-contracts.mjs.",
+  "oneOf": [{"$ref": "#/$defs/providers"}, {"$ref": "#/$defs/authorization"}],
+  "$defs": {
+    "modelRef": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}/[A-Za-z0-9._-]{1,80}$"},
+    "micros": {"type": "integer", "minimum": 0},
+    "capability": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+    "providers": {
+      "type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "catalogVersion", "providers", "models", "steps"],
+      "properties": {
+        "schemaVersion": {"const": "3.0.0"},
+        "kind": {"const": "model_providers"},
+        "catalogVersion": {"type": "string", "pattern": "^models-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9]+)?$"},
+        "providers": {
+          "type": "object", "minProperties": 1, "maxProperties": 8,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9-]{0,31}$"},
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false, "required": ["kind", "baseUrl", "secret", "currency"],
+            "properties": {
+              "kind": {"enum": ["openai-compatible", "anthropic"]},
+              "baseUrl": {"type": "string", "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$"},
+              "secret": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"},
+              "currency": {"enum": ["USD", "CNY"]},
+              "usdRate": {"type": "number", "exclusiveMinimum": 0},
+              "usdRateSource": {"type": "string", "maxLength": 200},
+              "group": {"type": "string", "maxLength": 40}
+            }
+          }
+        },
+        "models": {
+          "type": "object", "minProperties": 1, "maxProperties": 64,
+          "propertyNames": {"$ref": "#/$defs/modelRef"},
+          "additionalProperties": {
+            "type": "object", "additionalProperties": false, "required": ["capabilities", "prices", "priceSource", "checkedAt"],
+            "properties": {
+              "capabilities": {
+                "type": "object", "additionalProperties": false, "required": ["verified", "tools", "vision", "jsonSchema", "jsonObject", "reasoningEffort", "promptCache"],
+                "properties": {
+                  "verified": {"type": "boolean"},
+                  "tools": {"$ref": "#/$defs/capability"},
+                  "vision": {"$ref": "#/$defs/capability"},
+                  "jsonSchema": {"$ref": "#/$defs/capability"},
+                  "jsonObject": {"$ref": "#/$defs/capability"},
+                  "reasoningEffort": {"enum": ["supported", "accepted", "unsupported", null]},
+                  "promptCache": {"enum": ["explicit", "automatic", "unreported", "none", null]},
+                  "hiddenPromptTokens": {"type": "integer", "minimum": 0},
+                  "evidence": {"type": "string", "maxLength": 200}
+                }
+              },
+              "prices": {
+                "description": "Integer micros per million tokens, in the provider's currency.",
+                "type": "object", "additionalProperties": false, "required": ["input", "output"],
+                "properties": {
+                  "input": {"$ref": "#/$defs/micros"}, "output": {"$ref": "#/$defs/micros"}, "cacheRead": {"$ref": "#/$defs/micros"},
+                  "cacheWrite": {"$ref": "#/$defs/micros"}, "cacheWrite5m": {"$ref": "#/$defs/micros"}, "cacheWrite1h": {"$ref": "#/$defs/micros"}
+                }
+              },
+              "priceSource": {"type": "string", "minLength": 1, "maxLength": 300},
+              "checkedAt": {"type": "string", "format": "date"}
+            }
+          }
+        },
+        "steps": {
+          "type": "object", "additionalProperties": false,
+          "required": ["facts", "assets", "directions", "spec", "scenes", "review", "coldReview", "triage"],
+          "properties": {
+            "facts": {"$ref": "#/$defs/modelRef"}, "assets": {"$ref": "#/$defs/modelRef"}, "directions": {"$ref": "#/$defs/modelRef"},
+            "spec": {"$ref": "#/$defs/modelRef"}, "scenes": {"$ref": "#/$defs/modelRef"}, "review": {"$ref": "#/$defs/modelRef"},
+            "coldReview": {"$ref": "#/$defs/modelRef"}, "triage": {"$ref": "#/$defs/modelRef"}
+          }
+        }
+      }
+    },
+    "authorization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "purposes", "models", "catalogVersion", "approvedBy", "approvedAt", "expiresAt", "maxUsdMicros"],
+      "properties": {
+        "schemaVersion": {"const": "3.0.0"},
+        "kind": {"const": "model_authorization"},
+        "purposes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["calibration", "evaluation"]}},
+        "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/modelRef"}},
+        "catalogVersion": {"type": "string", "pattern": "^models-[0-9]{4}-[0-9]{2}-[0-9]{2}(-[a-z0-9]+)?$"},
+        "approvedBy": {"type": "string", "minLength": 1, "maxLength": 120},
+        "approvedAt": {"type": "string", "format": "date-time"},
+        "expiresAt": {"type": "string", "format": "date-time"},
+        "maxUsdMicros": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

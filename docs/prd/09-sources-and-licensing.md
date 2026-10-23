@@ -25,13 +25,13 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
-当前M0a工程样例的自制几何、虚构界面、程序乐谱和波形按[素材许可](../../tests/fixtures/render/LICENSE.txt)使用CC0；Geist Sans/Mono来自`@fontsource`的固定`5.0.3`归档，使用未修改字体字节并保留OFL原文。确切文件、归档及许可摘要见[媒体登记](../../tests/fixtures/render/media-assets.json)。混音和抽帧前核对这些依据，生成产物继续引用相应来源，不能把字体纳入自制素材的CC0声明。
+渲染与预览共用 [packages/fonts](../../packages/fonts/huashu/LICENSES.md) 的字体：huashu-motion 登记的 OFL WOFF，以及 `@fontsource` 固定 `5.0.3` 归档的 Geist Sans/Mono（未修改字节，保留 OFL 原文）。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
 
-canvas-media-v1的[可信目录](../../apps/renderer/src/admission-media.mjs)单独准入这些确切字节，字体ID中的`fixture`标识来源，不允许候选扩大许可范围。新增目录项须核对真实资源及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。当前研究题目使用原创几何表达与上述固定字体/音源，事实确认由作品负责人另行完成。
+客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
 
 ## 2 视频创作上游
 
-参考版本固定为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)。[本地基线](../../research/m0a/baseline.json)使用此版本的实际CLI作隔离对照，上游代码下载到研究产物目录，不整包并入产品。已选择性移植的方法、2D绘图/动画、字体、声音和诊断见[创作工具](../creative-toolkit.md)；各目录保留确切文件、commit、许可与修改范围，未移植的网页宿主和依赖仍只用于隔离基线。
+上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明（根目录 `LICENSE`、`THIRD_PARTY.md`、`runtime/clip/NOTICE.md` 等），不整包并入，也不追随后续版本。Three.js r186 为 MIT。成片不加片尾署名；上游作者形象不采用，用原创角色替代。
 
 | 来源范围 | 用途 |
 | --- | --- |
@@ -44,7 +44,7 @@ canvas-media-v1的[可信目录](../../apps/renderer/src/admission-media.mjs)单
 
 [上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
 
-**生产运行时不使用 GSAP，按绝对时间计算画面。** [GSAP 标准许可](https://gsap.com/community/standard-license/)限制与 Webflow 竞争的可视化动画构建用途。生产引入前须取得适用于本产品的书面许可结论并重审架构。本地基线仅按[研究范围](../../research/m0a/README.md)在断网容器运行固定上游CLI和原创建例，保留其独立GSAP许可；不把该运行库打包、托管或交付到客户产品。[QuickJS兼容性探针](../../research/gsap-quickjs/README.md)只记录本地研究结果，不改变本条。
+**积木和自写镜头都可以使用 GSAP。** 负责人 tianyu 于 2026-10-22 决定本产品使用 GSAP，并于 2026-10-23 再次确认；这一决定即本章要求的许可结论。GSAP 3.14.2 的 `dist/gsap.min.js` 随渲染镜像分发、不进 Git，版本与 SHA-256 记在[渲染环境锁](../../apps/render-container/environment.lock.json)。确定性靠静默 seek 与黄金帧检查保证，见[改造方案](../plans/cloud-motion-v3.md)第 4.3、5.6 节。
 
 ## 3 适用规则与产品边界
 

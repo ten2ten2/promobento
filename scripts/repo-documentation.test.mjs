@@ -4,7 +4,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,truncateSync,sym
 import {tmpdir} from 'node:os';
 import {dirname,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline,rendererToolchainErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformRuleErrors,platformBaseline,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 import {discoverTests} from './run-tests.mjs';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
 
@@ -149,19 +149,8 @@ test('conflict checks accept Markdown headings while finding orphaned and comple
 
 test('the PRD index owns its chapter list and version labels exclude toolchain numbers',()=>{
   assert.deepEqual(indexedPrdFiles('| [Product](01-product-prd.md) | Scope |\n| [Renderer](15-renderer.md) | Media |\n[Other](../README.md)'),['01-product-prd.md','15-renderer.md']);
-  assert.deepEqual(specificationVersions('Requires Node 26.12.0 and pnpm 12.14.0.\n现行 PRD **v2.7**、结构协议 `2.7.0`。'),{prd:['v2.7'],protocol:['2.7.0']});
-  assert.deepEqual(specificationVersions('产品规格 v2.7；协议为 2.7.0；PRD v9.9'),{prd:['v2.7','v9.9'],protocol:['2.7.0']});
-});
-
-test('renderer lock detects toolchain drift before browser installation',()=>{
-  const mise='[tools]\nnode = "26.12.0"\n';
-  const project={engines:{node:'26.12.0'}},renderer={dependencies:{'playwright-core':'1.62.1'}};
-  const lock={nodeVersion:'26.12.0',playwrightCoreVersion:'1.62.1'};
-  assert.deepEqual(rendererToolchainErrors(mise,project,renderer,lock),[]);
-  assert.match(rendererToolchainErrors(mise,project,renderer,{...lock,nodeVersion:'26.11.0'}).join('\n'),/Node pin/);
-  assert.match(rendererToolchainErrors(mise,{engines:{node:'26.11.0'}},renderer,lock).join('\n'),/Node pin/);
-  assert.match(rendererToolchainErrors(mise,project,renderer,{...lock,playwrightCoreVersion:'1.61.0'}).join('\n'),/Playwright pin/);
-  assert.match(rendererToolchainErrors(mise,project,{dependencies:{'playwright-core':'^1.62.1'}},lock).join('\n'),/Playwright pin/);
+  assert.deepEqual(specificationVersions('Requires Node 26.12.0 and pnpm 12.14.0.\n现行 PRD **v2.7**、结构协议 `3.0.0`。'),{prd:['v2.7'],protocol:['3.0.0']});
+  assert.deepEqual(specificationVersions('产品规格 v2.7；协议为 3.0.0；PRD v9.9'),{prd:['v2.7','v9.9'],protocol:['3.0.0']});
 });
 
 test('unit test discovery covers new packages and apps without collecting generated or browser suites',t=>{
@@ -172,7 +161,7 @@ test('unit test discovery covers new packages and apps without collecting genera
     'apps/web/test/state.test.ts':'',
     'packages/runtime/test/seek.test.js':'',
     'packages/runtime/test/clock.test.mts':'',
-    'apps/renderer/test/sample.render.test.mjs':'',
+    'apps/render-container/test/sample.render.test.mjs':'',
     'tests/integration/ledger.test.mjs':'',
     'apps/web/e2e/editor.spec.ts':'',
     'renders/output.test.mjs':'',
@@ -181,7 +170,7 @@ test('unit test discovery covers new packages and apps without collecting genera
   assert.deepEqual(discoverTests(root).map(path=>path.slice(root.length+1)),[
     'apps/web/test/editor.test.mjs','apps/web/test/state.test.ts','packages/runtime/test/clock.test.mts','packages/runtime/test/nested/draw.test.mjs','packages/runtime/test/seek.test.js','scripts/check.test.mjs','tests/integration/ledger.test.mjs'
   ]);
-  assert.deepEqual(discoverTests(root,{suite:'render'}).map(path=>path.slice(root.length+1)),['apps/renderer/test/sample.render.test.mjs']);
+  assert.deepEqual(discoverTests(root,{suite:'render'}).map(path=>path.slice(root.length+1)),['apps/render-container/test/sample.render.test.mjs']);
   writeFileSync(join(root,'apps/web/test/unsupported.test.tsx'),'');
   assert.throws(()=>discoverTests(root),/Unsupported test extension/);
 });

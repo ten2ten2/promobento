@@ -102,7 +102,7 @@ Composer/Renderer 都按 job/generation 隔离，结束销毁；不复用含客�
 
 ### 成本计量与归因
 
-从 M0a 开始按 Schema 的 `costEvent` 记录费用；尚无 D1 时用相同结构的 JSONL。金额、费用预留、去重和估算/实收的替代关系统一按[14 费用规则](14-production-contracts.md#6-ai操作费用与成功次数)，不要另写一套算法。
+费用按 Schema 的 `costEvent` 写入 D1 账本；模型调用的金额由 `modelCallCostMicros` 按[模型配置](../../config/model-providers.json)的价格目录换算为美元微单位并向上取整，用量缺失时按最坏情况预留。金额、费用预留、去重和估算/实收的替代关系统一按[14 费用规则](14-production-contracts.md#6-ai操作费用与成功次数)，不要另写一套算法。
 
 每条记录从可信作业取得用户、工作区、项目、operation、attempt 和 target，注明用途、供应商/模型、价格版本及原始用量单位。记录能测到的 tokens、CPU、内存、存储与请求费用；未知用量标为未知，不能填零。原币金额与换算依据随提供方记录保存，不记录提示全文、凭据或客户源码。
 

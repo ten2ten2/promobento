@@ -77,7 +77,7 @@ test('source values use the same complete canonical envelope regardless of prope
     '{"kind":"source_values","values":{"amount":7,"headline":"Original"}}');
   assert.deepEqual(parseSourceValues(sourceValuesBytes(a)),{kind:'source_values',values:a});
   for(const text of [
-    '{"kind":"source_values","schemaVersion":"2.7.0","values":{}}',
+    '{"kind":"source_values","schemaVersion":"3.0.0","values":{}}',
     '{"kind":"source_values","kind":"source_values","values":{}}',
     '{"kind":"source_values","values":[]}'
   ]) assert.throws(()=>parseSourceValues(text),/SOURCE_VALUES_INVALID/);
@@ -154,7 +154,7 @@ test('A to B to A source edits survive a request protocol upgrade without anothe
     }
     return output;
   };
-  const original=build({headline:'Original',amount:7},'2.7.0');
+  const original=build({headline:'Original',amount:7},'3.0.0');
   const changed=build({headline:'Changed',amount:7},'future-protocol');
   const restored=build({amount:7,headline:'Original'},'future-protocol');
   assert.notEqual(digest(contentIdentity(changed)),digest(contentIdentity(original)));

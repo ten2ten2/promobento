@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {load, schema, semanticErrors, targets, hasCalibratedCostLimits} from './contract-validation.mjs';
 import * as contracts from '../packages/contracts/index.mjs';
+import {createSchemaValidator} from '../packages/contracts/index.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const c=load('contracts/composition.example.json'),snapshot=load('contracts/release-snapshot.example.json'),factManifest=load('contracts/fact-manifest.example.json');
 const failures=[],expect=(ok,message)=>{if(!ok)failures.push(message);};
@@ -27,8 +28,12 @@ expect(p.patch.maxCommentsPerRound===5&&p.patch.maxTotalCommentCodePoints===4000
 expect(['maxMicrosPerUserWindow','maxMicrosPerProjectWindow'].every(key=>Object.hasOwn(p.cost,key))&&p.cost.usageWindowHours===24&&p.cost.usageWindowMode==='rolling_all_actual_and_unsettled_costs','Missing all-outcome account/project cost windows');
 expect(!p.enabled||hasCalibratedCostLimits(p),'Uncalibrated execution or patch-token gate enabled');
 expect(p.cost.hardBudgetScope==='operation_including_all_child_calls_and_attempts'&&!p.cost.quotaReleaseResetsSpend&&!p.cost.retryOrNewOperationResetsCumulativeFailureSpend,'Cost accounting boundary mismatch');
-expect(p.schemaVersion==='2.7.0'&&api.schemaVersion==='2.7.0'&&schema.$id.endsWith('/2.7.0'),'Current structural protocol mismatch');
-expect(targets().length===7&&p.limits.globalContainers===4,'Target/resource invariant');
+expect(p.schemaVersion==='3.0.0'&&api.schemaVersion==='3.0.0'&&schema.$id.endsWith('/3.0.0'),'Current structural protocol mismatch');
+expect(targets().length===7&&new Set(targets().map(t=>t.aspectId)).size===4,'Target/aspect invariant');
+expect(p.limits.workspaceShardInstances>=4*p.limits.shardsPerRender&&p.limits.shardsPerRenderWebgl<=p.limits.workspaceShardInstances&&p.limits.workspaceShardInstances<=p.limits.globalShardInstances,'Shard concurrency cannot prepare four aspects or one WebGL render');
+const modelSchema=createSchemaValidator(load('contracts/model-config.schema.json')),providers=load('config/model-providers.json'),authorization=load('config/model-authorization.json');
+for(const [name,value] of Object.entries({providers,authorization}))for(const error of modelSchema(value))failures.push('model config '+name+': '+error);
+failures.push(...contracts.modelConfigErrors(providers,authorization,p));
 expect(p.quota.creativeConsumeAt==='usable_candidate_delivered'&&p.quota.renderConsumeAt==='initial_batch_published','Consumption boundaries changed');
 const fourteen=read('docs/prd/14-production-contracts.md');
 for(const name of ['factContentIdentity','contentIdentity','variantIdentity','outputArtifactIdentity','targetSourceIdentity','inheritRevisionEnvironment'])

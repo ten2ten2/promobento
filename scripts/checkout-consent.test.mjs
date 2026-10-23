@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { digest } from '../packages/contracts/index.mjs';
 import { checkoutPurchaseIdentity,recordCheckoutConsent } from './checkout-consent.mjs';
-const request=()=>({schemaVersion:'2.7.0',kind:'checkout_request',requestId:'request_1',projectId:'project_1',sku:'project_pack',
+const request=()=>({schemaVersion:'3.0.0',kind:'checkout_request',requestId:'request_1',projectId:'project_1',sku:'project_pack',
   purchaseIntent:'top_up_only',consent:{disclosureId:'disclosure_1',acceptedItemIds:['terms','start']}});
 const context={actorUserId:'user_1',receiptId:'receipt_1',projectId:'project_1',currentOfferVersion:'offer_1',currentTermsVersion:'terms_1',nowMs:Date.parse('2026-10-21T00:00:00Z')};
-const disclosure=()=>({schemaVersion:'2.7.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_1',projectId:'project_1',
+const disclosure=()=>({schemaVersion:'3.0.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_1',projectId:'project_1',
   purchaseHash:digest(checkoutPurchaseIdentity(request())),policyVersion:'agent-policy-v1',termsVersion:'terms_1',dependsOnOrderId:null,offerVersion:'offer_1',locale:'en',
   summaryText:'Engineering fixture: project creation allowance. No payment is collected.',expiresAt:'2026-10-21T00:30:00Z',
   items:[{id:'terms',purpose:'terms',text:'I accept the displayed Terms.',required:true},

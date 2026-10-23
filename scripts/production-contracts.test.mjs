@@ -42,8 +42,8 @@ test('7 legal targets, square restricted to feed',()=>{assert.equal(targets().le
 for (const path of ['../x','x/../y','https://example.com','x\\y','%252e%252e/x','/tmp/x','x//y','x\u0000y']) test('reject path '+JSON.stringify(path),()=>assert.equal(safePath(path),false));
 test('confirmed fact binding required',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].factIds=['unknown'];assert.ok(invalid(f));});
 test('new commercial claim rejected',()=>{const f=load('contracts/fact-manifest.example.json');f.bindings[0].expectedText='Guaranteed 1000%';assert.ok(invalid(f));});
-function qa(){return {schemaVersion:'2.7.0',kind:'quality_report',workspaceId:'workspace_fixture',projectId:c.projectId,targetId:'tiktok:portrait',checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{findingId:'reading_hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture'}]};}
-function waiver(report=qa()){return {schemaVersion:'2.7.0',kind:'quality_waiver',workspaceId:'workspace_fixture',projectId:c.projectId,revisionId:c.revisionId,targetId:report.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash:digest(report),findingId:report.findings[0].findingId,actorId:'user',reason:'planned hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};}
+function qa(){return {schemaVersion:'3.0.0',kind:'quality_report',workspaceId:'workspace_fixture',projectId:c.projectId,targetId:'tiktok:portrait',checkerVersion:'quality-engine-v1',qaProfileVersion:r.qaProfileVersion,qaInputHash:digest(qaInputIdentity(c,c.variants[0],r.qaProfileVersion)),coverage:'fixture_only',evidenceRefs:[],findings:[{findingId:'reading_hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'fixture'}]};}
+function waiver(report=qa()){return {schemaVersion:'3.0.0',kind:'quality_waiver',workspaceId:'workspace_fixture',projectId:c.projectId,revisionId:c.revisionId,targetId:report.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash:digest(report),findingId:report.findings[0].findingId,actorId:'user',reason:'planned hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};}
 function waiverContext(report=qa()){return {composition:c,workspaceId:'workspace_fixture',qualityReport:report,now:Date.parse('2026-10-20T00:00:00Z'),waiverActors:{user:{workspaceId:'workspace_fixture',active:true,role:'editor'}}};}
 test('BLOCK cannot be waived',()=>{const q=qa();q.findings[0].level='BLOCK';assert.ok(semanticErrors(waiver(q),waiverContext(q)).includes('BLOCK_NOT_WAIVABLE'));});
 test('QA input identity excludes revision and full confirmation bookkeeping',()=>{
@@ -168,7 +168,7 @@ test('an empty project accepts its first candidate once and keeps competing cand
   assert.equal(revisions.current,'candidate_c');
 });
 test('rejecting a superseded candidate uses its own base and still enforces project and workspace scope',()=>{
-  const request={schemaVersion:'2.7.0',kind:'candidate_action_request',requestId:'reject_superseded',projectId:c.projectId,
+  const request={schemaVersion:'3.0.0',kind:'candidate_action_request',requestId:'reject_superseded',projectId:c.projectId,
     baseRevision:'older_revision',candidateRevisionId:'candidate_from_old_revision'};
   const candidate={workspaceId:'workspace_fixture',projectId:c.projectId,baseRevision:request.baseRevision,
     candidateRevisionId:request.candidateRevisionId,state:'ready'};
@@ -181,7 +181,7 @@ test('rejecting a superseded candidate uses its own base and still enforces proj
   assert.ok(semanticErrors({...request,baseRevision:'invented'},context).includes('CANDIDATE_SCOPE_MISMATCH'));
 });
 test('cancelling a run from an older draft does not require the current draft to rewind',()=>{
-  const request={schemaVersion:'2.7.0',kind:'run_action',requestId:'cancel_old',baseRevision:'older_revision',action:'cancel'};
+  const request={schemaVersion:'3.0.0',kind:'run_action',requestId:'cancel_old',baseRevision:'older_revision',action:'cancel'};
   const run={workspaceId:'workspace_fixture',projectId:c.projectId,baseRevision:request.baseRevision};
   const context={production:true,authorized:true,workspaceId:'workspace_fixture',projectId:c.projectId,
     composition:c,currentRevisionId:c.revisionId,run};
@@ -252,7 +252,7 @@ test('unknown failure code rejected',()=>{const x=clone(protocol.render_error);x
 
 test('creative plan: optional direction fields and bounded events', () => {
   const x={
-    schemaVersion:'2.7.0',kind:'run_result',outputStatus:'allowed',runId:'run1',operationId:'op1',
+    schemaVersion:'3.0.0',kind:'run_result',outputStatus:'allowed',runId:'run1',operationId:'op1',
     baseRevision:c.revisionId,state:'succeeded',phase:'final',generation:1,
     candidateRevisionId:c.revisionId,
     usage:{inputTokens:0,cachedInputTokens:0,outputTokens:0,activeSeconds:0,costMicros:0,internalRepairs:0},
@@ -282,7 +282,7 @@ test('creative plan: optional direction fields and bounded events', () => {
 
 // In-memory trusted-store inputs exercise fail-closed gates; no licenses, media or legal findings are verified here.
 function runtimeDeclarations(markers=[]) {
-  return {schemaVersion:'2.7.0',kind:'runtime_declarations',editables:[],markers,regions:[],videoUses:[],fonts:[]};
+  return {schemaVersion:'3.0.0',kind:'runtime_declarations',editables:[],markers,regions:[],videoUses:[],fonts:[]};
 }
 function addOutputSafety(context,id,{projectId,revisionId,targetId,sha256,kind,mediaKind,frameStart,frameEndExclusive,screenshotAssetId},subjectKind,coverage=['text','visual','audio']) {
   context.outputSafetyResults ??= {};
@@ -301,19 +301,19 @@ function addOutputSafety(context,id,{projectId,revisionId,targetId,sha256,kind,m
     totalFrames:context.composition.totalFrames,runtimeDeclarations:context.runtimeDeclarationsByTarget[targetId],
     kind:image?'image':'video',frameStart:start,frameEndExclusive:end});
   const expected=expectedSafetyCoverage(policy,'trusted_media');
-  const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:sha256,targetId,representation:'trusted_media',
+  const manifest={schemaVersion:'3.0.0',kind:'output_safety_coverage_manifest',subjectHash:sha256,targetId,representation:'trusted_media',
     samplingPolicyVersion:policy.version,sourceRange:expected.sourceRange,textHashes:[digest('observed synthetic text')],frameCount:expected.frameCount,
     frames:expected.requiredFrameIndices.map(frameIndex=>({frameIndex,sha256:digest('observed synthetic frame '+frameIndex)})),
     durationMs:expected.durationMs,audioSegments:coverage.includes('audio')&&!image?[{startMs:0,endMs:expected.durationMs,sha256:digest('observed synthetic audio')}]:[],
     runtimeStateHash:null,modalityObservationHash:digest(observation)};
   context.outputSafetyCoverageManifests[id]=manifest;context.outputSafetyCoveragePolicies[id]=policy;
-  context.outputSafetyResults[id]={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_'+id,
+  context.outputSafetyResults[id]={schemaVersion:'3.0.0',kind:'output_safety_result',resultId:'safety_'+id,
     projectId,revisionId,operationId,targetId,subjectKind,subjectHash:sha256,coverageManifestHash:digest(manifest),policyVersion:context.outputSafetyPolicyVersion,
     representation:'trusted_media',coverage,status:'allowed',checkedAt:new Date(context.now).toISOString(),evidenceRefs:['synthetic_safety_evidence']};
 }
 function publicationCase(operation='creative_generate') {
   const targetId='tiktok:portrait',targetContentHash=digest('trusted candidate content');
-  const candidate={schemaVersion:'2.7.0',kind:'candidate_result',projectId:c.projectId,runId:'run_publish',operation,
+  const candidate={schemaVersion:'3.0.0',kind:'candidate_result',projectId:c.projectId,runId:'run_publish',operation,
     baseRevision:operation==='creative_generate'?null:c.revisionId,candidateRevisionId:'candidate_publish',state:'ready',affectedTargetIds:[targetId],
     agentInterpretation:'Present the product.',impactSummary:'Updates the product scene.'};
   const context={workspaceId:'workspace_fixture',projectId:candidate.projectId,runId:candidate.runId,operation,
@@ -348,12 +348,12 @@ function provenanceCase() {
     variant.resourceManifestHash = digest(resource); variant.resourceContentHash = source.resourceContentHash;
     variant.audioHash = digest(audioIdentity(resource));
     variant.variantHash = digest(variantIdentity(source,variant));
-    const report = {schemaVersion:'2.7.0',kind:'quality_report',workspaceId:trusted.workspaceId,projectId:source.projectId,
+    const report = {schemaVersion:'3.0.0',kind:'quality_report',workspaceId:trusted.workspaceId,projectId:source.projectId,
       targetId:variant.targetId,
       qaProfileVersion:trusted.qaProfileVersion,qaInputHash:digest(qaInputIdentity(source,variant,trusted.qaProfileVersion)),
       checkerVersion:trusted.qaProfiles[trusted.qaProfileVersion].checkerVersion,coverage:'sampled',evidenceRefs:['synthetic_qa_evidence'],findings:[]};
     const reportHash = digest(report); trusted.qualityReports[reportHash] = report;
-    trusted.qualityAssociations.push({schemaVersion:'2.7.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
+    trusted.qualityAssociations.push({schemaVersion:'3.0.0',kind:'quality_association',workspaceId:trusted.workspaceId,projectId:source.projectId,revisionId:source.revisionId,targetId:variant.targetId,qaInputHash:report.qaInputHash,qaProfileVersion:report.qaProfileVersion,reportHash,waiverHashes:[]});
   }
   Object.assign(snapshot,{qualityAssociations:clone(trusted.qualityAssociations),compositionHash:digest(source),contentHash:digest(contentIdentity(source)),variants:clone(source.variants),factManifestHash:digest(fact)});
   const context = {...trusted,production:true,composition:source,snapshot,factManifest:fact,
@@ -391,7 +391,7 @@ function previewAdmissionCase() {
     usage:{project:{requests:0,clipFrames:0}},
     policy:{trustedCapture:{enabled:true,limits:{maxRequestsPerProjectWindow:4}}}});
   delete x.context.outputSafetyResults;
-  const request={schemaVersion:'2.7.0',kind:'preview_request',requestId:'preview_admission',revisionId:x.source.revisionId,
+  const request={schemaVersion:'3.0.0',kind:'preview_request',requestId:'preview_admission',revisionId:x.source.revisionId,
     targetId:x.source.variants[0].targetId,frameStart:0,mediaKind:'screenshot'};
   return {...x,request};
 }
@@ -597,7 +597,7 @@ test('assessed not-applicable decisions are supported and profile updates do not
   assert.equal(digest(contentIdentity(x.source)),oldContent);
 });
 function previewProvenanceCase() {
-  const x=provenanceCase(),preview={schemaVersion:'2.7.0',kind:'preview_result',mediaKind:'screenshot',clipAssetId:null,clipSha256:null,clipMarkingEvidenceRef:null,previewId:'preview1',projectId:x.source.projectId,
+  const x=provenanceCase(),preview={schemaVersion:'3.0.0',kind:'preview_result',mediaKind:'screenshot',clipAssetId:null,clipSha256:null,clipMarkingEvidenceRef:null,previewId:'preview1',projectId:x.source.projectId,
     revisionId:x.source.revisionId,targetId:'tiktok:portrait',frameStart:0,frameEndExclusive:30,state:'ready',screenshotAssetId:'preview_asset',
     markingProfileVersion:x.snapshot.markingProfileVersion,sha256:digest('preview bytes'),markingEvidenceRef:'preview_check'};
   x.context.markingEvidence.preview_check={outputId:preview.previewId,assetId:preview.screenshotAssetId,sha256:preview.sha256,profileVersion:preview.markingProfileVersion,
@@ -788,7 +788,7 @@ test('target repair cannot mutate a purchased frozen variant',()=>{
 });
 
 const owner={authorized:true,role:'owner',userId:'user_trial'},editor={authorized:true,role:'editor',userId:'user_editor'};
-const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'2.7.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
+const projectRequest=(requestId,workspaceId='workspace_a',changes={})=>({schemaVersion:'3.0.0',kind:'create_project_request',requestId,workspaceId,audience:'software',task:'Product launch',durationSeconds:30,targetIds:['tiktok:portrait'],requestTrial:true,...changes});
 test('trial claim is lifetime user scoped across workspaces and deletion',()=>{
   const t=new TrialReference(),first=t.create(projectRequest('one'),owner);
   assert.equal(first.trialGrantStatus,'granted');
@@ -822,7 +822,7 @@ test('omitted requestTrial creates a draft with no free cloud work',()=>{
   assert.equal(t.claims.size,0);
 });
 
-const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'2.7.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,consent:{disclosureId:'disclosure_fixture',acceptedItemIds:['terms']},...changes});
+const checkout=(requestId,sku,purchaseIntent='top_up_only',changes={})=>({schemaVersion:'3.0.0',kind:'checkout_request',requestId,projectId:c.projectId,sku,purchaseIntent,consent:{disclosureId:'disclosure_fixture',acceptedItemIds:['terms']},...changes});
 const open=(book,request)=>book.open(request,{ownerAuthorized:true});
 const buy=(book,request)=>{const order=open(book,request);book.grantVerifiedPayment(order.orderId);return order;};
 test('checkout intent is explicit and snapshot is exclusive to export intent',()=>{
@@ -898,7 +898,7 @@ test('catalog narrowing cannot invalidate the same authorized checkout or rewrit
 });
 test('new production checkout requires a server-scoped consent receipt; replay retains the original record',()=>{
   const request=checkout('consent_checkout','project_pack'),now=Date.parse('2026-10-21T00:00:00Z');
-  const disclosure={schemaVersion:'2.7.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_fixture',
+  const disclosure={schemaVersion:'3.0.0',kind:'checkout_disclosure_result',disclosureId:'disclosure_fixture',
     projectId:c.projectId,purchaseHash:digest(checkoutPurchaseIdentity(request)),policyVersion:'agent-policy-v1',termsVersion:'terms-v1',dependsOnOrderId:null,
     offerVersion:'offer-v1',summaryText:'Project creation package',locale:'en',expiresAt:'2026-10-22T00:00:00Z',
     items:[{id:'terms',purpose:'terms',text:'I accept the displayed terms.',required:true}]};
@@ -1020,7 +1020,7 @@ test('uncalibrated or noninteger cost boundaries never authorize execution',()=>
 test('enabling requires calibrated successful-and-failed cost windows even when other budgets are ready',()=>{
   const policy=load('config/agent-policy.json');
   for(const key of Object.keys(policy.cost))if(key.startsWith('maxMicros')||['dailySoftAlertMicros','maxDailyFreeMicros'].includes(key))policy.cost[key]=100;
-  policy.cost.priceVersion='fixture-calibrated';policy.patch.maxInputTokensPerRound=1000;policy.patch.maxOutputTokensPerRound=1000;
+  policy.cost.catalogVersion='fixture-calibrated';policy.patch.maxInputTokensPerRound=1000;policy.patch.maxOutputTokensPerRound=1000;
   assert.equal(hasCalibratedCostLimits(policy),true);
   for(const key of ['maxMicrosPerUserWindow','maxMicrosPerProjectWindow']){
     const unmeasured=clone(policy);unmeasured.cost[key]=null;assert.equal(hasCalibratedCostLimits(unmeasured),false);
@@ -1066,7 +1066,7 @@ function addReviewWaiver(x){
   const association=x.snapshot.qualityAssociations[0],report=clone(x.context.qualityReports[association.reportHash]);
   report.findings=[{findingId:'hold_1',code:'READING_HOLD',level:'REVIEW',frameStart:0,frameEndExclusive:30,message:'Intentional hold'}];
   association.reportHash=digest(report);x.context.qualityReports[association.reportHash]=report;
-  const w={schemaVersion:'2.7.0',kind:'quality_waiver',workspaceId:x.context.workspaceId,projectId:x.source.projectId,revisionId:x.source.revisionId,targetId:association.targetId,qaInputHash:association.qaInputHash,qaProfileVersion:association.qaProfileVersion,reportHash:association.reportHash,findingId:'hold_1',actorId:'reviewer',reason:'Verified the intended reading hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};
+  const w={schemaVersion:'3.0.0',kind:'quality_waiver',workspaceId:x.context.workspaceId,projectId:x.source.projectId,revisionId:x.source.revisionId,targetId:association.targetId,qaInputHash:association.qaInputHash,qaProfileVersion:association.qaProfileVersion,reportHash:association.reportHash,findingId:'hold_1',actorId:'reviewer',reason:'Verified the intended reading hold',acceptedAt:'2026-10-19T00:00:00Z',expiresAt:'2026-10-21T00:00:00Z'};
   const waiverHash=digest(w);association.waiverHashes=[waiverHash];x.context.qualityWaivers[waiverHash]=w;
   x.context.waiverActors.reviewer={workspaceId:x.context.workspaceId,role:'editor',active:true};
   x.output.snapshotHash=digest(x.snapshot);

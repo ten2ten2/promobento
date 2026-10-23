@@ -1,0 +1,17 @@
+{
+  "name": "@promobento/cloud",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker, Workflows and Durable Objects (cloud motion plan \u00a73.1). S0 skeleton: health route only.",
+  "scripts": {
+    "typecheck": "wrangler types --env-interface Env src/worker-configuration.d.ts && tsc --noEmit"
+  },
+  "dependencies": {
+    "@promobento/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "wrangler": "4.152.0"
+  }
+}

@@ -6,7 +6,7 @@ import { createSchemaValidator, parseCanonicalJson } from '../packages/contracts
 const schema = parseCanonicalJson(readFileSync(new URL('../contracts/production.schema.json', import.meta.url)));
 const validate = createSchemaValidator(schema);
 const cost = () => ({
-  schemaVersion: '2.7.0', kind: 'cost_event', eventId: 'cost-1', chargeId: 'charge-1', dedupKey: 'provider-request-1-actual',
+  schemaVersion: '3.0.0', kind: 'cost_event', eventId: 'cost-1', chargeId: 'charge-1', dedupKey: 'provider-request-1-actual',
   environment: 'local', scope: 'project', workspaceId: 'workspace-1', projectId: 'project-1', actorUserId: 'user-1',
   trialOwnerUserId: 'user-1', operationId: 'operation-1', attemptId: 'attempt-1', targetId: null,
   orderId: null, releaseId: null, reservationId: 'reservation-1', purpose: 'acquisition_trial',

@@ -10,7 +10,7 @@ const validate = createSchemaValidator(schema);
 const helpers = {presets:load('config/platform-presets.json')};
 const clone = value => structuredClone(value);
 const sha = 'a'.repeat(64), otherSha = 'b'.repeat(64);
-const envelope = (kind,fields) => ({...(kind === 'source_values' ? {} : {schemaVersion:'2.7.0'}),kind,...fields});
+const envelope = (kind,fields) => ({...(kind === 'source_values' ? {} : {schemaVersion:'3.0.0'}),kind,...fields});
 const scope = {production:true,authorized:true,workspaceId:'workspace_studio',projectId:'project_studio'};
 const sourceDeclarations=(frames=[])=>envelope('runtime_declarations',{editables:[],
   markers:frames.map((frame,i)=>({id:'marker_'+i,label:'Scene '+i,frame})),regions:[],videoUses:[],fonts:[]});
@@ -237,7 +237,7 @@ test('local preview keeps full duration and logical dimensions while rejecting o
 
 test('nominal local playback cannot claim a final motion sample or renderer permission', () => {
   const session=preview();
-  const command={protocolVersion:'2.7.0',sessionId:session.sessionId,requestId:'request_seek',sequence:3,
+  const command={protocolVersion:'3.0.0',sessionId:session.sessionId,requestId:'request_seek',sequence:3,
     revisionId:session.revisionId,targetId:session.targetId,command:'seek',frameIndex:23,previewEpoch:0};
   const response={...command,event:'preview-frame-ready',manifestHash:session.manifestHash};
   delete response.command;
@@ -262,7 +262,7 @@ test('nominal local playback cannot claim a final motion sample or renderer perm
 
 test('local overlays replace only preview values; epochs and sequence numbers reject stale work', () => {
   const session=preview(),trusted={...previewContext(),previewSession:session,previewEpoch:0,lastSequence:1};
-  const command={protocolVersion:'2.7.0',sessionId:session.sessionId,requestId:'request_values',sequence:2,
+  const command={protocolVersion:'3.0.0',sessionId:session.sessionId,requestId:'request_values',sequence:2,
     revisionId:session.revisionId,targetId:session.targetId,command:'set-values',manifestHash:sha,
     requestedEpoch:1,valuesOverlay:{headline:'Unsaved local text.'}};
   const before=clone(trusted);
@@ -301,7 +301,7 @@ test('local overlays replace only preview values; epochs and sequence numbers re
 
 test('a rejected values update preserves the applied epoch and a corrected retry can succeed', () => {
   const session=preview(),trusted={...previewContext(),previewSession:session,previewEpoch:0,lastSequence:1};
-  const command={protocolVersion:'2.7.0',sessionId:session.sessionId,requestId:'values_rejected',sequence:2,
+  const command={protocolVersion:'3.0.0',sessionId:session.sessionId,requestId:'values_rejected',sequence:2,
     revisionId:session.revisionId,targetId:session.targetId,command:'set-values',manifestHash:sha,
     requestedEpoch:1,valuesOverlay:{background:'bad'}};
   const rejected={...command,event:'values-rejected',appliedEpoch:0,code:'VALUES_INVALID'};
@@ -330,7 +330,7 @@ test('all render profile consumers use the configured standard and motion combin
 });
 
 test('inspect has its own wire command and a bound response from declared regions', () => {
-  const command = {protocolVersion:'2.7.0',sessionId:'session_preview',requestId:'request_inspect',sequence:2,
+  const command = {protocolVersion:'3.0.0',sessionId:'session_preview',requestId:'request_inspect',sequence:2,
     revisionId:'revision_current',targetId:'tiktok:portrait',command:'inspect',frameIndex:20,x01:0.2,y01:0.1};
   const hit = {...command,event:'hit-result',manifestHash:sha,
     hit:{regionId:'headline_region',sourcePath:'src/main.ts',line:12,bounds:{x:100,y:100,width:400,height:100}}};
@@ -453,11 +453,11 @@ function candidateCase(overrides={}) {
     textPresent:true,audioPresent:true,evidenceRef:'candidate_modality_observation'};
   const sourceRange={kind:'video',sourceFrameCount:450,frameStart:0,frameEndExclusive:450};
   const frameIndices=[0,30,60,90,120,150,180,210,240,270,300,330,360,390,420,449];
-  const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:reviewedHash,targetId:'tiktok:portrait',
+  const manifest={schemaVersion:'3.0.0',kind:'output_safety_coverage_manifest',subjectHash:reviewedHash,targetId:'tiktok:portrait',
     representation:'trusted_media',samplingPolicyVersion:'output-sampling-v1',sourceRange,textHashes:[digest('approved text')],frameCount:450,
     frames:frameIndices.map(frameIndex=>({frameIndex,sha256:digest('approved frame '+frameIndex)})),durationMs:15000,
     audioSegments:[{startMs:0,endMs:15000,sha256:digest('approved audio')}],runtimeStateHash:null,modalityObservationHash:digest(observation)};
-  const receipt={schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_candidate',projectId:scope.projectId,
+  const receipt={schemaVersion:'3.0.0',kind:'output_safety_result',resultId:'safety_candidate',projectId:scope.projectId,
     operationId:'operation_candidate',revisionId:candidate.candidateRevisionId,targetId:'tiktok:portrait',subjectKind:'candidate',
     subjectHash:reviewedHash,policyVersion:'safety_v1',representation:'trusted_media',coverage:['text','visual','audio'],status:'allowed',
     checkedAt:'2026-10-21T00:00:00Z',evidenceRefs:['evidence_1'],coverageManifestHash:digest(manifest)};
@@ -562,9 +562,9 @@ test('run responses withhold all creative prose until the exact text bundle is a
   const ready={...result,outputStatus:'allowed',treatment:{totalFrames:450,beats:[{frameStart:0,frameEndExclusive:450,event:'Show the product.'}]}};
   const subjectHash=digest(creativePlanIdentity(ready));
   const observation={subjectHash,targetId:null,representation:'text',textPresent:true,audioPresent:false,evidenceRef:'plan_modality_observation'};
-  const manifest={schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash,targetId:null,representation:'text',
+  const manifest={schemaVersion:'3.0.0',kind:'output_safety_coverage_manifest',subjectHash,targetId:null,representation:'text',
     samplingPolicyVersion:'output-sampling-v1',sourceRange:null,textHashes:[subjectHash],frameCount:null,frames:[],durationMs:null,audioSegments:[],runtimeStateHash:null,modalityObservationHash:digest(observation)};
-  const check={receipt:{schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'plan_safety',projectId:scope.projectId,
+  const check={receipt:{schemaVersion:'3.0.0',kind:'output_safety_result',resultId:'plan_safety',projectId:scope.projectId,
     operationId:ready.operationId,revisionId:null,targetId:null,subjectKind:'creative_plan',subjectHash,
     policyVersion:'safety_v1',representation:'text',coverage:['text'],status:'allowed',checkedAt:'2026-10-21T00:00:00Z',
     evidenceRefs:['plan_evidence'],coverageManifestHash:digest(manifest)},options:{policyVersion:'safety_v1',representation:'text',

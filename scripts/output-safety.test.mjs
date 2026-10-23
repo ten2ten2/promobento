@@ -12,14 +12,14 @@ const version='output-sampling-v1';
 const sourceRange=()=>({kind:'video',sourceFrameCount:450,frameStart:0,frameEndExclusive:450});
 const frames=(count=450)=>[...new Set([...Array.from({length:Math.ceil(count/30)},(_,i)=>i*30),count-1])]
   .map(frameIndex=>({frameIndex,sha256:digest('frame '+frameIndex)}));
-const manifest=()=>({schemaVersion:'2.7.0',kind:'output_safety_coverage_manifest',subjectHash:subject.subjectHash,
+const manifest=()=>({schemaVersion:'3.0.0',kind:'output_safety_coverage_manifest',subjectHash:subject.subjectHash,
   targetId:subject.targetId,representation:'trusted_media',samplingPolicyVersion:version,textHashes:[digest('observed text')],
   sourceRange:sourceRange(),frameCount:450,frames:frames(),
   durationMs:15000,audioSegments:[{startMs:0,endMs:15000,sha256:digest('full audio')}],runtimeStateHash:null,modalityObservationHash:digest(observation({...subject,representation:'trusted_media'}))});
 const context=(coverageManifest=manifest())=>({policyVersion:'safety_1',representation:'trusted_media',
   requiredCoverage:['text','visual','audio'],nowMs:Date.parse('2026-10-21T01:00:00Z'),revokedResultIds:[],coverageManifest,
   coveragePolicy:{version,sourceRange:sourceRange(),frameCount:450,durationMs:15000,markerFrameIndices:[],modalityObservation:observation(coverageManifest)}});
-const receipt=(coverageManifest=manifest())=>({schemaVersion:'2.7.0',kind:'output_safety_result',resultId:'safety_result_1',...subject,
+const receipt=(coverageManifest=manifest())=>({schemaVersion:'3.0.0',kind:'output_safety_result',resultId:'safety_result_1',...subject,
   policyVersion:'safety_1',representation:'trusted_media',coverage:['text','visual','audio'],status:'allowed',
   checkedAt:'2026-10-21T00:00:00Z',evidenceRefs:['moderation_observation_1'],coverageManifestHash:digest(coverageManifest)});
 
@@ -133,7 +133,7 @@ test('candidate admission cannot reuse a runtime receipt that covers only the fi
   const trusted={workspaceId:'workspace_1',projectId:subject.projectId,operationId:subject.operationId,candidateContentHashes:{[subject.targetId]:contentHash},
     candidateSafetyChecks:{[subject.targetId]:{receipt:x.result,options:x.options}},revisions:{[candidate.candidateRevisionId]:{
       workspaceId:'workspace_1',projectId:subject.projectId,targetIds:[subject.targetId],totalFrames:450,
-      runtimeDeclarationsByTarget:{[subject.targetId]:{schemaVersion:'2.7.0',kind:'runtime_declarations',
+      runtimeDeclarationsByTarget:{[subject.targetId]:{schemaVersion:'3.0.0',kind:'runtime_declarations',
         editables:[],markers:[],regions:[],videoUses:[],fonts:[]}}}}};
   assert.deepEqual(candidateSafetyErrors(candidate,trusted),[]);
   x.coverage.frameCount=30;x.coverage.durationMs=1000;x.coverage.frames=[];x.coverage.audioSegments[0].endMs=1000;
@@ -220,7 +220,7 @@ test('coverage arrays have matching schema limits and reject excessive length be
 test('source projection overrides receipt-supplied dimensions and markers using trusted declarations',()=>{
   const policy={version,sourceRange:{kind:'video',sourceFrameCount:450,frameStart:0,frameEndExclusive:30},
     frameCount:30,durationMs:1000,markerFrameIndices:[]};
-  const declarations={schemaVersion:'2.7.0',kind:'runtime_declarations',markers:[{frame:17},{frame:17},{frame:899}]};
+  const declarations={schemaVersion:'3.0.0',kind:'runtime_declarations',markers:[{frame:17},{frame:17},{frame:899}]};
   const derived=scopedSafetyCoveragePolicy(policy,{totalFrames:900,runtimeDeclarations:declarations});
   assert.deepEqual(derived.sourceRange,{kind:'video',sourceFrameCount:900,frameStart:0,frameEndExclusive:900});
   assert.equal(derived.frameCount,900);assert.equal(derived.durationMs,30000);

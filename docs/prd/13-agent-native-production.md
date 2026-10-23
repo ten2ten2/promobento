@@ -1,14 +1,14 @@
 # AI 导演、自由创作与 Agent Studio
 
-本章说明产品规格 v2.7 的导演、声音和改稿方法。机器字段、采样和计量按[14 生产契约](14-production-contracts.md)的协议 2.7.0 实现；实际进度见[实施状态](../implementation-status.md)。
+本章说明产品规格 v3.0 的导演、声音和改稿方法。机器字段、采样和计量按[14 生产契约](14-production-contracts.md)的协议 3.0.0 实现；实际进度见[实施状态](../implementation-status.md)。
 
 ## 1 创作目标与技术自由
 
 制作顺序是理解产品、确定方向、安排叙事和节奏、编写动画、制作声音、检查成片、修改。交付遵守[03](03-platform-presets.md)的时长、帧率和平台范围，镜头数量、风格、相机、过渡和算法开放。
 
-Agent 可编写 HTML/CSS/TS/JS、SVG、Canvas、WebGL、Three.js、Shader，也可复用获准组件。生产运行时不依赖 GSAP，画面由固定输入和绝对时间确定，按[创作接口](../../contracts/composition-runtime.d.ts)实现；WebGL 不可用时明确报错。上游 GSAP 只用于隔离的本地对比，许可边界见 09。
+作品形态为 film-v1：`film.json` 片子规格加镜头积木，必要时为个别镜头自写代码。积木和自写镜头可使用 HTML/CSS/JS、SVG、Canvas、GSAP、WebGL、Three.js、Shader，画面必须是时间的纯函数，按[片子运行时接口](../../contracts/film-runtime.d.ts)实现；WebGL 按 CPU 渲染，不可用时明确报错。GSAP 的使用决定见 09。
 
-这是目标创作范围。当前经审阅浏览器样例覆盖绝对时间DOM/SVG更新、Canvas2D重绘及固定字体/PTS录屏/冻结声音；原生CSS/WAAPI动画明确拒绝。未知源码另经QuickJS隔离，只能输出已准入的几何或canvas-media-v1文字/媒体数据，浏览器不执行作品源码。媒体profile范围为固定获准资源和单行未塑形Latin，详见[08](08-codex-execution.md#本地canvas-media-v1入口)；任意工程、字体上传、复杂塑形和WebGL须另行准入。
+这是目标创作范围，尚未实现；切片顺序见[改造方案](../plans/cloud-motion-v3.md)第 14 节，实际进度见[实施状态](../implementation-status.md)。
 
 创作始终受素材授权、真实商业事实、租户权限、依赖许可、资源预算和输出规格约束。网站主题和语言不进入创作身份；用户文案任意混排，翻译只能按明确指令作用于指定内容。客户确认不等于平台为商业主张真实性担保。
 
@@ -36,7 +36,7 @@ Agent 可编写 HTML/CSS/TS/JS、SVG、Canvas、WebGL、Three.js、Shader，也�
 
 每次候选保存源码、参数、依赖、素材、字体、声音和分镜说明，能够恢复同一作品。除入口和参数接口外，工程目录由 Agent 决定，不要求固定镜头数或可解析 DOM。
 
-作者按[创作接口](../../contracts/composition-runtime.d.ts)声明可编辑项、镜头标记、点选区域、视频片段和字体；这些声明可以为空。宿主提供画布、逻辑尺寸和像素比例，`prepare` 准备输入，`draw(time)` 完整绘制该时刻。首版只补常用的插值、缓动和图形工具，避免先造大型动画框架。参数加载、视频取帧、字体和源码摘要规则见[14](14-production-contracts.md)。
+积木声明参数 Schema、四种画幅布局、事件和点选区域（[积木清单](../../contracts/block.schema.json)）；自写镜头经 `PB.scene` 返回暂停的时间线。文字只经文字槽显示，便于事实绑定和 QA。参数加载、视频取帧、字体和源码摘要规则见[14](14-production-contracts.md)。
 
 工具允许读取项目事实、检索参考、保存分镜、修改候选、构建、渲染、生成声音和检查作品。默认由一个主 Agent 调用工具，复杂任务按需拆分，不强制每个阶段另开模型会话。写入只影响隔离的候选工程；支付、管理密钥、其他工作区和已购源包不向 Agent 开放。
 

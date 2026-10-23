@@ -1,0 +1,29 @@
+{
+  "kind": "render_environment_lock",
+  "schemaVersion": "3.0.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "distribution": "ubuntu",
+  "distributionVersion": "24.04",
+  "nodeVersion": "26.12.0",
+  "playwrightCoreVersion": "1.62.1",
+  "browser": {
+    "version": "151.0.7922.34",
+    "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip",
+    "archiveSha256": "3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14",
+    "relativeExecutable": "chrome-headless-shell-linux64/chrome-headless-shell",
+    "executableSha256": "e11fc9ce65c96313476f7ee9844b6fb6a9220fb048693cfe9eee00acf4170a9f"
+  },
+  "gsap": {
+    "version": "3.14.2",
+    "file": "dist/gsap.min.js",
+    "sha256": "c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280",
+    "license": "owner_decision_2026-10-22",
+    "inGit": false
+  },
+  "ffmpeg": {
+    "ubuntuPackageVersion": "7:6.1.1-3ubuntu5",
+    "source": "https://launchpad.net/ubuntu/+source/ffmpeg/7:6.1.1-3ubuntu5"
+  },
+  "note": "Pins the render image built in S1. Executable digests are re-recorded from the built image; this file is not evidence that the image exists."
+}

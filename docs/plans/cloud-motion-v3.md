@@ -1664,6 +1664,12 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 - `check:repo` 和 `test` 通过。
 - `check:repo` 增加"旧标识符不得出现"的检查：QuickJS、`canvas-commands-v1`、`canvas-media-v1`、admission、fixture 宿主、JSONL 控制器。
 
+**S0 完成情况（2026-10-23）**：
+
+- 规格与协议已升到 v3.0 / 3.0.0。`production.schema.json` 只升了版本号，Manifest 改为引用 film-v1 的语义变更放在 S1，与 PRD 14 §2 一起改。
+- 声音实现（`creative-audio`）和 `motion-tools` 没有在 S0 迁出：S1 从 Git 历史（提交 `1faef1c`）按 `packages/audio`、`packages/film-runtime` 的新结构改写。S0 只迁出了 CC0 采样和字体。
+- `apps/cloud` 只有健康检查路由；容器应用的骨架随 S1 的真实实现加入，不建空模块。D1、R2、Queues 尚未创建。
+
 ### S1 一条龙：真实题目从需求到成片
 
 1. **film-runtime**：

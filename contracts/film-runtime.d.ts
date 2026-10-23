@@ -1,0 +1,92 @@
+/**
+ * film-v1 page contract: what trusted blocks and untrusted custom scenes may rely on.
+ * Contract only; packages/film-runtime implements it (cloud motion plan §4).
+ * The page itself is generated from film.json; authors never write index.html.
+ */
+export interface FilmRuntimeInfo { apiVersion: '3.0.0'; specVersion: 'film-v1' }
+
+export type AspectId = 'landscape' | 'portrait' | 'feed' | 'square';
+export interface SafeInsets { top: number; right: number; bottom: number; left: number }
+/** Aspect-level only: there is no targetId, so targets sharing an aspect share one render (plan D9). */
+export interface Target {
+  aspect: AspectId; width: number; height: number; safeInsets: SafeInsets;
+  fps: 30; totalFrames: 450 | 900;
+}
+export interface StyleTokens {
+  palette: Readonly<Record<string, string>>;
+  type: { display: FontRef; text: FontRef; mono?: FontRef; scale: 'compact' | 'regular' | 'large' };
+  motion: { language: string; energy: 1 | 2 | 3 | 4 | 5; easing: string; transitions: string };
+}
+export interface FontRef { fontId: string; weight: number; style?: 'normal' | 'italic' }
+export interface Box { x: number; y: number; width: number; height: number }
+
+/** A frozen asset as the page sees it; video frames come from the runtime, never a <video> element. */
+export interface AssetHandle {
+  resourceId: string; kind: 'image' | 'video' | 'svg'; width: number; height: number;
+  /** Image or SVG URL under /r/<resourceId>. */
+  url: string;
+  /** Video only: the frame for a film-local time, resolved by PTS. Throws VIDEO_FRAME_UNAVAILABLE. */
+  frameAt?(seconds: number): Promise<ImageBitmap>;
+  roi: ReadonlyArray<Box>;
+}
+
+/** Text is only ever shown through a slot, so QA and fact binding see every word on screen. */
+export interface TextSlotHandle {
+  slotId: string; text: string; role: 'headline' | 'body' | 'label' | 'number' | 'quote' | 'caption' | 'cta';
+  /** Mounts the slot's text into an element with auto-fit to the role's minimum size; returns that element. */
+  mount(parent: Element, options?: { maxLines?: number; align?: 'start' | 'center' | 'end' }): HTMLElement;
+}
+
+export interface SceneContext {
+  root: HTMLElement;
+  target: Target;
+  style: StyleTokens;
+  text(slotId: string): TextSlotHandle;
+  asset(key: string): AssetHandle;
+  /** Film frames covered by this scene, half-open. */
+  frames: { start: number; end: number };
+  /** Beat frames inside this scene, from the frozen audio plan. */
+  beats: ReadonlyArray<number>;
+  /** A seeded random stream (random-seq-v1); identical for the same seek time. */
+  random(): number;
+}
+
+export interface SceneEvent { name: string; frame: number }
+export interface SceneRegion { regionId: string; boxAt(frame: number): Box | null }
+
+/** Trusted blocks: render must be a pure function of time (checked by golden frames, plan §4.3). */
+export interface BlockDefinition<Params = Record<string, unknown>> {
+  id: string; version: string;
+  build(ctx: SceneContext, params: Params): BlockInstance;
+}
+export interface BlockInstance {
+  /** Draws the scene at a scene-local time in seconds. Either this or a paused GSAP timeline. */
+  render?(localSeconds: number): void;
+  timeline?: GsapTimelineLike;
+  events: ReadonlyArray<SceneEvent>;
+  regions: ReadonlyArray<SceneRegion>;
+}
+
+/** Untrusted custom scenes register through PB.scene and return a paused timeline. */
+export interface CustomScene {
+  timeline: GsapTimelineLike;
+  regions?: ReadonlyArray<SceneRegion>;
+  events?: ReadonlyArray<SceneEvent>;
+}
+export interface GsapTimelineLike { pause(): unknown; seek(seconds: number, suppressEvents?: boolean): unknown; duration(): number }
+
+export interface PB {
+  info: FilmRuntimeInfo;
+  defineBlock<Params>(definition: BlockDefinition<Params>): void;
+  scene(sceneId: string, factory: (ctx: SceneContext) => CustomScene): void;
+}
+
+/**
+ * Forbidden in custom scenes and enforced by the runtime shim (plan §4.4): network APIs, workers,
+ * WebAssembly, eval/new Function, storage, AudioContext, <video>, <iframe>, timers after init,
+ * and text not drawn through ctx.text().
+ */
+export type ForbiddenRuntimeError =
+  | 'RUNTIME_NETWORK_FORBIDDEN' | 'RUNTIME_WORKER_FORBIDDEN' | 'RUNTIME_WASM_FORBIDDEN' | 'RUNTIME_EVAL_FORBIDDEN'
+  | 'RUNTIME_STORAGE_FORBIDDEN' | 'RUNTIME_AUDIO_FORBIDDEN' | 'RUNTIME_VIDEO_FORBIDDEN' | 'RUNTIME_IFRAME_FORBIDDEN'
+  | 'RUNTIME_TIMER_FORBIDDEN';

@@ -11,3 +11,5 @@ export {
 } from './src/identity.mjs';
 
 export {EDITABLE_MEDIA_TYPES,editableAssetDeclarationErrors,editableValueErrors,editableValuesErrors,boundValueUpdates,checkedValueUpdates,localPreviewValues} from './src/editable-values.mjs';
+export { ASPECTS, filmSpecErrors } from './src/film.mjs';
+export { STEP_REQUIREMENTS, modelConfigErrors, modelCallCostMicros } from './src/models.mjs';

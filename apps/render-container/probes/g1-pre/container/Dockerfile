@@ -10,7 +10,7 @@ RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|http://deb.debian.org|$APT_MIRROR|g"
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libdbus-1-3 libexpat1 \
  && rm -rf /var/lib/apt/lists/*
 
-# Same Chromium build as apps/renderer/environment.lock.json.
+# Same Chromium build as apps/render-container/environment.lock.json.
 RUN curl -fsSL --retry 8 --retry-all-errors -o /tmp/chrome.zip https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip \
  && echo "3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14  /tmp/chrome.zip" | sha256sum -c - \
  && unzip -q /tmp/chrome.zip -d /opt && rm /tmp/chrome.zip

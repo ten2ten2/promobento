@@ -1,3 +1,11 @@
 packages:
   - packages/*
   - apps/*
+minimumReleaseAgeExclude:
+  - miniflare@5.20261019.2-beta
+  - wrangler@4.152.0
+
+# Platform binaries arrive as optional dependencies; their install scripts are not needed.
+allowBuilds:
+  esbuild: false
+  workerd: false

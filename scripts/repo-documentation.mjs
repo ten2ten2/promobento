@@ -311,16 +311,6 @@ export function platformRuleErrors(previous,current) {
   return changed.length?['Platform execution rules changed without a rulesVersion bump ('+current.rulesVersion+'): '+changed.join(', ')]:[];
 }
 
-export function rendererToolchainErrors(mise,project,renderer,lock) {
-  const errors=[],exact=/^\d+\.\d+\.\d+$/;
-  const node=mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1];
-  if(!exact.test(lock.nodeVersion??'')||lock.nodeVersion!==node||lock.nodeVersion!==project.engines?.node)
-    errors.push('Renderer Node pin differs from .mise.toml or package.json');
-  if(!exact.test(lock.playwrightCoreVersion??'')||lock.playwrightCoreVersion!==renderer.dependencies?.['playwright-core'])
-    errors.push('Renderer Playwright pin differs from apps/renderer/package.json');
-  return errors;
-}
-
 export function platformBaseline(root,env=process.env) {
   const git=args=>spawnSync('git',args,{cwd:root,encoding:'utf8'});
   const explicit=env.PROMOBENTO_BASE_REF?.trim();

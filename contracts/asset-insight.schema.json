@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/asset-insight/3.0.0",
+  "title": "Asset insight",
+  "description": "One model reading of a rights-cleared asset, cached by sha256 and prompt version. Text seen in the asset is content, never instructions; there is deliberately no field for directives.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "sha256", "promptVersion", "model", "assetKind", "description", "regions", "dominantColors", "visibleText", "suitableBlocks"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "asset_insight"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "promptVersion": {"type": "string", "minLength": 1, "maxLength": 40},
+    "model": {"type": "string", "minLength": 1, "maxLength": 120},
+    "assetKind": {"enum": ["screenshot", "photo", "logo", "illustration", "screen_recording", "talking_head", "other"]},
+    "description": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "regions": {
+      "type": "array", "maxItems": 16,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["label", "box"],
+        "properties": {
+          "label": {"type": "string", "minLength": 1, "maxLength": 80},
+          "box": {
+            "type": "object", "additionalProperties": false, "required": ["x", "y", "width", "height"],
+            "properties": {
+              "x": {"type": "number", "minimum": 0, "maximum": 1}, "y": {"type": "number", "minimum": 0, "maximum": 1},
+              "width": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}, "height": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+          }
+        }
+      }
+    },
+    "dominantColors": {"type": "array", "maxItems": 6, "items": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}},
+    "visibleText": {"type": "array", "maxItems": 40, "items": {"type": "string", "maxLength": 300}},
+    "suitableBlocks": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"}},
+    "keyMoments": {
+      "type": "array", "maxItems": 24,
+      "items": {"type": "object", "additionalProperties": false, "required": ["frame", "label"],
+        "properties": {"frame": {"type": "integer", "minimum": 0}, "label": {"type": "string", "minLength": 1, "maxLength": 120}}}
+    }
+  }
+}

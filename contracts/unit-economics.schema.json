@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/unit-economics/3.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "group", "unitCosts", "cohort", "scenarios"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "unit_economics_input"},
+    "group": {
+      "type": "object", "additionalProperties": false,
+      "required": ["modelSettingId", "durationSeconds", "targetIds"],
+      "properties": {
+        "modelSettingId": {"type": "string", "minLength": 1, "maxLength": 128},
+        "durationSeconds": {"enum": [15, 30]},
+        "targetIds": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}}
+      }
+    },
+    "unitCosts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["creations", "patchRounds", "assetSegments", "targetBatches", "deliveryBatches"],
+      "properties": {
+        "creations": {"$ref": "#/$defs/measurement"},
+        "patchRounds": {"$ref": "#/$defs/measurement"},
+        "assetSegments": {"$ref": "#/$defs/measurement"},
+        "targetBatches": {"$ref": "#/$defs/measurement"},
+        "deliveryBatches": {"$ref": "#/$defs/measurement"}
+      }
+    },
+    "cohort": {
+      "anyOf": [{"type": "null"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["costStartedTrials", "firstPurchasers", "allTrialCostMicros", "unsettledTrialCostMicros", "netFirstPurchaseReceiptsMicros", "paidProductionCostMicros", "otherAttributedCostMicros", "evidenceRefs"],
+        "properties": {
+          "costStartedTrials": {"$ref": "#/$defs/count"},
+          "firstPurchasers": {"$ref": "#/$defs/count"},
+          "allTrialCostMicros": {"$ref": "#/$defs/micros"},
+          "unsettledTrialCostMicros": {"$ref": "#/$defs/micros"},
+          "netFirstPurchaseReceiptsMicros": {"$ref": "#/$defs/micros"},
+          "paidProductionCostMicros": {"$ref": "#/$defs/micros"},
+          "otherAttributedCostMicros": {"$ref": "#/$defs/micros"},
+          "evidenceRefs": {"$ref": "#/$defs/evidenceRefs"}
+        }
+      }]
+    },
+    "scenarios": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "sku", "expectedUse", "initialTargetPreparationIncludedInTrial", "averageTrialCostMicros", "trialConversionRate", "netReceiptMicros", "otherCostMicros", "basis", "evidenceRefs"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "sku": {"enum": ["single_export", "project_pack", "project_upgrade", "extra_pack"]},
+          "expectedUse": {"$ref": "#/$defs/use"},
+          "initialTargetPreparationIncludedInTrial": {"type": "boolean"},
+          "averageTrialCostMicros": {"anyOf": [{"$ref": "#/$defs/micros"}, {"type": "null"}]},
+          "trialConversionRate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+          "netReceiptMicros": {"anyOf": [{"$ref": "#/$defs/micros"}, {"type": "null"}]},
+          "otherCostMicros": {"anyOf": [{"$ref": "#/$defs/micros"}, {"type": "null"}]},
+          "basis": {"enum": ["measured_inputs", "hypothesis"]},
+          "evidenceRefs": {"$ref": "#/$defs/evidenceRefs"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "micros": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "count": {"type": "integer", "minimum": 0, "maximum": 1000000000},
+    "evidenceRefs": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 1024}},
+    "measurement": {
+      "anyOf": [{"type": "null"}, {
+        "type": "object", "additionalProperties": false,
+        "required": ["totalCostMicros", "unsettledCostMicros", "attempts", "usableResults", "chargeRefs", "evidenceRefs"],
+        "properties": {
+          "totalCostMicros": {"$ref": "#/$defs/micros"},
+          "unsettledCostMicros": {"$ref": "#/$defs/micros"},
+          "attempts": {"$ref": "#/$defs/count"},
+          "usableResults": {"$ref": "#/$defs/count"},
+          "chargeRefs": {"$ref": "#/$defs/evidenceRefs"},
+          "evidenceRefs": {"$ref": "#/$defs/evidenceRefs"}
+        }
+      }]
+    },
+    "use": {
+      "type": "object", "additionalProperties": false,
+      "required": ["creations", "patchRounds", "assetSegments", "targetBatches", "deliveryBatches"],
+      "properties": {
+        "creations": {"type": "number", "minimum": 0, "maximum": 1000000000},
+        "patchRounds": {"type": "number", "minimum": 0, "maximum": 1000000000},
+        "assetSegments": {"type": "number", "minimum": 0, "maximum": 1000000000},
+        "targetBatches": {"type": "number", "minimum": 0, "maximum": 1000000000},
+        "deliveryBatches": {"type": "number", "minimum": 0, "maximum": 1000000000}
+      }
+    }
+  }
+}

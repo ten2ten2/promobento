@@ -1,0 +1,10 @@
+{
+  // Cloud motion plan §3.1 and §9. Bindings (D1, R2, Queues, containers, Workflows, Durable Objects)
+  // are added in S1 together with the code that uses them; resources are created from CI only.
+  "name": "promobento",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "observability": { "enabled": true }
+}

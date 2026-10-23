@@ -35,67 +35,12 @@ description = "check:agent-reference: current specifications and references only
 dir = "{{config_root}}"
 run = "node scripts/check-agent-reference.mjs"
 
-[tasks."install:renderer"]
-description = "Install the pinned official browser and verify its checksums"
+[tasks."build:validators"]
+description = "Precompile the v3 contract Schemas into standalone validators for Workers"
 dir = "{{config_root}}"
-run = "node apps/renderer/scripts/install-browser.mjs"
+run = "node packages/contracts/scripts/build-validators.mjs"
 
-[tasks."test:render"]
-description = "Render and verify fixed 15/30-second fixtures and host failure handling"
+[tasks."typecheck"]
+description = "Generate Worker runtime types and type-check apps/cloud"
 dir = "{{config_root}}"
-run = "node scripts/run-tests.mjs --render"
-
-[tasks."render:fixture"]
-description = "Render a reviewed fixture with output or full regression checks"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/render-fixture.mjs"
-
-[tasks."build:admission"]
-description = "Build the pinned, credential-free M0a admission image"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/build-admission.mjs"
-
-[tasks."render:admission"]
-description = "Run an admitted geometry or media source in isolated task containers"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/render-admission.mjs"
-
-[tasks."test:admission"]
-description = "Verify real task isolation, attack sources, cleanup and 30-second MP4"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/test-admission.mjs"
-
-[tasks."agent:local"]
-description = "Run the budgeted local M0a director, patch and target workflow"
-dir = "{{config_root}}"
-run = "node apps/agent-runner/scripts/local-agent.mjs"
-
-[tasks."test:admission-media"]
-description = "Verify admitted text, images, PTS video and frozen audio in real containers"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/test-admission-media.mjs"
-
-[tasks."benchmark:m0a"]
-description = "Run and summarize the paired M0a model, baseline, cost and blind-review study"
-dir = "{{config_root}}"
-run = "node scripts/benchmark-m0a.mjs"
-
-[tasks."creative:tools"]
-description = "Compare explicit direction palettes and emit bounded editorial diagnostics"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/creative-tools.mjs"
-
-[tasks."creative:audio"]
-description = "Generate, analyze or caption explicitly authorized audio in the pinned container"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/creative-audio.mjs"
-
-[tasks."test:creative"]
-description = "Render seven grammars, all imported fonts and exact serial/parallel media comparisons"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/test-creative.mjs"
-
-[tasks."test:creative-audio"]
-description = "Verify generated audio, authorized analysis and caption tools in actual containers"
-dir = "{{config_root}}"
-run = "node apps/renderer/scripts/test-creative-audio.mjs"
+run = "pnpm --filter @promobento/cloud typecheck"

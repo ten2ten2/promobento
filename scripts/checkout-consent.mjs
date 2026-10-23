@@ -30,7 +30,7 @@ export function recordCheckoutConsent(request,disclosure,{actorUserId,receiptId,
   const accepted=new Set(request.consent.acceptedItemIds);
   if ([...accepted].some(id=>!items.has(id)) || disclosure.items.some(item=>item.required && !accepted.has(item.id)))
     throw Error('CHECKOUT_CONSENT_REQUIRED');
-  const result={schemaVersion:'2.7.0',kind:'checkout_consent_receipt',receiptId,disclosureId:disclosure.disclosureId,
+  const result={schemaVersion:'3.0.0',kind:'checkout_consent_receipt',receiptId,disclosureId:disclosure.disclosureId,
     projectId,actorUserId,requestId:request.requestId,purchaseHash:disclosure.purchaseHash,
     termsVersion:disclosure.termsVersion,dependsOnOrderId,
     disclosureHash:digest(disclosure),acceptedItemIds:[...accepted].sort(),acceptedAt:new Date(nowMs).toISOString()};

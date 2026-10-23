@@ -125,7 +125,8 @@
       },
       "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
       "labelKey": "platforms.tiktok.label",
-      "userNoteKey": "platforms.productRecommendation"
+      "userNoteKey": "platforms.productRecommendation",
+      "loudnessTarget": -14
     },
     {
       "id": "instagram_feed",
@@ -161,7 +162,8 @@
       },
       "userNote": "Feed composition preset. Instagram's current upload flow determines the final post type and crop.",
       "labelKey": "platforms.instagram_feed.label",
-      "userNoteKey": "platforms.feedNote"
+      "userNoteKey": "platforms.feedNote",
+      "loudnessTarget": -14
     },
     {
       "id": "instagram_reels",
@@ -194,7 +196,8 @@
       },
       "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
       "labelKey": "platforms.instagram_reels.label",
-      "userNoteKey": "platforms.productRecommendation"
+      "userNoteKey": "platforms.productRecommendation",
+      "loudnessTarget": -14
     },
     {
       "id": "x",
@@ -227,7 +230,8 @@
       },
       "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
       "labelKey": "platforms.x.label",
-      "userNoteKey": "platforms.productRecommendation"
+      "userNoteKey": "platforms.productRecommendation",
+      "loudnessTarget": -14
     },
     {
       "id": "youtube",
@@ -260,7 +264,8 @@
       },
       "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
       "labelKey": "platforms.youtube.label",
-      "userNoteKey": "platforms.productRecommendation"
+      "userNoteKey": "platforms.productRecommendation",
+      "loudnessTarget": -14
     },
     {
       "id": "youtube_shorts",
@@ -299,7 +304,8 @@
       },
       "userNote": "Recommended export settings. The 15/30-second durations and safe areas are PromoBento product defaults.",
       "labelKey": "platforms.youtube_shorts.label",
-      "userNoteKey": "platforms.productRecommendation"
+      "userNoteKey": "platforms.productRecommendation",
+      "loudnessTarget": -14
     }
   ],
   "uiCopyVersion": "1.1.0",

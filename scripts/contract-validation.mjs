@@ -21,9 +21,10 @@ export function hasCalibratedCostLimits(policy) {
   const cost = policy?.cost, patch = policy?.patch;
   if (!cost || !patch || !['maxMicrosPerUserWindow','maxMicrosPerProjectWindow'].every(key => Object.hasOwn(cost,key))) return false;
   const limits = Object.entries(cost).filter(([key]) => key.startsWith('maxMicros') || ['dailySoftAlertMicros','maxDailyFreeMicros'].includes(key));
-  return limits.every(([,value]) => Number.isSafeInteger(value) && value > 0)
+  // maxDailyFreeMicros may be 0: free use explicitly closed.
+  return limits.every(([key,value]) => Number.isSafeInteger(value) && (value > 0 || (key === 'maxDailyFreeMicros' && value === 0)))
     && cost.usageWindowHours === 24 && cost.usageWindowMode === 'rolling_all_actual_and_unsettled_costs'
-    && typeof cost.priceVersion === 'string' && cost.priceVersion.length > 0
+    && typeof cost.catalogVersion === 'string' && cost.catalogVersion.length > 0
     && Number.isSafeInteger(patch.maxInputTokensPerRound) && patch.maxInputTokensPerRound > 0
     && Number.isSafeInteger(patch.maxOutputTokensPerRound) && patch.maxOutputTokensPerRound > 0;
 }
@@ -789,7 +790,7 @@ export class TrialReference {
     this.projects.set(projectId, {workspaceId: request.workspaceId, trialOwnerUserId: trialStatus === 'granted' ? actor.userId : null,
       deleted: false, creative_generate: trialStatus === 'granted' ? free.creative_generate : 0,
       agent_patch: trialStatus === 'granted' ? free.agent_patch : 0});
-    const result = {schemaVersion:'2.7.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialGrantStatus:trialStatus};
+    const result = {schemaVersion:'3.0.0',kind:'create_project_result',requestId:request.requestId,projectId,workspaceId:request.workspaceId,trialGrantStatus:trialStatus};
     this.requests.set(key, {requestHash, result});
     return structuredClone(result);
   }

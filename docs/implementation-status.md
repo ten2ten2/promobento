@@ -1,23 +1,20 @@
 # 当前实施状态
 
-当前为 PRD **v2.7**、协议 **2.7.0**。M0a 前两步已有真实15/30秒MP4与媒体回归；第三、四步已补本地导演/改稿/目标准备控制器、独立`canvas-media-v1`源码入口，以及固定huashu-motion双臂研究工具。真实模型账户与总预算尚未确认，模型作品、负责人视听及独立目标用户盲审未完成，**M0a尚未整体通过**。客户Studio、Cloudflare隔离、数据库、认证和支付服务仍待实现。
+当前为 PRD **v3.0**、协议 **3.0.0**。动效管线按[云端动效管线改造方案](plans/cloud-motion-v3.md)的切片实施，**S0 清场与契约已完成，S1 尚未开始**。仓库里目前没有可以出片的渲染器、导演或云端服务：v2 的本地渲染器、受限源码执行、本地导演和研究工具已在 S0 删除，S1 按新结构重写。客户 Studio、数据库、认证和支付服务仍待实现。
 
-下一阶段按已批准但尚未实施的[云端动效管线改造方案](plans/cloud-motion-v3.md)推进：作品改为片子规格加镜头积木和自写镜头，导演分阶段运行，按切片 S0–S3 实施，S0 定义新契约时升级规格与协议版本。方案中已在 Cloudflare 实测的只有：Chromium 沙箱（SANDBOX_FULL，含 Chromium 以独立 uid 运行）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时；这些都是临时探针，不是产品代码，其余均为计划。
+已在 Cloudflare 实测的只有临时探针，不是产品代码：Chromium 沙箱（SANDBOX_FULL，含独立 uid）、WebGL 2.0（SwiftShader）、按需调度与按次实例规格，以及 2026-10-23 [G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)覆盖的 `ctx.container` broker 与断网、令牌隔离、实例停止与回收、Workflows 事件链路、Ajv 预编译、截图格式与 WebGL 单帧耗时。模型网关的能力探针见 [2026-10-23 模型探针](evidence/2026-10-23-model-probe/README.md)。
 
 | 部分 | 已有内容 | 仍需实现或验证 |
 | --- | --- | --- |
-| 本地 Renderer | 15秒方形/450帧及30秒竖版/900帧H.264；DOM/SVG/Canvas2D确定性回归；固定OFL字体、同family多字重及所选face的cmap/回退检查，VFR PTS抽帧及有界缓存；48kHz双声道WAV冻结/混音/AAC有效时长与实际音画落点；原创媒体许可文本摘要/范围核验；同源截图/片段、实际文字溢出检查；浏览器和编码器宿主期限与进程回收 | 任意上传与平台完整字体登记、多语塑形、生产QA/审核/标记及p95；原生动画、WebGL及Cloudflare隔离尚未完成 |
-| 受限源码执行 | 静态源包与完整Schema校验；QuickJS单模块同步执行、绝对时间与共享randomAt、WASM线性内存硬限额；独立Docker任务、外部期限/取消/回收、源码与镜像绑定；逐行背压与双端累计传输限制、正序/冷启共用引擎期限、OOM诊断；几何profile已有30秒出片、命令/像素确定性及隔离攻击实测；独立媒体profile已实测30秒/900帧，覆盖固定授权字体/图片/PTS录屏/冻结声音、实际文字轨迹与关键帧、安全区及命令/像素重复、乱序、冷启；命令层冷启为全新容器全帧逆序比对，像素层仍抽样 | 不开放任意资源、DOM、依赖安装或构建脚本；生产QA关联、完整输出审核及Cloudflare目标环境待验证 |
-| 本地导演与研究 | 独立源码方向、Treatment/AudioPlan、最多两次修复、定点改稿、版本CAS；有授权才调用的OpenAI适配、实际费用替代链与累计预算、未知用量保留；人工allowed/withheld回执；真实关键帧引用；主3软件＋3课程题目及两额外题、同模型双臂初稿/改稿、盲审材料与单位经济汇总；固定huashu-motion CLI已有15秒/450帧真实烟测 | 模型账户/精确价格/总预算、至少两种模型或设置的真实12组比较；负责人事实/权利/正常速度试听与独立目标用户盲审；全部目标实际适配和成本标定。离线mock不代替这些结果 |
-| 创作工具移植 | [完整入口](creative-toolkit.md)：按任务召回的导演方法、18种形式/20种视觉语言参考；绝对时间动画/2D相机、七类可组合画面语法、路径/变换/渐变/裁剪/材质；27字体family/42WOFF及有界中文布局；ABC/程序配乐/音效、固定CC0真实乐器采样、拍点/能量/字幕工具；实际MP4运动诊断、可视色板；保存帧整图/2×细节的多模态改稿；有界双路捕获；显式启用和作用域隔离的偏好/证据经验 | `test:creative`与`test:creative-audio`保留实际容器和全帧串并行比较证据；真实模型调用、正常速度视听与目标用户判断仍待独立验收；GSAP、3D/WebGL、复杂塑形和自动语音模型不在本批范围 |
-| 本地运行时交互 | 参数类型/事实绑定/时序限制与Studio共用；asset槽位显式MIME及默认拒绝的drawable授权；候选prepare成功后替换画面并推进epoch，失败保留旧画面；逻辑区域定位、半开边界、规范参数保存和采样帧冻结重放 | 完整跨源RenderProtocol消息身份桥接、客户播放器/音频时钟、Studio保存CAS及真实服务事务 |
-| 共享契约库 | JSON/JCS、浏览器与Node共用参数语义、规范参数文件与总量上限、源包可移植路径和冲突拒绝、完整源包及目标依赖摘要、环境继承与恢复、Ajv 校验 | 真实构建器解析任意工程依赖、服务接入和数据库事务 |
-| 创作与交付协议 | 空草稿、统一候选与幂等参考入口、活动任务恢复、参数应用回执；双向事实同步、完整引用检查及事实响应快照一致性；预览、音频、QA、预算、计费及授权参考逻辑；单机研究控制器使用独立私有记录 | Studio和生产Agent服务、可信记录登记、事实与草稿真实事务、跨主机账本、预留及发布 |
+| 契约 | v3.0 Schema：[FilmSpec](../contracts/film.schema.json)（含示例）、积木、渲染任务与分段、帧观测、方向卡、声音计划、素材理解、导演工具、模型配置、单位经济；[片子运行时 API](../contracts/film-runtime.d.ts) 与[渲染协议](../contracts/render-protocol.d.ts) 3.0.0（按画幅渲染）；FilmSpec 跨字段规则（覆盖、转场重叠、事实绑定、素材权利、积木与字体）；`build:validators` 生成不含运行时代码生成的独立验证器 | [生产 Schema](../contracts/production.schema.json) 的 Manifest 仍是 v2 结构，S1 改为引用 film-v1；固定向量随 S1 的页面生成器补齐 |
+| 模型配置 | [供应商与步骤绑定](../config/model-providers.json)：ModelSwitch 网关（CNY 价格与汇率）与 Anthropic；各导演步骤按能力探针结果绑定，配置检查拒绝能力不符、未验证或未授权的模型；[授权](../config/model-authorization.json)含有效期与总额上限；按价格目录把用量换算为美元微单位并向上取整 | 模型适配器、缓存、预算预留与离线 mock 在 S1 实现；S2 评测时比较网关与官方 Sonnet |
+| 策略与配置 | `agent-policy` 的渲染期限、分段并发、阶段预算与 effort、负责人确认的单位成本目标；平台预设的 `loudnessTarget`（−14 LUFS）；`input-capabilities` 的 `tts.enabled=false` | 期限与段数在 G1 后按实测修订 |
+| 云端 | [`apps/cloud`](../apps/cloud/wrangler.jsonc) TypeScript 骨架（只有健康检查路由）与 `typecheck`；[渲染环境锁](../apps/render-container/environment.lock.json)记录 Chrome for Testing 151.0.7922.34 与 GSAP 3.14.2 的摘要 | D1、R2、Queues 尚未创建；Workflows、DO、broker、渲染与资产容器均在 S1/S3 实现 |
+| 素材 | [字体](../packages/fonts/huashu/LICENSES.md)（huashu-motion 登记的 OFL WOFF 与 Geist）；[CC0 乐器采样](../packages/audio/samples/catalog.json) | 声音引擎与 `motion-tools` 纯函数在 S1 从 Git 历史（提交 `1faef1c`）按新结构改写 |
+| 共享契约库 | JSON/JCS、浏览器与 Node 共用参数语义、源包可移植路径和摘要、环境继承、Ajv 校验 | 服务接入和数据库事务 |
 | Studio 与品牌 | 离线交互参考、品牌图标和分享图、明暗配色与网站字体配置 | 生产网站、完整手机/平板交互、字体加载和浏览器验收 |
-| 审核与购买接受 | 默认关闭的Prompt Sift适配；原文字数、格式开销与实际prompt预算分离；版本化输出抽样、完整/片段/单帧源范围、本地全片、模态观察、输入限额及撤销校验；run/候选/预览从回执放行；同意与订单重放参考逻辑 | 实际输入/输出审核及可信覆盖采集、申诉、界面与动作采集、持久化和Waffo接入；抽样不保证所有瞬间内容安全 |
+| 审核与购买接受 | 默认关闭的Prompt Sift适配；输出抽样、预览与购买同意的参考逻辑 | 实际输入/输出审核、持久化和Waffo接入 |
 | 网站政策 | [Terms、Privacy、Refund 英文草稿](../content/pages/README.md)及模板变量示例 | 主体和供应商事实、页面渲染器、发布校验及实际流程 |
-| 工程检查 | 精确工具链及完整浏览器归档校验/缓存；私有解压、字体隔离与临时帧清理；Node纯JSON读取声明；配置/契约/文档与单测；独立完整回归、媒体output与源码准入CI、含提交/运行身份的产物留存；有总查询预算的最近成功祖先及受限初始基线 | 各外部集成与生产环境验收；旧fixture的声明比对发生在浏览器模块求值后，不能用于未知源码；系统库逐次记录不等于跨机器像素相同 |
+| 工程检查 | 精确工具链与冻结 lockfile；`check:repo`（含 v2 旧标识符检查）、单元测试与 `typecheck` 在 CI 的 `contracts` job 运行 | `browser`、`cloud-local`、`deploy` job 随 S1 加入 |
 
-下一步按[研究入口](../research/m0a/README.md)取得模型账户、精确价格和总预算授权，完成真实软件/课程作品、同范围改稿、全目标与12组对照；实施顺序和退出条件见[08](prd/08-codex-execution.md)。用户选定的模型产品名称只是影片题目，不代表收费执行模型。负责人将自行检查作品，独立盲审仍须另行招募。[两个原创工程样片](../research/m0a/showcase.mjs)已生成DeepSeek和Duolingo Math的30秒/900帧视频，并检查实际首/中/尾画面；它们未经过计费模型对照或真人验收，不计作主矩阵通过。资源为原创几何/虚构界面/程序音轨及固定OFL Latin字体，未复制品牌图片或录屏。真实调用未获授权前不调用付费API；生产Agent保持`enabled=false`。成本情景允许明确的假设转化率；独立资产处理/增量交付成本、真实市场队列和转化率尚未观测。
-
-`render:fixture`默认运行`media`的output模式，记录出片、媒体与必需抽查；完整`test:render`另含全帧倒序、编辑/故障回归。其报告分开准备、捕获编码、检查及清理时间，另记实际CPU/内存配额、缓存状态和正序捕获的宿主/浏览器嵌套诊断；单次或每帧耗时不代表生产任务p95。本地半分辨率与高清帧的边缘可有重采样差异，同分辨率重放才要求完整像素hash相同。`render:admission`走独立QuickJS容器，浏览器只消费校验后的几何或媒体数据；未知源码不能进入fixture宿主浏览器。上游基线的HTML/GSAP另在完整隔离容器执行，不扩大PromoBento创作API。命令及能力边界见[08的准入条件](prd/08-codex-execution.md#agent源码执行准入)。结果以精确提交和CI运行/attempt及其报告、样片、环境为准；未取得结果不标通过。长期验收证据按[06](prd/06-testing-and-release.md#5-发布与证据)管理。
+下一步是 S1：film-runtime 与 ★ 积木、渲染容器、云端链路、分阶段导演、声音和 G1 云端检查点，顺序和出口见[08](prd/08-codex-execution.md#2-里程碑与退出关口)。生产 Agent 保持 `enabled=false`；真实调用只在模型授权的范围和总额内进行。长期验收证据按[06](prd/06-testing-and-release.md#5-发布与证据)管理。

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/frame-observation/3.0.0",
+  "title": "Trusted frame observation",
+  "description": "Read by the controller through CDP on an actual frame; never reported by the work itself.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "renderId", "aspectId", "frame", "texts", "regions", "findings"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "frame_observation"},
+    "renderId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{4,96}$"},
+    "aspectId": {"enum": ["landscape", "portrait", "feed", "square"]},
+    "frame": {"type": "integer", "minimum": 0, "maximum": 900},
+    "sceneId": {"type": "string", "maxLength": 48},
+    "texts": {
+      "type": "array", "maxItems": 400,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["slotId", "text", "box", "fonts", "fallbackUsed", "missingGlyphs", "contrastRatio", "insideSafeArea", "clipped", "covered"],
+        "properties": {
+          "slotId": {"description": "null for text drawn outside a slot (unbound-text).", "oneOf": [{"type": "string", "maxLength": 48}, {"type": "null"}]},
+          "text": {"type": "string", "maxLength": 2000},
+          "box": {"$ref": "#/$defs/box"},
+          "fonts": {
+            "type": "array", "maxItems": 8,
+            "items": {"type": "object", "additionalProperties": false, "required": ["family", "glyphCount"],
+              "properties": {"family": {"type": "string", "maxLength": 120}, "glyphCount": {"type": "integer", "minimum": 0}}}
+          },
+          "fallbackUsed": {"type": "boolean"},
+          "missingGlyphs": {"type": "integer", "minimum": 0},
+          "contrastRatio": {"type": "number", "minimum": 1, "maximum": 21},
+          "largeText": {"type": "boolean"},
+          "insideSafeArea": {"type": "boolean"},
+          "clipped": {"type": "boolean"},
+          "covered": {"type": "boolean"},
+          "occlusionWaived": {"type": "boolean"}
+        }
+      }
+    },
+    "regions": {
+      "type": "array", "maxItems": 200,
+      "items": {"type": "object", "additionalProperties": false, "required": ["regionId", "box"],
+        "properties": {"regionId": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,80}$"}, "box": {"$ref": "#/$defs/box"}}}
+    },
+    "findings": {
+      "type": "array", "maxItems": 200,
+      "items": {"type": "object", "additionalProperties": false, "required": ["code", "severity"],
+        "properties": {
+          "code": {"enum": ["text-cut", "text-clipped", "text-covered", "text-overlap", "blank-frame", "low-contrast", "unbound-text", "outside-safe-area", "FONT_FALLBACK_USED", "FONT_GLYPH_MISSING", "TEXT_FIT_FAILED"]},
+          "severity": {"enum": ["BLOCK", "REVIEW"]},
+          "slotId": {"oneOf": [{"type": "string", "maxLength": 48}, {"type": "null"}]},
+          "detail": {"type": "string", "maxLength": 300}
+        }}
+    }
+  },
+  "$defs": {
+    "box": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y", "width", "height"],
+      "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "width": {"type": "number", "minimum": 0}, "height": {"type": "number", "minimum": 0}}
+    }
+  }
+}

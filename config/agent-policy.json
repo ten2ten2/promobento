@@ -1,42 +1,43 @@
 {
-  "schemaVersion": "2.7.0",
+  "schemaVersion": "3.0.0",
   "policyVersion": "agent-policy-v1",
   "status": "prd_seed",
   "sourceDocument": "docs/prd/14-production-contracts.md",
   "enabled": false,
   "requiresModelAndCostCalibration": true,
   "limits": {
-    "globalContainers": 4,
-    "workspaceContainers": 2,
-    "workspaceComposer": 1,
-    "workspaceRenderer": 1,
-    "activeSecondsPerAttempt": 600,
-    "heartbeatSeconds": 15,
-    "leaseReviewAfterSeconds": 60,
+    "globalShardInstances": 64,
+    "workspaceShardInstances": 24,
+    "shardsPerRender": 6,
+    "shardsPerRenderWebgl": 24,
+    "globalStudioInstances": 32,
+    "globalAssetInstances": 8,
     "maxInternalRepairs": 2,
     "maxRenderAttempts": 3,
     "initTimeoutMs": 30000,
     "frameTimeoutMs": 5000,
+    "frameTimeoutWebglMs": 10000,
+    "requestTimeoutMs": 600000,
     "awaitingUserHours": 24,
     "temporaryPreviewHours": 72,
     "frameTimeoutScope": "final_frame_including_all_samples_composite_and_readback"
   },
   "cost": {
     "unit": "usd_micros",
-    "priceVersion": null,
+    "catalogVersion": "models-2026-10-23",
     "hardBudgetScope": "operation_including_all_child_calls_and_attempts",
-    "maxMicrosPerCreativeRun": null,
-    "maxMicrosPerPatch": null,
-    "maxMicrosPerTargetPreparation": null,
+    "maxMicrosPerCreativeRun": 10000000,
+    "maxMicrosPerPatch": 3000000,
+    "maxMicrosPerTargetPreparation": 3000000,
     "maxMicrosPerAssetProcessing": null,
     "maxMicrosPerCloudPreview": null,
-    "maxMicrosPerQualityReview": null,
+    "maxMicrosPerQualityReview": 1000000,
     "maxMicrosPerRenderRelease": null,
-    "dailySoftAlertMicros": null,
-    "maxDailyFreeMicros": null,
+    "dailySoftAlertMicros": 50000000,
+    "maxDailyFreeMicros": 0,
     "dailyBudgetTimezone": "UTC",
-    "maxMicrosPerUserWindow": null,
-    "maxMicrosPerProjectWindow": null,
+    "maxMicrosPerUserWindow": 30000000,
+    "maxMicrosPerProjectWindow": 20000000,
     "usageWindowHours": 24,
     "usageWindowMode": "rolling_all_actual_and_unsettled_costs",
     "maxMicrosPerUserFailureWindow": null,
@@ -222,5 +223,100 @@
     "experimentalEnabled": false,
     "requiresMeasuredBudget": true,
     "selector": "trusted_controller"
+  },
+  "render": {
+    "startupMs": 30000,
+    "startupWebglMs": 60000,
+    "perFrameBasisMs": 1000,
+    "perFrameBasisWebglMs": 6000,
+    "shardOverheadMs": 30000,
+    "assembleMs": 60000,
+    "reencodeBaseMs": 60000,
+    "reencodePerFrameMs": 200,
+    "totalMs": {
+      "final30": 240000,
+      "final15": 150000,
+      "review": 90000,
+      "webglExtra": 120000
+    },
+    "captureFormat": "jpeg92",
+    "source": "docs/plans/cloud-motion-v3.md#53-期限"
+  },
+  "director": {
+    "source": "docs/plans/cloud-motion-v3.md#611-预算限制与-effort",
+    "steps": {
+      "facts": {
+        "maxCalls": 1,
+        "maxMicros": 10000,
+        "effort": "low"
+      },
+      "assets": {
+        "maxCallsPerAsset": 1,
+        "maxMicros": 40000,
+        "effort": "low"
+      },
+      "directions": {
+        "maxCalls": 3,
+        "maxMicros": 400000,
+        "effort": "high"
+      },
+      "spec": {
+        "maxCalls": 3,
+        "maxMicros": 400000,
+        "effort": "high"
+      },
+      "scenes": {
+        "maxCallsPerScene": 12,
+        "maxMicrosPerScene": 350000,
+        "effort": "medium"
+      },
+      "review": {
+        "maxCalls": 6,
+        "maxMicros": 300000,
+        "effort": "medium"
+      },
+      "coldReview": {
+        "maxCalls": 2,
+        "maxMicros": 50000,
+        "effort": "medium"
+      },
+      "triage": {
+        "maxCalls": 1,
+        "maxMicros": 10000,
+        "effort": "low"
+      }
+    },
+    "wallClockMinutes": {
+      "creative": 20,
+      "patch": 8,
+      "prepare": 8
+    },
+    "variants": {
+      "enabled": false
+    }
+  },
+  "unitCostTargets": {
+    "status": "confirmed_by_owner_2026-10-23",
+    "unit": "usd_micros",
+    "creative": {
+      "modelP50": 1000000,
+      "modelP95": 2000000,
+      "compute2d": 150000,
+      "computeWebgl": 500000
+    },
+    "patch": {
+      "modelP50": 150000,
+      "modelP95": 500000,
+      "compute": 100000
+    },
+    "prepareTargets": {
+      "modelP50": 0,
+      "modelP95": 300000,
+      "compute2d": 200000,
+      "computeWebgl": 800000
+    },
+    "trial": {
+      "modelP95": 2500000
+    }
   }
 }

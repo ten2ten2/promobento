@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://promobento.com/contracts/production/2.7.0",
+  "$id": "https://promobento.com/contracts/production/3.0.0",
   "title": "PromoBento production contracts",
   "description": "Wire structure only; authorization, cross-resource/hash relations and state guards are mandatory separate semantic checks. Fixtures are not deployed services.",
   "$defs": {
@@ -116,7 +116,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "composition"
@@ -228,7 +228,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "release_snapshot"
@@ -339,7 +339,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "edit_request"
@@ -498,7 +498,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "fact_manifest"
@@ -581,7 +581,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "quality_report"
@@ -648,7 +648,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "agent_request"
@@ -728,7 +728,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "run_result"
@@ -880,7 +880,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "run_action"
@@ -924,7 +924,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "preview_request"
@@ -1013,7 +1013,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "preview_result"
@@ -1143,7 +1143,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "snapshot_request"
@@ -1179,7 +1179,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "error"
@@ -1242,7 +1242,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1429,7 +1429,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1476,7 +1476,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1514,7 +1514,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -1579,7 +1579,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "export_manifest"
@@ -1707,7 +1707,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "quality_summary"
@@ -1769,7 +1769,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "preflight_request"
@@ -1805,7 +1805,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "export_request"
@@ -1841,7 +1841,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "platform_request"
@@ -1934,7 +1934,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -2268,7 +2268,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "create_project_request"
@@ -2326,7 +2326,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "create_project_result"
@@ -2364,7 +2364,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2426,7 +2426,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2484,7 +2484,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2546,7 +2546,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2608,7 +2608,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2674,7 +2674,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2732,7 +2732,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_request"
@@ -2893,7 +2893,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "resource_manifest"
@@ -3066,7 +3066,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -3114,7 +3114,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -3415,7 +3415,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "asset_intent_request"
@@ -3454,7 +3454,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "asset_intent_result"
@@ -3525,7 +3525,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "upload_complete_request"
@@ -3554,7 +3554,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "upload_complete_result"
@@ -3615,7 +3615,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "upload_complete_result"
@@ -3845,7 +3845,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "facts_update_request"
@@ -3884,7 +3884,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "facts_confirm_request"
@@ -3920,7 +3920,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "facts_result"
@@ -4016,7 +4016,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "transcript_confirm_request"
@@ -4066,7 +4066,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "transcript_result"
@@ -4152,7 +4152,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "showcase_consent_request"
@@ -4205,7 +4205,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "showcase_consent_request"
@@ -4250,7 +4250,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "showcase_consent_result"
@@ -4305,7 +4305,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "showcase_consent_result"
@@ -4369,7 +4369,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "support_ticket_request"
@@ -4410,7 +4410,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "support_ticket_request"
@@ -4459,7 +4459,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "support_ticket_result"
@@ -4498,7 +4498,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "support_ticket_result"
@@ -4549,7 +4549,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4596,7 +4596,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4646,7 +4646,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_result"
@@ -4728,7 +4728,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "quality_association"
@@ -4783,7 +4783,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "quality_waiver"
@@ -4947,7 +4947,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "project_result"
@@ -5217,7 +5217,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "draft_update_request"
@@ -5293,7 +5293,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "draft_update_result"
@@ -5456,7 +5456,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "job_result"
@@ -5581,7 +5581,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "preview_session_request"
@@ -5616,7 +5616,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "preview_session_result"
@@ -5765,7 +5765,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -5873,7 +5873,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -6167,7 +6167,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "runtime_declarations"
@@ -6265,7 +6265,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "cost_event"
@@ -6650,7 +6650,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -6702,7 +6702,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -6761,7 +6761,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "candidate_action_request"
@@ -6800,7 +6800,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "candidate_result"
@@ -6941,7 +6941,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -6995,7 +6995,7 @@
       "type": "object",
       "properties": {
         "protocolVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "sessionId": {
           "$ref": "#/$defs/id"
@@ -7061,7 +7061,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7100,7 +7100,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7135,7 +7135,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7174,7 +7174,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7213,7 +7213,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7256,7 +7256,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7291,7 +7291,7 @@
           "type": "object",
           "properties": {
             "schemaVersion": {
-              "const": "2.7.0"
+              "const": "3.0.0"
             },
             "kind": {
               "const": "checkout_disclosure_request"
@@ -7332,7 +7332,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "checkout_disclosure_result"
@@ -7429,7 +7429,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "checkout_consent_receipt"
@@ -7502,7 +7502,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "output_safety_result"
@@ -7628,7 +7628,7 @@
       "type": "object",
       "properties": {
         "schemaVersion": {
-          "const": "2.7.0"
+          "const": "3.0.0"
         },
         "kind": {
           "const": "output_safety_coverage_manifest"

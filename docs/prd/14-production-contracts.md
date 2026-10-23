@@ -1,6 +1,6 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章规定产品规格 v2.7 / 协议 `2.7.0` 中影响保存、验证、计费和交付的共同规则。字段类型以 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts)和[创作运行时](../../contracts/composition-runtime.d.ts)为准，界面流程见[02](02-ux-and-ui.md)。
+本章规定产品规格 v3.0 / 协议 `3.0.0` 中影响保存、验证、计费和交付的共同规则。字段类型以 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts)和[片子运行时](../../contracts/film-runtime.d.ts)为准，界面流程见[02](02-ux-and-ui.md)。
 
 仓库提供共享契约与参考校验，实际实现范围以[实施状态](../implementation-status.md)为准；本章的完整要求不等于服务已经上线。生产校验使用 `{production:true}`，拒绝 `exampleOnly:true`。校验用的 context 必须来自可信存储和执行观察，不能直接接收请求体或 Agent 自报的权限、素材、摘要和检查结论。
 
@@ -57,10 +57,6 @@ CompositionManifest 固定 project/revision、15/30 秒、30 fps、450/900 帧�
 保存后的参数只有一个来源：不可变源码包中的 `values.json`，内容严格为 `{kind:"source_values",values:{...}}` 的 JCS UTF-8 字节，最多 1 MiB、256 项。它不携带请求协议版本；格式由固定的 runtime 和依赖解释，单纯升级 API 协议不能改写该文件。颜色按声明转成小写，其他用户原文不归一化。`sourceValuesBytes` 与 `parseSourceValues` 是共同入口。
 
 静态 editables 只声明类型、范围、`affectsTiming` 和可选 `factId`，不保存第二份当前值；首版所有目标共享同一套声明和值。`type:'asset'`必须声明非空、无重复的`acceptedMediaTypes`，其他类型禁止该字段；可选值以Schema为准，保留图片和视频槽位，按可信资源登记的实际MIME匹配，不按扩展名推断。浏览器创作API的目标 `.mjs` 入口默认导出 `CompositionDefinition`，HTML 外壳由宿主提供。参数文件参与源码摘要；可信检查与导出只读冻结值，本地未保存预览按 §5 使用临时覆盖。可绘资源由可信素材登记生成 `drawableResourcePaths` 白名单，缺失白名单默认拒绝asset取值；MIME匹配与drawable授权必须同时成立，事实证明附件不能仅因出现在资源清单就被画进作品。
-
-本地受限源码另用[08的canvas-commands-v1入口](08-codex-execution.md#本地canvas-commands-v1入口)：`composition.mjs`默认导出`CommandCompositionDefinition`，同步返回[固定几何命令](../../contracts/admission-commands.schema.json)，没有浏览器对象或资源能力。静态声明仍使用`runtime_declarations`，源码清单另按[admission-source.schema.json](../../contracts/admission-source.schema.json)校验；新增类型不扩大`CompositionDefinition`或`RenderProtocol`的已准入能力。该profile仅接受空字体/视频声明和无asset/事实绑定的参数，不处理客户素材或商业事实。
-
-[canvas-media-v1](08-codex-execution.md#本地canvas-media-v1入口)是独立媒体profile，不改变上述几何契约。它增加可信登记资源ID、有界路径/变换/渐变/裁剪、Latin/CJK文字布局、图片/PTS视频命令及冻结生成声音；`resources.json`不能自授权资源。实际字体度量、逐帧文字及目标安全区由可信层检查，文字轨迹和关键帧绑定实际成片。当前无任意上传、复杂塑形或事实绑定参数；本地研究控制器保存题目事实与输入身份并要求负责人审核，不能冒充生产的事实编辑联动和`qualityAssociation`。
 
 首版不支持本地修改 `affectsTiming:true` 的字段，连同事实同步间接影响的字段一起拒绝，提示使用 AI 改稿。没有明确的时间补偿规则时，不能只改一个时间点却留下旧音轨、转场或录屏区间。AI 修改仍受固定总帧数和完整音画验证约束。
 
@@ -237,8 +233,6 @@ FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允
 
 `qualityReport` 是不可变 Q0/Q1 检查结果，固定 workspace/project/target、qaInputHash、qaProfileVersion、checkerVersion 与 findings；不保存 revisionId、成员豁免或完整事实确认清单。只有同一项目、相同输入和获准 checker 的可信报告才可复用。资源、布局、声音、封面、运行时、镜像或采样变化须重算；同内容仅新增 revision 或补充事实确认不重复昂贵检查。事实当前确认、证据和权利仍在冻结前独立检查，不因报告缓存而省略。
 
-本地`m0a_admission_result`复用共享`qaInputIdentity`绑定技术执行输入，包括源包内参数、目标、资源/声音、实际镜像及验证策略，并另记录实际环境和产物摘要。几何profile使用空资源/声音；媒体profile绑定实际获准资源、冻结事件和混音字节。它保留`productionEligible:false`，尚无workspace/project、可信checker登记、`qualityAssociation`或内容审核授权，不能直接作为上述生产`qualityReport`接受；技术检查失败按Q0 BLOCK处理。
-
 `qualityAssociation` 将当前 workspace/project/revision/target、qaInputHash、qaProfileVersion 绑定到 reportHash 与 waiverHashes。新 revision 需要新关联，不能沿用旧 revision 的豁免。`qualityWaiver` 固定同一作用域、reportHash/findingId、actorId、reason、acceptedAt/expiresAt，仅处理具体 REVIEW。新冻结验证当前 actor 权限和时间；已购快照按 confirmedAt 验证当时豁免，当前权限与权益撤销另行执行。关联由可信服务读取，完整嵌入快照并受 snapshotHash 固定；reportHash 和 waiverHashes 解析到各自可信登记。调用方改写自报 hash 不会得到可信身份。
 
 Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹，须确认所用混音、实际帧数/时长、编码和检查结论后才 ready。QA 后重新编码、更换封面或替换文件都须重新绑定检查；相同源码并不足够。
@@ -265,7 +259,7 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 ## 9 资源、输入与保存
 
-任务隔离、调度和媒体清理按[04](04-architecture-and-data.md)，权益期限按[05](05-waffo-billing.md)，输入范围取 [input-capabilities](../../config/input-capabilities.json) 与[01](01-product-prd.md)，权利依据按[09](09-sources-and-licensing.md)。固定镜像不代表客户代码可信；实例名称也不能证明具备 GPU 或完整浏览器能力。真实隔离、恢复和性能须通过[06](06-testing-and-release.md)；首次执行 Agent 模块前还须满足[08 的源码准入要求](08-codex-execution.md#agent源码执行准入)，包括模块求值前生效的时间、随机与执行限制。
+任务隔离、调度和媒体清理按[04](04-architecture-and-data.md)，权益期限按[05](05-waffo-billing.md)，输入范围取 [input-capabilities](../../config/input-capabilities.json) 与[01](01-product-prd.md)，权利依据按[09](09-sources-and-licensing.md)。固定镜像不代表客户代码可信；实例名称也不能证明具备 GPU 或完整浏览器能力。真实隔离、恢复和性能须通过[06](06-testing-and-release.md)；首次执行自写镜头前还须满足[08 的执行隔离要求](08-codex-execution.md#自写镜头的执行隔离)，包括作品代码求值前生效的时间、随机与执行限制。
 
 ## 10 协议与发布版本
 

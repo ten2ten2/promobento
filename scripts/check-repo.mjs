@@ -5,7 +5,7 @@ import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
-import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,rendererToolchainErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
+import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[],counts={documents:0,links:0,routes:0,apis:0,contrastPairs:0};
 const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(root,p),'utf8'),json=p=>parseCanonicalJson(text(p));
@@ -21,6 +21,14 @@ function main(){
  const files=repositoryFiles(root);
  const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
  failures.push(...documentation.errors,...conflictErrors(root,files));counts.markdown=documentation.documents;counts.links=documentation.links;
+ // v2 identifiers removed in S0; the plan and dated evidence keep their history.
+ const retired=/quickjs|canvas-(?:commands|media)-v1|composition-runtime|admission-(?:policy|environment|worker)|(?:build|render|test):admission|source admission|fixture (?:host|宿主)|JSONL (?:controller|控制器)/i;
+ for(const path of files){
+  const p=path.slice(root.length+1);
+  if(p==='scripts/check-repo.mjs'||p==='pnpm-lock.yaml'||/^docs\/(?:plans|evidence)\//.test(p)||!/\.(?:md|mjs|js|ts|json|jsonc|ya?ml|toml|sh)$|Dockerfile$/.test(p))continue;
+  const line=text(p).split('\n').findIndex(l=>retired.test(l));
+  expect(line<0,'Retired v2 identifier in '+p+':'+(line+1));
+ }
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
  const publicContext=json('config/public-context.example.json'),agentPolicy=json('config/agent-policy.json');
  expect(typeof agentPolicy.policyVersion==='string'&&/^[a-z][a-z0-9._-]{0,63}$/.test(agentPolicy.policyVersion),'Agent policyVersion must be a non-empty controlled ID');
@@ -29,7 +37,7 @@ function main(){
   expect(Number.isSafeInteger(value)&&value>0&&publicContext.policy?.[publicKey]===value,'Public policy differs from positive integer agent-policy.'+policyKey);
  }
  for(const key of ['brandName','appUrl','supportEmail','legalEntityName'])expect(publicContext.brand?.[key]===brand[key],'Public brand differs: '+key);
- const protocol='2.7.0',prd='v2.7';
+ const protocol='3.0.0',prd='v3.0';
  for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
   const intro=text(path).split('\n').slice(0,8).join('\n');
   const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);
@@ -41,7 +49,7 @@ function main(){
  expect(productionSchema.$id.endsWith('/'+protocol),'Production Schema protocol ID');
  for(const [name,definition] of Object.entries(productionSchema.$defs))
   if(definition.properties?.schemaVersion?.const)expect(definition.properties.schemaVersion.const===protocol,'Schema protocol constant: '+name);
- for(const path of ['contracts/composition-runtime.d.ts','contracts/render-protocol.d.ts']){
+ for(const path of ['contracts/film-runtime.d.ts','contracts/render-protocol.d.ts']){
   const versions=[...text(path).matchAll(/(?:apiVersion|protocolVersion|schemaVersion):\s*['"]([^'"]+)['"]/g)].map(m=>m[1]);
   expect(versions.length>0&&versions.every(v=>v===protocol),'Runtime/bridge protocol entry mismatch: '+path);
  }
@@ -102,7 +110,6 @@ function main(){
  const expected=['tiktok','instagram_feed','instagram_reels','x','youtube','youtube_shorts'];expect(same(platforms.presets.map(p=>p.id).sort(),[...expected].sort()),'Platform set');expect(same(Object.keys(platforms.aspectLayouts).sort(),['feed','landscape','portrait','square']),'Layout set');
  for(const p of platforms.presets){expect(platforms.encodingProfiles[p.encodingProfile],'Encoding profile');for(const key of [p.labelKey,p.userNoteKey])expect(typeof get(messages,key)==='string','Platform message '+key);for(const a of [p.defaultAspect,...p.optionalAspects])expect(platforms.aspectLayouts[a],'Invalid aspect');}
  const mise=text('.mise.toml');expect(pkg.private===true,'Private tooling package');expect(mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1]===pkg.engines.node,'Node pin');expect('pnpm@'+mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1]===pkg.packageManager,'pnpm pin');
- failures.push(...rendererToolchainErrors(mise,pkg,json('apps/renderer/package.json'),json('apps/renderer/environment.lock.json')));
  for(const key of Object.keys(pkg.scripts)){
   const task=mise.split(/(?=^\[)/m).find(block=>block.startsWith('[tasks."'+key+'"]\n'));
   const command=task?.match(/^run\s*=\s*"([^"\n]+)"/m)?.[1];

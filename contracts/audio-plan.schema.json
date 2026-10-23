@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/audio-plan/3.0.0",
+  "title": "Audio plan",
+  "description": "Derived deterministically from FilmSpec audio, block events and custom-scene declarations; synthesized once per audioPlanHash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "totalFrames", "sampleRate", "channels", "loudnessTarget", "truePeakMax", "music", "events", "sources"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "audio_plan"},
+    "totalFrames": {"enum": [450, 900]},
+    "sampleRate": {"const": 48000},
+    "channels": {"const": 2},
+    "loudnessTarget": {"type": "number", "minimum": -24, "maximum": -9},
+    "truePeakMax": {"type": "number", "maximum": -1},
+    "mute": {"type": "boolean"},
+    "music": {
+      "type": "object", "additionalProperties": false, "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["procedural", "score", "upload", "none"]},
+        "style": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"},
+        "bpm": {"type": "integer", "minimum": 60, "maximum": 180},
+        "sourceId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"}
+      }
+    },
+    "events": {
+      "type": "array", "maxItems": 600,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["eventId", "kind", "sourceId", "frameStart", "frameEndExclusive", "gainDb"],
+        "properties": {
+          "eventId": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,80}$"},
+          "kind": {"enum": ["music", "sfx", "voice", "note"]},
+          "sourceId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+          "frameStart": {"type": "integer", "minimum": 0, "maximum": 900},
+          "frameEndExclusive": {"type": "integer", "minimum": 1, "maximum": 900},
+          "sourceOffsetFrames": {"type": "integer", "minimum": 0},
+          "gainDb": {"type": "number", "minimum": -60, "maximum": 12},
+          "pan": {"type": "number", "minimum": -1, "maximum": 1},
+          "fadeInFrames": {"type": "integer", "minimum": 0, "maximum": 900},
+          "fadeOutFrames": {"type": "integer", "minimum": 0, "maximum": 900},
+          "duckDb": {"type": "number", "minimum": -30, "maximum": 0}
+        }
+      }
+    },
+    "sources": {
+      "description": "Every sound source with its licence record; CC0 samples, procedural synthesis, licensed uploads or TTS.",
+      "type": "array", "maxItems": 200,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["sourceId", "origin", "licenseRef"],
+        "properties": {
+          "sourceId": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,63}$"},
+          "origin": {"enum": ["procedural", "cc0_sample", "score", "customer_upload", "tts"]},
+          "licenseRef": {"type": "string", "minLength": 1, "maxLength": 120},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

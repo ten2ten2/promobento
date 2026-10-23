@@ -2,7 +2,7 @@
   "name": "promobento",
   "version": "0.0.0",
   "private": true,
-  "description": "PromoBento contracts, repository checks and the M0a local rendering implementation.",
+  "description": "PromoBento contracts, repository checks and the cloud motion pipeline (v3 plan: docs/plans/cloud-motion-v3.md).",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
   "engines": {
@@ -14,19 +14,8 @@
     "test": "node scripts/run-tests.mjs",
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
-    "install:renderer": "node apps/renderer/scripts/install-browser.mjs",
-    "render:fixture": "node apps/renderer/scripts/render-fixture.mjs",
-    "test:render": "node scripts/run-tests.mjs --render",
-    "build:admission": "node apps/renderer/scripts/build-admission.mjs",
-    "render:admission": "node apps/renderer/scripts/render-admission.mjs",
-    "test:admission": "node apps/renderer/scripts/test-admission.mjs",
-    "agent:local": "node apps/agent-runner/scripts/local-agent.mjs",
-    "test:admission-media": "node apps/renderer/scripts/test-admission-media.mjs",
-    "benchmark:m0a": "node scripts/benchmark-m0a.mjs",
-    "creative:tools": "node apps/renderer/scripts/creative-tools.mjs",
-    "creative:audio": "node apps/renderer/scripts/creative-audio.mjs",
-    "test:creative": "node apps/renderer/scripts/test-creative.mjs",
-    "test:creative-audio": "node apps/renderer/scripts/test-creative-audio.mjs"
+    "build:validators": "node packages/contracts/scripts/build-validators.mjs",
+    "typecheck": "pnpm --filter @promobento/cloud typecheck"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*"

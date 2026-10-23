@@ -37,7 +37,7 @@ jobs:
           git -C /tmp/hm -c core.hooksPath=/dev/null checkout -q --detach FETCH_HEAD
       - name: Assemble test site
         working-directory: ${{ env.PROBE_DIR }}/container
-        run: node prepare-site.mjs /tmp/hm "$GITHUB_WORKSPACE/packages/composition-runtime/vendor/huashu-motion/fonts"
+        run: node prepare-site.mjs /tmp/hm "$GITHUB_WORKSPACE/packages/fonts/huashu"
       - name: Install worker tools and precompile validators
         working-directory: ${{ env.PROBE_DIR }}/worker
         run: |

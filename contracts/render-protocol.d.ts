@@ -1,7 +1,8 @@
-/** Contract only; these types are not a browser or sandbox implementation. */
+/** Contract only; these types are not a browser or sandbox implementation. film-v1 pages: see film-runtime.d.ts. */
 export type DurationSeconds = 15 | 30;
 export type FrameCount = 450 | 900;
-export type TargetId = string; // Validate presetId:aspectId against frozen platform rules.
+/** Renders are per aspect; targets map to an aspect render (cloud motion plan D9). */
+export type AspectId = 'landscape' | 'portrait' | 'feed' | 'square';
 export type Sha256 = string;
 export type RenderProfile = ({
   sampling: 'centered-box-v1'; edgePolicy: 'clamp-v1';
@@ -10,11 +11,11 @@ export type RenderProfile = ({
   | { sampleCount: 4 | 8; shutterAngle: 180 }
 ));
 export interface Envelope {
-  protocolVersion: '2.7.0'; sessionId: string; requestId: string; sequence: number;
-  revisionId: string; targetId: TargetId;
+  protocolVersion: '3.0.0'; sessionId: string; requestId: string; sequence: number;
+  revisionId: string; aspectId: AspectId;
 }
 export type EditableValue = string | number | boolean | ReadonlyArray<Record<string, string | number | boolean | null>>;
-/** A slot restriction; source admission and a task-scoped drawable grant remain required. */
+/** A slot restriction; rights clearance of the replacement asset remains required. */
 export type EditableMediaType = 'image/png' | 'image/jpeg' | 'image/webp' | 'video/mp4' | 'video/quicktime' | 'video/webm';
 export type ValuesOverlay = Readonly<Record<string, EditableValue>>;
 export type Init = Envelope & {

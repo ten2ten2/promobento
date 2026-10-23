@@ -1,6 +1,6 @@
 # PromoBento 现行产品规格
 
-产品规格 **v2.7**；结构协议 **2.7.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
+产品规格 **v3.0**；结构协议 **3.0.0**。此目录维护现行规则；[实际进度](../implementation-status.md)记录已经具备的能力。
 
 ## 文档导航
 
@@ -26,17 +26,19 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、renderProfiles 与来源 |
+| [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、响度目标、renderProfiles 与来源 |
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
-| [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态与公开能力边界 |
+| [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态、渲染期限、单位成本目标与公开能力边界 |
+| [模型与步骤绑定](../../config/model-providers.json)、[模型授权](../../config/model-authorization.json) | 供应商、价格目录、各导演步骤的模型及其授权上限 |
 | [预览策略](../../config/preview.json)、[输入审核](../../config/content-safety.json)、[输出采样](../../config/output-safety-sampling.json) | 本地回放与可信捕获；默认关闭的提示词审核适配；输出审核的最低覆盖与大小上限 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
-| [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、Ajv 校验、源码依赖摘要和版本环境继承 |
-| [JSON Schema](../../contracts/production.schema.json)、[创作 API](../../contracts/composition-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 结构、确定性创作和可信 Renderer 桥接；类型不等于运行时已经实现 |
+| [共享契约库](../../packages/contracts/index.mjs)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json) | JCS、JSON 解析、Ajv 校验与 Workers 用的预编译验证器、FilmSpec 跨字段规则、模型费用、源码依赖摘要和版本环境继承 |
+| [生产 Schema](../../contracts/production.schema.json)、[FilmSpec](../../contracts/film.schema.json)、[积木](../../contracts/block.schema.json)、[渲染任务](../../contracts/render-job.schema.json)、[帧观测](../../contracts/frame-observation.schema.json)、[方向卡](../../contracts/direction.schema.json)、[声音计划](../../contracts/audio-plan.schema.json)、[素材理解](../../contracts/asset-insight.schema.json)、[导演工具](../../contracts/agent-tools.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | v3.0 结构；类型不等于运行时已经实现 |
+| [片子运行时 API](../../contracts/film-runtime.d.ts)、[帧协议](../../contracts/render-protocol.d.ts) | 积木与自写镜头可依赖的页面接口；可信渲染宿主的分段与预览桥接 |
 | [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
-| [Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json) | 可关联的非生产示例 |
+| [FilmSpec 示例](../../contracts/film.example.json)、[Composition](../../contracts/composition.example.json)、[ReleaseSnapshot](../../contracts/release-snapshot.example.json) | 可关联的非生产示例；生产 Manifest 在 S1 改为引用 film-v1 |
 | [资源](../../contracts/resource-manifest.example.json)、[事实](../../contracts/fact-manifest.example.json)、[改稿](../../contracts/edit-request.example.json)、[输出](../../contracts/export-manifest.example.json) | 内容与请求/交付示例 |
 | [Studio参考](../design/agent-studio-reference.html) | 无真实服务的当前设计示意 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |

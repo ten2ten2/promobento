@@ -57,7 +57,7 @@ function inputWithinLimits(receipt,manifest,policy,requiredCoverage,association)
 export function scopedSafetyCoveragePolicy(policy,{totalFrames,runtimeDeclarations,kind='video',frameStart=0,frameEndExclusive=totalFrames}={}) {
   if (![450,900].includes(totalFrames)) throw Error('OUTPUT_SAFETY_SOURCE_LENGTH_INVALID');
   const markers=runtimeDeclarations?.markers;
-  if (runtimeDeclarations?.schemaVersion!=='2.7.0' || runtimeDeclarations?.kind!=='runtime_declarations'
+  if (runtimeDeclarations?.schemaVersion!=='3.0.0' || runtimeDeclarations?.kind!=='runtime_declarations'
     || !Array.isArray(markers) || markers.length>limits.maxFrames)
     throw Error('OUTPUT_SAFETY_SOURCE_DECLARATIONS_REQUIRED');
   if (markers.some(marker=>!Number.isSafeInteger(marker?.frame) || marker.frame<0 || marker.frame>=totalFrames))

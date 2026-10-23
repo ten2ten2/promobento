@@ -13,7 +13,7 @@ const site = join(here, 'site');
 rmSync(site, {recursive: true, force: true});
 mkdirSync(site, {recursive: true});
 
-// GSAP 3.14.2 bytes as shipped by upstream; the digest comes from research/gsap-quickjs/probe.mjs.
+// GSAP 3.14.2 bytes as shipped by upstream; the digest is pinned in apps/render-container/environment.lock.json.
 const GSAP_SHA256 = 'c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280';
 const gsap = readFileSync(join(upstream, 'templates/blank/vendor/gsap.min.js'));
 const digest = createHash('sha256').update(gsap).digest('hex');
