@@ -202,7 +202,7 @@ Worker  api.promobento（鉴权占位，按 12 接入）
        └─ asset 镜像   standard-4：ffmpeg、图片处理、字体校验、Kokoro TTS
               模式：probe | normalize | proxy | extract | image | fontcheck | tts
 外部
-  ├─ 模型 API（Anthropic；OpenAI 适配器保留但未授权），只从 Worker 调用
+  ├─ 模型 API（OpenAI 兼容接口或 Claude API，按配置切换），只从 Worker 调用
   └─ Browser Run：网址抓取（可信端）
 ```
 
@@ -795,25 +795,35 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **记账**：每次模型调用之前，按 PRD 14 §6 原子预留最坏费用，结束后按 usage 结算。
   - 模型调用 step 的平台自动重试设为 0。失败后是否重试由流水线逻辑决定，避免同一次付费调用被平台自动重放；每次 attempt 单独记账。
   - 部署或运行时重启（约每天 1–2 次）会中断进行中的调用。已发出的调用按未知用量保留最坏值，直到对账。
-- **模型适配器**：
-  - `anthropic`：Messages API，流式。
-  - `openai`：Responses API，由现有适配器改写并补工具调用。本次授权不包括 OpenAI 调用，只用 mock 测试。
-  - 两者共用一个接口：精确 token 预估、预留、usage 结算、未知用量保留最坏值。
-  - 实现时以 Anthropic 当前文档为准：
-    - Opus 5.5 和 Sonnet 5.5 不能关闭思考，也不支持强制 `tool_choice`（`any`/`tool`）。结构化结果用 `output_config.format`，或 `strict: true` 的工具。
-    - 处理 `stop_reason: "refusal"`；被拒的调用照常记账。
-    - effort 按阶段设置（第 6.11 节）。
+- **模型接入**：两种适配器，换供应商只改配置、不改代码（负责人 2026-10-23 要求，配置见第 6.12 节）：
+  - `openai-compatible`：OpenAI 兼容的 Chat Completions 接口（`POST {baseUrl}/chat/completions`），`baseUrl`、密钥和模型名都来自配置，可接任何兼容此接口的服务。
+  - `anthropic`：Claude Messages API。
+  - 两者共用一个接口：消息与图片、函数工具、结构化输出、流式、token 预估、预留、usage 结算、未知用量保留最坏值。导演各阶段只认这个接口和第 6.11 节的模型档位，不认具体供应商。
+  - 各供应商能力不同，按模型登记的能力降级，不写死某一家的特性：
+
+    | 能力 | `anthropic` | `openai-compatible` | 模型不支持时 |
+    | --- | --- | --- | --- |
+    | 工具调用 | `tools` | `tools`（function） | 不能绑定到需要工具的档位 |
+    | 结构化输出 | `output_config.format` 或 `strict` 工具 | `response_format`（`json_schema`） | 用工具参数输出，本地校验，不合格时把错误结构化返回并重试一次 |
+    | 推理强度 | `output_config.effort` | `reasoning_effort` | 忽略 |
+    | 看图 | base64 图片块 | `image_url`（data URL） | 不能绑定到需要看图的档位 |
+    | 提示缓存 | 显式 `cache_control`（1 小时） | 服务的自动前缀缓存 | 只靠前缀稳定 |
+    | 拒答 | `stop_reason: "refusal"` | `finish_reason: "content_filter"` | 统一为 `MODEL_REFUSED`，照常记账 |
+
+  - 无论供应商是否保证结构化输出，所有模型输出都在本地按 Schema 校验后才使用。
+  - 不假定任何供应商支持强制 `tool_choice`。Claude 的其他约束（Opus 5.5、Sonnet 5.5 不能关闭思考等）以实施时 Anthropic 的文档为准。
 - **缓存**：
-  - 方法包、积木目录和工具定义组成静态前缀，用 1 小时缓存。
-  - Opus 的三个阶段（B、C、E）用同一份工具列表和静态前缀，阶段说明放在前缀之后，这样三个阶段可以共享缓存。
-  - `cache_read_input_tokens` 进入成本事件；重复前缀的命中为 0 时告警。
-- **编辑自写镜头的工具**：用 Anthropic 文本编辑工具（`text_editor_20250728`，工具名 `str_replace_based_edit_tool`）。
-  - 在 R2 工作区上实现 view、create、str_replace、insert，路径限定在 `scenes/<id>/`。
+  - 方法包、积木目录和工具定义组成静态前缀，放在最前且字节稳定。`anthropic` 用 1 小时显式缓存；`openai-compatible` 依赖服务的自动前缀缓存。
+  - 同一档位的阶段（B、C、E）用同一份工具列表和静态前缀，阶段说明放在前缀之后，这样可以共享缓存。
+  - 缓存命中的 token（`cache_read_input_tokens` 或 `prompt_tokens_details.cached_tokens`）进入成本事件；模型登记为支持缓存、重复前缀的命中却为 0 时告警。
+- **编辑自写镜头的工具**：两种适配器都用同一个自定义函数工具 `edit_file`，语义与 Anthropic 文本编辑工具相同（view、create、str_replace、insert）。
+  - 在 R2 工作区上实现，路径限定在 `scenes/<id>/`。
   - 不再整文件重写：输出 token 是最贵的计价项。
+  - `anthropic` 适配器可以把它映射到 Anthropic 定义的 `text_editor_20250728`，由评测决定是否开启。
 
 ### 6.2 阶段 A：理解
 
-- **模型**：Haiku 5.5；加入授权前用 Sonnet 5.5（第 6.12 节）。S1 验证 Haiku 的看图质量，不达标时改用 Sonnet 5.5。
+- **模型档位**：`fast`（需要看图，第 6.11 节）。S1 验证所绑定模型的看图质量，不达标时换绑更强的模型。
 - **事实整理**：从用户确认的事实和输入中整理出可用卖点、受众、CTA 和缺失项。缺失的不补造（PRD 13 §3）。
 - **素材理解**：每个已获权利的素材做一次，按 sha256 加提示版本缓存（`asset-insight.schema.json`）。
   - 内容：描述、关键区域框（按钮、价格、图表等）、主色、适合的积木；
@@ -824,7 +834,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.3 阶段 B：方向
 
-- **模型**：Opus 5.5，一次结构化调用。
+- **模型档位**：`lead`，一次结构化调用。
 - **3 张方向卡**（Fit / Amplify / Unexpected），字段按上游 director §4：
   - 视觉语言；
   - 色板：每个颜色写明来源；
@@ -843,7 +853,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.4 阶段 C：规格
 
-- **模型**：Opus 5.5。
+- **模型档位**：`lead`。
 - **输入**：
   - 所选方向、`ProjectBrief`、素材理解；
   - 积木目录：每个积木的参数 Schema 和示意图摘要；
@@ -864,7 +874,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.5 阶段 D：自写镜头
 
-- **模型**：Sonnet 5.5（medium），或 Opus 5.5（low）。S2 用评测集实测，按每个可用结果的费用选定。
+- **模型档位**：`code`。S2 用评测集比较候选绑定（例如更便宜的模型配较高推理强度，或 `lead` 的模型配较低推理强度），按每个可用结果的费用选定。
 - **并行**：每个自写镜头一个子流程，并行执行。上下文只有：
   - 本镜头的 brief；
   - 相邻镜头的首尾帧；
@@ -882,7 +892,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.6 阶段 E：整片 review
 
-- **模型**：Opus 5.5。
+- **模型档位**：`lead`。
 - **`review` 工具**一次返回：
   - 0.5 倍全片的每秒缩略图拼图，每个画幅一张；
   - Q0–Q2 的发现，结构化并按严重度排序；
@@ -893,7 +903,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.7 阶段 F：冷审与提交
 
-- **冷审**：Sonnet 5.5，独立上下文，不带导演的对话。
+- **冷审**：模型档位 `review`，独立上下文，不带导演的对话。
   - 只给以下材料：
     - 需求；
     - 成片的每秒缩略图拼图和关键帧；
@@ -917,7 +927,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 | `block_catalog(filter)` | B–E | Worker | 积木参数 Schema 与示意 | templates |
 | `submit_directions(cards[3])` | B | Worker | 方向卡，Schema 校验后渲染关键帧 | 三方向 |
 | `write_spec(film)`、`spec_patch(ops)` | C、E | Worker | 写入或修补 `film.json`，返回校验结果 | treatment |
-| `str_replace_based_edit_tool` | D、E | Worker + R2 | 编辑 `scenes/<id>/` 下的文件 | 编辑文件 |
+| `edit_file` | D、E | Worker + R2 | 编辑 `scenes/<id>/` 下的文件 | 编辑文件 |
 | `check(scope)` | D、E | studio 实例 | Q0 静态规则，加指定帧的 Q1 观测 | `om check` |
 | `still(frames[], aspect, scale, crop?)` | B–E | studio 实例 | 返回帧图；`crop` 用于 2× 局部放大 | `om still`、`om look` |
 | `review()` | E | RenderWorkflow（review 质量） | 第 6.6 节 | `om render` + `om qa` |
@@ -930,7 +940,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
    - 版本、画幅、帧号、坐标；
    - 云端用 CDP 复核过的 `regionId`；
    - 所在镜头和当前值。
-2. **分流**：用 Haiku 5.5（加入授权前用 Sonnet 5.5）把每条评论归为三类之一：
+2. **分流**：用模型档位 `fast` 把每条评论归为三类之一：
    - **直接改值**：改文字、颜色、替换素材、改可编辑参数。生成 `spec_patch`，不调导演。涉及事实的文字按 PRD 13 §7 重新确认。
    - **镜头内修改**：只加载该镜头的积木参数或自写镜头文件、评论帧和 2× 局部图、相邻镜头的首尾帧，用阶段 D 的模型修改。
    - **结构或全局修改**：节奏、镜头增删、风格变化。走阶段 C、E 的修补流程，并先向用户展示影响范围（PRD 13 §7）。
@@ -961,15 +971,17 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 写入 `config/agent-policy.json`。下表为初值，S1、S2 实测后由负责人复核。
 
-| 阶段 | 模型 | effort | 调用上限 | 费用上限 |
+| 阶段 | 模型档位 | 推理强度 | 调用上限 | 费用上限 |
 | --- | --- | --- | --- | --- |
-| A 理解 | Haiku 5.5（授权前用 Sonnet 5.5） | low | 每个素材 1 次，加 1 次整理 | $0.05 |
-| B 方向 | Opus 5.5 | high | 3 | $0.40 |
-| C 规格 | Opus 5.5 | high | 3 | $0.40 |
-| D 每个自写镜头 | Sonnet 5.5 或 Opus 5.5（实测选定） | medium 或 low | 12 | $0.35 |
-| E 整片 review | Opus 5.5 | medium | 6 | $0.30 |
-| F 冷审 | Sonnet 5.5 | medium | 2 | $0.05 |
-| 改稿分流 | Haiku 5.5（授权前用 Sonnet 5.5） | low | 1 | $0.01 |
+| A 理解 | `fast`（看图） | low | 每个素材 1 次，加 1 次整理 | $0.05 |
+| B 方向 | `lead`（看图） | high | 3 | $0.40 |
+| C 规格 | `lead` | high | 3 | $0.40 |
+| D 每个自写镜头 | `code`（看图、工具） | 按绑定 | 12 | $0.35 |
+| E 整片 review | `lead`（看图、工具） | medium | 6 | $0.30 |
+| F 冷审 | `review`（看图） | medium | 2 | $0.05 |
+| 改稿分流 | `fast` | low | 1 | $0.01 |
+
+- 档位只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
 - **阶段上限用尽时**：结构化返回"预算用尽"，流水线按规则降级（例如自写镜头改用最接近的积木），不追加调用。
@@ -977,49 +989,69 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **单位成本超标时**，按以下顺序优化：
   1. 缓存命中与前缀稳定性；
   2. 减少自写镜头的数量和调用轮数；
-  3. 降低 effort；
-  4. 改换阶段 D 的模型；
+  3. 降低推理强度；
+  4. 换绑档位（尤其是 `code` 和 `fast`）到更便宜的模型；
   5. 扩充积木的覆盖范围。
 
 ### 6.12 模型、价格与预算授权
 
 负责人 tianyu 于 2026-10-22 批准，2026-10-23 修正。
 
-**模型**：
-
-- 方向、规格、review 用 `claude-opus-5-5`；冷审用 `claude-sonnet-5-5`；阶段 D 在两者中实测选定。
-- `claude-haiku-5-5` 用于阶段 A 和改稿分流，**需负责人加入授权**（`config/model-authorization.json` 的 `models`）。加入前这两处用 Sonnet 5.5。
-- 适配器保留 OpenAI，但授权不包括 OpenAI 的调用。
-
-**价格表** `config/model-prices.json`：新增并进仓库；单位为每百万 token 的整数 USD micros；`priceVersion` 进入每条成本事件。
+**模型配置** `config/model-providers.json`（新增，进仓库，不含密钥）。负责人 2026-10-23 要求：默认走 OpenAI 兼容接口，随时可以换供应商，也要能换成 Claude API。换供应商或模型只改这个文件和对应的 Worker secret，不改代码。
 
 ```json
 {
-  "priceVersion": "anthropic-2026-10-23",
-  "source": "https://platform.claude.com/docs/en/models/opus-5-5/overview ; https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
-  "checkedAt": "2026-10-23",
+  "catalogVersion": "models-2026-10-23",
+  "providers": {
+    "compat":    {"kind": "openai-compatible", "baseUrl": "<负责人选定的服务地址>", "secret": "MODEL_COMPAT_API_KEY"},
+    "anthropic": {"kind": "anthropic", "baseUrl": "https://api.anthropic.com", "secret": "ANTHROPIC_API_KEY"}
+  },
   "models": {
-    "claude-opus-5-5":   {"input": 4000000, "cacheWrite5m": 5000000, "cacheWrite1h": 8000000, "cacheRead": 200000, "output": 20000000},
-    "claude-sonnet-5-5": {"input": 2000000, "cacheWrite5m": 2500000, "cacheWrite1h": 4000000, "cacheRead": 200000, "output": 10000000}
+    "anthropic/claude-opus-5-5": {
+      "capabilities": {"tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
+      "context": 1000000, "maxOutput": 128000,
+      "prices": {"input": 4000000, "cacheWrite5m": 5000000, "cacheWrite1h": 8000000, "cacheRead": 200000, "output": 20000000},
+      "priceSource": "https://platform.claude.com/docs/en/models/opus-5-5/overview", "checkedAt": "2026-10-23"
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "capabilities": {"tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
+      "context": 1000000, "maxOutput": 128000,
+      "prices": {"input": 2000000, "cacheWrite5m": 2500000, "cacheWrite1h": 4000000, "cacheRead": 200000, "output": 10000000},
+      "priceSource": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview", "checkedAt": "2026-10-23"
+    }
+  },
+  "roles": {
+    "lead":   "anthropic/claude-opus-5-5",
+    "code":   "anthropic/claude-sonnet-5-5",
+    "review": "anthropic/claude-sonnet-5-5",
+    "fast":   "anthropic/claude-sonnet-5-5"
   }
 }
 ```
 
-- **2026-10-23 的修正**：
-  - Sonnet 5.5 的缓存读价格是 $0.20/M。v3.0 写成了 $0.10/M。
-  - 价格版本随之改为 `anthropic-2026-10-23`，预算与授权引用同一版本。
-  - 实施时按官方价格页逐项核对全部字段。
-- **Haiku 5.5**：加入价格表时，价格表结构要支持按提示长度分档（≤ 100K token：$0.10/$0.50；> 100K：$0.50/$2.50），缓存价格按官方价格页填写。
-- **计价规则**：
-  - 区分普通输入、5 分钟缓存写、1 小时缓存写、缓存读和输出五种计价，以供应商返回的 usage 为准。
-  - usage 缺失时保留最坏预留：全部输入按普通输入价计，输出按上限计。
-  - 现有 `usageCost` 按 OpenAI 语义编写（缓存 token 必须不超过输入 token），不迁入。
+- **初始绑定**用上表的 Claude 模型，因为它们是目前唯一已登记价格并获授权的模型。负责人选定 OpenAI 兼容服务后：
+  1. 在 `providers.compat` 填 `baseUrl`，用 `wrangler secret put MODEL_COMPAT_API_KEY` 写入密钥；
+  2. 在 `models` 登记要用的模型：能力、上下文、输出上限、价格、价格来源与核对日期；
+  3. 在授权文件中加入这些模型，然后改 `roles` 的绑定；
+  4. 跑评测集（第 12.5 节），第 1.1 节的单位成本和第 1.3 节的效果不回退才算换绑完成。
+- **校验**（`check-production-contracts.mjs` 与运行时都做）：
+  - 每个档位绑定的模型都已登记，且能力满足档位要求（看图、工具）；
+  - 价格字段齐全；没有价格的模型不能被绑定，也不能被调用；
+  - 绑定的模型在授权文件中；
+  - 任何改动都要更新 `catalogVersion`，成本事件记录它。
+- **计价**：
+  - `anthropic`：普通输入、5 分钟缓存写、1 小时缓存写、缓存读和输出五种计价，以返回的 usage 为准。
+  - `openai-compatible`：`prompt_tokens` 中扣除 `prompt_tokens_details.cached_tokens` 的部分按输入价，缓存命中部分按 `cacheRead`（未登记时按输入价），`completion_tokens`（含推理 token）按输出价。服务的计费口径不同时（例如缓存写另收费、分档价格），在模型登记中写明并按它计算。
+  - usage 缺失或字段不全时保留最坏预留：全部输入按普通输入价计，输出按上限计。
+  - 现有 `usageCost` 是按单一供应商语义写的，不迁入。
+- **数据处理**：新增任何供应商前，按 04 和 09 补充数据流与隐私披露（客户素材、文案和画面会发给该服务）。
+- 2026-10-23 的修正：Sonnet 5.5 的缓存读价格是 $0.20/M（v3.0 写成 $0.10/M）。原 `config/model-prices.json` 并入本文件，不再单独存在。
 
 **止损预算**：写入 `config/agent-policy.json` 的 `cost` 段，单位 USD micros。
 
 | 字段 | 值 |
 | --- | --- |
-| `priceVersion` | `"anthropic-2026-10-23"` |
+| `catalogVersion` | `"models-2026-10-23"` |
 | `maxMicrosPerCreativeRun` | 10000000（$10） |
 | `maxMicrosPerPatch` | 3000000（$3） |
 | `maxMicrosPerTargetPreparation` | 3000000（$3） |
@@ -1037,9 +1069,8 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 ```json
 {
   "purposes": ["calibration", "evaluation"],
-  "providers": ["anthropic"],
-  "models": ["claude-opus-5-5", "claude-sonnet-5-5"],
-  "priceVersion": "anthropic-2026-10-23",
+  "models": ["anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5-5"],
+  "catalogVersion": "models-2026-10-23",
   "approvedBy": "tianyu (tianyu@tinkerland.ai)",
   "approvedAt": "2026-10-22T18:12:00+08:00",
   "expiresAt": "2026-12-31T23:59:59+08:00",
@@ -1047,22 +1078,23 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 }
 ```
 
-- 用途名随里程碑调整：原来的 `m0b_calibration`、`m0a_comparison` 对应切片 S1–S3 的标定和第 12.5 节的评测。额度、期限、模型和批准人不变。
+- 用途名随里程碑调整：原来的 `m0b_calibration`、`m0a_comparison` 对应切片 S1–S3 的标定和第 12.5 节的评测。额度、期限和批准人不变；模型改用 `供应商/模型` 的形式登记。
+- 换到 OpenAI 兼容服务时，负责人把对应的 `供应商/模型` 加入 `models`；`maxUsdMicros` 按全部供应商累计。
 - **每次付费调用前同时检查**：
   - 授权未过期；
   - 累计实际与未结算费用，加上本次预留，不超过 `maxUsdMicros`；
   - 模型在授权列表中；
-  - 价格版本一致。
+  - 模型配置版本一致，且该模型已登记价格。
 
   任一项不满足即停止，不调用模型。
 - 累计额按 D1 成本账本计算：跨操作、跨重试、跨部署环境累加，不因新建操作或重新部署而清零。
 - `agent-policy.json` 的 `enabled` 仍为 `false`：授权只开放负责人发起的研究调用，不开放给其他用户。
 - 本方案不做登录，所以预发布环境用 Cloudflare Access 保护 `api` 路由，只允许负责人的身份。OperationWorkflow 和 OperationDO 以 Access 签发、并经 Worker 校验的身份断言识别请求者，不信任请求体里自报的身份。正式登录按 12 接入后改用会话身份。
 
-**负责人在 Claude Console 完成**（执行 Agent 不接触）：
+**负责人在供应商控制台完成**（执行 Agent 不接触）：
 
-1. 新建 Workspace `promobento-staging`（生产另建 `promobento-prod`），月度消费上限设为 $350，作为授权总额之外的最后一道兜底，并设置提醒。
-2. 在该 Workspace 下创建 API Key，用 `wrangler secret put ANTHROPIC_API_KEY` 写入预发布 Worker。
+1. 为预发布与生产分别创建 API Key；供应商支持时设月度消费上限（例如 $350），作为授权总额之外的最后一道兜底，并设置提醒。用 Claude 时，在 Claude Console 新建 Workspace `promobento-staging` / `promobento-prod` 再建 Key。
+2. 用 `wrangler secret put` 写入预发布 Worker：OpenAI 兼容服务写 `MODEL_COMPAT_API_KEY`，Claude 写 `ANTHROPIC_API_KEY`。
 
 ---
 
@@ -1332,7 +1364,7 @@ runtime/<runtimeVersion>/...                  预览 origin 分发的运行库�
   - Workflows：`OPERATION_WORKFLOW`、`RENDER_WORKFLOW`、`ASSET_WORKFLOW`。
   - DO：`OperationDO`、`ShardDO`、`AssetDO`、`CoordinatorDO`。
   - 平台服务：Workers AI `AI`；Browser Run `BROWSER`；服务入口 `BrokerEntrypoint`。
-  - Secrets：`ANTHROPIC_API_KEY`、`BROKER_SIGNING_KEY`。`OPENAI_API_KEY` 只在 OpenAI 获得授权后才写入，当前不设置。
+  - Secrets：`BROKER_SIGNING_KEY`，以及 `config/model-providers.json` 中实际使用的供应商密钥（`MODEL_COMPAT_API_KEY`、`ANTHROPIC_API_KEY`）。
 - 用 Containers 的 `images` 登记镜像；用 `wrangler types` 生成绑定类型。
 - 参考实现：Cloudflare 于 2026-10 开源的 Streamline，一个由 Workers、DO 和 FFmpeg 容器组成的视频管线。
 
@@ -1452,7 +1484,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
   - D1 迁移与查询在 Miniflare 上测试：CAS 冲突、操作重放、未知用量的预留与对账。
 - **QA 规则**：Q0 每条规则一个正例和一个反例；Treatment 检查；冷审输入的构造。
 - **费用与路由**：
-  - 预算的预留与结算；Anthropic usage 的五类计价。
+  - 预算的预留与结算；两种适配器的 usage 计价（含字段缺失时的最坏预留）；模型配置校验（档位能力、价格、授权）。
   - AudioPlan 的生成与拍点网格。
   - 改稿分流路由（mock）。
 
@@ -1496,7 +1528,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
 
 ### 12.4 导演（离线 mock 加真实调用）
 
-- mock provider 按阶段回放固定输出，覆盖：
+- mock provider 按阶段回放固定输出，两种适配器的请求与响应格式各有一套，覆盖：
   - 方向、规格、镜头编辑、review 修复、冷审、改稿分流；
   - 失败分类下的修复与不修复。
 - 真实调用按第 6.12 节的授权与价格表执行，累计费用由 D1 成本账本计算。授权过期、额度用尽，或负责人尚未在 Console 写入密钥时，不调用。
@@ -1516,7 +1548,7 @@ Workers 付费计划每月含 375 vCPU·分钟、25 GiB·小时、200 GB·小时
   - 评分模型的分数：先用负责人的评分校准，偏差超过阈值时以人为准。
 - **运行**：
   - 改方法包、积木、运行时、提示或模型时都要跑；
-  - 每次运行有费用上限；离线评分调用用 Batch API；
+  - 每次运行有费用上限；离线评分调用在供应商支持时用批处理接口；
   - 报告写入 `docs/evidence/` 或 CI 产物。
 - **真人**：真实目标用户盲审按 06/07 小规模做一次绝对质量判断（愿意发布的比例），不做双臂对照。
 
@@ -1552,7 +1584,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | `docs/creative-toolkit.md` | 删除，内容并入 13 和 `packages/methods/README.md` | S0 |
 | [实施状态](../implementation-status.md) | 每个切片结束时，按实际具备和尚未验证的能力重写 | 每个切片 |
 | [agent-policy.json](../../config/agent-policy.json) | 新增 `render` 期限段、`limits` 新字段、阶段预算与 effort、`requestTimeoutMs`、变体开关；`cost` 段按第 6.12 节填写；`schemaVersion` 改为 3.0.0 | S0、S1 |
-| `config/model-prices.json`、`config/model-authorization.json` | 新增，内容按第 6.12 节；`check-production-contracts.mjs` 校验三者一致 | S0 |
+| `config/model-providers.json`、`config/model-authorization.json` | 新增，内容按第 6.12 节；`check-production-contracts.mjs` 校验它们与 `agent-policy.json` 一致 | S0 |
 | [platform-presets.json](../../config/platform-presets.json) | 在 `presets[]` 每一项增加 `loudnessTarget`（单位 LUFS，现有 6 个预设都为 −14）；编码 profile 仍共用 `mp4_h264_1080_v1` | S0 |
 | [input-capabilities.json](../../config/input-capabilities.json) | `fetch` 和 `customFontUpload` 保持 false，直到对应能力实现、并由负责人按 PRD 开放；增加 `tts.enabled`（false）。v3.0 的 D8 和 §8.1 与这两个字段矛盾，第 13 节也没有列出本文件 | S0、S3 |
 | [preview.json](../../config/preview.json) | `previewOrigin` 写入独立注册域名；增加视频代理与 `film.json` 值覆盖 | S2 |
@@ -1612,7 +1644,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
    - 据此修订第 1.2 节的时间目标、第 5.3 节的期限、第 5.2 节的捕获格式与段数，以及 WebGL 的实例规格。
 5. **导演**：
    - 阶段 A–C 与 E（不含自写镜头），以及冷审 F；
-   - Anthropic 适配器、缓存、预算、授权检查、离线 mock；
+   - `openai-compatible` 与 `anthropic` 两种适配器、缓存、预算、授权检查、离线 mock；
    - OperationWorkflow，含方向选择的 `waitForEvent`。
 6. **声音**：程序配乐与 ABC 作曲、CC0 采样包（第 8.3 节）、音效自动对位、响度；每种风格各渲染一段 30 秒样曲供负责人试听。
 7. **评测集首轮**：真实题目，每题做 15 秒和 30 秒，横竖两种画幅。
@@ -1692,8 +1724,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 
 | 输入 | 提供方 | 何时需要 |
 | --- | --- | --- |
-| Claude Console 的 Workspace、消费上限与 API Key（第 6.12 节） | 负责人 | S1 开始前 |
-| 把 Haiku 5.5 加入授权 | 负责人 | S1（未加入时用 Sonnet 5.5） |
+| 选定的模型服务（OpenAI 兼容服务地址或 Claude）、API Key 与消费上限，以及所用模型的价格（第 6.12 节） | 负责人 | S1 开始前 |
 | 4–6 个有真实素材授权的自有或合作产品，及其已确认的事实 | 负责人 | S1 |
 | 按正常速度试听各程序风格的 30 秒样曲 | 负责人 | S1 |
 | 预览用的独立注册域名 | 负责人 | S2 |
