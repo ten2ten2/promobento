@@ -3,6 +3,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
+import {compareSeam} from '@promobento/contracts/seams';
 import {deriveAudioPlan,audioPlanHash} from '../../../packages/audio/src/plan.mjs';
 import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -43,6 +44,11 @@ do{
  await response.arrayBuffer();await new Promise(resolve=>setTimeout(resolve,1000));
 }while(Date.now()<readyUntil);
 if(!ready)throw Error('STAGING_SECRET_PROPAGATION_TIMEOUT');
+if(process.env.RECONCILE_OPERATION){
+ const id=process.env.RECONCILE_OPERATION;if(!/^smoke-[a-f0-9]{12}-\d{8,20}$/.test(id))throw Error('RECONCILIATION_SCOPE_INVALID');
+ const report=await json('operations/'+id+'/reconcile',{method:'POST'});writeFileSync(directory+'/reconciliation.json',canonical(report));
+ if(report.pendingCosts.some(cost=>cost.kind==='compute'))throw Error('COMPUTE_COST_RECONCILIATION_REQUIRED');
+}
 operationAttempted=true;
 await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'pipeline-smoke',purpose:'calibration',maxMicros:1000000}});
 const envObject=await upload(prefix+'/environment.json',canonical({gitSha:sha,environmentLock:parseCanonicalJson(readFileSync(new URL('apps/render-container/environment.lock.json',root)))}),'application/json');
@@ -60,6 +66,18 @@ const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidat
  aspectId:'landscape',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
  resources:[{resourceId,kind:'svg',sha256:resource.sha256}],audioPlanHash:audioPlanHash(plan,{seed:options.seed})};
 const request={job,options,inputs:[{...film,name:'film'},{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:options.seed,clearedSources:[]},coverFrame:165};
+const studioId='studio-'+operationId,stillJob={...job,renderId:studioId,quality:'still',frames:[45,375]};delete stillJob.audioPlanHash;
+let environmentHealth,seekComparison;
+try{
+ const ready=await json('studio',{method:'POST',body:{schemaVersion:'3.0.0',kind:'render_task',taskId:studioId,mode:'studio',instance:'standard-3',job:stillJob,options,inputs:request.inputs}});
+ environmentHealth=ready.environmentHealth;
+ const frame=async(index)=>new Uint8Array(await(await call('operations/'+operationId+'/frames/'+index)).arrayBuffer());
+ const first=await frame(45),last=await frame(375),reverse=await frame(45);seekComparison=compareSeam(first,reverse);
+ writeFileSync(directory+'/studio-first.png',first);writeFileSync(directory+'/studio-last.png',last);writeFileSync(directory+'/studio-reverse.png',reverse);
+ writeFileSync(directory+'/environment.json',canonical({environmentHealth,seekComparison}));
+ if(seekComparison.verdict==='RENDER_SEAM_BLOCK')throw Error('STUDIO_REVERSE_SEEK_BLOCK');
+ if(environmentHealth?.memoryPeak?.available!==true)throw Error('RENDER_MEMORY_METRIC_UNAVAILABLE');
+}finally{await call('operations/'+operationId+'/studio/close',{method:'POST'});}
 await json('renders',{method:'POST',body:request});
 let outcome;
  while(Date.now()-started<240000){
@@ -75,7 +93,7 @@ let outcome;
   writeFileSync(directory+'/'+object.key.split('/').at(-1),bytes);
  }
  const leases=await json('capacity');if(leases.length)throw Error('SMOKE_LEASE_NOT_RETURNED');
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,leases,status:'passed'}));
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,environmentHealth,seekComparison,outcome,leases,status:'passed'}));
  console.log(canonical({status:'passed',renderId,elapsedMs:Date.now()-started,media:outcome.media,leases}));
 }catch(error){
  writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,status:'failed',error:String(error.stack??error)}));throw error;

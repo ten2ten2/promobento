@@ -12,3 +12,5 @@
 review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 fps；final 为既定 1080p/30 fps。实验多采样 profile 尚未开放。视频由已授权的 PTS 帧清单取帧，不使用 `<video>`。
 
 输出先进入 `renders/<renderId>/attempts/<taskId>/…`；只有 Workflow 检查接缝、观测和 generation 后才发布引用，失败 attempt 不覆盖成功字节。实现与实际验证范围分开记在[实施状态](../../docs/implementation-status.md)。
+
+内存峰值读取 cgroup v2 `memory.peak` 或同义的 v1 `memory.max_usage_in_bytes`；不会用控制器自身 RSS 或 0 冒充整个实例的峰值。私有健康回执记录实际接口是否可用；均未暴露时明确失败为 `RENDER_MEMORY_METRIC_UNAVAILABLE`。文件系统失败只保留受限系统路径与 syscall，不记录 broker 令牌或完整用户输入。取消/超时并发时，DO 原子固定同一 usage，D1 结算冲突检查与停止时间记录可重放。

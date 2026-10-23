@@ -5,12 +5,9 @@ import {digest, sha256Bytes as sha} from '@promobento/contracts/digest';
 import {blockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmSession} from './browser.mjs';
 import {shardEncoder} from './media.mjs';
+import {memoryPeak} from './memory.mjs';
 
-const peakMemoryMiB = () => {
-  const bytes = Number(readFileSync('/sys/fs/cgroup/memory.peak', 'utf8'));
-  if (!Number.isSafeInteger(bytes) || bytes <= 0) throw Error('RENDER_MEMORY_METRIC_UNAVAILABLE');
-  return Math.ceil(bytes / 1048576);
-};
+const peakMemoryMiB = () => memoryPeak().mib;
 
 export async function renderShard({job, shard, options, raw, resource, videoFrame, font, directory, browserVersion, imageDigest,
   encoding, threads, signal, killBrowser}) {

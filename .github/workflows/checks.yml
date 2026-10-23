@@ -19,6 +19,10 @@ on:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render
         type: string
         default: ''
+      staging_reconcile_operation:
+        description: Confirm stop and reconcile this one failed/cancelled internal operation before smoke
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -138,4 +142,5 @@ jobs:
     with:
       reuse_deployment: ${{ inputs.staging_sha }}
       inspect_run: ${{ inputs.staging_inspect_run }}
+      reconcile_operation: ${{ inputs.staging_reconcile_operation }}
     secrets: inherit

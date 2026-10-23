@@ -57,8 +57,8 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
 export async function settle(env: PipelineEnv, id: string, actualMicros: number, usage: unknown) {
   if (!Number.isSafeInteger(actualMicros) || actualMicros < 0) throw Error('COST_SETTLEMENT_INVALID');
   const value = canonical(usage);
-  const previous = await env.DB.prepare('SELECT actual_micros,usage_json FROM cost_settlements WHERE reservation_id=?').bind(id).first<{actual_micros: number; usage_json: string}>();
-  if (previous) { if (previous.actual_micros !== actualMicros || previous.usage_json !== value) throw Error('COST_SETTLEMENT_CONFLICT'); return; }
-  await env.DB.prepare('INSERT INTO cost_settlements(reservation_id,actual_micros,usage_json,settled_at) VALUES(?,?,?,?)')
+  await env.DB.prepare('INSERT OR IGNORE INTO cost_settlements(reservation_id,actual_micros,usage_json,settled_at) VALUES(?,?,?,?)')
     .bind(id, actualMicros, value, Date.now()).run();
+  const previous = await env.DB.prepare('SELECT actual_micros,usage_json FROM cost_settlements WHERE reservation_id=?').bind(id).first<{actual_micros: number; usage_json: string}>();
+  if (!previous || previous.actual_micros !== actualMicros || previous.usage_json !== value) throw Error('COST_SETTLEMENT_CONFLICT');
 }

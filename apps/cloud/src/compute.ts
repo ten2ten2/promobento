@@ -134,10 +134,18 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         env: {RENDER_IMAGE_DIGEST: release.image_digest, RENDERER_RELEASE: release.id}});
       await this.ctx.container!.interceptOutboundHttp('broker.internal', broker);
       void this.ctx.container!.monitor().catch(() => {});
+      let environmentHealth: Json | string | null = null;
       while (Date.now() - startedAt < 30000) {
         await operation(this.env, op.id, op.generation);
-        try { if ((await this.call('/healthz')).ok) break; } catch {}
+        try {
+          const health=await this.call('/healthz');
+          if(health.ok){const text=await health.text();environmentHealth=text==='ready'?text:parseCanonicalJson(text) as Json;break;}
+        } catch {}
         await sleep(250);
+      }
+      if(task.mode==='shard'&&typeof environmentHealth==='object'&&environmentHealth?.memoryPeak?.available===false){
+        await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:'RENDER_MEMORY_METRIC_UNAVAILABLE',environmentHealth}),task.taskId).run();
+        throw Error('RENDER_MEMORY_METRIC_UNAVAILABLE');
       }
       if (!(await this.call('/task', input)).ok) throw Error('RENDER_TASK_REJECTED');
       for (;;) {
@@ -145,11 +153,14 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         if (Date.now() - startedAt > limit) throw Error('RENDER_DEADLINE');
         const response = await this.call('/result'); if (!response.ok) throw Error('RENDER_CONTROLLER_UNAVAILABLE');
         const value = await response.json<Json>();
-        if (value.status === 'failed') throw Error(value.code);
+        if (value.status === 'failed') {
+          await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:value.code,diagnostic:value.diagnostic??null,environmentHealth}),task.taskId).run();
+          throw Error(value.code);
+        }
         if (value.status === 'succeeded') { outcome = value; break; }
         if (value.status === 'ready' && task.mode === 'studio') {
           await this.ctx.storage.put('studio', {operationId: op.id, generation: op.generation, resources: task.job.resources});
-          return value; // Lease and budget stay held while the studio exists.
+          return {...value,environmentHealth}; // Lease and budget stay held while the studio exists.
         }
         await sleep(1000);
       }
@@ -168,8 +179,12 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     return this.call('/studio/frame', {taskId, frameIndex});
   }
   private async finishCost(id: string, instance: string, startedAt?: number) {
-    let usage = await this.ctx.storage.get<Json>('costUsage');
-    if (!usage) { usage = {kind: 'allocated_resource_upper_bound', runningMs: startedAt === undefined ? 0 : Date.now() - startedAt, instance}; await this.ctx.storage.put('costUsage', usage); }
+    const usage = this.ctx.storage.transactionSync(() => {
+      const previous = this.ctx.storage.kv.get<Json>('costUsage');
+      if (previous) return previous;
+      const value = {kind: 'allocated_resource_upper_bound', runningMs: startedAt === undefined ? 0 : Date.now() - startedAt, instance};
+      this.ctx.storage.kv.put('costUsage', value); return value;
+    });
     await settle(this.env, id, computeMicros(instance, usage.runningMs), usage);
   }
   async alarm() { await this.stopAndSettle(); }
@@ -178,6 +193,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     const id = await this.ctx.storage.get<string>('taskId'), start = await this.ctx.storage.get<number>('startedAt'), instance = await this.ctx.storage.get<string>('instance');
     await this.ctx.storage.delete('studio');
     if (id) { await coordinator(this.env).release(id); if (instance) await this.finishCost(id, instance, start); }
+    if (id) await this.env.DB.prepare("UPDATE pipeline_attempts SET status=CASE WHEN status='active' THEN 'stopped' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?").bind(Date.now(),id).run();
     await this.ctx.storage.deleteAlarm();
   }
 }

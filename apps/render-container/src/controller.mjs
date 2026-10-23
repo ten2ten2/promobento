@@ -11,6 +11,7 @@ import {assemble} from './media.mjs';
 import {renderAudio} from './audio.mjs';
 import {filmSession} from './browser.mjs';
 import {deadline} from './process.mjs';
+import {memoryHealth,filesystemDiagnostic} from './memory.mjs';
 
 if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
 const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
@@ -114,7 +115,9 @@ function assertTask(input) {
 
 const server = http.createServer(async (request, response) => {
   try {
-    if (request.method === 'GET' && request.url === '/healthz') { response.writeHead(200).end('ready'); return; }
+    if (request.method === 'GET' && request.url === '/healthz') {
+      response.writeHead(200, {'content-type':'application/json'}).end(canonical({status:'ready',memoryPeak:memoryHealth()})); return;
+    }
     if (request.method === 'GET' && request.url === '/result') { response.writeHead(200, {'content-type': 'application/json'}).end(canonical(result ?? {status: 'idle'})); return; }
     if (request.method !== 'POST' || !['/task', '/studio/frame'].includes(request.url)) { response.writeHead(404).end(); return; }
     const chunks = []; let size = 0;
@@ -132,7 +135,7 @@ const server = http.createServer(async (request, response) => {
       task = input; requestHash = identity; result = {status: 'active', taskId: input.taskId};
       const limit = input.mode === 'studio' ? 20 * 60000 : input.mode === 'shard' ? (input.shard.end - input.shard.start) * (input.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
       void deadline(execute(input), limit, 'RENDER_DEADLINE', () => abort.abort()).then(value => { if (value) result = value; },
-        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR'}; })
+        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:filesystemDiagnostic(error)}; })
         .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
     }
     response.writeHead(202, {'content-type': 'application/json'}).end(canonical({taskId: task.taskId, status: result.status}));

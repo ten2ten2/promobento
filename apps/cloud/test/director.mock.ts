@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {OperationWorkflow} from '../src/director.ts';
+import {ShardDO} from '../src/compute.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes,digest} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
-import {immutableJson} from '../src/store.ts';
+import {immutableJson,settle} from '../src/store.ts';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import providers from '../../../config/model-providers.json';
 import platform from '../../../config/platform-presets.json';
@@ -119,3 +120,22 @@ test('missing later key, unverified integration and missing rights stop before a
 test('unknown transport spend remains reserved and is not silently retried or settled as zero',async()=>{const r=await fixture({transportFailure:true});assert.equal(r.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(r.networkCalls,1);assert.equal(r.reservations,1);assert.equal(r.settlements,0);});
 test('invalid generated spec is charged but not rendered or cached as a candidate',async()=>{const r=await fixture({badSpec:true});assert.match(r.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(r.renders.length,0);assert.equal(r.settlements,4);assert.equal(r.state.result_key,null);});
 test('cancellation fences the next paid stage and preserves the cancelled status',async()=>{const r=await fixture({cancel:true});assert.equal(r.error.message,'OPERATION_FENCED');assert.equal(r.state.status,'cancelled');assert.deepEqual(r.models,['facts','assets','directions']);assert.equal(r.activeStudio,null);});
+
+test('concurrent stop and timeout settle one persisted compute usage and reject conflicting charges',async()=>{
+ const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('mock-stop','workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
+ db.prepare('INSERT INTO cost_reservations VALUES(?,?,?,?,?,?,?,?)').run('task-stop','mock-stop','request','compute','render',100000,'fixture',Date.now());
+ const DB={prepare(sql:string){let args:any[]=[];return{bind(...values:any[]){args=values;return this;},async first(){return db.prepare(sql).get(...args)??null;},async run(){return{meta:{changes:Number(db.prepare(sql).run(...args).changes)}};}};}};
+ const values=new Map<string,any>([['taskId','task-stop'],['startedAt',Date.now()-1000],['instance','standard-3']]);
+ const storage={get:async(key:string)=>values.get(key),delete:async(key:string)=>values.delete(key),deleteAlarm:async()=>{},
+  transactionSync:(fn:any)=>fn(),kv:{get:(key:string)=>values.get(key),put:(key:string,value:any)=>values.set(key,value)}};
+ const container={running:true,async destroy(){this.running=false;}},env:any={DB,COORDINATOR:{getByName(){return{async release(){assert.equal(container.running,false);}};}}};
+ try{
+  const shard=new ShardDO({storage,container} as any,env);
+  await Promise.all([shard.stopAndSettle(),shard.stopAndSettle()]);
+  const rows=db.prepare('SELECT * FROM cost_settlements').all();assert.equal(rows.length,1);assert.ok(rows[0].actual_micros>0);
+  const usage=canonical(values.get('costUsage'));assert.equal(rows[0].usage_json,usage);
+  await shard.stopAndSettle();assert.equal(canonical(values.get('costUsage')),usage);
+  await assert.rejects(settle(env,'task-stop',Number(rows[0].actual_micros)+1,{changed:true}),/COST_SETTLEMENT_CONFLICT/);
+ }finally{db.close();}
+});

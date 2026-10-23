@@ -153,6 +153,8 @@ export default {
       }
       const studioFrame = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/frames\/(\d+)$/.exec(path);
       if (request.method === 'GET' && studioFrame) return env.OPERATIONS.getByName(studioFrame[1]!).frame(studioFrame[1]!,Number(studioFrame[2]));
+      const closeStudio=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/close$/.exec(path);
+      if(request.method==='POST'&&closeStudio){await operation(env,closeStudio[1]!);await env.OPERATIONS.getByName(closeStudio[1]!).closeStudio();return new Response(null,{status:204});}
       const events = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/events$/.exec(path);
       if (request.method === 'GET' && events) return env.OPERATIONS.getByName(events[1]!).watch(events[1]!);
       const render = /^\/internal\/s1\/renders\/([A-Za-z0-9_-]{4,96})$/.exec(path);
@@ -168,6 +170,16 @@ export default {
           env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND status=\'cancelled\')')
             .bind('cancel-'+id,id,'cancel',canonical({operationId:id}),id)
         ]);ctx.waitUntil(flush(env));return Response.json({operationId:id,status:'cancelling'});
+      }
+      const reconcile=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/reconcile$/.exec(path);
+      if(request.method==='POST'&&reconcile){
+        const id=reconcile[1]!,op=await env.DB.prepare('SELECT status FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
+        if(!op||!['failed','cancelled'].includes(op.status))throw Error('OPERATION_NOT_TERMINAL');
+        const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(id).all<{id:string}>();
+        await Promise.all(attempts.results.map(attempt=>env.SHARDS.getByName(attempt.id).stopAndSettle()));
+        await env.OPERATIONS.getByName(id).closeStudio();
+        const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL').bind(id).all<Json>();
+        return Response.json({operationId:id,stoppedAttempts:attempts.results.length,pendingCosts:pending.results});
       }
       return new Response('Not found',{status:404});
     } catch(error) {

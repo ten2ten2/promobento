@@ -12,7 +12,7 @@ try{
  await build({entryPoints:['apps/cloud/test/director.mock.ts'],outfile:join(directory,'director.test.mjs'),bundle:true,platform:'node',format:'esm',target:'node26',logLevel:'warning',plugins:[{
   name:'offline-cloud-fixtures',setup(build){
    build.onResolve({filter:/^cloudflare:workers$/},()=>({path:'cloudflare:workers',namespace:'fixture'}));
-   build.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'export class WorkflowEntrypoint { constructor(ctx, env) { this.ctx=ctx; this.env=env; } }',loader:'js'}));
+   build.onLoad({filter:/.*/,namespace:'fixture'},()=>({contents:'class Entrypoint { constructor(ctx, env) { this.ctx=ctx; this.env=env; } } export class WorkflowEntrypoint extends Entrypoint {} export class DurableObject extends Entrypoint {} export class WorkerEntrypoint extends Entrypoint {}',loader:'js'}));
    build.onLoad({filter:/[/\\]config[/\\]model-providers\.json$/},args=>{
     const config=parseCanonicalJson(readFileSync(args.path));
     // Only this offline bundle admits synthetic official responses. The deployed catalog stays unverified.

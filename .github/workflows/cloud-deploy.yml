@@ -9,6 +9,9 @@ on:
       inspect_run:
         type: string
         default: ''
+      reconcile_operation:
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -25,6 +28,7 @@ jobs:
       STAGING_URL: https://promobento-staging.woffordvivian.workers.dev
       DEPLOYED_SHA: ${{ inputs.reuse_deployment || github.sha }}
       INSPECT_RUN: ${{ inputs.inspect_run }}
+      RECONCILE_OPERATION: ${{ inputs.reconcile_operation }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
