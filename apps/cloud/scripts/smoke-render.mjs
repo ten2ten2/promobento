@@ -12,10 +12,19 @@ const base=process.env.STAGING_URL,key=process.env.EVAL_API_KEY,sha=process.env.
 if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!key||!sha)throw Error('STAGING_ENV_REQUIRED');
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
+let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
+ const until=Date.now()+30000;
+ for(;;){
  const response=await fetch(base+'/internal/s1/'+path,{method,headers:{authorization:'Bearer '+key,'content-type':mediaType},
   ...(body===undefined?{}:{body:typeof body==='string'||body instanceof Uint8Array?body:canonical(body)}),signal:AbortSignal.timeout(45000)});
- if(!response.ok)throw Error('STAGING_'+response.status+':'+(await response.text()).slice(0,500));return response;
+ if(response.ok)return response;
+ const detail=await response.text();
+ // A newly bound secret can reach adjacent requests at different times. This exact 404 occurs
+ // before dispatch: no task was admitted. Never retry model/render failures or uncertain timeouts.
+ if(response.status===404&&detail==='Not found'&&Date.now()<until){authPropagationRetries++;await new Promise(resolve=>setTimeout(resolve,1000));continue;}
+ throw Error('STAGING_'+response.status+' '+method+' '+path+':'+detail.slice(0,500));
+ }
 };
 const json=async(path,options)=>parseCanonicalJson(await(await call(path,options)).text());
 const upload=async(name,bytes,mediaType)=>json('objects/'+name,{method:'PUT',body:bytes,mediaType});
@@ -66,10 +75,10 @@ let outcome;
   writeFileSync(directory+'/'+object.key.split('/').at(-1),bytes);
  }
  const leases=await json('capacity');if(leases.length)throw Error('SMOKE_LEASE_NOT_RETURNED');
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,outcome,leases,status:'passed'}));
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,leases,status:'passed'}));
  console.log(canonical({status:'passed',renderId,elapsedMs:Date.now()-started,media:outcome.media,leases}));
 }catch(error){
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,status:'failed',error:String(error.stack??error)}));throw error;
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,status:'failed',error:String(error.stack??error)}));throw error;
 }finally{
  if(operationAttempted){
  await call('operations/'+operationId+'/cancel',{method:'POST'});
