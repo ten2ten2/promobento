@@ -9,8 +9,12 @@ on:
       suite:
         description: Run only the necessary check
         type: choice
-        options: [all, contracts, browser, media, audio, staging]
+        options: [all, contracts, browser, media, audio, cloud-local, staging]
         default: all
+      staging_sha:
+        description: Already deployed SHA; staging-only harness repair without rebuilding or redeploying
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -23,7 +27,7 @@ concurrency:
 
 jobs:
   contracts:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'media' && inputs.suite != 'audio' && inputs.suite != 'staging')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'media' && inputs.suite != 'audio' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -56,7 +60,7 @@ jobs:
         run: mise run typecheck
 
   browser:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'contracts' && inputs.suite != 'staging')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'contracts' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -110,7 +114,23 @@ jobs:
           path: artifacts/film-runtime/
           if-no-files-found: error
 
+  cloud-local:
+    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'cloud-local'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        with:
+          version: 2026.10.13
+          cache: false
+      - run: mise run install && mise run test:cloud-local
+
   staging:
     if: github.event_name == 'workflow_dispatch' && inputs.suite == 'staging'
     uses: ./.github/workflows/cloud-deploy.yml
+    with:
+      reuse_deployment: ${{ inputs.staging_sha }}
     secrets: inherit

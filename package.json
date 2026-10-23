@@ -14,6 +14,7 @@
     "test": "pnpm run build:validators && node scripts/run-tests.mjs",
     "build:film-runtime": "node scripts/build-film-runtime.mjs",
     "test:browser": "node apps/render-container/tests/browser.render.test.mjs",
+    "test:cloud-local": "node scripts/run-cloud-mock.mjs",
     "build:agent-reference": "node scripts/build-agent-reference.mjs",
     "check:agent-reference": "node scripts/check-agent-reference.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",

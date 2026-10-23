@@ -85,14 +85,14 @@
     },
     "anthropic/claude-opus-5-5": {
       "capabilities": {
-        "verified": true,
+        "verified": false,
         "tools": true,
         "vision": true,
         "jsonSchema": true,
         "jsonObject": null,
         "reasoningEffort": "supported",
         "promptCache": "explicit",
-        "evidence": "Anthropic documentation"
+        "evidence": "Documentation only; owner deferred the official integration probe"
       },
       "prices": {
         "input": 4000000,
@@ -106,14 +106,14 @@
     },
     "anthropic/claude-sonnet-5-5": {
       "capabilities": {
-        "verified": true,
+        "verified": false,
         "tools": true,
         "vision": true,
         "jsonSchema": true,
         "jsonObject": null,
         "reasoningEffort": "supported",
         "promptCache": "explicit",
-        "evidence": "Anthropic documentation"
+        "evidence": "Documentation only; owner deferred the official integration probe"
       },
       "prices": {
         "input": 2000000,

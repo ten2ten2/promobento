@@ -2,6 +2,10 @@ name: Deploy S1 staging
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      reuse_deployment:
+        type: string
+        default: ''
 permissions:
   contents: read
 concurrency:
@@ -15,6 +19,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      STAGING_URL: https://promobento-staging.woffordvivian.workers.dev
+      DEPLOYED_SHA: ${{ inputs.reuse_deployment || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -24,11 +30,14 @@ jobs:
           version: 2026.10.13
           cache: false
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        if: inputs.reuse_deployment == ''
       - name: Install pinned dependencies and precompile validators
         run: mise run install && mise run build:validators
       - name: Apply staging migration
+        if: inputs.reuse_deployment == ''
         run: mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-staging --env staging --remote
       - name: Build and push renderer, deploy Worker
+        if: inputs.reuse_deployment == ''
         shell: bash
         run: |
           set -euo pipefail
@@ -41,6 +50,9 @@ jobs:
       - name: Bind a masked run-only internal key
         shell: bash
         run: |
+          [[ "$DEPLOYED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          mkdir -p artifacts/staging
+          printf '%s\n' "$DEPLOYED_SHA" > artifacts/staging/deployed-sha.txt
           key=$(openssl rand -hex 32)
           echo "::add-mask::$key"
           echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"

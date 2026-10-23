@@ -35,6 +35,11 @@ description = "Run the offline browser/media check and style sample generation i
 dir = "{{config_root}}"
 run = "node apps/render-container/tests/browser.render.test.mjs"
 
+[tasks."test:cloud-local"]
+description = "Replay S1 director stages offline through both SSE adapters, SQLite budgets and R2 fixtures"
+dir = "{{config_root}}"
+run = "node scripts/run-cloud-mock.mjs"
+
 [tasks."build:agent-reference"]
 description = "build:agent-reference: current specifications and references only"
 dir = "{{config_root}}"

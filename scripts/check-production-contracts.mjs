@@ -33,7 +33,9 @@ expect(targets().length===7&&new Set(targets().map(t=>t.aspectId)).size===4,'Tar
 expect(p.limits.workspaceShardInstances>=4*p.limits.shardsPerRender&&p.limits.shardsPerRenderWebgl<=p.limits.workspaceShardInstances&&p.limits.workspaceShardInstances<=p.limits.globalShardInstances,'Shard concurrency cannot prepare four aspects or one WebGL render');
 const modelSchema=createSchemaValidator(load('contracts/model-config.schema.json')),providers=load('config/model-providers.json'),authorization=load('config/model-authorization.json');
 for(const [name,value] of Object.entries({providers,authorization}))for(const error of modelSchema(value))failures.push('model config '+name+': '+error);
-failures.push(...contracts.modelConfigErrors(providers,authorization,p));
+// Disabled execution may retain planned bindings; this checks configuration, not integration readiness.
+// The default readiness check and modelStep still reject every unverified bound model.
+failures.push(...contracts.modelConfigErrors(providers,authorization,p,{requireVerified:p.enabled}));
 expect(p.quota.creativeConsumeAt==='usable_candidate_delivered'&&p.quota.renderConsumeAt==='initial_batch_published','Consumption boundaries changed');
 const fourteen=read('docs/prd/14-production-contracts.md');
 for(const name of ['factContentIdentity','contentIdentity','variantIdentity','outputArtifactIdentity','targetSourceIdentity','inheritRevisionEnvironment'])

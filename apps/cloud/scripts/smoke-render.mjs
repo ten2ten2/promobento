@@ -8,7 +8,7 @@ import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
 if(process.env.GITHUB_ACTIONS!=='true')throw Error('ACTIONS_ONLY');
-const base=process.env.STAGING_URL,key=process.env.EVAL_API_KEY,sha=process.env.GITHUB_SHA;
+const base=process.env.STAGING_URL,key=process.env.EVAL_API_KEY,sha=process.env.DEPLOYED_SHA??process.env.GITHUB_SHA,harnessSha=process.env.GITHUB_SHA;
 if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!key||!sha)throw Error('STAGING_ENV_REQUIRED');
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
@@ -21,10 +21,21 @@ const json=async(path,options)=>parseCanonicalJson(await(await call(path,options
 const upload=async(name,bytes,mediaType)=>json('objects/'+name,{method:'PUT',body:bytes,mediaType});
 const operationId='smoke-'+sha.slice(0,12)+'-'+process.env.GITHUB_RUN_ID,renderId='render-'+operationId,releaseId='renderer-'+sha.slice(0,12);
 const started=Date.now(),prefix='evals/'+operationId;
+let operationAttempted=false;
+try{
 const health=await fetch(base+'/healthz',{signal:AbortSignal.timeout(15000)});
 if(!health.ok||(await health.json()).protocol!=='3.0.0')throw Error('STAGING_HEALTH_FAILED');
+// Secret updates propagate independently of deploy. Poll a read-only route before creating any job.
+const readyUntil=Date.now()+60000;let ready=false;
+do{
+ const response=await fetch(base+'/internal/s1/capacity',{headers:{authorization:'Bearer '+key},cache:'no-store',signal:AbortSignal.timeout(15000)});
+ if(response.ok){await response.arrayBuffer();ready=true;break;}
+ if(response.status!==404)throw Error('STAGING_AUTH_HEALTH_'+response.status);
+ await response.arrayBuffer();await new Promise(resolve=>setTimeout(resolve,1000));
+}while(Date.now()<readyUntil);
+if(!ready)throw Error('STAGING_SECRET_PROPAGATION_TIMEOUT');
+operationAttempted=true;
 await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'pipeline-smoke',purpose:'calibration',maxMicros:1000000}});
-try{
 const envObject=await upload(prefix+'/environment.json',canonical({gitSha:sha,environmentLock:parseCanonicalJson(readFileSync(new URL('apps/render-container/environment.lock.json',root)))}),'application/json');
 await call('releases',{method:'POST',body:{id:releaseId,runtimeVersion:'film-runtime-v1',environmentKey:envObject.key}});
 const spec=filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
@@ -55,14 +66,16 @@ let outcome;
   writeFileSync(directory+'/'+object.key.split('/').at(-1),bytes);
  }
  const leases=await json('capacity');if(leases.length)throw Error('SMOKE_LEASE_NOT_RETURNED');
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,operationId,renderId,elapsedMs:Date.now()-started,outcome,leases,status:'passed'}));
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,outcome,leases,status:'passed'}));
  console.log(canonical({status:'passed',renderId,elapsedMs:Date.now()-started,media:outcome.media,leases}));
 }catch(error){
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,operationId,renderId,elapsedMs:Date.now()-started,status:'failed',error:String(error.stack??error)}));throw error;
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,status:'failed',error:String(error.stack??error)}));throw error;
 }finally{
+ if(operationAttempted){
  await call('operations/'+operationId+'/cancel',{method:'POST'});
  // Cancellation is asynchronous. A timeout is a failure, not permission to free an occupied slot.
  const until=Date.now()+45000;let leases;
  do{leases=await json('capacity');if(!leases.length)break;await new Promise(resolve=>setTimeout(resolve,1000));}while(Date.now()<until);
  if(leases.length)throw Error('SMOKE_CANCEL_STOP_UNCONFIRMED');
+ }
 }

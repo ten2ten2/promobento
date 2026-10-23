@@ -100,6 +100,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         // Fail before the first paid call if a later required provider is unavailable.
         for(const ref of new Set([providers.steps.facts,providers.steps.assets,providers.steps.directions,providers.steps.spec,providers.steps.review,providers.steps.coldReview])){
           const provider=(providers.providers as Json)[ref.split('/')[0]!];if(!this.env[provider.secret as 'ANTHROPIC_API_KEY'|'MODEL_COMPAT_API_KEY'])throw Error('MODEL_SECRET_MISSING');
+          if(!(providers.models as Json)[ref].capabilities.verified)throw Error('MODEL_INTEGRATION_UNVERIFIED');
         }
         if(!await this.env.DB.prepare("SELECT id FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first())throw Error('RENDER_ENVIRONMENT_MISMATCH');
         await rights(this.env,op,sourceResources);

@@ -8,7 +8,7 @@ export const STEP_REQUIREMENTS = Object.freeze({
 });
 
 /** Cross-file checks for config/model-providers.json, config/model-authorization.json and agent-policy cost. */
-export function modelConfigErrors(providers, authorization, policy) {
+export function modelConfigErrors(providers, authorization, policy, {requireVerified = true} = {}) {
   const errors = [];
   const catalog = providers.catalogVersion;
   if (authorization.catalogVersion !== catalog) errors.push('Authorization catalogVersion differs from model-providers.json');
@@ -17,7 +17,7 @@ export function modelConfigErrors(providers, authorization, policy) {
     const provider = providers.providers[ref.split('/')[0]];
     if (!provider) { errors.push(`Model ${ref} names an unknown provider`); continue; }
     if (provider.currency !== 'USD' && !(provider.usdRate > 0)) errors.push(`Provider of ${ref} needs usdRate for ${provider.currency}`);
-    if (!model.capabilities.verified && Object.values(providers.steps).includes(ref)) errors.push(`Bound model ${ref} is not verified`);
+    if ((requireVerified || policy?.enabled) && !model.capabilities.verified && Object.values(providers.steps).includes(ref)) errors.push(`Bound model ${ref} is not verified`);
   }
   const authorized = new Set(authorization.models);
   for (const [step, ref] of Object.entries(providers.steps)) {
