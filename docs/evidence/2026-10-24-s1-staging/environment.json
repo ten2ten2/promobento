@@ -1,0 +1,1 @@
+{"environmentHealth":{"memoryPeak":{"available":false,"code":"RENDER_MEMORY_METRIC_UNAVAILABLE","paths":["/sys/fs/cgroup/memory.peak","/sys/fs/cgroup/memory/memory.max_usage_in_bytes","/sys/fs/cgroup/memory.max_usage_in_bytes"]},"status":"ready"},"seekComparison":{"diffPixelPct":0,"identical":true,"maxChannelDiff":0,"verdict":"pass"}}

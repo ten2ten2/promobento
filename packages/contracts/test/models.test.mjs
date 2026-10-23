@@ -25,7 +25,7 @@ test('a vision step cannot bind gateway Claude after the image-loss probe', () =
 
 test('unverified, unauthorized or unpriced models are refused', () => {
   const unverified = providers(); unverified.models['modelswitch/deepseek-v4.1-flash-1017'].capabilities.verified = false;
-  assert.ok(modelConfigErrors(unverified, authorization(), policy).some(error => error.includes('is not verified')));
+  assert.ok(modelConfigErrors(unverified, authorization(), policy).includes('Bound model modelswitch/deepseek-v4.1-flash-1017 is not verified'));
   const auth = authorization(); auth.models = auth.models.filter(ref => ref !== 'anthropic/claude-opus-5-5');
   assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step spec binds unauthorized model anthropic/claude-opus-5-5']);
   const unknown = providers(); unknown.steps.triage = 'modelswitch/unknown-model';

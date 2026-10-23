@@ -2,7 +2,7 @@
 FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS environment
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-    ca-certificates curl xz-utils unzip fontconfig ffmpeg libatomic1 util-linux python3-fonttools python3-brotli \
+    ca-certificates curl xz-utils unzip fontconfig ffmpeg=7:6.1.1-3ubuntu5 libatomic1 util-linux python3-fonttools python3-brotli \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 \
     libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 libxshmfence1 libdbus-1-3 libexpat1 \
     && rm -rf /var/lib/apt/lists/*
