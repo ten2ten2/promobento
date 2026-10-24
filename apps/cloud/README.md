@@ -122,6 +122,8 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 
 只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。该零消费探针先要求历史开账仍明确未确认；历史已确认时拒绝派发，不能意外变成付费创作。当前独立场景要求首因为 `MODEL_HISTORY_RECONCILIATION_REQUIRED`，验证已配置的网关密钥与模型能力检查没有误拦；`preflight` 明确零重试，清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。
 
+[40080916901](../../docs/evidence/2026-10-24-s1-staging/README.md#现有网关密钥已绑定导演预检到达历史费用门槛) 已在 `b4b56d2` 单独通过这一门槛检查，8.698 秒内终止、零模型/媒体调用，历史费用仍未确认。没有重建原 renderer 或重跑既有媒体/性能；真实模型请求及成功导演仍待历史费用确认后执行。
+
 ## G1 性能矩阵
 
 `gh workflow run checks.yml --ref main -f suite=staging -f staging_scenario=g1-performance` 通过同一 Actions 部署入口执行正式分布：先采 30 秒原创 WebGL 校准片 10 次串行与 4 路并发，再采纯 2D 同组，共 28 部。每部独立 operation、预算和权利行，仍使用工作区原有 24 个计算名额及单操作 1,000,000 usd_micros 上限。不会额外跑默认 15 秒工程片、studio 画幅矩阵、13 风格或模型。工作流的 60 分钟只覆盖整组采样，每部原有期限不变。

@@ -101,3 +101,25 @@
 [实际回执](director-preflight/director-preflight-report.json)：真实 OperationWorkflow 的准入检查 14.617 秒内落 `failed`，首因 `MODEL_SECRET_MISSING` 已保存在 D1 outbox 与实际私有 R2 故障证据；原生 Workflow 为 errored，清理已确认。无模型请求、无渲染 attempt、无费用预留/结算，历史确认总额仍为 null，未放行真实模型。该时长包括队列派发和证据轮询，不作成功导演的性能指标。临时密钥已删除。
 
 本地仅复验缺密钥/验证/许可的同一准入分支一次（Node 26.12.0，136 ms）；不重跑已通过模型账本、恢复或媒体检查。官方 C/F 仍未接通，成功导演路径及完整 G1/六题评测仍未完成。
+
+## 现有网关密钥已绑定，导演预检到达历史费用门槛
+
+2026-10-24 负责人确认 Claude 也使用 Actions 已有的 `MODEL_COMPAT_API_KEY`，并提供 [ModelSwitch 文档](https://api.modelswitch.org/docs)。统一入口为 `https://api.modelswitch.org/v1/chat/completions`，使用 OpenAI 兼容适配器、按 model ID 选择模型。C 改回网关 Opus 的文本规格，F 使用历史探针已验证可看图的网关 DeepSeek；保留网关 Claude 两轮图片丢失的 `vision:false`。官方 Anthropic 仅作未绑定/未验证备用，不再是当前所选步骤的密钥前提。
+
+[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 在 `ddac7002e0475217ef1dc1c83874a82a2d2ac005` 通过独立维护入口绑定 staging 模型密钥。[名称与结果回执](gateway-director-preflight/binding.json)为 `configuredBefore:false → configuredAfter:true`、`status:bound`，模型/渲染调用均为 0，未上传 Worker 代码。Actions secret 只经 stdin 写入 Wrangler，不读回或保存密钥值；已存在的绑定不会被覆盖。
+
+随后 [40080916901](https://github.com/ten2ten2/promobento/actions/runs/40080916901) 在 `b4b56d22bac51658bbef0452d6d82dc3fc29ede7` 只部署 Worker，版本 `1bd994c9-11de-4113-82e5-6cd45ddca502`。实际命令：
+
+```sh
+gh workflow run checks.yml --ref main \
+  -f suite=staging -f staging_scenario=director-preflight \
+  -f staging_renderer_sha=420e245a72f7655bf3aa1b2a190be65ae95d2257 \
+  -f staging_renderer_digest=sha256:9bfd46ae79e01615b8519e6319ba03f183cfef8f8617011c06b3a3788b34ce84
+```
+
+- [预检原始回执](gateway-director-preflight/director-preflight-report.json)：真实 OperationWorkflow 在 **8.698 秒**内落 `failed`，首因准确为 `MODEL_HISTORY_RECONCILIATION_REQUIRED`，不是原来的缺密钥或未验证模型。D1 outbox 与实际私有 R2 故障证据均已保存，原生状态为 errored，恢复登记已对账。
+- 无模型请求、渲染 attempt 或费用记录；共享预算仍为 0 新结算/0 新预留。128 次历史清单、255,521 usd_micros 可计价估算和 14 次未知均保留，`openingMicros:null`、`openingConfirmed:false`，授权身份、$300 上限与起算不变。
+- [镜像复用回执](gateway-director-preflight/renderer-reuse.json)确认原 renderer `420e245` 和镜像未变化，没有构建/推送容器。[完整 harness 回执](gateway-director-preflight/smoke-report.json)为 13.819 秒；这不作为成功导演性能指标。最终取消/对账、lease 清空和临时 `EVAL_API_KEY` 删除均成功，模型运行时密钥保留。
+- 只执行这一必要预检。该提交自动触发的全套 push run `40080907326` 已取消，未记为通过；没有重跑媒体、28 部矩阵、隔离、捕获选型、配乐或完整 CI。
+
+本轮部署工具为 Node 26.12.0、pnpm 12.14.0、Wrangler 4.152.0。C 校验纠正、全画幅阅读停留拼图和 E/F 共用修复额度已随 Worker 部署，本地定点回放及类型检查通过；本轮在它们执行前停下，真实模型鉴权/长提示、成功导演、六题成片和正常速度视听仍待验证。S1 仍未完成，生产保持关闭。
