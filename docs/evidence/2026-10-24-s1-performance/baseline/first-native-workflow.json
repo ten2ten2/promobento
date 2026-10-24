@@ -1,0 +1,746 @@
+{
+    "id": "render-smoke-8259a3da1fe1-40066875785-2d-serial-0",
+    "params": {
+        "renderId": "render-smoke-8259a3da1fe1-40066875785-2d-serial-0"
+    },
+    "trigger": {
+        "source": "binding"
+    },
+    "versionId": "3471184b-7657-443f-aeeb-20ff9559b3b8",
+    "queued": "2026-10-24T05:36:23.186Z",
+    "start": "2026-10-24T05:36:27.078Z",
+    "end": "2026-10-24T05:37:37.139Z",
+    "success": true,
+    "error": null,
+    "output": {
+        "media": {
+            "bytes": 9379006,
+            "durationSeconds": 30,
+            "fps": 30,
+            "hasAudio": true,
+            "height": 1080,
+            "maxWindowBitrate": 8969632,
+            "reencoded": false,
+            "totalFrames": 900,
+            "width": 1920
+        },
+        "observationFrames": [
+            {
+                "byteLength": 119210,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/126.png",
+                "mediaType": "image/png",
+                "sha256": "091b925c7c081d07ebbc5de93bd3971ef3d2619e888150be54a787f6bc9bf070"
+            },
+            {
+                "byteLength": 119264,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/45.png",
+                "mediaType": "image/png",
+                "sha256": "5d51814757d75c1a9ad066c5a7fa05a3dac83af4981e567854667deafa3ae8a7"
+            },
+            {
+                "byteLength": 98233,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/observation-frames/285.png",
+                "mediaType": "image/png",
+                "sha256": "7318f220958bb932acc09d68084bcef15fe89bfea50fea788f5041bbbc9b64ab"
+            },
+            {
+                "byteLength": 98233,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/c8926f0d-5cf8-45c5-9c5b-49ac959eabf9/shards/3/observation-frames/456.png",
+                "mediaType": "image/png",
+                "sha256": "7318f220958bb932acc09d68084bcef15fe89bfea50fea788f5041bbbc9b64ab"
+            },
+            {
+                "byteLength": 86418,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/4f535d03-dae5-45ae-b290-cfb9bc472578/shards/4/observation-frames/705.png",
+                "mediaType": "image/png",
+                "sha256": "f7ce994be4e28bbb3da86848af7e9ccf646125617409459a7d685117d69c34b9"
+            },
+            {
+                "byteLength": 86418,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/36be48d0-3eca-4f3d-b684-f23cfe38179c/shards/5/observation-frames/780.png",
+                "mediaType": "image/png",
+                "sha256": "f7ce994be4e28bbb3da86848af7e9ccf646125617409459a7d685117d69c34b9"
+            }
+        ],
+        "outputs": [
+            {
+                "byteLength": 9379006,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/film.mp4",
+                "mediaType": "video/mp4",
+                "sha256": "2d59ccf2009250ad0309254206584fb27a5f3a844a08e7634f669762380e3785"
+            },
+            {
+                "byteLength": 176540,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/poster.png",
+                "mediaType": "image/png",
+                "sha256": "b13219c94ffc928635b5912e3eeb3edbb2a2745b4926632cb40746eb8cc0b72f"
+            },
+            {
+                "byteLength": 153,
+                "key": "renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/report.json",
+                "mediaType": "application/json",
+                "sha256": "cfad414adac0801073affc86c2417cb4eba935adad20c3627b61f739938ca93b"
+            }
+        ],
+        "peakMemory": {
+            "measurements": [
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 0
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 1
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 2
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 3
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 4
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 5
+                }
+            ],
+            "status": "unverified"
+        },
+        "renderId": "render-smoke-8259a3da1fe1-40066875785-2d-serial-0",
+        "seamReport": {
+            "kind": "seam_report",
+            "renderId": "render-smoke-8259a3da1fe1-40066875785-2d-serial-0",
+            "schemaVersion": "3.0.0",
+            "seams": [
+                {
+                    "diffPixelPct": 0,
+                    "frame": 149,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 299,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 449,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 599,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 749,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                }
+            ]
+        },
+        "status": "passed"
+    },
+    "rollback": null,
+    "status": "complete",
+    "step_count": 24,
+    "steps": [
+        {
+            "name": "load-render-1",
+            "start": "2026-10-24T05:36:27.280Z",
+            "end": "2026-10-24T05:36:27.318Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:27.280Z",
+                    "end": "2026-10-24T05:36:27.318Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"created_at\":1792820175916,\"finished_at\":null,\"generation\":0,\"id\":\"render-smoke-8259a3da1fe1-40066875785-2d-serial-0\",\"job_key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/input.json\",\"operation_id\":\"smoke-8259a3da1fe1-40066875785-2d-serial-0\",\"request_hash\":\"26e4f8fc6665cfe4fff944016038b6c1a55bebd4ff9a82a70cf0591b7a8cddf7\",\"result_json\":null,\"status\":\"queued\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "claim-execution-1",
+            "start": "2026-10-24T05:36:27.333Z",
+            "end": "2026-10-24T05:36:27.667Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:27.333Z",
+                    "end": "2026-10-24T05:36:27.667Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "load-input-1",
+            "start": "2026-10-24T05:36:27.681Z",
+            "end": "2026-10-24T05:36:27.934Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:27.681Z",
+                    "end": "2026-10-24T05:36:27.934Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"audioInputs\":{\"clearedSources\":[{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"music\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_thud\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_tick\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_chime\"}],\"seed\":\"film-fixture-1\"},\"audioInputsBlobs\":[{\"byteLength\":1208,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/2d-serial-0-audio.json\",\"name\":\"audio-plan\",\"sha256\":\"76a77c1647a9dc82b3f414a67f0d61b064d2d0167756ef6ee0f455ad8d86bc38\"}],\"coverFrame\":450,\"inputs\":[{\"byteLength\":1932,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/2d-serial-0-film.json\",\"name\":\"film\",\"sha256\":\"a4a4ee3012a5c3910684c427abcbd0c5d418638974873ae50f6cf5dcdcc6a6e1\"},{\"byteLength\":1903,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/original.svg\",\"name\":\"resource:res_fixture_dashboard\",\"sha256\":\"c1bcc4b79bad540145353fde45ef603e80f098[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "deadline-1",
+            "start": "2026-10-24T05:36:28.232Z",
+            "end": "2026-10-24T05:36:28.248Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.232Z",
+                    "end": "2026-10-24T05:36:28.248Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "1792820415916",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-sharding-1",
+            "start": "2026-10-24T05:36:28.262Z",
+            "end": "2026-10-24T05:36:28.324Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.262Z",
+                    "end": "2026-10-24T05:36:28.324Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.674Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.674Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "659bdcce-883f-4955-aa7b-c6637eed33ce",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.674Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.674Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "da24e6af-4fd2-467c-b750-794df65d85c1",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.675Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.675Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "54609465-1cb4-4b2f-8268-2a756979b385",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.676Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.676Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "c8926f0d-5cf8-45c5-9c5b-49ac959eabf9",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.685Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.685Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "4f535d03-dae5-45ae-b290-cfb9bc472578",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.685Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.685Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "36be48d0-3eca-4f3d-b684-f23cfe38179c",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-id-1",
+            "start": "2026-10-24T05:36:28.665Z",
+            "end": "2026-10-24T05:36:28.688Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.665Z",
+                    "end": "2026-10-24T05:36:28.688Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "831a78f6-22a8-4a1a-8e29-cce0b1faa75a",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-1",
+            "start": "2026-10-24T05:36:28.688Z",
+            "end": "2026-10-24T05:37:14.936Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.688Z",
+                    "end": "2026-10-24T05:37:14.936Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":243,\"containerReadyMs\":16476},\"outputs\":[{\"byteLength\":13391,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"4720c97c4ea7a7d807eb46a9dbb674fd4097ece6e86d7cdc363bfda8de639e4d\"},{\"byteLength\":119210,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/126.png\",\"mediaType\":\"image/png\",\"sha256\":\"091b925c7c081d07ebbc5de93bd3971ef3d2619e888150be54a787f6bc9bf070\"},{\"byteLength\":119264,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/45.png\",\"mediaType\":\"image/png\",\"sha256\":\"5d51814757d75c1a9ad066c5a7fa05a3dac83af4981e567854667deafa3ae8a7\"},{\"byteLength\":2050,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-1",
+            "start": "2026-10-24T05:36:28.688Z",
+            "end": "2026-10-24T05:37:14.019Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.688Z",
+                    "end": "2026-10-24T05:37:14.019Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":253,\"containerReadyMs\":16356},\"outputs\":[{\"byteLength\":13501,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"297e7faa40a77d3855293de03aa015dbda5e510b67c1c40233b6c2f73bbff7ff\"},{\"byteLength\":98233,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/observation-frames/285.png\",\"mediaType\":\"image/png\",\"sha256\":\"7318f220958bb932acc09d68084bcef15fe89bfea50fea788f5041bbbc9b64ab\"},{\"byteLength\":594,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"35b1a90c89be5012fe52c80c09fd7d42f5251ac99038dc3b54e52ba6666b7041\"},{\"byteLength\":2247,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/rece[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-1",
+            "start": "2026-10-24T05:36:28.693Z",
+            "end": "2026-10-24T05:37:15.729Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.693Z",
+                    "end": "2026-10-24T05:37:15.729Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":187,\"containerReadyMs\":17495},\"outputs\":[{\"byteLength\":13501,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/54609465-1cb4-4b2f-8268-2a756979b385/shards/2/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"a086de05f843eeb3707ac0de827db5a912d79b7a105977065b60ef5e933cfdc7\"},{\"byteLength\":2,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/54609465-1cb4-4b2f-8268-2a756979b385/shards/2/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\"},{\"byteLength\":2268,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/54609465-1cb4-4b2f-8268-2a756979b385/shards/2/receipt.json\",\"mediaType\":\"application/json\",\"sha256\":\"5ee3d5b23961c6f06ed245d571d101ecd8ed0a7b4aff54b48be1c5ee02e09ded\"},{\"byteLength\":2268,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/54609465-1cb4-4b2f-8268-2a756979b385/shards/2/report.json\",\"[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-1",
+            "start": "2026-10-24T05:36:28.693Z",
+            "end": "2026-10-24T05:37:14.010Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.693Z",
+                    "end": "2026-10-24T05:37:14.010Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":272,\"containerReadyMs\":16422},\"outputs\":[{\"byteLength\":13501,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/c8926f0d-5cf8-45c5-9c5b-49ac959eabf9/shards/3/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"0301b5f17057d4a6acfe62a9b4dfda0548b0024e92435506cf3a1046bfedb51a\"},{\"byteLength\":98233,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/c8926f0d-5cf8-45c5-9c5b-49ac959eabf9/shards/3/observation-frames/456.png\",\"mediaType\":\"image/png\",\"sha256\":\"7318f220958bb932acc09d68084bcef15fe89bfea50fea788f5041bbbc9b64ab\"},{\"byteLength\":594,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/c8926f0d-5cf8-45c5-9c5b-49ac959eabf9/shards/3/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"03c7261fa2d296182069c5c670d3dd2cfc10f5b3d610e77e8fcb16738da0ae51\"},{\"byteLength\":2255,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/c8926f0d-5cf8-45c5-9c5b-49ac959eabf9/shards/3/rece[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-1",
+            "start": "2026-10-24T05:36:28.693Z",
+            "end": "2026-10-24T05:37:16.755Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.693Z",
+                    "end": "2026-10-24T05:37:16.755Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":169,\"containerReadyMs\":17498},\"outputs\":[{\"byteLength\":13501,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/4f535d03-dae5-45ae-b290-cfb9bc472578/shards/4/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"4061275af365154aa7b7ae899758ddf0c8e35bc3ca3258b6b8402591b4174a87\"},{\"byteLength\":86418,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/4f535d03-dae5-45ae-b290-cfb9bc472578/shards/4/observation-frames/705.png\",\"mediaType\":\"image/png\",\"sha256\":\"f7ce994be4e28bbb3da86848af7e9ccf646125617409459a7d685117d69c34b9\"},{\"byteLength\":938,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/4f535d03-dae5-45ae-b290-cfb9bc472578/shards/4/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"5ab7cd26081992d474f91f3488563826242b11d957265447597d68d44ca3e7db\"},{\"byteLength\":2260,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/4f535d03-dae5-45ae-b290-cfb9bc472578/shards/4/rece[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-1",
+            "start": "2026-10-24T05:36:28.693Z",
+            "end": "2026-10-24T05:37:11.490Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.693Z",
+                    "end": "2026-10-24T05:37:11.490Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":266,\"containerReadyMs\":17004},\"outputs\":[{\"byteLength\":13501,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/36be48d0-3eca-4f3d-b684-f23cfe38179c/shards/5/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"222c9a786b605be62e36db5384b96d36218f5c507be61253276b6ead4ed07852\"},{\"byteLength\":86418,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/36be48d0-3eca-4f3d-b684-f23cfe38179c/shards/5/observation-frames/780.png\",\"mediaType\":\"image/png\",\"sha256\":\"f7ce994be4e28bbb3da86848af7e9ccf646125617409459a7d685117d69c34b9\"},{\"byteLength\":938,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/36be48d0-3eca-4f3d-b684-f23cfe38179c/shards/5/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"8ea3d886b0341508dbad0796b129914d732d4cd8c518af68f2e7b0e7338f65e9\"},{\"byteLength\":2190,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/36be48d0-3eca-4f3d-b684-f23cfe38179c/shards/5/rece[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-1",
+            "start": "2026-10-24T05:36:28.694Z",
+            "end": "2026-10-24T05:36:54.878Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:36:28.694Z",
+                    "end": "2026-10-24T05:36:54.878Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":270,\"containerReadyMs\":16803},\"outputs\":[{\"byteLength\":5760078,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/831a78f6-22a8-4a1a-8e29-cce0b1faa75a/audio/mixed.wav\",\"mediaType\":\"audio/wav\",\"sha256\":\"732de1ed315242c67d43aee6ad16fade4fc6192042be6989bbbc412952332e69\"},{\"byteLength\":107,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/831a78f6-22a8-4a1a-8e29-cce0b1faa75a/audio/report.json\",\"mediaType\":\"application/json\",\"sha256\":\"ca020f02857867e2090dd25546be8611a2aedd63dd95064757f0651791da1a16\"}],\"report\":{\"correction\":null,\"lufs\":-13.99,\"path\":\"mixed.wav\",\"sampleFrames\":1440000,\"silent\":false,\"truePeak\":-1.36},\"status\":\"succeeded\",\"taskId\":\"831a78f6-22a8-4a1a-8e29-cce0b1faa75a\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "verify-shards-1",
+            "start": "2026-10-24T05:37:16.805Z",
+            "end": "2026-10-24T05:37:21.835Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:37:16.805Z",
+                    "end": "2026-10-24T05:37:21.835Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"kind\":\"seam_report\",\"renderId\":\"render-smoke-8259a3da1fe1-40066875785-2d-serial-0\",\"schemaVersion\":\"3.0.0\",\"seams\":[{\"diffPixelPct\":0,\"frame\":149,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":299,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":449,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":599,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":749,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"}]}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-assembling-1",
+            "start": "2026-10-24T05:37:21.856Z",
+            "end": "2026-10-24T05:37:21.969Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:37:21.856Z",
+                    "end": "2026-10-24T05:37:21.969Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "assemble-id-1",
+            "start": "2026-10-24T05:37:21.988Z",
+            "end": "2026-10-24T05:37:22.006Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:37:21.988Z",
+                    "end": "2026-10-24T05:37:22.006Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "d4a73671-186b-406d-b572-b8de890cda8f",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "assemble-1",
+            "start": "2026-10-24T05:37:22.025Z",
+            "end": "2026-10-24T05:37:35.981Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:37:22.025Z",
+                    "end": "2026-10-24T05:37:35.981Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"capacityWaitMs\":111,\"containerReadyMs\":1334},\"outputs\":[{\"byteLength\":9379006,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/film.mp4\",\"mediaType\":\"video/mp4\",\"sha256\":\"2d59ccf2009250ad0309254206584fb27a5f3a844a08e7634f669762380e3785\"},{\"byteLength\":176540,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/poster.png\",\"mediaType\":\"image/png\",\"sha256\":\"b13219c94ffc928635b5912e3eeb3edbb2a2745b4926632cb40746eb8cc0b72f\"},{\"byteLength\":153,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/d4a73671-186b-406d-b572-b8de890cda8f/out/report.json\",\"mediaType\":\"application/json\",\"sha256\":\"cfad414adac0801073affc86c2417cb4eba935adad20c3627b61f739938ca93b\"}],\"report\":{\"bytes\":9379006,\"durationSeconds\":30,\"fps\":30,\"hasAudio\":true,\"height\":1080,\"maxWindowBitrate\":8969632,\"reencoded\":false,\"totalFrames\":900,\"width\":1920},\"status\":\"succeeded\",\"taskId\":\"[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "commit-render-1",
+            "start": "2026-10-24T05:37:36.924Z",
+            "end": "2026-10-24T05:37:37.123Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:37:36.924Z",
+                    "end": "2026-10-24T05:37:37.123Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"media\":{\"bytes\":9379006,\"durationSeconds\":30,\"fps\":30,\"hasAudio\":true,\"height\":1080,\"maxWindowBitrate\":8969632,\"reencoded\":false,\"totalFrames\":900,\"width\":1920},\"observationFrames\":[{\"byteLength\":119210,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/126.png\",\"mediaType\":\"image/png\",\"sha256\":\"091b925c7c081d07ebbc5de93bd3971ef3d2619e888150be54a787f6bc9bf070\"},{\"byteLength\":119264,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/659bdcce-883f-4955-aa7b-c6637eed33ce/shards/0/observation-frames/45.png\",\"mediaType\":\"image/png\",\"sha256\":\"5d51814757d75c1a9ad066c5a7fa05a3dac83af4981e567854667deafa3ae8a7\"},{\"byteLength\":98233,\"key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-serial-0/attempts/da24e6af-4fd2-467c-b750-794df65d85c1/shards/1/observation-frames/285.png\",\"mediaType\":\"image/png\",\"sha256\":\"7318f220958bb932acc09d68084bcef15fe89bfea50fea788f5041bbbc9b64ab\"},{\"byteLength\":98233,\"key\":\"rende[truncated output]",
+            "success": true,
+            "type": "step"
+        }
+    ]
+}

@@ -52,6 +52,8 @@ G1 新增 `g1-performance` 场景，分别采集纯 2D/WebGL 的 10 次串行与
 
 `g1-selection` [40065497336](evidence/2026-10-24-s1-performance/README.md#正式捕获格式机型与-studio-延迟通过) 已通过正式 studio 的授权帧 check、PNG/JPEG90/92/95 + RGB SSIM、standard-3/4 选型与实际 still/check 延迟：4 实例/40 组样本、160 次捕获，工具 HTTP p95 均 ≤712 ms；WebGL standard-4 的 JPEG92 捕获中位数 120.90 ms，对比 standard-3 的 155.12 ms。保持 JPEG92、普通 studio standard-3、WebGL 分段 standard-4；实际 PNG 已看，关闭/lease/10,722 usd_micros 保守结算成功，密钥已删除。恢复查询补齐 studio 计算预留的原生停止状态，避免空 attempts 数组造成假阳性；不重跑本轮格式/延迟样本。
 
-`g1-isolation` 已补正式镜像的固定网络/存储/动态代码、页面与 Node 边界、CSP、容器 HTTP/HTTPS/DNS/TCP、broker 令牌越权和分离 uid 检查；只限校准、授权帧和原始工程素材，回执不返回令牌或进程环境值。实际原生结果待验，S2 任意代码/资源耗尽语料仍未实现。
+`g1-isolation` 已补正式镜像的固定网络/存储/动态代码、页面与 Node 边界、CSP、容器 HTTP/HTTPS/DNS/TCP、broker 令牌越权和分离 uid 检查；只限校准、授权帧和原始工程素材，回执不返回令牌或进程环境值。首次 [40066303079](evidence/2026-10-24-s1-performance/README.md#隔离探针首次未取得可判定结果) 在 2D ready 后返回通用 `TASK_INVALID`，没有可判定隔离结果，WebGL 未运行；实例原生停止确认、2,180 usd_micros 保守结算及密钥回收成功。已补逐阶段诊断，实际修复待验；S2 任意代码/资源耗尽语料仍未实现。
+
+成片性能 [40066875785](evidence/2026-10-24-s1-performance/README.md#完整-2d-串行基线与并发故障) 的 10 部 2D 串行片全部交付，p50 **66.774 秒** / p95 **97.384 秒**，高于原 60 秒初值；4 路并发 3 部交付、1 部原生资源/连接失败，未继续 WebGL。13 部成功片的 65 处接缝全为零差异，已看实际成片封面；111 次计算全部停止结算，共 179,597 usd_micros 保守上界，无未结费用，密钥已删除。原始有效样本保留。新候选将授权输出上传/拼接源下载改为有界 4 路、接缝对并行读，复用已核验 FilmSpec 字节，outbox 批等待由默认 5 秒改为 1 秒；不减少校验、提高物理并发或放宽目标。另修复清理错误覆盖原生首因，停止未确认前仍持有名额/预留。I/O 单项（18 ms）、首因/停止结算单项（249 ms）及 cloud 类型检查通过；原生收益和并发可靠性待验。
 
 S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。

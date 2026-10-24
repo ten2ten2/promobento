@@ -10,10 +10,10 @@ import {renderShard} from './shard.mjs';
 import {assemble} from './media.mjs';
 import {renderAudio} from './audio.mjs';
 import {filmSession} from './browser.mjs';
-import {deadline} from './process.mjs';
+import {deadline,mapIO} from './process.mjs';
 import {memoryHealth,filesystemDiagnostic} from './memory.mjs';
 import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
-import {hostIsolation} from './isolation.mjs';
+import {hostIsolation,collectIsolation} from './isolation.mjs';
 
 if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
 const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
@@ -78,12 +78,11 @@ async function execute(input) {
     }
     await launch('kill');
   } else if (input.mode === 'assemble') {
-    const shards = [];
-    for (const object of input.inputs.filter(object => /^shard:\d+$/.test(object.name)).sort((a, b) => Number(a.name.slice(6)) - Number(b.name.slice(6)))) {
-      const path = join(workDirectory, object.name.replace(':', '-') + '.h264'); writeFileSync(path, await bytes(object.name)); shards.push(path);
-    }
-    let audioPath;
-    if (objects.has('audio')) { audioPath = join(workDirectory, 'mixed.wav'); writeFileSync(audioPath, await bytes('audio')); }
+    const sources=input.inputs.filter(object=>/^shard:\d+$/.test(object.name)).sort((a,b)=>Number(a.name.slice(6))-Number(b.name.slice(6)));
+    const shards=sources.map(object=>join(workDirectory,object.name.replace(':','-')+'.h264'));
+    const audioPath=objects.has('audio')?join(workDirectory,'mixed.wav'):undefined;
+    await mapIO([...sources.map((object,index)=>({name:object.name,path:shards[index]})),...(audioPath?[{name:'audio',path:audioPath}]:[])],
+      async source=>writeFileSync(source.path,await bytes(source.name)));
     report = await assemble({shards, audioPath, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
       coverFrame: input.job.quality === 'review' ? Math.floor(input.coverFrame / 2) : input.coverFrame,
       config: input.job.quality === 'review' ? {...config, width: config.width / 2, height: config.height / 2} : config,
@@ -99,15 +98,14 @@ async function execute(input) {
     report = {...report, path: 'mixed.wav'};
   }
   writeFileSync(join(workDirectory, 'report.json'), canonical(report));
-  const outputs = [];
   // Temporary sources and intermediate pre-master PCM are never uploaded as deliverables.
   const allowed = input.mode === 'assemble' ? ['film.mp4', 'poster.png', 'report.json'] : input.mode === 'audio' ? ['mixed.wav', 'report.json'] : null;
-  for (const path of relativeFiles(workDirectory)) {
-    const name = relative(workDirectory, path); if (allowed && !allowed.includes(name)) continue;
+  const outputs=await mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))),async path=>{
+    const name = relative(workDirectory, path);
     const mediaType = name.endsWith('.png') ? 'image/png' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.h264') ? 'video/h264'
       : name.endsWith('.wav') ? 'audio/wav' : 'application/json';
-    outputs.push(await broker.write(prefix + '/' + name, readFileSync(path), mediaType));
-  }
+    return broker.write(prefix + '/' + name, readFileSync(path), mediaType);
+  });
   return {status: 'succeeded', taskId: input.taskId, outputs, report};
 }
 
@@ -135,12 +133,12 @@ const server = http.createServer(async (request, response) => {
         const png=await session.frame(input.frameIndex,{format:'png'});response.writeHead(200,{'content-type':'image/png'}).end(png);
        }else if(request.url==='/studio/isolation'){
         const work=(async()=>{
-         await session.frame(input.frameIndex,{format:'png'});
-         const page=await session.isolation(),host=await hostIsolation(task,abort.signal);
-         const uidResponse=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000)});
-         if(!uidResponse.ok)throw Error('ISOLATION_LAUNCHER_UNAVAILABLE');
-         const uid=parseCanonicalJson(await uidResponse.text());
-         return{scope:'S1_fixed_network_token_uid_and_browser_corpus_not_S2_arbitrary_code_faults',passed:page.passed&&host.passed&&uid.passed,sandbox:session.sandbox,page,host,uid};
+         const probes={capture:async()=>{await session.frame(input.frameIndex,{format:'png'});return{passed:true,frameIndex:input.frameIndex};},
+          page:()=>session.isolation(),host:()=>hostIsolation(task,abort.signal),uid:async()=>{
+          const response=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000)});
+          if(!response.ok)throw Error('ISOLATION_LAUNCHER_UNAVAILABLE');return parseCanonicalJson(await response.text());
+         }};
+         return collectIsolation({sandbox:session.sandbox,token:task.brokerToken,probes});
         })();
         const value=await deadline(work,30000,'ISOLATION_TIMEOUT',()=>abort.abort());
         response.writeHead(200,{'content-type':'application/json'}).end(canonical(value));

@@ -167,3 +167,20 @@ test('controller startup must pass health before task dispatch; timeout and exit
   }finally{t.mock.timers.reset();}
  }
 });
+
+test('native capacity failure survives cleanup disconnect; slot and unknown cost wait for confirmed stop',async t=>{
+ const{db,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
+ db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
+  .run(task.taskId,task.job.renderId,task.job.operationId,0,task.mode,task.instance,'active',Date.now());
+ ctx.container.interceptOutboundHttp=async()=>{throw Error('There is no container instance that can be provided to this Durable Object, try again later');};
+ ctx.container.destroy=async()=>{throw Error('Network connection lost.');};
+ await assert.rejects(shard.execute(canonical(task)),/RENDER_CAPACITY_UNAVAILABLE/);
+ const row=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
+ assert.equal(row.code,'RENDER_CAPACITY_UNAVAILABLE');assert.equal(row.diagnostic.phase,'startup');
+ assert.equal(counts().starts,1);assert.equal(counts().leases,1);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,0);
+ ctx.container.destroy=async()=>{ctx.container.running=false;};await shard.stopAndSettle();
+ assert.equal(counts().starts,1);assert.equal(counts().leases,0);assert.equal(ctx.container.running,false);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
+ assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json).code,'RENDER_CAPACITY_UNAVAILABLE');
+});

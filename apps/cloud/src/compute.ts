@@ -119,6 +119,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     if(!Number.isFinite(deadlineAt)||deadlineAt<=Date.now())throw Error('RENDER_DEADLINE');
     const leaseKind = task.mode === 'studio' ? 'studio' : 'shard';
     let startedAt: number | undefined, outcome: Json | undefined, reserved = false,acquired=false;
+    let failed=false,failure:unknown,phase:'startup'|'dispatch'|'execute'='startup';
     try {
       // 24 WebGL shards and audio share a 24-slot workspace. Wait without a container or reservation;
       // the original render deadline, generation and stop latch still bound this attempt.
@@ -190,7 +191,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       }
       await operation(this.env,op.id,op.generation);
       if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
+      phase='dispatch';
       if (!(await this.call('/task', input)).ok) throw Error('RENDER_TASK_REJECTED');
+      phase='execute';
       for (;;) {
         await operation(this.env, op.id, op.generation);
         if (Date.now() - startedAt > limit) throw Error('RENDER_DEADLINE');
@@ -209,11 +212,24 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       }
       await this.ctx.storage.put('result', outcome);
       return outcome;
+    } catch(error) {
+      const text=String((error as {message?:unknown})?.message??error);
+      const known=/no container instance that can be provided to this Durable Object/i.test(text)?'RENDER_CAPACITY_UNAVAILABLE'
+        :text==='Network connection lost.'?'RENDER_'+phase.toUpperCase()+'_CONNECTION_LOST':null;
+      failed=true;failure=known?Error(known):error;
+      const code=known??text.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1]??'RENDER_INTERNAL_ERROR';
+      try{
+        await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=COALESCE(result_json,?) WHERE id=?')
+          .bind(canonical({status:'failed',code,diagnostic:{phase}}),task.taskId).run();
+      }catch{ /* The native Workflow still receives the original failure if diagnosis storage is unavailable. */ }
+      throw failure;
     } finally {
-      if (!(await this.ctx.storage.get('studio'))) {
-        await this.stop();if(acquired)await coordinator(this.env).release(task.taskId);await this.ctx.storage.deleteAlarm();
-        if (reserved) await this.finishCost(task.taskId, task.instance, startedAt);
-      }
+      try{
+        if (!(await this.ctx.storage.get('studio'))) {
+          await this.stop();if(acquired)await coordinator(this.env).release(task.taskId);await this.ctx.storage.deleteAlarm();
+          if (reserved) await this.finishCost(task.taskId, task.instance, startedAt);
+        }
+      }catch(error){if(failed)throw failure;throw error;}
     }
   }
   private async studioCommand(command:'frame'|'check'|'benchmark'|'isolation',taskId: string, frameIndex: number) {

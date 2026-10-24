@@ -33,7 +33,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const filmBlob = input.inputs.find((blob: BlobRef) => blob.name === 'film'); if (!filmBlob) throw Error('SOURCE_UNAVAILABLE');
       const raw = await checkedBytes(this.env, filmBlob);
       if (filmSourceHash(raw) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
-      const film = await getJson(this.env, filmBlob.key), partition = planShards(input.job, film, {seed: input.options.seed});
+      const film = parseCanonicalJson(raw) as Json, partition = planShards(input.job, film, {seed: input.options.seed});
       const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
       const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
         const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
@@ -86,8 +86,8 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
           checkShardObservations(input.job,shard,film,observations);
           if (index) {
             const frame = partition.shards[index]!.start - 1;
-            const a = await checkedBytes(this.env, output(shards[index - 1]!, `/seam-frames/${frame}-last.png`));
-            const b = await checkedBytes(this.env, output(result, `/seam-frames/${frame}-cold.png`));
+            const [a,b]=await Promise.all([checkedBytes(this.env, output(shards[index - 1]!, `/seam-frames/${frame}-last.png`)),
+              checkedBytes(this.env, output(result, `/seam-frames/${frame}-cold.png`))]);
             const seam = {frame, ...compareSeam(a, b)}; if (seam.verdict === 'RENDER_SEAM_BLOCK') throw Error('RENDER_SEAM_BLOCK'); seams.push(seam);
           }
         }

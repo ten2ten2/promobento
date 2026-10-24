@@ -28,7 +28,10 @@ async function start() {
 const server = http.createServer(async (request, response) => {
   try {
     if(request.method==='POST'&&request.url==='/isolation'){
-      response.writeHead(200,{'content-type':'application/json'}).end(canonical(uidIsolation()));return;
+      let report;
+      try{report=uidIsolation();}
+      catch(error){report={passed:false,error:{name:String(error.name??'Error'),code:String(error.code??'UNKNOWN'),message:String(error.message??error).slice(0,300)}};}
+      response.writeHead(200,{'content-type':'application/json'}).end(canonical(report));return;
     }
     if (request.method !== 'POST' || !['/start', '/kill'].includes(request.url)) { response.writeHead(404).end(); return; }
     if (request.url === '/start') await start(); else await kill();

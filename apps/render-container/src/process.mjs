@@ -1,5 +1,18 @@
 import {spawn} from 'node:child_process';
 
+/** Four authorized I/O operations at most. Preserve order and drain in-flight work before failure. */
+export async function mapIO(values,work){
+  const results=new Array(values.length);let next=0,failed=false,failure;
+  await Promise.all(Array.from({length:Math.min(4,values.length)},async()=>{
+    while(!failed){
+      const index=next++;if(index>=values.length)break;
+      try{results[index]=await work(values[index],index);}
+      catch(error){if(!failed){failed=true;failure=error;}}
+    }
+  }));
+  if(failed)throw failure;return results;
+}
+
 export async function deadline(work, ms, code, cancel = () => {}) {
   let timer;
   try {

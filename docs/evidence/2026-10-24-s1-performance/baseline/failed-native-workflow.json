@@ -1,0 +1,524 @@
+{
+    "id": "render-smoke-8259a3da1fe1-40066875785-2d-parallel-2",
+    "params": {
+        "renderId": "render-smoke-8259a3da1fe1-40066875785-2d-parallel-2"
+    },
+    "trigger": {
+        "source": "binding"
+    },
+    "versionId": "3471184b-7657-443f-aeeb-20ff9559b3b8",
+    "queued": "2026-10-24T05:48:31.148Z",
+    "start": "2026-10-24T05:48:31.402Z",
+    "end": "2026-10-24T05:48:47.198Z",
+    "success": false,
+    "error": {
+        "message": "Network connection lost.",
+        "name": "Error"
+    },
+    "rollback": null,
+    "status": "errored",
+    "step_count": 20,
+    "steps": [
+        {
+            "name": "load-render-1",
+            "start": "2026-10-24T05:48:31.651Z",
+            "end": "2026-10-24T05:48:31.725Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:31.651Z",
+                    "end": "2026-10-24T05:48:31.725Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"created_at\":1792820906526,\"finished_at\":null,\"generation\":0,\"id\":\"render-smoke-8259a3da1fe1-40066875785-2d-parallel-2\",\"job_key\":\"renders/render-smoke-8259a3da1fe1-40066875785-2d-parallel-2/input.json\",\"operation_id\":\"smoke-8259a3da1fe1-40066875785-2d-parallel-2\",\"request_hash\":\"e2483b719be87d45dcb4e510723c03e9c70f62f929fe376b7f4ae607a1929e0c\",\"result_json\":null,\"status\":\"queued\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "claim-execution-1",
+            "start": "2026-10-24T05:48:31.760Z",
+            "end": "2026-10-24T05:48:32.084Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:31.760Z",
+                    "end": "2026-10-24T05:48:32.084Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "load-input-1",
+            "start": "2026-10-24T05:48:32.118Z",
+            "end": "2026-10-24T05:48:32.254Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:32.118Z",
+                    "end": "2026-10-24T05:48:32.254Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"audioInputs\":{\"clearedSources\":[{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"music\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_thud\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_tick\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_chime\"}],\"seed\":\"film-fixture-1\"},\"audioInputsBlobs\":[{\"byteLength\":1208,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/2d-parallel-2-audio.json\",\"name\":\"audio-plan\",\"sha256\":\"76a77c1647a9dc82b3f414a67f0d61b064d2d0167756ef6ee0f455ad8d86bc38\"}],\"coverFrame\":450,\"inputs\":[{\"byteLength\":1932,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/2d-parallel-2-film.json\",\"name\":\"film\",\"sha256\":\"a4a4ee3012a5c3910684c427abcbd0c5d418638974873ae50f6cf5dcdcc6a6e1\"},{\"byteLength\":1903,\"key\":\"evals/smoke-8259a3da1fe1-40066875785/original.svg\",\"name\":\"resource:res_fixture_dashboard\",\"sha256\":\"c1bcc4b79bad540145353fde45ef603e80[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "deadline-1",
+            "start": "2026-10-24T05:48:32.466Z",
+            "end": "2026-10-24T05:48:32.501Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:32.466Z",
+                    "end": "2026-10-24T05:48:32.501Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "1792821146526",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-sharding-1",
+            "start": "2026-10-24T05:48:32.535Z",
+            "end": "2026-10-24T05:48:32.635Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:32.535Z",
+                    "end": "2026-10-24T05:48:32.635Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.138Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.138Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "8edde7a3-c77a-4930-bb22-585c65b4ba5f",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.140Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.140Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "86ba68d8-f4ea-4f60-bda6-5f134a68e454",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.141Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.141Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "76942f97-14eb-4f20-a53a-7add829c2f4d",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.141Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.141Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "772946fb-f0b4-48f5-a2ba-d97648f78092",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.142Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.142Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "727cd93d-00c3-49bc-b541-c0a7aeed4a7f",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.163Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.163Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "1b414479-5ea0-4225-84ea-361e11516c1d",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-id-1",
+            "start": "2026-10-24T05:48:33.115Z",
+            "end": "2026-10-24T05:48:33.163Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.115Z",
+                    "end": "2026-10-24T05:48:33.163Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "9f823793-6e7b-4f4f-af15-e6e0cff588ac",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-1",
+            "start": "2026-10-24T05:48:33.164Z",
+            "end": "2026-10-24T05:48:47.176Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.164Z",
+                    "end": "2026-10-24T05:48:47.176Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "There is no container instance that can be provided to this Durable Object, try again later"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-1",
+            "start": "2026-10-24T05:48:33.164Z",
+            "end": "2026-10-24T05:48:47.152Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.164Z",
+                    "end": "2026-10-24T05:48:47.152Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "There is no container instance that can be provided to this Durable Object, try again later"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-1",
+            "start": "2026-10-24T05:48:33.165Z",
+            "end": "2026-10-24T05:48:47.414Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.165Z",
+                    "end": "2026-10-24T05:48:47.414Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "OPERATION_FENCED"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-1",
+            "start": "2026-10-24T05:48:33.165Z",
+            "end": "2026-10-24T05:48:47.178Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.165Z",
+                    "end": "2026-10-24T05:48:47.178Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "COMPUTE_ATTEMPT_STOPPED"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-1",
+            "start": "2026-10-24T05:48:33.177Z",
+            "end": "2026-10-24T05:48:47.414Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.177Z",
+                    "end": "2026-10-24T05:48:47.414Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "There is no container instance that can be provided to this Durable Object, try again later"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-1",
+            "start": "2026-10-24T05:48:33.179Z",
+            "end": "2026-10-24T05:48:47.414Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.179Z",
+                    "end": "2026-10-24T05:48:47.414Z",
+                    "success": false,
+                    "error": {
+                        "name": "WorkflowInstanceFailedError",
+                        "message": "Attempt cancelled because the instance failed: Network connection lost."
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "audio-1",
+            "start": "2026-10-24T05:48:33.180Z",
+            "end": "2026-10-24T05:48:45.442Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:33.180Z",
+                    "end": "2026-10-24T05:48:45.442Z",
+                    "success": false,
+                    "error": {
+                        "name": "Error",
+                        "message": "Network connection lost."
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "name": "fail-render-1",
+            "start": "2026-10-24T05:48:46.062Z",
+            "end": "2026-10-24T05:48:47.173Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T05:48:46.062Z",
+                    "end": "2026-10-24T05:48:47.173Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 3,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "1 minute"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        }
+    ]
+}

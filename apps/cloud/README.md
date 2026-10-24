@@ -10,9 +10,13 @@
 
 计算费用目前按 **分配的完整 CPU + 内存 + 磁盘 × 实际运行时间**记保守上界，不是 Cloudflare 账单实测值。CPU/内存/磁盘单价来源：[Cloudflare Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)，2026-10-23；实例规格见[官方表](https://developers.cloudflare.com/containers/platform/limits/)。未知模型 usage 保留预留，不记作零。生产预算未标定，Agent 仍关闭。
 
+内部交互任务的 outbox consumer 保留每批最多 5 条，将批量等待明确设为 1 秒，不沿用平台默认的 5 秒；不改变重试、幂等或物理计算名额。成片仍按客户端提交到 passed 计时，排队没有从性能指标中删掉。
+
 满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。正式满载性能分布/主动取消 G1 仍未完成。
 
 容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。失败沿用停止、lease 和费用结算路径，不自动重启付费计算。
+
+原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用；原生停止尚未确认时继续沿用已有清理对账入口，不自动重发任务。
 
 ## 研究模型共用一份预算
 

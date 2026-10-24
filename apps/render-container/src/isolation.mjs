@@ -4,6 +4,20 @@ import {Resolver} from 'node:dns/promises';
 import net from 'node:net';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 
+export async function collectIsolation({sandbox,token,probes}){
+ const report={scope:'S1_fixed_network_token_uid_and_browser_corpus_not_S2_arbitrary_code_faults',passed:true,sandbox};
+ for(const [stage,probe]of Object.entries(probes)){
+  try{report[stage]=await probe();}
+  catch(error){
+   // Fixed probe code/hosts only: no input, headers, environment values or complete stack.
+   report[stage]={passed:false,error:{name:String(error.name??'Error'),code:String(error.code??error.cause?.code??'UNKNOWN'),
+    message:String(error.message??error).split(token).join('[redacted]').replace(/Bearer\s+[A-Za-z0-9._-]+/gi,'Bearer [redacted]').slice(0,500)}};
+  }
+  if(report[stage].passed!==true)report.passed=false;
+ }
+ return report;
+}
+
 export async function pageIsolation(page){
  const expected=parseCanonicalJson(readFileSync(new URL('../../../tests/attacks/film-v1/isolation.json',import.meta.url))).expected;
  const actual=await page.evaluate(()=>{
