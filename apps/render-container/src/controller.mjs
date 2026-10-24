@@ -2,7 +2,7 @@ import http from 'node:http';
 import {mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest} from '@promobento/contracts/digest';
+import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {brokerClient} from './broker.mjs';
@@ -134,10 +134,11 @@ const server = http.createServer(async (request, response) => {
        }else if(request.url==='/studio/isolation'){
         const work=(async()=>{
          const probes={capture:async()=>{await session.frame(input.frameIndex,{format:'png'});return{passed:true,frameIndex:input.frameIndex};},
-          page:()=>session.isolation(),host:()=>hostIsolation(task,abort.signal),uid:async()=>{
-          const response=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000)});
+          page:()=>session.isolation(),uid:async()=>{
+          const response=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000),
+           headers:{'content-type':'application/json'},body:canonical({fingerprint:sha256Bytes(Buffer.from(task.brokerToken)),tokenByteLength:Buffer.byteLength(task.brokerToken)})});
           if(!response.ok)throw Error('ISOLATION_LAUNCHER_UNAVAILABLE');return parseCanonicalJson(await response.text());
-         }};
+         },host:()=>hostIsolation(task,abort.signal)};
          return collectIsolation({sandbox:session.sandbox,token:task.brokerToken,probes});
         })();
         const value=await deadline(work,30000,'ISOLATION_TIMEOUT',()=>abort.abort());

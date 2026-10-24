@@ -110,4 +110,4 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 
 `-f staging_scenario=g1-isolation` 对 2D standard-3、WebGL standard-4 各开一个独立 studio，只测授权的 45 帧及[固定攻击项](../../tests/attacks/film-v1/isolation.json)。`POST operations/<id>/studio/isolation/<frame>` 在 Worker 与 ShardDO 均要求校准 purpose，仍检查 generation、许可、task 和帧范围；普通评测和越界帧先拒绝。控制器不执行调用者提供的代码或命令。
 
-`isolation-report.json` 保留真实 Chromium 沙箱、shim/CSP、容器外网/DNS/TCP、broker 无令牌/错令牌/越权读写、uid 隔离和实际停止/结算结果。进程环境只返回键名与权限结果，令牌不进入诊断、URL、子进程或报告。固定请求只访问 example.com、Cloudflare 公共 DNS 地址及本任务的 broker；失败不自动重试。此场景不出片、不调模型，不代替 S2 的资源耗尽与任意镜头故障测试。
+`isolation-report.json` 保留真实 Chromium 沙箱、shim/CSP、容器外网/DNS/TCP、broker 无令牌/错令牌/越权读写、uid 隔离和实际停止/结算结果。CSP 用普通同源脚本执行；令牌仅以指纹供 uid 探针检查原始进程字节，bearer 不传给启动器，指纹也不进报告。只保留父浏览器白名单键名、子进程的可读性/字节数/泄漏布尔值与权限结果，避免将重用的 argv 字节当作环境键或输出其中内容。固定请求只访问 example.com、Cloudflare 公共 DNS 地址及本任务的 broker；失败不自动重试。此场景不出片、不调模型，不代替 S2 的资源耗尽与任意镜头故障测试。

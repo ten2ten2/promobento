@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 契约 | 14 个 v3 Schema 与派生积木参数预编译，含新增内部音乐准入；film-v1 Composition（identityVersion 2）、构建记录与冻结参考校验；内容/产物指纹及同画幅视频复用，平台 mapping/授权仍分开；旧 v1 入口和内容摘要保留重放；帧协议支持互斥的 aspectId 新包络与 targetId 历史包络 | 客户草稿、真实冻结事务和计费服务仍在 M1/M2；自写镜头/直接改值按 S2 接入，不能把参考校验当成已上线服务 |
 | 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、OM/clip、PTS 视频帧缓存和字体检查；2D 四画幅顺序/逆序/独立冷 seek 的 72 次比较通过；真实 Three.js 0.186.1 设备积木、按需 3D bundle、ready/dispose 与锁定 SwiftShader 校验；四画幅 WebGL 逆序/冷 seek 的 20 次比较完全一致，30 秒/24 段成片的 23 处接缝零差异，已看实际画面 | 正式性能/并行 G1 待验。自写镜头、全局纹理/布局覆盖未实现 |
-| 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、共享计划的精确 CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色与真实封面；15 秒 2D、30 秒 WebGL 成片已通过；review 540p/15 fps | 阅读停留观测不是完整动态 Q1/Q2；完整 supervisor、studio 回收、攻击/故障与 broker G1 仍待验 |
+| 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、共享计划的精确 CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色与真实封面；15 秒 2D、30 秒 WebGL 成片已通过；review 540p/15 fps；studio 工具延迟、关闭/停止已有原生证据 | 阅读停留观测不是完整动态 Q1/Q2；完整 supervisor、攻击/故障与 broker G1 仍待验 |
 | 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、共用积木事件点、授权检查、48 kHz 双声道、两遍 loudnorm；13 风格 30 秒母带数值已通过。四种 lead-in 与程序配乐的 30 秒混音（−14 LUFS、−1.4 dBTP）已纳入实际 MP4 交付；导演上传音乐/ABC 准入已部署，实际 PCM 和导演传输有本地检查 | 外部音乐/ABC 真实导演路径与负责人试听待验；旁白准入仍未开放 |
 | 云端 | [内部 staging 链路](../apps/cloud/README.md)：15 秒 2D 与 30 秒 WebGL 出片、观测/接缝、拼接、提交及私有下载通过；24 分段与音频共用 24 个工作区名额。共享预算与历史清单已部署；真实中途取消、原生强制终止后落业务终态/物理停止结算、清空检查点的 restart 防重放均通过，保留首因与未知费用；真实导演缺密钥已验证零消费落失败 | 历史模型总额未对账；完整 G1 性能/安全等仍未完成。cgroup 峰值按负责人决定为 null 加原因，内存指标待验；生产关闭 |
 | 导演 | OperationWorkflow 的 A–C/E/F 与方向选择 waitForEvent；两种流式适配器、缓存、授权、阶段调用/费用预留、usage 结算与响应补账；SQLite/SSE 离线回放通过。准备失败首因 outbox、候选/通知原子提交、两轮修复、镜像/沙箱/broker/R2 取帧预检与 studio 所有权已部署；真实缺密钥预检零消费失败通过 | 官方 C/F 按负责人决定未接通；成功导演路径、三方向实际 keyframeFilm/studio 与 20 分钟期限未云验；响应补账仅本地回放，历史费用未确认、模型付费门槛关闭；六题真实调用与模型成本/时间指标未测 |
@@ -53,6 +53,8 @@ G1 新增 `g1-performance` 场景，分别采集纯 2D/WebGL 的 10 次串行与
 `g1-selection` [40065497336](evidence/2026-10-24-s1-performance/README.md#正式捕获格式机型与-studio-延迟通过) 已通过正式 studio 的授权帧 check、PNG/JPEG90/92/95 + RGB SSIM、standard-3/4 选型与实际 still/check 延迟：4 实例/40 组样本、160 次捕获，工具 HTTP p95 均 ≤712 ms；WebGL standard-4 的 JPEG92 捕获中位数 120.90 ms，对比 standard-3 的 155.12 ms。保持 JPEG92、普通 studio standard-3、WebGL 分段 standard-4；实际 PNG 已看，关闭/lease/10,722 usd_micros 保守结算成功，密钥已删除。恢复查询补齐 studio 计算预留的原生停止状态，避免空 attempts 数组造成假阳性；不重跑本轮格式/延迟样本。
 
 `g1-isolation` 已补正式镜像的固定网络/存储/动态代码、页面与 Node 边界、CSP、容器 HTTP/HTTPS/DNS/TCP、broker 令牌越权和分离 uid 检查；只限校准、授权帧和原始工程素材，回执不返回令牌或进程环境值。首次 [40066303079](evidence/2026-10-24-s1-performance/README.md#隔离探针首次未取得可判定结果) 在 2D ready 后返回通用 `TASK_INVALID`，没有可判定隔离结果，WebGL 未运行；实例原生停止确认、2,180 usd_micros 保守结算及密钥回收成功。已补逐阶段诊断，实际修复待验；S2 任意代码/资源耗尽语料仍未实现。
+
+阶段诊断 [40068792245](evidence/2026-10-24-s1-performance/README.md#阶段诊断定位三处探针问题) 已确认 capture、完整沙箱、控制器内存/环境读取被拒、shim/图片 CSP；动态代码的 CDP 调试权限和被覆盖 environ 区域导致旧判定失真，host 还遇超时。新候选改为普通同源脚本验证 CSP，父进程白名单加全进程原始字节指纹扫描（不传 bearer、不回传指纹），并保留逐请求 broker 结果。新增指纹/覆盖记录单项检查通过（16 ms）；2,704 usd_micros 已停止结算/密钥回收，原生整体隔离仍待验。
 
 成片性能 [40066875785](evidence/2026-10-24-s1-performance/README.md#完整-2d-串行基线与并发故障) 的 10 部 2D 串行片全部交付，p50 **66.774 秒** / p95 **97.384 秒**，高于原 60 秒初值；4 路并发 3 部交付、1 部原生资源/连接失败，未继续 WebGL。13 部成功片的 65 处接缝全为零差异，已看实际成片封面；111 次计算全部停止结算，共 179,597 usd_micros 保守上界，无未结费用，密钥已删除。原始有效样本保留。新候选将授权输出上传/拼接源下载改为有界 4 路、接缝对并行读，复用已核验 FilmSpec 字节，outbox 批等待由默认 5 秒改为 1 秒；不减少校验、提高物理并发或放宽目标。另修复清理错误覆盖原生首因，停止未确认前仍持有名额/预留。I/O 单项（18 ms）、首因/停止结算单项（249 ms）及 cloud 类型检查通过；原生收益和并发可靠性待验。
 

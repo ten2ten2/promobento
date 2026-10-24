@@ -2,7 +2,7 @@ import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {deadline} from './process.mjs';
 import {uidIsolation} from './isolation.mjs';
-import {canonical} from '@promobento/contracts/canonical';
+import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 if (process.getuid() !== 10002) throw Error('CHROMIUM_UID_REQUIRED');
 let chrome;
 export const FLAGS = ['--no-first-run', '--disable-background-networking', '--disable-component-update', '--disable-sync',
@@ -29,7 +29,10 @@ const server = http.createServer(async (request, response) => {
   try {
     if(request.method==='POST'&&request.url==='/isolation'){
       let report;
-      try{report=uidIsolation();}
+      try{
+        const chunks=[];let size=0;for await(const chunk of request){size+=chunk.length;if(size>1024)throw Error('ISOLATION_SCOPE_INVALID');chunks.push(chunk);}
+        report=uidIsolation(parseCanonicalJson(Buffer.concat(chunks)));
+      }
       catch(error){report={passed:false,error:{name:String(error.name??'Error'),code:String(error.code??'UNKNOWN'),message:String(error.message??error).slice(0,300)}};}
       response.writeHead(200,{'content-type':'application/json'}).end(canonical(report));return;
     }

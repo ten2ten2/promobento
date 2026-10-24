@@ -33,6 +33,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
   const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot',...(plan.usesWebgl?['blocks-3d']:[])].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
   const assets = new Map(Object.values(plan.assets).map(asset => ['/r/' + asset.resourceId, asset]));
   const fonts = new Map(plan.fonts.map(face => [`/f/${face.fontId}/${face.weight}-${face.style}.woff2`, face]));
+  let isolationEnabled=false;
   const server = http.createServer(async (request, response) => {
     try {
       if (request.method !== 'GET') { response.writeHead(405).end(); return; }
@@ -40,6 +41,9 @@ export async function filmSession({raw, options, browserVersion, resource, video
       if (path === '/film.html') { response.writeHead(200, {'content-type': 'text/html; charset=utf-8',
         'content-security-policy': generated.csp}).end(generated.html); return; }
       if (scripts.has(path)) { response.writeHead(200, {'content-type': 'text/javascript'}).end(scripts.get(path)); return; }
+      if(path==='/runtime/isolation-probe.js'&&isolationEnabled){
+        response.writeHead(200,{'content-type':'text/javascript','cache-control':'no-store'}).end(readFileSync(new URL('./isolation-page.js',import.meta.url)));return;
+      }
       if (assets.has(path)) { const asset = assets.get(path); const bytes = await resource(asset.resourceId);
         response.writeHead(200, {'content-type': asset.kind === 'svg' ? 'image/svg+xml' : 'application/octet-stream'}).end(bytes); return; }
       const frame = /^\/frames\/(res_[A-Za-z0-9_-]{4,64})\/(\d+)\.webp$/.exec(path);
@@ -109,7 +113,9 @@ export async function filmSession({raw, options, browserVersion, resource, video
         })(), options.frameTimeoutMs, 'FRAME_TIMEOUT', cancel);
       },
       async observe(renderId, frame) { if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY'); return observe(cdp, plan, renderId, frame); },
-      async isolation() { if(closed||currentFrame<0)throw Error('FRAME_NOT_READY');return pageIsolation(page); },
+      async isolation() { if(closed||currentFrame<0)throw Error('FRAME_NOT_READY');isolationEnabled=true;
+        try{return await pageIsolation(page);}finally{isolationEnabled=false;}
+      },
       async capturePng(frame) {
         if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY');
         return Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png', optimizeForSpeed: true, captureBeyondViewport: false, clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}})).data, 'base64');

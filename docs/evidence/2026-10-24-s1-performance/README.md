@@ -1,6 +1,6 @@
 # G1 性能矩阵与正式选型
 
-正式捕获/机型/studio 选型已通过。2D 串行 10 部片均交付，p50 **66.774 秒**、p95 **97.384 秒**，尚未达到原 60 秒初值；4 路并发有 1 部遇原生资源/连接故障，WebGL 矩阵未运行，隔离探针尚无可判定结果。完整 G1 未通过；下文保留原始样本、反例和当前优化依据。
+正式捕获/机型/studio 选型已通过。2D 串行 10 部片均交付，p50 **66.774 秒**、p95 **97.384 秒**，尚未达到原 60 秒初值；4 路并发有 1 部遇原生资源/连接故障，WebGL 矩阵未运行，整体隔离尚未通过。完整 G1 未通过；下文保留原始样本、反例和当前优化依据。
 
 [40062546825](https://github.com/ten2ten2/promobento/actions/runs/40062546825) 在 `6102f1191eb224cccba41f9e3f501410e57aa596` 构建/部署正式 staging 镜像 `sha256:1de988bf29842bc9cbfb6aa0af1b58de4cb25230ce6944ccdfafe6d8f49029f5`，Worker `256b6203-c3dd-496e-8a02-f3f9cd6d1db3`。工具仍为 Node 26.12.0、pnpm 12.14.0、Wrangler 4.152.0、Chromium 151.0.7922.34。
 
@@ -47,7 +47,7 @@ SSIM 比较各 JPEG 与同帧 PNG 解码后的 8-bit RGB 像素。WebGL standard
 
 [40066303079](https://github.com/ten2ten2/promobento/actions/runs/40066303079) 在 `8259a3da1fe1c594394b08e4149f208f17fb85ff` 部署镜像 `sha256:afab60ab9694b1b8ac474beb95c196efad343f8cf26510ee382cefb7e3cf36a2`、Worker `6b36ca3b-daab-4999-b086-c45c20c259d7`。[原始报告](isolation-attempt/isolation-report.json)中的 2D studio 已 ready（控制器 20,798 ms），但工具请求返回通用 `TASK_INVALID`，没有保留 page/host/uid 的具体失败阶段；不能算隔离通过或确定为某个安全漏洞，后续 WebGL 未运行。
 
-本轮普通评测拒绝校准入口，且零计算；失败实例原生 `physicallyStopped:true`，已结算 **2,180 usd_micros** 保守上界，无未结费用，lease 和临时密钥已回收。固定探针已改为逐阶段保留状态和有界、去令牌错误，不把一处异常吞成整组 `TASK_INVALID`；实际修复验证待执行。成片性能走独立路径，复用这次已部署镜像继续，不为该诊断重做格式/延迟样本。
+本轮普通评测拒绝校准入口，且零计算；失败实例原生 `physicallyStopped:true`，已结算 **2,180 usd_micros** 保守上界，无未结费用，lease 和临时密钥已回收。固定探针随后改为逐阶段保留状态和有界、去令牌错误，下一轮诊断见下文。成片性能走独立路径，复用这次已部署镜像继续，未为该诊断重做格式/延迟样本。
 
 ## 首个完整性能样本定位等待与 I/O
 
@@ -68,3 +68,13 @@ I/O 并发/顺序/失败排空的单项检查通过（18 ms）；阶段诊断保
 失败子操作的[原生步骤](baseline/failed-native-workflow.json)同时记录 `Network connection lost.` 与 `There is no container instance that can be provided to this Durable Object, try again later`。没有取得该片计算回执；清理再次报错会覆盖原始异常。新候选已保留 attempt 首因，区分资源不可用及启动/派发/执行阶段断开，清理失败不释放名额或未知预留。新增单项检查通过（249 ms）：原生容量错误后清理断开仍保留首因，之后仅在停止确认时归还名额并结算，不重新启动计算。
 
 本轮 **111 次计算全部确认停止并结算**，合计 **179,597 usd_micros** 保守上界，其中失败操作 **4,611 usd_micros**，没有未结费用；本轮内部密钥已删除。首次原始 `stopPending:true` 之后已清理，不能误报仍在运行。有效串行基线和三部并发结果完整保留，不把父 job 失败抹成“没有结果”；优化候选因 I/O/排队路径改变，尚不能复用旧墙钟数值作为新候选达标证据。
+
+## 阶段诊断定位三处探针问题
+
+[40068792245](https://github.com/ten2ten2/promobento/actions/runs/40068792245) 在 `28ce2e0d41a3182b7a079f79431a28a199d61c75` 部署镜像 `sha256:956a8cc6993bdd5ea60b8fccf050f218569332c9a8608df7c17bca118f6347d4`、Worker `a173baf4-eef0-4263-94b7-100021870919`。[原始诊断](isolation-diagnosis/isolation-report.json)确认 2D capture、SANDBOX_FULL、控制器 environ/mem 的 EACCES、shim 与图片 CSP 检查通过；动态代码与进程环境的探针判定需修正，host 请求超时，WebGL 未运行。
+
+- 调试求值中的 `eval`/`Function` 返回 ALLOWED；改由普通同源脚本测试，仍要求 `EvalError`，不将调试权限当作品运行权限。
+- 子进程 `environ` 读到 `headless`、argv 片段等，原检查误当成环境键。保留父浏览器真实白名单检查；另以令牌指纹检查所有可读进程原始字节，连不含 `=` 的片段也扫描，既不把未知字节当环境键，也不漏过其中的令牌。启动器不接收 bearer，报告不含指纹或原始字节。新增单项检查通过（16 ms），覆盖正常白名单与覆盖记录中的真实泄漏判定。
+- host 的统一超时没有保留具体请求结果。现逐项记录状态/失败，读取完小型 probe 响应而非取消代理 R2 流，先完成 broker 正向/越权控制再制造断网请求，避免故意失败的连接污染正向控制。单请求上限不增加；整个 broker 检查有 15 秒预算，未运行项明确标记。
+
+该轮实例已确认停止并结算 **2,704 usd_micros** 保守上界，无未结费用，密钥已删除。新方法的实际隔离结果与 I/O 提速仍待验，没有因修正判定方法先记通过。
