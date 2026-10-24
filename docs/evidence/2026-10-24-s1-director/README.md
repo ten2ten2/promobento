@@ -199,4 +199,14 @@ Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、rev
 
 对照[官方规格](https://developers.cloudflare.com/containers/platform/limits/)，发现实际 audio 派发的 standard-1 只有 **0.5 vCPU**，低于方案规定的一核、容器 FFmpeg 固定一线程的配置。当前修正为已有计价的 **standard-2（1 vCPU / 6 GiB）**，入口/调度/mock 共用 Worker 常量 `AUDIO_INSTANCE`；原 45 秒物理 ready、90 秒 review、页面限时、修复次数和名额不变。新 CPU 配置与启动超时的因果关系仍待原生证据判断，不据此改写前一版 G1 的音频规格或分布。
 
-Node 26.12.0 下仅一次新增的音频派发单项检查通过（66 ms / 命令 1.31 秒），核对实际 profile、单次执行、原 generation/绝对期限、预算及结算。未重跑其他调度测试、模型或 G1；后续只部署 Worker，复用 `ed3fc49` 的未变镜像，用第四次已付费 E1 原规格及实际素材单独执行一次原生 review。
+Node 26.12.0 下仅一次新增的音频派发单项检查通过（66 ms / 命令 1.31 秒），核对实际 profile、单次执行、原 generation/绝对期限、预算及结算。未重跑其他调度测试、模型或 G1。
+
+[40113457211](https://github.com/ten2ten2/promobento/actions/runs/40113457211) 在 `e9be39b01b5559285264b6f9117db419d8bef8e8` 只部署 Worker，[复用](audio-sizing/renderer-reuse.json)原 `ed3fc49` 实际镜像；自动全套 `40113456118` 已取消。操作 `eval-minimax-15-1792861103225` 复用第四次付费 E1，FilmSpec 身份与原失败 review-2 完全相同（`ca260452…9ac49c`），素材/字体/seed 不变。客户端读到通过 **74,669 ms**，原 90 秒期限内交付 15 秒 / 540p / 15 fps / 225 帧 / AAC，两处接缝零差异；5 次计算全部首次成功、停止/结算 **6,729 usd_micros** 保守上界。[实际音频 standard-2](audio-sizing/report.json) ready **13,715 ms**，720,000 样本帧、−14 LUFS、−1.03 dBTP；0 模型，共享占用仍 **234,834**，容量/未结为空、密钥回收。[媒体计划](audio-sizing/review-render.json)与[部署身份](audio-sizing/deployment-metadata.json)齐全。
+
+实际 MP4 的 1.5/9/13.5 秒已解码查看，Chrome 155.0.8059.85 完整 1× 播放到 15 秒无错误/掉帧；[解码回执](audio-sizing/decoded-video.json)留存，视频/PNG 仅在私有忽略目录 `artifacts/s1-review-audio-1cpu-2026-10-25`。该例证明一核配置下同源媒体链路可用；45 秒健康超时的平台首因、G1 新资源分布与完整导演另行判断。
+
+## 审片补齐原需求，保留宣传故事而非改成核验页
+
+上述实际 9 秒帧仍是重复产品图与大片空卡片，标题为 `Product claims, as MiniMax describes them`。原 E 请求只有当前 FilmSpec/积木/图片与媒体，没有原需求、确认事实或所选方向；因此其“事实忠实/故事连贯”判断缺少直接依据。F 原来也未收到原 brief 与选择，只有 facts/film/图片。当前修正让 E/F 同时拿到原 `briefContext` 与方向数据，F 仍是独立上下文。
+
+C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相关事实和清晰供应商归属，不把事实证据逐字当成标题或用审计标签填空；名称、用户定稿、CTA/URL、限定条件、许可署名和完整 factId/Schema 校验保留。没有增加修复轮数、费用或降低冷审标准。该提示修正尚待真实完整导演结果，未为纯提示变动重跑本地测试或旧矩阵。
