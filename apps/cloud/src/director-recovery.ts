@@ -26,7 +26,7 @@ export async function commitCandidate(env:PipelineEnv,op:Operation,key:string){
 }
 
 /** Persist first cause + terminal fence before stopping anything; retries only write evidence and clean up. */
-export async function failDirector(env:PipelineEnv,op:Operation,code:string){
+export async function failDirector(env:PipelineEnv,op:Operation,code:string,insideWorkflow=false){
  const id=`operation-failure-${op.id}-${op.generation}`,key=`operations/${op.id}/failure.json`;
  const payload=canonical({...notice(op,'failed'),code});
  await env.DB.batch([
@@ -36,20 +36,21 @@ export async function failDirector(env:PipelineEnv,op:Operation,code:string){
    .bind(id,op.id,'operation_failure',payload,op.id,op.generation)
  ]);
  const first=await env.DB.prepare('SELECT payload_json FROM pipeline_outbox WHERE id=?').bind(id).first<Json>();
- if(first)await dispatchDirectorFailure(env,{operationId:op.id,payloadJson:first.payload_json});
+ const except=insideWorkflow?{kind:'operation' as const,id:op.id}:undefined;
+ if(first)await dispatchDirectorFailure(env,{operationId:op.id,payloadJson:first.payload_json},except);
  else{
   const state=await env.DB.prepare('SELECT status FROM pipeline_operations WHERE id=?').bind(op.id).first<Json>();
-  if(state?.status==='cancelled')await reconcileOperation(env,op.id);
+  if(state?.status==='cancelled')await reconcileOperation(env,op.id,except);
  }
 }
 
-export async function dispatchDirectorFailure(env:PipelineEnv,item:Json){
+export async function dispatchDirectorFailure(env:PipelineEnv,item:Json,exceptWorkflow?:{kind:'operation';id:string}){
  const value=parseCanonicalJson(item.payloadJson) as Json;
  if(value.operationId!==item.operationId||!Number.isSafeInteger(value.generation)||typeof value.code!=='string')throw Error('OUTBOX_SCOPE_INVALID');
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Json>();
  if(op?.status!=='failed'||op.generation!==value.generation)return;
  await immutableJson(env,`operations/${item.operationId}/failure.json`,{kind:'director_failure',...value});
- await reconcileOperation(env,item.operationId);
+ await reconcileOperation(env,item.operationId,exceptWorkflow);
 }
 
 export async function dispatchDirectorProgress(env:PipelineEnv,item:Json){

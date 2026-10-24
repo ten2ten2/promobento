@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "model_providers",
+  "catalogVersion": "models-2026-10-23",
+  "providers": {
+    "modelswitch": {
+      "kind": "openai-compatible",
+      "baseUrl": "https://api.modelswitch.org/v1",
+      "secret": "MODEL_COMPAT_API_KEY",
+      "currency": "CNY",
+      "usdRate": 6.6863,
+      "usdRateSource": "ModelSwitch model list reference rate, 2026-10-16 (credit 1 = CNY 1)",
+      "group": "default"
+    },
+    "anthropic": {
+      "kind": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "secret": "ANTHROPIC_API_KEY",
+      "currency": "USD"
+    }
+  },
+  "models": {
+    "modelswitch/deepseek-v4.1-flash-1017": {
+      "capabilities": {
+        "verified": true,
+        "tools": true,
+        "vision": true,
+        "jsonSchema": false,
+        "jsonObject": true,
+        "reasoningEffort": "accepted",
+        "promptCache": "automatic",
+        "evidence": "docs/evidence/2026-10-23-model-probe"
+      },
+      "prices": {
+        "input": 500000,
+        "cacheRead": 10000,
+        "output": 2000000
+      },
+      "priceSource": "https://api.modelswitch.org/models (Default group)",
+      "checkedAt": "2026-10-23"
+    },
+    "modelswitch/claude-sonnet-5-5": {
+      "capabilities": {
+        "verified": true,
+        "tools": true,
+        "vision": false,
+        "jsonSchema": false,
+        "jsonObject": true,
+        "reasoningEffort": "accepted",
+        "promptCache": "automatic",
+        "hiddenPromptTokens": 6500,
+        "evidence": "docs/evidence/2026-10-23-model-probe/run4.json"
+      },
+      "prices": {
+        "input": 1300000,
+        "cacheWrite5m": 1625000,
+        "cacheWrite1h": 2600000,
+        "cacheRead": 65000,
+        "output": 6500000
+      },
+      "priceSource": "https://api.modelswitch.org/models (Default group)",
+      "checkedAt": "2026-10-23"
+    },
+    "modelswitch/claude-opus-5-5": {
+      "capabilities": {
+        "verified": true,
+        "tools": true,
+        "vision": false,
+        "jsonSchema": false,
+        "jsonObject": true,
+        "reasoningEffort": "accepted",
+        "promptCache": "automatic",
+        "hiddenPromptTokens": 6800,
+        "evidence": "docs/evidence/2026-10-23-model-probe/run4.json"
+      },
+      "prices": {
+        "input": 2600000,
+        "cacheWrite5m": 3250000,
+        "cacheWrite1h": 5200000,
+        "cacheRead": 130000,
+        "output": 13000000
+      },
+      "priceSource": "https://api.modelswitch.org/models (Default group)",
+      "checkedAt": "2026-10-23"
+    },
+    "anthropic/claude-opus-5-5": {
+      "capabilities": {
+        "verified": false,
+        "tools": true,
+        "vision": true,
+        "jsonSchema": true,
+        "jsonObject": null,
+        "reasoningEffort": "supported",
+        "promptCache": "explicit",
+        "evidence": "Documentation only; owner deferred the official integration probe"
+      },
+      "prices": {
+        "input": 4000000,
+        "cacheWrite5m": 5000000,
+        "cacheWrite1h": 8000000,
+        "cacheRead": 200000,
+        "output": 20000000
+      },
+      "priceSource": "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+      "checkedAt": "2026-10-23"
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "capabilities": {
+        "verified": false,
+        "tools": true,
+        "vision": true,
+        "jsonSchema": true,
+        "jsonObject": null,
+        "reasoningEffort": "supported",
+        "promptCache": "explicit",
+        "evidence": "Documentation only; owner deferred the official integration probe"
+      },
+      "prices": {
+        "input": 2000000,
+        "cacheWrite5m": 2500000,
+        "cacheWrite1h": 4000000,
+        "cacheRead": 200000,
+        "output": 10000000
+      },
+      "priceSource": "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+      "checkedAt": "2026-10-23"
+    }
+  },
+  "steps": {
+    "facts": "modelswitch/deepseek-v4.1-flash-1017",
+    "assets": "modelswitch/deepseek-v4.1-flash-1017",
+    "directions": "modelswitch/deepseek-v4.1-flash-1017",
+    "spec": "anthropic/claude-opus-5-5",
+    "scenes": "modelswitch/deepseek-v4.1-flash-1017",
+    "review": "modelswitch/deepseek-v4.1-flash-1017",
+    "coldReview": "anthropic/claude-sonnet-5-5",
+    "triage": "modelswitch/deepseek-v4.1-flash-1017"
+  }
+}

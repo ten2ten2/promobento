@@ -56,7 +56,9 @@ jobs:
         run: mise run install && mise run build:validators
       - name: Apply staging migration
         if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
-        run: mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-staging --env staging --remote
+        run: |
+          mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-staging --env staging --remote
+          mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-model-ledger --env staging --remote
       - name: Build and push renderer, deploy Worker
         if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
         shell: bash

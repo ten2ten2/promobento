@@ -1,0 +1,45 @@
+{
+ "$schema":"https://json-schema.org/draft/2020-12/schema",
+ "$id":"https://promobento.com/contracts/model-spend/3.0.0",
+ "title":"Research model opening spend and owner reconciliation",
+ "oneOf":[{"$ref":"#/$defs/opening"},{"$ref":"#/$defs/confirmation"}],
+ "$defs":{
+  "hash":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+  "micros":{"type":"integer","minimum":0,"maximum":9007199254740991},
+  "opening":{
+   "type":"object","additionalProperties":false,"required":["kind","authorizationId","scope","sources","entries"],
+   "properties":{
+    "kind":{"const":"historical_model_spend"},"authorizationId":{"$ref":"#/$defs/hash"},
+    "scope":{"const":"all_model_spend_before_shared_ledger"},
+    "sources":{"type":"array","minItems":1,"maxItems":100,"uniqueItems":true,"items":{"type":"string","minLength":1,"maxLength":512}},
+    "entries":{"type":"array","maxItems":2000,"items":{
+     "type":"object","additionalProperties":false,"required":["id","source","model","status","usage","quote"],
+     "properties":{
+      "id":{"type":"string","minLength":1,"maxLength":240},"source":{"type":"string","minLength":1,"maxLength":1024},
+      "model":{"type":"string","minLength":1,"maxLength":160},"status":{"type":"integer","minimum":0,"maximum":599},
+      "usage":{"type":["object","null"]},
+      "quote":{"oneOf":[{"type":"null"},{"$ref":"#/$defs/quote"}]}
+     }
+    }}
+   }
+  },
+  "quote":{
+   "type":"object","additionalProperties":false,"required":["usdMicros","currencyMicros","currency","usdRate","catalogVersion","prices"],
+   "properties":{
+    "usdMicros":{"$ref":"#/$defs/micros"},"currencyMicros":{"$ref":"#/$defs/micros"},
+    "currency":{"enum":["USD","CNY"]},"usdRate":{"type":"number","exclusiveMinimum":0},
+    "catalogVersion":{"type":"string","minLength":1,"maxLength":100},
+    "prices":{"type":"object","maxProperties":8,"additionalProperties":{"$ref":"#/$defs/micros"}}
+   }
+  },
+  "confirmation":{
+   "type":"object","additionalProperties":false,
+   "required":["kind","authorizationId","openingManifestHash","approvedBy","totalUsdMicros","basis","source"],
+   "properties":{
+    "kind":{"const":"model_spend_confirmation"},"authorizationId":{"$ref":"#/$defs/hash"},"openingManifestHash":{"$ref":"#/$defs/hash"},
+    "approvedBy":{"const":"owner"},"totalUsdMicros":{"$ref":"#/$defs/micros"},
+    "basis":{"type":"string","minLength":1,"maxLength":8000},"source":{"type":"string","minLength":1,"maxLength":2048}
+   }
+  }
+ }
+}

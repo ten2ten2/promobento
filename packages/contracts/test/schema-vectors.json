@@ -1,4 +1,5 @@
 [
+  {"schema":"model-spend","value":{"kind":"historical_model_spend","authorizationId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scope":"all_model_spend_before_shared_ledger","sources":["offline-fixture"],"entries":[]}},
   {"schema":"audio-admission","value":{"kind":"audio_source_catalog","sources":[]}},
   {
     "schema": "film",

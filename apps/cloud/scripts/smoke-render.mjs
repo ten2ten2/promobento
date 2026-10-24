@@ -9,6 +9,7 @@ import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {webglFixture} from '../../../packages/film-runtime/test/webgl-fixture.mjs';
 import {probeWebgl} from './probe-webgl.mjs';
+import {probeRecovery} from './probe-recovery.mjs';
 
 if(process.env.GITHUB_ACTIONS!=='true')throw Error('ACTIONS_ONLY');
 const base=process.env.STAGING_URL,key=process.env.EVAL_API_KEY,sha=process.env.DEPLOYED_SHA??process.env.GITHUB_SHA,harnessSha=process.env.GITHUB_SHA;
@@ -16,8 +17,8 @@ if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
 const policy=parseCanonicalJson(readFileSync(new URL('config/agent-policy.json',root))),scenario=process.env.STAGING_SCENARIO??'engineering';
-if(!['engineering','webgl-studio','webgl-film'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
-const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
+if(!['engineering','webgl-studio','webgl-film','lifecycle-recovery'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
+const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':scenario==='lifecycle-recovery'?'native_cancel_termination_restart_not_full_G1':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
 let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -49,6 +50,10 @@ do{
  await response.arrayBuffer();await new Promise(resolve=>setTimeout(resolve,1000));
 }while(Date.now()<readyUntil);
 if(!ready)throw Error('STAGING_SECRET_PROPAGATION_TIMEOUT');
+const opening=parseCanonicalJson(readFileSync(new URL('docs/evidence/2026-10-23-model-probe/opening-spend.json',root)));
+const modelBudget=await json('model-budget/import',{method:'POST',body:opening});
+writeFileSync(directory+'/model-budget.json',canonical(modelBudget));
+// An unconfirmed historical opening is an explicit model-only gate, not a reason to stop media work.
 if(process.env.RECONCILE_OPERATION){
  const id=process.env.RECONCILE_OPERATION;if(!/^smoke-[a-f0-9]{12}-\d{8,20}$/.test(id))throw Error('RECONCILIATION_SCOPE_INVALID');
  const report=await json('operations/'+id+'/reconcile',{method:'POST'});writeFileSync(directory+'/reconciliation.json',canonical(report));
@@ -82,7 +87,11 @@ if(scenario==='webgl-film'){
  if(partition.shards.length!==24)throw Error('WEBGL_CALIBRATION_SHARD_COUNT');
  writeFileSync(directory+'/audio-plan.json',canonical(plan));writeFileSync(directory+'/shard-plan.json',canonical(partition));
 }
-if(scenario==='webgl-studio'){
+if(scenario==='lifecycle-recovery'){
+ const outcome=await probeRecovery({json,call,upload,request,directory,operationId,prefix});
+ writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,status:outcome.status}));
+ console.log(canonical({scope,status:outcome.status,elapsedMs:Date.now()-started}));
+}else if(scenario==='webgl-studio'){
  const outcome=await probeWebgl({json,call,request,rules,policy,directory});
  writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,status:'passed'}));
  console.log(canonical({status:'passed',scope,elapsedMs:Date.now()-started,aspects:Object.keys(outcome.aspects)}));

@@ -12,12 +12,15 @@ import {immutableJson,settle} from '../src/store.ts';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import providers from '../../../config/model-providers.json';
 import platform from '../../../config/platform-presets.json';
+import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetStatus} from '../src/model-budget.ts';
 
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=','base64'));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
- audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false}={}){
+ audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
  const DB={prepare(sql:string){let args:any[]=[];return{
   bind(...values:any[]){args=values;return this;},
   async first(){return db.prepare(sql).get(...args)??null;},async all(){return{results:db.prepare(sql).all(...args)};},
@@ -39,7 +42,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  const submitted={toolCalls:[{id:'mock-submit',name:'submit_candidate',arguments:'',input:{note:'Synthetic fixture accepted.'}}]};
  const context={audience:'software',durationSeconds:15,aspects:['landscape','portrait'],seed:options.seed,brief:'Original fictional engineering fixture, internal mock only.',
   runtimeVersion:'film-runtime-v1',rendererRelease:'fixture-release',fonts:options.fonts,confirmedFactIds:['fixture-cta'],facts:[{id:'fixture-cta',text:spec.texts.cta.text}],resources:[] as any[],audioSources:[] as any[]};
- const env:any={DB,MEDIA,MODEL_COMPAT_API_KEY:'fixture-not-a-secret',...(missingKey?{}:{ANTHROPIC_API_KEY:'fixture-not-a-secret'}),
+ const env:any={DB,MODEL_LEDGER:DB,PIPELINE_ENVIRONMENT:'offline',MEDIA,MODEL_COMPAT_API_KEY:'fixture-not-a-secret',...(missingKey?{}:{ANTHROPIC_API_KEY:'fixture-not-a-secret'}),
   COORDINATOR:{getByName(){return{async rendererHealth(key:string){return healthCache.get(key)??'null';},async rememberRendererHealth(key:string,value:string){healthCache.set(key,value);}};}},
   SHARDS:{getByName(){return{async stopAndSettle(){},async imageDigest(){return'sha256:'+'a'.repeat(64);}};}},
   OPERATIONS:{getByName(){return{
@@ -61,6 +64,9 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const result={status:'passed',outputs:[],observationFrames:[frame],media:{scope:'simulated_not_media_evidence'}};
    db.prepare("UPDATE pipeline_renders SET status='passed',result_json=? WHERE id=?").run(canonical(result),request.job.renderId);
   }}};
+ const opening=await importModelOpening(env,{kind:'historical_model_spend',authorizationId:modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline synthetic fixture; no provider spend'],entries:[]});
+ if(!unconfirmedHistory)await confirmModelOpening(env,{kind:'model_spend_confirmation',authorizationId:modelAuthorizationId,openingManifestHash:opening.openingManifestHash,
+  approvedBy:'owner',totalUsdMicros:0,basis:'Explicit offline simulation, not a real opening attestation.',source:'offline fixture'});
  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('mock-operation','mock-workspace','mock-project',0,'evaluation','active','fixture',10000000,clock,null,null);
  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('fixture-release','sha256:'+'a'.repeat(64),'film-runtime-v1','fixture-environment','active');
  const resource=await immutableJson(env,'evals/mock/original.json',{original:'fixture image'});
@@ -115,7 +121,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
   return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),
-   renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all()};
+   renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env)};
  }finally{Date.now=originalDate;globalThis.fetch=originalFetch;providers.models['anthropic/claude-opus-5-5'].capabilities.verified=originalVerified;db.close();}
 }
 
@@ -127,13 +133,13 @@ test('A-C/E/F replay both SSE adapters, three real-protocol still requests and u
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);
 });
-test('cold-review rejection withholds candidate delivery',async()=>{const r=await fixture({coldBlock:true});assert.match(r.error.message,/COLD_REVIEW_BLOCK/);assert.equal(r.state.status,'failed');assert.equal(r.state.result_key,null);assert.equal(r.activeStudio,null);});
+test('cold-review rejection withholds candidate delivery',async()=>{const r=await fixture({coldBlock:true});assert.match(r.error.message,/COLD_REVIEW_BLOCK/);assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/failure.json$/);assert.equal(r.activeStudio,null);});
 test('missing later key, unverified integration and missing rights stop before any model request',async()=>{
  for(const [options,code]of [[{missingKey:true},'MODEL_SECRET_MISSING'],[{unverified:true},'MODEL_INTEGRATION_UNVERIFIED'],[{noRights:true},'ASSET_RIGHTS_PENDING']] as const){
   const r=await fixture(options);assert.equal(r.error.message,code);assert.equal(r.networkCalls,0);assert.equal(r.reservations,0);assert.equal(r.state.status,'failed');}
 });
 test('unknown transport spend remains reserved and is not silently retried or settled as zero',async()=>{const r=await fixture({transportFailure:true});assert.equal(r.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(r.networkCalls,1);assert.equal(r.reservations,1);assert.equal(r.settlements,0);});
-test('invalid generated spec is charged but not rendered or cached as a candidate',async()=>{const r=await fixture({badSpec:true});assert.match(r.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(r.renders.length,0);assert.equal(r.settlements,4);assert.equal(r.state.result_key,null);});
+test('invalid generated spec is charged but not rendered or cached as a candidate',async()=>{const r=await fixture({badSpec:true});assert.match(r.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(r.renders.length,0);assert.equal(r.settlements,4);assert.match(r.state.result_key,/failure.json$/);});
 test('cancellation fences the next paid stage and preserves the cancelled status',async()=>{const r=await fixture({cancel:true});assert.equal(r.error.message,'OPERATION_FENCED');assert.equal(r.state.status,'cancelled');assert.deepEqual(r.models,['facts','assets','directions']);assert.equal(r.activeStudio,null);});
 
 test('admitted ABC follows the actual director-to-render path; missing independent approval spends nothing',async()=>{
@@ -150,6 +156,11 @@ test('director preparation/cleanup preserve the first cause, and internal repair
 test('environment preflight is refreshed after user wait, and a broken renderer spends no model tokens',async()=>{
  const good=await fixture();assert.ifError(good.error);assert.equal(good.studioCount,5);assert.equal(good.closedCount,5);assert.equal(good.reservations,6);
  const bad=await fixture({healthFailure:true,cleanupFailure:true});assert.equal(bad.error.message,'MOCK_RENDER_UNAVAILABLE');assert.equal(bad.networkCalls,0);assert.equal(bad.reservations,0);assert.equal(bad.state.status,'failed');
+});
+test('shared model ledger gates unknown opening and retains unresolved transport liability across the real director',async()=>{
+ const blocked=await fixture({unconfirmedHistory:true});assert.equal(blocked.error.message,'MODEL_HISTORY_RECONCILIATION_REQUIRED');assert.equal(blocked.networkCalls,0);assert.equal(blocked.studioCount,0);
+ const good=await fixture();assert.ifError(good.error);assert.equal(good.modelBudget.currentReservations,6);assert.equal(good.modelBudget.pending.length,0);assert.equal(good.settlements,6);
+ const unknown=await fixture({transportFailure:true});assert.equal(unknown.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(unknown.networkCalls,1);assert.equal(unknown.modelBudget.pending.length,1);assert.ok(unknown.modelBudget.pending[0].dispatched_at);
 });
 
 test('concurrent stop and timeout settle one persisted compute usage and reject conflicting charges',async()=>{

@@ -10,15 +10,27 @@
 
 满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。正式满载性能分布/主动取消 G1 仍未完成。
 
+## 研究模型共用一份预算
+
+`MODEL_LEDGER` 绑定独立的共享 D1 `promobento-model-ledger`，staging/production 使用同一数据库；各自的操作、素材、计算账本仍在原环境的 `DB`，不混用客户数据。资源由 Actions 创建，迁移目录为 `model-ledger-migrations`。授权身份只取批准人与批准时间，不随价格目录、步骤换绑、新操作或部署而重置。
+
+内部 `GET model-budget` 返回历史确认状态、目录估算、未知条目、当前已结/预留费用；`POST model-budget/import` 只接受 [`model-spend` 契约](../../contracts/model-spend.schema.json) 的不可变历史清单。部署场景导入四轮探针的 128 次请求清单：可计价的 114 次合计估算 255,521 usd_micros，另 14 次未知。负责人暂时没有供应商统计，`openingMicros:null`、`openingConfirmed:false`；未对账时拒绝新增付费调用，不阻断不使用模型的媒体工作。
+
+负责人获得完整历史统计后，先用 `objects/evals/…` 上传 `kind:"model_spend_confirmation"` 的证据，再 `POST model-budget/confirm` 提交 `{evidenceKey}`。证据必须匹配当前授权与清单摘要，包含负责人确认的**本次授权以来全部历史** `totalUsdMicros`、实际来源及依据；不只填 114 次的目录估算。确认只能幂等重放，不能覆盖已有金额。密钥、登录信息不进入证据。
+
+每次模型调用先在共享 D1 原子预留：历史确认总额 + 所有环境的实际/未结预留 + 本次预留 ≤ 授权上限；然后再通过本地操作/阶段/次数门槛。仅能证明尚未发出请求的本地准入失败可释放为零；请求已派发但 usage 未知时保留预留。调用结果先把原始响应、usage 与当时价格/汇率不可变写入私有 R2，再解析和结算。结算写入中断可用同一个 callId 补账，不重发请求、不按新目录重算；缺响应时要求对账，不自动重试付费调用。
+
+原独立 `model-probe.yml` 已停用并移除；[历史脚本](../../research/model-probe/archive/probe-2026-10-23.mjs)只保留作来源。后续真实探针也必须纳入共享账本，不能从归档脚本绕过预算。官方 C/F 仍保留 `verified:false`，不因账本实现而视为已接通。
+
 ## 部署
 
-由 [Deploy S1 staging](../../.github/workflows/cloud-deploy.yml) 在 Actions 安装冻结依赖、预编译验证器、应用 staging D1 迁移，再由 Wrangler 构建/推送镜像并部署。开发分支尚未在默认分支登记新工作流时，从既有入口 `gh workflow run checks.yml --ref <branch> -f suite=staging` 调用同一部署工作流，其他检查 job 均跳过。Mac 不构建镜像。随后只运行一次 15 秒原创工程片，覆盖真实 broker、任务 Schema、字体、分段、声音、观测、接缝、拼接、私有输出与 lease 归还；不会重跑九积木帧图、13 风格或模型评测，也不代替完整 G1。
+由 [Deploy S1 staging](../../.github/workflows/cloud-deploy.yml) 在 Actions 安装冻结依赖、预编译验证器、应用 staging DB 与共享 MODEL_LEDGER 两套迁移，再由 Wrangler 构建/推送镜像并部署。开发分支尚未在默认分支登记新工作流时，从既有入口 `gh workflow run checks.yml --ref <branch> -f suite=staging` 调用同一部署工作流，其他检查 job 均跳过。Mac 不构建镜像。随后只运行一次 15 秒原创工程片，覆盖真实 broker、任务 Schema、字体、分段、声音、观测、接缝、拼接、私有输出与 lease 归还；不会重跑九积木帧图、13 风格或模型评测，也不代替完整 G1。
 
 Actions 为本轮生成并遮蔽 `EVAL_API_KEY`，只经 stdin 绑定到 staging Worker；结束前取消该轮操作、确认 lease 归还并删除密钥。内部入口随即恢复 404，`/healthz` 仍可用。失败报告与已生成媒体在 `s1-staging-deployment` 产物；不删除 D1/R2 的任务、权利和费用证据。需要人工恢复时从此工作流重新部署已核对的分支；不要删除数据库或回滚 Durable Object 迁移。手动使用内部入口时另行绑定密钥，不向聊天或日志粘贴值。官方 Anthropic 的密钥暂不添加，相关真实集成保留未验证。部署、G1、导演和首次六题评测的实际完成范围见[实施状态](../../docs/implementation-status.md)。
 
 studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
-新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1：30 秒分段成片、性能分布、standard-3/4 对比、真实中途取消与重启仍需验收。一般工程片仍使用默认 `engineering` 场景。
+新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1；30 秒分段成片另见 `webgl-film` 证据，性能分布和 standard-3/4 对比仍未完成。一般工程片仍使用默认 `engineering` 场景。
 
 验证新排队/声音集成时选 `-f staging_scenario=webgl-film`：一部 30 秒、24 个 standard-4 分段的原创 3D 校准片，共享工作区 24 个名额，另有程序配乐和四种 lead-in。沿用内部操作 1,000,000 usd_micros 预算，实际费用另从不可变结算收集，不当作预算全额消耗。该场景保存声音/分段计划、实际成片、接缝、只读费用清单与私有下载；不重复先前的四画幅 studio 比较或 13 风格样曲。单次计时不作为 p50/p95 或完整 G1。
 
@@ -54,4 +66,14 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 `verify-shards` 按共享整片阅读停留计划核对各段的精确观测帧及身份，不要求无计划点的短段伪造非空结果；QA/接缝确定性错误不默认重试。30 秒 24 段初验曾因原“每段非空”检查错误阻断；修复后 23 处接缝零差异、拼接/提交/私有下载均通过。[验收记录](../../docs/evidence/2026-10-24-s1-staging/README.md#修复后30-秒-webgl24-分段配乐与交付通过)同时保留原始失败、修复范围与实际费用。
 
-上述恢复路径已随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。准备失败、通知故障及晚到执行竞态仍只有 SQLite/DO/Workflow 本地回放，不代表平台强制终止、真实重启或完整 G1 已通过。真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。
+旧恢复路径随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。新增平台恢复如下，当前仅有定点本地检查，实际部署/验收见[实施状态](../../docs/implementation-status.md)。
+
+## 原生 Workflow 中断后只清理，不猜测重跑
+
+`pipeline_workflows` 区分派发登记、已确认创建、平台状态和清理完成；旧的非终态渲染/导演在迁移时补登记。每分钟按最久未检查顺序最多审查 20 条，原生 errored/terminated 或完成但未提交业务结果时落失败、停止实例、保留首因和未结费用。`POST workflows/reconcile` 使用同一入口立即对账；`GET operations/<id>/recovery` 返回原生登记、每个 attempt 的实际 `physicallyStopped` 和费用。读取失败为 null/未确认，不能假装已经停止。
+
+取消先封锁 generation，再分别终止原生 Workflow 和停止计算/studio；平台状态查询故障也不会跳过物理清理。原生创建在取消后才返回时，派发者仍须停止该实例。导演在自己的失败步骤中不终止自己；独立 outbox 和定期对账补齐原生终止。停止/通知重试不调用模型或重捕获媒体。
+
+首个 `claim-execution` 持久步骤在 D1 单次领取执行权。正常 Workflow 重放复用该检查点；整次原生 `restart()` 清空检查点后重领失败，触发清理与对账，不生成新 attempt 或重发付费请求。保留原 generation；取消不能通过重启复活。原生实例过期或状态 API 报错不自动 recreate，需保留未确认再调查。[官方 API 的 restart/terminate 语义](https://developers.cloudflare.com/workflows/build/workers-api/)。
+
+新增路径用 `-f staging_scenario=lifecycle-recovery` 验收：只对本次新建的内部校准操作，在实际分段容器运行时取消；另一次原生强制终止后对账，再整次 restart 检查无新增计算/费用。另检查当前缺密钥/未验证模型的真实导演预检在消费前落失败，以及历史预算状态未被改写。产物为 `recovery-report.json` 与两条原生操作回执，不重做完整成片、13 风格或模型评测。每次操作结束再次确认停止，不删任务、源素材或费用证据；此场景不代替其余性能/安全 G1。

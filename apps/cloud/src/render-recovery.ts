@@ -1,5 +1,6 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
+import {registerWorkflow,createTrackedWorkflow,stopWorkflow,stopOperationWorkflows,resolveWorkflow,type WorkflowKind} from './workflow-state.ts';
 
 const terminal=new Set(['passed','blocked','cancelled']);
 export const renderFailureCode=(error:unknown)=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'RENDER_INTERNAL_ERROR';
@@ -26,14 +27,13 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
  if(!row)throw Error('RENDER_NOT_FOUND');if(row.status==='passed')return;
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Json>();
  const status=op?.status==='cancelled'||op&&op.generation!==row.generation?'cancelled':'blocked';
- const previous=row.result_json?parseCanonicalJson(row.result_json) as Json:{};
  // Fence new attempts before taking the stop inventory. Already-enqueued RPCs are fenced by the DO's stop latch.
- await env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=? WHERE id=? AND status<>'passed'")
-  .bind(status,Date.now(),canonical({...previous,status,code:previous.code??code,stopPending:true}),renderId).run();
+ await env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=json_set(COALESCE(result_json,'{}'),'$.status',?,'$.code',COALESCE(json_extract(result_json,'$.code'),?),'$.stopPending',json('true')) WHERE id=? AND status<>'passed'")
+  .bind(status,Date.now(),status,code,renderId).run();
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE render_id=? AND stopped_at IS NULL').bind(renderId).all<{id:string}>();
  const stopPending=await stopAttempts(env,attempts.results)>0;
- await env.DB.prepare("UPDATE pipeline_renders SET result_json=? WHERE id=? AND status=?")
-  .bind(canonical({...previous,status,code:previous.code??code,stopPending}),renderId,status).run();
+ await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.stopPending',json(?)) WHERE id=? AND status=?")
+  .bind(canonical(stopPending),renderId,status).run();
  if(stopPending)throw Error('COMPUTE_STOP_UNCONFIRMED');
 }
 
@@ -54,23 +54,28 @@ export async function commitRender(env:PipelineEnv,renderId:string,op:Operation,
 }
 
 /** Terminal operations can settle orphan rows, but never revive their generation or overwrite a passed film. */
-export async function reconcileOperation(env:PipelineEnv,operationId:string){
+export async function reconcileOperation(env:PipelineEnv,operationId:string,exceptWorkflow?:{kind:WorkflowKind;id:string}){
  const op=await env.DB.prepare('SELECT status FROM pipeline_operations WHERE id=?').bind(operationId).first<Json>();
  if(!op||!['failed','cancelled'].includes(op.status))throw Error('OPERATION_NOT_TERMINAL');
+ // Native termination and physical stops are independent. An unavailable platform API must not skip compute cleanup.
+ const workflowsPromise=Promise.allSettled([stopOperationWorkflows(env,operationId,exceptWorkflow)]);
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(operationId).all<{id:string}>();
- if(await stopAttempts(env,attempts.results))throw Error('COMPUTE_STOP_UNCONFIRMED');
- await env.OPERATIONS.getByName(operationId).closeStudio();
+ const cleanup=await Promise.allSettled([stopAttempts(env,attempts.results),env.OPERATIONS.getByName(operationId).closeStudio()]);
+ const workflows=await workflowsPromise;
+ if(cleanup[0]!.status==='rejected'||cleanup[0]!.value||cleanup[1]!.status==='rejected')throw Error('COMPUTE_STOP_UNCONFIRMED');
+ if(workflows[0]!.status==='rejected')throw Error('WORKFLOW_STOP_UNCONFIRMED');
  const renders=await env.DB.prepare("SELECT id,status,result_json FROM pipeline_renders WHERE operation_id=? AND status<>'passed'").bind(operationId).all<Json>();
  for(const row of renders.results){
   const previous=row.result_json?parseCanonicalJson(row.result_json) as Json:{};
   const status=terminal.has(row.status)?row.status:op.status==='cancelled'?'cancelled':'blocked';
-  await env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=? WHERE id=? AND status<>'passed'")
-   .bind(status,Date.now(),canonical({...previous,status,code:previous.code??(op.status==='cancelled'?'OPERATION_CANCELLED':'OPERATION_FAILED'),
-    stopPending:false,...(terminal.has(row.status)?{}:{reconciledFrom:row.status})}),row.id).run();
+  await env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=json_set(COALESCE(result_json,'{}'),'$.status',?,'$.code',COALESCE(json_extract(result_json,'$.code'),?),'$.stopPending',json('false')) WHERE id=? AND status<>'passed'")
+   .bind(status,Date.now(),status,previous.code??(op.status==='cancelled'?'OPERATION_CANCELLED':'OPERATION_FAILED'),row.id).run();
+  if(!terminal.has(row.status))await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.reconciledFrom',COALESCE(json_extract(result_json,'$.reconciledFrom'),?)) WHERE id=? AND status<>'passed'").bind(row.status,row.id).run();
  }
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
- return {operationId,stoppedAttempts:attempts.results.length,reconciledRenders:renders.results.length,pendingCosts:pending.results};
+ for(const workflow of workflows[0]!.value)await resolveWorkflow(env,workflow);
+ return {operationId,stoppedAttempts:attempts.results.length,reconciledRenders:renders.results.length,workflows:workflows[0]!.value,pendingCosts:pending.results};
 }
 
 export async function dispatchRender(env:PipelineEnv,item:Json){
@@ -78,10 +83,14 @@ export async function dispatchRender(env:PipelineEnv,item:Json){
  if(!row||row.operation_id!==item.operationId)throw Error('OUTBOX_SCOPE_INVALID');
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Json>();
  if(terminal.has(row.status)||!op||op.status!=='active'||op.generation!==row.generation)return;
- try{await env.RENDER_WORKFLOW.create({id:row.id,params:{renderId:row.id}});}
- catch{
-  const status=await(await env.RENDER_WORKFLOW.get(row.id)).status();
-  if(['errored','terminated'].includes(status.status))await recordRenderFailure(env,row.id,renderFailureCode(new Error(status.error?.message??'RENDER_WORKFLOW_TERMINATED')));
+ const tracked=await registerWorkflow(env,'render',row.id,row.operation_id,row.generation);
+ const status=await createTrackedWorkflow(env,tracked);
+ const current=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Json>();
+ if(!current||current.status!=='active'||current.generation!==row.generation){await stopWorkflow(env,tracked);return;}
+ if(['errored','terminated','complete'].includes(status.status)){
+  const actual=await env.DB.prepare('SELECT status FROM pipeline_renders WHERE id=?').bind(row.id).first<Json>();
+  if(actual?.status!=='passed')await recordRenderFailure(env,row.id,renderFailureCode(new Error(status.error?.message??('RENDER_WORKFLOW_'+(status.status==='complete'?'INCOMPLETE':status.status.toUpperCase())))));
+  await resolveWorkflow(env,tracked);
  }
 }
 

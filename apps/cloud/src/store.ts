@@ -38,7 +38,7 @@ export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
   if (object.customMetadata?.sha256 && sha256Bytes(bytes) !== object.customMetadata.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
   return parseCanonicalJson(bytes) as Json;
 }
-/** One atomic INSERT reserves against operation + global model authorization, including unresolved costs. */
+/** Local operation/stage admission, including unresolved costs. MODEL_LEDGER owns the cross-environment model grant. */
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,
   max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER) {
   if (!Number.isSafeInteger(max) || max < 0) throw Error('COST_RESERVATION_INVALID');

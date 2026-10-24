@@ -8,6 +8,7 @@ import {validate as renderValid} from '@promobento/contracts/validators/render-j
 import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
 import {checkShardObservations} from './render-observations.ts';
+import {workflowStarted} from './workflow-state.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
@@ -22,6 +23,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       if (!value) throw Error('RENDER_NOT_FOUND'); return canonical(value);
     })) as Json;
     try {
+      await step.do('claim-execution',{retries:{limit:0,delay:'1 second'}},async()=>workflowStarted(this.env,'render',row.id,row.operation_id,row.generation));
       const input = parseCanonicalJson(await step.do('load-input', async () => canonical(await getJson(this.env, row.job_key)))) as Json;
       assertRenderJob(input.job);
       const op = await operation(this.env, row.operation_id, row.generation);
@@ -51,13 +53,16 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
             await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=? WHERE id=?')
               .bind('succeeded', Date.now(), canonical(result), attemptId).run(); return canonical(result);
           } catch (error) {
-            await this.env.SHARDS.getByName(attemptId).stopAndSettle();
-            await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=? WHERE id=?').bind('failed', Date.now(), attemptId).run(); throw error;
+            try{
+              await this.env.SHARDS.getByName(attemptId).stopAndSettle();
+              await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=? WHERE id=?').bind('failed', Date.now(), attemptId).run();
+            }catch{ /* The failure step retains the first cause and retries physical cleanup only. */ }
+            throw error;
           }
         })) as Json;
       };
       await step.do('mark-sharding', async () => { await advanceRenderStage(this.env,row.id,op,'sharding');return true; });
-      await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'sharding'}));
+      try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'sharding'}));}catch{}
       const shardsPromise = Promise.all(partition.shards.map(shard => task('shard-' + shard.index, 'shard', shard.instance,
         {options: input.options, inputs: input.inputs, shard})));
       const audioPromise = task('audio', 'audio', 'standard-1', {inputs: input.audioInputsBlobs, audioInputs: input.audioInputs});
@@ -91,7 +96,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       })) as Json;
       await step.do('mark-assembling',async()=>{
         await advanceRenderStage(this.env,row.id,op,'assembling');
-        await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'assembling'}));return true;
+        try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'assembling'}));}catch{}return true;
       });
       const assembled = await task('assemble', 'assemble', 'standard-2', {coverFrame: input.coverFrame, inputs: [
         ...shards.map((result, index) => ({...output(result, '/shard.h264'), name: 'shard:' + index})), {...output(audio, '/mixed.wav'), name: 'audio'}]});

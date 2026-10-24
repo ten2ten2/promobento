@@ -1014,64 +1014,20 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 当前选定的 OpenAI 兼容服务是模幻空间（ModelSwitch，`https://api.modelswitch.org/v1`）。它的价格以平台额度标示，平台说明"$1 额度 = ¥1"，所以按人民币记录，并用登记的汇率换算成美元记账。下面的价格取自 2026-10-23 的模型列表"Default 固定线路分组"；API 密钥必须固定在这个分组，不能选 Auto（Auto 按实际路由的分组计费，价格不固定）。
 
-```json
-{
-  "catalogVersion": "models-2026-10-23",
-  "providers": {
-    "modelswitch": {"kind": "openai-compatible", "baseUrl": "https://api.modelswitch.org/v1", "secret": "MODEL_COMPAT_API_KEY",
-                    "currency": "CNY", "usdRate": 6.6863, "usdRateSource": "平台标注的 2026-10-16 参考汇率", "group": "default"},
-    "anthropic":   {"kind": "anthropic", "baseUrl": "https://api.anthropic.com", "secret": "ANTHROPIC_API_KEY", "currency": "USD"}
-  },
-  "models": {
-    "modelswitch/deepseek-v4.1-flash-1017": {
-      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic"},
-      "prices": {"input": 500000, "cacheRead": 10000, "output": 2000000}
-    },
-    "modelswitch/claude-sonnet-5-5": {
-      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": true, "reasoningEffort": "accepted", "promptCache": "automatic", "hiddenPromptTokens": 6500},
-      "prices": {"input": 1300000, "cacheWrite5m": 1625000, "cacheWrite1h": 2600000, "cacheRead": 65000, "output": 6500000}
-    },
-    "modelswitch/claude-opus-5-5": {
-      "capabilities": {"verified": true, "tools": false, "vision": true, "jsonSchema": false, "jsonObject": null, "reasoningEffort": "accepted", "promptCache": "automatic", "hiddenPromptTokens": 6800},
-      "prices": {"input": 2600000, "cacheWrite5m": 3250000, "cacheWrite1h": 5200000, "cacheRead": 130000, "output": 13000000}
-    },
-    "anthropic/claude-opus-5-5": {
-      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
-      "prices": {"input": 4000000, "cacheWrite5m": 5000000, "cacheWrite1h": 8000000, "cacheRead": 200000, "output": 20000000}
-    },
-    "anthropic/claude-sonnet-5-5": {
-      "capabilities": {"verified": true, "tools": true, "vision": true, "jsonSchema": true, "reasoningEffort": true, "promptCache": "explicit"},
-      "prices": {"input": 2000000, "cacheWrite5m": 2500000, "cacheWrite1h": 4000000, "cacheRead": 200000, "output": 10000000}
-    }
-  },
-  "steps": {
-    "facts":      "modelswitch/deepseek-v4.1-flash-1017",
-    "assets":     "modelswitch/deepseek-v4.1-flash-1017",
-    "directions": "modelswitch/deepseek-v4.1-flash-1017",
-    "spec":       "modelswitch/claude-opus-5-5",
-    "scenes":     "modelswitch/deepseek-v4.1-flash-1017",
-    "review":     "modelswitch/deepseek-v4.1-flash-1017",
-    "coldReview": "modelswitch/claude-sonnet-5-5",
-    "triage":     "modelswitch/deepseek-v4.1-flash-1017"
-  }
-}
-```
+当前完整价格、能力与步骤绑定以 [`config/model-providers.json`](../../config/model-providers.json) 为准，不另复制一份会漂移的目录。
 
-- 价格单位是每百万 token 的整数 micros，币种取所属供应商的 `currency`。记账时按 `usdRate` 换算成 USD micros（向上取整），成本事件同时记录原币金额、汇率和 `catalogVersion`。每个模型另记 `priceSource` 与 `checkedAt`（示例中省略）。
-- **能力必须实测**：2026-10-23 已用探针实测（[证据](../evidence/2026-10-23-model-probe/README.md)），结果已写进上面的能力字段：
-  - 网关的 Claude 线路**不支持工具调用**（返回 502），并在每次调用前注入约 6.5–6.8k token 的隐藏提示（按输入计费，多数被缓存，内容不明）。
-  - 没有一个模型遵守 `json_schema`；结构化输出一律用 `json_object` 或提示约束，再在本地按 Schema 校验。
-  - DeepSeek V4.1 Flash 能看图、工具调用正确、缓存生效、最快最便宜。
-  - Gemini 3.8 Flash 首 token 约 25 秒、单次约 50 秒，工具参数丢失，缓存字段不返回。
-  - 因此需要工具的 `scenes`、`review` 绑到 DeepSeek（负责人 2026-10-23 确认），网关的 Claude 只用于不需要工具的 `spec` 和 `coldReview`。运行时拒绝把需要工具的步骤绑到 `tools: false` 的模型。
-  - 换绑或新增模型前都要重跑探针（`.github/workflows/model-probe.yml`）。
+- 价格单位为每百万 token 的整数 micros，币种取供应商的 `currency`；按登记汇率换算为 USD micros（向上取整）。费用回执同时保存原币金额、汇率、价格与 `catalogVersion`。
+- **能力以最新实测为准**（[四轮原始证据](../evidence/2026-10-23-model-probe/README.md)）：网关 Claude 的工具调用在第三、四轮已恢复，但两轮均丢图，视觉不可用；Opus 小请求的输入计数最高约 11 万 token。第一、二轮“工具不可用、视觉可用”只作历史记录。
+- DeepSeek V4.1 Flash 的看图、工具、缓存及流式已测；`reasoning_effort` 仅确认接口接受，未证明真实推理强度改变。网关均未遵守所测 `json_schema`，须本地完整校验；Gemini 因延迟、参数丢失及后续 502 不再使用。
+- 当前 A/B/E 等步骤走网关 DeepSeek；规格 C 和冷审 F 分别改绑官方 Anthropic Opus/Sonnet。负责人暂不添加官方密钥，真实集成 `verified:false`；官方能力声明不算实测通过。运行前在首个付费请求之前检查全部后续必需模型的密钥与验证状态，不消费一半后再发现不可用。
+- 原未计入统一预算的独立探针 Actions 已停用。后续换绑的真实探针也必须走共享预算预留/结算；当前不从归档脚本继续调用。
 - **换供应商**：
   1. 在 `providers` 填 `baseUrl`、币种和汇率，用 `wrangler secret put` 写入密钥；
   2. 在 `models` 登记模型、价格和实测能力；
   3. 在授权文件中加入这些模型，然后改 `steps` 的绑定；
   4. 跑评测集（第 12.5 节），第 1.1 节的单位成本和第 1.3 节的效果不回退才算换绑完成。
 - **校验**（`check-production-contracts.mjs` 与运行时都做）：
-  - 每个步骤绑定的模型都已登记、已验证，且能力满足该步骤（第 6.11 节）；
+  - 每个步骤绑定的模型都已登记、能力声明满足该步骤（第 6.11 节）；关闭执行时可保存待验证绑定，启用和实际调用必须已验证；
   - 价格字段齐全；没有价格的模型不能被绑定，也不能被调用；
   - 绑定的模型在授权文件中；
   - 任何改动都要更新 `catalogVersion`，成本事件记录它。
@@ -1130,7 +1086,9 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 模型配置版本一致，且该模型已登记价格。
 
   任一项不满足即停止，不调用模型。
-- 累计额按 D1 成本账本计算：跨操作、跨重试、跨部署环境累加，不因新建操作或重新部署而清零。
+- 累计额由独立共享 D1 `MODEL_LEDGER` 原子准入：历史确认额 + 各环境的实际/未结预留；本地 `DB` 继续执行操作/阶段/次数门槛。授权身份不随价格目录或绑定变化重置。
+- 四轮探针的 128 次请求已有不可变清单；114 次有 usage/目录价，估算共 255,521 usd_micros，另 14 次未知。负责人暂无完整供应商统计，历史总额仍未确认；不以部分估算或零初始化额度，新付费请求暂受此门槛阻断。
+- 原始模型响应先写私有 R2，再解析/结算，保存原币、汇率与价格。已保存响应可补账而不重发；响应丢失或 usage 未知时保留预留，不能通过重启、换操作或重部署清零。入口与确认契约见 [cloud README](../../apps/cloud/README.md#研究模型共用一份预算)。
 - `agent-policy.json` 的 `enabled` 仍为 `false`：授权只开放负责人发起的研究调用，不开放给其他用户。
 - 本方案不做登录，所以预发布环境用 Cloudflare Access 保护 `api` 路由，只允许负责人的身份。OperationWorkflow 和 OperationDO 以 Access 签发、并经 Worker 校验的身份断言识别请求者，不信任请求体里自报的身份。正式登录按 12 接入后改用会话身份。
 
@@ -1396,15 +1354,16 @@ runtime/<runtimeVersion>/...                  预览 origin 分发的运行库�
 - **并行**：同一阶段里互相独立的 step（各分段、各自写镜头）并发执行。
 - **派发**：
   - 实例 ID 等于 operationId、renderId 或 assetJobId。
-  - D1 事务里同时写入预留、运行记录和 outbox。Queues 消费 outbox 并创建 Workflow 实例；重复创建视为已派发。Queues 只承担这件事。
-- **取消**：终止 Workflow 实例，由对应的 DO 停止全部实例，并结算费用。
+  - D1 事务里同时写入预留、运行记录和 outbox。Queues 消费 outbox 并创建 Workflow 实例；只有成功查询原生状态才能把创建错误认作重复。已发送 outbox 不代表实例已创建，实例登记单独持久化。
+- **取消与平台恢复**：先推进操作 generation，再终止原生 Workflow 并由 DO 确认物理实例停止/结算；迟到创建也要停止。原生状态未知时保持未确认，物理清理独立继续。每分钟有界扫描未对账登记，修复原生 errored/terminated 或完成但未业务提交的记录；不自动重启付费阶段。
+- **重放与整次重启**：正常恢复复用有效 Workflow 检查点；第一步在 D1 单次领取执行 claim。平台 `restart()` 清空检查点后不能重领，落失败并清理旧计算，保留未知模型预留。不能通过重启、更换 generation 或新建操作绕过模型账本。原生语义见 [Workers API](https://developers.cloudflare.com/workflows/build/workers-api/)。
 - **保留期**：以实施时的文档为准（限额页写 30 天，2026-09-10 的变更日志写新付费 Workflow 默认 7 天）。需要长期留存的记录写 D1 或 R2，不依赖 Workflows 的历史。
 
 ### 9.7 wrangler 配置要点（`apps/cloud/wrangler.jsonc`）
 
 - Worker：`compatibility_date` 用实施当天的日期，开启 `nodejs_compat`。
 - 绑定：
-  - 存储与消息：D1 `DB`；R2 `BUCKET`（私有）；Queues `OUTBOX`。
+  - 存储与消息：环境 D1 `DB` 与跨环境共享研究预算 `MODEL_LEDGER`；R2 `BUCKET`（私有）；Queues `OUTBOX`。
   - Workflows：`OPERATION_WORKFLOW`、`RENDER_WORKFLOW`、`ASSET_WORKFLOW`。
   - DO：`OperationDO`、`ShardDO`、`AssetDO`、`CoordinatorDO`。
   - 平台服务：Workers AI `AI`；Browser Run `BROWSER`；服务入口 `BrokerEntrypoint`。

@@ -4,7 +4,7 @@
 
 ## 运行
 
-- **代码**：[探针](../../../research/model-probe/probe.mjs)，[CI 工作流](../../../.github/workflows/model-probe.yml)。密钥来自仓库 secret `MODEL_COMPAT_API_KEY`，报告里不含密钥。
+- **历史代码**：[归档探针](../../../research/model-probe/archive/probe-2026-10-23.mjs)。当时密钥来自仓库 secret `MODEL_COMPAT_API_KEY`，报告里不含密钥。该探针不经过统一预算账本，现已停用 Actions 入口；不能用它继续付费复测。
 - **第一轮**：GitHub Actions [39904369687](https://github.com/ten2ten2/promobento/actions/runs/39904369687)，提交 `fa296fb`，测 4 个模型。报告：[run1.json](run1.json)。
 - **第二轮**：[39904908372](https://github.com/ten2ten2/promobento/actions/runs/39904908372)，提交 `805bc4c`。只测 Sonnet 5.5 和 DeepSeek，补测更简单的工具调用（不传 `tool_choice`、简单 Schema）和 `json_object` 模式。报告：[run2.json](run2.json)。
 - **测法**：
@@ -59,7 +59,15 @@
 
 ## 未测
 
-真实提示长度下的质量、长输出的稳定性、并发限流、成本对账（需要在平台"使用统计"中核对）。
+真实提示长度下的质量、长输出的稳定性、并发限流。历史费用状态见下节。
+
+## 历史费用：128 次请求，尚未对账
+
+[`history.mjs`](../../../research/model-probe/history.mjs) 从上述四份原始报告逐次提取请求（缓存测试的两次请求分别计入），生成不可变的 [`opening-spend.json`](opening-spend.json)。共 128 次，其中 114 次有目录价格和 usage，按记录价折算合计 **255,521 usd_micros（约 $0.256）**；另有 14 次缺 usage 或历史价格，保留 `quote:null`，不记作零。
+
+[`pricing-catalog.json`](pricing-catalog.json) 是 2026-10-24 从仓库 `models-2026-10-23` 目录冻结的计价依据，不是供应商历史账单。每个可计价条目同时保存原币金额、汇率、价格和目录版本；上述金额是可计价部分的目录估算，既不是最终账单，也不证明本次授权以来没有其他请求。
+
+负责人目前没有可提供的使用统计或脱敏导出，**历史总额保留未确认**。共享 `MODEL_LEDGER` 先导入清单，但在负责人依据供应商记录确认本次授权的全部历史消费前，拒绝新的付费模型请求；媒体与恢复工作可独立继续。后续确认入口及证据结构见 [cloud README](../../../apps/cloud/README.md#研究模型共用一份预算)。
 
 ## 当前步骤绑定
 

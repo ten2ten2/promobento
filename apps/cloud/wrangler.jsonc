@@ -19,6 +19,12 @@
           "database_name": "promobento-staging",
           "database_id": "e621c179-dcb0-4f20-b5a3-236ba92e5580",
           "migrations_dir": "migrations"
+        },
+        {
+          "binding":"MODEL_LEDGER",
+          "database_name":"promobento-model-ledger",
+          "database_id":"e8721ee3-f668-46ed-be97-ed622f1d5aad",
+          "migrations_dir":"model-ledger-migrations"
         }
       ],
       "r2_buckets": [
@@ -43,7 +49,8 @@
         ]
       },
       "vars": {
-        "S1_ENABLED": "internal_eval"
+        "S1_ENABLED": "internal_eval",
+        "PIPELINE_ENVIRONMENT":"staging"
       },
       "workers_dev": true,
       "containers": [
@@ -96,6 +103,12 @@
           "database_name": "promobento-prod",
           "database_id": "f227aaf6-6fde-4a1a-ade2-2480bd0b381f",
           "migrations_dir": "migrations"
+        },
+        {
+          "binding":"MODEL_LEDGER",
+          "database_name":"promobento-model-ledger",
+          "database_id":"e8721ee3-f668-46ed-be97-ed622f1d5aad",
+          "migrations_dir":"model-ledger-migrations"
         }
       ],
       "r2_buckets": [
@@ -113,7 +126,8 @@
         ]
       },
       "vars": {
-        "S1_ENABLED": "off"
+        "S1_ENABLED": "off",
+        "PIPELINE_ENVIRONMENT":"production"
       }
     }
   },

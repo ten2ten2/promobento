@@ -32,9 +32,9 @@ on:
         type: string
         default: ''
       staging_scenario:
-        description: New coverage only; webgl-film checks 30s/24 shards with lead-in audio
+        description: New coverage only; lifecycle-recovery interrupts compute without repeating a complete movie
         type: choice
-        options: [engineering, webgl-studio, webgl-film]
+        options: [engineering, webgl-studio, webgl-film, lifecycle-recovery]
         default: engineering
 
 permissions:

@@ -3,7 +3,7 @@ import type {OperationWorkflow} from './director.ts';
 import type {RenderWorkflow} from './render-workflow.ts';
 export type Json = Record<string, any>;
 export interface PipelineEnv {
-  DB: D1Database; MEDIA: R2Bucket; OUTBOX: Queue; SHARDS: DurableObjectNamespace<ShardDO>;
+  DB: D1Database; MODEL_LEDGER:D1Database; PIPELINE_ENVIRONMENT:string; MEDIA: R2Bucket; OUTBOX: Queue; SHARDS: DurableObjectNamespace<ShardDO>;
   COORDINATOR: DurableObjectNamespace<CoordinatorDO>; OPERATIONS: DurableObjectNamespace<OperationDO>;
   RENDER_WORKFLOW: Workflow<{renderId: string}>; OPERATION_WORKFLOW: Workflow<{operationId: string}>;
   MODEL_COMPAT_API_KEY?: string; ANTHROPIC_API_KEY?: string;

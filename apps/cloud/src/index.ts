@@ -6,6 +6,9 @@ import {filmSourceHash} from '@promobento/contracts/film-source';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
 import {reconcileOperation,dispatchRender,dispatchRenderProgress} from './render-recovery.ts';
 import {dispatchDirectorFailure,dispatchDirectorProgress} from './director-recovery.ts';
+import {importModelOpening,confirmModelOpening,modelBudgetStatus} from './model-budget.ts';
+import {workflowInventory} from './workflow-state.ts';
+import {dispatchCreative,recoverWorkflows} from './workflow-recovery.ts';
 import {validId, type PipelineEnv, type Json} from './pipeline-types.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
@@ -33,6 +36,13 @@ export default {
     if (!path.startsWith('/internal/s1/') || !authorized(request, env)) return new Response('Not found', {status: 404});
     try {
       if(request.method==='GET'&&path==='/internal/s1/capacity')return Response.json(await env.COORDINATOR.getByName('global-v1').counts());
+      if(path==='/internal/s1/model-budget'&&request.method==='GET')return Response.json(await modelBudgetStatus(env));
+      if(path==='/internal/s1/model-budget/import'&&request.method==='POST')return Response.json(await importModelOpening(env,await readJson(request)));
+      if(path==='/internal/s1/model-budget/confirm'&&request.method==='POST'){
+        const input=await readJson(request);if(typeof input.evidenceKey!=='string'||!input.evidenceKey.startsWith('evals/'))throw Error('MODEL_CONFIRMATION_INVALID');
+        return Response.json(await confirmModelOpening(env,await getJson(env,input.evidenceKey)));
+      }
+      if(path==='/internal/s1/workflows/reconcile'&&request.method==='POST')return Response.json(await recoverWorkflows(env));
       if(request.method==='GET'&&path.startsWith('/internal/s1/artifacts/')){
         const key=decodeURIComponent(path.slice('/internal/s1/artifacts/'.length));let owner:Json|null=null,resources:Json[]=[];
         if(key.startsWith('renders/')){
@@ -118,7 +128,16 @@ export default {
       if(contextRoute&&request.method==='GET'){
         const row=await env.DB.prepare('SELECT o.*,c.directions_key,c.directions_hash,c.previews_key,c.choice FROM pipeline_operations o LEFT JOIN pipeline_contexts c ON c.operation_id=o.id WHERE o.id=?').bind(contextRoute[1]).first<Json>();
         if(!row)return new Response(null,{status:404});
-        return Response.json({...row,...(row.directions_key?{directions:await getJson(env,row.directions_key),previews:await getJson(env,row.previews_key)}:{})});
+        return Response.json({...row,workflows:await workflowInventory(env,row.id),...(row.directions_key?{directions:await getJson(env,row.directions_key),previews:await getJson(env,row.previews_key)}:{})});
+      }
+      const recoveryRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/recovery$/.exec(path);
+      if(recoveryRoute&&request.method==='GET'){
+        const id=recoveryRoute[1]!,op=await env.DB.prepare('SELECT id,status,generation FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
+        if(!op)return new Response(null,{status:404});
+        const rows=await env.DB.prepare('SELECT id,mode,status,started_at,stopped_at FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
+        const attempts=await Promise.all(rows.results.map(async row=>({...row,physicallyStopped:await env.SHARDS.getByName(row.id).isStopped().catch(()=>null)})));
+        const costs=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? ORDER BY r.id').bind(id).all<Json>();
+        return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costs.results});
       }
       if (request.method === 'POST' && path === '/internal/s1/renders') {
         const input = await readJson(request); assertRenderJob(input.job);
@@ -183,7 +202,7 @@ export default {
       return Response.json({code},{status:code.includes('CONFLICT')?409:422});
     }
   },
-  async scheduled(_event: ScheduledController,env:PipelineEnv,ctx:ExecutionContext){if(env.S1_ENABLED==='internal_eval')ctx.waitUntil(flush(env));},
+  async scheduled(_event: ScheduledController,env:PipelineEnv,ctx:ExecutionContext){if(env.S1_ENABLED==='internal_eval')ctx.waitUntil((async()=>{await flush(env);await recoverWorkflows(env);})());},
   async queue(batch:MessageBatch<Json>,env:PipelineEnv){
     for(const message of batch.messages){
       try{
@@ -197,7 +216,7 @@ export default {
         }else if(item.kind==='operation_failure'){
           await dispatchDirectorFailure(env,item);
         }else if(item.kind==='creative'){
-          try{await env.OPERATION_WORKFLOW.create({id:item.operationId,params:{operationId:item.operationId}});}catch{await(await env.OPERATION_WORKFLOW.get(item.operationId)).status();}
+          await dispatchCreative(env,item);
         }else if(item.kind==='cancel'){
           await reconcileOperation(env,item.operationId);
         }else throw Error('OUTBOX_KIND_INVALID');

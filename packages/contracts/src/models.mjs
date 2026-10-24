@@ -69,3 +69,12 @@ export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0}
   }
   return {usdMicros: Number(micros), catalogVersion: providers.catalogVersion, currency: provider.currency, estimated};
 }
+
+/** Preserve the original currency/rate/prices with a reported-usage quote; unknown usage stays null. */
+export function modelUsageQuote(ref,usage,providers){
+ const cost=modelCallCostMicros(ref,usage,providers);if(cost.estimated)return null;
+ const name=ref.split('/')[0],provider=providers.providers[name];
+ const original=modelCallCostMicros(ref,usage,{...providers,providers:{...providers.providers,[name]:{...provider,currency:'USD'}}});
+ return{usdMicros:cost.usdMicros,currencyMicros:original.usdMicros,currency:provider.currency,usdRate:provider.currency==='USD'?1:provider.usdRate,
+  catalogVersion:providers.catalogVersion,prices:{...providers.models[ref].prices}};
+}

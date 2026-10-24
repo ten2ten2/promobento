@@ -1,11 +1,12 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
-import {modelCallCostMicros} from '../../../packages/contracts/src/models.mjs';
+import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
 import {providerRequest, streamModel, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
 import providersInput from '../../../config/model-providers.json';
 import authorization from '../../../config/model-authorization.json';
 import policyInput from '../../../config/agent-policy.json';
 import {operation, reserve, settle, getJson, immutableJson} from './store.ts';
+import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,settleModelBudget,modelBudgetId} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
@@ -25,8 +26,23 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input}, key=digest(identity);
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(key).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
-  // A previous call with this id may have consumed money. Never send it again after a crash.
-  if(await env.DB.prepare('SELECT id FROM cost_reservations WHERE id=?').bind(callId).first())throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+  await assertModelBudgetReady(env);
+  const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
+  const finish=async(receipt:Json)=>{
+    if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
+    if(receipt.quote){
+      await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
+      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
+    }
+    const result=receipt.result,value=(result.toolCalls.length?{toolCalls:result.toolCalls}:parseCanonicalJson(result.text)) as Json;validate(value);
+    const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
+    await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
+    return{value,cached:false};
+  };
+  // A durable response may complete bookkeeping after a crash. An absent response never permits resending.
+  if(await env.DB.prepare('SELECT id FROM cost_reservations WHERE id=?').bind(callId).first()){
+    if(!await env.MEDIA.head(receiptKey))throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');return finish(await getJson(env,receiptKey));
+  }
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
   if(provider.kind==='anthropic'){
     const prepared=providerRequest(input), body={...prepared.body};delete body.stream;delete body.max_tokens;delete body.output_config;
@@ -39,14 +55,14 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
   if(worst>limits.maxMicros)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   const budgetStage=stage==='assets'?'assets:'+digest(request.messages).slice(0,32):stage;
-  await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,limits.maxMicros,
-    limits.maxCalls??limits.maxCallsPerAsset??1);
+  const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
+  try{
+    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,limits.maxMicros,
+      limits.maxCalls??limits.maxCallsPerAsset??1);
+    await operation(env,op.id,op.generation);
+  }catch(error){await settleModelBudget(env,reserved,0,{kind:'not_dispatched',reason:'Local admission did not reach the paid request.'},{notDispatched:true});throw error;}
+  await markModelDispatched(env,reserved);
   const result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});
-  const actual=modelCallCostMicros(ref,result.usage,providers,{maxOutputTokens:input.maxOutputTokens});
-  if(!actual.estimated)await settle(env,callId,actual.usdMicros,{model:ref,usage:result.usage,firstTokenMs:result.firstTokenMs,totalMs:result.totalMs});
-  const value=(result.toolCalls.length?{toolCalls:result.toolCalls}:parseCanonicalJson(result.text)) as Json;
-  validate(value);
-  const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
-  await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
-  return{value,cached:false};
+  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,quote:modelUsageQuote(ref,result.usage,providers),result};
+  await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }
