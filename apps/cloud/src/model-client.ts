@@ -105,7 +105,18 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   await markModelDispatched(env,reserved);
   let result;
   try{result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});}
-  catch(error){if(!(error instanceof ModelOutputError))throw error;result=error.result;}
+  catch(error){
+    if(!(error instanceof ModelOutputError)){
+      const status=(error as {status?:unknown})?.status;
+      await immutableJson(env,receiptKey.replace(/\.json$/,'-request-failure.json'),{
+        kind:'model_request_failure',callId,requestHash:key,budgetId:reserved,model:ref,
+        code:error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_TRANSPORT_FAILED',
+        httpStatus:Number.isInteger(status)&&Number(status)>=100&&Number(status)<=599?status:null,usageStatus:'unknown'
+      }).catch(()=>{}); // Optional diagnosis must not replace the original provider/transport failure.
+      throw error;
+    }
+    result=error.result;
+  }
   const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,quote:modelUsageQuote(ref,result.usage,providers),result};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

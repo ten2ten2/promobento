@@ -19,7 +19,7 @@ import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetS
 const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
- audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,
+ audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,httpFailure=false,
  nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
@@ -95,6 +95,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const provider=Object.values(providers.providers).find(provider=>target.startsWith(provider.baseUrl));assert.ok(provider,'unexpected mock provider URL');
   if(target.endsWith('/count_tokens'))return Response.json({input_tokens:100});
   if(transportFailure)throw Error('MOCK_TRANSPORT_FAILURE');
+  if(httpFailure)return new Response('sensitive provider body must not be stored',{status:503});
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
@@ -146,7 +147,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
   return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
-   renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env)};
+   renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
+   requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
  }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;providers.steps.coldReview=originalCold;db.close();}
 }
 
@@ -201,6 +203,13 @@ test('spec validation repairs completed output only, preserves charges and stops
  const unknown=await fixture({specTransportFailure:true});assert.equal(unknown.error.message,'MOCK_SPEC_TRANSPORT_FAILURE');assert.equal(unknown.specRequests,1);assert.equal(unknown.reservations,4);assert.equal(unknown.settlements,3);assert.equal(unknown.modelBudget.pending.length,1);assert.equal(unknown.renders.length,0);
 });
 test('cancellation fences the next paid stage and preserves the cancelled status',async()=>{const r=await fixture({cancel:true});assert.equal(r.error.message,'OPERATION_FENCED');assert.equal(r.state.status,'cancelled');assert.deepEqual(r.models,['facts','assets','directions']);assert.equal(r.activeStudio,null);});
+
+test('provider HTTP failures retain only status and unknown liability without retry or settlement',async()=>{
+ const r=await fixture({httpFailure:true});assert.equal(r.error.message,'MODEL_REQUEST_FAILED');assert.equal(r.networkCalls,1);
+ assert.equal(r.reservations,1);assert.equal(r.settlements,0);assert.equal(r.modelBudget.pending.length,1);assert.equal(r.renders.length,0);
+ assert.equal(r.requestFailures.length,1);assert.equal(r.requestFailures[0].httpStatus,503);assert.equal(r.requestFailures[0].usageStatus,'unknown');
+ assert.equal(r.requestFailures[0].callId,'mock-operation-facts');assert.doesNotMatch(canonical(r.requestFailures),/sensitive|fixture-not-a-secret/);
+});
 
 test('admitted ABC follows the actual director-to-render path; missing independent approval spends nothing',async()=>{
  const good=await fixture({audio:true,noticeFailure:true});assert.ifError(good.error);assert.equal(good.state.status,'succeeded');assert.equal(good.renders.length,3);

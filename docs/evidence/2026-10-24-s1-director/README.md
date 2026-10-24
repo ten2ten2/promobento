@@ -298,3 +298,12 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 ### 停稳画面的取样优化
 
 上述原 C 回执中，静态 showcase 停稳后每帧仍重复逆透视取样，明显慢于无产品图段。当前 1.0.2 只复用静态图片、入场和 ROI 都停稳时的不变像素，仍每帧写回 canvas，避免隐藏后首次画面丢失；回跳到运动帧立即重算，视频仍逐帧按 PTS 读取。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅确定性与耗时仍待云验，没有据此宣称提速。
+
+
+## MiniMax 第八次：三轮真实 review 通过，网关请求失败
+
+操作 `eval-minimax-15-1792882183168` 使用 `ab4442f` 镜像和原私有事实/素材，三张实际方向图已查看并[选择 Fit](minimax-eighth-attempt/choice.json)。方向就绪 **114,108 ms**；[C](minimax-eighth-attempt/spec-response.json)一次通过，选定到首轮草稿提交约 **103,540 ms**。E 的[第一次](minimax-eighth-attempt/review-0-response.json)与[第二次](minimax-eighth-attempt/review-1-response.json)改稿都保留事实绑定并通过完整准入；[三轮 review 媒体](minimax-eighth-attempt/database.json)均交付，没有再出现观测或接缝阻断。
+
+随后 E 第三次请求在适配器的 HTTP/响应体入口失败，首因为 `MODEL_REQUEST_FAILED`，没有可计价 usage 或完整响应回执；旧代码未保存具体 HTTP 状态，因此无法据此判断网关限流、服务器故障或其他 HTTP 原因。没有重发此请求，也未到最终横竖片/F。新路径仅保存去敏的 HTTP 状态/请求身份和未知用量状态，不保存响应正文或凭据，不增加重试、不把未知记零；新增离线 HTTP 503 单项通过（Node 26.12.0，92.15 ms），Worker TypeScript 7.0.2 通过，真实故障诊断效果仍待遇到该错误时验证。
+
+[本轮回执](minimax-eighth-attempt/report.json)：4 次模型已结 **19,920**，第五次未知保留 **17,768**；15 次计算均停止/结算 **24,719** 保守上界，临时密钥回收、容量为空。共享新增模型已结 **330,297**，三笔未知预留 **37,993**，合计占用 **368,290 usd_micros**，旧历史 128/14 与开账空值不变。未知模型消费仍占用预算；本次没有合格候选，不计 4/6。
