@@ -306,7 +306,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     fail((v.mode === 'local_preview' && v.pixelScale === previewPolicy.localPlayback.pixelScale)
       || (v.mode === 'trusted_render' && v.pixelScale === previewPolicy.trustedCapture.pixelScale), 'RENDER_SCALE_POLICY_MISMATCH');
     if (context.previewSession) fail(v.mode === 'local_preview'
-      && ['pixelScale','sessionId','revisionId','targetId','manifestHash','frameCount','width','height','fps']
+      && ['pixelScale','sessionId','revisionId','targetId','aspectId','manifestHash','frameCount','width','height','fps']
         .every(key => v[key] === context.previewSession[key]), 'PREVIEW_INIT_SESSION_MISMATCH');
     if (v.mode === 'local_preview') {
       fail(v.previewEpoch === 0, 'PREVIEW_EPOCH_INVALID');
@@ -315,7 +315,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
   }
   if (v.command === 'set-values') {
     const session = context.previewSession;
-    fail(!!session && ['sessionId','revisionId','targetId','manifestHash'].every(key => v[key] === session[key])
+    fail(!!session && ['sessionId','revisionId','targetId','aspectId','manifestHash'].every(key => v[key] === session[key])
       && context.rendererSession !== true && context.disposed !== true, 'LOCAL_VALUES_SESSION_REQUIRED');
     fail(Number.isSafeInteger(context.previewEpoch) && v.requestedEpoch === context.previewEpoch + 1, 'PREVIEW_EPOCH_INVALID');
     fail(Number.isSafeInteger(context.lastSequence) && v.sequence > context.lastSequence, 'PREVIEW_SEQUENCE_INVALID');
@@ -323,10 +323,10 @@ export function studioErrors(v, context = {}, helpers = {}) {
   }
   if (['values-applied','values-rejected'].includes(v.event)) {
     const command = context.valuesCommand, session = context.previewSession;
-    fail(!!session && ['sessionId','revisionId','targetId','manifestHash'].every(key => v[key] === session[key])
+    fail(!!session && ['sessionId','revisionId','targetId','aspectId','manifestHash'].every(key => v[key] === session[key])
       && context.disposed !== true && context.rendererSession !== true, 'LOCAL_VALUES_SESSION_REQUIRED');
     fail(command?.command === 'set-values'
-      && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','manifestHash','requestedEpoch']
+      && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','aspectId','manifestHash','requestedEpoch']
         .every(key => command[key] === v[key]), 'VALUES_ACK_ENVELOPE_MISMATCH');
     if (v.event === 'values-applied') fail(v.appliedEpoch === v.requestedEpoch
       && Number.isSafeInteger(context.previewEpoch) && v.requestedEpoch === context.previewEpoch + 1, 'VALUES_ACK_EPOCH_INVALID');
@@ -336,7 +336,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     || ['preview-frame-ready','hit-result','error'].includes(v.event));
   if (localMessage) {
     const session = context.previewSession;
-    fail(['sessionId','revisionId','targetId'].every(key => v[key] === session[key])
+    fail(['sessionId','revisionId','targetId','aspectId'].every(key => v[key] === session[key])
       && (v.manifestHash === undefined || v.manifestHash === session.manifestHash)
       && context.disposed !== true, 'LOCAL_PREVIEW_SESSION_MISMATCH');
     fail(Number.isSafeInteger(context.previewEpoch) && v.previewEpoch === context.previewEpoch, 'PREVIEW_EPOCH_STALE');
@@ -350,11 +350,11 @@ export function studioErrors(v, context = {}, helpers = {}) {
   if (v.event === 'preview-frame-ready') {
     const session = context.previewSession;
     fail(!!session && session.sessionId === v.sessionId && session.revisionId === v.revisionId
-      && session.targetId === v.targetId && session.manifestHash === v.manifestHash
+      && session.targetId === v.targetId && session.aspectId === v.aspectId && session.manifestHash === v.manifestHash
       && v.frameIndex < session.frameCount && context.disposed !== true, 'LOCAL_PREVIEW_FRAME_SESSION_MISMATCH');
     const command = context.seekCommand;
     if (context.production || command) fail(command?.command === 'seek'
-      && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','frameIndex','previewEpoch']
+      && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','aspectId','frameIndex','previewEpoch']
         .every(key => command[key] === v[key]), 'LOCAL_PREVIEW_SEEK_ENVELOPE_MISMATCH');
   }
   if (v.event === 'frame-ready' && context.previewSession) fail(false, 'LOCAL_PREVIEW_CANNOT_CLAIM_FINAL_FRAME');
@@ -367,7 +367,7 @@ export function studioErrors(v, context = {}, helpers = {}) {
     if (v.event === 'hit-result') {
       const command = context.inspectCommand;
       if (context.production || command) fail(command?.command === 'inspect'
-        && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','frameIndex','previewEpoch'].every(key => command[key] === v[key]), 'INSPECT_ENVELOPE_MISMATCH');
+        && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','aspectId','frameIndex','previewEpoch'].every(key => command[key] === v[key]), 'INSPECT_ENVELOPE_MISMATCH');
       if (context.manifestHash) fail(v.manifestHash === context.manifestHash, 'INSPECT_MANIFEST_MISMATCH');
       if (command?.x01 === 1 || command?.y01 === 1) fail(v.hit === null, 'INSPECT_BOUNDARY_HAS_NO_HIT');
       const width = context.previewSession?.width ?? context.width, height = context.previewSession?.height ?? context.height;

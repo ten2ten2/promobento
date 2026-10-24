@@ -293,5 +293,21 @@
       "verdict": "pass",
       "issues": []
     }
+  },
+  {
+    "schema": "production",
+    "file": "contracts/film-composition.example.json"
+  },
+  {
+    "schema": "production",
+    "file": "contracts/film-release-snapshot.example.json"
+  },
+  {
+    "schema": "production",
+    "file": "contracts/film-fact-manifest.example.json"
+  },
+  {
+    "schema": "production",
+    "file": "contracts/film-resource-manifest.example.json"
   }
 ]

@@ -31,7 +31,7 @@ export function resourceContentIdentity(manifest) {
 }
 
 export function contentIdentity(c) {
-  return {
+  const identity = {
     identityVersion: c.identityVersion,
     durationSeconds: c.durationSeconds, fps: c.fps, totalFrames: c.totalFrames, seed: c.seed,
     sourceArchiveHash: c.sourceArchiveHash, dependencyManifestHash: c.dependencyManifestHash,
@@ -41,6 +41,8 @@ export function contentIdentity(c) {
       targetId, entrypoint, sourceHash, targetOverrideHash, resourceContentHash, audioHash, variantHash, coverFrame
     })).sort((a, b) => compareUtf16(a.targetId, b.targetId))
   };
+  if (c.identityVersion === 2) identity.capabilityProfile = c.capabilityProfile;
+  return identity;
 }
 
 function targetFor(variant, rules) {
@@ -52,6 +54,7 @@ function targetFor(variant, rules) {
 export function variantIdentity(c, v, rules) {
   const target = targetFor(v, rules);
   return {
+    ...(c.identityVersion === 2 ? {identityVersion:2,capabilityProfile:c.capabilityProfile,aspectId:v.aspectId} : {}),
     sourceHash: v.sourceHash, layoutRulesHash: c.layoutRulesHash, targetOverrideHash: v.targetOverrideHash,
     dependencyManifestHash: c.dependencyManifestHash, resourceContentHash: v.resourceContentHash,
     audioHash: v.audioHash, factContentHash: c.factContentHash, seed: c.seed,
@@ -62,7 +65,7 @@ export function variantIdentity(c, v, rules) {
 export function artifactIdentity(c, v, rules) {
   const target = targetFor(v, rules);
   return {
-    targetId: v.targetId, variantHash: digest(variantIdentity(c, v, rules)),
+    ...(c.identityVersion === 2 ? {identityVersion:2,aspectId:v.aspectId} : {targetId:v.targetId}), variantHash: digest(variantIdentity(c, v, rules)),
     resourceManifestHash: v.resourceManifestHash,
     runtimeVersion: c.runtimeVersion, rendererImageDigest: c.rendererImageDigest,
     renderProfile: c.renderProfile, encoding: target.encoding, layout: target.layout

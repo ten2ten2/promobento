@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { compareUtf16, canonical } from './canonical.mjs';
 import { digest } from './digest.mjs';
+import {filmBuildErrors} from './film-composition.mjs';
 
 import { safePath, sourceValuesBytes, pathComparisonKey } from './source-values.mjs';
 export { safePath, SOURCE_VALUES_MAX_BYTES, SOURCE_VALUES_MAX_ITEMS, sourceValuesBytes, parseSourceValues } from './source-values.mjs';
@@ -62,6 +63,7 @@ export function targetSourceIdentity({entrypoint,files}) {
 
 /** Build receipts come from the trusted builder/store, never from a request body. */
 export function sourceBuildErrors(composition,builds,archiveFiles) {
+  if(composition.identityVersion===2&&composition.capabilityProfile==='film-v1')return filmBuildErrors(composition,builds,archiveFiles);
   const errors = [];
   let archive;
   try {
@@ -112,11 +114,14 @@ export function inheritRevisionEnvironment(base,candidate) {
     if (!Object.hasOwn(base,key)) throw Error('REVISION_ENVIRONMENT_INCOMPLETE');
     next[key] = structuredClone(base[key]);
   }
+  if(base.identityVersion===2)next.capabilityProfile=base.capabilityProfile;
+  else delete next.capabilityProfile;
   return next;
 }
 
 export function revisionEnvironmentErrors(base,candidate) {
   if (base.projectId !== candidate.projectId) return ['REVISION_PROJECT_MISMATCH'];
-  return environmentFields.filter(key => !Object.hasOwn(base,key) || !Object.hasOwn(candidate,key)
+  const fields=base.identityVersion===2?[...environmentFields,'capabilityProfile']:environmentFields;
+  return fields.filter(key => !Object.hasOwn(base,key) || !Object.hasOwn(candidate,key)
     || canonical(base[key]) !== canonical(candidate[key])).map(key => 'REVISION_ENVIRONMENT_CHANGED:'+key);
 }

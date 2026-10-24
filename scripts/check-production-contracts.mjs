@@ -2,10 +2,14 @@ import {readFileSync} from 'node:fs';
 import {load, schema, semanticErrors, targets, hasCalibratedCostLimits} from './contract-validation.mjs';
 import * as contracts from '../packages/contracts/index.mjs';
 import {createSchemaValidator} from '../packages/contracts/index.mjs';
+import {filmContractFixture} from '../tests/contracts/film-fixture.mjs';
 const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const c=load('contracts/composition.example.json'),snapshot=load('contracts/release-snapshot.example.json'),factManifest=load('contracts/fact-manifest.example.json');
 const failures=[],expect=(ok,message)=>{if(!ok)failures.push(message);};
 for(const name of ['composition','release-snapshot','edit-request','fact-manifest','export-manifest','resource-manifest']) failures.push(...semanticErrors(load('contracts/'+name+'.example.json'),{composition:c,snapshot,factManifest,...load('tests/contracts/provenance-fixtures.json').context}).map(e=>name+': '+e));
+const filmFixture=filmContractFixture();
+for(const name of ['film-composition','film-release-snapshot','film-fact-manifest','film-resource-manifest'])
+ failures.push(...semanticErrors(load('contracts/'+name+'.example.json'),filmFixture.context).map(error=>name+': '+error));
 for(const [name,value]of Object.entries(load('tests/contracts/protocol-fixtures.json').valid)) failures.push(...semanticErrors(value,{composition:c,rendererSession:name==='render_sample'||name==='render_sample_ready'}).map(e=>name+': '+e));
 const routes=load('config/routes.json'),api=load('contracts/agent-api.json'),signatures=new Set();
 for(const r of routes.routes){const signature=r.method+' '+r.path.replace(/:[A-Za-z][A-Za-z0-9]*/g,':param');expect(!signatures.has(signature),'Duplicate route shape: '+r.id);signatures.add(signature);}

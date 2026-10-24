@@ -9,3 +9,5 @@ export interface FilmContext {
 export function filmSpecErrors(spec: FilmSpec, context?: FilmContext): {
   errors: Array<{ code: string; path: string }>; reviews: Array<{ code: string; path: string }>;
 };
+export function blockReferences(params: Record<string, unknown>): {texts: string[]; assets: string[]};
+export function filmTextBindings(spec: FilmSpec): Array<{slotId:string;sceneId:string;frameStart:number;frameEndExclusive:number;text:string;factIds:string[]}>;

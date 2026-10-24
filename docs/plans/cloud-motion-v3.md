@@ -1618,7 +1618,7 @@ AGENTS 要求每次修改都检查文档冲突，所以 PRD 和配置随对应�
 | `README.md`、`AGENTS.md` | 改为新结构与命令入口。AGENTS："创作代码只能在隔离环境运行"改写为分段与 studio 实例规则；契约入口改为 `contracts/film-runtime.d.ts`、`contracts/render-protocol.d.ts`；增加"Workers 内只用预编译验证器"；删除与旧 profile 相关的维护规则 | S0 |
 | PRD 索引与全部 PRD 的版本行 | 改为 v3.0、协议 3.0.0；删除描述 QuickJS、`canvas-*` profile、准入链路、fixture 宿主和本地研究控制器的段落，不留"已废弃"说明 | S0 |
 | [13](../prd/13-agent-native-production.md) §1、§3–§6 | §1：作品形态为 film-v1（规格 + 积木 + 自写镜头）；删去"生产运行时不依赖 GSAP"，写明积木与自写镜头都可用 GSAP（由负责人决定），WebGL 按 CPU 渲染。§3：方向卡与 Treatment 落在 `film.json`。§4：分阶段导演与模型分工，沿用"事实整理、意图分类、素材摘要可用经过验证的便宜模型"的原则。§5：有旁白时必须有来自已确认转写稿的字幕层，由 Q2 静音可读 BLOCK。§6：改为第 7 节的 Q0–Q3 | S1–S2 |
-| [14](../prd/14-production-contracts.md) §2、§5、§7 | §2：Manifest 与 capability profile 只有 film-v1。§5：RenderProtocol 3.0.0，包括分段、接缝、按画幅渲染、增量复用。§7：渲染状态机增加 sharding、verifying、assembling | S1 |
+| [14](../prd/14-production-contracts.md) §2、§5、§7 | §2：新建 Manifest 使用 film-v1/identityVersion 2；历史 v1 入口与身份保留读取/重放，迁移不重复收费。§5：RenderProtocol 3.0.0 新包络按画幅，旧 targetId 包络互斥兼容；包括分段、接缝、增量复用。§7：渲染状态机增加 sharding、verifying、assembling | S1 |
 | [04](../prd/04-architecture-and-data.md) | 第 2 节的架构图；Workflows 与 DO 的分工、`ctx.container`、broker、D1 表、R2 键、Workers AI 数据流 | S1 |
 | [03](../prd/03-platform-presets.md) §1–§2 | 7 个目标对应 4 个画幅渲染，同画幅共用成片字节 | S2 |
 | [06](../prd/06-testing-and-release.md) §3、§4 | §3：混音响度由"约 −16 LUFS"改为按预设的 `loudnessTarget`（−14 LUFS）。§4：性能与成本门槛换成第 1 节 | S1 |

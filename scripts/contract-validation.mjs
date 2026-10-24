@@ -9,7 +9,7 @@ import {
   targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
   variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
   outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity,
-  sourceBuildErrors, revisionEnvironmentErrors, safePath
+  sourceBuildErrors, revisionEnvironmentErrors, safePath, filmCompositionErrors
 } from '../packages/contracts/index.mjs';
 export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity, safePath};
 const ROOT = new URL('../', import.meta.url);
@@ -407,6 +407,10 @@ export function semanticErrors(v, context = {}) {
     }
     errors.push(...revisionEnvironmentErrors(restored ?? context.baseComposition,v));
   }
+  if(v.kind==='composition'&&context.newCreativeWrite)fail(v.identityVersion===2&&v.capabilityProfile==='film-v1','FILM_PROFILE_REQUIRED');
+  if(v.kind==='composition'&&v.identityVersion===2&&context.filmSource!==undefined)
+    errors.push(...filmCompositionErrors(v,{...context,presetConfig:rules,
+      resourceManifest:context.resourceManifest??own(context.resourceManifests,v.resourceManifestHash)}));
   if (v.kind === 'create_project_request' && v.requestTrial && context.role !== undefined) fail(context.role === 'owner', 'TRIAL_OWNER_REQUIRED');
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
@@ -443,8 +447,8 @@ export function semanticErrors(v, context = {}) {
     if (v.frameEndExclusive !== undefined) fail(v.frameEndExclusive <= composition.totalFrames && v.frameEndExclusive > v.frameStart, 'INTERVAL_OUT_OF_RANGE');
   }
   if (v.command === 'init') {
-    const t = allowed.get(v.targetId);
-    fail(t && v.width === t.layout.width && v.height === t.layout.height, 'RENDER_SIZE_NOT_FROM_PRESET');
+    const layout = v.aspectId ? rules.aspectLayouts[v.aspectId] : allowed.get(v.targetId)?.layout;
+    fail(layout && v.width === layout.width && v.height === layout.height, 'RENDER_SIZE_NOT_FROM_PRESET');
     if (composition) {
       fail(v.frameCount === composition.totalFrames, 'RENDER_FRAME_COUNT_MISMATCH');
       fail(v.manifestHash === digest(composition), 'RENDER_MANIFEST_MISMATCH');
@@ -452,6 +456,7 @@ export function semanticErrors(v, context = {}) {
       fail(canonical(v.renderProfile) === canonical(composition.renderProfile), 'RENDER_PROFILE_MISMATCH');
     }
   }
+  if(v.protocolVersion&&v.aspectId&&composition)fail(composition.variants.some(variant=>variant.aspectId===v.aspectId),'TARGET_SOURCE_UNAVAILABLE');
   if (v.command === 'sample' || v.event === 'sample-ready') {
     fail(context.rendererSession === true, 'RENDERER_SESSION_REQUIRED');
     fail(!!composition && v.sampleIndex < composition.renderProfile.sampleCount, 'SAMPLE_OUT_OF_RANGE');
@@ -517,6 +522,11 @@ export function semanticErrors(v, context = {}) {
           const build = own(context.sourceBuilds,variant.targetId);
           if (!build) continue;
           fail(build.exampleOnly !== true, 'FIXTURE_SOURCE_BUILD_IN_PRODUCTION');
+          if(source.identityVersion===2){
+            if(variant===source.variants[0])errors.push(...filmCompositionErrors(source,{filmSource:build.filmSource,presetConfig:rules,
+              factManifest:context.factManifest,resourceManifest:own(context.resourceManifests,source.resourceManifestHash)}));
+            continue;
+          }
           fail(Array.isArray(build.editables) && !!build.values, 'SOURCE_VALUES_OBSERVATION_REQUIRED');
           if (!Array.isArray(build.editables) || !build.values) continue;
           fail(new Set(build.editables.map(item => item.id)).size === build.editables.length, 'DUPLICATE_EDITABLES');
@@ -971,7 +981,7 @@ export class CheckoutReference {
   }
 }
 export function matchesFrameReady(command, response, manifestHash, disposed = false) {
-  return !disposed && command.previewEpoch === undefined && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'frameIndex'].every(k => response[k] === command[k]);
+  return !disposed && command.previewEpoch === undefined && validateSchema(command, schema.$defs.renderSeek).length === 0 && validateSchema(response, schema.$defs.renderReady).length === 0 && response.event === 'frame-ready' && response.manifestHash === manifestHash && ['protocolVersion', 'sessionId', 'requestId', 'sequence', 'revisionId', 'targetId', 'aspectId', 'frameIndex'].every(k => response[k] === command[k]);
 }
 
 /** Internal sample replies cannot satisfy Studio's final-frame acknowledgement. */
@@ -981,7 +991,7 @@ export function matchesSampleReady(command, response, manifestHash, context = {}
     && validateSchema(response,schema.$defs.renderSampleReady).length === 0
     && semanticErrors(command,context).length === 0 && semanticErrors(response,context).length === 0
     && response.manifestHash === manifestHash
-    && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','frameIndex','sampleIndex'].every(k => response[k] === command[k]);
+    && ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','aspectId','frameIndex','sampleIndex'].every(k => response[k] === command[k]);
 }
 
 /** Ignore stale failures just as strictly as stale frame-ready events. */
@@ -989,5 +999,5 @@ export function matchesProtocolFailure(command, response, disposed = false, prev
   if (disposed || (validateSchema(command,schema.$defs.rendererCommand).length && validateSchema(command,schema.$defs.renderCommand).length)
     || validateSchema(response,schema.$defs.renderError).length) return false;
   if (command.previewEpoch !== undefined && response.previewEpoch !== previewEpoch) return false;
-  return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','previewEpoch'].every(k => command[k] === response[k]);
+  return ['protocolVersion','sessionId','requestId','sequence','revisionId','targetId','aspectId','previewEpoch'].every(k => command[k] === response[k]);
 }

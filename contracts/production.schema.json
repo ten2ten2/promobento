@@ -194,10 +194,16 @@
           "$ref": "#/$defs/renderProfile"
         },
         "identityVersion": {
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "resourceContentHash": {
           "$ref": "#/$defs/sha256"
+        },
+        "capabilityProfile": {
+          "const": "film-v1"
         }
       },
       "required": [
@@ -222,7 +228,47 @@
         "identityVersion",
         "resourceContentHash"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "identityVersion": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "capabilityProfile"
+            ],
+            "properties": {
+              "capabilityProfile": {
+                "const": "film-v1"
+              },
+              "variants": {
+                "items": {
+                  "properties": {
+                    "entrypoint": {
+                      "const": "film.json"
+                    },
+                    "targetOverrideHash": {
+                      "type": "null"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "capabilityProfile": false
+            }
+          }
+        }
+      ]
     },
     "releaseSnapshot": {
       "type": "object",
@@ -1318,6 +1364,14 @@
             "$ref": "#/$defs/editableValue"
           },
           "maxProperties": 1000
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -1326,7 +1380,6 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command",
         "manifestHash",
         "frameCount",
@@ -1422,6 +1475,35 @@
               }
             }
           }
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
         }
       ]
     },
@@ -1458,6 +1540,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -1466,11 +1556,41 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command",
         "frameIndex"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "renderDispose": {
       "type": "object",
@@ -1497,6 +1617,14 @@
         },
         "command": {
           "const": "dispose"
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -1505,10 +1633,40 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "renderReady": {
       "type": "object",
@@ -1541,6 +1699,14 @@
         },
         "manifestHash": {
           "$ref": "#/$defs/sha256"
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -1549,12 +1715,42 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "frameIndex",
         "manifestHash"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "renderCommand": {
       "oneOf": [
@@ -1974,6 +2170,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -1982,11 +2186,41 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "code"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "direction": {
       "type": "object",
@@ -3095,6 +3329,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 7
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -3103,12 +3345,42 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command",
         "frameIndex",
         "sampleIndex"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "renderSampleReady": {
       "type": "object",
@@ -3146,6 +3418,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 7
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -3154,13 +3434,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "frameIndex",
         "manifestHash",
         "sampleIndex"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "rendererCommand": {
       "oneOf": [
@@ -5804,6 +6114,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -5812,13 +6130,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command",
         "frameIndex",
         "x01",
         "y01"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "hitTarget": {
       "type": "object",
@@ -5915,6 +6263,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -5923,13 +6279,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "frameIndex",
         "manifestHash",
         "hit"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "sourceValues": {
       "type": "object",
@@ -6145,18 +6531,30 @@
         {
           "if": {
             "properties": {
-              "type": { "const": "asset" }
+              "type": {
+                "const": "asset"
+              }
             },
-            "required": ["type"]
+            "required": [
+              "type"
+            ]
           },
           "then": {
-            "properties": { "acceptedMediaTypes": {} },
-            "required": ["acceptedMediaTypes"]
+            "properties": {
+              "acceptedMediaTypes": {}
+            },
+            "required": [
+              "acceptedMediaTypes"
+            ]
           },
           "else": {
             "not": {
-              "properties": { "acceptedMediaTypes": {} },
-              "required": ["acceptedMediaTypes"]
+              "properties": {
+                "acceptedMediaTypes": {}
+              },
+              "required": [
+                "acceptedMediaTypes"
+              ]
             }
           }
         }
@@ -6682,6 +7080,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -6690,13 +7096,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "frameIndex",
         "manifestHash",
         "previewEpoch"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "localValues": {
       "type": "object",
@@ -6741,6 +7177,14 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -6749,13 +7193,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "command",
         "manifestHash",
         "requestedEpoch",
         "valuesOverlay"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "candidateActionRequest": {
       "type": "object",
@@ -6975,6 +7449,14 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -6983,13 +7465,43 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "manifestHash",
         "requestedEpoch",
         "appliedEpoch"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "localValuesRejected": {
       "type": "object",
@@ -7038,6 +7550,14 @@
             "INVALID_SESSION",
             "COMMAND_IN_PROGRESS"
           ]
+        },
+        "aspectId": {
+          "enum": [
+            "landscape",
+            "portrait",
+            "feed",
+            "square"
+          ]
         }
       },
       "required": [
@@ -7046,14 +7566,44 @@
         "requestId",
         "sequence",
         "revisionId",
-        "targetId",
         "event",
         "manifestHash",
         "requestedEpoch",
         "appliedEpoch",
         "code"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "aspectId"
+              ],
+              "properties": {
+                "aspectId": {
+                  "enum": [
+                    "landscape",
+                    "portrait",
+                    "feed",
+                    "square"
+                  ]
+                }
+              }
+            },
+            {
+              "required": [
+                "targetId"
+              ],
+              "properties": {
+                "targetId": {
+                  "$ref": "#/$defs/id"
+                }
+              }
+            }
+          ]
+        }
+      ]
     },
     "checkoutDisclosureRequest": {
       "oneOf": [

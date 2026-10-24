@@ -7,6 +7,35 @@ const CLAIM_ROLES = new Set(['number', 'quote', 'cta']);
 /** Aspect-level render identity: targets that share an aspect share one rendered film (plan D9). */
 export const ASPECTS = Object.freeze(['landscape', 'portrait', 'feed', 'square']);
 
+/** Shared static reference walk; the trusted block Schema determines which keys are allowed. */
+export function blockReferences(params) {
+  const texts = [], assets = [];
+  const walk = value => {
+    if (Array.isArray(value)) { value.forEach(walk); return; }
+    if (!value || typeof value !== 'object') return;
+    for (const [key, child] of Object.entries(value)) {
+      if (['textSlot', 'subtitleSlot'].includes(key) && typeof child === 'string') texts.push(child);
+      else if (['assetKey', 'logoKey'].includes(key) && typeof child === 'string') assets.push(child);
+      else walk(child);
+    }
+  };
+  walk(params); return {texts, assets};
+}
+
+/** Static source declarations, not pixel observations or a substitute for Q1/Q2. */
+export function filmTextBindings(spec) {
+  return spec.scenes.flatMap(scene => {
+    if (scene.kind !== 'block') throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+    const slots = scene.block === 'captions@1'
+      ? scene.params.cues.map(cue => ({slotId:cue.textSlot,start:scene.start+cue.start,end:scene.start+cue.end}))
+      : blockReferences(scene.params).texts.map(slotId => ({slotId,start:scene.start,end:scene.end}));
+    return slots.map(({slotId,start,end}) => {
+      const slot=spec.texts[slotId]; if (!slot) throw Error('TEXT_SLOT_UNKNOWN');
+      return {slotId,sceneId:scene.id,frameStart:start,frameEndExclusive:end,text:slot.text,factIds:[...slot.factIds]};
+    });
+  });
+}
+
 /**
  * @param {object} spec a FilmSpec that already passed film.schema.json
  * @param {object} [context]

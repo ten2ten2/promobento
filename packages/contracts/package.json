@@ -41,6 +41,10 @@
     "./film-source": {
       "types": "./src/film-source.d.mts",
       "default": "./src/film-source.mjs"
+    },
+    "./film-composition": {
+      "types": "./src/film-composition.d.mts",
+      "default": "./src/film-composition.mjs"
     }
   },
   "dependencies": {

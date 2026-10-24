@@ -47,17 +47,4 @@ export const blockCatalog = [
       assetKey: slot, textSlot: slot, subtitleSlot: slot}}}
 ] as const;
 
-/** All visible copy and drawable references, including nested card/caption collections. */
-export function blockReferences(params: Record<string, unknown>): {texts: string[]; assets: string[]} {
-  const texts: string[] = [], assets: string[] = [];
-  const walk = (value: unknown): void => {
-    if (Array.isArray(value)) { value.forEach(walk); return; }
-    if (!value || typeof value !== 'object') return;
-    for (const [key, child] of Object.entries(value)) {
-      if (['textSlot', 'subtitleSlot'].includes(key) && typeof child === 'string') texts.push(child);
-      else if (['assetKey', 'logoKey'].includes(key) && typeof child === 'string') assets.push(child);
-      else walk(child);
-    }
-  };
-  walk(params); return {texts, assets};
-}
+export {blockReferences} from '@promobento/contracts/film';
