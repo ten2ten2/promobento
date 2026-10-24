@@ -39,4 +39,4 @@ if (!validate(spec)) {
 
 v2 视频指纹按画幅、固定布局/编码、源、资源、声音、运行环境和标记共享；平台 mapping 仍含业务 targetId，QA/权益关联仍逐目标授权。帧协议新包络用 `aspectId`；Schema 保留旧 `targetId` 包络读取，两者不能混用，回执必须匹配原包络。渲染器和产品 Worker 的接入进度见[实施状态](../../docs/implementation-status.md)。
 
-内部渲染入口为 `./film-source`（规范 FilmSpec 文件身份）、`./render`（任务/分段语义）及 `./seams`（可信 CDP PNG 容差）；产品 Composition 使用 `./film-composition`。私有任务结构也由 `render-job` 预编译验证器覆盖；单个 filmSourceHash 只是产品身份的一部分，不替代完整 Composition/订单身份。
+内部渲染入口为 `./film-source`（规范 FilmSpec 文件身份）、`./render`（任务/分段语义）及 `./seams`（可信 CDP PNG 解析、受限 RGBA 编码与原像素容差）；产品 Composition 使用 `./film-composition`。私有任务结构也由 `render-job` 预编译验证器覆盖；单个 filmSourceHash 只是产品身份的一部分，不替代完整 Composition/订单身份。

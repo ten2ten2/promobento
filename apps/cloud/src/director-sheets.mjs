@@ -1,20 +1,7 @@
 // Trusted review packaging: compose actual checked PNG pixels, never execute author code or omit an aspect.
-import {Buffer} from 'node:buffer';
-import {deflateSync} from 'node:zlib';
-import {pngPixels} from '@promobento/contracts/seams';
+import {pngPixels,pngRgba} from '@promobento/contracts/seams';
 
-export function pngRgba(width,height,pixels){
- const chunk=(type,data)=>{
-  const body=Buffer.concat([Buffer.from(type),data]),out=Buffer.alloc(body.length+8);out.writeUInt32BE(data.length);body.copy(out,4);
-  let crc=0xffffffff;for(const byte of body){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
-  out.writeUInt32BE((crc^0xffffffff)>>>0,out.length-4);return out;
- };
- if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<1||height<1||width*height>960*1920||pixels.length!==width*height*4)throw Error('REVIEW_SHEET_DIMENSIONS_INVALID');
- const header=Buffer.alloc(13);header.writeUInt32BE(width);header.writeUInt32BE(height,4);header[8]=8;header[9]=6;
- const stride=width*4,raw=Buffer.alloc((stride+1)*height);
- for(let y=0;y<height;y++)raw.set(pixels.subarray(y*stride,(y+1)*stride),y*(stride+1)+1);
- return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
-}
+export {pngRgba} from '@promobento/contracts/seams';
 
 export async function reviewContactSheet({aspect,frames,load}){
  if(!['landscape','portrait','feed','square'].includes(aspect)||!Array.isArray(frames)||!frames.length||frames.length>120)throw Error('REVIEW_FRAME_COVERAGE_MISSING');

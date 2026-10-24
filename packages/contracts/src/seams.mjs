@@ -1,4 +1,4 @@
-import {inflateSync} from 'node:zlib';
+import {inflateSync,deflateSync} from 'node:zlib';
 import {Buffer} from 'node:buffer';
 
 /** Bounded decoder for trusted CDP RGB/RGBA PNGs (8 bit, non-interlaced), shared by Worker and container. */
@@ -55,4 +55,17 @@ export function compareSeam(expected, actual) {
   const diffPixelPct = changed / (a.width * a.height) * 100, identical = changed === 0;
   return {identical, maxChannelDiff, diffPixelPct, verdict: identical ? 'pass'
     : maxChannelDiff <= 2 && diffPixelPct <= .1 ? 'pass_within_tolerance' : 'RENDER_SEAM_BLOCK'};
+}
+
+export function pngRgba(width,height,pixels){
+ const chunk=(type,data)=>{
+  const body=Buffer.concat([Buffer.from(type),data]),out=Buffer.alloc(body.length+8);out.writeUInt32BE(data.length);body.copy(out,4);
+  let crc=0xffffffff;for(const byte of body){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}
+  out.writeUInt32BE((crc^0xffffffff)>>>0,out.length-4);return out;
+ };
+ if(!Number.isSafeInteger(width)||!Number.isSafeInteger(height)||width<1||height<1||width*height>960*1920||pixels.length!==width*height*4)throw Error('REVIEW_SHEET_DIMENSIONS_INVALID');
+ const header=Buffer.alloc(13);header.writeUInt32BE(width);header.writeUInt32BE(height,4);header[8]=8;header[9]=6;
+ const stride=width*4,raw=Buffer.alloc((stride+1)*height);
+ for(let y=0;y<height;y++)raw.set(pixels.subarray(y*stride,(y+1)*stride),y*(stride+1)+1);
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',header),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
 }

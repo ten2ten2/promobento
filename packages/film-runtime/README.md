@@ -24,7 +24,9 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 启动器使用方案规定的固定栅格化参数；日志管道使用带 `pipefail` 的 Bash，容器失败会使 job 失败。比较失败时保留具体画幅、帧号及对比 PNG，报告记录已完成的比较和失败状态；容差仍为最大通道差 ≤2、差异像素 ≤0.1%。当前实际通过范围和待验证问题见[实施状态](../../docs/implementation-status.md)。
 
-仅复验旅程转场和 3D 面板的栅格历史差异时，使用 `suite=journey`。它只比较四画幅在最终片/review 比例下的顺序、逆序与冷 seek，不重跑已通过的普通布局/桥接、出片或试听。review 沿用半尺寸捕获，页面仍使用完整逻辑尺寸和原观测坐标。
+仅复验旅程转场和 3D 面板的栅格历史差异时，使用 `suite=journey`。它只比较四画幅在最终片/review 比例下的顺序、逆序与冷 seek，不重跑已通过的普通布局/桥接、出片或试听。review 使用完整逻辑尺寸截图再由可信宿主缩小，页面和原观测坐标不变。
+
+只复验更改后的四画幅 review 取图路径，可在 `suite=runtime` 加 `-f runtime_case=review`；普通 72 项与最终尺寸路径不重跑。
 
 定位已知方形 review 反例可在 `suite=runtime` 加 `-f runtime_case=showcase-square-review`，只复验这六项并保存全尺寸/画布像素，不能作为普通 72 项或两种面板的完整通过。
 

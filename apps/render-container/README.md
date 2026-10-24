@@ -19,7 +19,7 @@ studio 的 `check` 对同一授权帧重新取 PNG 后读真实 CDP 文字/字�
 
 [正式镜像隔离记录](../../docs/evidence/2026-10-24-s1-performance/README.md#正式镜像隔离通过)已在 `420e245` 的 2D standard-3 与 WebGL standard-4 实测通过上述固定项、完整沙箱与停止结算；不需要为后续素材/文档变更重复该场景。
 
-review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 fps；final 为既定 1080p/30 fps。实验多采样 profile 尚未开放。视频由已授权的 PTS 帧清单取帧，不使用 `<video>`。
+review 保持同一 30 fps 源时间线，隔帧捕获完整逻辑尺寸的 JPEG92，由既有 FFmpeg scale 半尺寸编码为 15 fps；接缝/观测 PNG 由同一完整尺寸帧在主机用整数面积平均缩到半尺寸，不再使用浏览器的半比例截图。final 为既定 1080p/30 fps，原捕获路径不变。实验多采样 profile 尚未开放。视频由已授权的 PTS 帧清单取帧，不使用 `<video>`。
 
 阅读停留帧由共享 `filmObservationFrames` 按整片镜头事件生成，再落入各分段；不含计划点的短分段保存空观测数组。Worker 校验每段应有的精确帧、render/画幅、字节身份及 BLOCK 项，不能以任意非空观测代替覆盖。动态/转场 QA 仍在 S2，不能把当前停留帧当作完整时间覆盖。
 

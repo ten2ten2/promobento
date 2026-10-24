@@ -283,4 +283,6 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 当前让 `ui-showcase@1` 也共用旅程的固定 CPU 逆透视取样，边框/阴影/ROI 一并在固定像素面投影；原入场旋转、缩放、纵向位移及 DOM 文字/点选保留，实现升为 1.0.1，历史镜像不变。新增原 140–150 帧 showcase 推入时序的 2200×1400 原创 PNG 回归；shared 投影校准补缩放与纵移。当前候选正逆投影（含原入场缩放/纵移）单项通过（Node 26.12.0，3.31 ms），运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅 PNG 及原 C 复验仍待完成。
 
-`e44b670` 的 [40136610496](https://github.com/ten2ten2/promobento/actions/runs/40136610496)取得[原 72 项、旅程 48 项及 showcase 44 项通过](showcase-raster/cpu-surface-candidate.json)，showcase 已完成的 44 项全零差异。剩余方形 review 149 帧逆序仍为最大 **1** / **1.7983539094650205%**，冷 seek 未继续。已查看实际 PNG，面板/ROI/阴影正常；保留原门槛。下一次只复现该方形缩小场景，同时保留原尺寸 PNG 与画布像素，区分软件取样和浏览器缩小合成，不重跑前述 164 项。
+`e44b670` 的 [40136610496](https://github.com/ten2ten2/promobento/actions/runs/40136610496)取得[原 72 项、旅程 48 项及 showcase 44 项通过](showcase-raster/cpu-surface-candidate.json)，showcase 已完成的 44 项全零差异。剩余方形 review 149 帧逆序仍为最大 **1** / **1.7983539094650205%**，冷 seek 未继续。已查看实际 PNG，面板/ROI/阴影正常；保留原门槛。随后只复现该方形缩小场景，同时保留原尺寸 PNG 与画布像素，不重跑前述 164 项，结果见下文。
+
+[40138194760](https://github.com/ten2ten2/promobento/actions/runs/40138194760) 的窄诊断取得六项通过，但未修改渲染代码，且增加了画布读回/原尺寸截图，不用它抹掉上一轮的方形反例。当前将 review 改为与 final 相同的完整逻辑尺寸截图：JPEG92 直送已有 FFmpeg scale，PNG 在主机以整数面积平均缩小。视频和 QA 都离开浏览器的半比例截图路径；15 fps、半尺寸输出、完整源时间线、原容差、期限和最终片捕获不变。PNG 编码器从导演拼图原实现移入共享契约模块并保留旧导出，尺寸上限不放宽。新增整数缩小/透明度单项（13.04 ms）和既有拼图完整帧/像素/尺寸拒绝检查（170.63 ms）通过；cloud TypeScript 7.0.2 通过。后续只复验改变的 review 路径，复用未改的普通与最终尺寸结果。
