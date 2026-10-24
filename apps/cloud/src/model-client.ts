@@ -10,6 +10,8 @@ import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,settleMode
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
+/** A complete, durably recorded response whose text is not canonical JSON; never a transport failure. */
+export class ModelJsonOutputError extends Error {constructor(){super('MODEL_OUTPUT_JSON_INVALID');}}
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -34,7 +36,10 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
       await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
     }
-    const result=receipt.result,value=(result.toolCalls.length?{toolCalls:result.toolCalls}:parseCanonicalJson(result.text)) as Json;validate(value);
+    const result=receipt.result;let value:Json;
+    if(result.toolCalls.length)value={toolCalls:result.toolCalls};
+    else{try{value=parseCanonicalJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}}
+    validate(value);
     const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
     await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
     return{value,cached:false};

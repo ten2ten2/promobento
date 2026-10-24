@@ -1,7 +1,7 @@
 {
   "schemaVersion": "3.0.0",
   "kind": "model_providers",
-  "catalogVersion": "models-2026-10-23",
+  "catalogVersion": "models-2026-10-24",
   "providers": {
     "modelswitch": {
       "kind": "openai-compatible",
@@ -37,7 +37,7 @@
         "output": 2000000
       },
       "priceSource": "https://api.modelswitch.org/models (Default group)",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     },
     "modelswitch/claude-sonnet-5-5": {
       "capabilities": {
@@ -59,7 +59,7 @@
         "output": 6500000
       },
       "priceSource": "https://api.modelswitch.org/models (Default group)",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     },
     "modelswitch/claude-opus-5-5": {
       "capabilities": {
@@ -81,7 +81,7 @@
         "output": 13000000
       },
       "priceSource": "https://api.modelswitch.org/models (Default group)",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     },
     "anthropic/claude-opus-5-5": {
       "capabilities": {
@@ -130,10 +130,10 @@
     "facts": "modelswitch/deepseek-v4.1-flash-1017",
     "assets": "modelswitch/deepseek-v4.1-flash-1017",
     "directions": "modelswitch/deepseek-v4.1-flash-1017",
-    "spec": "anthropic/claude-opus-5-5",
+    "spec": "modelswitch/claude-opus-5-5",
     "scenes": "modelswitch/deepseek-v4.1-flash-1017",
     "review": "modelswitch/deepseek-v4.1-flash-1017",
-    "coldReview": "anthropic/claude-sonnet-5-5",
+    "coldReview": "modelswitch/deepseek-v4.1-flash-1017",
     "triage": "modelswitch/deepseek-v4.1-flash-1017"
   }
 }

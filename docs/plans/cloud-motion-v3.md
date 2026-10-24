@@ -877,6 +877,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 每个转场写明视线如何衔接。
 - **自写镜头**：只用于积木无法表达的标志性镜头，每片一般 1–2 个，并写清 `brief`。
 - **校验**（第 4.2 节）：失败时把错误结构化返回，最多修正 2 次。
+  - 当前 C 已对完整响应的 JSON、Schema 与跨字段错误保存持久反馈，换新 callId 纠正；无效响应照常计费但不缓存/渲染。网络、截断和未知消费不进入纠正循环，原 3 次/阶段费用/绝对期限不变。
 - **通过后**：
   1. 生成积木版草稿，自写镜头先用简报卡占位。
   2. 审核文字槽位后，草稿即可在浏览器播放。
@@ -911,6 +912,8 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **修改方式**：只用 `spec_patch`（JSON Patch，校验后应用）和对自写镜头的文本编辑。
 - **轮数**：最多 2 轮（`maxInternalRepairs`）。
 
+当前 S1 将已捕获的全部阅读停留 PNG 按画幅拼图，并绑定格子/source/frame 与实际成片引用，不再只截前 12/16 张。每秒图、完整 Q1/Q2 发现与运动/声音曲线仍按本节目标接齐；实际范围见[实施状态](../implementation-status.md)。
+
 ### 6.7 阶段 F：冷审与提交
 
 - **冷审**：步骤绑定 `coldReview`（看图；宜与导演用不同的模型家族），独立上下文，不带导演的对话。
@@ -923,6 +926,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
     - 需核实的事实。
   - 必须回答两个问题：从第几秒开始走神？换成别的产品名是否一样成立？
   - 报告绑定成片摘要。BLOCK 项触发一轮修复，计入 internal_repair。
+  - 当前实现中 E/F 共用两次内部修复额度；F 最多触发一次 C 修正，再重走 E、全画幅重渲和第二次 F。未改规格、再次 BLOCK 或额度耗尽则停止，不覆盖已有成片、不重置费用或期限。
 - **提交** `submit_candidate(note)`：冻结工作区为候选，触发成片渲染与 QA。`note` 是给用户的改动说明。
 
 ### 6.8 工具（`agent-tools.schema.json`）
@@ -981,23 +985,23 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 写入 `config/agent-policy.json`。下表为初值，S1、S2 实测后由负责人复核。
 
-每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5；最新网关复测丢图后，规格与冷审改绑官方 Anthropic Opus/Sonnet，与导演的 DeepSeek 不同家族；负责人暂不添加官方密钥，真实集成保留未验证。Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
+每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5。2026-10-24 负责人指明网关 Claude 共用 `MODEL_COMPAT_API_KEY`；按[网关文档](https://api.modelswitch.org/docs)，C 恢复网关 Opus（纯文本），F 改用已验证看图的网关 DeepSeek，与 C 不同家族。官方模型只保留未绑定备用，不再要求添加官方密钥。网关 Claude 的旧视觉失败不撤销；Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
 
 | 步骤 | 绑定名 | 需要的能力 | 初始模型 | 推理强度 | 调用上限 | 费用上限 |
 | --- | --- | --- | --- | --- | --- | --- |
 | A1 事实整理 | `facts` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 | A2 素材理解 | `assets` | 看图、JSON | `deepseek-v4.1-flash-1017` | low | 每个素材 1 次 | $0.04 |
 | B 方向 | `directions` | JSON | `deepseek-v4.1-flash-1017` | high | 3 | $0.40 |
-| C 规格 | `spec` | JSON、强推理 | `claude-opus-5-5` | high | 3 | $0.40 |
+| C 规格 | `spec` | JSON、强推理 | `modelswitch/claude-opus-5-5` | high | 3 | $0.40 |
 | D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | medium | 12 | $0.35 |
 | E 整片 review | `review` | 看图、工具 | `deepseek-v4.1-flash-1017` | medium | 6 | $0.30 |
-| F 冷审 | `coldReview` | 看图、JSON | `anthropic/claude-sonnet-5-5` | medium | 2 | $0.05 |
+| F 冷审 | `coldReview` | 看图、JSON | `modelswitch/deepseek-v4.1-flash-1017` | medium | 2 | $0.05 |
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
 - B（方向）是创意上影响最大的步骤之一，按"纯文本用 DeepSeek"的原则初始绑到 DeepSeek。S1 评测时与 Opus 5.5 做对照，效果明显落后时换绑。
-- D、E 写代码和看整片的质量直接决定成片，DeepSeek 在这两步的效果未经验证。S2 评测时与官方 Anthropic API 的 Sonnet 5.5 对照，按每个可用结果的费用和负责人评分决定是否换绑；换绑官方 Sonnet 需要负责人另存 `ANTHROPIC_API_KEY`。
-- F 用与写片的 DeepSeek 不同家族的模型，冷审更容易发现盲点。最新两轮网关 Claude 视觉失败，F 改用官方 Anthropic；密钥未配置时，整个真实导演流程在首个付费调用前停止。
+- D、E 写代码和看整片的质量直接决定成片，DeepSeek 在这两步的效果未经验证。S2 按每个可用结果的费用和负责人评分做对照；只有负责人日后选择直连官方 Sonnet 时才另存 `ANTHROPIC_API_KEY`，不是当前网关路线的前置。
+- F 用与写规格 C 的 Opus 不同家族的 DeepSeek，保持独立上下文，不带导演对话。当前只用已实测可看图的线路；网关 Claude 的图片恢复需要真实复测后才能再用于 F。
 - 改稿中的镜头内修改用 `scenes`，结构修改沿用 `spec` 和 `review`。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
@@ -1012,18 +1016,18 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 ### 6.12 模型、价格与预算授权
 
-负责人 tianyu 于 2026-10-22 批准，2026-10-23 修正。
+负责人 tianyu 于 2026-10-22 批准，2026-10-23 修正；2026-10-24 明确继续使用已有 ModelSwitch 密钥调用 Claude。
 
 **模型配置** `config/model-providers.json`（新增，进仓库，不含密钥）。负责人 2026-10-23 要求：默认走 OpenAI 兼容接口，随时可以换供应商，也要能换成 Claude API。换供应商或模型只改这个文件和对应的 Worker secret，不改代码。
 
-当前选定的 OpenAI 兼容服务是模幻空间（ModelSwitch，`https://api.modelswitch.org/v1`）。它的价格以平台额度标示，平台说明"$1 额度 = ¥1"，所以按人民币记录，并用登记的汇率换算成美元记账。下面的价格取自 2026-10-23 的模型列表"Default 固定线路分组"；API 密钥必须固定在这个分组，不能选 Auto（Auto 按实际路由的分组计费，价格不固定）。
+当前选定的 OpenAI 兼容服务是模幻空间（ModelSwitch，`https://api.modelswitch.org/v1`）。2026-10-24 已按负责人提供的[文档](https://api.modelswitch.org/docs)核对 `Authorization: Bearer` 与 `/v1/chat/completions`，Claude 同样使用已有 `MODEL_COMPAT_API_KEY`。价格以平台额度标示，[模型页](https://api.modelswitch.org/models)明确"$1 额度 = ¥1"，所以按人民币记录并用登记汇率换算美元；本次 Default 三个现用模型价格与原目录数值相同。API 密钥必须固定在 Default，不能选 Auto（按实际路由分组计费，价格不固定）。
 
 当前完整价格、能力与步骤绑定以 [`config/model-providers.json`](../../config/model-providers.json) 为准，不另复制一份会漂移的目录。
 
 - 价格单位为每百万 token 的整数 micros，币种取供应商的 `currency`；按登记汇率换算为 USD micros（向上取整）。费用回执同时保存原币金额、汇率、价格与 `catalogVersion`。
 - **能力以最新实测为准**（[四轮原始证据](../evidence/2026-10-23-model-probe/README.md)）：网关 Claude 的工具调用在第三、四轮已恢复，但两轮均丢图，视觉不可用；Opus 小请求的输入计数最高约 11 万 token。第一、二轮“工具不可用、视觉可用”只作历史记录。
 - DeepSeek V4.1 Flash 的看图、工具、缓存及流式已测；`reasoning_effort` 仅确认接口接受，未证明真实推理强度改变。网关均未遵守所测 `json_schema`，须本地完整校验；Gemini 因延迟、参数丢失及后续 502 不再使用。
-- 当前 A/B/E 等步骤走网关 DeepSeek；规格 C 和冷审 F 分别改绑官方 Anthropic Opus/Sonnet。负责人暂不添加官方密钥，真实集成 `verified:false`；官方能力声明不算实测通过。运行前在首个付费请求之前检查全部后续必需模型的密钥与验证状态，不消费一半后再发现不可用。
+- 当前 C 走网关 Opus，A/B/E/F 等走网关 DeepSeek，共用已绑定的 `MODEL_COMPAT_API_KEY`。官方备用未绑定且 `verified:false`；当前全部步骤仍在首个付费请求前检查所需密钥、实测能力和历史费用，不消费一半后才发现不可用。
 - 原未计入统一预算的独立探针 Actions 已停用。后续换绑的真实探针也必须走共享预算预留/结算；当前不从归档脚本继续调用。
 - **换供应商**：
   1. 在 `providers` 填 `baseUrl`、币种和汇率，用 `wrangler secret put` 写入密钥；
@@ -1052,7 +1056,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 
 | 字段 | 值 |
 | --- | --- |
-| `catalogVersion` | `"models-2026-10-23"` |
+| `catalogVersion` | `"models-2026-10-24"` |
 | `maxMicrosPerCreativeRun` | 10000000（$10） |
 | `maxMicrosPerPatch` | 3000000（$3） |
 | `maxMicrosPerTargetPreparation` | 3000000（$3） |
@@ -1072,7 +1076,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   "purposes": ["calibration", "evaluation"],
   "models": ["modelswitch/deepseek-v4.1-flash-1017", "modelswitch/claude-sonnet-5-5",
              "modelswitch/claude-opus-5-5", "anthropic/claude-opus-5-5", "anthropic/claude-sonnet-5-5"],
-  "catalogVersion": "models-2026-10-23",
+  "catalogVersion": "models-2026-10-24",
   "approvedBy": "tianyu (tianyu@tinkerland.ai)",
   "approvedAt": "2026-10-22T18:12:00+08:00",
   "expiresAt": "2026-12-31T23:59:59+08:00",
@@ -1096,10 +1100,10 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - `agent-policy.json` 的 `enabled` 仍为 `false`：授权只开放负责人发起的研究调用，不开放给其他用户。
 - 本方案不做登录，所以预发布环境用 Cloudflare Access 保护 `api` 路由，只允许负责人的身份。OperationWorkflow 和 OperationDO 以 Access 签发、并经 Worker 校验的身份断言识别请求者，不信任请求体里自报的身份。正式登录按 12 接入后改用会话身份。
 
-**负责人在供应商控制台完成**（执行 Agent 不接触）：
+**新建凭据由负责人在供应商控制台完成**；既有凭据沿批准渠道复用，执行 Agent 不读取或索取其值：
 
 1. 为预发布与生产分别创建 API Key；供应商支持时设月度消费上限（例如 $350），作为授权总额之外的最后一道兜底，并设置提醒。用 Claude 时，在 Claude Console 新建 Workspace `promobento-staging` / `promobento-prod` 再建 Key。
-2. 用 `wrangler secret put` 写入预发布 Worker：OpenAI 兼容服务写 `MODEL_COMPAT_API_KEY`，Claude 写 `ANTHROPIC_API_KEY`。
+2. 网关（包括其中的 Claude）写 `MODEL_COMPAT_API_KEY`；只有直连 Anthropic 才写 `ANTHROPIC_API_KEY`。现有 Actions 网关密钥已通过[专用维护工作流](../../.github/workflows/model-runtime-key.yml)经 stdin 绑定到 staging Worker，不要求负责人重复添加。
 
 ---
 

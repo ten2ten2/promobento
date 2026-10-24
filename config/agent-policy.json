@@ -24,7 +24,7 @@
   },
   "cost": {
     "unit": "usd_micros",
-    "catalogVersion": "models-2026-10-23",
+    "catalogVersion": "models-2026-10-24",
     "hardBudgetScope": "operation_including_all_child_calls_and_attempts",
     "maxMicrosPerCreativeRun": 10000000,
     "maxMicrosPerPatch": 3000000,

@@ -77,6 +77,7 @@ export async function probeDirectorPreflight({json,upload,request,operationId,pr
  const save=()=>writeFileSync(directory+'/director-preflight-report.json',canonical(report));
  const budgetBefore=await json('model-budget');
  try{
+  if(budgetBefore.openingConfirmed!==false||budgetBefore.openingMicros!==null)throw Error('DIRECTOR_PREFLIGHT_REQUIRES_UNCONFIRMED_HISTORY');
   const resource=request.job.resources[0],blob=request.inputs.find(item=>item.name==='resource:'+resource.resourceId),font=request.options.fonts[0];
   const context=await upload(prefix+'/director-context.json',canonical({audience:'software',durationSeconds:15,aspects:['landscape'],seed:request.options.seed,
    brief:'Original internal engineering fixture; blocked preflight, no model requests.',runtimeVersion:request.job.runtimeVersion,rendererRelease:request.job.rendererRelease,
@@ -86,7 +87,8 @@ export async function probeDirectorPreflight({json,upload,request,operationId,pr
   do{
    snapshot=await json('operations/'+operationId+'/recovery');report.recovery=snapshot;save();
    if(snapshot.operation.status==='failed'&&snapshot.failure?.evidenceStored){
-    if(!['MODEL_SECRET_MISSING','MODEL_INTEGRATION_UNVERIFIED'].includes(snapshot.failure.code))throw Error('DIRECTOR_PREFLIGHT_WRONG_CAUSE');
+    const expected=process.env.EXPECTED_DIRECTOR_PREFLIGHT_CODE;
+    if(expected?snapshot.failure.code!==expected:!['MODEL_SECRET_MISSING','MODEL_INTEGRATION_UNVERIFIED','MODEL_HISTORY_RECONCILIATION_REQUIRED'].includes(snapshot.failure.code))throw Error('DIRECTOR_PREFLIGHT_WRONG_CAUSE');
     await json('workflows/reconcile',{method:'POST'});snapshot=await json('operations/'+operationId+'/recovery');
     if(snapshot.workflows.length===1&&snapshot.workflows[0].reconciled_at!==null)break;
    }

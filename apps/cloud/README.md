@@ -34,7 +34,7 @@
 
 每次模型调用先在共享 D1 原子预留：历史确认总额 + 所有环境的实际/未结预留 + 本次预留 ≤ 授权上限；然后再通过本地操作/阶段/次数门槛。仅能证明尚未发出请求的本地准入失败可释放为零；请求已派发但 usage 未知时保留预留。调用结果先把原始响应、usage 与当时价格/汇率不可变写入私有 R2，再解析和结算。结算写入中断可用同一个 callId 补账，不重发请求、不按新目录重算；缺响应时要求对账，不自动重试付费调用。
 
-原独立 `model-probe.yml` 已停用并移除；[历史脚本](../../research/model-probe/archive/probe-2026-10-23.mjs)只保留作来源。后续真实探针也必须纳入共享账本，不能从归档脚本绕过预算。官方 C/F 仍保留 `verified:false`，不因账本实现而视为已接通。
+原独立 `model-probe.yml` 已停用并移除；[历史脚本](../../research/model-probe/archive/probe-2026-10-23.mjs)只保留作来源。后续真实探针也必须纳入共享账本，不能从归档脚本绕过预算。当前 C 走网关 Opus，F 和其余步骤走网关 DeepSeek；官方备用未绑定，仍保留 `verified:false`。
 
 ## 部署
 
@@ -52,7 +52,7 @@ gh workflow run model-runtime-key.yml --ref main
 
 该维护入口只绑定 staging 的这一项，不构建镜像、不上传 Worker 代码、不调用模型或渲染，也不改模型步骤绑定/预算。它与 staging 部署共用互斥组，拒绝活动内部密钥、未结束操作或未结计算费用；已存在的模型绑定保留，不旋转或覆盖。Actions 只在该步骤向维护脚本注入密钥，Wrangler 子进程只从 stdin 接收该值，不经环境或参数传递，日志/产物只含名称、状态与健康结果。后续普通部署保留已有 secret。
 
-写入后核对 secret 名称和 `/healthz`；这仅证明配置存在，不是模型集成探针。若健康异常，只撤销本次新增的绑定；未知写入结果不重试、不猜测删除。需要人工撤销本次新增项时，通过已有授权运行 `wrangler secret delete MODEL_COMPAT_API_KEY --env staging`，先确认没有其他活动操作；不要删除其他 secret。官方 C/F 和历史费用门槛仍由服务端检查。
+写入后核对 secret 名称和 `/healthz`；这仅证明配置存在，不是模型集成探针。[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 已成功绑定，0 模型/渲染调用。若健康异常，只撤销本次新增的绑定；未知写入结果不重试、不猜测删除。需要人工撤销本次新增项时，通过已有授权运行 `wrangler secret delete MODEL_COMPAT_API_KEY --env staging`，先确认没有其他活动操作；不要删除其他 secret。当前网关 Claude 和 DeepSeek 共用此密钥，历史费用门槛仍由服务端检查。
 
 studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
@@ -62,7 +62,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 仅修复检查脚本、仍需验证原部署时，可在上述手动入口加 `-f staging_sha=<实际已部署完整SHA>`：跳过迁移、构建和部署，只修复并运行 harness。报告分别记录部署 SHA 和 harness SHA，不把新分支当成已部署。内部密钥写入后先等待只读鉴权就绪（最多 60 秒）；相邻请求仍可能看到旧密钥，此时仅对调度前的确切 `404 Not found` 有界等待，并记录次数。模型/渲染失败和不确定超时不自动重试。
 
-只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且容器、共享包、契约、配置、依赖与构建输入均未变化后，只部署 Worker，复用原镜像，不构建推送。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
+只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件、纯单元测试及容器 README；`agent-policy` 仅允许 `cost.catalogVersion` 标签不同，其余预算、限额、编码、渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
 
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
 
@@ -72,7 +72,19 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 ## 不消费云资源的导演回放
 
-`mise run test:cloud-local` 在本机预编译当前 Schema 后，用真实 `OperationWorkflow`、两种 SSE 适配器、SQLite 预算 SQL 和内存 R2 回放 A–C/E/F。覆盖三方向取帧请求、12 小时用户等待排除、review 修复、冷审拒绝、取消栅栏、缺许可/密钥/模型验证的提前阻断，以及未知消费保留预留。`fetch` 完全替换为固定 SSE，容器/成片为明确模拟，不访问外网、不读真实密钥、不构建 Mac 镜像；这些结果不代替媒体质量或 G1。官方模型仅在这个独立 mock bundle 中视为可回放，部署配置的 `verified=false` 不变。
+`mise run test:cloud-local` 在本机预编译当前 Schema 后，用真实 `OperationWorkflow`、两种 SSE 适配器、SQLite 预算 SQL 和内存 R2 回放 A–C/E/F。网关默认路径不提供官方密钥，另显式回放原生 Anthropic 适配器。覆盖三方向取帧、12 小时用户等待排除、规格/JSON 校验纠正、review 修复、各画幅冷审、取消栅栏、缺许可/密钥/模型验证的提前阻断，以及未知消费保留预留。`fetch` 完全替换为固定 SSE，容器/成片为明确模拟，不访问外网、不读真实密钥、不构建 Mac 镜像；这些结果不代替媒体质量或 G1。官方模型仅在这个独立 mock bundle 中视为可回放，部署配置的 `verified=false` 不变。
+
+### C 的校验纠正不重发未知消费
+
+C 的完整模型响应先保存并按 usage 结算；JSON、Schema 或 FilmSpec 跨字段错误以结构化 code/path 反馈，最多再纠正两次。每次仍用完整原需求、事实与素材，换新 callId/持久检查点，并受原阶段 3 次、费用、generation 和绝对期限约束。原 `spec` 成功检查点保持兼容；无效响应不缓存、不渲染、不当作免费。网络/截断/未知响应、权限、预算和期限错误不进入此纠正循环。
+
+### E/F 看全画幅阅读停留，不截断前 12/16 张
+
+每个画幅将全部实际阅读停留 PNG 按帧排序、保持比例拼成一张图；逐张核对 R2 字节身份并解码，拒绝空集合、重复帧、混合尺寸和原有 1 MiB 图片上限之外的结果。拼图一次只保留一个源帧的完整像素缓冲，继续使用已获许可的真实帧，不启动新渲染。每格的源引用、frame、位置、画幅、成片引用和拼图身份写入不可变 `review-images.json`，候选保存 `coldReviewEvidenceKey`；未占用格子明确为 padding。
+
+这样两画幅 F 只需两张图，既不丢竖屏或片尾，也不因逐张图片的最坏 token 预留超出原 $0.05 阶段预算。预算未放宽；网关 Claude 的视觉失败也未改成通过。这仍是**阅读停留帧**拼图，每秒缩略图与完整动态 Q1/Q2 仍按原切片继续实现。已用既有原生成片的横/竖屏 PNG 实际生成并查看拼图，没有调用模型或重新捕获。
+
+F 的具体 BLOCK 发现可触发一次规格修复，再经过 E、全画幅重渲和第二次独立 F；同一规格不变则以 `COLD_REVIEW_NO_CHANGE` 停止。E/F 共用最多两次 `internalRepairs`，不各自重置；C 的 3 次调用、F 的 2 次调用、阶段金额与整次期限也不重置。首次成功的检查点名称保留，修复影片另用新名称/引用，不覆盖先前成片。第二次 F 仍 BLOCK 或额度已用尽时不交付候选。
 
 ## 导演使用已批准的音乐
 
@@ -108,7 +120,7 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 
 新增路径用 `-f staging_scenario=lifecycle-recovery` 验收：只对本次新建的内部校准操作，在实际分段容器运行时取消；另一次原生强制终止后对账，再整次 restart 检查无新增计算/费用。另检查当前缺密钥/未验证模型的真实导演预检在消费前落失败，以及历史预算状态未被改写。产物为 `recovery-report.json` 与两条原生操作回执，不重做完整成片、13 风格或模型评测。每次操作结束再次确认停止，不删任务、源素材或费用证据；此场景不代替其余性能/安全 G1。
 
-只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。`preflight` 明确零重试，缺密钥、验证状态、许可或历史确认直接落失败；清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。
+只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。该零消费探针先要求历史开账仍明确未确认；历史已确认时拒绝派发，不能意外变成付费创作。当前独立场景要求首因为 `MODEL_HISTORY_RECONCILIATION_REQUIRED`，验证已配置的网关密钥与模型能力检查没有误拦；`preflight` 明确零重试，清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。
 
 ## G1 性能矩阵
 

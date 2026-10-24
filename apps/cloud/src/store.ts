@@ -24,13 +24,16 @@ export async function rights(env: PipelineEnv, op: Operation, resources: Json[])
   }
 }
 export async function immutableJson(env: PipelineEnv, key: string, value: unknown): Promise<BlobRef> {
-  const text = canonical(value), bytes = new TextEncoder().encode(text), hash = sha256Bytes(bytes);
+  return immutableBytes(env,key,new TextEncoder().encode(canonical(value)),'application/json');
+}
+export async function immutableBytes(env:PipelineEnv,key:string,bytes:Uint8Array,mediaType:string):Promise<BlobRef>{
+  const hash = sha256Bytes(bytes);
   const existing = await env.MEDIA.head(key);
   if (existing && existing.customMetadata?.sha256 !== hash) throw Error('IMMUTABLE_OBJECT_CONFLICT');
-  if (!existing) await env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}), httpMetadata: {contentType: 'application/json'}, customMetadata: {sha256: hash}});
+  if (!existing) await env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}), httpMetadata: {contentType: mediaType}, customMetadata: {sha256: hash}});
   const actual = await env.MEDIA.head(key);
   if (actual?.customMetadata?.sha256 !== hash || actual.size !== bytes.length) throw Error('IMMUTABLE_OBJECT_CONFLICT');
-  return {name: key.split('/').at(-1)!, key, sha256: hash, byteLength: bytes.length, mediaType: 'application/json'};
+  return {name: key.split('/').at(-1)!, key, sha256: hash, byteLength: bytes.length, mediaType};
 }
 export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
   const object = await env.MEDIA.get(key); if (!object || object.size > 8 << 20) throw Error('SOURCE_UNAVAILABLE');

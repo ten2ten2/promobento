@@ -71,4 +71,6 @@
 
 ## 当前步骤绑定
 
-`config/model-providers.json` 已按第三、四轮修正网关 Claude：工具可用、视觉不可用。规格 C 改绑官方 Anthropic Opus，冷审 F 改绑官方 Sonnet；负责人暂不添加 `ANTHROPIC_API_KEY`，两项真实集成仍未验证。现有报告不证明官方线路或真实宣传片质量已通过。
+`config/model-providers.json` 保留第三、四轮的网关 Claude 结果：工具可用、视觉不可用。2026-10-24 负责人提供[网关文档](https://api.modelswitch.org/docs)，明确 Claude 也用现有 `MODEL_COMPAT_API_KEY`；该密钥已由 [40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 绑定到 staging Worker。C 恢复网关 Opus 的文本规格，F 改为已实测可看图的网关 DeepSeek，避免因官方密钥未提供而阻断整条链路；官方模型只作未绑定/未验证备用。
+
+本次更新为 `models-2026-10-24`，Default 目录价格数值经公开模型页核对不变；上面的历史开账与 `models-2026-10-23` 计价快照原样保留，授权总额/起算不重置。没有据文档把 Claude 图片失败改为通过，也未新增付费探针；真实长提示和成片质量仍待评测。

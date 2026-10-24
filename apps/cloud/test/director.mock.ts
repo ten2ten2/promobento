@@ -8,16 +8,18 @@ import {ShardDO} from '../src/compute.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes,digest} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
+import {pngRgba} from '../src/director-sheets.mjs';
 import {immutableJson,settle} from '../src/store.ts';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import providers from '../../../config/model-providers.json';
 import platform from '../../../config/platform-presets.json';
 import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetStatus} from '../src/model-budget.ts';
 
-const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=','base64'));
+const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
- audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false}={}){
+ audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
@@ -28,21 +30,24 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  };},async batch(statements:any[]){db.exec('BEGIN');try{const rows=statements.map(statement=>statement.runSync());db.exec('COMMIT');return rows;}catch(error){db.exec('ROLLBACK');throw error;}}};
  const objects=new Map<string,any>();
  const MEDIA={async head(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,httpMetadata:value.httpMetadata}:null;},
-  async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,arrayBuffer:async()=>value.bytes.slice().buffer}:null;},
+  async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
   async put(key:string,input:any,options:any){if(objects.has(key)&&options?.onlyIf?.get('If-None-Match')==='*')return null;
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
  let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[];
  const healthCache=new Map<string,string>();
- const originalDate=Date.now,originalFetch=globalThis.fetch,originalVerified=providers.models['anthropic/claude-opus-5-5'].capabilities.verified;
+ const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec,originalCold=providers.steps.coldReview;
+ if(nativeProtocol){providers.steps.spec='anthropic/claude-opus-5-5';providers.steps.coldReview='anthropic/claude-sonnet-5-5';}
+ const specModel=(providers.models as any)[providers.steps.spec],originalVerified=specModel.capabilities.verified;
  Date.now=()=>clock;
- if(unverified)providers.models['anthropic/claude-opus-5-5'].capabilities.verified=false;
+ if(unverified)specModel.capabilities.verified=false;
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
+ const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
  const submitted={toolCalls:[{id:'mock-submit',name:'submit_candidate',arguments:'',input:{note:'Synthetic fixture accepted.'}}]};
  const context={audience:'software',durationSeconds:15,aspects:['landscape','portrait'],seed:options.seed,brief:'Original fictional engineering fixture, internal mock only.',
   runtimeVersion:'film-runtime-v1',rendererRelease:'fixture-release',fonts:options.fonts,confirmedFactIds:['fixture-cta'],facts:[{id:'fixture-cta',text:spec.texts.cta.text}],resources:[] as any[],audioSources:[] as any[]};
- const env:any={DB,MODEL_LEDGER:DB,PIPELINE_ENVIRONMENT:'offline',MEDIA,MODEL_COMPAT_API_KEY:'fixture-not-a-secret',...(missingKey?{}:{ANTHROPIC_API_KEY:'fixture-not-a-secret'}),
+ const env:any={DB,MODEL_LEDGER:DB,PIPELINE_ENVIRONMENT:'offline',MEDIA,...(missingKey?{}:{MODEL_COMPAT_API_KEY:'fixture-not-a-secret'}),...(nativeProtocol&&!missingKey?{ANTHROPIC_API_KEY:'fixture-not-a-secret'}:{}),
   COORDINATOR:{getByName(){return{async rendererHealth(key:string){return healthCache.get(key)??'null';},async rememberRendererHealth(key:string,value:string){healthCache.set(key,value);}};}},
   SHARDS:{getByName(){return{async stopAndSettle(){},async imageDigest(){return'sha256:'+'a'.repeat(64);}};}},
   OPERATIONS:{getByName(){return{
@@ -55,13 +60,13 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   };}},
   OUTBOX:{async send(item:any){if(item.kind!=='render')throw Error('MOCK_UNEXPECTED_OUTBOX');
    const input=await(await MEDIA.get(db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(item.payloadJson?parseCanonicalJson(item.payloadJson).renderId:item.id.slice(7)).job_key))!.arrayBuffer();
-   const request=parseCanonicalJson(new Uint8Array(input)),frame=await immutableJson(env,`renders/${request.job.renderId}/mock-observation.png`,{mock:'not rendered'});
+   const request=parseCanonicalJson(new Uint8Array(input)),frame=await immutableJson(env,`renders/${request.job.renderId}/mock/observation-frames/45.png`,{mock:'not rendered'});
    assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',mode:'audio',instance:'standard-1',taskId:'mock-audio-task',brokerToken:'fixture-non-secret-token',job:request.job,inputs:request.audioInputsBlobs,audioInputs:request.audioInputs});
    if(audio){assert.equal(request.audioInputs.scores[0][0],'music');assert.equal(request.audioInputs.clearedSources[0].requestHash,digest({text:request.audioInputs.scores[0][1],totalFrames:450}));
     assert.equal(request.audioInputsBlobs[1].name,'audio:music');assert.ok(request.job.resources.some((r:any)=>r.kind==='audio'));}
    // Real PNG bytes only for SSE image transport; this render is explicitly simulated.
    objects.set(frame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});frame.sha256=sha256Bytes(png);frame.byteLength=png.length;frame.mediaType='image/png';
-   const result={status:'passed',outputs:[],observationFrames:[frame],media:{scope:'simulated_not_media_evidence'}};
+   const result={renderId:request.job.renderId,status:'passed',outputs:[],observationFrames:[frame],media:{scope:'simulated_not_media_evidence'}};
    db.prepare("UPDATE pipeline_renders SET status='passed',result_json=? WHERE id=?").run(canonical(result),request.job.renderId);
   }}};
  const opening=await importModelOpening(env,{kind:'historical_model_spend',authorizationId:modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline synthetic fixture; no provider spend'],entries:[]});
@@ -82,7 +87,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation','res_original_score',sha256,'LicenseRef-Original-Fixture','evals/mock/audio-rights.json','internal_eval_only',null);
  }
  await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key) VALUES(?,?)').run('mock-operation','evals/mock/context.json');
- let reviewRound=0;
+ let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
   // No native fetch fallback: any unexpected URL fails before network access.
   const target=String(url),body=parseCanonicalJson(init.body);networkCalls++;
@@ -94,19 +99,26 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   if(input.task.startsWith('Organize')){stage='facts';value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
   else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:false,skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
-  else if(input.task.startsWith('Write')){stage='spec';value=clone(spec);if(badSpec)value.scenes[1].start=200;}
-  else if(input.task.startsWith('Review')){stage='review';value=alwaysRepair||repair&&reviewRound++===0?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
-  else if(input.task.startsWith('Independently')){stage='coldReview';value={schemaVersion:'3.0.0',kind:'cold_review',verdict:coldBlock?'block':'pass',issues:coldBlock?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
+  else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
+   if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
+   if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
+   if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
+   value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;}
+  else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
+   const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
+   value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
+  else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
+   const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');models.push(stage);
-  const data=(value:any)=>'data: '+canonical(value)+'\n\n';let sse='';
+  const data=(value:any)=>'data: '+canonical(value)+'\n\n';let sse='';const reply=stage==='spec'&&malformedSpec&&specRequests===1?'{':canonical(value);
   if(provider.kind==='anthropic'){
    assert.ok(init.headers['x-api-key']);assert.ok(body.output_config.format);assert.equal(body.system[0].cache_control.ttl,'1h');
-   sse=data({type:'message_start',message:{usage:{input_tokens:100,output_tokens:0}}})+data({type:'content_block_delta',index:0,delta:{type:'text_delta',text:canonical(value)}})
+   sse=data({type:'message_start',message:{usage:{input_tokens:100,output_tokens:0}}})+data({type:'content_block_delta',index:0,delta:{type:'text_delta',text:reply}})
     +data({type:'message_delta',delta:{stop_reason:'end_turn'},usage:{output_tokens:50}})+data({type:'message_stop'});
   }else{
    assert.ok(init.headers.authorization);assert.equal(body.stream_options.include_usage,true);
    if(value.toolCalls){assert.ok(body.tools?.length);const call=value.toolCalls[0];sse+=data({choices:[{delta:{tool_calls:[{index:0,id:call.id,function:{name:call.name,arguments:canonical(call.input)}}]}}]});}
-   else sse+=data({choices:[{delta:{content:canonical(value)}}]});
+   else sse+=data({choices:[{delta:{content:reply}}]});
    sse+=data({choices:[{delta:{},finish_reason:value.toolCalls?'tool_calls':'stop'}],usage:{prompt_tokens:100,completion_tokens:50}})+'data: [DONE]\n\n';
   }
   return new Response(sse,{headers:{'content-type':'text/event-stream'}});
@@ -120,27 +132,41 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  try{
   let result:any,error:any;try{result=await new OperationWorkflow({} as any,env).run({payload:{operationId:'mock-operation'}} as any,step);}catch(value){error=value;}
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
-  return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,
+  return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env)};
- }finally{Date.now=originalDate;globalThis.fetch=originalFetch;providers.models['anthropic/claude-opus-5-5'].capabilities.verified=originalVerified;db.close();}
+ }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;providers.steps.coldReview=originalCold;db.close();}
 }
 
 test('A-C/E/F replay both SSE adapters, three real-protocol still requests and user wait exclusion',async()=>{
- const r=await fixture();assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.publicUseCleared,false);assert.equal(r.result.ownerNormalSpeedReview,'pending');
+ for(const nativeProtocol of [false,true]){
+ const r=await fixture({nativeProtocol});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.publicUseCleared,false);assert.equal(r.result.ownerNormalSpeedReview,'pending');
  assert.deepEqual(r.models,['facts','assets','directions','spec','review','coldReview']);assert.equal(r.reservations,6);assert.equal(r.settlements,6);
  assert.equal(r.choiceCount,1);assert.equal(r.studioCount,5);assert.equal(r.closedCount,5);assert.equal(r.activeStudio,null);assert.equal(r.renders.length,3);
+ }
 });
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);
 });
 test('cold-review rejection withholds candidate delivery',async()=>{const r=await fixture({coldBlock:true});assert.match(r.error.message,/COLD_REVIEW_BLOCK/);assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/failure.json$/);assert.equal(r.activeStudio,null);});
+test('cold-review correction rerenders every aspect, re-reviews and shares the two internal repairs with E',async()=>{
+ const good=await fixture({fixableCold:true,repair:true});assert.ifError(good.error);assert.equal(good.result.internalRepairs,2);assert.equal(good.specRequests,2);
+ assert.equal(good.models.filter(stage=>stage==='coldReview').length,2);assert.equal(good.renders.filter((row:any)=>row.id===good.result.final[0].renderId).length,1);
+ assert.match(good.result.film.texts.headline.text,/worth watching/);assert.equal(good.renders.length,7);assert.equal(good.reservations,good.settlements);
+ const spent=await fixture({twoReviewRepairs:true,coldBlock:true});assert.equal(spent.error.message,'COLD_REVIEW_BLOCK');assert.equal(spent.specRequests,1);assert.equal(spent.models.filter(stage=>stage==='coldReview').length,1);assert.equal(spent.models.filter(stage=>stage==='review').length,3);
+});
 test('missing later key, unverified integration and missing rights stop before any model request',async()=>{
  for(const [options,code]of [[{missingKey:true},'MODEL_SECRET_MISSING'],[{unverified:true},'MODEL_INTEGRATION_UNVERIFIED'],[{noRights:true},'ASSET_RIGHTS_PENDING']] as const){
   const r=await fixture(options);assert.equal(r.error.message,code);assert.equal(r.networkCalls,0);assert.equal(r.reservations,0);assert.equal(r.state.status,'failed');}
 });
 test('unknown transport spend remains reserved and is not silently retried or settled as zero',async()=>{const r=await fixture({transportFailure:true});assert.equal(r.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(r.networkCalls,1);assert.equal(r.reservations,1);assert.equal(r.settlements,0);});
-test('invalid generated spec is charged but not rendered or cached as a candidate',async()=>{const r=await fixture({badSpec:true});assert.match(r.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(r.renders.length,0);assert.equal(r.settlements,4);assert.match(r.state.result_key,/failure.json$/);});
+test('spec validation repairs completed output only, preserves charges and stops after two corrections',async()=>{
+ const fixed=await fixture({fixableSpec:true});assert.ifError(fixed.error);assert.equal(fixed.specRequests,2);assert.equal(fixed.settlements,7);assert.equal(fixed.renders.length,3);
+ assert.equal(fixed.validationFeedback[0].code,'FILM_SEMANTICS_INVALID');assert.ok(fixed.validationFeedback[0].issues.some((issue:any)=>issue.path==='/scenes/1/start'));
+ const json=await fixture({malformedSpec:true});assert.ifError(json.error);assert.equal(json.specRequests,2);assert.equal(json.validationFeedback[0].code,'MODEL_OUTPUT_JSON_INVALID');assert.equal(json.settlements,7);
+ const bad=await fixture({badSpec:true});assert.match(bad.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(bad.specRequests,3);assert.equal(bad.renders.length,0);assert.equal(bad.settlements,6);assert.match(bad.state.result_key,/failure.json$/);
+ const unknown=await fixture({specTransportFailure:true});assert.equal(unknown.error.message,'MOCK_SPEC_TRANSPORT_FAILURE');assert.equal(unknown.specRequests,1);assert.equal(unknown.reservations,4);assert.equal(unknown.settlements,3);assert.equal(unknown.modelBudget.pending.length,1);assert.equal(unknown.renders.length,0);
+});
 test('cancellation fences the next paid stage and preserves the cancelled status',async()=>{const r=await fixture({cancel:true});assert.equal(r.error.message,'OPERATION_FENCED');assert.equal(r.state.status,'cancelled');assert.deepEqual(r.models,['facts','assets','directions']);assert.equal(r.activeStudio,null);});
 
 test('admitted ABC follows the actual director-to-render path; missing independent approval spends nothing',async()=>{
