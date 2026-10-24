@@ -1,4 +1,4 @@
-# S1 真实导演：有限预算已开放，首题 review 码率阻断
+# S1 真实导演：横竖媒体已生成，冷审输出截断
 
 2026-10-24 负责人要求「放开一点预算门槛，继续 S1」。本次在原 $300 授权中取 $5 历史风险预留、staging 新增模型实际/未知预留累计上限 $10，至 2026-10-31 上海时间结束。原授权身份、起算、历史清单和确认空值保留；风险预留不等于核实账单。配置与语义见 [14 预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。
 
@@ -72,3 +72,15 @@ mise exec -- node research/evals/run-case.mjs \
 [完整费用与回收回执](fifth-attempt/report.json)：本次模型 **10,329**、8 次计算保守上界合计 **5,243**，总计 **15,572 usd_micros**。计算全部物理停止并结算，容量为空、原生 Workflow 已 errored/对账、临时密钥已删除。共享模型实收 **57,475** 加旧截断预留 **6,196**，占用 **63,671 usd_micros**；历史确认仍为空。
 
 旧回退沿用正常分段的两秒 VBV reservoir，不能保证滑动一秒峰值。后续只收紧纠正编码的 maxrate/buffer，并把纠正前后实测峰值写入结果；一秒码率门槛、正常分段、尺寸、fps、音频与其他 QA 不变。该修改涉及容器真实源码，必须由 Actions 构建并使用新 release，旧 G1 证据仍绑定原候选，不能以旧镜像复用绕过更新。
+
+## 第六次：码率修复、E 与横竖渲染通过，F 在原 1,024 token 输出上限截断
+
+[40092112348](https://github.com/ten2ten2/promobento/actions/runs/40092112348) 在 `dda33944656156b2edd37eac8899d013e8464d8c` 由 Actions 实际构建并推送新镜像 `sha256:6e58bae5dc9a2117652cf8829721546d9b2cd51d5c723c34dfaff2deb1606986`，Worker `5d5992a0-7ed6-42d9-8330-3cee62c64c1e`。只部署/读健康，未重跑原 G1/隔离/配乐矩阵，自动全套 push `40092105527` 已取消。新输入固定 `renderer-dda339446561`，旧 release 不改绑。
+
+操作 `eval-deepseek-15-1792843644103`，输出 `artifacts/s1-deepseek-15-vbv-2026-10-24`。新方向图已逐张查看并[选择 Fit](sixth-attempt/choice.json)；A/素材复用，B 和新 release 对应的 C 按新请求计费。规格一次纠正通过，真实 review 及 E 的 `submit_candidate` 已通过，横/竖两部 **15 秒、450 帧、1080p/30 fps/AAC** 已实际生成并提交。review 的滑动一秒峰值由 3,785,344 降至 **1,577,016** bit/s，横版由 14,578,464 降至 **6,238,848**，竖版由 11,731,512 降至 **5,583,520**；分别低于原 2.5M / 10M 门槛，未调宽标准。媒体报告见[实际回执](sixth-attempt/media-diagnosis.json)。
+
+冷审确实读取两画幅，但[原始响应](sixth-attempt/cold-review-response.json)在 **1,024 completion token** 时以 `length` 结束，只输出分析散文，没有完整 verdict JSON。新适配器已保存 partial/usage 并结算 **673 usd_micros**，没有把失败记作未知、JSON 通过或冷审通过。操作正确失败，没有交付合格候选；私有 MP4 只取回作内部诊断。实际封面显示 API 镜头的卡片大而空，仍需冷审和创意修复，不因编码通过认定质量合格。
+
+[完整费用/回收](sixth-attempt/report.json)：5 次模型 **28,117**，18 次计算均已停止/结算 **21,012** 保守上界，总计 **49,129 usd_micros**；容量/本轮未知为空，Workflow 已对账、临时内部密钥已删除。共享模型实收 **85,592** 加旧未知 **6,196**，共占用 **91,788 usd_micros**。
+
+下一候选把 F 的输出空间改为 8,192，并在用户消息中明确同一 JSON Schema/禁止分析散文；仍是原 2 次调用、$0.05 阶段预算、全画幅和独立模型检查。截断不自动重试，也不缓存或捏造原 verdict；此 Worker-only 修正复用本节已验证的新镜像。
