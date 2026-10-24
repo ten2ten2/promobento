@@ -85,6 +85,12 @@ export default {
           .bind(op.id,input.resourceId,input.sha256,input.licenseRef,input.evidenceKey,input.scope).run();
         return new Response(null, {status: 201});
       }
+      const releaseRoute=/^\/internal\/s1\/releases\/([A-Za-z0-9_-]{4,96})$/.exec(path);
+      if(releaseRoute&&request.method==='GET'){
+        const row=await env.DB.prepare('SELECT * FROM renderer_releases WHERE id=?').bind(releaseRoute[1]).first<Json>();
+        if(!row)return new Response(null,{status:404});
+        return Response.json({...row,currentImageDigest:await env.SHARDS.getByName('release-metadata').imageDigest()});
+      }
       if (request.method === 'POST' && path === '/internal/s1/releases') {
         const input = await readJson(request);
         input.imageDigest = await env.SHARDS.getByName('release-metadata').imageDigest();

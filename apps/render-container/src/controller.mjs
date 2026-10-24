@@ -158,7 +158,8 @@ const server = http.createServer(async (request, response) => {
       task = input; requestHash = identity; result = {status: 'active', taskId: input.taskId};
       const limit = input.mode === 'studio' ? 20 * 60000 : input.mode === 'shard' ? (input.shard.end - input.shard.start) * (input.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
       void deadline(execute(input), limit, 'RENDER_DEADLINE', () => abort.abort()).then(value => { if (value) result = value; },
-        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:filesystemDiagnostic(error)}; })
+        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:filesystemDiagnostic(error),
+          ...(error.bitrateCorrection?{bitrateCorrection:error.bitrateCorrection}:{})}; })
         .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
     }
     response.writeHead(202, {'content-type': 'application/json'}).end(canonical({taskId: task.taskId, status: result.status}));

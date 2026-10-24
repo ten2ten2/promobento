@@ -4,6 +4,8 @@
 
 内部入口位于 `/internal/s1/`：`operations`、不可变 `objects/evals/…`、许可 `rights`、镜像 `releases`、`renders`、`studio`、`creative`；`artifacts/<key>` 只读取当前许可仍有效的已发布输出或已登记方向帧；操作可通过 `operations/<id>/events` 收取进度、`operations/<id>/frames/<frame>` 取许可帧、`operations/<id>/cancel` 取消。请求原文经共享解析器；渲染私有传输经预编译完整 Schema。实际权利记录必须在处理前入 D1，并引用私有 R2 中的来源/许可证据；不能拿素材 JSON 自报清权代替这一步。
 
+`GET releases/<id>` 返回固定登记及当前容器元数据的镜像摘要，用于执行前核对，缺失返回 404。新镜像须以新 release 登记，不能覆盖旧引用；`POST releases` 从实际容器元数据取摘要，不信任调用者声明的 imageDigest。查询不启动计算。
+
 已就绪的 studio 可用 `POST operations/<id>/studio/check/<frame>` 对授权帧重新取 PNG 并执行实际 CDP 阅读观测；返回该帧、取帧/观测耗时和原始 `frame_observation`，不是完整动态 Q1。`POST …/studio/benchmark/<frame>` 只允许 `calibration` 操作，在同一帧比较 PNG、JPEG90/92/95；普通评测仍只用 standard-3，只有校准允许 standard-4。每个工具都重新核对 generation/许可及原 task 的允许帧，控制器串行化整个 seek/截图/观测，拒绝交错命令；不能借诊断扩大素材或帧权限。
 
 `RenderWorkflow` 执行分段、声音、接缝/阅读停留观测、拼接和 generation-fenced 提交；`ShardDO` 每次 attempt 使用独立容器，禁网，仅挂该任务的 broker；`CoordinatorDO` 在确认停止前持有并发 lease；`OperationDO` 管 studio 与进度。取消先推进 generation、撤销后续读写，再经 outbox 停止实例。任务、回执、冻结输出引用、费用预留与结算保留；重试不得覆盖已提交字节。

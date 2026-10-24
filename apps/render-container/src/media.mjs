@@ -3,15 +3,19 @@ import {createReadStream} from 'node:fs';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {childProcess, deadline, run, write} from './process.mjs';
 
-export function videoArgs({width, height, encoding, threads}) {
+export function videoArgs({width, height, encoding, threads, strictWindow = false}) {
   if (![width, height].every(n => Number.isInteger(n) && n > 0 && n % 2 === 0)
     || ![1, 2, 4].includes(threads) || encoding.videoCodec !== 'h264' || ![15, 30].includes(encoding.fps)
     || encoding.gopFrames !== 15 || encoding.pixelFormat !== 'yuv420p') throw Error('ENCODING_PROFILE_UNSUPPORTED');
+  // VBV maxrate with a two-second reservoir is not a one-second packet-window ceiling.
+  // Only the existing correction pass uses headroom + a smaller reservoir; normal shards stay unchanged.
+  const rate=strictWindow?Math.floor(encoding.maxVideoBitrate*.7):encoding.maxVideoBitrate;
+  const buffer=strictWindow?Math.floor(encoding.maxVideoBitrate*.2):encoding.maxVideoBitrate*2;
   return ['-c:v', 'libx264', '-preset', 'fast', '-profile:v', encoding.profile, '-pix_fmt', 'yuv420p',
     '-vf', `scale=${width}:${height}:out_color_matrix=bt709:out_range=tv,setsar=1`, '-r', String(encoding.fps), '-fps_mode', 'cfr', '-g', '15', '-keyint_min', '15',
     '-sc_threshold', '0', '-bf', '0', '-flags', '+cgop', '-threads', String(threads),
-    '-b:v', String(encoding.targetVideoBitrate), '-maxrate', String(encoding.maxVideoBitrate),
-    '-bufsize', String(encoding.maxVideoBitrate * 2), '-color_primaries', 'bt709', '-color_trc', 'bt709',
+    '-b:v', String(Math.min(encoding.targetVideoBitrate,rate)), '-maxrate', String(rate),
+    '-bufsize', String(buffer), '-color_primaries', 'bt709', '-color_trc', 'bt709',
     '-colorspace', 'bt709', '-color_range', 'tv'];
 }
 
@@ -89,17 +93,20 @@ export async function assemble({shards, audioPath, outputPath, posterPath, cover
     await deadline(process.done, 60000, 'ASSEMBLE_TIMEOUT', () => process.child.kill('SIGKILL'));
   } catch (error) { process.child.kill('SIGKILL'); throw error; }
   let report = await validateVideo(outputPath, {...config, totalFrames, hasAudio: Boolean(audioPath), maxBytes}, signal);
-  let reencoded = false;
+  let reencoded = false,bitrateCorrection;
   if (report.maxWindowBitrate > config.encoding.maxVideoBitrate) {
     const destination = outputPath + '.vbv.mp4';
     await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', outputPath, '-map', '0:v:0',
-      ...videoArgs(config), '-map', '0:a?', '-c:a', 'copy', '-movflags', '+faststart', destination],
+      ...videoArgs({...config,strictWindow:true}), '-map', '0:a?', '-c:a', 'copy', '-movflags', '+faststart', destination],
     {timeoutMs: totalFrames * 200 + 60000, signal});
     const {renameSync} = await import('node:fs'); renameSync(destination, outputPath); reencoded = true;
+    const initialMaxWindowBitrate=report.maxWindowBitrate;
     report = await validateVideo(outputPath, {...config, totalFrames, hasAudio: Boolean(audioPath), maxBytes}, signal);
-    if (report.maxWindowBitrate > config.encoding.maxVideoBitrate) throw Error('OUTPUT_BITRATE_EXCEEDED');
+    bitrateCorrection={initialMaxWindowBitrate,correctedMaxWindowBitrate:report.maxWindowBitrate,limit:config.encoding.maxVideoBitrate,
+      vbvMaxRate:Math.floor(config.encoding.maxVideoBitrate*.7),vbvBufferBits:Math.floor(config.encoding.maxVideoBitrate*.2)};
+    if (report.maxWindowBitrate > config.encoding.maxVideoBitrate) throw Object.assign(Error('OUTPUT_BITRATE_EXCEEDED'),{bitrateCorrection});
   }
   await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', outputPath, '-vf', `select=eq(n\\,${coverFrame})`,
     '-frames:v', '1', posterPath], {signal});
-  return {...report, reencoded};
+  return {...report, reencoded,...(bitrateCorrection?{bitrateCorrection}:{})};
 }

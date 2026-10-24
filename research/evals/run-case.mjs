@@ -59,6 +59,15 @@ try{
  if(!ready)throw Error('EVAL_SECRET_PROPAGATION_TIMEOUT');
  report.budgetBefore=await json('model-budget');
  if(!['provisional','confirmed'].includes(report.budgetBefore.budgetBasis))throw Error('MODEL_BUDGET_NOT_READY');
+ let release=await json('releases/'+context.rendererRelease,{allowMissing:true});
+ if(!release){
+  const environment=await json('objects/'+prefix+'/environment.json',{method:'PUT',body:new TextEncoder().encode(canonical({gitSha:report.sourceSha,
+    environmentLock:read('apps/render-container/environment.lock.json')}))});
+  await call('releases',{method:'POST',body:{id:context.rendererRelease,runtimeVersion:context.runtimeVersion,environmentKey:environment.key}});
+  release=await json('releases/'+context.rendererRelease);
+ }
+ if(release.status!=='active'||release.runtime_version!==context.runtimeVersion||release.image_digest!==release.currentImageDigest)throw Error('EVAL_PINNED_RENDERER_NOT_DEPLOYED');
+ report.renderer=release;save();
  operationAttempted=true;
  await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'s1-'+item.topicId,purpose:'evaluation',maxMicros:3000000}});
  for(const admission of item.rightsAdmissions)await call('rights',{method:'POST',body:{operationId,...admission}});
