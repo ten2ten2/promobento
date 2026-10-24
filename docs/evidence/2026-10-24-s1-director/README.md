@@ -251,4 +251,6 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 同一运行时代码 `11ecd6253c9a0f3fd5ea1fc8a1c6321d390b4448` 经 [40128702674](https://github.com/ten2ten2/promobento/actions/runs/40128702674)部署，镜像 `sha256:16af910a0feaa625f704aafe14319a53bd3be94b590c3975c9547c94fd137ee2`。原规格操作 `eval-minimax-15-1792873401314` 的[实际 review](journey-native-cpu/review-render.json)仍在 149 帧被拦下，最大 **27**、差异 **0.18614969135802467%**；299 帧全零。已看原两张 PNG，空白已消除、产品图正常，但不据此绕过数值门槛。[四次计算](journey-native-cpu/report.json)均停止/结算 **8,059 usd_micros**，0 模型，共享占用仍 **310,551**，临时密钥回收。
 
-下一候选按 [Chromium 的资源复用选项](https://chromium.googlesource.com/chromium/src/+/1eab1994ee10fe58b342d8d89cb0b22e9f72201c/ui/base/ui_base_switches.cc)在真实启动器和 CI 同时禁止近似尺寸的合成资源复用。保留原时间轴、捕获比例、沙箱、图片和容差，不启用 `deterministic-mode`。由于启动参数影响整个逐帧捕获，复查原四画幅 72 项加 PNG 旅程，媒体/配乐/模型不重跑；语法检查通过，浏览器与原片结果待验。
+`fd6bc03` 按 [Chromium 的资源复用选项](https://chromium.googlesource.com/chromium/src/+/1eab1994ee10fe58b342d8d89cb0b22e9f72201c/ui/base/ui_base_switches.cc)禁止近似尺寸的合成资源复用。[40129860364](https://github.com/ten2ten2/promobento/actions/runs/40129860364)的[实际报告](journey-raster/non-exact-resource-candidate.json)保留原 72 项通过，但 PNG review 的 185 帧逆序仍失败（最大 **13**、差异 **9.95949074074074%**）；该选项无效已撤回，没有部署。
+
+当前修正引擎的绘制顺序：先设置当前帧的可见性、透明度和场景变换，再调用积木绘制；不再让 canvas 在重置为隐藏/无变换的场景中绘制后才设置实际位置，零位移也不保留恒等 transform。时间轴、图片、文字、点选和原容差不变。引擎顺序影响全部逐帧捕获，因此复查原 72 项加 PNG 旅程，不重跑媒体/配乐/模型；运行时类型检查通过，实际结果待验。

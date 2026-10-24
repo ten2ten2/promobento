@@ -95,13 +95,15 @@ async function draw(frameIndex: number): Promise<void> {
     for (const layer of layers) {
       const value = instances.get(layer.id)!;
       value.root.style.display = 'block';
+      // Establish this frame's actual scene geometry before a block paints its canvas.
+      // Painting under the reset/hidden geometry can cache the preceding frame's raster scale.
+      value.root.style.visibility = 'visible'; value.root.style.opacity = String(layer.opacity);
+      value.root.style.transform = layer.x === 0 ? 'none' : `translateX(${layer.x * current.target.width}px)`;
+      value.root.style.filter = layer.blur ? `blur(${layer.blur}px)` : 'none';
       value.random.reset();
       value.instance.timeline?.pause();
       value.instance.timeline?.seek(layer.seconds, true);
       await value.instance.render?.(layer.seconds);
-      value.root.style.visibility = 'visible'; value.root.style.opacity = String(layer.opacity);
-      value.root.style.transform = `translateX(${layer.x * current.target.width}px)`;
-      value.root.style.filter = layer.blur ? `blur(${layer.blur}px)` : 'none';
     }
     for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = frameIndex / 30 * 1000; }
     await clock!.paint(current.frameTimeoutMs);
