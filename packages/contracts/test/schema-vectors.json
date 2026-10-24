@@ -1,4 +1,5 @@
 [
+  {"schema":"audio-admission","value":{"kind":"audio_source_catalog","sources":[]}},
   {
     "schema": "film",
     "file": "contracts/film.example.json"

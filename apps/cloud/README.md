@@ -20,6 +20,8 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1：30 秒分段成片、性能分布、standard-3/4 对比、真实中途取消与重启仍需验收。一般工程片仍使用默认 `engineering` 场景。
 
+验证新排队/声音集成时选 `-f staging_scenario=webgl-film`：一部 30 秒、24 个 standard-4 分段的原创 3D 校准片，共享工作区 24 个名额，另有程序配乐和四种 lead-in。沿用内部操作 1,000,000 usd_micros 预算，实际费用另从不可变结算收集，不当作预算全额消耗。该场景保存声音/分段计划、实际成片、接缝、只读费用清单与私有下载；不重复先前的四画幅 studio 比较或 13 风格样曲。单次计时不作为 p50/p95 或完整 G1。
+
 仅修复检查脚本、仍需验证原部署时，可在上述手动入口加 `-f staging_sha=<实际已部署完整SHA>`：跳过迁移、构建和部署，只修复并运行 harness。报告分别记录部署 SHA 和 harness SHA，不把新分支当成已部署。内部密钥写入后先等待只读鉴权就绪（最多 60 秒）；相邻请求仍可能看到旧密钥，此时仅对调度前的确切 `404 Not found` 有界等待，并记录次数。模型/渲染失败和不确定超时不自动重试。
 
 只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且容器、共享包、契约、配置、依赖与构建输入均未变化后，只部署 Worker，复用原镜像，不构建推送。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
@@ -31,6 +33,20 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 ## 不消费云资源的导演回放
 
 `mise run test:cloud-local` 在本机预编译当前 Schema 后，用真实 `OperationWorkflow`、两种 SSE 适配器、SQLite 预算 SQL 和内存 R2 回放 A–C/E/F。覆盖三方向取帧请求、12 小时用户等待排除、review 修复、冷审拒绝、取消栅栏、缺许可/密钥/模型验证的提前阻断，以及未知消费保留预留。`fetch` 完全替换为固定 SSE，容器/成片为明确模拟，不访问外网、不读真实密钥、不构建 Mac 镜像；这些结果不代替媒体质量或 G1。官方模型仅在这个独立 mock bundle 中视为可回放，部署配置的 `verified=false` 不变。
+
+## 导演使用已批准的音乐
+
+图片仍放 `context.resources`；可选的 `context.audioSources` 单独列出最多四个音乐源，不送入看图模型。每项提供 `kind: "score" | "upload"`、`resourceId`、`sha256`、私有 `evals/…` 的 `key`、`byteLength`；ABC 另有 FilmSpec 使用的 `scoreRef`（例如 `audio/original.abc`）。不接受目录中自报的 `rightsCleared` 或许可证；可信宿主从 D1 权利行和私有 R2 证据读取许可。完整结构见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)。
+
+先按既有内部入口上传不可变素材与证据，再登记 `rights`。音源证据须含 `kind: "audio_source_rights"`、当前 `operationId`、匹配的 `resourceId`/`sha256`/`licenseRef`、`scope: "internal_eval_only"`、`approvedBy: "owner"`、实际 `source` 和 `basis`。ABC 还须由负责人独立批准 `scoreApprovals: [{totalFrames, requestHash}]`：`requestHash = digest({text, totalFrames})`，其中 text 为源文件严格 UTF-8 解码文本，totalFrames 为 450 或 900。15 秒的批准不能用于 30 秒；不能从模型返回的 FilmSpec 推导批准。
+
+预检先核对许可，再读源文件；ABC 上限 16 KiB、上传音乐上限 8 MiB。FilmSpec 只选择已批准的 `scoreRef` 或 `resourceId`，宿主确定性生成 AudioPlan、`audio:music` 字节输入及独立清权记录；容器再核对实际摘要、谱文本与批准时长，然后解析/合成。上传仅支持现有有界 WAV 解码器的 mono/stereo PCM16/24、44.1/48 kHz、最长 30 秒子集，源必须覆盖整段，不自动循环或补静音。音轨素材也进入 job 的权利清单，后续渲染和私有下载重新检查撤销状态。旁白仍需转写/字幕准入，不能作为本音乐入口上传；方向卡保持静音。
+
+本轮只对新增的准入/真实 PCM 合成、失败恢复及导演传输回放做了定点本地检查；外部音乐路径尚未部署，未调用真实模型或替代负责人试听。
+
+导演准备输入也纳入失败处理。失败先原子写入终态与首个错误的 `operation_failure` outbox，再确认停止、修复非终态渲染；未知消费保持预留。清理专用检查点和队列可重试清理，不重复模型/媒体调用。最终候选与 `operation_progress` outbox 原子提交，通知故障不回滚成功。中间进度是尽力通知，可通过操作查询读取权威状态。内部修复使用策略的 `maxInternalRepairs=2`，最多初审加两次修复后复审；达到上限不再出新片或冷审。上述新增导演恢复仍待实际云端故障验收。
+
+模型阶段先核对所有后续密钥和能力，再检查当前渲染器登记、实际镜像摘要、Chromium 沙箱、字体、broker/R2 读与实际 PNG 取帧，并确认 studio 停止；预检容器计入当前操作的计算预算。Coordinator 按 release/镜像/runtime/environment 缓存成功结果 10 分钟；缓存过期、换镜像或跨越用户等待时重新探测，失败不发模型请求、不缓存成功。S1 不使用的 Workers AI/ASR 仍待 S3 集成，不能由此算作已验证。studio 在启动前持久化所有权，启动失败或取消后仍能找到并停止；停止失败保留句柄供 outbox/alarm 处理，旧关闭请求不能删掉新 studio 的句柄。这些新增路径已有定点回放，实际云验范围见实施状态。
 
 RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `parseCanonicalJson` 恢复；不依赖平台结构化对象的属性形态，也不放宽 JCS 对非 JSON 值的拒绝。最终提交不自动重试确定性失败，避免原始错误被后续期限错误掩盖。`test/render-commit.test.mjs` 只回放已生成的云端计算回执，检查实际提交代码，不重新捕获或编码媒体。
 

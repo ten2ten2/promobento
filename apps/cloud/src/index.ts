@@ -5,6 +5,7 @@ import {assertRenderJob, assertRenderTask, planShards} from '@promobento/contrac
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
 import {reconcileOperation,dispatchRender,dispatchRenderProgress} from './render-recovery.ts';
+import {dispatchDirectorFailure,dispatchDirectorProgress} from './director-recovery.ts';
 import {validId, type PipelineEnv, type Json} from './pipeline-types.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
@@ -191,6 +192,10 @@ export default {
           await dispatchRender(env,item);
         }else if(item.kind==='render_progress'){
           await dispatchRenderProgress(env,item);
+        }else if(item.kind==='operation_progress'){
+          await dispatchDirectorProgress(env,item);
+        }else if(item.kind==='operation_failure'){
+          await dispatchDirectorFailure(env,item);
         }else if(item.kind==='creative'){
           try{await env.OPERATION_WORKFLOW.create({id:item.operationId,params:{operationId:item.operationId}});}catch{await(await env.OPERATION_WORKFLOW.get(item.operationId)).status();}
         }else if(item.kind==='cancel'){

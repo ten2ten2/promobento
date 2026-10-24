@@ -66,6 +66,8 @@ film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` �
 
 **音频冻结：** AudioPlan 与冻结事件都使用稳定的 `eventId`，marker 通过 `audioEventId` 引用，不以数组下标定位。未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
 
+内部导演的外部音乐准入见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)：音乐目录与图片分开，许可来自可信权利行而非 FilmSpec。ABC 除音源内容身份和许可外，还绑定负责人独立批准的 `digest({text,totalFrames})`，不同片长分别批准；带字节身份的新乐谱必须与送入合成器的文本一致。旧独立 AudioPlan 的 requestHash 批准入口保留，不因新增目录引入额外字节前置条件。许可在首次读/处理前及后续使用时检查；冻结仍须满足本节完整音频事件、混音和资源清单要求。
+
 混音统一为 48 kHz、双声道；1 帧等于 1,600 个音频采样帧。最终 WAV 恰为 `totalFrames × 1600` 个采样帧，空白补静音，处理顺序与后处理由固定 `mixerVersion` 决定。`mixedAudio` 固定资源路径、真实 sha256、采样率、声道和 mixerVersion，必须解析到资源表中同路径/同 hash 的实际 WAV。可信解码观察 `audioMetadata` 按字节 hash 保存 sampleRate、channels、sampleFrames；校验音源为音频、源内时间范围及混音的采样率/声道/完整片长，不只检查清单自报值。
 
 film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落点、请求时长和实际源长度；它是制作过程字段，不直接充当 `frozenAudioEvent`。资源冻结仍绑定实际音源与混音字节，不能把非整数帧的前导偏移舍入成 `sourceOffsetFrames`。

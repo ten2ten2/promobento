@@ -17,7 +17,7 @@ if (!validate(spec)) {
 
 ## 构建覆盖全部 Schema
 
-入口名为 `film`、`block`、`render-job`、`frame-observation`、`direction`、`audio-plan`、`asset-insight`、`director-analysis`、`agent-tools`、`model-config`、`production`、`unit-economics`。每个入口由 [`build-validators.mjs`](scripts/build-validators.mjs) 生成 ESM 和 `.d.mts`，输出在被 Git 忽略的 `generated/`。新增 Schema 时同步构建清单和[结构用例](test/schema-vectors.json)；测试检查清单是否完整。
+入口名为 `film`、`block`、`render-job`、`frame-observation`、`direction`、`audio-plan`、`audio-admission`、`asset-insight`、`director-analysis`、`agent-tools`、`model-config`、`production`、`unit-economics`。每个入口由 [`build-validators.mjs`](scripts/build-validators.mjs) 生成 ESM 和 `.d.mts`，输出在被 Git 忽略的 `generated/`。新增 Schema 时同步构建清单和[结构用例](test/schema-vectors.json)；测试检查清单是否完整。
 
 另从可信 `blockCatalog` 在构建时生成 `block-params` 验证器，Node 页面与 Worker 共用，不在运行时编译参数 Schema。
 

@@ -73,6 +73,8 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
     if (this.ctx.storage.sql.exec('SELECT id FROM leases LIMIT 1').toArray().length) await this.arm();
   }
   async counts() { return this.ctx.storage.sql.exec('SELECT workspace,kind,COUNT(*) AS count FROM leases GROUP BY workspace,kind').toArray(); }
+  async rendererHealth(key:string){return canonical(await this.ctx.storage.get('rendererHealth:'+key)??null);}
+  async rememberRendererHealth(key:string,value:string){await this.ctx.storage.put('rendererHealth:'+key,parseCanonicalJson(value));}
 }
 
 export class ShardDO extends DurableObject<PipelineEnv> {
@@ -217,6 +219,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
 
 export class OperationDO extends DurableObject<PipelineEnv> {
   private listeners = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  private clearStudio(taskId:string){this.ctx.storage.transactionSync(()=>{
+    if(this.ctx.storage.kv.get<Json>('studio')?.taskId===taskId)this.ctx.storage.kv.delete('studio');
+  });}
   async progress(serialized: string) {
     const value=parseCanonicalJson(serialized) as Json;
     await this.ctx.storage.put('progress',value);
@@ -236,10 +241,23 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     const op = await operation(this.env, operationId, task.generation); if (task.job.operationId !== op.id) throw Error('OPERATION_SCOPE_INVALID');
     const existing = await this.ctx.storage.get<Json>('studio');
     if (existing && existing.taskId !== task.taskId) await this.env.SHARDS.getByName(existing.taskId).stopAndSettle();
-    const result = await this.env.SHARDS.getByName(task.taskId).execute(canonical(task));
-    await this.ctx.storage.put('studio', {taskId: task.taskId, operationId, generation: op.generation}); return result;
+    // Publish ownership before awaiting execute, so cancellation/failed startup can find and stop it.
+    await this.ctx.storage.put('studio', {taskId: task.taskId, operationId, generation: op.generation});
+    try{
+      const result=await this.env.SHARDS.getByName(task.taskId).execute(canonical(task));
+      const current=await this.ctx.storage.get<Json>('studio');
+      if(current?.taskId!==task.taskId)throw Error('OPERATION_FENCED');
+      await operation(this.env,operationId,op.generation);return result;
+    }catch(error){
+      try{await this.env.SHARDS.getByName(task.taskId).stopAndSettle();
+        this.clearStudio(task.taskId);
+      }catch{ /* Keep the handle for the operation cleanup outbox and shard alarm. */ }
+      throw error;
+    }
   }
-  async closeStudio() { const studio = await this.ctx.storage.get<Json>('studio'); if (studio) await this.env.SHARDS.getByName(studio.taskId).stopAndSettle(); await this.ctx.storage.delete('studio'); }
+  async closeStudio() { const studio = await this.ctx.storage.get<Json>('studio');if(studio){
+    await this.env.SHARDS.getByName(studio.taskId).stopAndSettle();this.clearStudio(studio.taskId);
+  } }
   async frame(operationId: string, frameIndex: number) {
     const studio = await this.ctx.storage.get<Json>('studio');
     if (!studio || studio.operationId !== operationId) throw Error('STUDIO_NOT_READY');

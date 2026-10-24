@@ -32,9 +32,9 @@ on:
         type: string
         default: ''
       staging_scenario:
-        description: Only new WebGL studio coverage, or the existing 2D movie smoke
+        description: New coverage only; webgl-film checks 30s/24 shards with lead-in audio
         type: choice
-        options: [engineering, webgl-studio]
+        options: [engineering, webgl-studio, webgl-film]
         default: engineering
 
 permissions:

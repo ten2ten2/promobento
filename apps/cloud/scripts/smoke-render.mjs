@@ -3,6 +3,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
+import {renderPageTiming,renderDeadlineMs,planShards} from '@promobento/contracts/render';
 import {deriveAudioPlan,audioPlanHash} from '../../../packages/audio/src/plan.mjs';
 import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -15,8 +16,8 @@ if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
 const policy=parseCanonicalJson(readFileSync(new URL('config/agent-policy.json',root))),scenario=process.env.STAGING_SCENARIO??'engineering';
-if(!['engineering','webgl-studio'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
-const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
+if(!['engineering','webgl-studio','webgl-film'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
+const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
 let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -57,7 +58,12 @@ operationAttempted=true;
 await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'pipeline-smoke',purpose:'calibration',maxMicros:1000000}});
 const envObject=await upload(prefix+'/environment.json',canonical({gitSha:sha,environmentLock:parseCanonicalJson(readFileSync(new URL('apps/render-container/environment.lock.json',root)))}),'application/json');
 await call('releases',{method:'POST',body:{id:releaseId,runtimeVersion:'film-runtime-v1',environmentKey:envObject.key}});
-const spec=scenario==='webgl-studio'?webglFixture():filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
+const spec=scenario.startsWith('webgl-')?webglFixture():filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
+if(scenario==='webgl-film'){
+ spec.durationSeconds=30;spec.totalFrames=900;spec.scenes[0].end=900;spec.treatment.energyCurve[1].frame=899;
+ spec.audio={music:{kind:'procedural',style:'mallet',bpm:100},sfx:[{id:'whoosh',at:{frame:60}},{id:'whip',at:{frame:180}},{id:'riser',at:{frame:450}},{id:'reverse',at:{frame:870}}],captions:'off'};
+ options.target.totalFrames=900;Object.assign(options,renderPageTiming(spec,policy.render));
+}
 options.fonts[0].licenseRef='geist-ofl-1.1';options.resources[0].kind='svg';
 const resource=await upload(prefix+'/original.svg',readFileSync(new URL('apps/render-container/tests/product.svg',root)),'image/svg+xml');
 const resourceId='res_fixture_dashboard',licenseRef=options.resources[0].licenseRef;
@@ -67,9 +73,15 @@ await call('rights',{method:'POST',body:{operationId,resourceId,sha256:resource.
 const film=await upload(prefix+'/film.json',canonical(spec),'application/json'),plan=deriveAudioPlan(spec,filmBlockEvents(spec));
 const audio=await upload(prefix+'/audio-plan.json',canonical(plan),'application/json');
 const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,sourceHash:filmSourceHash(canonical(spec)),runtimeVersion:'film-runtime-v1',rendererRelease:releaseId,
- aspectId:'landscape',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
+ aspectId:'landscape',durationSeconds:spec.durationSeconds,totalFrames:spec.totalFrames,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
  resources:[{resourceId,kind:'svg',sha256:resource.sha256}],audioPlanHash:audioPlanHash(plan,{seed:options.seed})};
-const request={job,options,inputs:[{...film,name:'film'},{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:options.seed,clearedSources:[]},coverFrame:165};
+const request={job,options,inputs:[{...film,name:'film'},{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],
+ audioInputs:{seed:options.seed,clearedSources:plan.sources.map(source=>({sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true}))},coverFrame:165};
+const partition=planShards(job,spec,{seed:options.seed});
+if(scenario==='webgl-film'){
+ if(partition.shards.length!==24)throw Error('WEBGL_CALIBRATION_SHARD_COUNT');
+ writeFileSync(directory+'/audio-plan.json',canonical(plan));writeFileSync(directory+'/shard-plan.json',canonical(partition));
+}
 if(scenario==='webgl-studio'){
  const outcome=await probeWebgl({json,call,request,rules,policy,directory});
  writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,status:'passed'}));
@@ -77,22 +89,24 @@ if(scenario==='webgl-studio'){
 }else{
 // Studio reverse seek already passed in run 39987356301 with this fixture and media environment.
 // Reuse that evidence; each new shard still checks its actual health and reports its memory telemetry.
+const renderStarted=Date.now(),renderLimit=scenario==='webgl-film'?renderDeadlineMs(job,partition,policy.render):240000;
 await json('renders',{method:'POST',body:request});
 let outcome;
- while(Date.now()-started<240000){
+ while(Date.now()-(scenario==='webgl-film'?renderStarted:started)<renderLimit){
   const row=await json('renders/'+renderId);
   if(row.status==='passed'){outcome=parseCanonicalJson(row.result_json);break;}
   if(['blocked','cancelled'].includes(row.status))throw Error('SMOKE_RENDER_BLOCKED:'+row.result_json);
   await new Promise(resolve=>setTimeout(resolve,2000));
  }
  if(!outcome)throw Error('SMOKE_RENDER_DEADLINE');
+ const renderToPassedMs=Date.now()-renderStarted;
  for(const object of outcome.outputs.filter(object=>/\/(film.mp4|poster.png)$/.test(object.key))){
   const bytes=new Uint8Array(await(await call('artifacts/'+object.key)).arrayBuffer());
   if(sha256Bytes(bytes)!==object.sha256)throw Error('SMOKE_OUTPUT_IDENTITY_MISMATCH');
   writeFileSync(directory+'/'+object.key.split('/').at(-1),bytes);
  }
  const leases=await json('capacity');if(leases.length)throw Error('SMOKE_LEASE_NOT_RETURNED');
- writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,leases,status:'passed'}));
+ writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,renderToPassedMs,authPropagationRetries,outcome,leases,status:'passed'}));
  console.log(canonical({status:'passed',renderId,elapsedMs:Date.now()-started,media:outcome.media,peakMemory:outcome.peakMemory,leases}));
 }
 }catch(error){

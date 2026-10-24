@@ -24,6 +24,10 @@ export function synthesizePlan(plan, {seed, labels = {}, clearedSources, bytesBy
     if (plan.music.kind === 'score') {
       const input = scores.get(plan.music.sourceId), approval = clearedSources.get(plan.music.sourceId);
       if (!input || approval.requestHash !== digest({text: input, totalFrames: plan.totalFrames})) throw Error('SCORE_APPROVAL_REQUIRED');
+      // New admitted scores carry the actual approved UTF-8 source, not an unrelated bytes/text pair.
+      // Existing standalone plans without a byte identity retain their request-hash approval contract.
+      const source=sources.get(plan.music.sourceId);
+      if(source.sha256&&new TextDecoder('utf-8',{fatal:true}).decode(bytesBySource.get(source.sourceId))!==input)throw Error('SCORE_SOURCE_MISMATCH');
       score = input;
     }
     music = mixdown({duration: plan.totalFrames / 30, id: seed, labels, hits: [],

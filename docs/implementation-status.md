@@ -8,12 +8,12 @@
 
 | 部分 | 已有代码/材料 | 仍缺的实现或验收 |
 | --- | --- | --- |
-| 契约 | 12 个 v3 Schema 与派生积木参数预编译；新增 film-v1 Composition（identityVersion 2）、构建记录与冻结参考校验；内容/产物指纹及同画幅视频复用，平台 mapping/授权仍分开；旧 v1 入口和内容摘要保留重放；帧协议支持互斥的 aspectId 新包络与 targetId 历史包络 | 客户草稿、真实冻结事务和计费服务仍在 M1/M2；自写镜头/直接改值按 S2 接入，不能把参考校验当成已上线服务 |
+| 契约 | 13 个 v3 Schema 与派生积木参数预编译，含新增内部音乐准入；film-v1 Composition（identityVersion 2）、构建记录与冻结参考校验；内容/产物指纹及同画幅视频复用，平台 mapping/授权仍分开；旧 v1 入口和内容摘要保留重放；帧协议支持互斥的 aspectId 新包络与 targetId 历史包络 | 客户草稿、真实冻结事务和计费服务仍在 M1/M2；自写镜头/直接改值按 S2 接入，不能把参考校验当成已上线服务 |
 | 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、OM/clip、PTS 视频帧缓存和字体检查；真实 Three.js 0.186.1 设备积木、按需 3D bundle、ready/dispose 与锁定 SwiftShader 校验；正式 staging 四画幅逆序/冷 seek 的 20 次比较完全一致，已看实际画面 | 2D 横屏 45→375→45 已完全一致，旧全矩阵逆序曾差 0.2827%，完整 2D 四画幅 seek 仍未完成。15 秒三段出片和 108 张四画幅帧图已有证据；WebGL 分段影片/性能待正式 G1。自写镜头、全局纹理/布局覆盖未实现 |
 | 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色检查与真实帧封面；review 540p/15 fps | 15 秒工程片已验证 450 帧、1080p/30 fps、AAC、PTS/GOP/颜色、体积/码率和接缝；阅读停留观测不是完整动态 Q1/Q2；生产形态 supervisor、studio 回收和 broker 需正式 G1 |
-| 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、共用积木事件点、授权检查、48 kHz 双声道、两遍 loudnorm；13 风格 30 秒母带数值已通过。新增 whoosh/whip/riser/reverse 显式 lead-in 计划，样本级落点与片头裁切已本地检查，尚未进云端镜像 | 新 lead-in 母带/试听待验；负责人尚未试听已有风格，导演外部音轨/ABC 准入仍需补齐 |
+| 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、共用积木事件点、授权检查、48 kHz 双声道、两遍 loudnorm；13 风格 30 秒母带数值已通过。whoosh/whip/riser/reverse 显式 lead-in 计划已有样本级检查；新增导演上传音乐/ABC 准入、可信许可与按谱文本/片长独立批准，实际 PCM 和导演传输已有本地检查 | 新 lead-in、音乐准入尚未进云端镜像；母带/真实云验与负责人试听待验；旁白准入仍未开放 |
 | 云端 | [内部 staging 链路](../apps/cloud/README.md)：RenderWorkflow、ShardDO、CoordinatorDO、OperationDO、broker；15 秒云端出片、接缝/观测、拼接、提交及私有下载通过。准备失败记录、阶段状态、先栅栏后停止、持久停止标记、终态修复与成片/进度 outbox 原子提交已部署，有本地回放；旧 `40038946955` 的 1 条残留非终态已在真实 staging 对账修复，未重启计算，未结费用为空。新增有期限的满载 lease 等待，等待期间不启动容器或预留计算费用，已有本地回放 | 新排队代码尚未部署。新恢复分支仅终态修复及 studio 停止有本轮云端证据；平台重启/强制终止、完整重试/账单对账及正式 G1 未完成。cgroup 峰值按负责人决定为 null 加原因，内存指标待验；生产关闭 |
-| 导演 | OperationWorkflow 的 A–C/E/F 与方向选择 waitForEvent；两种流式适配器、缓存、授权、阶段调用/费用预留、真实 usage 结算；固定 SSE、SQLite/R2 的离线阶段回放已通过，含 review 修复、冷审拒绝、12 小时用户等待排除、取消与未知消费保留预留 | 官方线路按负责人决定未接通；三方向实际 keyframeFilm/studio 取帧与 20 分钟期限尚未云验；环境健康预检、历史费用衔接和故障恢复仍需完善；六题真实调用、成本/时间指标未测 |
+| 导演 | OperationWorkflow 的 A–C/E/F 与方向选择 waitForEvent；两种流式适配器、缓存、授权、阶段调用/费用预留、真实 usage 结算；固定 SSE、SQLite/R2 的离线阶段回放已通过。新增准备失败终态/首因 outbox、只重试清理、候选与通知原子提交、两轮内部修复上限，以及模型调用前镜像/沙箱/broker/R2 实际取帧、10 分钟健康缓存和 studio 启动所有权修复，新增分支已有本地回放 | 官方线路按负责人决定未接通；三方向实际 keyframeFilm/studio 取帧与 20 分钟期限尚未云验；历史费用衔接、平台强制终止/重启恢复仍需完善；新导演预检/恢复尚未部署；六题真实调用、成本/时间指标未测 |
 | 素材与模型配置 | 固定 OFL 字体与六个 CC0 乐器采样；官网事实卡；模型能力按最新网关证据修正 | 实际素材采集、逐项许可证据与预发布 R2 入库未完成；资产容器/ASR/抓取在 S3；官方模型真实能力未测 |
 | 网站/业务 | Studio 离线参考、品牌、政策正文、共享业务契约 | 客户 Studio、Google/邮箱认证、租户权限、试用/购买账本与 Waffo、真实冻结交付均未实现 |
 
@@ -37,4 +37,4 @@
 - **云端工程片提交修复**：[40040999452](https://github.com/ten2ten2/promobento/actions/runs/40040999452)，Worker 提交 `f5b431a`、复用 `860df13` 构建的未变镜像：15 秒、450 帧、1080p/30 fps/AAC、5,320,462 bytes，完整出片/提交/私有下载通过，两处接缝完全一致，lease 归还；harness 113.865 秒。已查看封面和实际 MP4 解码的开场/产品/CTA 三帧。峰值为 null 加明确原因，G1 内存未验证。此前一轮计算成功但最终提交 `NOT_JSON`，经只读 Workflow 步骤定位后修复，没有放宽 JCS；新增峰值契约和实际提交回放各只跑一次最小本地检查，未重跑配乐/导演/全量 CI。[报告与失败记录](evidence/2026-10-24-s1-staging/README.md)。
 - **前置环境证据**：[G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)与[S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)另覆盖攻击、broker/断网、停止/回收、Workflow 事件、捕获格式、WebGL 单帧耗时与冷启动；未覆盖的正式代码 G1 项目仍待验证。
 
-接下来补导演预检/账单恢复和外部音轨/ABC 准入，再集中完成正式 G1（含新排队/lead-in 镜像）、真实素材及六题评测。S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。
+接下来核验新 30 秒 WebGL/排队/lead-in 镜像，补历史费用衔接及平台故障恢复，再完成正式 G1、真实素材及六题评测。S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。

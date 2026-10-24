@@ -97,6 +97,11 @@ jobs:
         env:
           INSPECT_RUN: ${{ github.run_id }}
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
+      - name: Collect new WebGL movie costs without another render
+        if: success() && inputs.inspect_run == '' && inputs.scenario == 'webgl-film'
+        env:
+          INSPECT_RUN: ${{ github.run_id }}
+        run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Revoke the run-only internal key
         if: always() && env.EVAL_API_KEY != ''
         run: mise exec -- pnpm --filter @promobento/cloud exec wrangler secret delete EVAL_API_KEY --env staging

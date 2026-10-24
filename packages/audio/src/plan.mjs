@@ -29,18 +29,25 @@ export function assertAudioPlan(plan) {
 }
 
 /** Block events are read from the trusted built scene, in local frames. Event ids survive array reordering. */
-export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14} = {}) {
+export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, externalMusic} = {}) {
   const plan = {schemaVersion: '3.0.0', kind: 'audio_plan', totalFrames: spec.totalFrames, sampleRate: 48000, channels: 2,
     loudnessTarget, truePeakMax: -1, mute: Boolean(spec.audio.mute), music: {kind: 'none'}, events: [], sources: []};
   if (spec.audio.mute) return plan;
   if (spec.audio.voice) throw Error('AUDIO_VOICE_PLAN_REQUIRED');
-  if (!['procedural', 'none'].includes(spec.audio.music.kind)) throw Error('AUDIO_EXTERNAL_PLAN_REQUIRED');
+  if (!['procedural', 'none'].includes(spec.audio.music.kind)) {
+    const requested=spec.audio.music;
+    if(!externalMusic||externalMusic.kind!==requested.kind
+      ||(requested.kind==='score'?externalMusic.scoreRef!==requested.scoreRef:externalMusic.resourceId!==requested.resourceId)
+      ||!['score','upload'].includes(requested.kind)||!externalMusic.licenseRef||!/^[a-f0-9]{64}$/.test(externalMusic.sha256))throw Error('AUDIO_EXTERNAL_PLAN_REQUIRED');
+    plan.music={kind:requested.kind,sourceId:'music'};
+    plan.sources.push({sourceId:'music',origin:requested.kind==='score'?'score':'customer_upload',licenseRef:externalMusic.licenseRef,sha256:externalMusic.sha256});
+  }
   if (spec.audio.music.kind === 'procedural') {
     plan.music = {...spec.audio.music, sourceId: 'music'};
     plan.sources.push({sourceId: 'music', origin: 'procedural', licenseRef: GENERATED_LICENSE});
-    plan.events.push({eventId: 'music:bed', kind: 'music', sourceId: 'music', frameStart: 0, frameEndExclusive: spec.totalFrames,
-      gainDb: 0, fadeInFrames: 1, fadeOutFrames: 15});
   }
+  if(plan.music.kind!=='none')plan.events.push({eventId:'music:bed',kind:'music',sourceId:'music',frameStart:0,frameEndExclusive:spec.totalFrames,
+    gainDb:0,fadeInFrames:1,fadeOutFrames:15});
   const declared = new Map(blockEvents.map(event => [`${event.sceneId}:${event.name}`, event]));
   const requests = spec.audio.sfx === 'auto' ? blockEvents.filter(event => autoSound[event.name]).map(event => ({
     id: autoSound[event.name], at: {sceneId: event.sceneId, event: event.name}

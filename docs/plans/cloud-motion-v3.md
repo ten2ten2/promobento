@@ -1227,7 +1227,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
   - 时序变化后的重算走无模型路径。
 - **采样许可**：
   - 只用 CC0 子集；上游采样包里 CC-BY 的 Salamander 钢琴和 Wurlitzer 不用。每个事件都带 `licenseRef`。
-  - 自由 ABC 乐谱需要单独的音源权利记录，结构写进 `audio-plan.schema.json`（由原 `admission-audio-rights` 的字段改写）。
+  - 自由 ABC 乐谱需要单独的音源权利记录。`audio-plan.schema.json` 固定源身份和事件；`audio-admission.schema.json` 单独固定内部准入目录与负责人按实际谱文本、片长批准的 requestHash，不能由模型自报清权。当前导演接入范围见[内部音乐入口](../../apps/cloud/README.md#导演使用已批准的音乐)。
 
 ### 8.3 CC0 采样包（不采购曲库）
 

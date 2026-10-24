@@ -19,4 +19,8 @@ const report={scope:'read_only_staging_diagnosis',deploymentSha:sha,operationId,
  renders:await query('SELECT id,status,created_at,finished_at,result_json FROM pipeline_renders WHERE operation_id=?'),
  attempts:await query('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=?'),
  costs:await query('SELECT r.id,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=?')};
-mkdirSync('artifacts/staging',{recursive:true});writeFileSync('artifacts/staging/inspection.json',canonical(report));console.log(canonical(report));
+mkdirSync('artifacts/staging',{recursive:true});writeFileSync('artifacts/staging/inspection.json',canonical(report));
+console.log(canonical({scope:report.scope,deploymentSha:sha,operationId,workflowStatus:report.workflow.status??null,operations:report.operations,
+ renders:report.renders.map(({id,status})=>({id,status})),attemptCount:report.attempts.length,
+ settledMicros:report.costs.reduce((sum,cost)=>sum+(cost.actual_micros??0),0),
+ pendingCosts:report.costs.filter(cost=>cost.actual_micros===null).map(({id,reserved_micros})=>({id,reserved_micros}))}));
