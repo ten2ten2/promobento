@@ -34,4 +34,4 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 渲染记录依次为 `queued → sharding → verifying → assembling → passed`，失败/取消为 `blocked`/`cancelled`。准备输入也在失败处理范围内；失败先封锁新 attempt，再确认实例停止。`fail-render` 检查点只重试清理，最多三次重试，保留首个错误和 `stopPending`；确认失败时 lease 不归还。ShardDO 持久化单次 attempt 的停止标记，晚到 execute 不能重新启动。最终成片与 `render_progress` outbox 原子提交；通知由既有队列独立重试，陈旧 generation 的通知丢弃，查询渲染记录不依赖通知到达。
 
-上述新增恢复路径已有真实 SQLite 与 DO/Workflow 本地回放，尚未部署验收；不代表平台强制终止 Workflow、真实重启或完整 G1 已通过。之前的真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。
+上述恢复路径已随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。准备失败、通知故障及晚到执行竞态仍只有 SQLite/DO/Workflow 本地回放，不代表平台强制终止、真实重启或完整 G1 已通过。真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。

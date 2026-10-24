@@ -39,3 +39,19 @@
 - 成片提交时 lease 已清空；结束取消与临时密钥删除成功。此轮未单独采集账单金额，不纳入成本分位基准。先前失败轮的结算见上一节，不能混作本轮费用。
 
 云端渲染仍为 Chromium 151.0.7922.34、FFmpeg `7:6.1.1-3ubuntu5`、Node 26.12.0；部署工具 Wrangler 4.152.0、pnpm 12.14.0。峰值内存契约只跑一次定点检查（20.6 ms，通过），最终提交只跑上述一次本地回放；两次出片之间先读取原始错误修复，未反复运行完整 CI。该记录覆盖工程片闭环；S1 其余出口及官方 Anthropic 集成的当前状态见[实施进度](../../implementation-status.md)。
+
+## 新 WebGL 积木：四画幅逆序与冷 seek 通过
+
+[40046230859](https://github.com/ten2ten2/promobento/actions/runs/40046230859) 只运行新增的 `webgl-studio` 场景，提交 `ca1c37e2d8c46a1a2a91e48e8d7371f0b4d371bd`。Actions 构建/推送镜像 `sha256:6a69284ea5338908e77c7acc842b50c20bd41fc846d5784d7bf2ac97df847433`，Worker 版本 `f85a8a71-bd34-4093-b8aa-9f3608149d32`。容器内 Three.js 0.186.1，其他媒体版本同上；此镜像不含后续 `2278fc3` 的 lead-in 音效改动。
+
+[实际回执](webgl/smoke-report.json)覆盖：
+
+- 原创 `device-3d@1`，真实纹理、透视相机和设备几何；每画幅独立 warm/cold 实例，合计 8 次 studio 生命周期。横屏、竖屏、feed、square 各捕获 0/12/45/375 帧，逆序四帧，再在新实例冷取 45 帧。20 次比较全部最大差 0、差异像素 0%，没有使用容差放行。
+- CDP 从真实 context 读取 WebGL 2.0；renderer 与环境锁完全匹配：`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)`，vendor 为 `Google Inc. (Google)`。正式 UID/沙箱自检仍必需。
+- 已查看四画幅 45 帧，以及横竖屏的 0/375 帧：截图完整、文字可读、无明显越界。这是工程画面检查，不作六题审美签字。
+- 16 次正向取帧的 HTTP 请求为 350–622 ms，包含 Worker/DO/截图/传输；harness 86.805 秒包含上传、启动和所有检查，不作为纯 WebGL 单帧或成片 p50/p95。未单独收集本轮成本，不纳入成本分位数。
+- 各实例启动健康仍确认 cgroup 峰值接口未暴露；此 studio 检查不采集渲染后峰值，指标保持未验证。studio 关闭、lease 为空、操作取消及密钥删除均成功。
+
+[历史终态对账](webgl/reconciliation.json)修复此前已取消的 `smoke-860df139a6d4-40038946955` 的 1 条残留渲染非终态；未重启计算，未结费用为空，原来的计算/失败证据保留。
+
+实际 PNG、部署日志、`webgl-report.json` 在该轮 `s1-staging-deployment`（artifact `12541137870`），本机位置 `artifacts/s1-webgl-40046230859/`。未重跑 2D 工程片、配乐、模型或全量 CI。30 秒分段影片、standard-3/4 对比、性能分布、主动取消与平台重启等正式 G1 项目仍待验收。
