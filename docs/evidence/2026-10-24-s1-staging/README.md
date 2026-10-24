@@ -81,3 +81,15 @@
 - 24 段均为真实锁定 SwiftShader、独立沙箱；峰值均为 `null` 加 `cgroup_peak_not_exposed`，G1 内存保持未验证。
 
 新增导演健康预检、外部音轨/ABC 准入及故障 outbox 已部署，但本场景直接使用渲染入口，未实际执行它们的真实模型导演路径。相应本地回放证据继续有效，官方 C/F 保持未验证。完整 G1 的串行/并行分布、捕获格式/机型对照、主动取消与平台重启，以及六题素材/作品/负责人试听仍未完成。
+
+## 真实取消、原生终止与整次重启防重放通过
+
+[40055971723](https://github.com/ten2ten2/promobento/actions/runs/40055971723) 部署 `8acc356a6cc9440c8ccd4a44e6d52bb018c09ef7`，镜像 `sha256:620b7b6feb4b75fc6a73db74f162ee44dd1d4277de48bece9e122267a2b0d2b0`、Worker `b501ceb3-968d-4fbf-b341-28cc4a03ea06`。只运行新增 `lifecycle-recovery`，不重做完整成片或配乐。job 最终失败于新增导演预检的 60 秒等待；下列三个独立子项的原始结果保留在 [recovery-report.json](recovery-attempt/recovery-report.json)，不把整个 job 记作通过。
+
+- **实际中途取消**：已确认分段物理实例运行后取消，操作 generation 从 0 推进到 1，原生 RenderWorkflow 实际为 terminated；3 个分段及声音共 4 个实例均 `physicallyStopped:true`，停止时间与结算齐全，渲染落 cancelled。保守计算上界合计 3,525 usd_micros，未结为空。
+- **平台原生终止**：另一个活动操作由 Wrangler 定点 terminate 原生 RenderWorkflow，随后通过同一定期恢复入口发现并对账；渲染 blocked，首因为 `RENDER_WORKFLOW_TERMINATED`。4 个物理实例均停止、结算，共 1,594 usd_micros，未结为空。业务操作在此时仍为 active，未通过取消伪装成平台恢复。
+- **整次 restart 不重做**：在该 active 操作上执行原生 restart（清空 Workflow 检查点）；实际第一步拒绝再次领取 D1 执行 claim，原生落 errored。attempt ID、费用项及完整原结算未增加或改变，原渲染失败原因保留；不是只重放 mock。
+- **共享模型历史导入**：[model-budget.json](recovery-attempt/model-budget.json)显示真实共享 D1 已导入 128 次历史清单，可计价部分估算 255,521 usd_micros、14 次未知；`openingMicros:null`、`openingConfirmed:false`、新调用/费用预留均为 0，没有把历史未知总额清零。
+- **清理**：两个计算操作及超时的导演操作最终均取消/对账成功，无未结费用；lease 清空，一次性密钥删除成功。无成片公开，也未调用真实模型。原始状态与费用另见 [只读诊断](recovery-attempt/inspection.json)。完整产物在本机 `artifacts/s1-recovery-40055971723/`。
+
+**仍失败的导演子项**：真实导演预检未在 60 秒内落 failed，随后按原取消路径终止。准备门槛仍使用平台默认 step 重试，缺密钥/验证等确定性问题会拖延终态；已改为零重试，本地仅复验这一准入分支。下一轮只补 `director-preflight`，复用上述取消/终止/restart 证据和原镜像，不重做这些已通过项。

@@ -66,7 +66,7 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 `verify-shards` 按共享整片阅读停留计划核对各段的精确观测帧及身份，不要求无计划点的短段伪造非空结果；QA/接缝确定性错误不默认重试。30 秒 24 段初验曾因原“每段非空”检查错误阻断；修复后 23 处接缝零差异、拼接/提交/私有下载均通过。[验收记录](../../docs/evidence/2026-10-24-s1-staging/README.md#修复后30-秒-webgl24-分段配乐与交付通过)同时保留原始失败、修复范围与实际费用。
 
-旧恢复路径随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。新增平台恢复如下，当前仅有定点本地检查，实际部署/验收见[实施状态](../../docs/implementation-status.md)。
+旧恢复路径随 `ca1c37e` 部署；`8acc356` 已部署原生实例登记/恢复和共享模型预算，真实中途取消、原生终止及整次 restart 防重放已有[云端证据](../../docs/evidence/2026-10-24-s1-staging/README.md#真实取消原生终止与整次重启防重放通过)。导演预检当轮等待超时，单独修复/补验，不重做已通过的恢复子项。
 
 ## 原生 Workflow 中断后只清理，不猜测重跑
 
@@ -77,3 +77,5 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 首个 `claim-execution` 持久步骤在 D1 单次领取执行权。正常 Workflow 重放复用该检查点；整次原生 `restart()` 清空检查点后重领失败，触发清理与对账，不生成新 attempt 或重发付费请求。保留原 generation；取消不能通过重启复活。原生实例过期或状态 API 报错不自动 recreate，需保留未确认再调查。[官方 API 的 restart/terminate 语义](https://developers.cloudflare.com/workflows/build/workers-api/)。
 
 新增路径用 `-f staging_scenario=lifecycle-recovery` 验收：只对本次新建的内部校准操作，在实际分段容器运行时取消；另一次原生强制终止后对账，再整次 restart 检查无新增计算/费用。另检查当前缺密钥/未验证模型的真实导演预检在消费前落失败，以及历史预算状态未被改写。产物为 `recovery-report.json` 与两条原生操作回执，不重做完整成片、13 风格或模型评测。每次操作结束再次确认停止，不删任务、源素材或费用证据；此场景不代替其余性能/安全 G1。
+
+只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。`preflight` 明确零重试，缺密钥、验证状态、许可或历史确认直接落失败；清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。

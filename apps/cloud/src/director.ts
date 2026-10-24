@@ -107,7 +107,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       });
       return parseCanonicalJson(serialized) as Json;
     };
-      await step.do('preflight',async()=>{
+      await step.do('preflight',{retries:{limit:0,delay:'1 second'}},async()=>{
         if(!['software','course'].includes(context.audience)||![15,30].includes(context.durationSeconds)||!context.resources?.length||context.resources.length>12
           ||!Array.isArray(context.facts)||!context.facts.length||!Array.isArray(context.aspects)||!context.aspects.length
           ||context.aspects.some((aspect:string)=>!(aspect in platform.aspectLayouts))||context.facts.some((fact:Json)=>!context.confirmedFactIds.includes(fact.id)))throw Error('DIRECTOR_INPUT_INVALID');

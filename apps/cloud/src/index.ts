@@ -137,7 +137,9 @@ export default {
         const rows=await env.DB.prepare('SELECT id,mode,status,started_at,stopped_at FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
         const attempts=await Promise.all(rows.results.map(async row=>({...row,physicallyStopped:await env.SHARDS.getByName(row.id).isStopped().catch(()=>null)})));
         const costs=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? ORDER BY r.id').bind(id).all<Json>();
-        return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costs.results});
+        const notice=await env.DB.prepare("SELECT payload_json FROM pipeline_outbox WHERE operation_id=? AND kind='operation_failure' ORDER BY rowid LIMIT 1").bind(id).first<{payload_json:string}>();
+        const failure=notice?{...parseCanonicalJson(notice.payload_json) as Json,evidenceStored:!!await env.MEDIA.head(`operations/${id}/failure.json`)}:null;
+        return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costs.results,failure});
       }
       if (request.method === 'POST' && path === '/internal/s1/renders') {
         const input = await readJson(request); assertRenderJob(input.job);

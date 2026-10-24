@@ -112,6 +112,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   return new Response(sse,{headers:{'content-type':'text/event-stream'}});
  };
  const step:any={async do(name:string,optionsOrFn:any,callback?:any){const fn=callback??optionsOrFn;clock+=100;
+   if(name==='preflight')assert.equal(optionsOrFn.retries.limit,0,'missing keys/rights/verification are deterministic admission failures');
    if(cancel&&name==='spec'){db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1").run();}
    return fn();},async waitForEvent(){choiceCount++;assert.equal(activeStudio,null);
     const row=db.prepare('SELECT directions_hash,previews_key FROM pipeline_contexts').get();assert.equal((parseCanonicalJson(new Uint8Array(await(await MEDIA.get(row.previews_key))!.arrayBuffer())) as any[]).length,3);

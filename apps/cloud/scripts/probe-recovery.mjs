@@ -58,17 +58,7 @@ export async function probeRecovery({json,call,upload,request,directory,operatio
 
   const directorId=operationId+'-director';operations.push(directorId);
   await json('operations',{method:'POST',body:{id:directorId,workspaceId:'internal-eval',projectId:'pipeline-recovery',purpose:'calibration',maxMicros:1000000}});
-  const resource=request.job.resources[0],blob=request.inputs.find(item=>item.name==='resource:'+resource.resourceId),font=request.options.fonts[0];
-  const context=await upload(prefix+'/director-context.json',canonical({audience:'software',durationSeconds:15,aspects:['landscape'],seed:request.options.seed,
-   brief:'Original internal engineering fixture; blocked preflight, no model requests.',runtimeVersion:request.job.runtimeVersion,rendererRelease:request.job.rendererRelease,
-   fonts:[font],confirmedFactIds:['fixture-cta'],facts:[{id:'fixture-cta',text:'Original internal calibration only.'}],resources:[{...blob,...request.options.resources[0]}]}),'application/json');
-  await json('creative',{method:'POST',body:{operationId:directorId,contextKey:context.key}});
-  const failed=await until('DIRECTOR_PREFLIGHT',()=>json('operations/'+directorId),value=>value.status==='failed');
-  const director=await until('DIRECTOR_CLEANUP',async()=>{await recover();return snapshot(directorId);},value=>value.workflows.length===1&&value.workflows[0].reconciled_at!==null);
-  if(director.costs.length||director.attempts.length||failed.result_key!==`operations/${directorId}/failure.json`)throw Error('RECOVERY_PREFLIGHT_SPENT_RESOURCES');
-  const directorNative=await native(directorId,'operation');
-  if(!/MODEL_(SECRET_MISSING|INTEGRATION_UNVERIFIED)/.test(canonical(directorNative)))throw Error('RECOVERY_PREFLIGHT_WRONG_CAUSE');
-  report.cases.director={operation:failed,recovery:director,native:directorNative,modelRequests:0};
+  report.cases.director=await probeDirectorPreflight({json,upload,request,operationId:directorId,prefix,directory});
   const budget=await json('model-budget');if(budget.openingConfirmed!==budgetBefore.openingConfirmed||budget.openingMicros!==budgetBefore.openingMicros||budget.currentReservations!==budgetBefore.currentReservations)throw Error('RECOVERY_MODEL_GATE_CHANGED');
   report.modelBudget=budget;report.leases=await json('capacity');if(report.leases.length)throw Error('RECOVERY_LEASE_NOT_RETURNED');
   report.status='passed';save();return report;
@@ -78,4 +68,34 @@ export async function probeRecovery({json,call,upload,request,directory,operatio
   report.cleanup=cleanup.map((result,index)=>({operationId:operations[index],status:result.status,...(result.status==='fulfilled'?{result:result.value}:{error:String(result.reason)})}));save();
   if(cleanup.some(result=>result.status==='rejected')&&report.status==='passed')throw Error('RECOVERY_FINAL_STOP_UNCONFIRMED');
  }
+}
+
+/** The failed preflight branch alone; reuse the already-passed native cancel/termination/restart evidence. */
+export async function probeDirectorPreflight({json,upload,request,operationId,prefix,directory}){
+ if(process.env.GITHUB_ACTIONS!=='true'||!/^smoke-[a-f0-9]{12}-\d{8,20}(-director)?$/.test(operationId))throw Error('DIRECTOR_PROBE_SCOPE_INVALID');
+ const report={scope:'deterministic_director_preflight_only_no_model_or_media_calls',operationId,status:'running'};
+ const save=()=>writeFileSync(directory+'/director-preflight-report.json',canonical(report));
+ const budgetBefore=await json('model-budget');
+ try{
+  const resource=request.job.resources[0],blob=request.inputs.find(item=>item.name==='resource:'+resource.resourceId),font=request.options.fonts[0];
+  const context=await upload(prefix+'/director-context.json',canonical({audience:'software',durationSeconds:15,aspects:['landscape'],seed:request.options.seed,
+   brief:'Original internal engineering fixture; blocked preflight, no model requests.',runtimeVersion:request.job.runtimeVersion,rendererRelease:request.job.rendererRelease,
+   fonts:[font],confirmedFactIds:['fixture-cta'],facts:[{id:'fixture-cta',text:'Original internal calibration only.'}],resources:[{...blob,...request.options.resources[0]}]}),'application/json');
+  const started=Date.now();await json('creative',{method:'POST',body:{operationId,contextKey:context.key}});
+  const until=Date.now()+60000;let snapshot;
+  do{
+   snapshot=await json('operations/'+operationId+'/recovery');report.recovery=snapshot;save();
+   if(snapshot.operation.status==='failed'&&snapshot.failure?.evidenceStored){
+    if(!['MODEL_SECRET_MISSING','MODEL_INTEGRATION_UNVERIFIED'].includes(snapshot.failure.code))throw Error('DIRECTOR_PREFLIGHT_WRONG_CAUSE');
+    await json('workflows/reconcile',{method:'POST'});snapshot=await json('operations/'+operationId+'/recovery');
+    if(snapshot.workflows.length===1&&snapshot.workflows[0].reconciled_at!==null)break;
+   }
+   await new Promise(resolve=>setTimeout(resolve,1000));
+  }while(Date.now()<until);
+  if(snapshot?.operation.status!=='failed'||!snapshot.failure?.evidenceStored||snapshot.workflows.length!==1||snapshot.workflows[0].reconciled_at===null)throw Error('DIRECTOR_PREFLIGHT_TIMEOUT');
+  if(snapshot.costs.length||snapshot.attempts.length)throw Error('DIRECTOR_PREFLIGHT_SPENT_RESOURCES');
+  const budget=await json('model-budget');
+  if(budget.openingConfirmed!==budgetBefore.openingConfirmed||budget.openingMicros!==budgetBefore.openingMicros||budget.currentReservations!==budgetBefore.currentReservations)throw Error('DIRECTOR_PREFLIGHT_MODEL_GATE_CHANGED');
+  Object.assign(report,{status:'passed',recovery:snapshot,modelBudget:budget,elapsedMs:Date.now()-started,modelRequests:0});save();return report;
+ }catch(error){report.status='failed';report.error=String(error.stack??error);save();throw error;}
 }
