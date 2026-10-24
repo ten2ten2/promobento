@@ -55,3 +55,14 @@
 [历史终态对账](webgl/reconciliation.json)修复此前已取消的 `smoke-860df139a6d4-40038946955` 的 1 条残留渲染非终态；未重启计算，未结费用为空，原来的计算/失败证据保留。
 
 实际 PNG、部署日志、`webgl-report.json` 在该轮 `s1-staging-deployment`（artifact `12541137870`），本机位置 `artifacts/s1-webgl-40046230859/`。未重跑 2D 工程片、配乐、模型或全量 CI。30 秒分段影片、standard-3/4 对比、性能分布、主动取消与平台重启等正式 G1 项目仍待验收。
+
+## 30 秒 WebGL：计算通过，观测覆盖校验阻断
+
+[40050568828](https://github.com/ten2ten2/promobento/actions/runs/40050568828) 在 `1af113f9f325f8735dfe35f04d19a8b44434d4fc` 构建/部署镜像 `sha256:ef1242b6c25d39533f400838693ac103cab0fda22893d8d35bfc24adf1678f53`，Worker `1da03739-a01c-4fc5-ab13-797d17734fb8`。只执行新 30 秒校准场景，没有重复先前画幅矩阵、配乐风格或模型调用。[原始诊断](webgl-film-attempt/inspection.json)、[运行结果](webgl-film-attempt/smoke-report.json)、[声音计划](webgl-film-attempt/audio-plan.json)和[分段计划](webgl-film-attempt/shard-plan.json)保留完整记录。
+
+- 24 个 standard-4 WebGL 分段全部成功，覆盖 900 帧；另一个音频任务成功。在工作区原有 24 个名额与 1,000,000 usd_micros 预算内完成，没有放宽并发或预算。每段真实 SwiftShader 和 uid/沙箱回执通过；峰值均为 null 加原因。
+- 程序配乐加 whoosh/whip/riser/reverse 的新 lead-in 已在真实音频容器合成：1,440,000 个样本帧、−14 LUFS、−1.4 dBTP。此轮没有负责人正常速度试听。
+- QA 为 `QA_OBSERVATION_MISSING`，没有拼接、提交或交付 MP4。现有容器只在整片计划的阅读停留点观测，本片为 45、450；24 个短分段中只有两段包含这些点。Worker 却要求每段数组非空，错误阻断了其余分段；Workflow 对这个确定性错误重试六次，harness 389.855 秒后收到失败。
+- 25 个计算实例均已停止且费用全部结算：分配资源保守上界合计 95,309 usd_micros，未结清单为空；操作取消、lease 归还与临时密钥删除成功。该金额是此轮计算的估计上界，不是供应商账单或成功成片单位成本。
+
+修复让容器与 Worker 共用全局阅读停留帧计划，逐段检查实际应覆盖的精确帧集合；不包含计划点的段允许空数组，缺帧、重复帧、错 render/画幅、BLOCK 项仍阻断，同时核对回执的分段范围和观测字节身份。观测校验不再默认重试。新规则恢复的是按镜头阅读停留取证的原意，不将“每个计算分区非空”作为 QA 指标。修复后的实际整片仍需本场景验收。

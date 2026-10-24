@@ -16,3 +16,14 @@ export function filmBlockEvents(spec) {
     return blockEvents(scene.block.split('@')[0], {start: scene.start, end: scene.end}, scene.params).map(event => ({...event, sceneId: scene.id}));
   });
 }
+
+/** Global settled reading holds, independent of how compute partitions the film. */
+export function filmObservationFrames(spec,quality){
+ const stride=quality==='review'?2:1;
+ return [...new Set(spec.scenes.flatMap(scene=>{
+  if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  const settled=scene.start+Math.max(45,...blockEvents(scene.block.split('@')[0],{start:scene.start,end:scene.end},scene.params).map(event=>event.frame+6));
+  const hold=Math.min(scene.end-1,settled),middle=Math.floor((scene.start+scene.end)/2);
+  return[hold,...(middle>=settled?[middle]:[])].map(frame=>Math.floor(frame/stride)*stride);
+ }))].sort((a,b)=>a-b);
+}

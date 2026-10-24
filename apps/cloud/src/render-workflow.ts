@@ -4,10 +4,10 @@ import {planShards, assertRenderJob,renderDeadlineMs,filmUsesWebgl} from '@promo
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {compareSeam} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {validate as observationValid} from '@promobento/contracts/validators/frame-observation';
 import {validate as renderValid} from '@promobento/contracts/validators/render-job';
 import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
+import {checkShardObservations} from './render-observations.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
@@ -65,17 +65,20 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const output = (result: Json, suffix: string): BlobRef => {
         const value = result.outputs?.find((blob: BlobRef) => blob.key.endsWith(suffix)); if (!value) throw Error('RENDER_OUTPUT_MISSING'); return value;
       };
-      const seamReport = parseCanonicalJson(await step.do('verify-shards', async () => {
+      const seamReport = parseCanonicalJson(await step.do('verify-shards',{retries:{limit:0,delay:'1 second'}}, async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         await advanceRenderStage(this.env,row.id,op,'verifying');
         const seams = [];
         for (const [index, result] of shards.entries()) {
-          if (!renderValid(result.report) || result.report.kind !== 'shard_receipt' || result.report.imageDigest !== release.image_digest) throw Error('SHARD_RECEIPT_INVALID');
+          const shard=partition.shards[index]!;
+          if (!renderValid(result.report) || result.report.kind !== 'shard_receipt' || result.report.imageDigest !== release.image_digest
+            ||result.report.renderId!==row.id||result.report.shardIndex!==index||result.report.start!==shard.start||result.report.end!==shard.end) throw Error('SHARD_RECEIPT_INVALID');
           if(filmUsesWebgl(film)&&!result.report.webgl?.length)throw Error('SHARD_WEBGL_REPORT_MISSING');
-          const observations = await getJson(this.env, output(result, '/observations.json').key) as unknown as Json[];
-          if (!observations.length) throw Error('QA_OBSERVATION_MISSING');
-          for (const observation of observations) if (!observationValid(observation) || observation.findings.some((finding: Json) => finding.severity === 'BLOCK')) throw Error('QA_BLOCK');
+          const observationBlob=output(result,'/observations.json');
+          if(observationBlob.sha256!==result.report.outputs.observations)throw Error('SHARD_RECEIPT_INVALID');
+          const observations=parseCanonicalJson(await checkedBytes(this.env,observationBlob));
+          checkShardObservations(input.job,shard,film,observations);
           if (index) {
             const frame = partition.shards[index]!.start - 1;
             const a = await checkedBytes(this.env, output(shards[index - 1]!, `/seam-frames/${frame}-last.png`));

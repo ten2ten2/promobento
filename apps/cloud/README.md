@@ -8,7 +8,7 @@
 
 计算费用目前按 **分配的完整 CPU + 内存 + 磁盘 × 实际运行时间**记保守上界，不是 Cloudflare 账单实测值。CPU/内存/磁盘单价来源：[Cloudflare Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)，2026-10-23；实例规格见[官方表](https://developers.cloudflare.com/containers/platform/limits/)。未知模型 usage 保留预留，不记作零。生产预算未标定，Agent 仍关闭。
 
-满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该新增排队路径已有定点本地回放，尚未部署或完成正式满载 G1。
+满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径已随 `1af113f` 部署，24 分段与声音均成功停止/结算；影片随后在观测覆盖校验处阻断，正式满载性能/取消 G1 仍未完成。
 
 ## 部署
 
@@ -42,7 +42,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 预检先核对许可，再读源文件；ABC 上限 16 KiB、上传音乐上限 8 MiB。FilmSpec 只选择已批准的 `scoreRef` 或 `resourceId`，宿主确定性生成 AudioPlan、`audio:music` 字节输入及独立清权记录；容器再核对实际摘要、谱文本与批准时长，然后解析/合成。上传仅支持现有有界 WAV 解码器的 mono/stereo PCM16/24、44.1/48 kHz、最长 30 秒子集，源必须覆盖整段，不自动循环或补静音。音轨素材也进入 job 的权利清单，后续渲染和私有下载重新检查撤销状态。旁白仍需转写/字幕准入，不能作为本音乐入口上传；方向卡保持静音。
 
-本轮只对新增的准入/真实 PCM 合成、失败恢复及导演传输回放做了定点本地检查；外部音乐路径尚未部署，未调用真实模型或替代负责人试听。
+新增准入/真实 PCM 合成、失败恢复及导演传输回放已做定点本地检查；外部音乐路径随 `1af113f` 部署，但尚未实际运行真实导演请求，未调用真实模型或替代负责人试听。
 
 导演准备输入也纳入失败处理。失败先原子写入终态与首个错误的 `operation_failure` outbox，再确认停止、修复非终态渲染；未知消费保持预留。清理专用检查点和队列可重试清理，不重复模型/媒体调用。最终候选与 `operation_progress` outbox 原子提交，通知故障不回滚成功。中间进度是尽力通知，可通过操作查询读取权威状态。内部修复使用策略的 `maxInternalRepairs=2`，最多初审加两次修复后复审；达到上限不再出新片或冷审。上述新增导演恢复仍待实际云端故障验收。
 
@@ -51,5 +51,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `parseCanonicalJson` 恢复；不依赖平台结构化对象的属性形态，也不放宽 JCS 对非 JSON 值的拒绝。最终提交不自动重试确定性失败，避免原始错误被后续期限错误掩盖。`test/render-commit.test.mjs` 只回放已生成的云端计算回执，检查实际提交代码，不重新捕获或编码媒体。
 
 渲染记录依次为 `queued → sharding → verifying → assembling → passed`，失败/取消为 `blocked`/`cancelled`。准备输入也在失败处理范围内；失败先封锁新 attempt，再确认实例停止。`fail-render` 检查点只重试清理，最多三次重试，保留首个错误和 `stopPending`；确认失败时 lease 不归还。ShardDO 持久化单次 attempt 的停止标记，晚到 execute 不能重新启动。最终成片与 `render_progress` outbox 原子提交；通知由既有队列独立重试，陈旧 generation 的通知丢弃，查询渲染记录不依赖通知到达。
+
+`verify-shards` 按共享整片阅读停留计划核对各段的精确观测帧及身份，不要求无计划点的短段伪造非空结果；QA/接缝确定性错误不默认重试。30 秒 24 段初验计算成功后，曾因原“每段非空”检查错误阻断，原始失败与修复范围见[验收记录](../../docs/evidence/2026-10-24-s1-staging/README.md#30-秒-webgl计算通过观测覆盖校验阻断)。
 
 上述恢复路径已随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。准备失败、通知故障及晚到执行竞态仍只有 SQLite/DO/Workflow 本地回放，不代表平台强制终止、真实重启或完整 G1 已通过。真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。

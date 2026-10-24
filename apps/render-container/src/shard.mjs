@@ -2,7 +2,7 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {canonical} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes as sha} from '@promobento/contracts/digest';
-import {blockEvents} from '../../../packages/blocks/src/events.mjs';
+import {filmObservationFrames} from '../../../packages/blocks/src/events.mjs';
 import {filmSession} from './browser.mjs';
 import {shardEncoder} from './media.mjs';
 import {memoryPeak} from './memory.mjs';
@@ -22,11 +22,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
   const frameDigests = [], seamFrames = [], observations = [];
   // Settled reading holds. Dynamic/transition coverage is the separate S2 temporal QA pass.
-  const observeFrames = new Set(session.plan.spec.scenes.flatMap(scene => {
-    const settled = scene.start + Math.max(45, ...blockEvents(scene.block.split('@')[0], {start: scene.start, end: scene.end}, scene.params).map(event => event.frame + 6));
-    const hold = Math.min(scene.end - 1, settled), middle = Math.floor((scene.start + scene.end) / 2);
-    return [hold, ...(middle >= settled ? [middle] : [])].map(frame => Math.floor(frame / stride) * stride);
-  }));
+  const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
   try {
     if (shard.start > 0) {
       const png = await session.frame(shard.start - 1, {format: 'png'});
