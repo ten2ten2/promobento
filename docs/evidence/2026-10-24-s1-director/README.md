@@ -286,3 +286,10 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 `e44b670` 的 [40136610496](https://github.com/ten2ten2/promobento/actions/runs/40136610496)取得[原 72 项、旅程 48 项及 showcase 44 项通过](showcase-raster/cpu-surface-candidate.json)，showcase 已完成的 44 项全零差异。剩余方形 review 149 帧逆序仍为最大 **1** / **1.7983539094650205%**，冷 seek 未继续。已查看实际 PNG，面板/ROI/阴影正常；保留原门槛。随后只复现该方形缩小场景，同时保留原尺寸 PNG 与画布像素，不重跑前述 164 项，结果见下文。
 
 [40138194760](https://github.com/ten2ten2/promobento/actions/runs/40138194760) 的窄诊断取得六项通过，但未修改渲染代码，且增加了画布读回/原尺寸截图，不用它抹掉上一轮的方形反例。当前将 review 改为与 final 相同的完整逻辑尺寸截图：JPEG92 直送已有 FFmpeg scale，PNG 在主机以整数面积平均缩小。视频和 QA 都离开浏览器的半比例截图路径；15 fps、半尺寸输出、完整源时间线、原容差、期限和最终片捕获不变。PNG 编码器从导演拼图原实现移入共享契约模块并保留旧导出，尺寸上限不放宽。新增整数缩小/透明度单项（13.04 ms）和既有拼图完整帧/像素/尺寸拒绝检查（170.63 ms）通过；cloud TypeScript 7.0.2 通过。后续只复验改变的 review 路径，复用未改的普通与最终尺寸结果。
+
+`ab4442f` 的 [40138961606](https://github.com/ten2ten2/promobento/actions/runs/40138961606)取得[新 review 路径四画幅的 48 次比较通过](showcase-raster/review-capture-verified.json)，最大通道差 **1**、差异像素最多 **0.03607253086419753%**，原门槛不变。已查看原方形反例及横竖屏的稳定帧，面板、阴影与 ROI 正常；普通 72 项和两种面板最终尺寸 48 项复用 `e44b670` 的适用结果，未重跑媒体/配乐。原 C 的真实复验见下文。
+
+
+[40139493361](https://github.com/ten2ten2/promobento/actions/runs/40139493361) 在 `ab4442f` 构建/部署成功，镜像 **`sha256:70644412bc06d55a25c8aee7d4e5a7859bbc841634a365bb8fde6124633a48e7`**，Worker `79769107-701b-4388-9ee0-54d0a377831c`。操作 `eval-minimax-15-1792881915587` 复用第七次的同一付费 C、原素材/字体/seed；[真实 review](showcase-raster/native-review-render.json)在原 90 秒内交付，客户端 **75,439 ms**，149/299 帧接缝均零差异。实际 15 秒、960×540、15 fps、225 帧、有 AAC；原有 VBV 纠正后峰值 **1,424,992 ≤ 2,500,000 bit/s**。[五次计算](showcase-raster/native-report.json)全部物理停止/结算 **8,965 usd_micros**，0 模型，未结与容量为空、临时密钥回收。
+
+已查看实际 MP4 的转场、ROI 和片尾解码图，面板/阴影正常；Chrome 155.0.8059.85 完整 **1×** 播放到结束，无解码错误/掉帧，[解码回执](showcase-raster/native-decoded-video.json)。该回归不计完整导演、最终片或负责人视听。已移除仅用于方形诊断的临时 selector 与画布导出，保留四画幅 review 的必要检查入口；继续完整导演。

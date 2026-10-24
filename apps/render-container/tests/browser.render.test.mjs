@@ -17,10 +17,8 @@ const rules=parseCanonicalJson(read('config/platform-presets.json'));
 const lock=parseCanonicalJson(read('apps/render-container/environment.lock.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
 const journeyOnly=process.env.PROMOBENTO_JOURNEY_ONLY==='1',runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1'||journeyOnly;
-const squareReviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase-square-review';
-const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review',rasterOnly=squareReviewOnly||reviewOnly;
+const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review';
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
-if(squareReviewOnly)report.scope='showcase_square_review_remaining_failure_only';
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
@@ -148,7 +146,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of journeyOnly||rasterOnly?[]:Object.keys(rules.aspectLayouts)){
+  for(const aspect of journeyOnly||reviewOnly?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -187,9 +185,9 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  for(const name of squareReviewOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  for(const name of journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
-  for(const aspect of squareReviewOnly?['square']:Object.keys(rules.aspectLayouts))for(const scale of rasterOnly?[.5]:[1,.5]){
+  for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
     const capture=async view=>{
       const png=Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
@@ -200,26 +198,18 @@ try{
     assert.deepEqual(await handle.page.evaluate(()=>({width:window.__omTarget.width,height:window.__omTarget.height,ratio:window.devicePixelRatio})),
       {width:layout.width,height:layout.height,ratio:1});
     const frames=[149,185,299],baseline=new Map();
-    const savePixels=async(view,label)=>{
-      if(!squareReviewOnly)return;
-      const surfaces=await view.page.evaluate(()=>[...document.querySelectorAll('section[data-scene] > canvas')]
-        .filter(canvas=>getComputedStyle(canvas.parentElement).display!=='none').map(canvas=>canvas.toDataURL('image/png')));
-      for(const [index,value]of surfaces.entries())writeFileSync(`${output}/${label}-surface-${index}.png`,Buffer.from(value.split(',')[1],'base64'));
-      writeFileSync(`${output}/${label}-full.png`,await view.capture());
-    };
     // Match review's full-size JPEG capture history; PNG is only for the lossless probes.
     for(let frame=0;frame<=frames.at(-1);frame++){
       if(frame%2===0||frames.includes(frame)){
         await handle.seek(frame);
         if(frames.includes(frame)){
           const png=await capture(handle);baseline.set(frame,png);writeFileSync(`${output}/${name}-${aspect}-${scale}-${frame}.png`,png);
-          if(frame===149)await savePixels(handle,'baseline-149');
         }else await handle.cdp.send('Page.captureScreenshot',{format:'jpeg',quality:92,optimizeForSpeed:true,fromSurface:true,
           captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale:1}});
       }
     }
     for(const frame of [...frames].reverse()){
-      await handle.seek(frame);const png=await capture(handle);if(frame===149)await savePixels(handle,'reverse-149');
+      await handle.seek(frame);const png=await capture(handle);
       report[name].comparisons.push({aspect,scale,frame,mode:'reverse',...compare(baseline.get(frame),png,`${name}-${aspect}-${scale}-${frame}-reverse`)});
     }
     await handle.page.close();
@@ -230,7 +220,7 @@ try{
     }
   }
   }
-  if(!journeyOnly&&!rasterOnly){
+  if(!journeyOnly&&!reviewOnly){
     const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
     const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
     writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');
