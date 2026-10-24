@@ -27,7 +27,7 @@ export const blockCatalog = [
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
         required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}}}}},
-  { ...common, id: 'ui-journey', category: 'software', cost: 'medium', regions: ['journey'],
+  { ...common, id: 'ui-journey', version: '1.0.1', category: 'software', cost: 'medium', regions: ['journey'],
     events: [{name: 'product-land', description: 'The camera arrives at the final interface.'}],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,

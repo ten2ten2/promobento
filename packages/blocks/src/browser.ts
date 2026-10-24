@@ -132,13 +132,15 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
   regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root)]};
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.0', build(ctx, params) {
+window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.1', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
-  safe.style.perspective = '1800px'; safe.style.overflow = 'hidden';
-  const camera = node(safe, {position: 'absolute', inset: '0', transformStyle: 'preserve-3d'});
+  safe.style.overflow = 'hidden';
+  // Project each complete panel, not its text/image descendants as separate 3D layers.
+  // Nested preserve-3d let Chromium retain a history-dependent low-resolution image raster.
+  const camera = node(safe, {position: 'absolute', inset: '0', perspective: '1800px'});
   const drawings: Array<(time: number) => Promise<void>> = [];
   const panels = items.map(item => {
-    const panel = node(camera, {position: 'absolute', inset: '0', transformStyle: 'preserve-3d'});
+    const panel = node(camera, {position: 'absolute', inset: '0'});
     const heading = node(panel, {position: 'absolute', left: '2%', top: '2%', width: '96%', height: wide ? '20%' : '28%'});
     text(ctx, item.textSlot, heading, 3);
     const screen = node(panel, {position: 'absolute', left: '2%', top: wide ? '26%' : '34%', width: '96%', height: wide ? '69%' : '61%',
@@ -151,7 +153,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
     panels.forEach((panel, index) => { const distance = index - position;
       panel.style.visibility = Math.abs(distance) < 1 ? 'visible' : 'hidden';
       panel.style.opacity = String(clamp01(1 - Math.abs(distance)));
-      panel.style.transform = `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;
+      panel.style.transform = distance === 0 ? 'none' : `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;
     });
     for (let index = 0; index < drawings.length; index++) if (Math.abs(index - position) < 1) await drawings[index]!(time);
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};

@@ -219,4 +219,14 @@ C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相
 
 [完整回执](minimax-fifth-attempt/report.json)：6 次模型 **32,608**、14 次计算均已物理停止/结算 **10,736** 保守上界，总计 **43,344 usd_micros**；本轮未知/容量为空，Workflow 已终止/对账，临时密钥回收。共享模型已计价 **247,217** 加旧未知 **20,225**，合计占用 **267,442**。
 
-当前仅向 C/E 已有的提示 Schema 补 `id@major` 引用枚举、确认事实 ID 枚举及 CTA/数值/引语等绑定说明；不改完整执行校验、结构纠正或视觉修复上限。此提示修正尚未部署/云验；未启动下一轮模型调用或媒体渲染，未重跑既有测试、媒体矩阵或完整 CI。
+随后向 C/E 已有的提示 Schema 补 `id@major` 引用枚举、确认事实 ID 枚举及 CTA/数值/引语等绑定说明；不改完整执行校验、结构纠正或视觉修复上限。实际部署与下一轮结果见下节。
+
+## MiniMax 第六次：CTA 绑定通过，旅程转场的真实接缝暴露栅格历史差异
+
+`4548184dd27d28d12de59db03e26ea6e3079ee95` 经 [40124728590](https://github.com/ten2ten2/promobento/actions/runs/40124728590) 只部署 Worker，[复用](minimax-sixth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像，[部署健康](minimax-sixth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792869602772`，私有输出 `artifacts/s1-minimax-15-fact-bindings-2026-10-25`。已再次查看三张实际方向图，选择 Fit；方向就绪 **43.194 秒**，不作分位数。执行前复核 MiniMax 官网仍使用 MiniMax Code 名称及原三项产品描述，没有扩充已确认事实。
+
+C 用满三次规格调用后通过；首轮 review 在原 90 秒内完成。已付费 [E 工具回执](minimax-sixth-attempt/review-0-response.json)保留 `id@major` 与 CTA 事实绑定，通过完整准入，生成[第二轮 FilmSpec](minimax-sixth-attempt/review-1-film.json)。该轮 3 段画面和声音均执行成功，但在 **149 帧**接缝被拦下：最大通道差 **92**、差异像素 **5.1107253086419755%**；299 帧完全一致。没有拼接该轮影片、执行最终横竖片或 F。
+
+已从私有 R2 下载并查看原 149/299 帧两组 PNG。149 帧为 `ui-showcase` 推入 `ui-journey` 的过程中，差异集中于旅程的图像面板：顺序帧模糊、冷 seek 清晰，文字和外层位置一致；三个分段 CPU flags 摘要相同。当前候选将旅程的 perspective 移至面板的直接父容器，去除后代 `preserve-3d`，零位移时移除恒等 transform；保留透视旅程、时间轴及原容差。新增原创素材的四画幅/双捕获比例、转场中与移动中顺序/逆序/冷 seek 回归；本地语法与运行时 TypeScript 7.0.2 检查通过，真实浏览器与原片复验待执行。
+
+[完整回执](minimax-sixth-attempt/report.json)：4 次模型 **43,109**、13 次计算全部停止/结算 **12,679** 保守上界，总计 **55,788 usd_micros**。本轮未知和容量为空、Workflow 已对账、临时密钥回收。共享模型已结 **290,326** 加历史两笔未知 **20,225**，合计占用 **310,551**。本次失败不计成功导演或六题候选；未重跑性能矩阵、隔离或配乐。

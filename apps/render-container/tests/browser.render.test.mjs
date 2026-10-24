@@ -19,6 +19,17 @@ const runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1';
 const report={status:'running',scope:runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
+// A real director repair put a shard boundary inside the push into ui-journey.
+// Keep those timings with original engineering material, not the private product screenshot.
+const journey=filmFixture();
+journey.scenes=[
+  {...journey.scenes[0],end:66},
+  {...journey.scenes[1],start:58,end:156,transitionIn:{type:'crossfade',frames:8}},
+  {id:'journey',start:146,end:450,kind:'block',block:'ui-journey@1',params:{items:[
+    {assetKey:'dashboard',textSlot:'intro'},{assetKey:'dashboard',textSlot:'product'}]},
+    transitionIn:{type:'push',frames:10},purpose:'Exercise a cold shard boundary during a CSS-3D interface journey.'}
+];
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/journey-'+aspect+'.html',generateFilmPage(JSON.stringify(journey),pageOptions(aspect,layout)));
 const thirty=filmFixture(),thirtyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
 thirty.durationSeconds=30;thirty.totalFrames=900;thirty.scenes.at(-1).end=900;thirtyOptions.target.totalFrames=900;
 pages.set('/thirty.html',generateFilmPage(JSON.stringify(thirty),thirtyOptions));
@@ -151,6 +162,26 @@ try{
     await assert.rejects(handle.seek(0),/INVALID_SESSION/);
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
+  }
+  report.journey={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
+  for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of [1,.5]){
+    const path='/journey-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
+    const capture=async view=>Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
+      captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale}})).data,'base64');
+    const frames=[149,185,299],baseline=new Map();
+    // Match the encoded review's even-frame history, including screenshots, before each odd seam.
+    for(let frame=0;frame<=frames.at(-1);frame++){
+      if(frame%2===0||frames.includes(frame)){await handle.seek(frame);const png=await capture(handle);if(frames.includes(frame))baseline.set(frame,png);}
+    }
+    for(const frame of [...frames].reverse()){
+      await handle.seek(frame);report.journey.comparisons.push({aspect,scale,frame,mode:'reverse',...compare(baseline.get(frame),await capture(handle),`journey-${aspect}-${scale}-${frame}-reverse`)});
+    }
+    await handle.page.close();
+    for(const frame of frames){
+      const cold=await open(aspect,path);await cold.seek(frame);
+      report.journey.comparisons.push({aspect,scale,frame,mode:'cold',...compare(baseline.get(frame),await capture(cold),`journey-${aspect}-${scale}-${frame}-cold`)});
+      await cold.page.close();
+    }
   }
   const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
   const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
