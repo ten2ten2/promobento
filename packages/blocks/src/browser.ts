@@ -31,14 +31,14 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   const safe = inSafe(ctx), box = safeBox(ctx);
   const orbit = node(ctx.root, {position: 'absolute', border: `2px solid ${ctx.style.palette.accent}`, borderRadius: '50%',
     width: ctx.target.width * 0.8 + 'px', height: ctx.target.width * 0.8 + 'px', left: '52%', top: '-28%', opacity: '0.2'});
-  // Keep the fading title on the same compositing path for forward, hidden/reverse and cold seeks.
-  // Otherwise Chromium can round antialiased glyph edges differently after this layer is rebuilt.
-  const title = node(safe, {position: 'absolute', left: '0', top: '24%', width: '100%', height: '53%', willChange: 'transform, opacity'});
+  const title = node(safe, {position: 'absolute', left: '0', top: '24%', width: '100%', height: '53%'});
   text(ctx, params.textSlot, title);
   const line = node(safe, {position: 'absolute', left: '0', top: '17%', height: '8px', width: '12%', background: ctx.style.palette.accent ?? ''});
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '81%', width: '92%', height: '18%'}), 3);
   const timeline = window.gsap.timeline({paused: true});
-  ctx.OM.clock(timeline, time => { const p = easeOut(time / 0.6); title.style.transform = `translateY(${(1 - p) * Math.min(48, box.height * 0.04)}px)`;
+  // At rest, use ordinary text painting instead of retaining an identity-transform raster surface.
+  // A persistent will-change layer made the hidden/reverse glyph-edge discrepancy larger.
+  ctx.OM.clock(timeline, time => { const p = easeOut(time / 0.6); title.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * Math.min(48, box.height * 0.04)}px)`;
     title.style.opacity = String(0.35 + 0.65 * p); line.style.width = 12 + p * 18 + '%'; orbit.style.transform = `rotate(${time * 4}deg) scale(${1 + clamp01(time / 5) * 0.15})`; }, (ctx.frames.end - ctx.frames.start) / 30);
   return {
     timeline,

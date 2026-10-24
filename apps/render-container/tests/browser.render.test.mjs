@@ -91,6 +91,20 @@ async function checkLayout(handle,aspect){
     assert.ok(fonts.length>0&&fonts.every(font=>font.isCustomFont),JSON.stringify(fonts));
   }
 }
+const textPaintState=handle=>handle.page.evaluate(()=>[...document.querySelectorAll('[data-pb-slot]')].filter(el=>getComputedStyle(el).visibility==='visible').map(el=>{
+  const ancestors=[];
+  for(let node=el;node&&node.id!=='film';node=node.parentElement){
+    const style=getComputedStyle(node),box=node.getBoundingClientRect();
+    ancestors.push({tag:node.tagName,transform:style.transform,opacity:style.opacity,willChange:style.willChange,
+      box:{x:box.x,y:box.y,width:box.width,height:box.height}});
+  }
+  return{slot:el.dataset.pbSlot,ancestors};
+}));
+async function compareFrame(handle,baseline,states,frame,label){
+  const png=await handle.capture();
+  try{return compare(baseline.get(frame),png,label);}
+  catch(error){writeFileSync(`${output}/${label}-state.json`,JSON.stringify({expected:states.get(frame),actual:await textPaintState(handle)},null,2));throw error;}
+}
 try{
   if(runtimeOnly){
     report.media={status:'not_run',reason:'runtime_only'};
@@ -100,7 +114,7 @@ try{
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
   for(const aspect of Object.keys(rules.aspectLayouts)){
-    const handle=await open(aspect),baseline=new Map(),checks=[];
+    const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
       {...handle.envelope,requestId:'init',sequence:handle.upcoming(),command:'seek',frameIndex:0}),/INVALID_SESSION/);
@@ -110,10 +124,11 @@ try{
     for(const frame of frames){
       const ready=await handle.seek(frame);assert.equal(ready.frameIndex,frame);assert.equal(ready.aspectId,aspect);
       const png=await handle.capture();baseline.set(frame,png);writeFileSync(`${output}/${aspect}-${frame}.png`,png);
+      states.set(frame,await textPaintState(handle));
       if([45,165,375].includes(frame))await checkLayout(handle,aspect);
     }
-    for(const frame of [...frames].reverse()){await handle.seek(frame);checks.push({frame,mode:'reverse',...compare(baseline.get(frame),await handle.capture(),`${aspect}-${frame}-reverse`)});}
-    for(const frame of frames){const cold=await open(aspect);await cold.seek(frame);checks.push({frame,mode:'cold',...compare(baseline.get(frame),await cold.capture(),`${aspect}-${frame}-cold`)});await cold.page.close();}
+    for(const frame of [...frames].reverse()){await handle.seek(frame);checks.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`${aspect}-${frame}-reverse`)});}
+    for(const frame of frames){const cold=await open(aspect);await cold.seek(frame);checks.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`${aspect}-${frame}-cold`)});await cold.page.close();}
     await handle.seek(375);
     const time=await handle.page.evaluate(()=>({date:Date.now(),constructed:new Date().getTime(),performance:performance.now(),origin:performance.timeOrigin,random:Math.random(),targetKeys:Object.keys(window.__omTarget)}));
     assert.equal(time.date,12500);assert.equal(time.constructed,12500);assert.equal(time.performance,12500);assert.equal(time.origin,0);
