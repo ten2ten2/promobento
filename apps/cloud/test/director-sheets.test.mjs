@@ -15,7 +15,22 @@ test('review sheets retain every actual frame in time order with undistorted pix
   const right=(tile.top*sheet.width+tile.left+tile.width-1)*4;assert.deepEqual([...pixels.pixels.slice(right,right+4)],[0,0,255,255]);
  }
  assert.ok(sheet.bytes.length<1<<20);assert.match(sheet.scope,/reading_hold/);
+ assert.ok(sheet.width<=960&&sheet.height<=1920);assert.deepEqual([...pixels.pixels.slice(0,4)],[40,50,61,255]);
+ for(const tile of sheet.tiles){assert.equal(tile.label,'FRAME '+tile.frame);assert.ok(tile.left>=12&&tile.top>=36);}
  await assert.rejects(reviewContactSheet({aspect:'landscape',frames:[],load:async()=>bytes}),/REVIEW_FRAME_COVERAGE_MISSING/);
  await assert.rejects(reviewContactSheet({aspect:'portrait',frames:[frames[0],frames[0]],load:async()=>bytes}),/REVIEW_FRAME_REFERENCE_INVALID/);
  let calls=0;await assert.rejects(reviewContactSheet({aspect:'landscape',frames:frames.slice(0,2),load:async()=>++calls===1?bytes:pngRgba(1,1,Uint8Array.from([0,0,0,255]))}),/REVIEW_FRAME_DIMENSIONS_MIXED/);
+});
+
+test('review reduction preserves thin strokes and separates labelled frames from unused cells',async()=>{
+ const width=960,height=540,pixels=new Uint8Array(width*height*4);
+ for(let y=0;y<height;y++)for(let x=0;x<width;x++)pixels.set(x%2?[255,255,255,255]:[0,0,0,255],(y*width+x)*4);
+ const bytes=pngRgba(width,height,pixels),frames=[44,117,261].map(frame=>({key:'renders/test/observation-frames/'+frame+'.png'}));
+ const sheet=await reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes}),decoded=pngPixels(sheet.bytes);
+ assert.equal(sheet.columns,2);assert.equal(sheet.rows,2);assert.equal(sheet.tiles.length,3);
+ const tile=sheet.tiles[0],at=((tile.top+20)*sheet.width+tile.left+20)*4;
+ assert.ok(decoded.pixels[at]>110&&decoded.pixels[at]<145,'minified black/white strokes retain their average instead of disappearing');
+ assert.equal(decoded.pixels[at+3],255);assert.match(sheet.padding,/review_chrome_not_film_pixels/);
+ const unusedLeft=sheet.tiles[1].left,unusedTop=sheet.tiles[2].top;
+ assert.deepEqual([...decoded.pixels.slice((unusedTop*sheet.width+unusedLeft)*4,(unusedTop*sheet.width+unusedLeft)*4+4)],[40,50,61,255]);
 });

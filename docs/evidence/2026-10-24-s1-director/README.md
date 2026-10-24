@@ -324,3 +324,16 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 [原始回执诊断](ielts-first-attempt/truncation.json)：usage 的 completion_tokens 恰为 **16,384**，完整流结束，正文 **70,510 字符**仍在反复分析布局，**0 个工具调用**；原回执在私有 R2。没有把部分文字提取成规格或重新请求同一回执。本轮五次模型已结 **24,097**、五次计算 **11,592** 保守上界，无本轮未知，容量为空、密钥回收。共享新增模型已结 **354,394**，原三笔未知 **37,993**，合计占用 **392,387 usd_micros**。
 
 当前只将 E/F 的兼容参数由 low 改为 `reasoning_effort:none`，输出、次数、金额、质量校验及独立上下文不变。依据 [DeepSeek 官方 API](https://api-docs.deepseek.com/api/create-chat-completion/)对 none 的说明；[网关公开文档](https://api.modelswitch.org/docs)未描述此参数，不能据此假定其实际转发。参数传输单项通过（Node 26.12.0，2.50 ms），现有绑定/预算配置检查通过；真实网关效果待下一题验证，原能力登记仍只表示接受过 low。
+
+
+## IELTS 第二次：E/F 完整返回，冷审混淆了拼图边界
+
+[40142403757](https://github.com/ten2ten2/promobento/actions/runs/40142403757) 在 `8c0a4c0e9eaf26f8ba51c80aea65974f9daff7fd` 构建/部署成功，镜像 **`sha256:3863520b644116337cba272090a2a592762f2eb010ae4f79491eda5d68d04b01`**，Worker `d999cebc-9a6f-4a97-af82-d59ea57263a4`。操作 `eval-ielts-ready-15-1792884514265` 三图已查看并[选择 Fit](ielts-second-attempt/choice.json)。当前 none 请求被实际接受：[E 返回 submit_candidate](ielts-second-attempt/review-0-response.json)，F 返回[完整 block JSON](ielts-second-attempt/cold-review-response.json)，随后 C 纠正、E 两轮工具均完整返回。不能由此推断网关内部思考已关闭；仍未交付合格候选，最后因 E 要求第三次内部修复而按原上限停止。
+
+已下载 F 看到的两张原拼图与横竖实际 MP4。冷审将未占用的黑色格子当作影片留黑，并将两个完整课程卡片判作超出画面边界；实际 MP4 9 秒的课程文字均完整、没有该裁切/重叠。[横屏](ielts-second-attempt/landscape-film-decoded.json)和[竖屏](ielts-second-attempt/portrait-film-decoded.json)已完整 1× 解码播放，无错误/掉帧。这不改变旧冷审失败，也不替代负责人视听；课程图较小、卡片留白等实际质量仍须继续判断。
+
+原拼图把 7 个帧直接拼成 3×3，无分隔/可见帧号，最近邻缩小还丢失细字和边框。当前保持全部源帧、两张图片和原 960×1920 / 1 MiB 上限，常规片改为两列、面积平均缩图；片外增加 `FRAME <帧号>`、深灰间隔与 `NO FRAME` 标记，E/F 都按 tiles 的精确矩形区分影片像素与审片包装。已用相同原生 PNG 重排并查看[横屏元数据](ielts-second-attempt/labelled-sheet-landscape.json)/[竖屏元数据](ielts-second-attempt/labelled-sheet-portrait.json)，分别 932×1164 / 522×1884、109,396 / 90,532 bytes，全部 7 帧保留，未重新渲染或调用模型。云端判断效果仍待验。
+
+两个拼图单项通过（184.53 / 322.43 ms），涵盖全帧顺序/来源、比例、尺寸拒绝、细笔画均值与包装分隔。双协议回放发现旧夹具仍将 F 改绑未启用的官方 Sonnet；仅 8,192 输出 token 最坏预留就为 **81,920 > 50,000 usd_micros**，不可能通过现行阶段预算。夹具现只在 C 切换原生协议，F 保持实际的独立 DeepSeek 绑定；不提高生产预算。修正后的双协议单项通过（500.64 ms），Worker TypeScript 7.0.2 通过；没有重跑前述已通过的像素检查或完整测试。
+
+[本轮费用与停止](ielts-second-attempt/report.json)：7 次模型已结 **49,727**，25 次计算全部停止/结算 **42,134** 保守上界，无本轮未知，容量为空、密钥回收。共享新增模型已结 **404,121**，三笔未知 **37,993**，合计占用 **442,114 usd_micros**。两部实际 15 秒最终媒体耗时 **94,751 / 102,706 ms**（[原生计时](ielts-second-attempt/database.json)），均需原有码率纠正重编码；不能据此宣称 45 秒目标通过，当前资源的 G1 分布仍待验。

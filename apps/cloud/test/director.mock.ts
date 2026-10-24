@@ -36,8 +36,9 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
  let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[];
  const healthCache=new Map<string,string>();
- const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec,originalCold=providers.steps.coldReview;
- if(nativeProtocol){providers.steps.spec='anthropic/claude-opus-5-5';providers.steps.coldReview='anthropic/claude-sonnet-5-5';}
+ const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec;
+ // Exercise the native Messages transport at C; F keeps the actual independent DeepSeek binding.
+ if(nativeProtocol)providers.steps.spec='anthropic/claude-opus-5-5';
  const specModel=(providers.models as any)[providers.steps.spec],originalVerified=specModel.capabilities.verified;
  Date.now=()=>clock;
  if(unverified)specModel.capabilities.verified=false;
@@ -149,7 +150,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
- }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;providers.steps.coldReview=originalCold;db.close();}
+ }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;db.close();}
 }
 
 test('A-C/E/F replay both SSE adapters, three real-protocol still requests and user wait exclusion',async()=>{
