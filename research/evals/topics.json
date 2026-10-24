@@ -24,27 +24,39 @@
       "segment": "software",
       "subject": "DeepSeek",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/deepseek.json"
+      "factCard": "research/evals/fact-cards/deepseek.json",
+      "materialIds": [
+        "deepseek-hero"
+      ]
     },
     {
       "id": "minimax",
       "segment": "software",
       "subject": "MiniMax",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/minimax.json"
+      "factCard": "research/evals/fact-cards/minimax.json",
+      "materialIds": [
+        "minimax-interface"
+      ]
     },
     {
       "id": "duolingo",
       "segment": "software",
       "subject": "Duolingo",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/duolingo.json"
+      "factCard": "research/evals/fact-cards/duolingo.json",
+      "materialIds": [
+        "duolingo-translate",
+        "duolingo-listen",
+        "duolingo-speak",
+        "duolingo-path"
+      ]
     },
     {
       "id": "ielts-ready",
@@ -60,18 +72,24 @@
       "segment": "course",
       "subject": "Marugoto Japanese Online Course",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/marugoto.json"
+      "factCard": "research/evals/fact-cards/marugoto.json",
+      "materialIds": [
+        "marugoto-interface"
+      ]
     },
     {
       "id": "hf-llm-course",
       "segment": "course",
       "subject": "LLM Course",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/hf-llm-course.json"
+      "factCard": "research/evals/fact-cards/hf-llm-course.json",
+      "materialIds": [
+        "hf-course-outline"
+      ]
     },
     {
       "id": "iphone-duo",

@@ -92,4 +92,12 @@
 - **共享模型历史导入**：[model-budget.json](recovery-attempt/model-budget.json)显示真实共享 D1 已导入 128 次历史清单，可计价部分估算 255,521 usd_micros、14 次未知；`openingMicros:null`、`openingConfirmed:false`、新调用/费用预留均为 0，没有把历史未知总额清零。
 - **清理**：两个计算操作及超时的导演操作最终均取消/对账成功，无未结费用；lease 清空，一次性密钥删除成功。无成片公开，也未调用真实模型。原始状态与费用另见 [只读诊断](recovery-attempt/inspection.json)。完整产物在本机 `artifacts/s1-recovery-40055971723/`。
 
-**仍失败的导演子项**：真实导演预检未在 60 秒内落 failed，随后按原取消路径终止。准备门槛仍使用平台默认 step 重试，缺密钥/验证等确定性问题会拖延终态；已改为零重试，本地仅复验这一准入分支。下一轮只补 `director-preflight`，复用上述取消/终止/restart 证据和原镜像，不重做这些已通过项。
+**当轮失败的导演子项**：真实导演预检未在 60 秒内落 failed，随后按原取消路径终止。准备门槛仍使用平台默认 step 重试，缺密钥/验证等确定性问题会拖延终态。修复和单独补验见下一节。
+
+## 导演确定性预检修复通过，零模型/媒体消费
+
+[40056929096](https://github.com/ten2ten2/promobento/actions/runs/40056929096) 在 `eb4843afe84ae3cc4b11085b335be531bf5a3fd4` 只补 `director-preflight`，job 通过。仅部署 Worker（版本 `ded3278c-a70c-411c-a2ec-1dffd8c73e1c`），[镜像回执](director-preflight/renderer-reuse.json)确认复用上一轮实际镜像 `sha256:620b7b6feb4b75fc6a73db74f162ee44dd1d4277de48bece9e122267a2b0d2b0`，未构建/推送镜像，不重跑取消、原生终止、restart 或完整成片。
+
+[实际回执](director-preflight/director-preflight-report.json)：真实 OperationWorkflow 的准入检查 14.617 秒内落 `failed`，首因 `MODEL_SECRET_MISSING` 已保存在 D1 outbox 与实际私有 R2 故障证据；原生 Workflow 为 errored，清理已确认。无模型请求、无渲染 attempt、无费用预留/结算，历史确认总额仍为 null，未放行真实模型。该时长包括队列派发和证据轮询，不作成功导演的性能指标。临时密钥已删除。
+
+本地仅复验缺密钥/验证/许可的同一准入分支一次（Node 26.12.0，136 ms）；不重跑已通过模型账本、恢复或媒体检查。官方 C/F 仍未接通，成功导演路径及完整 G1/六题评测仍未完成。

@@ -68,5 +68,11 @@
       "courses",
       "webinars"
     ]
+  },
+  "materialAcquisition": {
+    "status": "source_access_blocked",
+    "httpStatus": 403,
+    "checkedAt": "2026-10-24",
+    "sourceUrl": "https://takeielts.britishcouncil.org/prepare/ielts-ready"
   }
 }

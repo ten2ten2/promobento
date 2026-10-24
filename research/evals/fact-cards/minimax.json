@@ -55,12 +55,12 @@
       "capture": "Official desktop product/download page; no account content"
     }
   ],
-  "assets": "sources_identified_not_ingested",
+  "assets": "ingested_internal_eval",
   "rights": {
     "scope": "internal_eval_only",
     "decisionRef": "research/evals/topics.json#/rights",
     "publicUseCleared": false,
-    "storage": "staging_R2_after_rights_check"
+    "storage": "staging_R2"
   },
   "notes": "No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests.",
   "confirmation": {
@@ -73,5 +73,8 @@
       "agents",
       "creation"
     ]
-  }
+  },
+  "materialIds": [
+    "minimax-interface"
+  ]
 }

@@ -55,12 +55,12 @@
       "capture": "Initial public screen only; no personal chat or account details"
     }
   ],
-  "assets": "sources_identified_not_ingested",
+  "assets": "ingested_internal_eval",
   "rights": {
     "scope": "internal_eval_only",
     "decisionRef": "research/evals/topics.json#/rights",
     "publicUseCleared": false,
-    "storage": "staging_R2_after_rights_check"
+    "storage": "staging_R2"
   },
   "notes": "No superiority, benchmark, privacy, pricing or availability promise. Confirm current claims before each run. Source links are metadata, not captured material.",
   "confirmation": {
@@ -73,5 +73,8 @@
       "api",
       "desktop"
     ]
-  }
+  },
+  "materialIds": [
+    "deepseek-hero"
+  ]
 }
