@@ -130,9 +130,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           // Only complete JSON/contract failures can request a corrected call; transport/admission failures cannot.
           if(!repairOutput||!(error instanceof DirectorValidationError||error instanceof ModelJsonOutputError))throw error;
           const reusedReceiptKey=(error as Error&{completedReceiptKey?:string}).completedReceiptKey;
-          return canonical({value:{kind:stage==='spec'?'s1_spec_validation_failure':'s1_model_validation_failure',code:error.message,
+          return canonical({...(reusedReceiptKey?{reusedReceiptKey}:{}),value:{kind:stage==='spec'?'s1_spec_validation_failure':'s1_model_validation_failure',code:error.message,
             issues:error instanceof DirectorValidationError?error.issues:[{code:error.message,path:''}],
-            ...(reusedReceiptKey?{reusedReceiptKey}:{}),
             ...(error instanceof DirectorValidationError?{previous:error.candidate}:{})}});
         }
       });
@@ -281,7 +280,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
             const name=coldRound===0?'review-'+round:'review-cold-'+round;
             const movie=await render(film,name,context.aspects[0],'review');
             const sampled=await reviewSheets([{aspect:context.aspects[0],movie}],name),images=await Promise.all(sampled.sheets.map((sheet:Json)=>image(sheet.image)));
-            const review=await runModel(name,'review',{messages:[{role:'user',text:canonical({task:'Review this actual rendered reading-hold sequence. Inspect hierarchy, factual fidelity and continuity. Call write_spec with a complete correction within supportedFilmSchema, or submit_candidate with a concrete note if acceptable.',film,supportedFilmSchema:s1FilmSchema,frames:sampled.sheets,evidenceKey:sampled.evidenceKey,media:movie.media}),images}],
+            const review=await runModel(name,'review',{messages:[{role:'user',text:canonical({task:'Review this actual rendered reading-hold sequence. Inspect hierarchy, factual fidelity, continuity and empty card shells. Make exactly one tool call: write_spec with a complete supported FilmSpec fixing visible defects, or submit_candidate with a concise concrete note if acceptable. Return no analysis, prose or Markdown. Fix the actual layout/copy rather than relaxing maxLines or other constraints to match a bad render. Black unlisted contact-sheet cells are padding, not movie frames; review is intentionally 15 fps on the 30 fps source timeline.',film,supportedFilmSchema:s1FilmSchema,frames:sampled.sheets,evidenceKey:sampled.evidenceKey,media:movie.media}),images}],
               tools:[tool('write_spec',{type:'object',additionalProperties:false,required:['film'],properties:{film:{type:'object'}}}),tool('submit_candidate',{type:'object',additionalProperties:false,required:['note'],properties:{note:{type:'string',minLength:1,maxLength:4000}}})],maxOutputTokens:8192},value=>{
               if(value.toolCalls?.length!==1)throw Error('DIRECTOR_TOOL_INVALID');const call=value.toolCalls[0];
               if(!['write_spec','submit_candidate'].includes(call.name)||!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:call.name,input:call.input}))throw Error('DIRECTOR_TOOL_INVALID');

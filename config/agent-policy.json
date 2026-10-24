@@ -275,12 +275,12 @@
       "review": {
         "maxCalls": 6,
         "maxMicros": 300000,
-        "effort": "medium"
+        "effort": "low"
       },
       "coldReview": {
         "maxCalls": 2,
         "maxMicros": 50000,
-        "effort": "medium"
+        "effort": "low"
       },
       "triage": {
         "maxCalls": 1,
