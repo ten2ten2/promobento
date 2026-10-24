@@ -119,7 +119,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     if(!Number.isFinite(deadlineAt)||deadlineAt<=Date.now())throw Error('RENDER_DEADLINE');
     const leaseKind = task.mode === 'studio' ? 'studio' : 'shard';
     let startedAt: number | undefined, outcome: Json | undefined, reserved = false,acquired=false;
-    let failed=false,failure:unknown,phase:'startup'|'dispatch'|'execute'='startup';
+    let failed=false,failure:unknown,phase:'startup'|'broker'|'dispatch'|'execute'='startup';
     try {
       // 24 WebGL shards and audio share a 24-slot workspace. Wait without a container or reservation;
       // the original render deadline, generation and stop latch still bound this attempt.
@@ -140,7 +140,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         'cloudflare-containers-2026-10-23-upper-bound', 10000000, op.max_micros);
       reserved = true;
       await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance});
-      await this.ctx.storage.setAlarm(Date.now() + limit);
+      await this.ctx.storage.setAlarm(deadlineAt);
       this.token = crypto.randomUUID() + crypto.randomUUID();
       const {generation: _generation, imageDigest: _imageDigest, deadlineAt: _deadline, ...input} = task;
       input.brokerToken = this.token; assertRenderTask(input);
@@ -148,15 +148,27 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const broker = this.ctx.exports.Broker({props: {token: this.token, operationId: op.id, generation: op.generation,
         resources: task.job.resources, reads: task.inputs.map((input: Json) => input.key),
         prefix: `renders/${task.job.renderId}/attempts/${task.taskId}${suffix}`, attemptId: task.taskId}});
+      // Register before allocating the instance: awaiting registration after start consumed the
+      // complete health window before a single probe. No task is dispatched without this binding.
+      phase='broker';const brokerStartedAt=Date.now(),brokerDeadline=Math.min(brokerStartedAt+30000,deadlineAt);
+      let brokerTimer:ReturnType<typeof setTimeout>|undefined;
+      try{
+        await Promise.race([this.ctx.container!.interceptOutboundHttp('broker.internal',broker),
+          new Promise<never>((_,reject)=>{brokerTimer=setTimeout(()=>reject(Error('RENDER_BROKER_REGISTRATION_TIMEOUT')),Math.max(1,brokerDeadline-Date.now()));})]);
+        if(Date.now()>=brokerDeadline)throw Error('RENDER_BROKER_REGISTRATION_TIMEOUT');
+      }finally{if(brokerTimer!==undefined)clearTimeout(brokerTimer);}
+      const brokerRegistrationMs=Date.now()-brokerStartedAt;
+      await operation(this.env,op.id,op.generation);await rights(this.env,op,task.job.resources);
+      if(Date.now()>=deadlineAt)throw Error('RENDER_DEADLINE');
       startedAt = Date.now(); await this.ctx.storage.put('startedAt', startedAt);
       if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
+      phase='startup';const bootAt=Date.now();
       this.ctx.container!.start({image: this.ctx.container!.images.render!, instance: task.instance, enableInternet: false,
         env: {RENDER_IMAGE_DIGEST: release.image_digest, RENDERER_RELEASE: release.id}});
-      await this.ctx.container!.interceptOutboundHttp('broker.internal', broker);
       const monitor={state:'pending' as 'pending'|'exited'|'rejected'};
       void this.ctx.container!.monitor().then(()=>{monitor.state='exited';},()=>{monitor.state='rejected';});
       let environmentHealth: Json | string | null = null;
-      const startupDeadline=Math.min(startedAt+30000,deadlineAt);
+      const startupDeadline=Math.min(bootAt+30000,deadlineAt);
       let probeCount=0,lastProbe:Json={status:'not_probed'};
       while (Date.now() < startupDeadline) {
         await operation(this.env, op.id, op.generation);
@@ -179,10 +191,10 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       if(environmentHealth===null||monitor.state!=='pending'){
         const code=monitor.state==='pending'?'RENDER_STARTUP_TIMEOUT':'RENDER_STARTUP_EXITED';
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code,
-          startup:{elapsedMs:Date.now()-startedAt,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
+          startup:{elapsedMs:Date.now()-bootAt,brokerRegistrationMs,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
         throw Error(code);
       }
-      const containerReadyMs=Date.now()-startedAt;
+      const containerReadyMs=Date.now()-bootAt;
       const peak=typeof environmentHealth==='object'?environmentHealth?.memoryPeak:null;
       // Owner-approved missing interface remains explicit; permission/invalid-value failures still block.
       if(task.mode==='shard'&&peak?.available===false&&!(peak.mib===null&&peak.bytes===null&&peak.unavailableReason==='cgroup_peak_not_exposed')){
@@ -196,17 +208,17 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       phase='execute';
       for (;;) {
         await operation(this.env, op.id, op.generation);
-        if (Date.now() - startedAt > limit) throw Error('RENDER_DEADLINE');
+        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         const response = await this.call('/result'); if (!response.ok) throw Error('RENDER_CONTROLLER_UNAVAILABLE');
         const value = await response.json<Json>();
         if (value.status === 'failed') {
           await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:value.code,diagnostic:value.diagnostic??null,environmentHealth}),task.taskId).run();
           throw Error(value.code);
         }
-        if (value.status === 'succeeded') { outcome = {...value,lifecycleTimings:{capacityWaitMs,containerReadyMs}}; break; }
+        if (value.status === 'succeeded') { outcome = {...value,lifecycleTimings:{capacityWaitMs,brokerRegistrationMs,containerReadyMs}}; break; }
         if (value.status === 'ready' && task.mode === 'studio') {
           await this.ctx.storage.put('studio', {operationId: op.id, generation: op.generation, resources: task.job.resources});
-          return {...value,environmentHealth,lifecycleTimings:{capacityWaitMs,containerReadyMs}}; // Lease and budget stay held while the studio exists.
+          return {...value,environmentHealth,lifecycleTimings:{capacityWaitMs,brokerRegistrationMs,containerReadyMs}}; // Lease and budget stay held while the studio exists.
         }
         await sleep(1000);
       }

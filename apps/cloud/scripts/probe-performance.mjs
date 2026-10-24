@@ -82,7 +82,7 @@ export function performanceSummary(samples){
 export async function probePerformance({json,call,upload,request,rules,policy,directory,operationId,prefix}){
  if(process.env.GITHUB_ACTIONS!=='true'||!/^smoke-[a-f0-9]{12}-\d{8,20}$/.test(operationId))throw Error('PERFORMANCE_SCOPE_INVALID');
  const samples=[],open=new Set(),report={scope:'G1_performance_10_serial_plus_4_concurrent_30s_each_2d_and_webgl_not_complete_G1',status:'running',samples,
-  deploymentSha:process.env.DEPLOYED_SHA,harnessSha:process.env.GITHUB_SHA,workspaceShardLimit:policy.limits.workspaceShardInstances,perOperationBudgetMicros:1000000};
+  deploymentSha:process.env.DEPLOYED_SHA,harnessSha:process.env.GITHUB_SHA,samplingOrder:['webgl','2d'],workspaceShardLimit:policy.limits.workspaceShardInstances,perOperationBudgetMicros:1000000};
  const save=()=>writeFileSync(directory+'/performance-report.json',canonical(report));
  const pause=()=>new Promise(resolve=>setTimeout(resolve,1000));
  const opening=await json('model-budget'),initialLeases=await json('capacity');
@@ -149,7 +149,7 @@ export async function probePerformance({json,call,upload,request,rules,policy,di
   if(failure)throw failure;
  };
  try{
-  for(const kind of ['2d','webgl']){
+  for(const kind of report.samplingOrder){
    for(let index=0;index<10;index++)await run(await prepare(kind,'serial',index));
    const batch=[];for(let index=0;index<4;index++)batch.push(await prepare(kind,'parallel',index));
    const results=await Promise.allSettled(batch.map(run));

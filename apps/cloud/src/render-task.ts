@@ -6,7 +6,7 @@ import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import policy from '../../../config/agent-policy.json';
 
 const retryable=new Set(['RENDER_CAPACITY_UNAVAILABLE','RENDER_STARTUP_CONNECTION_LOST','RENDER_DISPATCH_CONNECTION_LOST',
- 'RENDER_EXECUTE_CONNECTION_LOST','RENDER_RPC_CONNECTION_LOST']);
+ 'RENDER_EXECUTE_CONNECTION_LOST','RENDER_RPC_CONNECTION_LOST','RENDER_BROKER_CONNECTION_LOST','RENDER_BROKER_REGISTRATION_TIMEOUT','RENDER_STARTUP_TIMEOUT']);
 
 /** One durable scheduler, new physical attempts, unchanged generation/deadline/budget. */
 export async function runRenderTask(env:PipelineEnv,step:WorkflowStep,

@@ -44,3 +44,16 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-2
 原创事实图另在 `selected.json` 标记 `origin:"original_factual_diagram"`、`factIds`、`originalSourceFile` 与卡片的 `approvalRef`，随已查看的 PNG 一起提交无脚本/外链的 SVG 源稿。负责人批准只适用于该原创图，不撤销第三方截图的许可限制。源稿和逐项批准引用随权利证据保存，不能把来源网页标成截图授权。
 
 旧虚构课程卡及其编造的价格、提分率和学员结果已退出评测集。六题实际模型成片与负责人视听验收仍未完成。代码回归另用 [`filmFixture`](../../packages/film-runtime/test/fixture.mjs) 和原创无字界面。
+
+## 先试听已经生成的 13 种配乐
+
+[40059971442 的 `film-runtime-browser` 产物](https://github.com/ten2ten2/promobento/actions/runs/40059971442)保存完整 13 段合格母带及 `audio-samples/index.json`；该 run 整体因 2D seek 失败，不影响这 13 段的独立 `rendered` 结果。不要重新合成，下载后打包原 WAV 即可：
+
+```sh
+gh run download 40059971442 --name film-runtime-browser --dir artifacts/s1-audio-source
+mise exec -- node research/evals/prepare-audio-review.mjs \
+  artifacts/s1-audio-source/audio-samples artifacts/s1-audio-review 40059971442
+open artifacts/s1-audio-review/index.html
+```
+
+试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。当前已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误；负责人听感仍为 `pending`。按正常速度给出「保留 / 调整 / 停用 + 风格名」，不以数值或播放器检查代替负责人判断。

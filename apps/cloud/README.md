@@ -14,11 +14,13 @@
 
 满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。真实中途取消、原生终止及 restart 防重放已有[独立证据](../../docs/evidence/2026-10-24-s1-staging/README.md#真实取消原生终止与整次重启防重放通过)；完整并发性能分布仍待验。
 
-容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。失败沿用停止、lease 和费用结算路径，不自动重启付费计算。
+先在未启动的 DO 上注册唯一 broker，注册最多 30 秒且受原操作绝对期限约束；[官方 API](https://developers.cloudflare.com/containers/api/durable-object-container/#interceptoutboundhttp)允许启动前注册。只有注册成功并重查 generation/停止标记后才分配实例，避免注册等待耗尽整个健康窗口。回执单列 `brokerRegistrationMs`，不会从客户端墙钟中删去它。注册超时为 `RENDER_BROKER_REGISTRATION_TIMEOUT`，尚未分配实例时不记运行费用。
+
+实际容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。alarm 和执行轮询都沿用同一绝对期限，不因注册等待或重试重新计时；同一 DO 不重启计算。
 
 原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分，Worker→DO RPC 断开另记 `RENDER_RPC_CONNECTION_LOST`；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用。
 
-`RenderWorkflow` 是基础设施重试的唯一调度方，原生计算 step 的重试仍为 0。仅上述容量/断连白名单可在**确认原实例停止且无未结预留**后，按 15/60 秒退避换新 attempt，最多读取策略规定的 3 次实际执行；不复用旧 DO、取消栅栏、预算或绝对期限。失败结果与新 ID 都是持久检查点，恢复不会再次执行已失败实例。未知停止/费用、作品错误、许可、预算、QA 与 deadline 均直接停止，不盲重试。回执保存失败尝试与全部费用，逐帧分布只统计最终成功分段的真实捕获数据。
+`RenderWorkflow` 是基础设施重试的唯一调度方，原生计算 step 的重试仍为 0。仅明确容量/断连、注册超时与启动健康超时白名单可在**确认原实例停止且无未结预留**后，按 15/60 秒退避换新 attempt，最多读取策略规定的 3 次实际执行；不复用旧 DO、取消栅栏、预算或绝对期限。失败结果与新 ID 都是持久检查点，恢复不会再次执行已失败实例。未知停止/费用、作品错误、许可、预算、QA 与 deadline 均直接停止，不盲重试。回执保存失败尝试与全部费用，逐帧分布只统计最终成功分段的真实捕获数据。
 
 当前 `durable_object` [调度策略](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)不支持 `max_instances`，运行实例计入账户资源限额；不能用旧策略默认 20 个实例解释并发错误或修改这里的配置。Wrangler 4.152.0 也会拒绝该字段。
 

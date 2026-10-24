@@ -104,7 +104,7 @@ async function computeFixture(t,{busy=false,cancelWhileWaiting=false,armFails=fa
   if(typeof key==='object')for(const[k,v]of Object.entries(key))values.set(k,v);else values.set(key,value);
   if(key==='startedAt'&&stopBeforeStart)await shard.stopAndSettle(); // Force the stop exactly at the last await before container.start.
  },delete:async key=>values.delete(key),setAlarm:async()=>{},deleteAlarm:async()=>{},transactionSync:fn=>fn(),kv:{get:key=>values.get(key),put:(key,value)=>values.set(key,value)}};
- const container={images:{render:'registry/render@'+imageDigest},running:false,start(){starts++;this.running=true;},async destroy(){this.running=false;}};
+ const container={images:{render:'registry/render@'+imageDigest},running:false,async interceptOutboundHttp(){},start(){starts++;this.running=true;},async destroy(){this.running=false;}};
  const ctx={storage,container,exports:{Broker(){return{};}}};
  env.COORDINATOR={getByName(){return{async acquire(){acquires++;if(busy&&acquires===1){assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_reservations').get().n,0);if(cancelWhileWaiting)values.set('stopRequested',true);return false;}leases++;return true;},async arm(){if(armFails)throw Error('alarm unavailable');},async release(){assert.equal(container.running,false);leases=0;}};}};
  shard=new ShardDO(ctx,env);
@@ -168,6 +168,37 @@ test('controller startup must pass health before task dispatch; timeout and exit
  }
 });
 
+test('broker registration precedes allocation, is bounded and cannot start after cancellation',async t=>{
+ for(const scenario of ['slow','cancelled','hung']){
+  const{db,shard,task,ctx,counts,values}=await computeFixture(t,{stopBeforeStart:false});
+  task.deadlineAt=Date.now()+120000;t.mock.timers.enable({apis:['Date','setTimeout']});
+  let entered;const ready=new Promise(resolve=>entered=resolve);
+  ctx.container.interceptOutboundHttp=async()=>{
+   assert.equal(counts().starts,0);entered();
+   if(scenario==='hung')return new Promise(()=>{});
+   t.mock.timers.tick(20000);
+   if(scenario==='cancelled')await shard.stopAndSettle();
+  };
+  ctx.container.monitor=()=>new Promise(()=>{});
+  ctx.container.getTcpPort=()=>({async fetch(url){
+   if(url.endsWith('/healthz'))return Response.json({status:'ready'});
+   if(url.endsWith('/task'))return new Response(null,{status:202});
+   if(url.endsWith('/result'))return Response.json({status:'succeeded',taskId:task.taskId});
+   throw Error('unexpected request');
+  }});
+  try{
+   const result=shard.execute(canonical(task));
+   if(scenario==='hung'){await ready;t.mock.timers.tick(30001);await assert.rejects(result,/RENDER_BROKER_REGISTRATION_TIMEOUT/);}
+   else if(scenario==='cancelled')await assert.rejects(result,/COMPUTE_ATTEMPT_STOPPED/);
+   else{const value=parseCanonicalJson(await result);assert.equal(value.lifecycleTimings.brokerRegistrationMs,20000);assert.equal(value.lifecycleTimings.containerReadyMs,0);}
+   assert.equal(counts().starts,scenario==='slow'?1:0);assert.equal(counts().leases,0);
+   const settlement=db.prepare('SELECT actual_micros FROM cost_settlements').get();assert.ok(settlement);
+   if(scenario!=='slow')assert.equal(settlement.actual_micros,0,'no container was allocated');
+   if(scenario==='cancelled')assert.equal(values.get('stopRequested'),true);
+  }finally{t.mock.timers.reset();}
+ }
+});
+
 test('native capacity failure survives cleanup disconnect; slot and unknown cost wait for confirmed stop',async t=>{
  const{db,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
@@ -176,11 +207,11 @@ test('native capacity failure survives cleanup disconnect; slot and unknown cost
  ctx.container.destroy=async()=>{throw Error('Network connection lost.');};
  await assert.rejects(shard.execute(canonical(task)),/RENDER_CAPACITY_UNAVAILABLE/);
  const row=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
- assert.equal(row.code,'RENDER_CAPACITY_UNAVAILABLE');assert.equal(row.diagnostic.phase,'startup');
- assert.equal(counts().starts,1);assert.equal(counts().leases,1);
+ assert.equal(row.code,'RENDER_CAPACITY_UNAVAILABLE');assert.equal(row.diagnostic.phase,'broker');
+ assert.equal(counts().starts,0);assert.equal(counts().leases,1);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,0);
  ctx.container.destroy=async()=>{ctx.container.running=false;};await shard.stopAndSettle();
- assert.equal(counts().starts,1);assert.equal(counts().leases,0);assert.equal(ctx.container.running,false);
+ assert.equal(counts().starts,0);assert.equal(counts().leases,0);assert.equal(ctx.container.running,false);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
  assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json).code,'RENDER_CAPACITY_UNAVAILABLE');
 });

@@ -75,3 +75,10 @@ test('one durable retry owner preserves old checkpoints, stops and settles befor
  try{assert.equal((await transport.run()).status,'succeeded');assert.equal(transport.calls.length,2);}
  finally{transport.db.close();}
 });
+
+test('registration and startup timeouts use the same settled, fenced retry path',async()=>{
+ for(const code of ['RENDER_BROKER_REGISTRATION_TIMEOUT','RENDER_STARTUP_TIMEOUT']){
+  const f=await fixture({errors:[code]});try{assert.equal((await f.run()).status,'succeeded');assert.equal(f.calls.length,2);assert.equal(f.stops.length,1);assert.deepEqual(f.sleeps,['15 seconds']);}
+  finally{f.db.close();}
+ }
+});
