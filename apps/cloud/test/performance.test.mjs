@@ -23,7 +23,7 @@ test('G1 counts complete 30s populations, real per-frame timings and settled cos
   const cuts=Array.from({length:shardCount+1},(_,n)=>Math.floor(n*units/shardCount)*15);
   samples.push({kind,mode,status:'passed',renderToPassedMs:mode==='serial'?100+index:1000+index,
    outcome:{media:{totalFrames:900},seamReport:{seams:Array.from({length:shardCount-1},()=>({identical:true,verdict:'pass'}))}},
-   recovery:{costs:[{kind:'compute',actual_micros:20}],attempts:cuts.slice(1).map((end,n)=>({mode:'shard',physicallyStopped:true,
+   recovery:{costs:[{kind:'compute',actual_micros:20}],attempts:cuts.slice(1).map((end,n)=>({mode:'shard',status:'succeeded',physicallyStopped:true,
     result_json:canonical({lifecycleTimings:{containerReadyMs:5,capacityWaitMs:1},report:{...receipt,start:cuts[n],end,shardIndex:n,
      ...(kind==='webgl'?{webgl:[{renderer:'fixture'}]}:{}),timings:{...receipt.timings,frameCaptureMs:Array(end-cuts[n]).fill(12.5)}}})}))}});
  }
@@ -31,6 +31,12 @@ test('G1 counts complete 30s populations, real per-frame timings and settled cos
  assert.equal(summary.groups['2d'].serial.wallMs.p95,109);assert.equal(summary.groups['2d'].parallel.wallMs.p50,1001);
  assert.equal(summary.groups.webgl.serial.frameCaptureMs.count,9000);assert.equal(summary.groups.webgl.parallel.seams.count,92);
  assert.equal(summary.peakMemory.status,'unverified');assert.equal(summary.peakMemory.unavailableCount,420);
+ const retried=structuredClone(samples);
+ retried[0].recovery.attempts.push({mode:'shard',status:'failed',physicallyStopped:true,result_json:canonical({status:'failed',code:'RENDER_CAPACITY_UNAVAILABLE'})});
+ retried[0].recovery.costs.push({kind:'compute',actual_micros:7});
+ const retrySummary=performanceSummary(retried).groups['2d'].serial;
+ assert.equal(retrySummary.computeAttempts.unsuccessful,1);assert.equal(retrySummary.totalComputeUpperBoundMicros,207);
+ assert.equal(retrySummary.frameCaptureMs.count,9000);assert.equal(retrySummary.wallMs.p95,109);
  assert.throws(()=>performanceSummary(samples.slice(1)),/MATRIX_INCOMPLETE/);
  const partial=structuredClone(samples);partial[0].recovery.costs[0].actual_micros=null;
  assert.throws(()=>performanceSummary(partial),/SETTLEMENT_INCOMPLETE/);

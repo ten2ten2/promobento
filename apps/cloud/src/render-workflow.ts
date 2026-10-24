@@ -9,6 +9,7 @@ import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
 import {checkShardObservations} from './render-observations.ts';
 import {workflowStarted} from './workflow-state.ts';
+import {runRenderTask} from './render-task.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
@@ -36,30 +37,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const film = parseCanonicalJson(raw) as Json, partition = planShards(input.job, film, {seed: input.options.seed});
       const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
       const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
-        const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
-        return parseCanonicalJson(await step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '10 minutes'}, async () => {
-          if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
-          await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
-          const payload = {schemaVersion: '3.0.0', kind: 'render_task', taskId: attemptId, mode, instance,
-            generation: op.generation, deadlineAt, imageDigest: release.image_digest, job: input.job, ...additions};
-          await this.env.DB.prepare("INSERT OR IGNORE INTO pipeline_attempts(id,render_id,operation_id,generation,mode,shard_index,instance,status,started_at) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.operation_id=? AND r.generation=? AND r.status NOT IN ('passed','blocked','cancelled') AND o.status='active' AND o.generation=?)")
-            .bind(attemptId, row.id, op.id, op.generation, mode, additions.shard?.index ?? null, instance, 'active', Date.now(),row.id,op.id,op.generation,op.generation).run();
-          const admitted=await this.env.DB.prepare("SELECT a.id FROM pipeline_attempts a JOIN pipeline_renders r ON r.id=a.render_id WHERE a.id=? AND a.render_id=? AND a.operation_id=? AND a.generation=? AND a.stopped_at IS NULL AND r.status NOT IN ('passed','blocked','cancelled')")
-            .bind(attemptId,row.id,op.id,op.generation).first();
-          if(!admitted)throw Error('RENDER_FENCED');
-          try {
-            const result = parseCanonicalJson(await this.env.SHARDS.getByName(attemptId).execute(canonical(payload))) as Json;
-            if (!await this.env.SHARDS.getByName(attemptId).isStopped()) throw Error('COMPUTE_STOP_UNCONFIRMED');
-            await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=? WHERE id=?')
-              .bind('succeeded', Date.now(), canonical(result), attemptId).run(); return canonical(result);
-          } catch (error) {
-            try{
-              await this.env.SHARDS.getByName(attemptId).stopAndSettle();
-              await this.env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=? WHERE id=?').bind('failed', Date.now(), attemptId).run();
-            }catch{ /* The failure step retains the first cause and retries physical cleanup only. */ }
-            throw error;
-          }
-        })) as Json;
+        return runRenderTask(this.env,step,{renderId:row.id,op,job:input.job,imageDigest:release.image_digest,deadlineAt},{name,mode,instance,additions});
       };
       await step.do('mark-sharding', async () => { await advanceRenderStage(this.env,row.id,op,'sharding');return true; });
       try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'sharding'}));}catch{}

@@ -16,7 +16,11 @@
 
 容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。失败沿用停止、lease 和费用结算路径，不自动重启付费计算。
 
-原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用；原生停止尚未确认时继续沿用已有清理对账入口，不自动重发任务。
+原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分，Worker→DO RPC 断开另记 `RENDER_RPC_CONNECTION_LOST`；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用。
+
+`RenderWorkflow` 是基础设施重试的唯一调度方，原生计算 step 的重试仍为 0。仅上述容量/断连白名单可在**确认原实例停止且无未结预留**后，按 15/60 秒退避换新 attempt，最多读取策略规定的 3 次实际执行；不复用旧 DO、取消栅栏、预算或绝对期限。失败结果与新 ID 都是持久检查点，恢复不会再次执行已失败实例。未知停止/费用、作品错误、许可、预算、QA 与 deadline 均直接停止，不盲重试。回执保存失败尝试与全部费用，逐帧分布只统计最终成功分段的真实捕获数据。
+
+当前 `durable_object` [调度策略](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)不支持 `max_instances`，运行实例计入账户资源限额；不能用旧策略默认 20 个实例解释并发错误或修改这里的配置。Wrangler 4.152.0 也会拒绝该字段。
 
 ## 研究模型共用一份预算
 

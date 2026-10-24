@@ -37,12 +37,15 @@ export function performanceSummary(samples){
   for(const [mode,count]of [['serial',10],['parallel',4]]){
    const rows=population.filter(sample=>sample.mode===mode);
    if(rows.length!==count||rows.some(sample=>sample.status!=='passed'||sample.outcome.media.totalFrames!==900))throw Error('PERFORMANCE_MATRIX_INCOMPLETE');
-   const captures=[],boot=[],page=[],capacity=[],cost=[],flags={},images=new Set(),seams=[];
+   const captures=[],boot=[],page=[],capacity=[],cost=[],flags={},images=new Set(),seams=[],attemptCounts={total:0,successful:0,unsuccessful:0};
    for(const sample of rows){
-    const shards=sample.recovery.attempts.filter(attempt=>attempt.mode==='shard');
+    const shards=sample.recovery.attempts.filter(attempt=>attempt.mode==='shard'&&attempt.status==='succeeded');
     if(shards.length!==(kind==='webgl'?24:6)||sample.recovery.attempts.some(attempt=>attempt.physicallyStopped!==true)
      ||sample.recovery.costs.some(item=>item.kind!=='compute'||!Number.isSafeInteger(item.actual_micros)||item.actual_micros<0))throw Error('PERFORMANCE_SETTLEMENT_INCOMPLETE');
     cost.push(sample.recovery.costs.reduce((sum,item)=>sum+item.actual_micros,0));
+    attemptCounts.total+=sample.recovery.attempts.length;
+    attemptCounts.successful+=sample.recovery.attempts.filter(attempt=>attempt.status==='succeeded').length;
+    attemptCounts.unsuccessful+=sample.recovery.attempts.filter(attempt=>attempt.status!=='succeeded').length;
     let frames=0;
     for(const attempt of shards){
      const result=parseCanonicalJson(attempt.result_json),receipt=result.report,timing=result.lifecycleTimings;
@@ -65,6 +68,7 @@ export function performanceSummary(samples){
    groups[mode]={films:count,wallMs:distribution(rows.map(sample=>sample.renderToPassedMs)),containerReadyMs:distribution(boot),
     pageHandshakeMs:distribution(page),capacityWaitMs:distribution(capacity),frameCaptureMs:distribution(captures),
     computeUpperBoundMicros:distribution(cost),totalComputeUpperBoundMicros:cost.reduce((a,b)=>a+b,0),imageDigest:[...images][0],cpuFlagsHashCounts:flags,
+    computeAttempts:attemptCounts,frameTelemetryScope:'successful_shards_only_failed_attempts_and_all_their_costs_retained_in_raw_samples_and_totals',
     seams:{count:seams.length,identical:seams.filter(seam=>seam.identical).length,withinTolerance:seams.filter(seam=>!seam.identical&&seam.verdict==='pass_within_tolerance').length}};
   }
   summary.groups[kind]=groups;
