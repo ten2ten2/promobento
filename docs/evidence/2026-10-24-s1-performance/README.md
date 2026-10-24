@@ -133,4 +133,10 @@ Node 26.12.0 下新增回放通过（116 ms）：容量失败后新尝试成功�
 
 两类各 12,600 个捕获帧的 p99 为 **208.863 / 225.209 ms**，乘 1.5 为 **313.2945 / 337.8135 ms**。这只标定了两条原创校准片的捕获部分；未包含编码背压、素材准备和 QA，因此保留现有每段基数及启动/整片绝对期限，不把该值直接替换为完整分段预算。六题真实输入的模型/草稿/成片时间和模型成本仍未测。
 
-420 个分段的峰值内存均为 `null`，原因 `cgroup_peak_not_exposed`；按负责人批准继续内部出片，该指标仍为 **unverified**。当前步骤已改为有历史小探针的网关 Opus/DeepSeek；真实长提示/导演质量、六题成片和 4/6 负责人评判仍是 S1 未完成项，官方备用不再是必需绑定。
+420 个分段的峰值内存均为 `null`，原因 `cgroup_peak_not_exposed`；该指标仍为 **unverified**，S1 出口处理见下节。当前步骤已改为有历史小探针的网关 Opus/DeepSeek；真实长提示/导演质量、六题成片和 4/6 负责人评判仍是 S1 未完成项，官方备用不再是必需绑定。
+
+### 内存列为 S1 平台限制，待实际数据补验
+
+容器未暴露 cgroup 高水位接口；[40126364745](https://github.com/ten2ten2/promobento/actions/runs/40126364745)按[官方 GraphQL 指标](https://developers.cloudflare.com/analytics/graphql-api/tutorials/querying-container-metrics/)只读查询上述矩阵的完整时间窗，接口有权限、staging 应用匹配，但[返回零条采样](memory/platform-metrics.json)，0 模型/渲染。无数据不记为内存为零，也不回填旧分段回执。
+
+负责人于 2026-10-25 明确回复「允许暂缓这一项，继续完成其余 S1 验收」，[决定原文与范围](memory/owner-decision.json)已留存。内存峰值作为 **S1 已知平台限制**暂缓，不再单独阻止 S1 出口；测量状态仍为 unverified，平台提供真实数据后补验。其他性能、安全、费用、时间和成片门槛不变，生产仍关闭。

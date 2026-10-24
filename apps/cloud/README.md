@@ -66,7 +66,7 @@ gh workflow run model-runtime-key.yml --ref main
 
 写入后核对 secret 名称和 `/healthz`；这仅证明配置存在，不是模型集成探针。[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 已成功绑定，0 模型/渲染调用。若健康异常，只撤销本次新增的绑定；未知写入结果不重试、不猜测删除。需要人工撤销本次新增项时，通过已有授权运行 `wrangler secret delete MODEL_COMPAT_API_KEY --env staging`，先确认没有其他活动操作；不要删除其他 secret。当前网关 Claude 和 DeepSeek 共用此密钥，历史费用门槛仍由服务端检查。
 
-studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
+studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；cgroup 峰值接口均缺失时以 `null` 加明确原因继续内部出片，整片 `peakMemory.status` 保留 `unverified`。S1 出口按[负责人批准的平台限制](../../docs/evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)处理，不把它记成测量通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
 平台侧观测可通过 `gh workflow run cloud-account-check.yml --ref main -f scope=container-metrics` 只读查询既有 G1 28 部矩阵时间窗的 staging 应用。该分支不部署、不绑定临时密钥、不运行原账户检查中的模型请求或任何计算；产物为 `s1-container-metrics`。它读取官方 GraphQL 的全工作负载采样最大值，不能冒充 cgroup 全生命周期高水位，也不回填旧分段回执。权限、数据缺失和查询失败均保留为未验证；默认 `scope=prerequisites` 的原账户检查不变。
 

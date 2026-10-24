@@ -139,23 +139,30 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
   // Nested preserve-3d let Chromium retain a history-dependent low-resolution image raster.
   const camera = node(safe, {position: 'absolute', inset: '0', perspective: '1800px'});
   const drawings: Array<(time: number) => Promise<void>> = [];
+  const ready: Promise<void>[] = [];
   const panels = items.map(item => {
     const panel = node(camera, {position: 'absolute', inset: '0'});
     const heading = node(panel, {position: 'absolute', left: '2%', top: '2%', width: '96%', height: wide ? '20%' : '28%'});
     text(ctx, item.textSlot, heading, 3);
     const screen = node(panel, {position: 'absolute', left: '2%', top: wide ? '26%' : '34%', width: '96%', height: wide ? '69%' : '61%',
       borderRadius: '24px', border: `2px solid ${ctx.style.palette.accent}`, overflow: 'hidden'});
-    drawings.push(picture(ctx, item.assetKey!, screen)); return panel;
+    const asset = ctx.asset(item.assetKey!);
+    if (asset.kind === 'video') drawings.push(picture(ctx, item.assetKey!, screen));
+    else {
+      // Freeze static media at its source resolution before camera motion. An <img>
+      // can switch resize-quality/raster caches with seek history, even on fresh layers.
+      const canvas = document.createElement('canvas'); canvas.width = asset.width; canvas.height = asset.height;
+      Object.assign(canvas.style, {display: 'block', width: '100%', height: '100%', objectFit: 'contain'}); screen.append(canvas);
+      const context = canvas.getContext('2d'); if (!context) throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+      const image = new Image(); image.src = asset.url;
+      ready.push(image.decode().then(() => { context.drawImage(image, 0, 0, canvas.width, canvas.height); }));
+    }
+    return panel;
   });
   const duration = (ctx.frames.end - ctx.frames.start) / 30, travel = Math.max(1 / 30, duration - 1.2);
-  return {async render(time) {
+  return {ready: Promise.all(ready).then(() => {}), async render(time) {
     const position = clamp01((time - .4) / travel) * (panels.length - 1);
-    panels.forEach((previous, index) => { const distance = index - position;
-      // A fresh projection layer must start with this frame's raster scale, not the
-      // previous camera position's cached scale. Keep the actual text/image nodes
-      // (and their font, hit-test and asset handles) while replacing only the layer.
-      const panel = previous.cloneNode(false) as HTMLDivElement;
-      panel.replaceChildren(...previous.childNodes); previous.replaceWith(panel); panels[index] = panel;
+    panels.forEach((panel, index) => { const distance = index - position;
       panel.style.visibility = Math.abs(distance) < 1 ? 'visible' : 'hidden';
       panel.style.opacity = String(clamp01(1 - Math.abs(distance)));
       panel.style.transform = distance === 0 ? 'none' : `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;

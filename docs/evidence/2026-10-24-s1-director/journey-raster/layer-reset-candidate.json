@@ -1,0 +1,86 @@
+{
+  "status": "failed",
+  "scope": "trusted_css_3d_journey_seek_history_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "journey": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001736111111111111
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.04986496913580246
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0011574074074074073
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.00019290123456790125
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.00019290123456790125
+      }
+    ]
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: journey-landscape-0.5-149-reverse: pixel regression: max=63, changed=0.12442129629629631%\n    at compare (file:///app/apps/render-container/tests/browser.render.test.mjs:64:10)\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:182:102"
+}
