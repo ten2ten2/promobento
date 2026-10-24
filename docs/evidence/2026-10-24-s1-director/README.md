@@ -114,3 +114,13 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 [完整回执](ninth-attempt/report.json)：本轮模型 **2,926**，8 次计算停止/结算 **4,904** 保守上界，合计 **7,830 usd_micros**。容量/本轮未知为空，Workflow 对账、密钥回收完成。共享模型实际 **106,435** 加旧未知 **20,225**，共占用 **126,660**。这表明仅请求 low 不能保证短输出，不能把网关参数接受等同真实强度已验证。
 
 下一候选只把 E 可用输出扩大到适配器已有的 **16,384 token**，供分析与完整 FilmSpec 工具写入；仍在原 **6 次/$0.30** 阶段上限内预留/计费，不扩总额、期限或质量门槛。F 保持 8,192。没有重复原 8,192 参数碰运气，也不把截断结果补成可用工具。
+
+## 第十次：完整工具响应已取得，E 缺少积木参数定义导致猜字段
+
+`8acef1e65b89af1ded23055511b93b5c468d3221` 经 [40096746500](https://github.com/ten2ten2/promobento/actions/runs/40096746500) 仅部署 Worker，镜像不变；自动全套 push `40096738412` 已取消。操作 `eval-deepseek-15-1792847367993`，输出 `artifacts/s1-deepseek-15-review-16k-2026-10-24`。本轮取得两份完整、可计费的工具响应，没有截断。
+
+[首份 E](tenth-attempt/review-0-response.json)确实尝试填充空卡片，但发明 `bodySlot`（真实参数为 `subtitleSlot`）并使用未支持的文本 role，完整 FilmSpec 被拒。E 原消息只有 FilmSpec Schema，未像 B/C 提供积木自己的参数 Schema。[一次结构纠正](tenth-attempt/review-0-output-repair-1-response.json)改用实际产品图，却在只允许 `{film}` 的 `write_spec` 参数外又加 `note`，因此 `DIRECTOR_TOOL_INVALID`，未执行该修复、未到 F。不能删除 note 或映射猜测字段后冒充原工具通过。
+
+[完整回执](tenth-attempt/report.json)：两次模型 **3,832**，8 次计算停止/结算 **4,887** 保守上界，共 **8,719 usd_micros**，无本轮未知/遗留容量，Workflow 已对账、密钥已回收。共享模型实际 **110,267** 加旧未知 **20,225**，共占用 **130,492**。
+
+修正直接向 E 提供同一真实 `blockCatalog` 参数契约，写明两个工具各自唯一的包络，并把工具自身的精确 Schema 错误路径反馈给结构纠正；原完整校验、一次纠正和费用/次数门槛不变。只改提示/错误定位，不新增测试矩阵或改渲染器。
