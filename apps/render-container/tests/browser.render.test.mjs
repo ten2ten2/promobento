@@ -235,8 +235,8 @@ try{
   });
   assert.ok(renderers.length>0);assert.ok(renderers.every(item=>item.uid===10002&&item.seccomp===2&&item.noNewPrivs===1&&item.pidNamespaceDepth>=2),JSON.stringify(renderers));
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
-  report.checks.push('four-aspect CSS-3D journey full/review forward/reverse/cold seeks');
-  if(!journeyOnly&&!rasterOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  for(const name of ['journey','showcase'])if(report[name])report.checks.push(`four-aspect ${name} forward/reverse/cold seeks`);
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));

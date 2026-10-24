@@ -297,7 +297,7 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 ### 停稳画面的取样优化
 
-上述原 C 回执中，静态 showcase 停稳后每帧仍重复逆透视取样，明显慢于无产品图段。当前 1.0.2 只复用静态图片、入场和 ROI 都停稳时的不变像素，仍每帧写回 canvas，避免隐藏后首次画面丢失；回跳到运动帧立即重算，视频仍逐帧按 PTS 读取。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅确定性与耗时仍待云验，没有据此宣称提速。
+上述原 C 回执中，静态 showcase 停稳后每帧仍重复逆透视取样，明显慢于无产品图段。当前 1.0.2 只复用静态图片、入场和 ROI 都停稳时的不变像素，仍每帧写回 canvas，避免隐藏后首次画面丢失；回跳到运动帧立即重算，视频仍逐帧按 PTS 读取。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅与耗时见下文。
 
 
 ## MiniMax 第八次：三轮真实 review 通过，网关请求失败
@@ -307,3 +307,11 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 随后 E 第三次请求在适配器的 HTTP/响应体入口失败，首因为 `MODEL_REQUEST_FAILED`，没有可计价 usage 或完整响应回执；旧代码未保存具体 HTTP 状态，因此无法据此判断网关限流、服务器故障或其他 HTTP 原因。没有重发此请求，也未到最终横竖片/F。新路径仅保存去敏的 HTTP 状态/请求身份和未知用量状态，不保存响应正文或凭据，不增加重试、不把未知记零；新增离线 HTTP 503 单项通过（Node 26.12.0，92.15 ms），Worker TypeScript 7.0.2 通过，真实故障诊断效果仍待遇到该错误时验证。
 
 [本轮回执](minimax-eighth-attempt/report.json)：4 次模型已结 **19,920**，第五次未知保留 **17,768**；15 次计算均停止/结算 **24,719** 保守上界，临时密钥回收、容量为空。共享新增模型已结 **330,297**，三笔未知预留 **37,993**，合计占用 **368,290 usd_micros**，旧历史 128/14 与开账空值不变。未知模型消费仍占用预算；本次没有合格候选，不计 4/6。
+
+
+[40140772761](https://github.com/ten2ten2/promobento/actions/runs/40140772761) 在 `4dd5699` 完成[showcase 四画幅、最终片/review 的全部 48 次比较](showcase-raster/settled-pixels-browser.json)，均为零差异，沙箱/无外网断言也已通过；已查看实际方形 review 与横屏 ROI 图。job 随后在报告收尾因清理遗留的 `rasterOnly` 名称而失败，不记作整个 CI 通过。已修正报告分支和场景标签，语法通过；不重跑已完成的像素比较，完整 CI 的报告收尾仍未复验。取样优化的原 C 实际媒体/耗时另验。
+
+
+[40140997061](https://github.com/ten2ten2/promobento/actions/runs/40140997061) 在 `09179831d2b6ebccc879c6938d1a2b11fdc72c6c` 部署成功，镜像 **`sha256:1b1c4cf1372e6406d7ab1a79ccafaebbb51a8eee76d2c13daf2d357d3114d0a5`**，Worker `92042b76-7281-41a5-8f61-ad27de168ba2`。操作 `eval-minimax-15-1792883239966` 沿用第七次的同一付费 C、原素材/字体/seed，[真实 review](showcase-raster/settled-native-review-render.json)在 **72,970 ms** 交付，149/299 帧均零差异；15 秒、960×540、15 fps、AAC、225 帧，VBV 纠正后峰值 **1,457,792 bit/s**。[五次计算](showcase-raster/settled-native-report.json)全部停止/结算 **8,569 usd_micros**，0 模型，容量/未结为空、临时密钥回收。
+
+三个分段 renderMs 为 **20,163 / 15,705 / 13,884**；上轮同片前两段为 25,851 / 22,208 ms。本轮完整墙钟仍为 72.970 秒，单次对照不作延迟分位数或 30 秒 review 目标通过。已查看实际 MP4 的 ROI 停稳图，产品图没有因像素复用丢失；Chrome 155.0.8059.85 完整 1× 播放、无解码错误/掉帧，[解码回执](showcase-raster/settled-native-decoded-video.json)。开始其余题目验收，完整导演仍未通过。

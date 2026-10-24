@@ -1,0 +1,418 @@
+{
+  "status": "failed",
+  "scope": "four_aspect_showcase_seek_history_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [
+    "four-aspect CSS-3D journey full/review forward/reverse/cold seeks"
+  ],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "showcase": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      }
+    ]
+  },
+  "sandbox": [
+    {
+      "pid": 48,
+      "uid": 10002,
+      "seccomp": 2,
+      "noNewPrivs": 1,
+      "pidNamespaceDepth": 3
+    }
+  ],
+  "network": "docker --network none; no external page requests",
+  "failure": "ReferenceError: rasterOnly is not defined\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:239:21"
+}
