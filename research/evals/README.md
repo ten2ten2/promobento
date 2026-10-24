@@ -63,6 +63,19 @@ mise exec -- node research/evals/run-case.mjs \
 
 该模式不调用模型或编码影片，不要求模型密钥。仍先核对当前固定镜像、重新登记自己的素材许可；实际创作页面只在渲染容器执行。`layout-check.json` 要求三组标题/副标题都存在、实际盒子间隔不少于 4 px、原帧观测无 BLOCK；`layout-landscape.png` 留在本机忽略目录，不上传第三方素材图片到 Git/Actions 产物。结束时关闭 studio、取消仅用于单帧的操作、确认物理停止/费用后回收密钥。`layout_validated` 只表示此回归通过，不计入六题候选或 4/6 视听结果。
 
+### 只复验 review 冷启动、分段与交付
+
+需要修复媒体基础设施时，沿用已付费完成的纯积木 `write_spec`，不重新调用 A/B/C/E：
+
+```sh
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-current minimax-15 artifacts/s1-review-render \
+  --check-review-render \
+  docs/evidence/2026-10-24-s1-director/minimax-second-attempt/review-1-response.json
+```
+
+仅允许程序配乐/无音乐，使用本题同一私有素材、字体、seed 与新的固定 release。经既有 `renders` 入口实际执行横屏低清 review、音频、接缝/原观测、拼接、提交与私有下载；服务端仍执行原绝对期限。`review-render.json` 保留源回执、计划、期限及媒体结果，MP4/封面仅留本机私有忽略目录。与单帧模式共用许可登记、容量/费用核对和密钥回收，`review_render_validated` 不计入导演成功、最终片或 4/6；一个样本也不代表 p50/p95。
+
 ### 仅在确需更新素材时采集
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：

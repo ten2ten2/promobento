@@ -18,7 +18,9 @@
 
 先在未启动的 DO 上注册唯一 broker，注册最多 30 秒且受原操作绝对期限约束；[官方 API](https://developers.cloudflare.com/containers/api/durable-object-container/#interceptoutboundhttp)允许启动前注册。只有注册成功并重查 generation/停止标记后才分配实例，避免注册等待耗尽整个健康窗口。回执单列 `brokerRegistrationMs`，不会从客户端墙钟中删去它。注册超时为 `RENDER_BROKER_REGISTRATION_TIMEOUT`，尚未分配实例时不记运行费用。
 
-实际容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。alarm 和执行轮询都沿用同一绝对期限，不因注册等待或重试重新计时；同一 DO 不重启计算。
+实际容器启动后必须在 `render.containerStartupMs`（45 秒）与整次渲染剩余期限内取得控制器 ready，单次探测最多 5 秒；到期才返回的 ready 不接受。物理启动与沙箱页面初始化分开，页面仍严格使用原 2D 30 秒 / WebGL 60 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留实际健康窗口、探测次数、最后状态与 monitor 状态。alarm 和执行轮询都沿用同一绝对期限，不因注册等待或重试重新计时；同一 DO 不重启计算。
+
+纯 2D review 改为与最终片相同的 15 秒 3 段 / 30 秒 6 段，但仍按源时间轴 30 帧单元、15 fps 编码，给冷启动/拼接留下余量。review 整次 90 秒、页面/逐帧上限、WebGL review/最终片计划和全局/工作区名额均不变。实际 MiniMax 反例与定点复验见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
 
 原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分，Worker→DO RPC 断开另记 `RENDER_RPC_CONNECTION_LOST`；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用。
 

@@ -133,19 +133,23 @@ test('capacity waits spend no compute before a lease and stop or alarm failure c
  }
 });
 
-test('controller startup must pass health before task dispatch; timeout and exit stop and settle once',async t=>{
- for(const scenario of ['timeout','exit','ready']){
+test('controller startup must pass health before task dispatch; physical headroom preserves page and render limits',async t=>{
+ for(const scenario of ['timeout','exit','ready','late-ready','deadline-cap','late-response']){
   const{db,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
   db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
    .run(task.taskId,task.job.renderId,task.job.operationId,0,task.mode,task.instance,'active',Date.now());
-  task.deadlineAt=Date.now()+60000;let dispatched=0,healthCalls=0;
+  let dispatched=0,healthCalls=0;
   t.mock.timers.enable({apis:['Date']});
+  task.deadlineAt=Date.now()+(scenario==='deadline-cap'?20000:60000);
   ctx.container.interceptOutboundHttp=async()=>{};
   ctx.container.monitor=()=>scenario==='exit'?Promise.resolve():new Promise(()=>{});
   ctx.container.getTcpPort=()=>({async fetch(url,init){
    if(url.endsWith('/healthz')){
     healthCalls++;assert.ok(init.signal instanceof AbortSignal);
-    if(scenario==='timeout'){t.mock.timers.tick(30001);return new Response(null,{status:503});}
+    if(scenario==='timeout'){t.mock.timers.tick(45001);return new Response(null,{status:503});}
+    if(scenario==='late-ready')t.mock.timers.tick(32000);
+    if(scenario==='deadline-cap')t.mock.timers.tick(20001);
+    if(scenario==='late-response')t.mock.timers.tick(45001);
     return Response.json({status:'ready'});
    }
    if(url.endsWith('/task')){dispatched++;return new Response(null,{status:202});}
@@ -153,15 +157,20 @@ test('controller startup must pass health before task dispatch; timeout and exit
    throw Error('unexpected request');
   }});
   try{
-   if(scenario==='ready')assert.equal(parseCanonicalJson(await shard.execute(canonical(task))).status,'succeeded');
+   const success=['ready','late-ready'].includes(scenario);
+   if(success){
+    const value=parseCanonicalJson(await shard.execute(canonical(task)));
+    assert.equal(value.status,'succeeded');assert.equal(value.lifecycleTimings.containerReadyMs,scenario==='late-ready'?32000:0);
+   }
    else{
     const code=scenario==='exit'?'RENDER_STARTUP_EXITED':'RENDER_STARTUP_TIMEOUT';
     await assert.rejects(shard.execute(canonical(task)),new RegExp(code));
     const diagnostic=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
     assert.equal(diagnostic.code,code);assert.equal(diagnostic.startup.monitorState,scenario==='exit'?'exited':'pending');
-    if(scenario==='timeout'){assert.equal(diagnostic.startup.elapsedMs,30001);assert.equal(diagnostic.startup.lastProbe.httpStatus,503);}
+    assert.equal(diagnostic.startup.budgetMs,scenario==='deadline-cap'?20000:45000);
+    if(scenario==='timeout'){assert.equal(diagnostic.startup.elapsedMs,45001);assert.equal(diagnostic.startup.lastProbe.httpStatus,503);}
    }
-   assert.equal(dispatched,scenario==='ready'?1:0);assert.ok(healthCalls<=1);
+   assert.equal(dispatched,success?1:0);assert.ok(healthCalls<=1);
    assert.equal(ctx.container.running,false);assert.equal(counts().leases,0);
    assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
   }finally{t.mock.timers.reset();}

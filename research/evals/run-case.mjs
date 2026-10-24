@@ -7,11 +7,12 @@ import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {probeCardLayout} from './probe-card-layout.mjs';
+import {probeReviewRender} from './probe-review-render.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(modeArg!=='--check-card-layout'||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
-const layoutSource=modeArg==='--check-card-layout'?resolve(sourceArg):null;
-if(layoutSource&&!layoutSource.startsWith(resolve('artifacts')+'/')&&!layoutSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_LAYOUT_RECEIPT_REQUIRED');
+if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
+const probeSource=modeArg?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null;
+if(probeSource&&!probeSource.startsWith(resolve('artifacts')+'/')&&!probeSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_COMPLETED_RECEIPT_REQUIRED');
 if(!inputArg||!outputArg||![input,output].every(path=>path.startsWith(resolve('artifacts')+'/'))||existsSync(output))throw Error('NEW_PRIVATE_EVAL_OUTPUT_REQUIRED');
 const read=path=>parseCanonicalJson(readFileSync(path)),manifest=read(join(input,'manifest.json'));
 const item=manifest.cases.find(item=>item.id===caseId);
@@ -24,15 +25,15 @@ const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/c
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-eval-cli.log'},encoding:'utf8',timeout:60000,...options});
 const secrets=parseCanonicalJson(wrangler(['secret','list','--env','staging']));
 if(secrets.some(secret=>secret.name==='EVAL_API_KEY'))throw Error('ANOTHER_INTERNAL_SESSION_ACTIVE');
-if(!layoutSource&&!secrets.some(secret=>secret.name==='MODEL_COMPAT_API_KEY'))throw Error('MODEL_RUNTIME_KEY_NOT_BOUND');
+if(!probeSource&&!secrets.some(secret=>secret.name==='MODEL_COMPAT_API_KEY'))throw Error('MODEL_RUNTIME_KEY_NOT_BOUND');
 const inventory=parseCanonicalJson(wrangler(['d1','execute','promobento-staging','--remote','--env','staging','--json','--command',
  "SELECT COUNT(*) AS unfinished FROM pipeline_operations WHERE status IN ('active','awaiting_user')"]));
 if(inventory[0]?.results?.[0]?.unfinished!==0)throw Error('OTHER_OPERATION_ACTIVE');
 mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
-const report={kind:layoutSource?'s1_actual_card_layout_check':'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
- rendererRelease:context.rendererRelease,scope:'internal_eval_only',publicUseCleared:false,status:'starting',ownerNormalSpeedReview:layoutSource?'not_applicable_still_regression':'pending'};
+const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_review_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+ rendererRelease:context.rendererRelease,scope:'internal_eval_only',publicUseCleared:false,status:'starting',ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
 let secretBound=false,operationAttempted=false,stopping=false;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
 const pause=()=>new Promise(resolve=>setTimeout(resolve,2000));
@@ -62,7 +63,7 @@ try{
  }while(Date.now()<until);
  if(!ready)throw Error('EVAL_SECRET_PROPAGATION_TIMEOUT');
  report.budgetBefore=await json('model-budget');
- if(!layoutSource&&!['provisional','confirmed'].includes(report.budgetBefore.budgetBasis))throw Error('MODEL_BUDGET_NOT_READY');
+ if(!probeSource&&!['provisional','confirmed'].includes(report.budgetBefore.budgetBasis))throw Error('MODEL_BUDGET_NOT_READY');
  let release=await json('releases/'+context.rendererRelease,{allowMissing:true});
  if(!release){
   const environment=await json('objects/'+prefix+'/environment.json',{method:'PUT',body:new TextEncoder().encode(canonical({gitSha:report.sourceSha,
@@ -80,6 +81,9 @@ try{
  if(layoutSource){
   report.layout=await probeCardLayout({receipt:read(layoutSource),context,operationId,prefix,output,json,call});
   report.status='layout_validated';report.finishedAt=new Date().toISOString();save();
+ }else if(probeSource){
+  report.review=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping});
+  report.status='review_render_validated';report.finishedAt=new Date().toISOString();save();
  }else{
  await json('creative',{method:'POST',body:{operationId,contextKey:object.key}});
  const limit=Date.now()+40*60000;let preparedDirections=false,chosen=false,lastStatus='';

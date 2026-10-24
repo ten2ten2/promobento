@@ -27,7 +27,9 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = WEBGL_
   const webgl = new Set(webglBlocks), usesWebgl = scene => scene.kind === 'block' && webgl.has(scene.block);
   const hasWebgl = spec.scenes.some(usesWebgl), unitFrames = job.quality === 'review' ? 30 : 15, units = job.totalFrames / unitFrames;
   const desired = hasWebgl ? webglMaxShards : job.totalFrames / 150;
-  const count = Math.min(units, hasWebgl ? webglMaxShards : maxShards, Math.max(1, Math.ceil(desired / (job.quality === 'review' ? 2 : 1))));
+  // A 2D review keeps 3/6 source-timeline shards: cold starts and assembly still consume its
+  // unchanged 90-second deadline. Only WebGL keeps the previous half-count review policy.
+  const count = Math.min(units, hasWebgl ? webglMaxShards : maxShards, Math.max(1, Math.ceil(desired / (hasWebgl && job.quality === 'review' ? 2 : 1))));
   const cuts=[0];
   if(hasWebgl){
     const weights=Array.from({length:units},(_,unit)=>spec.scenes.some(scene=>usesWebgl(scene)&&scene.start<(unit+1)*unitFrames&&scene.end>unit*unitFrames)?6:1);

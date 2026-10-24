@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {filmFixture,pageOptions} from '../../film-runtime/test/fixture.mjs';
 import {filmSourceHash} from '../src/film-source.mjs';
-import {planShards,assertRenderTask} from '../src/render.mjs';
+import {planShards,assertRenderTask,renderPageTiming,renderDeadlineMs} from '../src/render.mjs';
+import policy from '../../../config/agent-policy.json' with {type:'json'};
 import {deriveAudioPlan} from '../../audio/src/plan.mjs';
 import {filmBlockEvents} from '../../blocks/src/events.mjs';
 import {reserve,settle} from '../../../apps/cloud/src/store.ts';
@@ -20,8 +21,22 @@ test('shards cover the source grid, bind seed, and review never splits a 15 fps 
   assert.deepEqual(a.shards.map(shard=>[shard.start,shard.end]),[[0,150],[150,300],[300,450]]);
   assert.notEqual(a.shards[0].shardKey,b.shards[0].shardKey);
   const review=planShards({...job,quality:'review'},spec,{seed:'one'});
+  assert.deepEqual(review.shards.map(shard=>[shard.start,shard.end]),[[0,150],[150,300],[300,450]]);
   assert.equal(review.shards.reduce((n,shard)=>n+(shard.end-shard.start)/2,0),225);
   assert.ok(review.shards.every(shard=>shard.start%30===0&&shard.end%30===0));
+  const longJob={...job,durationSeconds:30,totalFrames:900},longSpec={...spec,durationSeconds:30,totalFrames:900,
+    scenes:spec.scenes.map(scene=>({...scene,start:scene.start*2,end:scene.end*2}))};
+  for(const quality of ['final','review']){
+    const planned=planShards({...longJob,quality},longSpec,{seed:'one'});
+    assert.deepEqual(planned.shards.map(shard=>[shard.start,shard.end]),Array.from({length:6},(_,i)=>[i*150,(i+1)*150]));
+    assert.equal(planShards({...longJob,quality},longSpec,{seed:'one',maxShards:2}).shards.length,2);
+  }
+  const webgl={...spec,scenes:spec.scenes.map(scene=>({...scene,kind:'block',block:'device-3d@1'}))};
+  assert.equal(planShards(job,webgl,{seed:'one'}).shards.length,24);
+  assert.equal(planShards({...job,quality:'review'},webgl,{seed:'one'}).shards.length,12);
+  assert.equal(renderDeadlineMs({...job,quality:'review'},review,policy.render),90000);
+  assert.deepEqual(renderPageTiming(spec,policy.render),{initTimeoutMs:30000,frameTimeoutMs:5000});
+  assert.deepEqual(renderPageTiming(webgl,policy.render),{initTimeoutMs:60000,frameTimeoutMs:10000});
 });
 test('private tasks reject unknown fields, duplicate input names and missing rights',()=>{
   const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});

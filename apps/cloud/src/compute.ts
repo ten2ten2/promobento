@@ -168,7 +168,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const monitor={state:'pending' as 'pending'|'exited'|'rejected'};
       void this.ctx.container!.monitor().then(()=>{monitor.state='exited';},()=>{monitor.state='rejected';});
       let environmentHealth: Json | string | null = null;
-      const startupDeadline=Math.min(bootAt+30000,deadlineAt);
+      // Physical allocation/controller readiness is separate from sandboxed page initialization.
+      // Both remain bounded by the original render deadline, including any previous attempt.
+      const startupDeadline=Math.min(bootAt+policy.render.containerStartupMs,deadlineAt);
       let probeCount=0,lastProbe:Json={status:'not_probed'};
       while (Date.now() < startupDeadline) {
         await operation(this.env, op.id, op.generation);
@@ -180,7 +182,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
           lastProbe={status:'http',httpStatus:health.status};
           if(health.ok){
             const text=await health.text(),value=text==='ready'?text:parseCanonicalJson(text) as Json;
-            if(value==='ready'||typeof value==='object'&&value?.status==='ready'){environmentHealth=value;break;}
+            if(Date.now()<startupDeadline&&(value==='ready'||typeof value==='object'&&value?.status==='ready')){environmentHealth=value;break;}
             lastProbe={status:'invalid_health_response'};
           }
         } catch(error) {
@@ -191,7 +193,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       if(environmentHealth===null||monitor.state!=='pending'){
         const code=monitor.state==='pending'?'RENDER_STARTUP_TIMEOUT':'RENDER_STARTUP_EXITED';
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code,
-          startup:{elapsedMs:Date.now()-bootAt,brokerRegistrationMs,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
+          startup:{elapsedMs:Date.now()-bootAt,budgetMs:startupDeadline-bootAt,brokerRegistrationMs,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
         throw Error(code);
       }
       const containerReadyMs=Date.now()-bootAt;

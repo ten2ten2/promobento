@@ -225,6 +225,7 @@
     "selector": "trusted_controller"
   },
   "render": {
+    "containerStartupMs": 45000,
     "startupMs": 30000,
     "startupWebglMs": 60000,
     "frameTimeoutMs": 5000,
