@@ -241,4 +241,8 @@ Node 26.12.0 的既有规格纠正单项（534 ms）和坏工具参数先保存/
 
 `f6ce560` 的 [40126239915](https://github.com/ten2ten2/promobento/actions/runs/40126239915)将 review 的 0.5 比例固定在会话 `deviceScaleFactor`，实际尺寸和逻辑坐标检查通过，但[同一 149 帧反例](journey-raster/fixed-scale-candidate.json)数值不变；该捕获改动已撤回，未部署。`0d07753` 在 [40126680559](https://github.com/ten2ten2/promobento/actions/runs/40126680559)仅重建投影层、保留图像节点，仍取得[相同的反例](journey-raster/layer-reset-candidate.json)，额外的节点重建也已撤回。
 
-当前候选将旅程的静态素材在初始化时按原尺寸解码至 canvas，透视运动不再让 `<img>` 自行切换缩放质量/栅格缓存；动态视频仍走原 PTS canvas 路径。原文字节点、字体和点选引用不变，图像解码由既有 `BlockInstance.ready` 等待。`suite=journey` 仅复验受影响的四画幅/双比例旅程，不重复已通过的 72 项、媒体或配乐；运行时类型检查通过，实际结果待验，原容差不变。内存平台查询与负责人暂缓决定统一见 [G1 证据](../2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)。
+`45d1ea9` 将旅程静态素材在初始化时按原尺寸解码至 canvas；[40127172566](https://github.com/ten2ten2/promobento/actions/runs/40127172566)的[原创 SVG 素材回归](journey-raster/canvas-verified.json)取得四画幅/双比例 **48 次**比较通过，最大通道差 **1**、差异像素最多 **0.02300347222222222%**；review 的 24 项全零差异。该证据只覆盖当时的原创 SVG，原 PNG 另行验证。
+
+`be860ffdcb4754633575658cecbf3763253d275b` 经 [40127610185](https://github.com/ten2ten2/promobento/actions/runs/40127610185)构建并部署新镜像 `sha256:8b960db45181dc5752c77f6f53376d4d5ff94c1b62cd29d44f5489d62759981b`，操作 `eval-minimax-15-1792872263692` 复用本轮已付费 E0、原素材/字体/seed，没有模型请求。[真实 review 回执](journey-native-first/review-render.json)仍在 149 帧被拦下（最大 **245**、差异 **26.52951388888889%**），299 帧完全一致；已查看 PNG，顺序帧的旅程画布为空、冷帧有图。CI 的 SVG 通过不能替代实际 PNG。四次计算全部停止并结算 **9,750 usd_micros** 保守上界，[清理回执](journey-native-first/report.json)与[部署健康](journey-native-first/deployment-health.json)保留；共享模型占用仍 **310,551**，临时密钥已回收，没有该轮成片。
+
+当前改为等待静态图片预解码、在旅程可见时逐帧绘制到原尺寸 CPU canvas，不只在隐藏的初始化阶段绘制一次。文字、点选、透视和动态视频 PTS 路径不变；同一回归替换为 **2200×1400 原创 PNG**并保留实际顺序帧，匹配真实故障的格式和尺寸。`suite=journey` 只复验受影响旅程，运行时类型与语法通过，真实结果待验，原容差不变。内存平台查询与负责人暂缓决定统一见 [G1 证据](../2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)。

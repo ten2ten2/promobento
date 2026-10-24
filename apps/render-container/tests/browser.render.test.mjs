@@ -8,6 +8,7 @@ import {parseCanonicalJson} from '../../../packages/contracts/index.mjs';
 import {audioSamples} from './audio-samples.mjs';
 import {mediaFixture} from './media-fixture.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
+import {pngRgba} from '../../cloud/src/director-sheets.mjs';
 
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')
   throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
@@ -22,6 +23,15 @@ for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+as
 // A real director repair put a shard boundary inside the push into ui-journey.
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
+// Match the real failure's raster format/resolution, not just an SVG with broad flat shapes.
+const bitmapPixels=new Uint8Array(2200*1400*4);
+for(let y=0;y<1400;y++)for(let x=0;x<2200;x++){
+  const line=x%97<2||y%113<2,detail=x>360&&y>260&&y<1160&&y%32<12;
+  const rgb=line?[48,88,70]:detail?[(x%12<6?100:210),188,150]:x<300?[217,226,211]:[237,241,232];
+  const at=(y*2200+x)*4;bitmapPixels.set([...rgb,255],at);
+}
+const journeyBitmap=pngRgba(2200,1400,bitmapPixels);
+journey.assets.dashboard.resourceId='res_fixture_journey';
 journey.scenes=[
   {...journey.scenes[0],end:66},
   {...journey.scenes[1],start:58,end:156,transitionIn:{type:'crossfade',frames:8}},
@@ -29,7 +39,10 @@ journey.scenes=[
     {assetKey:'dashboard',textSlot:'intro'},{assetKey:'dashboard',textSlot:'product'}]},
     transitionIn:{type:'push',frames:10},purpose:'Exercise a cold shard boundary during a CSS-3D interface journey.'}
 ];
-for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/journey-'+aspect+'.html',generateFilmPage(JSON.stringify(journey),pageOptions(aspect,layout)));
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const options=pageOptions(aspect,layout);options.resources=[{...options.resources[0],resourceId:'res_fixture_journey',width:2200,height:1400}];
+  pages.set('/journey-'+aspect+'.html',generateFilmPage(JSON.stringify(journey),options));
+}
 const thirty=filmFixture(),thirtyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
 thirty.durationSeconds=30;thirty.totalFrames=900;thirty.scenes.at(-1).end=900;thirtyOptions.target.totalFrames=900;
 pages.set('/thirty.html',generateFilmPage(JSON.stringify(thirty),thirtyOptions));
@@ -44,6 +57,7 @@ const server=http.createServer((req,res)=>{
   }
   if(path==='/f/geist-sans/600-normal.woff2'){res.writeHead(200,{'content-type':'font/woff2'}).end(readFileSync('/opt/fonts/geist-sans-600.woff2'));return;}
   if(path==='/r/res_fixture_dashboard'){res.writeHead(200,{'content-type':'image/svg+xml'}).end(read('apps/render-container/tests/product.svg'));return;}
+  if(path==='/r/res_fixture_journey'){res.writeHead(200,{'content-type':'image/png'}).end(journeyBitmap);return;}
   res.writeHead(404).end();
 });
 await new Promise(resolve=>server.listen(8090,'127.0.0.1',resolve));
@@ -176,7 +190,9 @@ try{
     const frames=[149,185,299],baseline=new Map();
     // Match the encoded review's even-frame history, including screenshots, before each odd seam.
     for(let frame=0;frame<=frames.at(-1);frame++){
-      if(frame%2===0||frames.includes(frame)){await handle.seek(frame);const png=await capture(handle);if(frames.includes(frame))baseline.set(frame,png);}
+      if(frame%2===0||frames.includes(frame)){await handle.seek(frame);const png=await capture(handle);if(frames.includes(frame)){
+        baseline.set(frame,png);writeFileSync(`${output}/journey-${aspect}-${scale}-${frame}.png`,png);
+      }}
     }
     for(const frame of [...frames].reverse()){
       await handle.seek(frame);report.journey.comparisons.push({aspect,scale,frame,mode:'reverse',...compare(baseline.get(frame),await capture(handle),`journey-${aspect}-${scale}-${frame}-reverse`)});

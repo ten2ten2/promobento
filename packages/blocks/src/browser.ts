@@ -149,13 +149,14 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
     const asset = ctx.asset(item.assetKey!);
     if (asset.kind === 'video') drawings.push(picture(ctx, item.assetKey!, screen));
     else {
-      // Freeze static media at its source resolution before camera motion. An <img>
-      // can switch resize-quality/raster caches with seek history, even on fresh layers.
+      // Use a source-resolution CPU bitmap instead of <img> resize-quality caches.
+      // Redraw when visible: a canvas painted only while hidden can lose its surface.
       const canvas = document.createElement('canvas'); canvas.width = asset.width; canvas.height = asset.height;
       Object.assign(canvas.style, {display: 'block', width: '100%', height: '100%', objectFit: 'contain'}); screen.append(canvas);
-      const context = canvas.getContext('2d'); if (!context) throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+      const context = canvas.getContext('2d', {willReadFrequently: true}); if (!context) throw Error('IMAGE_CONTEXT_UNAVAILABLE');
       const image = new Image(); image.src = asset.url;
-      ready.push(image.decode().then(() => { context.drawImage(image, 0, 0, canvas.width, canvas.height); }));
+      ready.push(image.decode());
+      drawings.push(async () => { context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height); });
     }
     return panel;
   });
