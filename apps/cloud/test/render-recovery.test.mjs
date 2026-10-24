@@ -86,7 +86,7 @@ test('late cancelled delivery does not create compute, and duplicate errored Wor
  await dispatchRender(env,item);assert.equal(creates,1);
 });
 
-test('confirmed stop persists across eviction and fences an execute already waiting to start',async t=>{
+async function computeFixture(t,{busy=false,cancelWhileWaiting=false,armFails=false}={}){
  const{outputFiles}=await build({entryPoints:['apps/cloud/src/compute.ts'],bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{
   name:'durable-object-fixture',setup(build){
    build.onResolve({filter:/^cloudflare:workers$/},()=>({path:'entrypoint',namespace:'fixture'}));
@@ -98,20 +98,37 @@ test('confirmed stop persists across eviction and fences an execute already wait
  const imageDigest='sha256:'+'a'.repeat(64);db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('test-release',imageDigest,'film-runtime-v1','environment','active');
  const spec=filmFixture(),job={schemaVersion:'3.0.0',kind:'render_job',renderId:'stopped-render',operationId:op.id,candidateId:'test-candidate',sourceHash:filmSourceHash(canonical(spec)),runtimeVersion:'film-runtime-v1',rendererRelease:'test-release',aspectId:'landscape',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:[]};
  const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});
- const task={schemaVersion:'3.0.0',kind:'render_task',taskId:'stopped-task',mode:'shard',instance:'standard-3',job,inputs:[],options,shard:planShards(job,spec,{seed:options.seed}).shards[0],generation:0,imageDigest,deadlineAt:Date.now()+1000};
- const values=new Map();let shard,starts=0,leases=0;
+ const task={schemaVersion:'3.0.0',kind:'render_task',taskId:'stopped-task',mode:'shard',instance:'standard-3',job,inputs:[],options,shard:planShards(job,spec,{seed:options.seed}).shards[0],generation:0,imageDigest,deadlineAt:Date.now()+2000};
+ const values=new Map();let shard,starts=0,leases=0,acquires=0;
  const storage={get:async key=>values.get(key),async put(key,value){
   if(typeof key==='object')for(const[k,v]of Object.entries(key))values.set(k,v);else values.set(key,value);
   if(key==='startedAt')await shard.stopAndSettle(); // Force the stop exactly at the last await before container.start.
  },delete:async key=>values.delete(key),setAlarm:async()=>{},deleteAlarm:async()=>{},transactionSync:fn=>fn(),kv:{get:key=>values.get(key),put:(key,value)=>values.set(key,value)}};
  const container={images:{render:'registry/render@'+imageDigest},running:false,start(){starts++;this.running=true;},async destroy(){this.running=false;}};
  const ctx={storage,container,exports:{Broker(){return{};}}};
- env.COORDINATOR={getByName(){return{async acquire(){leases++;return true;},async arm(){},async release(){assert.equal(container.running,false);leases=0;}};}};
+ env.COORDINATOR={getByName(){return{async acquire(){acquires++;if(busy&&acquires===1){assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_reservations').get().n,0);if(cancelWhileWaiting)values.set('stopRequested',true);return false;}leases++;return true;},async arm(){if(armFails)throw Error('alarm unavailable');},async release(){assert.equal(container.running,false);leases=0;}};}};
  shard=new ShardDO(ctx,env);
+ return{db,env,ctx,ShardDO,shard,task,values,counts:()=>({starts,leases,acquires})};
+}
+
+test('confirmed stop persists across eviction and fences an execute already waiting to start',async t=>{
+ const{db,env,ctx,ShardDO,shard,task,values,counts}=await computeFixture(t);
  await assert.rejects(shard.execute(canonical(task)),/COMPUTE_ATTEMPT_STOPPED/);
- assert.equal(starts,0);assert.equal(leases,0);assert.equal(values.get('stopRequested'),true);
+ assert.equal(counts().starts,0);assert.equal(counts().leases,0);assert.equal(values.get('stopRequested'),true);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
  // A fresh DO instance retains the stop latch even if execute never bound a request.
  values.delete('requestHash');values.delete('taskId');
- await assert.rejects(new ShardDO(ctx,env).execute(canonical(task)),/COMPUTE_ATTEMPT_STOPPED/);assert.equal(starts,0);
+ await assert.rejects(new ShardDO(ctx,env).execute(canonical(task)),/COMPUTE_ATTEMPT_STOPPED/);assert.equal(counts().starts,0);
+});
+
+test('capacity waits spend no compute before a lease and stop or alarm failure cannot leak slots',async t=>{
+ for(const options of[{busy:true},{busy:true,cancelWhileWaiting:true},{armFails:true}]){
+  const{db,shard,task,counts}=await computeFixture(t,options);
+  await assert.rejects(shard.execute(canonical(task)),options.armFails?/alarm unavailable/:/COMPUTE_ATTEMPT_STOPPED/);
+  assert.equal(counts().starts,0);assert.equal(counts().leases,0);
+  assert.equal(counts().acquires,options.busy&&!options.cancelWhileWaiting?2:1);
+  const expected=options.cancelWhileWaiting||options.armFails?0:1;
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_reservations').get().n,expected);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,expected);
+ }
 });

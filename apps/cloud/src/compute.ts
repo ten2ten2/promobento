@@ -113,13 +113,24 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     const release = await this.env.DB.prepare('SELECT * FROM renderer_releases WHERE id=? AND status=\'active\'').bind(task.job.rendererRelease).first<Json>();
     if (!release || release.runtime_version !== task.job.runtimeVersion || release.image_digest !== task.imageDigest || release.image_digest !== await this.imageDigest()) throw Error('RENDER_ENVIRONMENT_MISMATCH');
     const intrinsicLimit = task.mode === 'studio' ? 1200000 : task.mode === 'shard' ? (task.shard.end - task.shard.start) * (task.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
-    const limit = task.deadlineAt === undefined ? intrinsicLimit : Math.min(intrinsicLimit, Number(task.deadlineAt) - Date.now());
-    if (!Number.isFinite(limit) || limit < 1) throw Error('RENDER_DEADLINE');
+    const deadlineAt=Math.min(Date.now()+intrinsicLimit,task.deadlineAt===undefined?Infinity:Number(task.deadlineAt));
+    if(!Number.isFinite(deadlineAt)||deadlineAt<=Date.now())throw Error('RENDER_DEADLINE');
     const leaseKind = task.mode === 'studio' ? 'studio' : 'shard';
-    if (!await coordinator(this.env).acquire(task.taskId, op.workspace_id, leaseKind, Date.now() + limit + 30000)) throw Error('COMPUTE_CAPACITY');
-    await coordinator(this.env).arm();
-    let startedAt: number | undefined, outcome: Json | undefined, reserved = false;
+    let startedAt: number | undefined, outcome: Json | undefined, reserved = false,acquired=false;
     try {
+      // 24 WebGL shards and audio share a 24-slot workspace. Wait without a container or reservation;
+      // the original render deadline, generation and stop latch still bound this attempt.
+      for(;;){
+        if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
+        if(Date.now()>=deadlineAt)throw Error('RENDER_DEADLINE');
+        await operation(this.env,op.id,op.generation);
+        acquired=await coordinator(this.env).acquire(task.taskId,op.workspace_id,leaseKind,deadlineAt+30000);
+        if(acquired)break;
+        await sleep(Math.min(250,Math.max(0,deadlineAt-Date.now())));
+      }
+      await coordinator(this.env).arm();
+      await operation(this.env,op.id,op.generation);await rights(this.env,op,task.job.resources);
+      const limit=deadlineAt-Date.now();if(limit<1)throw Error('RENDER_DEADLINE');
       await reserve(this.env, op, task.taskId, 'compute', 'render', computeMicros(task.instance, limit + 30000), task,
         'cloudflare-containers-2026-10-23-upper-bound', 10000000, op.max_micros);
       reserved = true;
@@ -174,7 +185,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       return outcome;
     } finally {
       if (!(await this.ctx.storage.get('studio'))) {
-        await this.stop(); await coordinator(this.env).release(task.taskId); await this.ctx.storage.deleteAlarm();
+        await this.stop();if(acquired)await coordinator(this.env).release(task.taskId);await this.ctx.storage.deleteAlarm();
         if (reserved) await this.finishCost(task.taskId, task.instance, startedAt);
       }
     }
