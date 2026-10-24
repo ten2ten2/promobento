@@ -19,3 +19,7 @@
 只读 Wrangler 查询的[原生步骤](startup-attempt/native-workflow.json)定位两个分段为 `The container is not listening in the TCP address 10.0.0.1:8080`；其余步骤因失败清理/取消而终止，不能把它们解释为各自计算失败。尚未证明是启动耗时还是进程退出，先读已有日志，不重跑成片，也不增加期限。
 
 [原始状态与费用](startup-attempt/performance-report.json)确认 7 个实例最终全部停止结算，分配资源上界 **17,506 usd_micros**，没有未结费用；内部密钥已删除。原 `stopPending:true` 是失败时的状态，随后清理已确认，不能据此说仍有实例运行。此次未验证 CTA 接缝修复，仍无有效成片分位数样本。
+
+[只读诊断 40064813399](https://github.com/ten2ten2/promobento/actions/runs/40064813399) 成功查询历史日志，但名称过滤只返回 140 条 Worker HTTP 事件，未取得容器 stdout/stderr，不能据此判断进程正常。原始产物保留在该 run 与本机 `artifacts/s1-inspect-40064813399/`，未把请求 IP 等无关字段加入仓库。下一次查询保留原失败窗口、去掉名称过滤，不启动计算。
+
+`ShardDO` 已修复健康检查失败仍发 `/task` 的缺陷：沿用原 30 秒/操作期限，每个探测有界，启动超时与 monitor 提前结束分别记录明确代码及探测状态，再走既有停止/结算。新增单项回放通过（Node 26.12.0，408 ms），没有重跑成片或全套测试；云端启动结果仍待实际验证。

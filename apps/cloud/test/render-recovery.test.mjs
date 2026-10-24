@@ -86,7 +86,7 @@ test('late cancelled delivery does not create compute, and duplicate errored Wor
  await dispatchRender(env,item);assert.equal(creates,1);
 });
 
-async function computeFixture(t,{busy=false,cancelWhileWaiting=false,armFails=false}={}){
+async function computeFixture(t,{busy=false,cancelWhileWaiting=false,armFails=false,stopBeforeStart=true}={}){
  const{outputFiles}=await build({entryPoints:['apps/cloud/src/compute.ts'],bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{
   name:'durable-object-fixture',setup(build){
    build.onResolve({filter:/^cloudflare:workers$/},()=>({path:'entrypoint',namespace:'fixture'}));
@@ -102,7 +102,7 @@ async function computeFixture(t,{busy=false,cancelWhileWaiting=false,armFails=fa
  const values=new Map();let shard,starts=0,leases=0,acquires=0;
  const storage={get:async key=>values.get(key),async put(key,value){
   if(typeof key==='object')for(const[k,v]of Object.entries(key))values.set(k,v);else values.set(key,value);
-  if(key==='startedAt')await shard.stopAndSettle(); // Force the stop exactly at the last await before container.start.
+  if(key==='startedAt'&&stopBeforeStart)await shard.stopAndSettle(); // Force the stop exactly at the last await before container.start.
  },delete:async key=>values.delete(key),setAlarm:async()=>{},deleteAlarm:async()=>{},transactionSync:fn=>fn(),kv:{get:key=>values.get(key),put:(key,value)=>values.set(key,value)}};
  const container={images:{render:'registry/render@'+imageDigest},running:false,start(){starts++;this.running=true;},async destroy(){this.running=false;}};
  const ctx={storage,container,exports:{Broker(){return{};}}};
@@ -130,5 +130,40 @@ test('capacity waits spend no compute before a lease and stop or alarm failure c
   const expected=options.cancelWhileWaiting||options.armFails?0:1;
   assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_reservations').get().n,expected);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,expected);
+ }
+});
+
+test('controller startup must pass health before task dispatch; timeout and exit stop and settle once',async t=>{
+ for(const scenario of ['timeout','exit','ready']){
+  const{db,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
+  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
+   .run(task.taskId,task.job.renderId,task.job.operationId,0,task.mode,task.instance,'active',Date.now());
+  task.deadlineAt=Date.now()+60000;let dispatched=0,healthCalls=0;
+  t.mock.timers.enable({apis:['Date']});
+  ctx.container.interceptOutboundHttp=async()=>{};
+  ctx.container.monitor=()=>scenario==='exit'?Promise.resolve():new Promise(()=>{});
+  ctx.container.getTcpPort=()=>({async fetch(url,init){
+   if(url.endsWith('/healthz')){
+    healthCalls++;assert.ok(init.signal instanceof AbortSignal);
+    if(scenario==='timeout'){t.mock.timers.tick(30001);return new Response(null,{status:503});}
+    return Response.json({status:'ready'});
+   }
+   if(url.endsWith('/task')){dispatched++;return new Response(null,{status:202});}
+   if(url.endsWith('/result'))return Response.json({status:'succeeded',taskId:task.taskId});
+   throw Error('unexpected request');
+  }});
+  try{
+   if(scenario==='ready')assert.equal(parseCanonicalJson(await shard.execute(canonical(task))).status,'succeeded');
+   else{
+    const code=scenario==='exit'?'RENDER_STARTUP_EXITED':'RENDER_STARTUP_TIMEOUT';
+    await assert.rejects(shard.execute(canonical(task)),new RegExp(code));
+    const diagnostic=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
+    assert.equal(diagnostic.code,code);assert.equal(diagnostic.startup.monitorState,scenario==='exit'?'exited':'pending');
+    if(scenario==='timeout'){assert.equal(diagnostic.startup.elapsedMs,30001);assert.equal(diagnostic.startup.lastProbe.httpStatus,503);}
+   }
+   assert.equal(dispatched,scenario==='ready'?1:0);assert.ok(healthCalls<=1);
+   assert.equal(ctx.container.running,false);assert.equal(counts().leases,0);
+   assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
+  }finally{t.mock.timers.reset();}
  }
 });

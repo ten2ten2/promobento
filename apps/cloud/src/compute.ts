@@ -81,8 +81,8 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   private token: string | undefined;
   private work: Promise<Json> | undefined;
   private workHash: string | undefined;
-  private async call(path: string, body?: unknown) {
-    return this.ctx.container!.getTcpPort(8080).fetch('http://container' + path, body === undefined ? undefined : {method: 'POST', body: canonical(body)});
+  private async call(path: string, body?: unknown, signal?: AbortSignal) {
+    return this.ctx.container!.getTcpPort(8080).fetch('http://container' + path, {...(body === undefined ? {} : {method: 'POST', body: canonical(body)}),signal});
   }
   async imageDigest() {
     const image = this.ctx.container!.images.render;
@@ -152,23 +152,44 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       this.ctx.container!.start({image: this.ctx.container!.images.render!, instance: task.instance, enableInternet: false,
         env: {RENDER_IMAGE_DIGEST: release.image_digest, RENDERER_RELEASE: release.id}});
       await this.ctx.container!.interceptOutboundHttp('broker.internal', broker);
-      void this.ctx.container!.monitor().catch(() => {});
+      const monitor={state:'pending' as 'pending'|'exited'|'rejected'};
+      void this.ctx.container!.monitor().then(()=>{monitor.state='exited';},()=>{monitor.state='rejected';});
       let environmentHealth: Json | string | null = null;
-      while (Date.now() - startedAt < 30000) {
+      const startupDeadline=Math.min(startedAt+30000,deadlineAt);
+      let probeCount=0,lastProbe:Json={status:'not_probed'};
+      while (Date.now() < startupDeadline) {
         await operation(this.env, op.id, op.generation);
+        if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
+        if(monitor.state!=='pending')break;
         try {
-          const health=await this.call('/healthz');
-          if(health.ok){const text=await health.text();environmentHealth=text==='ready'?text:parseCanonicalJson(text) as Json;break;}
-        } catch {}
-        await sleep(250);
+          probeCount++;
+          const health=await this.call('/healthz',undefined,AbortSignal.timeout(Math.max(1,Math.min(5000,startupDeadline-Date.now()))));
+          lastProbe={status:'http',httpStatus:health.status};
+          if(health.ok){
+            const text=await health.text(),value=text==='ready'?text:parseCanonicalJson(text) as Json;
+            if(value==='ready'||typeof value==='object'&&value?.status==='ready'){environmentHealth=value;break;}
+            lastProbe={status:'invalid_health_response'};
+          }
+        } catch(error) {
+          lastProbe={status:'unavailable',reason:/not listening/i.test(String(error))?'port_not_listening':/abort|timeout/i.test(String(error))?'probe_timeout':'probe_failed'};
+        }
+        if(Date.now()<startupDeadline&&monitor.state==='pending')await sleep(Math.min(250,startupDeadline-Date.now()));
       }
-      const containerReadyMs=environmentHealth===null?null:Date.now()-startedAt;
+      if(environmentHealth===null||monitor.state!=='pending'){
+        const code=monitor.state==='pending'?'RENDER_STARTUP_TIMEOUT':'RENDER_STARTUP_EXITED';
+        await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code,
+          startup:{elapsedMs:Date.now()-startedAt,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
+        throw Error(code);
+      }
+      const containerReadyMs=Date.now()-startedAt;
       const peak=typeof environmentHealth==='object'?environmentHealth?.memoryPeak:null;
       // Owner-approved missing interface remains explicit; permission/invalid-value failures still block.
       if(task.mode==='shard'&&peak?.available===false&&!(peak.mib===null&&peak.bytes===null&&peak.unavailableReason==='cgroup_peak_not_exposed')){
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:'RENDER_MEMORY_METRIC_UNAVAILABLE',environmentHealth}),task.taskId).run();
         throw Error('RENDER_MEMORY_METRIC_UNAVAILABLE');
       }
+      await operation(this.env,op.id,op.generation);
+      if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
       if (!(await this.call('/task', input)).ok) throw Error('RENDER_TASK_REJECTED');
       for (;;) {
         await operation(this.env, op.id, op.generation);

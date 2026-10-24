@@ -12,6 +12,8 @@
 
 满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。正式满载性能分布/主动取消 G1 仍未完成。
 
+容器启动后必须在原 30 秒与操作剩余期限内取得控制器 ready，单次探测最多 5 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留探测次数、最后状态与 monitor 状态。失败沿用停止、lease 和费用结算路径，不自动重启付费计算。
+
 ## 研究模型共用一份预算
 
 `MODEL_LEDGER` 绑定独立的共享 D1 `promobento-model-ledger`，staging/production 使用同一数据库；各自的操作、素材、计算账本仍在原环境的 `DB`，不混用客户数据。资源由 Actions 创建，迁移目录为 `model-ledger-migrations`。授权身份只取批准人与批准时间，不随价格目录、步骤换绑、新操作或部署而重置。
@@ -42,7 +44,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
 
-矩阵子操作另加 `-f staging_inspect_operation=<同一 run 的完整子操作 ID>`，仍须用 `staging_sha` 指定当时部署。只接受该提交/run 前缀下的子操作；同时有界查询其开始/结束附近已存储的 staging 日志，删除凭据字段，保留实际 HTTP/权限结果。日志不可读不冒充“没有错误”，也不会为收集日志启动计算。
+矩阵子操作另加 `-f staging_inspect_operation=<同一 run 的完整子操作 ID>`，仍须用 `staging_sha` 指定当时部署。只接受该提交/run 前缀下的子操作；同时查询其开始/结束附近最多两分钟、500 条已存日志，删除凭据字段，保留实际 HTTP/权限结果。容器日志不一定带 Worker 名，不能用名称过滤后的 HTTP 请求日志推断容器没有启动错误。日志不可读不冒充“没有错误”，也不会为收集日志启动计算。
 
 只修复已失败/取消的指定操作，可加 `-f staging_reconcile_operation=<operation ID>`。新版本通过 `operations/<id>/reconcile` 再次确认实例停止，补齐旧 attempt 的停止记录及遗留的渲染非终态；返回未结费用清单。不重启计算、不改 generation、不清零未知模型费用、不覆盖 passed 成片或原始失败原因。活动操作拒绝此入口。
 

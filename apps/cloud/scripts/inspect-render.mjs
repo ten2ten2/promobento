@@ -30,7 +30,9 @@ if(process.env.INSPECT_OPERATION){
   if(!Number.isFinite(start)||!Number.isFinite(end))throw Error('INSPECTION_LOG_TIMEFRAME_MISSING');
   const response=await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/workers/observability/telemetry/query`,{method:'POST',
    headers:{authorization:'Bearer '+token,'content-type':'application/json'},signal:AbortSignal.timeout(20000),
-   body:canonical({queryId:'s1-startup-'+run,dry:true,view:'events',limit:200,timeframe:{from:Math.max(start-5000,end-120000),to:end+5000},parameters:{needle:{value:'promobento-staging',isRegex:false}}})});
+   // Container stdout may not carry the Worker script name. The exact failed-child time window
+   // bounds this query; filtering by that name previously returned HTTP events only.
+   body:canonical({queryId:'s1-startup-'+run,dry:true,view:'events',limit:500,timeframe:{from:Math.max(start-5000,end-120000),to:end+5000},parameters:{}})});
   report.logQuery={httpStatus:response.status,...redact(parseCanonicalJson(await response.text()))};
  }catch(error){report.logQuery={status:'unavailable',code:String(error.message??error).slice(0,160)};}
  writeFileSync('artifacts/staging/inspection.json',canonical(report));
