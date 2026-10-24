@@ -23,6 +23,8 @@ review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 f
 
 阅读停留帧由共享 `filmObservationFrames` 按整片镜头事件生成，再落入各分段；不含计划点的短分段保存空观测数组。Worker 校验每段应有的精确帧、render/画幅、字节身份及 BLOCK 项，不能以任意非空观测代替覆盖。动态/转场 QA 仍在 S2，不能把当前停留帧当作完整时间覆盖。
 
+对比度按原方案的普通文字 **4.5:1**、大字 **3:1** 判断，不四舍五入。大字由 CDP 的实际字号/字重识别（24px，或至少 18⅔px 且字重 ≥700），不依赖作者标记或槽位 role；其余字体、裁切、安全区和遮挡判断不变。
+
 `feature-grid@1` 的当前实现为 1.0.1：横屏上图卡片的下方 40% 文案区分为标题 22%、间隔 3%、副标题 15%，避免长标题与副标题重叠。无图卡片及其他画幅布局不变，历史 renderer release 保留原实现。实际失败源的[单帧回归入口](../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)只检查这一组合，不重做完整矩阵。
 
 WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真实 WebGL2 context 的 renderer/vendor/version，逐次与环境锁的 SwiftShader renderer 核对，不匹配阻断为 `RENDER_ENVIRONMENT_MISMATCH`。studio ready 与分段回执保留实际字符串。初始化/单帧期限按共享策略分别使用 60/10 秒，2D 保持 30/5 秒；同一镜像内纯 2D 页面不加载 3D bundle。3D 资源在引擎 dispose 时释放，失去 context 明确失败，不悄悄重建。

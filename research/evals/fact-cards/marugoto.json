@@ -9,7 +9,7 @@
   "videoLanguage": "en",
   "audience": "People learning everyday Japanese communication",
   "brief": "Show the actual learning content and progression, using only attributed factual statements.",
-  "checkedAt": "2026-10-24",
+  "checkedAt": "2026-10-25",
   "cta": {
     "text": "Explore Marugoto Japanese Online Course",
     "urlLabel": "www.marugoto-online.jp"
@@ -40,14 +40,14 @@
       "url": "https://www.marugoto-online.jp/info/",
       "title": "Marugoto Japanese Online Course — official course page",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-24"
+      "checkedAt": "2026-10-25"
     },
     {
       "id": "details",
       "url": "https://www.marugoto-online.jp/info/sp/contents/",
       "title": "Official details or license",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-24"
+      "checkedAt": "2026-10-25"
     }
   ],
   "assetSources": [

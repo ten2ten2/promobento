@@ -1,6 +1,6 @@
 # S1 评测输入
 
-题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实已按 2026-10-24 官方页面复核，原确认文案不变；三家产品的入口为：
+题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实与确认文案保留；2026-10-25 再次核对 Duolingo、IELTS Ready、Marugoto 和 Hugging Face 的原官方页面，原功能、课程及学习基础陈述仍有依据。IELTS 本次可读到公开页面文字，但原浏览器采集的 403 记录及第三方截图许可限制不因此改变。三家产品的入口为：
 
 - [DeepSeek](fact-cards/deepseek.json)：网页对话、API 平台与文档入口；主画面优先官网和无私人内容的初始界面。
 - [MiniMax](fact-cards/minimax.json)：以 MiniMax Code 为软件题目，展示 agent 工作流和 Coding/Work 模式；不引用价格、速度排名或成本节省比例。
@@ -75,7 +75,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ### 只复验 review 冷启动、分段与交付
 
-需要修复媒体基础设施时，沿用已付费完成的纯积木 `write_spec`，不重新调用 A/B/C/E：
+需要修复媒体基础设施时，沿用已付费完成的纯积木 `write_spec`，或 C 直接返回完整 FilmSpec 的原始回执，不重新调用 A/B/C/E：
 
 ```sh
 mise exec -- node research/evals/run-case.mjs \
@@ -84,7 +84,7 @@ mise exec -- node research/evals/run-case.mjs \
   docs/evidence/2026-10-24-s1-director/minimax-second-attempt/review-1-response.json
 ```
 
-仅允许程序配乐/无音乐，使用本题同一私有素材、字体、seed 与新的固定 release。经既有 `renders` 入口实际执行横屏低清 review、音频、接缝/原观测、拼接、提交与私有下载；服务端仍执行原绝对期限。`review-render.json` 保留源回执、计划、期限及媒体结果，MP4/封面仅留本机私有忽略目录。与单帧模式共用许可登记、容量/费用核对和密钥回收，`review_render_validated` 不计入导演成功、最终片或 4/6；一个样本也不代表 p50/p95。
+仅接纳完整、未截断/拒绝的原始回执；C 的单一 JSON 围栏由同一共享解析器处理，不补造工具或改写 FilmSpec。仅允许程序配乐/无音乐，使用本题同一私有素材、字体、seed 与新的固定 release。经既有 `renders` 入口实际执行横屏低清 review、音频、接缝/原观测、拼接、提交与私有下载；服务端仍执行原绝对期限。`review-render.json` 保留源回执、计划、期限及媒体结果，MP4/封面仅留本机私有忽略目录。与单帧模式共用许可登记、容量/费用核对和密钥回收，`review_render_validated` 不计入导演成功、最终片或 4/6；一个样本也不代表 p50/p95。
 
 ### 仅在确需更新素材时采集
 

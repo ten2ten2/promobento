@@ -1,4 +1,4 @@
-// Re-render one paid, completed write_spec through the actual private review pipeline.
+// Re-render one paid, completed FilmSpec through the actual private review pipeline.
 // No models, no local author-JS execution, no replacement for a full creative case.
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -7,14 +7,25 @@ import {filmSourceHash} from '@promobento/contracts/film-source';
 import {renderPageTiming,planShards,renderDeadlineMs} from '@promobento/contracts/render';
 import {deriveAudioPlan,audioPlanHash,GENERATED_LICENSE} from '../../packages/audio/src/plan.mjs';
 import {filmBlockEvents} from '../../packages/blocks/src/events.mjs';
+import {parseModelJson} from '../../packages/models/src/adapters.mjs';
 import platform from '../../config/platform-presets.json' with {type:'json'};
 import policy from '../../config/agent-policy.json' with {type:'json'};
 
-export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping}){
+export function completedReviewFilm(receipt){
  const calls=receipt.result?.toolCalls;
- if(receipt.kind!=='metered_model_response'||receipt.result.failure||calls?.length!==1||calls[0].name!=='write_spec'
-  ||Object.keys(calls[0].input??{}).length!==1||!calls[0].input.film)throw Error('COMPLETED_WRITE_SPEC_RECEIPT_REQUIRED');
- const film=calls[0].input.film;
+ if(receipt.kind==='metered_model_response'&&!receipt.result.failure){
+  if(calls?.length===1&&calls[0].name==='write_spec'&&Object.keys(calls[0].input??{}).length===1&&calls[0].input.film)
+   return{film:calls[0].input.film,sourceKind:'completed_write_spec'};
+  if(calls?.length===0&&receipt.result.text){
+   const film=parseModelJson(receipt.result.text);
+   if(film?.specVersion==='film-v1')return{film,sourceKind:'completed_film_json'};
+  }
+ }
+ throw Error('COMPLETED_FILM_RECEIPT_REQUIRED');
+}
+
+export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping}){
+ const {film,sourceKind}=completedReviewFilm(receipt);
  if(film.durationSeconds!==context.durationSeconds||film.scenes.some(scene=>scene.kind!=='block')||film.audio.voice
   ||!['procedural','none'].includes(film.audio.music.kind))throw Error('TRUSTED_BLOCK_GENERATED_AUDIO_REVIEW_REQUIRED');
  const source=await json('objects/'+prefix+'/review-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
@@ -34,7 +45,7 @@ export async function probeReviewRender({receipt,context,operationId,prefix,outp
   audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:context.seed,clearedSources:plan.sources.map(source=>({sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true}))},
   coverFrame:Math.floor(film.totalFrames*.55)};
  const partition=planShards(job,film,{seed:context.seed}),report={scope:'actual_private_review_render_from_completed_paid_spec_no_models',
-  sourceCallId:receipt.callId,renderId,sourceHash:job.sourceHash,partition,deadlineMs:renderDeadlineMs(job,partition,policy.render),status:'running'};
+  sourceCallId:receipt.callId,sourceKind,renderId,sourceHash:job.sourceHash,partition,deadlineMs:renderDeadlineMs(job,partition,policy.render),status:'running'};
  const save=()=>writeFileSync(join(output,'review-render.json'),canonical(report)+'\n');save();
  try{
   const started=Date.now();report.submittedAt=new Date(started).toISOString();save();

@@ -258,3 +258,19 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 `5803aa1` 把旅程图片画在固定逻辑尺寸的 CPU 画布中，以原 1800px 焦距、位移、纵深和角度投影素材。[40131547849](https://github.com/ten2ten2/promobento/actions/runs/40131547849)的[实际 PNG 报告](journey-raster/triangle-projection-candidate.json)中横竖屏和 feed 的全部 36 项、方形的 9 项通过；方形 review 的 149 帧冷 seek 仍为最大 **1** / **2.6680384087791493%**。查看实际图另发现三角裁片的细小拼接纹，因此该候选未部署。
 
 当前改为直接逆投影取样、单次写入固定画布，移除三角裁片；素材原尺寸读取一次，以确定性像素均值建立缩小层级，保留透明度和 contain。DOM 文字、边框、点选、相机节奏及动态视频 PTS 保留，不增加 WebGL 前提、不修改预算/期限/接缝门槛。正逆投影校准单项通过（Node 26.12.0，2.98 ms），运行时 TypeScript 7.0.2 通过；`220957c` 的 [40132398160](https://github.com/ten2ten2/promobento/actions/runs/40132398160)取得[四画幅实际 PNG 的 48 次比较通过](journey-raster/inverse-projection-verified.json)：最大通道差 **1**、差异像素最多 **0.024594907407407406%**。已查看横屏移动中、方形 review 转场和竖屏移动中实际图，拼接纹消失，图片与原透视边框对齐。原片复验待完成；未重跑普通 72 项、媒体或配乐。
+
+[40132839502](https://github.com/ten2ten2/promobento/actions/runs/40132839502) 已由 Actions 构建并推送 `220957c15e98dc32ea15c8793bbb15931eb20873` 的镜像 **`sha256:321543190be9136b2fafe1dcd8a888544be1b605a18b514b94d71b59cbec2ecf`**，但 Wrangler 在 Worker 上传后报容器应用设置未完成；[40133344359](https://github.com/ten2ten2/promobento/actions/runs/40133344359) 仅复用该摘要补部署仍失败，没有重建镜像。未取得包装错误的内部原因，不把这两次工作流记为通过。
+
+之后的[只读诊断 40133657079](https://github.com/ten2ten2/promobento/actions/runs/40133657079) 用同一 Actions Token 对确切版本和容器应用均读到 **HTTP 200**：[版本的 ShardDO、应用名/命名空间/策略与新镜像一致](journey-inverse/deployment-inspection.json)，配置仍为空（本次没有应用设置变更）。[实际部署读回](journey-inverse/effective-deployment.json)确认版本 `40915f5c-34af-46a5-9693-74b7a6b0ec2a` 已承接 staging **100%** 流量。因此沿用已生效版本继续原片复验，不反复上传/构建；渲染仍须以容器实际镜像和媒体回执验收。
+
+操作 `eval-minimax-15-1792876963508` 复用第六次已付费 E0、原私有素材/字体/seed，固定 `renderer-220957c15e98`；[原生 review](journey-inverse/review-render.json)在原 **90 秒**内交付，客户端读到通过 **69,149 ms**。149 帧接缝最大通道差 **1**、差异像素 **0.04996141975308642%**，299 帧全零，原容差通过。实际 **960×540 / 15 fps / 225 帧 / 15 秒 / AAC**；一次原有 VBV 纠正后峰值 **1,860,256 ≤ 2,500,000 bit/s**。三段实际镜像均为本节新摘要，[五次计算](journey-inverse/report.json)全部停止/结算 **7,879 usd_micros**，0 模型，未结/容量为空、临时密钥回收。
+
+已查看实际 MP4 的转场中、移动中和后段解码图，产品图不再丢失、模糊历史差异与拼接纹已消除；Chrome 155.0.8059.85 完整 **1×** 播放到结束、无解码错误/掉帧，[解码回执](journey-inverse/decoded-video.json)。该回归不计成功导演或六题候选，也未达到 review 的 30 秒 p50 目标；继续完整 A–C/E/F。
+
+## MiniMax 第七次：C 一次通过，大字被误用正文对比度门槛拦截
+
+同一实际 `220957c` 镜像，操作 `eval-minimax-15-1792877270141`。三张新方向已查看，选择[蓝底的工作区导览](minimax-seventh-attempt/choice.json)，真实白色界面比白底边界更清楚，面积大于设备图。方向就绪 **141,543 ms**，该单例超过 2 分钟目标，完整分布仍待验。[C 原始回执](minimax-seventh-attempt/spec-response.json)经现有单一围栏解析、Schema/事实/转场和页面支持性检查一次通过；首个 review 三段画面与音频均成功，随后 `QA_BLOCK`，未到 E/F 或成片。
+
+[三段实际 CDP 观测](minimax-seventh-attempt/observations-0.json)（[中段](minimax-seventh-attempt/observations-1.json)、[后段](minimax-seventh-attempt/observations-2.json)）均将文字判为 `largeText:true`、对比度 **3.324836041798544:1**，仍全部标 `low-contrast / BLOCK`。观测器没有采用方案 §7 原定的大字 **3:1**，而是硬编码全部文字 4.5:1；这与 [WCAG 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) 的大字规则不符。当前修正由 CDP 实际字号/字重区分大字与普通文字，分别执行原 **3:1 / 4.5:1**，不按 role 豁免、不舍入。主机观测单项通过（Node 26.12.0，6.92 ms），涵盖大小字号、粗体、大字仍低于 3、普通文字低于 4.5 及 4.478 不得进位；原片待新镜像复验，不改旧失败回执。
+
+[费用与回收](minimax-seventh-attempt/report.json)：2 次新模型 **20,051**，8 次计算均停止/结算 **9,884** 保守上界，总计 **29,935 usd_micros**。共享模型已结 **310,377** 加旧未知 **20,225**，合计占用 **330,602**；原历史 128/14 和确认空值不变。临时密钥已回收，没有合格候选。原片复验入口扩展为直接读取已付费 C 完整 JSON，复用同一共享围栏/严格解析，不伪造 E 工具或重新付费。

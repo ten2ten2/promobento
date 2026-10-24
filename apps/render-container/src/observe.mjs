@@ -1,6 +1,6 @@
 /** Trusted CDP snapshot and platform-font inspection; no page-supplied QA booleans. */
 export async function observe(cdp, plan, renderId, frame) {
-  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow'];
+  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight'];
   const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', {computedStyles: names, includePaintOrder: true});
   const strings = snapshot.strings, {nodes, layout} = snapshot.documents[0];
   const rowFor = new Map(layout.nodeIndex.map((node, row) => [node, row]));
@@ -65,12 +65,15 @@ export async function observe(cdp, plan, renderId, frame) {
         covered = true;
       }
     }
+    // WCAG 1.4.3: 18pt regular / 14pt bold. Use actual CDP font metrics, not the text role or author flags.
+    const size=Number.parseFloat(style(node,'font-size')),weight=Number.parseFloat(style(node,'font-weight'));
+    const largeText=size>=24||size>=14*4/3&&weight>=700;
     texts.push({slotId, text: descendants, box, fonts: fonts.map(font => ({family: font.familyName, glyphCount: font.glyphCount})),
-      fallbackUsed, missingGlyphs, contrastRatio: Math.max(1, Math.min(21, ratio)), largeText: Number.parseFloat(style(node, 'font-size')) >= 32,
+      fallbackUsed, missingGlyphs, contrastRatio: Math.max(1, Math.min(21, ratio)), largeText,
       insideSafeArea, clipped, covered});
     regions.push({regionId: slotId, box});
     for (const [condition, code] of [[fallbackUsed, 'FONT_FALLBACK_USED'], [missingGlyphs > 0, 'FONT_GLYPH_MISSING'],
-      [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < 4.5, 'low-contrast']])
+      [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < (largeText?3:4.5), 'low-contrast']])
       if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId});
   }
   return {schemaVersion: '3.0.0', kind: 'frame_observation', renderId, aspectId: plan.target.aspect, frame, texts, regions, findings};
