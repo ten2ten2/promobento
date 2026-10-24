@@ -15,8 +15,8 @@ const root=new URL('../../../',import.meta.url),read=path=>readFileSync(new URL(
 const rules=parseCanonicalJson(read('config/platform-presets.json'));
 const lock=parseCanonicalJson(read('apps/render-container/environment.lock.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
-const runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1';
-const report={status:'running',scope:runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
+const journeyOnly=process.env.PROMOBENTO_JOURNEY_ONLY==='1',runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1'||journeyOnly;
+const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 // A real director repair put a shard boundary inside the push into ui-journey.
@@ -64,9 +64,9 @@ function compare(a,b,label){
   assert.ok(max<=2&&share<=.1,`${label}: pixel regression: max=${max}, changed=${share}%`);
   return{maxChannelDiff:max,diffPixelPct:share};
 }
-async function open(aspect,path='/'+aspect+'.html',expectReady=true){
+async function open(aspect,path='/'+aspect+'.html',expectReady=true,captureScale=1){
   const page=await context.newPage(),cdp=await context.newCDPSession(page),layout=rules.aspectLayouts[aspect];
-  await cdp.send('Emulation.setDeviceMetricsOverride',{width:layout.width,height:layout.height,deviceScaleFactor:1,mobile:false});
+  await cdp.send('Emulation.setDeviceMetricsOverride',{width:layout.width,height:layout.height,deviceScaleFactor:captureScale,mobile:false});
   await cdp.send('Page.addScriptToEvaluateOnNewDocument',{source:shim});
   page.on('request',request=>{if(/^https?:/.test(request.url())&&!request.url().startsWith('http://127.0.0.1:8090/'))externalRequests.push(request.url());});
   await page.goto('http://127.0.0.1:8090'+path,{waitUntil:'load'});
@@ -124,7 +124,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of Object.keys(rules.aspectLayouts)){
+  for(const aspect of journeyOnly?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -165,9 +165,14 @@ try{
   }
   report.journey={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of [1,.5]){
-    const path='/journey-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
-    const capture=async view=>Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
-      captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale}})).data,'base64');
+    const path='/journey-'+aspect+'.html',handle=await open(aspect,path,true,scale),layout=rules.aspectLayouts[aspect];
+    const capture=async view=>{
+      const png=Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
+        captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale:1}})).data,'base64');
+      assert.equal(png.readUInt32BE(16),layout.width*scale);assert.equal(png.readUInt32BE(20),layout.height*scale);return png;
+    };
+    assert.deepEqual(await handle.page.evaluate(()=>({width:window.__omTarget.width,height:window.__omTarget.height,ratio:window.devicePixelRatio})),
+      {width:layout.width,height:layout.height,ratio:scale});
     const frames=[149,185,299],baseline=new Map();
     // Match the encoded review's even-frame history, including screenshots, before each odd seam.
     for(let frame=0;frame<=frames.at(-1);frame++){
@@ -178,14 +183,16 @@ try{
     }
     await handle.page.close();
     for(const frame of frames){
-      const cold=await open(aspect,path);await cold.seek(frame);
+      const cold=await open(aspect,path,true,scale);await cold.seek(frame);
       report.journey.comparisons.push({aspect,scale,frame,mode:'cold',...compare(baseline.get(frame),await capture(cold),`journey-${aspect}-${scale}-${frame}-cold`)});
       await cold.page.close();
     }
   }
-  const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
-  const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
-  writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');
+  if(!journeyOnly){
+    const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
+    const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
+    writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');
+  }
   const renderers=readdirSync('/proc').filter(name=>/^\d+$/.test(name)).flatMap(pid=>{
     try{const cmd=readFileSync(`/proc/${pid}/cmdline`,'utf8');if(!cmd.includes('--type=renderer'))return[];
       const status=readFileSync(`/proc/${pid}/status`,'utf8');return[{pid:Number(pid),uid:Number(status.match(/^Uid:\s+(\d+)/m)?.[1]),
@@ -194,7 +201,8 @@ try{
   });
   assert.ok(renderers.length>0);assert.ok(renderers.every(item=>item.uid===10002&&item.seccomp===2&&item.noNewPrivs===1&&item.pidNamespaceDepth>=2),JSON.stringify(renderers));
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
-  report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  report.checks.push('four-aspect CSS-3D journey full/review forward/reverse/cold seeks');
+  if(!journeyOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));
