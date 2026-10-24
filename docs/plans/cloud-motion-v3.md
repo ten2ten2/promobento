@@ -732,6 +732,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 --disable-component-update --disable-sync --disable-extensions --disable-default-apps
 --mute-audio --hide-scrollbars --force-color-profile=srgb --font-render-hinting=none
 --disable-lcd-text --disable-skia-runtime-opts --disable-partial-raster
+--disallow-non-exact-resource-reuse
 --use-angle=swiftshader --enable-unsafe-swiftshader
 --js-flags=--max-old-space-size=2048
 ```

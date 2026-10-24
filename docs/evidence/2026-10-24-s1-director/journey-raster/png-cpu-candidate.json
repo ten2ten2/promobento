@@ -1,0 +1,54 @@
+{
+  "status": "failed",
+  "scope": "trusted_css_3d_journey_seek_history_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "journey": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001736111111111111
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      }
+    ]
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: journey-landscape-1-185-cold: pixel regression: max=1, changed=0.11439043209876543%\n    at compare (file:///app/apps/render-container/tests/browser.render.test.mjs:78:10)\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:203:74"
+}
