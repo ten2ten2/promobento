@@ -82,6 +82,8 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 仅部署已做必要定点检查的 Worker 时，选择 `-f staging_scenario=deploy-only`：只读取实际 `/healthz`、内部容量与预算状态并保存 `deployment-health.json`，不创建操作或启动模型/媒体。部署仍在 Actions 完成，临时内部密钥照常回收；这不是成功导演或媒体验收。
 
+若 Wrangler 已上传 Worker，却未完成容器应用设置，先从版本列表取得确切版本 ID，再用 `gh workflow run cloud-account-check.yml --ref <branch> -f scope=container-deployment -f version_id=<UUID>` 只读核对同一 Actions Token 可见的版本、ShardDO 命名空间和容器应用。`s1-container-deployment` 只保留这些元数据及 API 错误，不保存其他绑定、凭据或用户素材，不修改部署、不启动计算。镜像已推送时沿用原 registry 摘要，不能为补设置反复构建。
+
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
 
 矩阵子操作另加 `-f staging_inspect_operation=<同一 run 的完整子操作 ID>`，仍须用 `staging_sha` 指定当时部署。只接受该提交/run 前缀下的子操作；同时查询其开始/结束附近最多两分钟、500 条已存日志，删除凭据字段，保留实际 HTTP/权限结果。容器日志不一定带 Worker 名，不能用名称过滤后的 HTTP 请求日志推断容器没有启动错误。日志不可读不冒充“没有错误”，也不会为收集日志启动计算。

@@ -6,10 +6,14 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: Prerequisites, or read-only platform metrics for the retained G1 matrix
+        description: Prerequisites, retained G1 metrics, or read-only partial deployment diagnosis
         type: choice
-        options: [prerequisites, container-metrics]
+        options: [prerequisites, container-metrics, container-deployment]
         default: prerequisites
+      version_id:
+        description: Exact staging Worker version for container-deployment diagnosis
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -27,7 +31,7 @@ jobs:
           version: 2026.10.13
           cache: false
       - name: Check Workers AI and the preview zone
-        if: inputs.scope != 'container-metrics'
+        if: inputs.scope == 'prerequisites'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -38,9 +42,22 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: mise exec -- node apps/cloud/scripts/inspect-container-metrics.mjs
+      - name: Diagnose exact staging deployment metadata without changing it
+        if: inputs.scope == 'container-deployment'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INSPECT_VERSION_ID: ${{ inputs.version_id }}
+        run: mise exec -- node apps/cloud/scripts/inspect-container-deployment.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always() && inputs.scope == 'container-metrics'
         with:
           name: s1-container-metrics
           path: artifacts/container-metrics/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && inputs.scope == 'container-deployment'
+        with:
+          name: s1-container-deployment
+          path: artifacts/container-deployment/
           if-no-files-found: error
