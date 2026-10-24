@@ -33,16 +33,23 @@ mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
 const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_review_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
- rendererRelease:context.rendererRelease,scope:'internal_eval_only',publicUseCleared:false,status:'starting',ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
+ rendererRelease:context.rendererRelease,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
-let secretBound=false,operationAttempted=false,stopping=false;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
+let secretBound=false,operationAttempted=false,stopping=false,primaryFailure;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
 const pause=()=>new Promise(resolve=>setTimeout(resolve,2000));
 async function call(path,{method='GET',body,mediaType='application/json',allowMissing=false}={}){
+ const until=Date.now()+30000;
+ for(;;){
  const response=await fetch(base+path,{method,headers:{authorization:'Bearer '+key,'content-type':mediaType},
   ...(body===undefined?{}:{body:body instanceof Uint8Array?body:canonical(body)}),signal:AbortSignal.timeout(45000)});
- if(!response.ok){const detail=await response.text();if(allowMissing&&response.status===404)return null;
+ if(!response.ok){const detail=await response.text();
+  // Same bounded pre-dispatch gate as the Actions smoke runner: adjacent requests can see
+  // different secret versions. This exact response precedes routing and admits no work.
+  if(response.status===404&&detail==='Not found'&&Date.now()<until){report.authPropagationRetries++;await pause();continue;}
+  if(allowMissing&&response.status===404&&detail!=='Not found')return null;
   throw Error('EVAL_API_'+response.status+' '+path+':'+detail.slice(0,500));}
  return response;
+ }
 }
 const json=async(path,options)=>{const response=await call(path,options);return response&&response.status!==204&&response.status!==201?parseCanonicalJson(await response.text()):null;};
 async function download(ref,file){
@@ -104,8 +111,9 @@ try{
    if(existsSync(choiceFile)){
     const choice=read(choiceFile);
     if(!['fit','amplify','unexpected'].includes(choice.key)||choice.directionsHash!==state.directions_hash||!choice.reason?.trim())throw Error('EVAL_VISUAL_CHOICE_INVALID');
+    report.choiceRequestedAt=new Date().toISOString();save();
     await json('operations/'+operationId+'/direction',{method:'POST',body:{key:choice.key,directionsHash:choice.directionsHash}});
-    report.choice=choice;report.status='running';chosen=true;save();
+    report.choiceAcknowledgedAt=new Date().toISOString();report.choice=choice;report.status='running';chosen=true;save();
    }
   }else if(state.status==='succeeded'){
    const candidate=await json('operations/'+operationId+'/candidate');writeFileSync(join(output,'candidate.json'),canonical(candidate)+'\n');
@@ -120,21 +128,26 @@ try{
   await pause();
  }
  }
-}catch(error){report.status='failed';report.error=String(error.stack??error);save();throw error;}
+}catch(error){primaryFailure=error;report.status='failed';report.error=String(error.stack??error);save();throw error;}
 finally{
  try{
   if(secretBound&&operationAttempted){
    const state=await json('operations/'+operationId,{allowMissing:true});
    if(state&&['active','awaiting_user'].includes(state.status))await call('operations/'+operationId+'/cancel',{method:'POST'});
-   if(state&&state.status!=='succeeded')report.cleanup=await json('operations/'+operationId+'/reconcile',{method:'POST'});
-   if(state){await json('workflows/reconcile',{method:'POST'});report.recovery=await json('operations/'+operationId+'/recovery');}
-   report.budgetAfter=await json('model-budget');report.capacity=await json('capacity');
+   if(state&&state.status!=='succeeded'){report.cleanup=await json('operations/'+operationId+'/reconcile',{method:'POST'});save();}
+   if(state){await json('workflows/reconcile',{method:'POST'});report.recovery=await json('operations/'+operationId+'/recovery');save();}
+   report.budgetAfter=await json('model-budget');save();report.capacity=await json('capacity');
    if(report.recovery)report.cost={chargedMicros:report.recovery.costs.reduce((sum,cost)=>sum+(cost.actual_micros??cost.reserved_micros),0),
     unresolved:report.recovery.costs.filter(cost=>cost.actual_micros===null).map(cost=>({id:cost.id,kind:cost.kind,reservedMicros:cost.reserved_micros}))};
    save();
    if(report.capacity.length||report.recovery?.costs.some(cost=>cost.kind==='compute'&&(cost.actual_micros===null||cost.physicallyStopped!==true)))throw Error('EVAL_COMPUTE_CLEANUP_UNCONFIRMED');
+   report.cleanupStatus='confirmed';save();
   }
+ }catch(error){report.cleanupStatus='unconfirmed';report.cleanupError=String(error.stack??error);save();if(!primaryFailure)throw error;
  }finally{
-  if(secretBound){wrangler(['secret','delete','EVAL_API_KEY','--env','staging']);report.internalKeyRevoked=true;save();}
+  if(secretBound){
+   try{wrangler(['secret','delete','EVAL_API_KEY','--env','staging']);report.internalKeyRevoked=true;save();}
+   catch(error){report.internalKeyRevoked=false;report.keyRevocationError=String(error.stack??error);save();if(!primaryFailure)throw error;}
+  }
  }
 }

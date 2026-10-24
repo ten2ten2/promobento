@@ -50,6 +50,16 @@ mise exec -- node research/evals/run-case.mjs \
 
 结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。首次仅运行一题，确认真实模型/媒体结果后再推进其余输入。
 
+与 Actions harness 一样，密钥更新后的相邻请求可能仍看到旧绑定；仅对路由/调度前确切 `404 Not found` 等待最多 30 秒，并记录 `authPropagationRetries`。资源本身不存在、模型/媒体错误及未知超时不重发；一次 capacity 鉴权成功也不假定后续请求已全部传播。
+
+若原操作已失败/取消，但客户端清理超时导致 `report.json` 缺物理停止/费用回执，先读错误，再只恢复该已结束操作的清理：
+
+```sh
+mise exec -- node research/evals/recover-case.mjs artifacts/s1-minimax-15/report.json
+```
+
+该入口拒绝活动操作与其他内部会话，不创建操作、不触发模型或渲染，仅调用既有的终态 reconcile 与回执读取。原失败原因、generation、已发布媒体和未知模型费用保留；新回执写回同一私有报告，临时密钥独立绑定/回收。普通执行也逐步保存已取回的清理证据；`cleanupStatus:unconfirmed`、`cleanupError` 与密钥回收状态分开记录，清理错误不覆盖原模型/渲染失败。物理停止或费用仍未知时不得开始下一题。
+
 ### 只复验实际卡片的标题/副标题碰撞
 
 新渲染镜像部署并重新准备输入后，可用已完成的 `write_spec` 回执复现同一 FilmSpec、素材、字体和 seed，只取横屏 270 帧并读 CDP：

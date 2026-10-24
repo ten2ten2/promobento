@@ -1,0 +1,25 @@
+{
+  "scope": "local_decode_of_actual_private_MP4_not_author_JS_or_owner_audio_review",
+  "browser": "155.0.8059.85",
+  "file": "/Users/noodles/Documents/promobento/artifacts/s1-review-render-propagation-fixed-2026-10-25/review-film.mp4",
+  "metadata": {
+    "duration": 15,
+    "width": 960,
+    "height": 540,
+    "playbackRate": 1,
+    "error": null
+  },
+  "frames": [
+    1.5,
+    9,
+    13.5
+  ],
+  "playback": {
+    "ended": true,
+    "time": 15,
+    "rate": 1,
+    "error": null,
+    "decoded": 255,
+    "dropped": 0
+  }
+}

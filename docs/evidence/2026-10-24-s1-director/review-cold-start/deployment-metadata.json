@@ -1,0 +1,11 @@
+{
+  "runId": "40109101329",
+  "sourceSha": "ed3fc49fab8e11f836307b324dfa6f18304d5cd3",
+  "imageDigest": "sha256:efb71645436c6504a59130d8e65c79544a54380fcd7c78df60aa127e964afc7a",
+  "workerVersionId": "5d4504d1-0e88-40d9-a3e5-d34287c524bd",
+  "scenario": "deploy-only",
+  "automaticFullRun": {
+    "id": "40109089080",
+    "conclusion": "cancelled"
+  }
+}

@@ -169,4 +169,26 @@ Codex 已查看实际 PNG，原标题/副标题重叠消失，完整文本及图
 
 修正将物理控制器健康窗口独立配置为 **45 秒**，仍受原 render 剩余绝对期限约束；沙箱页面初始化 30/60 秒不变。纯 2D review 保留 15/30 秒的 **3/6** 个源时间轴分段以缩短最长分段，15 fps / 30 源帧切点与闭合 GOP 不变；最终片、WebGL 计划、并发名额、整片 90 秒、性能目标和重试次数均未放宽。实际冷启动数据只支持留余量，尚不代表新分布通过。
 
-Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、review GOP、限制名额、最终片/WebGL 计划及原页面/整片期限。健康检查首次仅因新测试在 mock Date 启用前设置绝对 deadline，漏测剩余期限；修正夹具后只复验该失败项（1.80 秒）通过，含 32 秒 ready、45 秒超时、20 秒剩余上限、晚到 ready 拒绝与停止/结算。两份评测脚本语法检查通过；未跑全套测试、类型或旧 G1。新镜像与一次无模型实际 review 仍待部署执行。
+Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、review GOP、限制名额、最终片/WebGL 计划及原页面/整片期限。健康检查首次仅因新测试在 mock Date 启用前设置绝对 deadline，漏测剩余期限；修正夹具后只复验该失败项（1.80 秒）通过，含 32 秒 ready、45 秒超时、20 秒剩余上限、晚到 ready 拒绝与停止/结算。两份评测脚本语法检查通过；未跑全套测试、类型或旧 G1。新镜像与无模型原生结果见下一节。
+
+## review 原生回归通过：90 秒期限内交付，没有重新调用模型
+
+[40109101329](https://github.com/ten2ten2/promobento/actions/runs/40109101329) 在 `ed3fc49fab8e11f836307b324dfa6f18304d5cd3` 由 Actions 构建/推送新镜像 **`sha256:efb71645436c6504a59130d8e65c79544a54380fcd7c78df60aa127e964afc7a`**，Worker `5d4504d1-0e88-40d9-a3e5-d34287c524bd`；仅部署/读健康，自动全套 `40109089080` 已取消。[实际部署身份](review-cold-start/deployment-metadata.json)与固定 `renderer-ed3fc49fab8e` 的当前摘要一致。
+
+首个私有 CLI 在 capacity 取得鉴权成功后，下一次只读 budget 仍收到旧绑定的确切 `404 Not found`，在创建操作前停止，[零模型/计算记录](review-cold-start/auth-propagation-no-work.json)保留。CLI 已复用 Actions harness 的 30 秒传播守卫：仅该路由前、未接纳工作的确切响应可等待；资源缺失、已接纳任务、供应商/媒体失败与未知超时不重发。
+
+操作 `eval-minimax-15-1792857839971`，输出 `artifacts/s1-review-render-propagation-fixed-2026-10-25`。用原付费 E1 完整 FilmSpec、真实私有素材/字体/seed，只走一次横屏 review；[原生 D1 入队到提交 **79,241 ms**](review-cold-start/native-render-timing.json)，客户端读到通过 **81,248 ms**。三段各 150 源帧，实际 **960×540 / 15 fps / 225 帧 / 15 秒 / AAC**，两处接缝零差异；原观测和媒体/提交通过。[完整计划和媒体](review-cold-start/review-render.json)保留原 90 秒期限及一次 VBV 重编码（1 秒滑窗峰值 1,631,568 ≤ 2,500,000 bit/s）。这不是 review p50 ≤30 秒目标达标的证据。
+
+[5 次计算](review-cold-start/report.json)全部首次成功、物理停止并结算 **9,410 usd_micros** 保守上界，实际控制器 ready **2,814–28,449 ms**；无模型调用，模型共享占用前后均 **200,254**，容量/未结为空、密钥回收。Chromium 155.0.8059.85 对实际 MP4 的 1.5/9/13.5 秒解码图已查看，三卡文字不重叠、CTA/URL 保留；完整 1× 播放到 15 秒无解码错误/掉帧，[解码回执](review-cold-start/decoded-video.json)。媒体与 PNG 只留私有目录，未进 Git/Actions 产物。该回归不计候选、完整导演或负责人视听；G1 分布/隔离/配乐未重跑，峰值仍待验。
+
+## MiniMax 第四次：前两轮 review 通过，第三轮音频实例 45 秒未就绪
+
+2026-10-25 再核对 [MiniMax 官网](https://www.minimax.io/)的 Code 命名、Coding/Work、agents 及多模态创作声明，原确认事实仍有官网依据；不采纳新价格/排名或业绩。`agent.minimax.io/about` 本次抓取不可达，官网已足以核对原三项声明，素材和原确认不改。
+
+同一 `ed3fc49` 部署，操作 `eval-minimax-15-1792858052602`，输出 `artifacts/s1-minimax-15-coldstart-fixed-2026-10-25`。三张新方向 PNG 已查看：Fit 的实际产品界面最大且边界清晰，Amplify 的深色设备图更小，Unexpected 的浅色设备图对比偏弱，选择 Fit。客户端开始到方向就绪 **86.518 秒**（单例，不作 p50）。C 一次纠正完成；E 两次有效修改均进入下一轮媒体，前两轮 review 全部通过。
+
+第三轮三段画面均成功，控制器 ready **1,858–1,938 ms**；音频实例却在新的 **45,000 ms** 健康窗口内始终未 ready，监视器仍 pending，9 次探测最后为 timeout。停止/回收尚未完成时原 **90 秒**期限耗尽，按 `RENDER_DEADLINE` 结束，未调用第三次 E、最终片或 F。[三次固定输入](minimax-fourth-attempt/render-inputs/review-2.json)显示第一/二轮 AudioPlan 身份相同，但第三轮已改变；不能直接拿上一轮声音替代本轮计划。尚未查明这次音频实例不就绪的原生原因，保留失败，不再调宽整片期限或重复同一例碰运气。
+
+客户端首次 reconcile 等待超时，原业务失败与密钥回收已保存，但未取得完整停止/费用报告。新增[只恢复终态清理的入口](../../../research/evals/README.md#一次执行一份真实导演输入)实际调用原 reconcile，未启动模型/渲染；[补齐回执](minimax-fourth-attempt/report.json)确认 **19 次计算全部物理停止/结算 22,010** 保守上界，5 次新模型共 **34,580**，本轮合计 **56,590 usd_micros**。容量/本轮未知为空，Workflow 已终止/对账，临时密钥回收。共享模型已计价 **214,609** 加旧未知 **20,225**，共占用 **234,834**。普通 CLI 也已补逐步保存清理证据、单列清理错误和保留原失败；受影响两份脚本语法检查一次通过，没有重跑模型、原生片或 CI。
+
+诊断期间本机 Wrangler 的 D1 管理查询返回 [7403 权限拒绝](minimax-fourth-attempt/d1-management-access-error.txt)；只读账户检查仍显示原账户、`d1 (write)`。已请求负责人重新授权/核查 D1 权限。既有 Worker 终态清理入口和 R2 素材/输入读取仍成功，失败任务已安全收尾。负责人恢复本机 D1 管理访问后，继续执行前活动操作盘点、查该音频 attempt 的原生失败原因与未完成导演链路。
