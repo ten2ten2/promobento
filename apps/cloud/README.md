@@ -8,7 +8,7 @@
 
 计算费用目前按 **分配的完整 CPU + 内存 + 磁盘 × 实际运行时间**记保守上界，不是 Cloudflare 账单实测值。CPU/内存/磁盘单价来源：[Cloudflare Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)，2026-10-23；实例规格见[官方表](https://developers.cloudflare.com/containers/platform/limits/)。未知模型 usage 保留预留，不记作零。生产预算未标定，Agent 仍关闭。
 
-满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径已随 `1af113f` 部署，24 分段与声音均成功停止/结算；影片随后在观测覆盖校验处阻断，正式满载性能/取消 G1 仍未完成。
+满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。正式满载性能分布/主动取消 G1 仍未完成。
 
 ## 部署
 
@@ -52,6 +52,6 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 渲染记录依次为 `queued → sharding → verifying → assembling → passed`，失败/取消为 `blocked`/`cancelled`。准备输入也在失败处理范围内；失败先封锁新 attempt，再确认实例停止。`fail-render` 检查点只重试清理，最多三次重试，保留首个错误和 `stopPending`；确认失败时 lease 不归还。ShardDO 持久化单次 attempt 的停止标记，晚到 execute 不能重新启动。最终成片与 `render_progress` outbox 原子提交；通知由既有队列独立重试，陈旧 generation 的通知丢弃，查询渲染记录不依赖通知到达。
 
-`verify-shards` 按共享整片阅读停留计划核对各段的精确观测帧及身份，不要求无计划点的短段伪造非空结果；QA/接缝确定性错误不默认重试。30 秒 24 段初验计算成功后，曾因原“每段非空”检查错误阻断，原始失败与修复范围见[验收记录](../../docs/evidence/2026-10-24-s1-staging/README.md#30-秒-webgl计算通过观测覆盖校验阻断)。
+`verify-shards` 按共享整片阅读停留计划核对各段的精确观测帧及身份，不要求无计划点的短段伪造非空结果；QA/接缝确定性错误不默认重试。30 秒 24 段初验曾因原“每段非空”检查错误阻断；修复后 23 处接缝零差异、拼接/提交/私有下载均通过。[验收记录](../../docs/evidence/2026-10-24-s1-staging/README.md#修复后30-秒-webgl24-分段配乐与交付通过)同时保留原始失败、修复范围与实际费用。
 
 上述恢复路径已随 `ca1c37e` 部署；旧取消操作的残留渲染行修复与新 WebGL studio 停止已有云端证据。准备失败、通知故障及晚到执行竞态仍只有 SQLite/DO/Workflow 本地回放，不代表平台强制终止、真实重启或完整 G1 已通过。真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。
