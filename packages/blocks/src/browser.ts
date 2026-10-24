@@ -2,7 +2,7 @@ import type { Box, SceneContext, SceneRegion } from '../../../contracts/film-run
 import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
-import {panelProjection,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
+import {mediaPyramid,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -137,15 +137,16 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
   safe.style.overflow = 'hidden';
   safe.style.zIndex = '1';
-  const surface = document.createElement('canvas'),scratch = document.createElement('canvas');
-  surface.width = scratch.width = ctx.target.width; surface.height = scratch.height = ctx.target.height;
+  const surface = document.createElement('canvas');
+  surface.width = ctx.target.width; surface.height = ctx.target.height;
   Object.assign(surface.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(surface);
-  const paint = surface.getContext('2d',{willReadFrequently:true}),work = scratch.getContext('2d',{willReadFrequently:true});
-  if(!paint||!work)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const paint = surface.getContext('2d',{willReadFrequently:true});
+  if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const pixels=paint.createImageData(surface.width,surface.height);
   const safeRect=safe.getBoundingClientRect(),rootRect=ctx.root.getBoundingClientRect();
   const box={x:safeRect.x-rootRect.x,y:safeRect.y-rootRect.y,width:safeRect.width,height:safeRect.height};
   const camera = node(safe, {position: 'absolute', inset: '0', perspective: PANEL_PERSPECTIVE+'px'});
-  const media:Array<{screen:Box;width:number;height:number;load:(time:number)=>Promise<CanvasImageSource>}>=[];
+  const media:Array<{screen:Box;load:(time:number)=>Promise<ReturnType<typeof mediaPyramid>>}>=[];
   const ready: Promise<void>[] = [];
   const panels = items.map(item => {
     const panel = node(camera, {position: 'absolute', inset: '0'});
@@ -155,18 +156,23 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
       borderRadius: '24px', border: `2px solid ${ctx.style.palette.accent}`, overflow: 'hidden'});
     const asset = ctx.asset(item.assetKey!);
     const rect=screen.getBoundingClientRect(),inner={x:rect.x-safeRect.x+2,y:rect.y-safeRect.y+2,width:rect.width-4,height:rect.height-4};
+    const source=document.createElement('canvas');source.width=asset.width;source.height=asset.height;
+    const reader=source.getContext('2d',{willReadFrequently:true});if(!reader)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+    const read=(image:CanvasImageSource)=>{reader.clearRect(0,0,source.width,source.height);reader.drawImage(image,0,0);
+      return mediaPyramid(reader.getImageData(0,0,source.width,source.height));};
     if(asset.kind==='video'){
       if(!asset.frameAt)throw Error('VIDEO_FRAME_UNAVAILABLE');
-      media.push({screen:inner,width:asset.width,height:asset.height,load:time=>asset.frameAt!(time)});
+      media.push({screen:inner,load:async time=>read(await asset.frameAt!(time))});
     }else{
-      const image=new Image();image.src=asset.url;ready.push(image.decode());
-      media.push({screen:inner,width:asset.width,height:asset.height,load:async()=>image});
+      const image=new Image();image.src=asset.url;
+      const decoded=image.decode().then(()=>read(image));ready.push(decoded.then(()=>{}));
+      media.push({screen:inner,load:()=>decoded});
     }
     return panel;
   });
   const duration = (ctx.frames.end - ctx.frames.start) / 30, travel = Math.max(1 / 30, duration - 1.2);
   return {ready: Promise.all(ready).then(() => {}), async render(time) {
-    paint.clearRect(0,0,surface.width,surface.height);
+    pixels.data.fill(0);
     const position = clamp01((time - .4) / travel) * (panels.length - 1);
     const poses=panels.map((panel, index) => { const distance = index - position;
       const pose={x:distance*ctx.target.width*.8,z:-Math.abs(distance)*200,angle:-distance*12,opacity:clamp01(1-Math.abs(distance))};
@@ -175,15 +181,12 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
       panel.style.transform = distance === 0 ? 'none' : `translateX(${pose.x}px) translateZ(${pose.z}px) rotateY(${pose.angle}deg)`;
       return pose;
     });
-    paint.save();paint.beginPath();paint.rect(box.x,box.y,box.width,box.height);paint.clip();
-    try{
-      for(let index=0;index<media.length;index++){
-        const pose=poses[index]!;if(!pose.opacity)continue;
-        const item=media[index]!,image=await item.load(time);work.clearRect(0,0,scratch.width,scratch.height);
-        paintProjectedMedia(work,image,item.width,item.height,item.screen,panelProjection(box,pose.x,pose.z,pose.angle*Math.PI/180));
-        paint.globalAlpha=pose.opacity;paint.drawImage(scratch,0,0);
-      }
-    }finally{paint.restore();}
+    for(let index=0;index<media.length;index++){
+      const pose=poses[index]!;if(!pose.opacity)continue;
+      const item=media[index]!;
+      paintProjectedMedia(pixels,await item.load(time),item.screen,box,pose.x,pose.z,pose.angle*Math.PI/180,pose.opacity);
+    }
+    paint.putImageData(pixels,0,0);
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};
 }});
 

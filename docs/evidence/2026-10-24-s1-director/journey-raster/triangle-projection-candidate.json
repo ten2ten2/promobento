@@ -1,0 +1,382 @@
+{
+  "status": "failed",
+  "scope": "trusted_css_3d_journey_seek_history_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "journey": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.024594907407407406
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0019772376543209878
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0023148148148148147
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.009837962962962963
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001736111111111111
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0022665895061728396
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0013503086419753088
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.002674897119341564
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0015089163237311386
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001646090534979424
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001646090534979424
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.006601508916323731
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.004372427983539095
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0006858710562414266
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0003429355281207133
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      }
+    ]
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: journey-square-0.5-149-cold: pixel regression: max=1, changed=2.6680384087791493%\n    at compare (file:///app/apps/render-container/tests/browser.render.test.mjs:78:10)\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:203:74"
+}
