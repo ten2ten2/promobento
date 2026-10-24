@@ -4,6 +4,12 @@ name: Cloud account check
 # and the preview domain is a zone on this account. Manual only.
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Prerequisites, or read-only platform metrics for the retained G1 matrix
+        type: choice
+        options: [prerequisites, container-metrics]
+        default: prerequisites
 
 permissions:
   contents: read
@@ -21,7 +27,20 @@ jobs:
           version: 2026.10.13
           cache: false
       - name: Check Workers AI and the preview zone
+        if: inputs.scope != 'container-metrics'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: mise exec -- node apps/cloud/scripts/check-account.mjs
+      - name: Read retained G1 platform metrics without starting compute
+        if: inputs.scope == 'container-metrics'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: mise exec -- node apps/cloud/scripts/inspect-container-metrics.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always() && inputs.scope == 'container-metrics'
+        with:
+          name: s1-container-metrics
+          path: artifacts/container-metrics/
+          if-no-files-found: error

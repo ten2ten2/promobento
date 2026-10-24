@@ -68,6 +68,8 @@ gh workflow run model-runtime-key.yml --ref main
 
 studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
+平台侧观测可通过 `gh workflow run cloud-account-check.yml --ref main -f scope=container-metrics` 只读查询既有 G1 28 部矩阵时间窗的 staging 应用。该分支不部署、不绑定临时密钥、不运行原账户检查中的模型请求或任何计算；产物为 `s1-container-metrics`。它读取官方 GraphQL 的全工作负载采样最大值，不能冒充 cgroup 全生命周期高水位，也不回填旧分段回执。权限、数据缺失和查询失败均保留为未验证；默认 `scope=prerequisites` 的原账户检查不变。
+
 新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1；30 秒分段成片另见 `webgl-film` 证据，正式性能分布与 standard-3/4 对比已有下文独立结果。一般工程片仍使用默认 `engineering` 场景。
 
 验证新排队/声音集成时选 `-f staging_scenario=webgl-film`：一部 30 秒、24 个 standard-4 分段的原创 3D 校准片，共享工作区 24 个名额，另有程序配乐和四种 lead-in。沿用内部操作 1,000,000 usd_micros 预算，实际费用另从不可变结算收集，不当作预算全额消耗。该场景保存声音/分段计划、实际成片、接缝、只读费用清单与私有下载；不重复先前的四画幅 studio 比较或 13 风格样曲。单次计时不作为 p50/p95 或完整 G1。
