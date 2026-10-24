@@ -12,7 +12,7 @@
 | 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、固定参考 OM/clip 通用函数；PTS 视频帧清单与有界缓存；字体 cmap/缺字检查；正式 staging 的横屏 45→375→45 已完全一致 | 旧横屏逆序差异曾为 0.2827%；新验证只覆盖上述两帧路径，完整四画幅 seek 矩阵仍未完成。已修 ui-journey 退场面板、CDP 画外点选与卡片拆词；15 秒三段出片和 108 张四画幅帧图通过且已看实际画面；WebGL 积木、自写镜头、纹理/布局覆盖未实现 |
 | 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色检查与真实帧封面；review 540p/15 fps | 15 秒工程片已验证 450 帧、1080p/30 fps、AAC、PTS/GOP/颜色、体积/码率和接缝；阅读停留观测不是完整动态 Q1/Q2；生产形态 supervisor、studio 回收和 broker 需正式 G1 |
 | 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、与积木共用事件点、授权检查、48 kHz 双声道、两遍 loudnorm 与最终响度测量；13 风格各 30 秒均已生成并通过响度/真峰值与样本数门槛 | 负责人尚未试听；显式 lead-in 音效计划及导演的外部音轨/ABC 准入仍需补齐 |
-| 云端 | [内部 staging 链路](../apps/cloud/README.md)：RenderWorkflow、ShardDO、CoordinatorDO、OperationDO、broker；generation 栅栏、lease、私有 R2、outbox、D1 任务/费用迁移；15 秒云端出片、接缝/观测、拼接、提交及私有下载通过；studio 出图/关闭、逆序取帧与旧停止记录对账均有实测。已修最终提交的 `NOT_JSON`，支持只改 Worker 时复用未变镜像 | cgroup 峰值以负责人允许的 `null` 加原因记录，G1 内存指标仍待验。正式 G1、完整重试/恢复与账单对账未完成；生产配置保持关闭 |
+| 云端 | [内部 staging 链路](../apps/cloud/README.md)：RenderWorkflow、ShardDO、CoordinatorDO、OperationDO、broker；15 秒云端出片、接缝/观测、拼接、提交及私有下载通过；studio 出图/关闭、逆序取帧与旧停止记录对账均有实测。新增准备阶段失败记录、sharding/verifying/assembling 状态、先栅栏后停止、持久停止标记、终态对账修复与成片/进度 outbox 原子提交，已有本地回放 | 新增恢复代码尚未部署；旧 `40038946955` 操作的遗留 sharding 行仍待明确对账，不重启该取消操作。平台重启/强制终止、完整重试与账单对账、正式 G1 未完成；cgroup 峰值按负责人决定为 null 加原因，内存指标仍待验；生产保持关闭 |
 | 导演 | OperationWorkflow 的 A–C/E/F 与方向选择 waitForEvent；两种流式适配器、缓存、授权、阶段调用/费用预留、真实 usage 结算；固定 SSE、SQLite/R2 的离线阶段回放已通过，含 review 修复、冷审拒绝、12 小时用户等待排除、取消与未知消费保留预留 | 官方线路按负责人决定未接通；三方向实际 keyframeFilm/studio 取帧与 20 分钟期限尚未云验；环境健康预检、历史费用衔接和故障恢复仍需完善；六题真实调用、成本/时间指标未测 |
 | 素材与模型配置 | 固定 OFL 字体与六个 CC0 乐器采样；官网事实卡；模型能力按最新网关证据修正 | 实际素材采集、逐项许可证据与预发布 R2 入库未完成；资产容器/ASR/抓取在 S3；官方模型真实能力未测 |
 | 网站/业务 | Studio 离线参考、品牌、政策正文、共享业务契约 | 客户 Studio、Google/邮箱认证、租户权限、试用/购买账本与 Waffo、真实冻结交付均未实现 |
@@ -25,6 +25,7 @@
 - **声音修复**：[39980871364](https://github.com/ten2ten2/promobento/actions/runs/39980871364)，提交 `494d48c`：只对测得越界的母带执行一次补偿增益与 4× 过采样限幅。guofeng −14.03 LUFS / −1.24 dBTP，synthwave −14.02 LUFS / −1.33 dBTP，均为 1,440,000 个样本帧，按原门槛通过。已下载至 `artifacts/s1-audio-39980871364/`。之前通过的 11 种母带不改字节；未重跑视频、九项单元检查或全矩阵。
 - **离线导演与登记**：Node 26.12.0 下新增 7 项阶段回放和受影响的 6 项模型配置/计价检查通过；修复 mock 使用旧生成验证器与 SQLite batch 的测试适配问题后，只复验失败分支。未调用任何真实模型，未重跑已有九项管线/适配器检查或媒体。`verified` 现在只表示实际集成证据，官方线路保持 false。
 - **film-v1 产品契约**：新构造器、完整冻结参考准入、画幅视频/平台 mapping 身份、A→B→A 恢复及旧版摘要兼容的单项检查通过（363 ms）。帧协议新旧包络的定点检查通过（136 ms）；首次只发现测试夹具引用旧 revisionId，修正后仅复验该项。未重跑媒体、导演或完整 CI；新结构不自动改写旧作品或对迁移再次收费。
+- **失败恢复与提交边界**：Node 26.12.0 下只运行一次受影响的两份检查文件，7 项通过（总计 633 ms）；覆盖原云端回执的实际提交回放、准备失败落终态、真实 SQLite 原子提交/通知重试/取消栅栏、历史行修复/未知费用保留，以及停止与晚到执行竞态。cloud TypeScript 7.0.2 定点检查通过。没有重跑媒体、配乐、导演或 CI；新增恢复路径未部署。
 - **首次 staging 部署**：[39983255933](https://github.com/ten2ten2/promobento/actions/runs/39983255933)，提交 `546f411`：新迁移、镜像构建/推送、Worker/DO/Workflow/队列部署均成功；内部请求在密钥写入后立即返回 404，集成未通过、未启动影片任务。一次性密钥已经删除；不把部署成功记为 G1 通过。
 - **云端分段故障**：[39985471319](https://github.com/ten2ten2/promobento/actions/runs/39985471319)仅复用已部署 `546f411`：声音产出 720,000 样本帧；画面分段 ENOENT，未提交成片。随后[只读诊断 39986268511](https://github.com/ten2ten2/promobento/actions/runs/39986268511)确认四次计算均已结算，保守资源上界合计 7,845 usd_micros；操作已取消。发现一个已停止/结算的 attempt 仍标 active，已加入终态确认停止后的记录修复入口，不按数据库旧状态重启计算。
 - **并发结算修复**：新增一项 stop/timeout 并发的定点回放通过（27 ms）；固定同一份持久 usage，D1 `INSERT OR IGNORE` 后核对原结算，冲突不能覆盖。未重跑前述 7 项导演回放或已通过媒体。
@@ -32,4 +33,4 @@
 - **云端工程片提交修复**：[40040999452](https://github.com/ten2ten2/promobento/actions/runs/40040999452)，Worker 提交 `f5b431a`、复用 `860df13` 构建的未变镜像：15 秒、450 帧、1080p/30 fps/AAC、5,320,462 bytes，完整出片/提交/私有下载通过，两处接缝完全一致，lease 归还；harness 113.865 秒。已查看封面和实际 MP4 解码的开场/产品/CTA 三帧。峰值为 null 加明确原因，G1 内存未验证。此前一轮计算成功但最终提交 `NOT_JSON`，经只读 Workflow 步骤定位后修复，没有放宽 JCS；新增峰值契约和实际提交回放各只跑一次最小本地检查，未重跑配乐/导演/全量 CI。[报告与失败记录](evidence/2026-10-24-s1-staging/README.md)。
 - **前置环境证据**：[G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)与[S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)另覆盖攻击、broker/断网、停止/回收、Workflow 事件、捕获格式、WebGL 单帧耗时与冷启动；未覆盖的正式代码 G1 项目仍待验证。
 
-接下来补云端失败终态/恢复、WebGL 与正式 G1，再完成真实素材和评测。S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。
+接下来补 WebGL 与正式 G1，云验新增恢复路径，再完成真实素材和评测。S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。

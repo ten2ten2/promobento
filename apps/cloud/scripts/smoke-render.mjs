@@ -72,7 +72,7 @@ let outcome;
  while(Date.now()-started<240000){
   const row=await json('renders/'+renderId);
   if(row.status==='passed'){outcome=parseCanonicalJson(row.result_json);break;}
-  if(row.status==='blocked')throw Error('SMOKE_RENDER_BLOCKED:'+row.result_json);
+  if(['blocked','cancelled'].includes(row.status))throw Error('SMOKE_RENDER_BLOCKED:'+row.result_json);
   await new Promise(resolve=>setTimeout(resolve,2000));
  }
  if(!outcome)throw Error('SMOKE_RENDER_DEADLINE');

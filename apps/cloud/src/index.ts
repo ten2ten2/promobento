@@ -4,6 +4,7 @@ import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {assertRenderJob, assertRenderTask, planShards} from '@promobento/contracts/render';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
+import {reconcileOperation,dispatchRender,dispatchRenderProgress} from './render-recovery.ts';
 import {validId, type PipelineEnv, type Json} from './pipeline-types.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
@@ -173,13 +174,7 @@ export default {
       }
       const reconcile=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/reconcile$/.exec(path);
       if(request.method==='POST'&&reconcile){
-        const id=reconcile[1]!,op=await env.DB.prepare('SELECT status FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
-        if(!op||!['failed','cancelled'].includes(op.status))throw Error('OPERATION_NOT_TERMINAL');
-        const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(id).all<{id:string}>();
-        await Promise.all(attempts.results.map(attempt=>env.SHARDS.getByName(attempt.id).stopAndSettle()));
-        await env.OPERATIONS.getByName(id).closeStudio();
-        const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL').bind(id).all<Json>();
-        return Response.json({operationId:id,stoppedAttempts:attempts.results.length,pendingCosts:pending.results});
+        return Response.json(await reconcileOperation(env,reconcile[1]!));
       }
       return new Response('Not found',{status:404});
     } catch(error) {
@@ -193,17 +188,13 @@ export default {
       try{
         const item=message.body;
         if(item.kind==='render'){
-          const row=await env.DB.prepare('SELECT id FROM pipeline_renders WHERE id=?').bind(item.id.slice('render-'.length)).first<Json>();
-          if(!row)throw Error('OUTBOX_SCOPE_INVALID');
-          try{await env.RENDER_WORKFLOW.create({id:row.id,params:{renderId:row.id}});}catch(error){
-            const instance=await env.RENDER_WORKFLOW.get(row.id);await instance.status();
-          }
+          await dispatchRender(env,item);
+        }else if(item.kind==='render_progress'){
+          await dispatchRenderProgress(env,item);
         }else if(item.kind==='creative'){
           try{await env.OPERATION_WORKFLOW.create({id:item.operationId,params:{operationId:item.operationId}});}catch{await(await env.OPERATION_WORKFLOW.get(item.operationId)).status();}
         }else if(item.kind==='cancel'){
-          const rows=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(item.operationId).all<{id:string}>();
-          await Promise.all(rows.results.map(row=>env.SHARDS.getByName(row.id).stopAndSettle()));
-          await env.OPERATIONS.getByName(item.operationId).closeStudio();
+          await reconcileOperation(env,item.operationId);
         }else throw Error('OUTBOX_KIND_INVALID');
         message.ack();
       }catch{message.retry();}

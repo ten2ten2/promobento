@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {DatabaseSync} from 'node:sqlite';
+import {sqliteD1} from './fixtures/sqlite.mjs';
+import {dispatchRenderProgress} from '../src/render-recovery.ts';
 import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
@@ -17,7 +18,7 @@ test('replayed successful compute commits through canonical-text Workflow bounda
  }]});
  const {RenderWorkflow}=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));
  const saved=parseCanonicalJson(readFileSync('docs/evidence/2026-10-24-s1-staging/film-attempt/inspection.json'));
- const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
+ const {db,DB}=sqliteD1();
  const op=saved.operations[0],row=saved.renders[0],now=Date.now(),imageDigest=parseCanonicalJson(saved.attempts.find(a=>a.mode==='shard').result_json).report.imageDigest;
  const spec=filmFixture(),raw=canonical(spec),filmBytes=new TextEncoder().encode(raw),filmKey='evals/replay/film.json';
  const input={job:{schemaVersion:'3.0.0',kind:'render_job',renderId:row.id,operationId:op.id,candidateId:'replay-candidate',sourceHash:filmSourceHash(raw),
@@ -28,7 +29,6 @@ test('replayed successful compute commits through canonical-text Workflow bounda
  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'replay-workspace','replay-project',0,'calibration','active','replay',1000000,now-100000,null,null);
  db.prepare('INSERT INTO pipeline_renders VALUES(?,?,?,?,?,?,?,?,?)').run(row.id,op.id,0,'replay','evals/replay/input.json','queued',now-100000,null,null);
  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('replay-release',imageDigest,'film-runtime-v1','replay-environment','active');
- const DB={prepare(sql){let args=[];return{bind(...values){args=values;return this;},async first(){return db.prepare(sql).get(...args)??null;},async all(){return{results:db.prepare(sql).all(...args)};},async run(){return{meta:{changes:Number(db.prepare(sql).run(...args).changes)}};}};}};
  const progress=[],env={DB,MEDIA:{async get(key){const bytes=objects.get(key);return bytes?{size:bytes.length,customMetadata:{},async arrayBuffer(){return bytes;}}:null;}},
   OPERATIONS:{getByName(){return{async progress(text){progress.push(parseCanonicalJson(text).status);}};}}};
  const cache=new Map(saved.attempts.flatMap(a=>{const name=a.mode==='shard'?'shard-'+a.shard_index:a.mode;return[[name+'-id',a.id],[name,canonical(parseCanonicalJson(a.result_json))]];}));
@@ -46,6 +46,15 @@ test('replayed successful compute commits through canonical-text Workflow bounda
   assert.equal(result.peakMemory.status,'unverified');assert.equal(result.peakMemory.measurements.length,3);
   assert.ok(result.peakMemory.measurements.every(m=>m.peakMemoryMiB===null&&m.peakMemoryUnavailableReason==='cgroup_peak_not_exposed'));
   assert.equal(result.seamReport.seams.length,2);assert.equal(result.observationFrames.length,6);
-  assert.equal(db.prepare('SELECT status FROM pipeline_renders').get().status,'passed');assert.deepEqual(progress,['sharding','assembling','passed']);
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders').get().status,'passed');assert.deepEqual(progress,['sharding','assembling']);
+  const notification=db.prepare("SELECT * FROM pipeline_outbox WHERE kind='render_progress'").get();
+  await dispatchRenderProgress(env,{operationId:notification.operation_id,payloadJson:notification.payload_json});
+  assert.deepEqual(progress,['sharding','assembling','passed']);
+  // Preparation failures used to escape the catch and strand a render in queued/sharding.
+  const missingId='missing-input-replay';
+  db.prepare('INSERT INTO pipeline_renders VALUES(?,?,?,?,?,?,?,?,?)').run(missingId,op.id,0,'missing','evals/missing.json','queued',now,null,null);
+  await assert.rejects(new RenderWorkflow({},env).run({payload:{renderId:missingId}},step),/SOURCE_UNAVAILABLE/);
+  const failed=db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get(missingId);
+  assert.equal(failed.status,'blocked');assert.equal(parseCanonicalJson(failed.result_json).code,'SOURCE_UNAVAILABLE');
  }finally{db.close();}
 });

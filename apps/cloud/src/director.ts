@@ -87,7 +87,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           await operation(this.env,op.id,op.generation);
           const result=await this.env.DB.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').bind(renderId).first<Json>();
           if(result?.status==='passed')return result.result_json as string;
-          if(result?.status==='blocked')throw Error((parseCanonicalJson(result.result_json) as Json).code??'RENDER_BLOCKED');await sleep(1000);
+          if(result&&['blocked','cancelled'].includes(result.status))throw Error((parseCanonicalJson(result.result_json) as Json).code??'RENDER_BLOCKED');await sleep(1000);
         }throw Error('RENDER_DEADLINE');
       });
       return parseCanonicalJson(serialized) as Json;

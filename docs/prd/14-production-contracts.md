@@ -218,6 +218,9 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | Agent run | validating→repair→active | 同预算且累计修复<2，不新增收费run |
 | Agent run | 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
 | Agent run | 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
+| 渲染 | queued→start→sharding→verify→verifying→assemble→assembling | 每次推进检查 operation/generation；每个 attempt 独立实例、累计预算与真实停止确认；重放有效检查点，不重跑成功捕获 |
+| 渲染 | assembling→commit→passed | generation 栅栏下原子保存不可变输出引用与进度 outbox；通知可独立重试，不能因通知失败回滚成片 |
+| 渲染 | 非终态→fail/cancel→blocked/cancelled | 先封锁新 attempt，再确认已有实例停止、归还 lease 与结算；保留首个原因及未确认停止标记，清理重试不重跑捕获/模型 |
 | 候选 | withheld→审核通过→ready | 只由可信审核结果解锁；失败、未知或覆盖不足不能展示与消费 |
 | 候选 | ready→accept→accepted | §1 CAS、权限与输出审核同时验证；同请求同候选幂等 |
 | 候选 | ready/withheld→reject→rejected | 不改当前稿；ready不返已交付成功次数，withheld未交付则释放未消费预留 |
@@ -226,6 +229,8 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 冻结、付款、预留和交付发布按 §4 与[05](05-waffo-billing.md)执行。编码失败只重试失败指纹，最多 3 个真实编码 attempt；有效产物复用。源码修复与编码重试分别计数，共享累计费用上限。
 
 终态不能通过普通resume重新活动；需要新的授权操作。长调用结束、消费、接受、发布均重查权限/generation/墓碑。移除发起成员取消未提交创作副作用，但已收款交付由项目权益继续驱动；删除项目/工作区撤销新授权、提升generation、取消作业并清理，晚到文件孤儿回收，不复活项目。退款只冻结关联grant及未发布预留，不能影响无关订单。
+
+已失败/取消操作的对账只确认停止、补齐残留非终态记录并列出未结费用；不恢复 generation，不重启计算，不覆盖 passed 产物或原始失败原因。未知模型费用继续占预留。每个计算 attempt 的停止标记持久化，已确认停止后的晚到 execute 不得重新启动容器。
 
 真实并发、故障和恢复验收按[06](06-testing-and-release.md)；内存状态测试不构成 D1 实现。
 

@@ -22,10 +22,14 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
 
-只修复已失败/取消的指定操作，可加 `-f staging_reconcile_operation=<operation ID>`。新版本通过 `operations/<id>/reconcile` 再次确认实例停止，补齐旧 attempt 的停止记录并核对结算；不重启计算、不改 generation、不清零未知模型费用、不复活输出。活动操作拒绝此入口。
+只修复已失败/取消的指定操作，可加 `-f staging_reconcile_operation=<operation ID>`。新版本通过 `operations/<id>/reconcile` 再次确认实例停止，补齐旧 attempt 的停止记录及遗留的渲染非终态；返回未结费用清单。不重启计算、不改 generation、不清零未知模型费用、不覆盖 passed 成片或原始失败原因。活动操作拒绝此入口。
 
 ## 不消费云资源的导演回放
 
 `mise run test:cloud-local` 在本机预编译当前 Schema 后，用真实 `OperationWorkflow`、两种 SSE 适配器、SQLite 预算 SQL 和内存 R2 回放 A–C/E/F。覆盖三方向取帧请求、12 小时用户等待排除、review 修复、冷审拒绝、取消栅栏、缺许可/密钥/模型验证的提前阻断，以及未知消费保留预留。`fetch` 完全替换为固定 SSE，容器/成片为明确模拟，不访问外网、不读真实密钥、不构建 Mac 镜像；这些结果不代替媒体质量或 G1。官方模型仅在这个独立 mock bundle 中视为可回放，部署配置的 `verified=false` 不变。
 
 RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `parseCanonicalJson` 恢复；不依赖平台结构化对象的属性形态，也不放宽 JCS 对非 JSON 值的拒绝。最终提交不自动重试确定性失败，避免原始错误被后续期限错误掩盖。`test/render-commit.test.mjs` 只回放已生成的云端计算回执，检查实际提交代码，不重新捕获或编码媒体。
+
+渲染记录依次为 `queued → sharding → verifying → assembling → passed`，失败/取消为 `blocked`/`cancelled`。准备输入也在失败处理范围内；失败先封锁新 attempt，再确认实例停止。`fail-render` 检查点只重试清理，最多三次重试，保留首个错误和 `stopPending`；确认失败时 lease 不归还。ShardDO 持久化单次 attempt 的停止标记，晚到 execute 不能重新启动。最终成片与 `render_progress` outbox 原子提交；通知由既有队列独立重试，陈旧 generation 的通知丢弃，查询渲染记录不依赖通知到达。
+
+上述新增恢复路径已有真实 SQLite 与 DO/Workflow 本地回放，尚未部署验收；不代表平台强制终止 Workflow、真实重启或完整 G1 已通过。之前的真实云端出片和历史对账范围见[实施状态](../../docs/implementation-status.md)。

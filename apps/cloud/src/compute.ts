@@ -89,6 +89,8 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   }
   async isStopped() { return !this.ctx.container!.running; }
   async stop() {
+    // Attempt IDs are never reusable. A delayed execute RPC must not start after a confirmed stop.
+    this.ctx.storage.kv.put('stopRequested',true);
     await this.ctx.container!.destroy();
     if (this.ctx.container!.running) throw Error('COMPUTE_STOP_UNCONFIRMED');
     this.token = undefined;
@@ -104,6 +106,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     const hash = digest(task), bound = await this.ctx.storage.get<string>('requestHash');
     if (bound && bound !== hash) throw Error('TASK_ALREADY_BOUND');
     const previous = await this.ctx.storage.get<Json>('result'); if (previous) { await this.stopAndSettle(); return previous; }
+    if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
     if (bound) throw Error('COMPUTE_ATTEMPT_LOST'); // Retry uses a new DO, not an old possibly-running instance.
     const op = await operation(this.env, task.job.operationId, task.generation);
     await rights(this.env, op, task.job.resources);
@@ -130,6 +133,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         resources: task.job.resources, reads: task.inputs.map((input: Json) => input.key),
         prefix: `renders/${task.job.renderId}/attempts/${task.taskId}${suffix}`, attemptId: task.taskId}});
       startedAt = Date.now(); await this.ctx.storage.put('startedAt', startedAt);
+      if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
       this.ctx.container!.start({image: this.ctx.container!.images.render!, instance: task.instance, enableInternet: false,
         env: {RENDER_IMAGE_DIGEST: release.image_digest, RENDERER_RELEASE: release.id}});
       await this.ctx.container!.interceptOutboundHttp('broker.internal', broker);
