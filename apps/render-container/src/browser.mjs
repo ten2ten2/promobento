@@ -63,9 +63,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
     signal?.throwIfAborted();
     browser = await chromium.connectOverCDP(endpoint, {timeout: options.initTimeoutMs});
     if (browser.version() !== browserVersion) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-    // Keep the raster scale fixed for the whole session. Per-screenshot downscaling lets
-    // Chromium reuse differently scaled 3D image tiles after a reverse/cold seek.
-    context = await browser.newContext({viewport: {width: plan.target.width, height: plan.target.height}, deviceScaleFactor: captureScale});
+    context = await browser.newContext({viewport: {width: plan.target.width, height: plan.target.height}, deviceScaleFactor: 1});
     page = await context.newPage();
     const sandbox = sandboxState();
     const cdp = await context.newCDPSession(page);
@@ -109,7 +107,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
           if (pageError) throw Error(pageError);
           const screenshot = await cdp.send('Page.captureScreenshot', {format, ...(format === 'jpeg' ? {quality} : {}),
             optimizeForSpeed: true, fromSurface: true, captureBeyondViewport: false,
-            clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: 1}});
+            clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}});
           currentFrame = frameIndex;
           return Buffer.from(screenshot.data, 'base64');
         })(), options.frameTimeoutMs, 'FRAME_TIMEOUT', cancel);
@@ -120,7 +118,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
       },
       async capturePng(frame) {
         if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY');
-        return Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png', optimizeForSpeed: true, captureBeyondViewport: false, clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: 1}})).data, 'base64');
+        return Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png', optimizeForSpeed: true, captureBeyondViewport: false, clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}})).data, 'base64');
       },
       async close() {
         if (closed) return; closed = true;

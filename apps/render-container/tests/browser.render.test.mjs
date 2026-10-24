@@ -64,9 +64,9 @@ function compare(a,b,label){
   assert.ok(max<=2&&share<=.1,`${label}: pixel regression: max=${max}, changed=${share}%`);
   return{maxChannelDiff:max,diffPixelPct:share};
 }
-async function open(aspect,path='/'+aspect+'.html',expectReady=true,captureScale=1){
+async function open(aspect,path='/'+aspect+'.html',expectReady=true){
   const page=await context.newPage(),cdp=await context.newCDPSession(page),layout=rules.aspectLayouts[aspect];
-  await cdp.send('Emulation.setDeviceMetricsOverride',{width:layout.width,height:layout.height,deviceScaleFactor:captureScale,mobile:false});
+  await cdp.send('Emulation.setDeviceMetricsOverride',{width:layout.width,height:layout.height,deviceScaleFactor:1,mobile:false});
   await cdp.send('Page.addScriptToEvaluateOnNewDocument',{source:shim});
   page.on('request',request=>{if(/^https?:/.test(request.url())&&!request.url().startsWith('http://127.0.0.1:8090/'))externalRequests.push(request.url());});
   await page.goto('http://127.0.0.1:8090'+path,{waitUntil:'load'});
@@ -165,14 +165,14 @@ try{
   }
   report.journey={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of [1,.5]){
-    const path='/journey-'+aspect+'.html',handle=await open(aspect,path,true,scale),layout=rules.aspectLayouts[aspect];
+    const path='/journey-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
     const capture=async view=>{
       const png=Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
-        captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale:1}})).data,'base64');
+        captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale}})).data,'base64');
       assert.equal(png.readUInt32BE(16),layout.width*scale);assert.equal(png.readUInt32BE(20),layout.height*scale);return png;
     };
     assert.deepEqual(await handle.page.evaluate(()=>({width:window.__omTarget.width,height:window.__omTarget.height,ratio:window.devicePixelRatio})),
-      {width:layout.width,height:layout.height,ratio:scale});
+      {width:layout.width,height:layout.height,ratio:1});
     const frames=[149,185,299],baseline=new Map();
     // Match the encoded review's even-frame history, including screenshots, before each odd seam.
     for(let frame=0;frame<=frames.at(-1);frame++){
@@ -183,7 +183,7 @@ try{
     }
     await handle.page.close();
     for(const frame of frames){
-      const cold=await open(aspect,path,true,scale);await cold.seek(frame);
+      const cold=await open(aspect,path);await cold.seek(frame);
       report.journey.comparisons.push({aspect,scale,frame,mode:'cold',...compare(baseline.get(frame),await capture(cold),`journey-${aspect}-${scale}-${frame}-cold`)});
       await cold.page.close();
     }

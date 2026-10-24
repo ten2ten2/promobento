@@ -150,7 +150,12 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
   const duration = (ctx.frames.end - ctx.frames.start) / 30, travel = Math.max(1 / 30, duration - 1.2);
   return {async render(time) {
     const position = clamp01((time - .4) / travel) * (panels.length - 1);
-    panels.forEach((panel, index) => { const distance = index - position;
+    panels.forEach((previous, index) => { const distance = index - position;
+      // A fresh projection layer must start with this frame's raster scale, not the
+      // previous camera position's cached scale. Keep the actual text/image nodes
+      // (and their font, hit-test and asset handles) while replacing only the layer.
+      const panel = previous.cloneNode(false) as HTMLDivElement;
+      panel.replaceChildren(...previous.childNodes); previous.replaceWith(panel); panels[index] = panel;
       panel.style.visibility = Math.abs(distance) < 1 ? 'visible' : 'hidden';
       panel.style.opacity = String(clamp01(1 - Math.abs(distance)));
       panel.style.transform = distance === 0 ? 'none' : `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;

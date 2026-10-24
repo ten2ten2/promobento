@@ -235,4 +235,6 @@ C 用满三次规格调用后通过；首轮 review 在原 90 秒内完成。已
 
 [40125749616](https://github.com/ten2ten2/promobento/actions/runs/40125749616) 在 `51a63c6` 用固定 Chromium 151.0.7922.34、原容差执行原创素材的回归。[报告](journey-raster/first-candidate.json)中原有四画幅 **72 次**比较通过，新增旅程横屏最终尺寸六项通过；review 的 149 帧逆序仍失败（最大 **63**、差异 **0.12442129629629631%**），其他画幅未继续。这说明只调整 3D 层级还不足以消除 review 的图像栅格历史差异；该候选没有部署。
 
-下一候选将 review 的 0.5 比例固定在浏览器会话的 `deviceScaleFactor`，截图 clip 不再逐次改变栅格比例；逻辑布局、文字坐标、原尺寸的可信观测与帧时序不变。新增 `suite=journey` 仅复验受影响的四画幅/双比例旅程，不重复前述已通过的 72 项、媒体或配乐。语法检查通过，实际结果待验；未放宽接缝门槛。
+`f6ce560` 的 [40126239915](https://github.com/ten2ten2/promobento/actions/runs/40126239915)将 review 的 0.5 比例固定在会话 `deviceScaleFactor`，实际尺寸和逻辑坐标检查通过，但[同一 149 帧反例](journey-raster/fixed-scale-candidate.json)数值不变；该捕获改动已撤回，未部署。当前候选只重建每次绘制的旅程投影层，保留原文字/图像节点及其字体、素材和点选引用，让合成层不继承上一相机位置的栅格缓存。`suite=journey` 仅复验受影响的四画幅/双比例旅程，不重复已通过的 72 项、媒体或配乐；本地语法与运行时类型检查通过，实际结果待验，原容差不变。
+
+另经官方平台指标 API 在 [40126364745](https://github.com/ten2ten2/promobento/actions/runs/40126364745)只读查询旧 G1 矩阵的完整时间窗。接口有权限、staging 应用匹配，但[返回零条采样](journey-raster/platform-metrics.json)，0 模型/渲染。不能把无数据视为内存为零或 G1 内存通过；cgroup 高水位仍未验证，未绕过凭据读取。

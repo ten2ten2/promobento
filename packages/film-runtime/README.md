@@ -24,7 +24,7 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 启动器使用方案规定的固定栅格化参数；日志管道使用带 `pipefail` 的 Bash，容器失败会使 job 失败。比较失败时保留具体画幅、帧号及对比 PNG，报告记录已完成的比较和失败状态；容差仍为最大通道差 ≤2、差异像素 ≤0.1%。当前实际通过范围和待验证问题见[实施状态](../../docs/implementation-status.md)。
 
-仅复验旅程转场和 3D 面板的栅格历史差异时，使用 `suite=journey`。它只比较四画幅在最终片/review 比例下的顺序、逆序与冷 seek，不重跑已通过的普通布局/桥接、出片或试听。review 通过固定会话 `deviceScaleFactor:0.5` 捕获半尺寸画面，页面仍使用完整逻辑尺寸和原观测坐标；不在每次截图时切换 clip 缩放。
+仅复验旅程转场和 3D 面板的栅格历史差异时，使用 `suite=journey`。它只比较四画幅在最终片/review 比例下的顺序、逆序与冷 seek，不重跑已通过的普通布局/桥接、出片或试听。review 沿用半尺寸捕获，页面仍使用完整逻辑尺寸和原观测坐标。
 
 测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
 
