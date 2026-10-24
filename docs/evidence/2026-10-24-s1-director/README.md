@@ -124,3 +124,19 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 [完整回执](tenth-attempt/report.json)：两次模型 **3,832**，8 次计算停止/结算 **4,887** 保守上界，共 **8,719 usd_micros**，无本轮未知/遗留容量，Workflow 已对账、密钥已回收。共享模型实际 **110,267** 加旧未知 **20,225**，共占用 **130,492**。
 
 修正直接向 E 提供同一真实 `blockCatalog` 参数契约，写明两个工具各自唯一的包络，并把工具自身的精确 Schema 错误路径反馈给结构纠正；原完整校验、一次纠正和费用/次数门槛不变。只改提示/错误定位，不新增测试矩阵或改渲染器。
+
+## 第十一次：契约修正通过，DeepSeek 仍耗尽两轮视觉修复
+
+`92824a46909985e7b22b580920ebd5f27b7477bf` 经 [40097605133](https://github.com/ten2ten2/promobento/actions/runs/40097605133) 仅部署 Worker，同一镜像不变；自动全套 push `40097596386` 已取消。操作 `eval-deepseek-15-1792848186867`，输出 `artifacts/s1-deepseek-15-block-review-2026-10-24`。三次 E 都给出完整、合法的 `write_spec`；前两次修改已实际重新渲染。模型将空 API 卡片换成设备实图后继续调整，第三次仍要求修改，按原 **2 次内部视觉修复**落 `DIRECTOR_REPAIR_LIMIT`，未执行第三次改动、未到 F。保留该质量负例，不提高修复次数或假定质量通过，先推进其他题目。
+
+[完整回执](eleventh-attempt/report.json)及[三份工具响应](eleventh-attempt/review-2-response.json)：模型 **5,616**，36 次计算（含新增 3D 镜头）均已物理停止/结算 **27,822** 保守上界，总计 **33,438 usd_micros**。无本轮未知/残留容量，Workflow 已对账、临时密钥已回收。共享模型实际 **115,883** 加旧未知 **20,225**，占用 **136,108**。模型/工具的完整契约已经可用，但不能据此把创作质量负例改成合格候选。
+
+## MiniMax 首次：事实回复是散文，纠正上下文缺实际输出契约
+
+执行前复核 [MiniMax 官网](https://www.minimax.io/)及[产品页](https://agent.minimax.io/about)，MiniMax Code 命名与已确认的三条功能声明仍可核对，未引入页面上的价格、速度/效果或其他新事实。操作 `eval-minimax-15-1792848706708`，输出 `artifacts/s1-minimax-15-2026-10-24`，使用同一部署。
+
+[A 首份回答](minimax-first-attempt/facts-response.json)为 403 token 的散文/表格，不是 `fact_analysis`；[纠正](minimax-first-attempt/facts-output-repair-1-response.json)尝试输出事实数组，又在 **1,024 token** 截断。原 A 用户消息只带事实和 brief，Schema 只在 system，纠正消息也没重给实际契约；当前提示不足以稳定约束该线路。不能由此断言网关丢弃 system。尚未调用素材/B/C 或渲染。
+
+[完整回执](minimax-first-attempt/report.json)：两次模型 **136 + 318 = 454 usd_micros**，0 新计算，无本轮未知/容量，Workflow 已对账、密钥已回收。共享模型实际 **116,337** 加未知 **20,225**，占用 **136,562**。
+
+修正把事实响应 Schema 放到原用户消息，结构纠正同时携带相应 Schema/工具契约并区分 JSON 与实际工具回复；A 的事实/素材输出空间改为 4,096，次数/金额不提高。另将 C 的“事实证据逐字当标题”收紧为忠实压缩未定稿文案，明确保留任何用户定稿、名称/URL/CTA、限定条件、归属与事实绑定；不改原事实卡或确认。这是对真实画面中长句标题/空卡片的创作修正，不改变事实和独立冷审标准。

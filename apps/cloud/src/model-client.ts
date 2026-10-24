@@ -10,7 +10,7 @@ import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,settleMode
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
-/** A complete, durably recorded response whose text is not canonical JSON; never a transport failure. */
+/** A complete, durably recorded response with invalid text/tool JSON; never a transport failure. */
 export class ModelJsonOutputError extends Error {constructor(code='MODEL_OUTPUT_JSON_INVALID'){super(code);}}
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {

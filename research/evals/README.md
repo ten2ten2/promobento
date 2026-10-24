@@ -33,6 +33,8 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 
 输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
 
+卡片 `facts` 是确认过的证据，不强制把来源长句逐字做成大标题。C 可忠实压缩未定稿文案，仍须保留产品声明归属、限定条件与 factId；固定名称、CTA/URL 和明确提供的最终上屏文字不改。原事实卡、来源与确认记录保持不变。
+
 ### 一次执行一份真实导演输入
 
 确认当前 Actions 部署完成、`wrangler whoami` 为项目账户且 staging 没有其他内部会话后，执行：
