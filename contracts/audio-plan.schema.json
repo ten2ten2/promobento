@@ -36,6 +36,11 @@
           "frameStart": {"type": "integer", "minimum": 0, "maximum": 900},
           "frameEndExclusive": {"type": "integer", "minimum": 1, "maximum": 900},
           "sourceOffsetFrames": {"type": "integer", "minimum": 0},
+          "sfxTiming": {
+            "description":"Frozen procedural lead-in placement. Hit is at anchorFrame; source sample zero is anchorFrame*1600-leadSamples. Clip only at film boundaries, not at the hit.",
+            "type":"object","additionalProperties":false,"required":["anchorFrame","synthesisSamples","durationSamples","leadSamples"],
+            "properties":{"anchorFrame":{"type":"integer","minimum":0,"maximum":899},"synthesisSamples":{"type":"integer","minimum":1,"maximum":240000},"durationSamples":{"type":"integer","minimum":1,"maximum":240000},"leadSamples":{"type":"integer","minimum":0,"maximum":240000}}
+          },
           "gainDb": {"type": "number", "minimum": -60, "maximum": 12},
           "pan": {"type": "number", "minimum": -1, "maximum": 1},
           "fadeInFrames": {"type": "integer", "minimum": 0, "maximum": 900},

@@ -1,6 +1,6 @@
 import {validate} from '../../contracts/generated/audio-plan.mjs';
 import {digest} from '../../contracts/src/digest.mjs';
-import {SFX_IDS, AUDIO_STYLES} from './catalog.mjs';
+import {SFX_IDS,AUDIO_STYLES,SFX_LEAD_TIMING} from './catalog.mjs';
 
 export const AUDIO_VERSION = 'film-audio-v1';
 export const GENERATED_LICENSE = 'LicenseRef-PromoBento-Generated-Audio';
@@ -15,6 +15,13 @@ export function assertAudioPlan(plan) {
       || event.frameEndExclusive > plan.totalFrames || (event.fadeInFrames ?? 0) + (event.fadeOutFrames ?? 0) > event.frameEndExclusive - event.frameStart)
       throw Error('AUDIO_EVENT_INVALID');
     ids.add(event.eventId);
+    if(event.sfxTiming){
+      const timing=event.sfxTiming,declared=SFX_LEAD_TIMING[event.sourceId.slice(4)],source=sources.get(event.sourceId);
+      const start=timing.anchorFrame*1600-timing.leadSamples,end=start+timing.durationSamples;
+      if(event.kind!=='sfx'||source.origin!=='procedural'||!event.sourceId.startsWith('sfx_')||!declared||timing.anchorFrame>=plan.totalFrames
+        ||timing.synthesisSamples!==declared.synthesisSamples||timing.durationSamples!==declared.durationSamples||timing.leadSamples!==declared.leadSamples||event.sourceOffsetFrames!==undefined
+        ||event.frameStart!==Math.floor(Math.max(0,start)/1600)||event.frameEndExclusive!==Math.ceil(Math.min(plan.totalFrames*1600,end)/1600))throw Error('SFX_TIMING_INVALID');
+    }else if(event.kind==='sfx'&&SFX_LEAD_TIMING[event.sourceId.slice(4)])throw Error('SFX_LEAD_PLAN_REQUIRED');
   }
   if (sources.size !== plan.sources.length || (plan.music.kind !== 'none' && !sources.has(plan.music.sourceId))) throw Error('AUDIO_SOURCE_INVALID');
   if (plan.music.kind === 'procedural' && !AUDIO_STYLES.includes(plan.music.style)) throw Error('AUDIO_STYLE_UNKNOWN');
@@ -50,8 +57,12 @@ export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14} = {}) 
     if (!Number.isInteger(frame) || frame < 0 || frame >= spec.totalFrames) throw Error('AUDIO_EVENT_REFERENCE_INVALID');
     const sourceId = 'sfx_' + request.id;
     if (!plan.sources.some(source => source.sourceId === sourceId)) plan.sources.push({sourceId, origin: 'procedural', licenseRef: GENERATED_LICENSE});
-    plan.events.push({eventId, kind: 'sfx', sourceId, frameStart: frame, frameEndExclusive: Math.min(spec.totalFrames, frame + 60),
-      gainDb: request.gain === undefined ? -6 : 20 * Math.log10(Math.max(1e-3, request.gain)), fadeOutFrames: 3});
+    const timing=SFX_LEAD_TIMING[request.id],start=timing?frame*1600-timing.leadSamples:frame*1600;
+    const frameStart=Math.floor(Math.max(0,start)/1600),frameEndExclusive=timing?Math.ceil(Math.min(spec.totalFrames*1600,start+timing.durationSamples)/1600):Math.min(spec.totalFrames,frame+60);
+    if(frameEndExclusive<=frameStart||timing&&start+timing.synthesisSamples<=0)throw Error('SFX_OUTSIDE_FILM');
+    plan.events.push({eventId,kind:'sfx',sourceId,frameStart,frameEndExclusive,
+      ...(timing?{sfxTiming:{anchorFrame:frame,...timing}}:{}),
+      gainDb:request.gain===undefined?-6:20*Math.log10(Math.max(1e-3,request.gain)),fadeOutFrames:Math.min(3,frameEndExclusive-frameStart)});
   }
   assertAudioPlan(plan);
   return plan;

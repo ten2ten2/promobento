@@ -68,6 +68,8 @@ film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` �
 
 混音统一为 48 kHz、双声道；1 帧等于 1,600 个音频采样帧。最终 WAV 恰为 `totalFrames × 1600` 个采样帧，空白补静音，处理顺序与后处理由固定 `mixerVersion` 决定。`mixedAudio` 固定资源路径、真实 sha256、采样率、声道和 mixerVersion，必须解析到资源表中同路径/同 hash 的实际 WAV。可信解码观察 `audioMetadata` 按字节 hash 保存 sampleRate、channels、sampleFrames；校验音源为音频、源内时间范围及混音的采样率/声道/完整片长，不只检查清单自报值。
 
+film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落点、请求时长和实际源长度；它是制作过程字段，不直接充当 `frozenAudioEvent`。资源冻结仍绑定实际音源与混音字节，不能把非整数帧的前导偏移舍入成 `sourceOffsetFrames`。
+
 `audioHash = digest(audioIdentity(resourceManifest))`：保留事件顺序及音源、帧区间、偏移、增益、淡入淡出和自动化曲线，以及实际混音的路径、字节 hash、采样率、声道；排除 licenseRef、描述性 mark 和单纯 mixerVersion 元信息。静音只允许空事件表和 `mixedAudio:null`。预览与导出读取同一混音字节，可信观察记录须证明实际取用；编码阶段不临时改音量、重新 ducking 或重新混音。完整资源清单仍固定 mixerVersion，声音来源的授权链逐项保留。参考验证器核对可信解码/执行记录，实际解码、混音与试听仍按06验收。
 
 `licenseRef` 指向服务端保存的不可变权利记录，不能填写“OFL”或“已获授权”代替。`resourceRightsErrors` 检查 workspace/project、实际素材字节、用途和证据；首次预览与商业冻结/编码/发布分别检查对应权限，缺失或范围不符就阻止输出。登记依据、客户声明和内置素材要求统一见[09](09-sources-and-licensing.md)。

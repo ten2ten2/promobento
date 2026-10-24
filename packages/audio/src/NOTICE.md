@@ -14,6 +14,12 @@
 
 `index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；最终响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
 
+## Lead-in 事件先冻结，再合成
+
+`whoosh`、`whip`、`riser`、`reverse` 的 `at` 是冲击/收束落点，不是波形起点。便携目录保存 48 kHz 样本数，`deriveAudioPlan` 写入每个事件的 `sfxTiming:{anchorFrame,synthesisSamples,durationSamples,leadSamples}`，并计算覆盖实际声音的半开帧区间。`synthesisSamples` 是 DSP 请求时长，`durationSamples` 是实际源波形长度；现有 mix 给 riser/reverse 多一个偏移样本，原样保留，不为此改写已经验收的配乐。源样本零位于 `anchorFrame*1600-leadSamples`；仅在影片首尾裁切，早于片头的源样本不后移到片头。whip 的 6,336 样本前导不是整数帧，仍按样本精确对齐。整个音效都在片头之前时明确拒绝 `SFX_OUTSIDE_FILM`。
+
+合成器核对目录、冻结落点、DSP 实际 lead 和波形长度，不在执行时猜偏移；旧非 lead 事件及其计划字段保持不变。该接入的 PCM 对齐检查不代替新音效的最终母带实测或负责人试听。
+
 ## 六个真实乐器样本
 
 采用 [VSCO 2 Community Edition@440300901dfe9275fd84e0b7763af1f8443ae62e](https://github.com/sgossner/VSCO-2-CE/tree/440300901dfe9275fd84e0b7763af1f8443ae62e)，作者 Versilian Studios / Sam Gossner。已在下载样本前读取该 commit 的原始 CC0 1.0 许可，保留 [VSCO-LICENSE](../samples/VSCO-LICENSE)。六个 WAV 保持原始字节；[登记](../samples/catalog.json)逐文件保存来源路径、版本、字节长度、摘要、音高和用途。生成音乐的许可链分别保留这些 CC0 录音与具体乐谱依据。
