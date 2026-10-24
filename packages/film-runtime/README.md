@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数和 CSS-3D 界面旅程，不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
+S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程保留 DOM 文字与点选，图片用固定画布上的 CPU 透视投影，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
 
 ## 构建和调用
 

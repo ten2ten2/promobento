@@ -253,4 +253,6 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 `fd6bc03` 按 [Chromium 的资源复用选项](https://chromium.googlesource.com/chromium/src/+/1eab1994ee10fe58b342d8d89cb0b22e9f72201c/ui/base/ui_base_switches.cc)禁止近似尺寸的合成资源复用。[40129860364](https://github.com/ten2ten2/promobento/actions/runs/40129860364)的[实际报告](journey-raster/non-exact-resource-candidate.json)保留原 72 项通过，但 PNG review 的 185 帧逆序仍失败（最大 **13**、差异 **9.95949074074074%**）；该选项无效已撤回，没有部署。
 
-当前修正引擎的绘制顺序：先设置当前帧的可见性、透明度和场景变换，再调用积木绘制；不再让 canvas 在重置为隐藏/无变换的场景中绘制后才设置实际位置，零位移也不保留恒等 transform。时间轴、图片、文字、点选和原容差不变。引擎顺序影响全部逐帧捕获，因此复查原 72 项加 PNG 旅程，不重跑媒体/配乐/模型；运行时类型检查通过，实际结果待验。
+`0c98098` 将实际场景位置/可见性设在积木绘制前；[40130658262](https://github.com/ten2ten2/promobento/actions/runs/40130658262)的[报告](journey-raster/scene-order-candidate.json)仍为原 72 项通过、PNG 横屏 185 帧冷 seek 最大 **1** / **0.11439043209876543%**。该引擎改动也已撤回，原引擎路径与此前有效代码相同。
+
+新实现把旅程图片画在固定逻辑尺寸的 CPU 画布中，以原 1800px 焦距、位移、纵深和角度投影素材，不再让图片经过 CSS 3D 的历史栅格缓存。DOM 文字、边框、点选及相机节奏保留，静态图片等预解码、动态视频仍按原 PTS 取帧；不增加 WebGL 环境前提、不修改片子规格/预算/期限或接缝门槛。CPU 投影与 DOM 共用同一相机参数，原尺寸素材按 contain 显示并裁到安全区。新增投影几何的原位/半尺寸深度校准单项通过（Node 26.12.0，1.5 ms），运行时 TypeScript 7.0.2 通过；实际 PNG 顺序/逆序/冷 seek 与原片仍待验。只复查旅程，复用未改变的原 72 项。

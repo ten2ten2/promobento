@@ -2,6 +2,7 @@ import type { Box, SceneContext, SceneRegion } from '../../../contracts/film-run
 import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
+import {panelProjection,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -135,10 +136,16 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
 window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.1', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
   safe.style.overflow = 'hidden';
-  // Project each complete panel, not its text/image descendants as separate 3D layers.
-  // Nested preserve-3d let Chromium retain a history-dependent low-resolution image raster.
-  const camera = node(safe, {position: 'absolute', inset: '0', perspective: '1800px'});
-  const drawings: Array<(time: number) => Promise<void>> = [];
+  safe.style.zIndex = '1';
+  const surface = document.createElement('canvas'),scratch = document.createElement('canvas');
+  surface.width = scratch.width = ctx.target.width; surface.height = scratch.height = ctx.target.height;
+  Object.assign(surface.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(surface);
+  const paint = surface.getContext('2d',{willReadFrequently:true}),work = scratch.getContext('2d',{willReadFrequently:true});
+  if(!paint||!work)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const safeRect=safe.getBoundingClientRect(),rootRect=ctx.root.getBoundingClientRect();
+  const box={x:safeRect.x-rootRect.x,y:safeRect.y-rootRect.y,width:safeRect.width,height:safeRect.height};
+  const camera = node(safe, {position: 'absolute', inset: '0', perspective: PANEL_PERSPECTIVE+'px'});
+  const media:Array<{screen:Box;width:number;height:number;load:(time:number)=>Promise<CanvasImageSource>}>=[];
   const ready: Promise<void>[] = [];
   const panels = items.map(item => {
     const panel = node(camera, {position: 'absolute', inset: '0'});
@@ -147,28 +154,36 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
     const screen = node(panel, {position: 'absolute', left: '2%', top: wide ? '26%' : '34%', width: '96%', height: wide ? '69%' : '61%',
       borderRadius: '24px', border: `2px solid ${ctx.style.palette.accent}`, overflow: 'hidden'});
     const asset = ctx.asset(item.assetKey!);
-    if (asset.kind === 'video') drawings.push(picture(ctx, item.assetKey!, screen));
-    else {
-      // Use a source-resolution CPU bitmap instead of <img> resize-quality caches.
-      // Redraw when visible: a canvas painted only while hidden can lose its surface.
-      const canvas = document.createElement('canvas'); canvas.width = asset.width; canvas.height = asset.height;
-      Object.assign(canvas.style, {display: 'block', width: '100%', height: '100%', objectFit: 'contain'}); screen.append(canvas);
-      const context = canvas.getContext('2d', {willReadFrequently: true}); if (!context) throw Error('IMAGE_CONTEXT_UNAVAILABLE');
-      const image = new Image(); image.src = asset.url;
-      ready.push(image.decode());
-      drawings.push(async () => { context.clearRect(0, 0, canvas.width, canvas.height); context.drawImage(image, 0, 0, canvas.width, canvas.height); });
+    const rect=screen.getBoundingClientRect(),inner={x:rect.x-safeRect.x+2,y:rect.y-safeRect.y+2,width:rect.width-4,height:rect.height-4};
+    if(asset.kind==='video'){
+      if(!asset.frameAt)throw Error('VIDEO_FRAME_UNAVAILABLE');
+      media.push({screen:inner,width:asset.width,height:asset.height,load:time=>asset.frameAt!(time)});
+    }else{
+      const image=new Image();image.src=asset.url;ready.push(image.decode());
+      media.push({screen:inner,width:asset.width,height:asset.height,load:async()=>image});
     }
     return panel;
   });
   const duration = (ctx.frames.end - ctx.frames.start) / 30, travel = Math.max(1 / 30, duration - 1.2);
   return {ready: Promise.all(ready).then(() => {}), async render(time) {
+    paint.clearRect(0,0,surface.width,surface.height);
     const position = clamp01((time - .4) / travel) * (panels.length - 1);
-    panels.forEach((panel, index) => { const distance = index - position;
+    const poses=panels.map((panel, index) => { const distance = index - position;
+      const pose={x:distance*ctx.target.width*.8,z:-Math.abs(distance)*200,angle:-distance*12,opacity:clamp01(1-Math.abs(distance))};
       panel.style.visibility = Math.abs(distance) < 1 ? 'visible' : 'hidden';
-      panel.style.opacity = String(clamp01(1 - Math.abs(distance)));
-      panel.style.transform = distance === 0 ? 'none' : `translateX(${distance * ctx.target.width * .8}px) translateZ(${-Math.abs(distance) * 200}px) rotateY(${-distance * 12}deg)`;
+      panel.style.opacity = String(pose.opacity);
+      panel.style.transform = distance === 0 ? 'none' : `translateX(${pose.x}px) translateZ(${pose.z}px) rotateY(${pose.angle}deg)`;
+      return pose;
     });
-    for (let index = 0; index < drawings.length; index++) if (Math.abs(index - position) < 1) await drawings[index]!(time);
+    paint.save();paint.beginPath();paint.rect(box.x,box.y,box.width,box.height);paint.clip();
+    try{
+      for(let index=0;index<media.length;index++){
+        const pose=poses[index]!;if(!pose.opacity)continue;
+        const item=media[index]!,image=await item.load(time);work.clearRect(0,0,scratch.width,scratch.height);
+        paintProjectedMedia(work,image,item.width,item.height,item.screen,panelProjection(box,pose.x,pose.z,pose.angle*Math.PI/180));
+        paint.globalAlpha=pose.opacity;paint.drawImage(scratch,0,0);
+      }
+    }finally{paint.restore();}
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};
 }});
 
