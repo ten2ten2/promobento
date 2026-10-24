@@ -4,24 +4,24 @@ type Point={x:number;y:number};
 type Pixels={width:number;height:number;data:Uint8ClampedArray};
 export const PANEL_PERSPECTIVE=1800;
 
-export function panelProjection(box:Box,translationX:number,translationZ:number,angle:number){
+export function panelProjection(box:Box,translationX:number,translationZ:number,angle:number,zoom=1,translationY=0){
   const cosine=Math.cos(angle),sine=Math.sin(angle),cx=box.width/2,cy=box.height/2;
-  return(x:number,y:number):Point=>{const centered=x-cx,scale=PANEL_PERSPECTIVE/(PANEL_PERSPECTIVE-translationZ+sine*centered);
-    return{x:box.x+cx+(cosine*centered+translationX)*scale,y:box.y+cy+(y-cy)*scale};};
+  return(x:number,y:number):Point=>{const centered=(x-cx)*zoom,scale=PANEL_PERSPECTIVE/(PANEL_PERSPECTIVE-translationZ+sine*centered);
+    return{x:box.x+cx+(cosine*centered+translationX)*scale,y:box.y+cy+((y-cy)*zoom+translationY)*scale};};
 }
 
-function panelColumns(box:Box,translationX:number,translationZ:number,angle:number){
-  const cosine=Math.cos(angle),sine=Math.sin(angle),cx=box.width/2,depth=PANEL_PERSPECTIVE-translationZ;
+function panelColumns(box:Box,translationX:number,translationZ:number,angle:number,zoom=1){
+  const cosine=Math.cos(angle)*zoom,sine=Math.sin(angle)*zoom,cx=box.width/2,depth=PANEL_PERSPECTIVE-translationZ;
   return(x:number)=>{
     const q=(x-box.x-cx)/PANEL_PERSPECTIVE,dx=(q*(PANEL_PERSPECTIVE-translationZ)-translationX)/(cosine-q*sine);
-    return{x:dx+cx,stepY:(depth+sine*dx)/PANEL_PERSPECTIVE,
+    return{x:dx+cx,stepY:(depth+sine*dx)/(PANEL_PERSPECTIVE*zoom),
       stepX:(depth*cosine-translationX*sine)/(PANEL_PERSPECTIVE*(cosine-q*sine)**2)};
   };
 }
 
-export function panelUnprojection(box:Box,translationX:number,translationZ:number,angle:number){
-  const columns=panelColumns(box,translationX,translationZ,angle),cy=box.height/2;
-  return(x:number,y:number):Point=>{const column=columns(x);return{x:column.x,y:(y-box.y-cy)*column.stepY+cy};};
+export function panelUnprojection(box:Box,translationX:number,translationZ:number,angle:number,zoom=1,translationY=0){
+  const columns=panelColumns(box,translationX,translationZ,angle,zoom),cy=box.height/2;
+  return(x:number,y:number):Point=>{const column=columns(x);return{x:column.x,y:(y-box.y-cy)*column.stepY+cy-translationY/zoom};};
 }
 
 // Read the source once, at native resolution. Build the minification levels with
@@ -48,18 +48,20 @@ export function mediaPyramid(source:Pixels):Pixels[]{
 // No tiled Canvas drawImage calls: their antialiased clips left visible cracks,
 // and their source sampling still differed between warm and cold captures.
 export function paintProjectedMedia(output:Pixels,levels:Pixels[],screen:Box,box:Box,
-  translationX:number,translationZ:number,angle:number,opacity:number){
-  const source=levels[0]!,columns=panelColumns(box,translationX,translationZ,angle);
+  translationX:number,translationZ:number,angle:number,opacity:number,
+  {zoom=1,translationY=0,radius:cornerRadius=22,clip=box}:{zoom?:number;translationY?:number;radius?:number;clip?:Box}={}){
+  if(opacity===0)return;
+  const source=levels[0]!,columns=panelColumns(box,translationX,translationZ,angle,zoom);
   const cy=box.height/2,globalY=box.y+cy;
   const fit=Math.min(screen.width/source.width,screen.height/source.height);
   const width=source.width*fit,height=source.height*fit,left=screen.x+(screen.width-width)/2,top=screen.y+(screen.height-height)/2;
-  const project=panelProjection(box,translationX,translationZ,angle);
+  const project=panelProjection(box,translationX,translationZ,angle,zoom,translationY);
   const corners=[project(left,top),project(left+width,top),project(left+width,top+height),project(left,top+height)];
-  const minX=Math.max(0,Math.ceil(box.x-.5),Math.floor(Math.min(...corners.map(p=>p.x))-1));
-  const maxX=Math.min(output.width,Math.ceil(box.x+box.width-.5),Math.ceil(Math.max(...corners.map(p=>p.x))+1));
-  const minY=Math.max(0,Math.ceil(box.y-.5),Math.floor(Math.min(...corners.map(p=>p.y))-1));
-  const maxY=Math.min(output.height,Math.ceil(box.y+box.height-.5),Math.ceil(Math.max(...corners.map(p=>p.y))+1));
-  const radius=Math.min(22,screen.width/2,screen.height/2),screenX=screen.x+screen.width/2,screenY=screen.y+screen.height/2;
+  const minX=Math.max(0,Math.ceil(clip.x-.5),Math.floor(Math.min(...corners.map(p=>p.x))-1));
+  const maxX=Math.min(output.width,Math.ceil(clip.x+clip.width-.5),Math.ceil(Math.max(...corners.map(p=>p.x))+1));
+  const minY=Math.max(0,Math.ceil(clip.y-.5),Math.floor(Math.min(...corners.map(p=>p.y))-1));
+  const maxY=Math.min(output.height,Math.ceil(clip.y+clip.height-.5),Math.ceil(Math.max(...corners.map(p=>p.y))+1));
+  const radius=Math.min(cornerRadius,screen.width/2,screen.height/2),screenX=screen.x+screen.width/2,screenY=screen.y+screen.height/2;
   for(let x=minX;x<maxX;x++){
     const {x:lx,stepX,stepY}=columns(x+.5),edge=Math.max(stepX,stepY);
     const level=levels[Math.min(levels.length-1,Math.max(0,Math.floor(Math.log2(edge/fit))))]!;
@@ -68,8 +70,8 @@ export function paintProjectedMedia(output:Pixels,levels:Pixels[],screen:Box,box
     if(clipX>edge/2)continue;
     const roundX=Math.max(0,Math.abs(lx-screenX)-screen.width/2+radius);
     for(let y=minY;y<maxY;y++){
-      const ly=(y+.5-globalY)*stepY+cy,roundY=Math.max(0,Math.abs(ly-screenY)-screen.height/2+radius);
-      const distance=Math.max(clipX,top-ly,ly-top-height,(roundX||roundY?Math.hypot(roundX,roundY):0)-radius);
+      const ly=(y+.5-globalY)*stepY+cy-translationY/zoom,roundY=Math.max(0,Math.abs(ly-screenY)-screen.height/2+radius);
+      const distance=Math.max(clipX,top-ly,ly-top-height,radius?(roundX||roundY?Math.hypot(roundX,roundY):0)-radius:-Infinity);
       const coverage=Math.max(0,Math.min(1,.5-distance/edge));if(!coverage)continue;
       const v=Math.max(0,Math.min(level.height-1,(ly-top)/height*level.height-.5)),iy=Math.floor(v),fy=v-iy;
       const a=(iy*level.width+ix)*4,b=(iy*level.width+right)*4,c=(Math.min(iy+1,level.height-1)*level.width+ix)*4,d=c+(right-ix)*4;

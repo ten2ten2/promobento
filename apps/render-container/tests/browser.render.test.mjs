@@ -39,9 +39,14 @@ journey.scenes=[
     {assetKey:'dashboard',textSlot:'intro'},{assetKey:'dashboard',textSlot:'product'}]},
     transitionIn:{type:'push',frames:10},purpose:'Exercise a cold shard boundary during a CSS-3D interface journey.'}
 ];
-for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+const showcase=filmFixture();showcase.assets.dashboard.resourceId='res_fixture_journey';
+showcase.scenes=[{...showcase.scenes[0],end:66},
+  {...showcase.scenes[1],start:60,end:150,transitionIn:{type:'crossfade',frames:6}},
+  {...showcase.scenes[1],id:'chips',start:140,end:215,transitionIn:{type:'push',frames:10}},
+  {...showcase.scenes[2],start:205,transitionIn:{type:'crossfade',frames:10}}];
+for(const [name,film]of Object.entries({journey,showcase}))for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   const options=pageOptions(aspect,layout);options.resources=[{...options.resources[0],resourceId:'res_fixture_journey',width:2200,height:1400}];
-  pages.set('/journey-'+aspect+'.html',generateFilmPage(JSON.stringify(journey),options));
+  pages.set('/'+name+'-'+aspect+'.html',generateFilmPage(JSON.stringify(film),options));
 }
 const thirty=filmFixture(),thirtyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
 thirty.durationSeconds=30;thirty.totalFrames=900;thirty.scenes.at(-1).end=900;thirtyOptions.target.totalFrames=900;
@@ -177,9 +182,10 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  report.journey={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
+  for(const name of journeyOnly?['journey']:['journey','showcase']){
+  report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of [1,.5]){
-    const path='/journey-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
+    const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
     const capture=async view=>{
       const png=Buffer.from((await view.cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,
         captureBeyondViewport:false,clip:{x:0,y:0,width:layout.width,height:layout.height,scale}})).data,'base64');
@@ -191,18 +197,19 @@ try{
     // Match the encoded review's even-frame history, including screenshots, before each odd seam.
     for(let frame=0;frame<=frames.at(-1);frame++){
       if(frame%2===0||frames.includes(frame)){await handle.seek(frame);const png=await capture(handle);if(frames.includes(frame)){
-        baseline.set(frame,png);writeFileSync(`${output}/journey-${aspect}-${scale}-${frame}.png`,png);
+        baseline.set(frame,png);writeFileSync(`${output}/${name}-${aspect}-${scale}-${frame}.png`,png);
       }}
     }
     for(const frame of [...frames].reverse()){
-      await handle.seek(frame);report.journey.comparisons.push({aspect,scale,frame,mode:'reverse',...compare(baseline.get(frame),await capture(handle),`journey-${aspect}-${scale}-${frame}-reverse`)});
+      await handle.seek(frame);report[name].comparisons.push({aspect,scale,frame,mode:'reverse',...compare(baseline.get(frame),await capture(handle),`${name}-${aspect}-${scale}-${frame}-reverse`)});
     }
     await handle.page.close();
     for(const frame of frames){
       const cold=await open(aspect,path);await cold.seek(frame);
-      report.journey.comparisons.push({aspect,scale,frame,mode:'cold',...compare(baseline.get(frame),await capture(cold),`journey-${aspect}-${scale}-${frame}-cold`)});
+      report[name].comparisons.push({aspect,scale,frame,mode:'cold',...compare(baseline.get(frame),await capture(cold),`${name}-${aspect}-${scale}-${frame}-cold`)});
       await cold.page.close();
     }
+  }
   }
   if(!journeyOnly){
     const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');

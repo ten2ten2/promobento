@@ -27,6 +27,8 @@ review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 f
 
 `feature-grid@1` 的当前实现为 1.0.1：横屏上图卡片的下方 40% 文案区分为标题 22%、间隔 3%、副标题 15%，避免长标题与副标题重叠。无图卡片及其他画幅布局不变，历史 renderer release 保留原实现。实际失败源的[单帧回归入口](../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)只检查这一组合，不重做完整矩阵。
 
+`ui-showcase@1` 的 1.0.1 与 `ui-journey@1` 共用固定画布的 CPU 逆透视取样；showcase 的边框、阴影和 ROI 同样参与投影，入场缩放/纵向位移、文字和可信点选保留。源码与历史镜像分开冻结，实际回归范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
+
 WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真实 WebGL2 context 的 renderer/vendor/version，逐次与环境锁的 SwiftShader renderer 核对，不匹配阻断为 `RENDER_ENVIRONMENT_MISMATCH`。studio ready 与分段回执保留实际字符串。初始化/单帧期限按共享策略分别使用 60/10 秒，2D 保持 30/5 秒；同一镜像内纯 2D 页面不加载 3D bundle。3D 资源在引擎 dispose 时释放，失去 context 明确失败，不悄悄重建。
 
 输出先进入 `renders/<renderId>/attempts/<taskId>/…`；只有 Workflow 检查接缝、观测和 generation 后才发布引用，失败 attempt 不覆盖成功字节。实现与实际验证范围分开记在[实施状态](../../docs/implementation-status.md)。

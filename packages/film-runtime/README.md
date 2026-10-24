@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程保留 DOM 文字与点选，图片以 CPU 逆透视取样后单次写入固定画布，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
+S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程与 showcase 保留 DOM 文字及点选，图片、showcase 边框/阴影和 ROI 以 CPU 逆透视取样后单次写入固定画布，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
 
 ## 构建和调用
 
@@ -20,7 +20,7 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 `mise run test:browser` 是容器内入口，本机直接运行会明确失败。CI 的 `browser` job 构建 [`Dockerfile`](../../apps/render-container/Dockerfile) 的 `browser-test` target，不推送镜像、不部署服务；检查包含真实 JPEG→H.264 分段→接缝→混音→MP4、九积木四画幅帧集，以及既有顺序/逆序/冷 seek、文字安全区与字体、桥接、时钟、API 禁用和超长文本失败。另生成 13 种程序风格各 30 秒的试听 WAV。截图与报告随 `film-runtime-browser` artifact 提供。
 
-只修复逐帧运行时时，使用 `gh workflow run checks.yml --ref main -f suite=runtime`：在同一个隔离镜像中执行四画幅 seek/布局/桥接检查，含 CSS-3D 界面旅程在推入转场和移动中的顺序/逆序/冷 seek、最终片与 review 两种捕获比例；不重新出片或合成配乐。报告中媒体与试听项为 `not_run`，不会冒充通过；默认完整入口不变。
+只修复逐帧运行时时，使用 `gh workflow run checks.yml --ref main -f suite=runtime`：在同一个隔离镜像中执行四画幅 seek/布局/桥接检查，含界面旅程及两个 showcase 推入转场在移动中的顺序/逆序/冷 seek、最终片与 review 两种捕获比例；不重新出片或合成配乐。报告中媒体与试听项为 `not_run`，不会冒充通过；默认完整入口不变。
 
 启动器使用方案规定的固定栅格化参数；日志管道使用带 `pipefail` 的 Bash，容器失败会使 job 失败。比较失败时保留具体画幅、帧号及对比 PNG，报告记录已完成的比较和失败状态；容差仍为最大通道差 ≤2、差异像素 ≤0.1%。当前实际通过范围和待验证问题见[实施状态](../../docs/implementation-status.md)。
 

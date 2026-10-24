@@ -1,0 +1,1 @@
+{"frames":[{"diffPixelPct":1.4469521604938271,"frame":149,"maxChannelDiff":20,"verdict":"RENDER_SEAM_BLOCK"},{"diffPixelPct":0,"frame":299,"maxChannelDiff":0,"verdict":"pass"}],"modelCalls":0,"operationId":"eval-minimax-15-1792878395279","renderCalls":0,"scope":"read_only_original_private_png_comparison"}

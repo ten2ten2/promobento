@@ -28,6 +28,27 @@ const text = (ctx: SceneContext, value: unknown, parent: HTMLElement, maxLines =
   return ctx.text(value).mount(parent, {maxLines, ...(maxFontSize === undefined ? {} : {maxFontSize})});
 };
 
+function cpuSurface(ctx:SceneContext){
+  const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+  Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+  const paint=canvas.getContext('2d',{willReadFrequently:true});if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const pixels=paint.createImageData(canvas.width,canvas.height);
+  return{pixels,write:()=>paint.putImageData(pixels,0,0)};
+}
+
+function projectedAsset(ctx:SceneContext,key:string){
+  const asset=ctx.asset(key),canvas=document.createElement('canvas');canvas.width=asset.width;canvas.height=asset.height;
+  const reader=canvas.getContext('2d',{willReadFrequently:true});if(!reader)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const read=(image:CanvasImageSource)=>{reader.clearRect(0,0,canvas.width,canvas.height);reader.drawImage(image,0,0);
+    return mediaPyramid(reader.getImageData(0,0,canvas.width,canvas.height));};
+  if(asset.kind==='video'){
+    if(!asset.frameAt)throw Error('VIDEO_FRAME_UNAVAILABLE');
+    return{asset,ready:Promise.resolve(),load:async(time:number)=>read(await asset.frameAt!(time))};
+  }
+  const image=new Image();image.src=asset.url;const decoded=image.decode().then(()=>read(image));
+  return{asset,ready:decoded.then(()=>{}),load:(_time:number)=>decoded};
+}
+
 window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.0', build(ctx, params) {
   const safe = inSafe(ctx), box = safeBox(ctx);
   const orbit = node(ctx.root, {position: 'absolute', border: `2px solid ${ctx.style.palette.accent}`, borderRadius: '50%',
@@ -47,28 +68,45 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   };
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.0', build(ctx, params) {
+window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.1', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', hasText = typeof params.textSlot === 'string';
+  safe.style.zIndex='1';
   if (hasText) text(ctx, params.textSlot, node(safe, {position: 'absolute', left: '0', top: wide ? '25%' : '2%',
     width: wide ? '37%' : '100%', height: wide ? '62%' : '28%'}), 4);
   const panel = node(safe, {position: 'absolute', left: wide && hasText ? '42%' : '2%', top: wide ? '8%' : hasText ? '35%' : '4%',
     width: wide && hasText ? '56%' : '96%', height: wide ? '84%' : hasText ? '60%' : '92%', borderRadius: '28px',
-    background: ctx.style.palette.bg ?? '', border: `2px solid ${ctx.style.palette.accent}`, boxShadow: '0 32px 80px #0005', overflow: 'hidden'});
-  const asset = ctx.asset(String(params.assetKey)), draw = picture(ctx, String(params.assetKey), panel);
-  let highlight: HTMLDivElement | undefined;
+    border: '2px solid transparent', overflow: 'hidden'});
+  const source=projectedAsset(ctx,String(params.assetKey)),{asset}=source,surface=cpuSurface(ctx);
+  const rect=panel.getBoundingClientRect(),rootRect=ctx.root.getBoundingClientRect();
+  const box={x:rect.x-rootRect.x,y:rect.y-rootRect.y,width:rect.width,height:rect.height};
+  const clip={x:0,y:0,width:ctx.target.width,height:ctx.target.height},padding=192;
+  const chrome=document.createElement('canvas');chrome.width=Math.ceil(box.width)+padding*2;chrome.height=Math.ceil(box.height)+padding*2;
+  const draw=chrome.getContext('2d',{willReadFrequently:true});if(!draw)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  draw.fillStyle=ctx.style.palette.bg!;draw.shadowColor='#0005';draw.shadowBlur=80;draw.shadowOffsetY=32;
+  draw.beginPath();draw.roundRect(padding,padding,box.width,box.height,28);draw.fill();
+  draw.shadowColor='transparent';draw.lineWidth=2;draw.strokeStyle=ctx.style.palette.accent!;
+  draw.beginPath();draw.roundRect(padding+1,padding+1,box.width-2,box.height-2,27);draw.stroke();
+  const frame=mediaPyramid(draw.getImageData(0,0,chrome.width,chrome.height));
+  const expanded={x:-padding,y:-padding,width:chrome.width,height:chrome.height};
+  let highlight:ReturnType<typeof mediaPyramid>|undefined;
   if (typeof params.focus === 'string') {
     const roi = asset.roi[Number(params.focus.slice(4))];
     if (!roi) throw Error('ASSET_ROI_UNKNOWN');
     const scale = Math.min(panel.clientWidth / asset.width, panel.clientHeight / asset.height);
-    highlight = node(panel, {position: 'absolute', pointerEvents: 'none', border: `4px solid ${ctx.style.palette.accent}`,
-      borderRadius: '12px', left: (panel.clientWidth - asset.width * scale) / 2 + roi.x * asset.width * scale + 'px',
-      top: (panel.clientHeight - asset.height * scale) / 2 + roi.y * asset.height * scale + 'px',
-      width: roi.width * asset.width * scale + 'px', height: roi.height * asset.height * scale + 'px'});
+    draw.clearRect(0,0,chrome.width,chrome.height);draw.save();
+    draw.beginPath();draw.roundRect(padding+2,padding+2,box.width-4,box.height-4,26);draw.clip();
+    draw.lineWidth=4;draw.beginPath();draw.roundRect(padding+4+(panel.clientWidth-asset.width*scale)/2+roi.x*asset.width*scale,
+      padding+4+(panel.clientHeight-asset.height*scale)/2+roi.y*asset.height*scale,Math.max(4,roi.width*asset.width*scale-4),Math.max(4,roi.height*asset.height*scale-4),10);draw.stroke();draw.restore();
+    highlight=mediaPyramid(draw.getImageData(0,0,chrome.width,chrome.height));
   }
   return {
-    async render(time) { const p = easeOut(time / 0.7); panel.style.transform = p === 1 ? 'none' : `perspective(1800px) rotateY(${(1 - p) * (wide ? -9 : -4)}deg) translateY(${(1 - p) * 40}px) scale(${0.92 + p * 0.08})`;
-      await draw(time);
-      if (highlight) highlight.style.opacity = String(easeOut((time - 0.5) / 0.4)); },
+    ready:source.ready,async render(time) { const p = easeOut(time / 0.7),angle=(1-p)*(wide?-9:-4),translationY=(1-p)*40,zoom=.92+p*.08;
+      panel.style.transform = p === 1 ? 'none' : `perspective(${PANEL_PERSPECTIVE}px) rotateY(${angle}deg) translateY(${translationY}px) scale(${zoom})`;
+      surface.pixels.data.fill(0);const options={clip,translationY,zoom};
+      paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
+      paintProjectedMedia(surface.pixels,await source.load(time),{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,angle*Math.PI/180,1,{...options,radius:26});
+      if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,angle*Math.PI/180,easeOut((time-.5)/.4),{...options,radius:0});
+      surface.write(); },
     events: blockEvents('ui-showcase', ctx.frames, params), regions: [region('product', panel, ctx.root)]
   };
 }});
@@ -137,12 +175,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
   safe.style.overflow = 'hidden';
   safe.style.zIndex = '1';
-  const surface = document.createElement('canvas');
-  surface.width = ctx.target.width; surface.height = ctx.target.height;
-  Object.assign(surface.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(surface);
-  const paint = surface.getContext('2d',{willReadFrequently:true});
-  if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
-  const pixels=paint.createImageData(surface.width,surface.height);
+  const surface=cpuSurface(ctx),{pixels}=surface;
   const safeRect=safe.getBoundingClientRect(),rootRect=ctx.root.getBoundingClientRect();
   const box={x:safeRect.x-rootRect.x,y:safeRect.y-rootRect.y,width:safeRect.width,height:safeRect.height};
   const camera = node(safe, {position: 'absolute', inset: '0', perspective: PANEL_PERSPECTIVE+'px'});
@@ -154,20 +187,9 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
     text(ctx, item.textSlot, heading, 3);
     const screen = node(panel, {position: 'absolute', left: '2%', top: wide ? '26%' : '34%', width: '96%', height: wide ? '69%' : '61%',
       borderRadius: '24px', border: `2px solid ${ctx.style.palette.accent}`, overflow: 'hidden'});
-    const asset = ctx.asset(item.assetKey!);
+    const source=projectedAsset(ctx,item.assetKey!);
     const rect=screen.getBoundingClientRect(),inner={x:rect.x-safeRect.x+2,y:rect.y-safeRect.y+2,width:rect.width-4,height:rect.height-4};
-    const source=document.createElement('canvas');source.width=asset.width;source.height=asset.height;
-    const reader=source.getContext('2d',{willReadFrequently:true});if(!reader)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
-    const read=(image:CanvasImageSource)=>{reader.clearRect(0,0,source.width,source.height);reader.drawImage(image,0,0);
-      return mediaPyramid(reader.getImageData(0,0,source.width,source.height));};
-    if(asset.kind==='video'){
-      if(!asset.frameAt)throw Error('VIDEO_FRAME_UNAVAILABLE');
-      media.push({screen:inner,load:async time=>read(await asset.frameAt!(time))});
-    }else{
-      const image=new Image();image.src=asset.url;
-      const decoded=image.decode().then(()=>read(image));ready.push(decoded.then(()=>{}));
-      media.push({screen:inner,load:()=>decoded});
-    }
+    ready.push(source.ready);media.push({screen:inner,load:source.load});
     return panel;
   });
   const duration = (ctx.frames.end - ctx.frames.start) / 30, travel = Math.max(1 / 30, duration - 1.2);
@@ -186,7 +208,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
       const item=media[index]!;
       paintProjectedMedia(pixels,await item.load(time),item.screen,box,pose.x,pose.z,pose.angle*Math.PI/180,pose.opacity);
     }
-    paint.putImageData(pixels,0,0);
+    surface.write();
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};
 }});
 

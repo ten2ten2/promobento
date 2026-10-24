@@ -274,3 +274,11 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 [三段实际 CDP 观测](minimax-seventh-attempt/observations-0.json)（[中段](minimax-seventh-attempt/observations-1.json)、[后段](minimax-seventh-attempt/observations-2.json)）均将文字判为 `largeText:true`、对比度 **3.324836041798544:1**，仍全部标 `low-contrast / BLOCK`。观测器没有采用方案 §7 原定的大字 **3:1**，而是硬编码全部文字 4.5:1；这与 [WCAG 1.4.3](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) 的大字规则不符。当前修正由 CDP 实际字号/字重区分大字与普通文字，分别执行原 **3:1 / 4.5:1**，不按 role 豁免、不舍入。主机观测单项通过（Node 26.12.0，6.92 ms），涵盖大小字号、粗体、大字仍低于 3、普通文字低于 4.5 及 4.478 不得进位；原片待新镜像复验，不改旧失败回执。
 
 [费用与回收](minimax-seventh-attempt/report.json)：2 次新模型 **20,051**，8 次计算均停止/结算 **9,884** 保守上界，总计 **29,935 usd_micros**。共享模型已结 **310,377** 加旧未知 **20,225**，合计占用 **330,602**；原历史 128/14 和确认空值不变。临时密钥已回收，没有合格候选。原片复验入口扩展为直接读取已付费 C 完整 JSON，复用同一共享围栏/严格解析，不伪造 E 工具或重新付费。
+
+### 大字云验通过；第二种透视积木暴露同类 PNG 问题
+
+[40135202235](https://github.com/ten2ten2/promobento/actions/runs/40135202235) 在 `6559da7308b477d64683852e42c4e48fd2763c61` 完整构建/部署成功，[健康与预算回执](contrast-gate/deployment-health.json)正常；镜像 **`sha256:99d223a26cbe6f1731e92de67c33c4190b331a4c184ef73f36a486c54df53fa4`**，Worker `fd892c4e-568e-4933-a7ad-c806e6f77810`。原部分部署的包装错误未再出现，未修改平台设置绕过它。
+
+操作 `eval-minimax-15-1792878395279` 用[同一付费 C](minimax-seventh-attempt/spec-response.json)、原素材/字体/seed，只走原生 review。[实际 CDP](contrast-gate/observations-0.json)（[中段](contrast-gate/observations-1.json)、[后段](contrast-gate/observations-2.json)）共 **18 个文字观测全部无 finding**，原 3.324836:1 蓝底和文案未改，证明大字误拦已修复。之后在两个 `ui-showcase` 推入的 149 帧被接缝拦下：最大 **20** / **1.4469521604938271%**，299 帧零差异；已下载并查看两张实际 PNG，差异集中于正在透视缩放的产品面板底边及阴影，不是文字。原生失败和停止费用见[回执](contrast-gate/report.json)；四次计算均停止/结算 **8,172 usd_micros**，0 模型，容量/未结为空、密钥回收。
+
+当前让 `ui-showcase@1` 也共用旅程的固定 CPU 逆透视取样，边框/阴影/ROI 一并在固定像素面投影；原入场旋转、缩放、纵向位移及 DOM 文字/点选保留，实现升为 1.0.1，历史镜像不变。新增原 140–150 帧 showcase 推入时序的 2200×1400 原创 PNG 回归；shared 投影校准补缩放与纵移。当前候选正逆投影（含原入场缩放/纵移）单项通过（Node 26.12.0，3.31 ms），运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅 PNG 及原 C 复验仍待完成。
