@@ -1,4 +1,4 @@
-# S1 真实导演：卡片布局修复，继续整片链路
+# S1 真实导演：完整链路仍未通过
 
 2026-10-24 负责人要求「放开一点预算门槛，继续 S1」。本次在原 $300 授权中取 $5 历史风险预留、staging 新增模型实际/未知预留累计上限 $10，至 2026-10-31 上海时间结束。原授权身份、起算、历史清单和确认空值保留；风险预留不等于核实账单。配置与语义见 [14 预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。
 
@@ -209,4 +209,14 @@ Node 26.12.0 下仅一次新增的音频派发单项检查通过（66 ms / 命�
 
 上述实际 9 秒帧仍是重复产品图与大片空卡片，标题为 `Product claims, as MiniMax describes them`。原 E 请求只有当前 FilmSpec/积木/图片与媒体，没有原需求、确认事实或所选方向；因此其“事实忠实/故事连贯”判断缺少直接依据。F 原来也未收到原 brief 与选择，只有 facts/film/图片。当前修正让 E/F 同时拿到原 `briefContext` 与方向数据，F 仍是独立上下文。
 
-C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相关事实和清晰供应商归属，不把事实证据逐字当成标题或用审计标签填空；名称、用户定稿、CTA/URL、限定条件、许可署名和完整 factId/Schema 校验保留。没有增加修复轮数、费用或降低冷审标准。该提示修正尚待真实完整导演结果，未为纯提示变动重跑本地测试或旧矩阵。
+C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相关事实和清晰供应商归属，不把事实证据逐字当成标题或用审计标签填空；名称、用户定稿、CTA/URL、限定条件、许可署名和完整 factId/Schema 校验保留。没有增加修复轮数、费用或降低冷审标准。真实执行结果见下一节；未为纯提示变动重跑本地测试或旧矩阵。
+
+## MiniMax 第五次：两轮媒体通过，改稿丢失 CTA 事实绑定
+
+`58a92048bcbd06c79b4c723396735bec6dc3c0b0` 经 [40114873459](https://github.com/ten2ten2/promobento/actions/runs/40114873459) 只部署 Worker，[复用](minimax-fifth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像；[部署健康](minimax-fifth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792862141172`，私有输出 `artifacts/s1-minimax-15-brief-review-2026-10-25`。A/B 复用，三张实际方向图和冻结方向与已查看版本一致，[沿用 Fit 选择](minimax-fifth-attempt/choice.json)。方向就绪 46.535 秒，仅是单次样本。C 一次纠正后通过，两个 review 的原生媒体 Workflow 均完成；本轮没有再次发生音频 ready 超时。
+
+[E 第二轮原始工具](minimax-fifth-attempt/review-1-response.json)把积木实现补丁版本误写为 `feature-grid@1.0.1`，同时将 CTA `Explore MiniMax Code` 的 `factIds` 清为空。[一次纠正](minimax-fifth-attempt/review-1-output-repair-1-response.json)修好积木引用，完整 FilmSpec Schema 通过，但共享跨字段校验仍返回 `CLAIM_UNBOUND /texts/cta`。已用实际付费回执和原确认事实在本地定位，不再重新请求模型复现。不能删除 CTA 的事实绑定要求或代填无关事实来放行；未到最终横竖渲染/F，也没有合格候选。
+
+[完整回执](minimax-fifth-attempt/report.json)：6 次模型 **32,608**、14 次计算均已物理停止/结算 **10,736** 保守上界，总计 **43,344 usd_micros**；本轮未知/容量为空，Workflow 已终止/对账，临时密钥回收。共享模型已计价 **247,217** 加旧未知 **20,225**，合计占用 **267,442**。
+
+当前仅向 C/E 已有的提示 Schema 补 `id@major` 引用枚举、确认事实 ID 枚举及 CTA/数值/引语等绑定说明；不改完整执行校验、结构纠正或视觉修复上限。此提示修正尚未部署/云验；未启动下一轮模型调用或媒体渲染，未重跑既有测试、媒体矩阵或完整 CI。

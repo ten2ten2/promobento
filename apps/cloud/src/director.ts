@@ -74,6 +74,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     s1FilmSchema.$defs.style.properties.texture.properties.kind={const:'none'};
     s1FilmSchema.$defs.transition.properties.type.enum=['cut','crossfade','push','whip'];
     s1FilmSchema.$defs.sceneCommon.properties.layout.maxProperties=0;
+    // Model hints must expose the same block identities and fact-binding rules as admission.
+    // A catalog implementation patch (e.g. 1.0.1) is not a FilmSpec block reference (@1).
+    s1FilmSchema.$defs.scene.oneOf[0].properties.block.enum=blockCatalog.map(block=>block.id+'@'+block.version.split('.')[0]);
+    s1FilmSchema.$defs.textSlot.properties.factIds.items.enum=context.confirmedFactIds;
+    s1FilmSchema.$defs.textSlot.properties.factIds.description='Use only these confirmed fact ids. Every cta, number or quote slot, and every slot containing a digit, percent or currency symbol, must bind at least one genuinely relevant confirmed fact. Preserve existing bindings when editing. Do not invent ids or attach unrelated facts to unsupported claims.';
     delete s1FilmSchema.$defs.assetSlot.properties.crop;
     s1FilmSchema.$defs.fontRef.enum=context.fonts.flatMap((font:Json)=>[{fontId:font.fontId,weight:font.weight,style:font.style},
       ...(font.style==='normal'?[{fontId:font.fontId,weight:font.weight}]:[])]);
