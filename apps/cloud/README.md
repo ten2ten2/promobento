@@ -10,6 +10,8 @@
 
 `RenderWorkflow` 执行分段、声音、接缝/阅读停留观测、拼接和 generation-fenced 提交；`ShardDO` 每次 attempt 使用独立容器，禁网，仅挂该任务的 broker；`CoordinatorDO` 在确认停止前持有并发 lease；`OperationDO` 管 studio 与进度。取消先推进 generation、撤销后续读写，再经 outbox 停止实例。任务、回执、冻结输出引用、费用预留与结算保留；重试不得覆盖已提交字节。
 
+音频派发与入口校验共用 Worker 的 `AUDIO_INSTANCE`：standard-2（1 vCPU / 6 GiB），对应容器固定一个 FFmpeg 线程。旧 standard-1 实际只有 0.5 vCPU，低于方案的一核要求；现改用现有标准计价/预留，不改变冻结 AudioPlan、最终字节校验、名额和期限。该配置修正的原生结果另见导演证据；前一版 G1 的音频规格与分布不改写。
+
 计算费用目前按 **分配的完整 CPU + 内存 + 磁盘 × 实际运行时间**记保守上界，不是 Cloudflare 账单实测值。CPU/内存/磁盘单价来源：[Cloudflare Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)，2026-10-23；实例规格见[官方表](https://developers.cloudflare.com/containers/platform/limits/)。未知模型 usage 保留预留，不记作零。生产预算未标定，Agent 仍关闭。
 
 内部交互任务的 outbox consumer 保留每批最多 5 条，将批量等待明确设为 1 秒，不沿用平台默认的 5 秒；不改变重试、幂等或物理计算名额。成片仍按客户端提交到 passed 计时，排队没有从性能指标中删掉。

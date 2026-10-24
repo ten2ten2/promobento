@@ -192,3 +192,11 @@ Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、rev
 客户端首次 reconcile 等待超时，原业务失败与密钥回收已保存，但未取得完整停止/费用报告。新增[只恢复终态清理的入口](../../../research/evals/README.md#一次执行一份真实导演输入)实际调用原 reconcile，未启动模型/渲染；[补齐回执](minimax-fourth-attempt/report.json)确认 **19 次计算全部物理停止/结算 22,010** 保守上界，5 次新模型共 **34,580**，本轮合计 **56,590 usd_micros**。容量/本轮未知为空，Workflow 已终止/对账，临时密钥回收。共享模型已计价 **214,609** 加旧未知 **20,225**，共占用 **234,834**。普通 CLI 也已补逐步保存清理证据、单列清理错误和保留原失败；受影响两份脚本语法检查一次通过，没有重跑模型、原生片或 CI。
 
 诊断期间本机 Wrangler 的 D1 管理查询返回 [7403 权限拒绝](minimax-fourth-attempt/d1-management-access-error.txt)；只读账户检查仍显示原账户、`d1 (write)`。已请求负责人重新授权/核查 D1 权限。既有 Worker 终态清理入口和 R2 素材/输入读取仍成功，失败任务已安全收尾。负责人恢复本机 D1 管理访问后，继续执行前活动操作盘点、查该音频 attempt 的原生失败原因与未完成导演链路。
+
+## D1 已恢复；音频资源对齐一核，按原失败规格复验
+
+负责人确认重新授权后，直接 D1 查询成功、活动操作为空，原失败 audio attempt 的 45 秒健康超时仍可核对。原生 Workflow 只记录被终止，音频 step 没有合成结果；具体启动失败原因仍未知。Wrangler 实例列表中的 inactive 行没有物理实例详情，`created` 此时取 DO 的 `assigned_at`，不能把它当作 VM 创建时间推断调度延迟。
+
+对照[官方规格](https://developers.cloudflare.com/containers/platform/limits/)，发现实际 audio 派发的 standard-1 只有 **0.5 vCPU**，低于方案规定的一核、容器 FFmpeg 固定一线程的配置。当前修正为已有计价的 **standard-2（1 vCPU / 6 GiB）**，入口/调度/mock 共用 Worker 常量 `AUDIO_INSTANCE`；原 45 秒物理 ready、90 秒 review、页面限时、修复次数和名额不变。新 CPU 配置与启动超时的因果关系仍待原生证据判断，不据此改写前一版 G1 的音频规格或分布。
+
+Node 26.12.0 下仅一次新增的音频派发单项检查通过（66 ms / 命令 1.31 秒），核对实际 profile、单次执行、原 generation/绝对期限、预算及结算。未重跑其他调度测试、模型或 G1；后续只部署 Worker，复用 `ed3fc49` 的未变镜像，用第四次已付费 E1 原规格及实际素材单独执行一次原生 review。

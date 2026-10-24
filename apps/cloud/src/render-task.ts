@@ -5,6 +5,9 @@ import {renderFailureCode} from './render-recovery.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import policy from '../../../config/agent-policy.json';
 
+// standard-1 is only half a vCPU. The audio controller uses one FFmpeg thread.
+export const AUDIO_INSTANCE='standard-2' as const;
+
 const retryable=new Set(['RENDER_CAPACITY_UNAVAILABLE','RENDER_STARTUP_CONNECTION_LOST','RENDER_DISPATCH_CONNECTION_LOST',
  'RENDER_EXECUTE_CONNECTION_LOST','RENDER_RPC_CONNECTION_LOST','RENDER_BROKER_CONNECTION_LOST','RENDER_BROKER_REGISTRATION_TIMEOUT','RENDER_STARTUP_TIMEOUT']);
 

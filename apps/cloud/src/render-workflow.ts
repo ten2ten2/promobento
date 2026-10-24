@@ -9,7 +9,7 @@ import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
 import {checkShardObservations} from './render-observations.ts';
 import {workflowStarted} from './workflow-state.ts';
-import {runRenderTask} from './render-task.ts';
+import {runRenderTask,AUDIO_INSTANCE} from './render-task.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
@@ -43,7 +43,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'sharding'}));}catch{}
       const shardsPromise = Promise.all(partition.shards.map(shard => task('shard-' + shard.index, 'shard', shard.instance,
         {options: input.options, inputs: input.inputs, shard})));
-      const audioPromise = task('audio', 'audio', 'standard-1', {inputs: input.audioInputsBlobs, audioInputs: input.audioInputs});
+      const audioPromise = task('audio', 'audio', AUDIO_INSTANCE, {inputs: input.audioInputsBlobs, audioInputs: input.audioInputs});
       const [shards, audio] = await Promise.all([shardsPromise, audioPromise]);
       const output = (result: Json, suffix: string): BlobRef => {
         const value = result.outputs?.find((blob: BlobRef) => blob.key.endsWith(suffix)); if (!value) throw Error('RENDER_OUTPUT_MISSING'); return value;

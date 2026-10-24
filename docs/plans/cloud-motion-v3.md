@@ -619,10 +619,11 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
 1. **准备**（Worker 内完成，无容器）：
    - 校验源包；计算 `sourceHash`；确认资源权利和摘要；查询渲染器登记表。
    - 按第 11 节的估算预留费用，取最坏值。
-2. **声音**（audio 模式，自定义 1 vCPU / 3 GiB）：
+2. **声音**（audio 模式，standard-2：1 vCPU / 6 GiB，固定一个 FFmpeg 线程）：
    - 按冻结的 AudioPlan 合成 48 kHz 双声道 WAV。
    - 检查响度（预设的 `loudnessTarget`）和真峰值。
    - 同一 `audioPlanHash` 复用。
+   - 2026-10-25 将实际派发从只有 0.5 vCPU 的 standard-1 对齐至一核，采用已有标准规格，不引入自定义计价；权威规格见 [Cloudflare 表](https://developers.cloudflare.com/containers/platform/limits/)。前一版的 G1 音频样本仍属于 standard-1，新的资源规格另作原生验证，期限与并发名额不变。
 3. **分段计划**：
    - 每帧代价来自积木声明和 studio 实测；WebGL 帧和运动模糊的子帧按倍数计。
    - 按代价切段，段长为 15 帧的整数倍，目标每段墙钟 30–40 秒。

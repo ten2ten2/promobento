@@ -10,6 +10,7 @@ import {importModelOpening,confirmModelOpening,modelBudgetStatus} from './model-
 import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative,recoverWorkflows} from './workflow-recovery.ts';
 import {validId, type PipelineEnv, type Json} from './pipeline-types.ts';
+import {AUDIO_INSTANCE} from './render-task.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
 export {RenderWorkflow} from './render-workflow.ts';
@@ -178,7 +179,7 @@ export default {
         assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',taskId:crypto.randomUUID(),brokerToken:crypto.randomUUID(),
           mode:'shard',instance:shards[0]!.instance,job:input.job,options:input.options,inputs:input.inputs,shard:shards[0]});
         assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',taskId:crypto.randomUUID(),brokerToken:crypto.randomUUID(),
-          mode:'audio',instance:'standard-1',job:input.job,inputs:input.audioInputsBlobs,audioInputs:input.audioInputs});
+          mode:'audio',instance:AUDIO_INSTANCE,job:input.job,inputs:input.audioInputsBlobs,audioInputs:input.audioInputs});
         const object = await immutableJson(env,`renders/${input.job.renderId}/input.json`,input), outboxId='render-'+input.job.renderId;
         await env.DB.batch([
           env.DB.prepare('INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status=\'active\')')

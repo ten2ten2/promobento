@@ -7,7 +7,7 @@ import {sqliteD1} from './fixtures/sqlite.mjs';
 
 // Match Wrangler's bundled JSON import, rather than Node's native JSON-module syntax.
 const {outputFiles}=await build({entryPoints:['apps/cloud/src/render-task.ts'],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
-const {runRenderTask}=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));
+const {runRenderTask,AUDIO_INSTANCE}=await import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));
 
 async function fixture({errors=['RENDER_CAPACITY_UNAVAILABLE'],cleanup='confirmed',onSleep,remainingMs=180000}={}){
  const {db,DB}=sqliteD1(),now=Date.now(),calls=[],sleeps=[],cache=new Map(),stops=[];
@@ -81,4 +81,15 @@ test('registration and startup timeouts use the same settled, fenced retry path'
   const f=await fixture({errors:[code]});try{assert.equal((await f.run()).status,'succeeded');assert.equal(f.calls.length,2);assert.equal(f.stops.length,1);assert.deepEqual(f.sleeps,['15 seconds']);}
   finally{f.db.close();}
  }
+});
+
+test('audio dispatch uses the one-vCPU profile with the original deadline, generation and budget',async()=>{
+ const f=await fixture({errors:[]});
+ try{
+  assert.equal(AUDIO_INSTANCE,'standard-2');Object.assign(f.task,{name:'audio',mode:'audio',instance:AUDIO_INSTANCE,additions:{inputs:[]}});
+  assert.equal((await f.run()).status,'succeeded');assert.equal(f.calls.length,1);
+  assert.equal(f.calls[0].instance,'standard-2');assert.equal(f.calls[0].deadlineAt,f.context.deadlineAt);assert.equal(f.calls[0].generation,0);
+  assert.equal(f.db.prepare('SELECT max_micros FROM pipeline_operations').get().max_micros,1000);
+  assert.equal(f.db.prepare('SELECT SUM(actual_micros) AS n FROM cost_settlements').get().n,11);
+ }finally{f.db.close();}
 });

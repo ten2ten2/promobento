@@ -1,0 +1,341 @@
+{
+    "id": "render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8",
+    "params": {
+        "renderId": "render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8"
+    },
+    "trigger": {
+        "source": "binding"
+    },
+    "versionId": "9476a5e8-62ff-4849-8dda-232d7650772c",
+    "queued": "2026-10-24T16:19:17.467Z",
+    "start": "2026-10-24T16:19:18.165Z",
+    "end": "2026-10-24T16:20:44.445Z",
+    "success": false,
+    "error": null,
+    "rollback": null,
+    "status": "terminated",
+    "step_count": 13,
+    "steps": [
+        {
+            "name": "load-render-1",
+            "start": "2026-10-24T16:19:18.403Z",
+            "end": "2026-10-24T16:19:18.466Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:18.403Z",
+                    "end": "2026-10-24T16:19:18.466Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"created_at\":1792858752498,\"finished_at\":null,\"generation\":0,\"id\":\"render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8\",\"job_key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/input.json\",\"operation_id\":\"eval-minimax-15-1792858052602\",\"request_hash\":\"d647325449f2060ea67e626bee297ac835e4d1033965f2b9fcee36d8728b568e\",\"result_json\":null,\"status\":\"queued\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "claim-execution-1",
+            "start": "2026-10-24T16:19:18.484Z",
+            "end": "2026-10-24T16:19:18.793Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:18.484Z",
+                    "end": "2026-10-24T16:19:18.793Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "load-input-1",
+            "start": "2026-10-24T16:19:18.811Z",
+            "end": "2026-10-24T16:19:19.037Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:18.811Z",
+                    "end": "2026-10-24T16:19:19.037Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"audioInputs\":{\"clearedSources\":[{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"music\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_thud\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_tick\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_pop\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_chime\"}],\"seed\":\"s1-eval-minimax-15\"},\"audioInputsBlobs\":[{\"byteLength\":1594,\"key\":\"operations/eval-minimax-15-1792858052602/review-2/audio-plan.json\",\"mediaType\":\"application/json\",\"name\":\"audio-plan\",\"sha256\":\"e878cd96ed3713babd87530ec4ba1eb3e9186af3e00ebc3bbcabfb634558cb48\"}],\"coverFrame\":247,\"inputs\":[{\"byteLength\":6253,\"key\":\"operations/eval-minimax-15-1792858052602/review-2/film.json\",\"mediaType\":\"application/json\",\"name\":\"film\",\"sha256\":\"39ffbfc7655c533499a5d916678c383900f34696035681052fb69802a36155[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "deadline-1",
+            "start": "2026-10-24T16:19:19.351Z",
+            "end": "2026-10-24T16:19:19.368Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.351Z",
+                    "end": "2026-10-24T16:19:19.368Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "1792858842498",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-sharding-1",
+            "start": "2026-10-24T16:19:19.386Z",
+            "end": "2026-10-24T16:19:19.501Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.386Z",
+                    "end": "2026-10-24T16:19:19.501Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-id-1",
+            "start": "2026-10-24T16:19:19.674Z",
+            "end": "2026-10-24T16:19:19.689Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.674Z",
+                    "end": "2026-10-24T16:19:19.689Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "c57ab706-4cdb-4737-876f-dd5fd5567be8",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-id-1",
+            "start": "2026-10-24T16:19:19.674Z",
+            "end": "2026-10-24T16:19:19.691Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.674Z",
+                    "end": "2026-10-24T16:19:19.691Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "85cb84b9-53d1-44fe-b59b-65efb1678b7d",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-id-1",
+            "start": "2026-10-24T16:19:19.674Z",
+            "end": "2026-10-24T16:19:19.695Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.674Z",
+                    "end": "2026-10-24T16:19:19.695Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0943ffe1-4048-4fbe-ae19-7db9f1b6bebb",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-id-1",
+            "start": "2026-10-24T16:19:19.674Z",
+            "end": "2026-10-24T16:19:19.696Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.674Z",
+                    "end": "2026-10-24T16:19:19.696Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "f3f154ee-d2f3-4407-b3c5-6b6d9da9e344",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-1",
+            "start": "2026-10-24T16:19:19.703Z",
+            "end": "2026-10-24T16:19:47.396Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.703Z",
+                    "end": "2026-10-24T16:19:47.396Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":268,\"containerReadyMs\":1858},\"outputs\":[{\"byteLength\":6696,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/c57ab706-4cdb-4737-876f-dd5fd5567be8/shards/0/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"1126dcfe6d6aa1da9408823147c44e3f122703176f82f98de3261cd87dc8e727\"},{\"byteLength\":29522,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/c57ab706-4cdb-4737-876f-dd5fd5567be8/shards/0/observation-frames/44.png\",\"mediaType\":\"image/png\",\"sha256\":\"1e6d82597d45d2d90eae12019627810468d70290429fc8c1e3ef0bef2684df10\"},{\"byteLength\":53438,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/c57ab706-4cdb-4737-876f-dd5fd5567be8/shards/0/observation-frames/90.png\",\"mediaType\":\"image/png\",\"sha256\":\"8f5caebf202329844b34c61be1e7bd7af728680140418aa9564b8edecf694a17\"},{\"byteLength\":1155,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/c[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-1",
+            "start": "2026-10-24T16:19:19.706Z",
+            "end": "2026-10-24T16:19:49.524Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.706Z",
+                    "end": "2026-10-24T16:19:49.524Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":1,\"capacityWaitMs\":148,\"containerReadyMs\":1924},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/85cb84b9-53d1-44fe-b59b-65efb1678b7d/shards/1/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"bd28d3c16d619ce1c9c45df3abb20dc7918170c4e27faff0becf66618925fc2a\"},{\"byteLength\":42416,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/85cb84b9-53d1-44fe-b59b-65efb1678b7d/shards/1/observation-frames/216.png\",\"mediaType\":\"image/png\",\"sha256\":\"c9644d6944b4937f3f334fa09c8d03f66edccb87ef8a0a6dd9a2e25486a728db\"},{\"byteLength\":43984,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/85cb84b9-53d1-44fe-b59b-65efb1678b7d/shards/1/observation-frames/270.png\",\"mediaType\":\"image/png\",\"sha256\":\"4719a2114a563d1a8cdf86fc3377048782f5aec507ac171ecb5a10a2e21715a5\"},{\"byteLength\":43984,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempt[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-1",
+            "start": "2026-10-24T16:19:19.708Z",
+            "end": "2026-10-24T16:19:40.049Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.708Z",
+                    "end": "2026-10-24T16:19:40.049Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":222,\"containerReadyMs\":1938},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/0943ffe1-4048-4fbe-ae19-7db9f1b6bebb/shards/2/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"c30caa1aa77376c4f62e1732feb2d0751efb18a81f1a00783843903dbb0db41e\"},{\"byteLength\":29354,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/0943ffe1-4048-4fbe-ae19-7db9f1b6bebb/shards/2/observation-frames/394.png\",\"mediaType\":\"image/png\",\"sha256\":\"7904bc2363b91773f8ca480bda86e7b9a205fc493d66649426dabc556911b4df\"},{\"byteLength\":29354,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts/0943ffe1-4048-4fbe-ae19-7db9f1b6bebb/shards/2/observation-frames/400.png\",\"mediaType\":\"image/png\",\"sha256\":\"7904bc2363b91773f8ca480bda86e7b9a205fc493d66649426dabc556911b4df\"},{\"byteLength\":1891,\"key\":\"renders/render-a4324ace591a16ff282d6fc96b4b5fa4509370b8a1d2c6c8/attempts[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-1",
+            "start": "2026-10-24T16:19:19.708Z",
+            "end": "2026-10-24T16:20:44.624Z",
+            "attempts": [
+                {
+                    "start": "2026-10-24T16:19:19.708Z",
+                    "end": "2026-10-24T16:20:44.624Z",
+                    "success": false,
+                    "error": {
+                        "name": "Terminated",
+                        "message": "Instance terminated"
+                    }
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": null,
+            "success": false,
+            "type": "step"
+        },
+        {
+            "type": "termination",
+            "trigger": {
+                "source": "api"
+            }
+        }
+    ]
+}

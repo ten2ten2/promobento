@@ -5,6 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {OperationWorkflow} from '../src/director.ts';
 import {ShardDO} from '../src/compute.ts';
+import {AUDIO_INSTANCE} from '../src/render-task.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes,digest} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
@@ -61,7 +62,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   OUTBOX:{async send(item:any){if(item.kind!=='render')throw Error('MOCK_UNEXPECTED_OUTBOX');
    const input=await(await MEDIA.get(db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(item.payloadJson?parseCanonicalJson(item.payloadJson).renderId:item.id.slice(7)).job_key))!.arrayBuffer();
    const request=parseCanonicalJson(new Uint8Array(input)),frame=await immutableJson(env,`renders/${request.job.renderId}/mock/observation-frames/45.png`,{mock:'not rendered'});
-   assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',mode:'audio',instance:'standard-1',taskId:'mock-audio-task',brokerToken:'fixture-non-secret-token',job:request.job,inputs:request.audioInputsBlobs,audioInputs:request.audioInputs});
+   assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',mode:'audio',instance:AUDIO_INSTANCE,taskId:'mock-audio-task',brokerToken:'fixture-non-secret-token',job:request.job,inputs:request.audioInputsBlobs,audioInputs:request.audioInputs});
    if(audio){assert.equal(request.audioInputs.scores[0][0],'music');assert.equal(request.audioInputs.clearedSources[0].requestHash,digest({text:request.audioInputs.scores[0][1],totalFrames:450}));
     assert.equal(request.audioInputsBlobs[1].name,'audio:music');assert.ok(request.job.resources.some((r:any)=>r.kind==='audio'));}
    // Real PNG bytes only for SSE image transport; this render is explicitly simulated.

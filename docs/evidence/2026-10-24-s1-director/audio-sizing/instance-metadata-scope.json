@@ -1,0 +1,37 @@
+{
+  "source": "Wrangler 4.152.0 containers instances; inactive.created uses DO assigned_at when no physical instance exists",
+  "observed": [
+    {
+      "id": "18081eb6fec52d176c02a0aa3d15cbb5e66d01b73c41399e364b5960629f9664",
+      "name": "f3f154ee-d2f3-4407-b3c5-6b6d9da9e344",
+      "state": "inactive",
+      "location": null,
+      "version": null,
+      "created": "2026-10-24T16:22:16.049Z"
+    },
+    {
+      "id": "c381f02f20ad6a172079d8e4058cd65de9f2b2034233b767d3f3663be443484e",
+      "name": "c57ab706-4cdb-4737-876f-dd5fd5567be8",
+      "state": "inactive",
+      "location": null,
+      "version": null,
+      "created": "2026-10-24T16:19:21.525Z"
+    },
+    {
+      "id": "b5572a1f4f206d1c2cc91705b82d2fa1a40c185f5b4b146948218e15febfd7c7",
+      "name": "0943ffe1-4048-4fbe-ae19-7db9f1b6bebb",
+      "state": "inactive",
+      "location": null,
+      "version": null,
+      "created": "2026-10-24T16:19:21.523Z"
+    },
+    {
+      "id": "2030c486d9963b612fcb59c56a8ade28d428dcd235674b489c62589f5bf3bb7f",
+      "name": "85cb84b9-53d1-44fe-b59b-65efb1678b7d",
+      "state": "inactive",
+      "location": null,
+      "version": null,
+      "created": "2026-10-24T16:19:21.458Z"
+    }
+  ]
+}
