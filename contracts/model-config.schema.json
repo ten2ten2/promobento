@@ -86,7 +86,23 @@
         "approvedBy": {"type": "string", "minLength": 1, "maxLength": 120},
         "approvedAt": {"type": "string", "format": "date-time"},
         "expiresAt": {"type": "string", "format": "date-time"},
-        "maxUsdMicros": {"type": "integer", "minimum": 1}
+        "maxUsdMicros": {"type": "integer", "minimum": 1},
+        "unreconciledHistoryAllowance": {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "openingManifestHash", "historyReserveUsdMicros", "newSpendCapUsdMicros", "environment", "expiresAt", "approvedBy", "approvedOn", "decisionRef", "basis"],
+          "properties": {
+            "kind": {"const": "temporary_s1_budget_allowance"},
+            "openingManifestHash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+            "historyReserveUsdMicros": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+            "newSpendCapUsdMicros": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+            "environment": {"const": "staging"},
+            "expiresAt": {"type": "string", "format": "date-time"},
+            "approvedBy": {"const": "owner"},
+            "approvedOn": {"type": "string", "format": "date"},
+            "decisionRef": {"type": "string", "minLength": 1, "maxLength": 200},
+            "basis": {"type": "string", "minLength": 1, "maxLength": 8000}
+          }
+        }
       }
     }
   }

@@ -11,9 +11,10 @@ execFileSync('git',['merge-base','--is-ancestor',RENDERER_SHA,'HEAD']);
 execFileSync('git',['diff','--quiet',RENDERER_SHA,'HEAD','--','apps/render-container','packages','contracts','config','tests/attacks/film-v1',
  'scripts/build-film-runtime.mjs','scripts/build-render-fonts.mjs','package.json','apps/cloud/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','.mise.toml','.dockerignore',
  ':(exclude)apps/render-container/README.md',':(exclude)config/model-providers.json',':(exclude)config/model-authorization.json',
- ':(exclude)config/agent-policy.json',':(glob,exclude)packages/**/test/**/*.test.mjs']);
+ ':(exclude)config/agent-policy.json',':(exclude)contracts/model-config.schema.json',':(glob,exclude)packages/**/test/**/*.test.mjs']);
 // The runtime does not import model providers/authorizations. For the shared policy, permit
 // only a catalog label change; codecs, limits, budgets and every rendering field stay protected.
+// model-config's validator is consumed by the Worker, not the renderer's task/film validators.
 assertRendererPolicyCompatible(parseCanonicalJson(execFileSync('git',['show',RENDERER_SHA+':config/agent-policy.json'])),
  parseCanonicalJson(readFileSync('config/agent-policy.json')));
 const config=parseCanonicalJson(readFileSync('apps/cloud/wrangler.jsonc','utf8').replace(/^\/\/.*\n/,''));

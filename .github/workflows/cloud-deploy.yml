@@ -94,13 +94,16 @@ jobs:
           echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"
           printf '%s' "$key" | mise exec -- pnpm --filter @promobento/cloud exec wrangler secret put EVAL_API_KEY --env staging
       - name: Run only the selected staging scenario
-        if: inputs.inspect_run == ''
+        if: inputs.inspect_run == '' && inputs.scenario != 'deploy-only'
         run: mise exec -- node apps/cloud/scripts/smoke-render.mjs
+      - name: Read deployed health and budget without starting an operation
+        if: inputs.inspect_run == '' && inputs.scenario == 'deploy-only'
+        run: mise exec -- node apps/cloud/scripts/deployment-health.mjs
       - name: Read-only diagnosis of a prior staging run
         if: inputs.inspect_run != ''
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Preserve failed render diagnosis without another render
-        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-selection' && inputs.scenario != 'g1-isolation' && env.EVAL_API_KEY != ''
+        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'deploy-only' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-selection' && inputs.scenario != 'g1-isolation' && env.EVAL_API_KEY != ''
         env:
           INSPECT_RUN: ${{ github.run_id }}
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs

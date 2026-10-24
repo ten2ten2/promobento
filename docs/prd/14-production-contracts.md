@@ -204,7 +204,7 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 每次计费调用前，在 operation 已用及在途费用之外原子预留最坏成本，结束后结算实际 usage；未知结果继续占上限待对账。子模型、ASR、审核、多目标和修复共用 operation 上限，换 attempt 不重置。退次数不退系统费用；超额如实记录并停止新调用，不截掉账单。可选提示词审核的调用边界和数据处理见04/09及 [content-safety](../../config/content-safety.json)，默认关闭的参考适配不代表生产审核已经接通。
 
-内部研究模型还受同一授权的跨环境总额约束：独立共享 `MODEL_LEDGER` 累加负责人确认的全部历史费用、各环境实际费用与未结预留；环境 `DB` 保留操作/阶段准入。历史清单及确认使用 [model-spend 契约](../../contracts/model-spend.schema.json)，缺价格/usage 不记作零，历史总额未确认时不发新付费请求。授权身份不因目录或绑定变更重置。原始响应和当时计价依据先持久化，再解析/结算；补账重用原响应，不重发、不按新价重算。客户窗口和成功次数仍按本节另行实施。
+内部研究模型还受同一授权的跨环境总额约束：独立共享 `MODEL_LEDGER` 累加负责人确认的全部历史费用、各环境实际费用与未结预留；环境 `DB` 保留操作/阶段准入。历史清单及确认使用 [model-spend 契约](../../contracts/model-spend.schema.json)，缺价格/usage 不记作零。历史总额未确认时默认不发新付费请求；负责人明确允许有限继续研究时，可在[模型授权](../../config/model-authorization.json)登记有期限的 `unreconciledHistoryAllowance`，绑定原历史清单摘要、staging 环境、历史风险预留与累计新增上限。风险预留占用原授权总额，所有新操作/部署的实际与未知预留共同受较小上限原子约束；不用于 production，不改写 `openingMicros:null` 或 `openingConfirmed:false`，到期或清单不匹配即停止。风险预留不是已核实账单，历史仍待对账；获得真实确认后继续按原授权累计现有新费用。授权身份不因目录、绑定或临时放行变更重置。原始响应和当时计价依据先持久化，再解析/结算；补账重用原响应，不重发、不按新价重算。客户窗口和成功次数仍按本节另行实施。
 
 每次新调用还须原子检查 `maxMicrosPerUserWindow` / `maxMicrosPerProjectWindow` 对应的滚动窗口（配置的 `usageWindowHours` / `usageWindowMode`），计入成功/失败的实际云费用和全部未结算最坏预留，不能只算失败。通用窗口、失败窗口、UTC 免费总硬上限和 operation 预算须同时满足；新操作、付款、退款或返还次数均不清零。付费交付的必要费用/容量预留不能被非交付调用耗尽。未标定上限保持 null 和 enabled=false；参考算例不代替真实 D1/DO 原子累计验收。
 

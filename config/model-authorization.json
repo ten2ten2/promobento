@@ -13,5 +13,17 @@
   "approvedBy": "tianyu (tianyu@tinkerland.ai)",
   "approvedAt": "2026-10-22T18:12:00+08:00",
   "expiresAt": "2026-12-31T23:59:59+08:00",
-  "maxUsdMicros": 300000000
+  "maxUsdMicros": 300000000,
+  "unreconciledHistoryAllowance": {
+    "kind": "temporary_s1_budget_allowance",
+    "openingManifestHash": "578c37390d5aa1d5415ae5d3b321300af52dc23c697bb6ce669ddf02f70235c8",
+    "historyReserveUsdMicros": 5000000,
+    "newSpendCapUsdMicros": 10000000,
+    "environment": "staging",
+    "expiresAt": "2026-10-31T23:59:59+08:00",
+    "approvedBy": "owner",
+    "approvedOn": "2026-10-24",
+    "decisionRef": "owner-request-2026-10-24-budget-relaxation",
+    "basis": "负责人要求「放开一点预算门槛，继续 S1」。历史账单仍未取得，以 $5 风险预留占用原 $300 授权，允许 staging S1 新增模型费用（实际及未知预留累计）最多 $10；不把风险预留当历史实收或确认总额。"
+  }
 }

@@ -1,6 +1,7 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {validate} from '@promobento/contracts/validators/model-spend';
+import {validate as validAuthorization} from '@promobento/contracts/validators/model-config';
 import authorization from '../../../config/model-authorization.json';
 import type {PipelineEnv,Json} from './pipeline-types.ts';
 
@@ -8,6 +9,18 @@ import type {PipelineEnv,Json} from './pipeline-types.ts';
 export const modelAuthorizationId=digest({approvedBy:authorization.approvedBy,approvedAt:authorization.approvedAt});
 const ledger=(env:PipelineEnv)=>{if(!env.MODEL_LEDGER)throw Error('MODEL_LEDGER_UNAVAILABLE');return env.MODEL_LEDGER;};
 export const modelBudgetId=(origin:string,callId:string)=>digest({authorizationId:modelAuthorizationId,origin,callId});
+/** A dated owner risk allowance, not a reconciliation and never a new grant or a zero opening. */
+function budgetBasis(env:PipelineEnv,opening:Json|null){
+ if(!validAuthorization(authorization))throw Error('MODEL_AUTHORIZATION_INVALID');
+ if(!opening)return null;
+ if(opening.total_micros!==null)return{mode:'confirmed',historyMicros:opening.total_micros,limitMicros:authorization.maxUsdMicros,expiresAt:Date.parse(authorization.expiresAt)};
+ const allowance=authorization.unreconciledHistoryAllowance;
+ if(!allowance||env.PIPELINE_ENVIRONMENT!==allowance.environment||opening.manifest_hash!==allowance.openingManifestHash
+  ||Date.now()>=Date.parse(allowance.expiresAt)||Date.parse(allowance.expiresAt)>Date.parse(authorization.expiresAt)
+  ||allowance.historyReserveUsdMicros+allowance.newSpendCapUsdMicros>authorization.maxUsdMicros)return null;
+ return{mode:'provisional',historyMicros:allowance.historyReserveUsdMicros,
+  limitMicros:allowance.historyReserveUsdMicros+allowance.newSpendCapUsdMicros,expiresAt:Date.parse(allowance.expiresAt)};
+}
 
 export async function importModelOpening(env:PipelineEnv,value:Json){
  if(!validate(value)||value.kind!=='historical_model_spend'||value.authorizationId!==modelAuthorizationId
@@ -38,29 +51,35 @@ export async function modelBudgetStatus(env:PipelineEnv){
  const pending=await DB.prepare('SELECT r.id,r.origin,r.operation_id,r.reserved_micros,r.dispatched_at FROM model_budget_reservations r LEFT JOIN model_budget_settlements s ON s.reservation_id=r.id WHERE r.authorization_id=? AND s.reservation_id IS NULL')
   .bind(modelAuthorizationId).all<Json>();
  const entries=opening?(parseCanonicalJson(opening.manifest_json) as Json).entries as Json[]:[];
+ const basis=budgetBasis(env,opening),allowance=authorization.unreconciledHistoryAllowance;
  return{authorizationId:modelAuthorizationId,limitMicros:authorization.maxUsdMicros,openingManifestHash:opening?.manifest_hash??null,
   openingCreatedAt:opening?.created_at??null,openingConfirmed:opening?.confirmation_json!==null&&opening?.confirmation_json!==undefined,
   openingMicros:opening?.total_micros??null,recordedHistoricalCalls:entries.length,
   historicalCatalogEstimateMicros:entries.reduce((sum,entry)=>sum+(entry.quote?.usdMicros??0),0),unpricedHistoricalCalls:entries.filter(entry=>entry.quote===null).map(entry=>entry.id),
+  budgetBasis:basis?.mode??'unconfirmed',budgetedHistoryMicros:basis?.historyMicros??null,admissionLimitMicros:basis?.limitMicros??null,
+  historyAllowance:allowance?{...allowance,active:basis?.mode==='provisional'}:null,
   currentReservations:Number(spend?.reservations??0),currentChargedMicros:Number(spend?.charged??0),pending:pending.results};
 }
 export async function assertModelBudgetReady(env:PipelineEnv){
- const row=await ledger(env).prepare('SELECT total_micros FROM model_budget_openings WHERE authorization_id=?').bind(modelAuthorizationId).first<Json>();
- if(row?.total_micros===null||row?.total_micros===undefined)throw Error('MODEL_HISTORY_RECONCILIATION_REQUIRED');
+ const row=await ledger(env).prepare('SELECT * FROM model_budget_openings WHERE authorization_id=?').bind(modelAuthorizationId).first<Json>();
+ const basis=budgetBasis(env,row);if(!basis)throw Error('MODEL_HISTORY_RECONCILIATION_REQUIRED');
+ return{...basis,manifestHash:row!.manifest_hash};
 }
 /** This INSERT is the cross-environment serialization point. Local operation budgets remain separate. */
 export async function reserveModelBudget(env:PipelineEnv,callId:string,operationId:string,max:number,request:unknown,catalogVersion:string){
  const origin=env.PIPELINE_ENVIRONMENT;if(!['staging','production','offline'].includes(origin))throw Error('MODEL_LEDGER_ORIGIN_INVALID');
  if(!Number.isSafeInteger(max)||max<0)throw Error('COST_RESERVATION_INVALID');
- await assertModelBudgetReady(env);
+ const basis=await assertModelBudgetReady(env);
  const DB=ledger(env),id=modelBudgetId(origin,callId),hash=digest(request);
  const previous=await DB.prepare('SELECT request_hash,operation_id,reserved_micros,catalog_version FROM model_budget_reservations WHERE id=?').bind(id).first<Json>();
  if(previous){if(previous.request_hash!==hash||previous.operation_id!==operationId||previous.reserved_micros!==max||previous.catalog_version!==catalogVersion)throw Error('IDEMPOTENCY_CONFLICT');throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');}
  const result=await DB.prepare(`INSERT INTO model_budget_reservations(id,authorization_id,origin,operation_id,call_id,request_hash,reserved_micros,catalog_version,created_at)
-  SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM model_budget_openings WHERE authorization_id=? AND total_micros IS NOT NULL)
-  AND (SELECT total_micros FROM model_budget_openings WHERE authorization_id=?) +
+  SELECT ?,?,?,?,?,?,?,?,? WHERE ? < ? AND EXISTS(SELECT 1 FROM model_budget_openings WHERE authorization_id=? AND manifest_hash=?
+   AND ((?='confirmed' AND total_micros=?) OR (?='provisional' AND total_micros IS NULL)))
+  AND ? +
   (SELECT COALESCE(SUM(COALESCE(s.actual_micros,r.reserved_micros)),0) FROM model_budget_reservations r LEFT JOIN model_budget_settlements s ON s.reservation_id=r.id WHERE r.authorization_id=?) + ? <= ?`)
-  .bind(id,modelAuthorizationId,origin,operationId,callId,hash,max,catalogVersion,Date.now(),modelAuthorizationId,modelAuthorizationId,modelAuthorizationId,max,authorization.maxUsdMicros).run();
+  .bind(id,modelAuthorizationId,origin,operationId,callId,hash,max,catalogVersion,Date.now(),Date.now(),basis.expiresAt,
+    modelAuthorizationId,basis.manifestHash,basis.mode,basis.historyMicros,basis.mode,basis.historyMicros,modelAuthorizationId,max,basis.limitMicros).run();
  if(result.meta.changes!==1)throw Error('MODEL_AUTHORIZATION_BUDGET_EXHAUSTED');return id;
 }
 export async function markModelDispatched(env:PipelineEnv,id:string){

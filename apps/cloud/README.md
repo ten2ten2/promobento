@@ -28,7 +28,9 @@
 
 `MODEL_LEDGER` 绑定独立的共享 D1 `promobento-model-ledger`，staging/production 使用同一数据库；各自的操作、素材、计算账本仍在原环境的 `DB`，不混用客户数据。资源由 Actions 创建，迁移目录为 `model-ledger-migrations`。授权身份只取批准人与批准时间，不随价格目录、步骤换绑、新操作或部署而重置。
 
-内部 `GET model-budget` 返回历史确认状态、目录估算、未知条目、当前已结/预留费用；`POST model-budget/import` 只接受 [`model-spend` 契约](../../contracts/model-spend.schema.json) 的不可变历史清单。部署场景导入四轮探针的 128 次请求清单：可计价的 114 次合计估算 255,521 usd_micros，另 14 次未知。负责人暂时没有供应商统计，`openingMicros:null`、`openingConfirmed:false`；未对账时拒绝新增付费调用，不阻断不使用模型的媒体工作。
+内部 `GET model-budget` 返回历史确认状态、目录估算、未知条目、当前已结/预留费用；`POST model-budget/import` 只接受 [`model-spend` 契约](../../contracts/model-spend.schema.json) 的不可变历史清单。部署场景导入四轮探针的 128 次请求清单：可计价的 114 次合计估算 255,521 usd_micros，另 14 次未知。负责人暂时没有供应商统计，`openingMicros:null`、`openingConfirmed:false`；默认拒绝未对账的新调用，不阻断不使用模型的媒体工作。
+
+2026-10-24 负责人授权放宽门槛继续 S1，`model-authorization.json` 的 `unreconciledHistoryAllowance` 登记本次有限放行：在原 $300 内计 $5 历史风险预留，staging 新增模型费用最多 $10，2026-10-31 上海时间结束后失效。`budgetBasis:provisional` 与 `historyAllowance.active:true` 明示此状态；`budgetedHistoryMicros` 是风险预留而非账单，实际历史确认字段不变。共享 INSERT 仍原子累计全部环境/操作的实际和未知预留；新部署、操作、取消不重置 $10 上限。原清单摘要不符、期限已过或 production 不适用此例外。确认真实历史后恢复原授权准入，已有新费用仍累计。
 
 负责人获得完整历史统计后，先用 `objects/evals/…` 上传 `kind:"model_spend_confirmation"` 的证据，再 `POST model-budget/confirm` 提交 `{evidenceKey}`。证据必须匹配当前授权与清单摘要，包含负责人确认的**本次授权以来全部历史** `totalUsdMicros`、实际来源及依据；不只填 114 次的目录估算。确认只能幂等重放，不能覆盖已有金额。密钥、登录信息不进入证据。
 
@@ -62,7 +64,9 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 仅修复检查脚本、仍需验证原部署时，可在上述手动入口加 `-f staging_sha=<实际已部署完整SHA>`：跳过迁移、构建和部署，只修复并运行 harness。报告分别记录部署 SHA 和 harness SHA，不把新分支当成已部署。内部密钥写入后先等待只读鉴权就绪（最多 60 秒）；相邻请求仍可能看到旧密钥，此时仅对调度前的确切 `404 Not found` 有界等待，并记录次数。模型/渲染失败和不确定超时不自动重试。
 
-只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件、纯单元测试及容器 README；`agent-policy` 仅允许 `cost.catalogVersion` 标签不同，其余预算、限额、编码、渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
+只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件及其 `model-config` Schema、纯单元测试及容器 README；`agent-policy` 仅允许 `cost.catalogVersion` 标签不同，其余预算、限额、编码、渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
+
+仅部署已做必要定点检查的 Worker 时，选择 `-f staging_scenario=deploy-only`：只读取实际 `/healthz`、内部容量与预算状态并保存 `deployment-health.json`，不创建操作或启动模型/媒体。部署仍在 Actions 完成，临时内部密钥照常回收；这不是成功导演或媒体验收。
 
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
 
@@ -120,7 +124,7 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 
 新增路径用 `-f staging_scenario=lifecycle-recovery` 验收：只对本次新建的内部校准操作，在实际分段容器运行时取消；另一次原生强制终止后对账，再整次 restart 检查无新增计算/费用。另检查当前缺密钥/未验证模型的真实导演预检在消费前落失败，以及历史预算状态未被改写。产物为 `recovery-report.json` 与两条原生操作回执，不重做完整成片、13 风格或模型评测。每次操作结束再次确认停止，不删任务、源素材或费用证据；此场景不代替其余性能/安全 G1。
 
-只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。该零消费探针先要求历史开账仍明确未确认；历史已确认时拒绝派发，不能意外变成付费创作。当前独立场景要求首因为 `MODEL_HISTORY_RECONCILIATION_REQUIRED`，验证已配置的网关密钥与模型能力检查没有误拦；`preflight` 明确零重试，清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。
+只修复确定性导演准入时用 `-f staging_scenario=director-preflight`，不启动分段或声音、不调用模型。该零消费探针先要求历史开账仍明确未确认且没有生效的临时风险放行；准入已开放时拒绝派发，不能意外变成付费创作。当前独立场景要求首因为 `MODEL_HISTORY_RECONCILIATION_REQUIRED`，验证已配置的网关密钥与模型能力检查没有误拦；`preflight` 明确零重试，清理仍可独立重试。报告从不可变 `operation_failure` outbox 和实际 R2 故障证据核对首因，不依赖原生 Workflow 已终止后是否仍返回原异常。查询、报告和临时密钥回收沿用同一工作流。
 
 [40080916901](../../docs/evidence/2026-10-24-s1-staging/README.md#现有网关密钥已绑定导演预检到达历史费用门槛) 已在 `b4b56d2` 单独通过这一门槛检查，8.698 秒内终止、零模型/媒体调用，历史费用仍未确认。没有重建原 renderer 或重跑既有媒体/性能；真实模型请求及成功导演仍待历史费用确认后执行。
 

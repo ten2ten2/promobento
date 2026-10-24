@@ -124,6 +124,17 @@ export default {
         const workflow=await env.OPERATION_WORKFLOW.get(id);await workflow.sendEvent({type:'direction-choice',payload:input});
         return Response.json({operationId:id,key:input.key});
       }
+      const candidateRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/candidate$/.exec(path);
+      if(candidateRoute&&request.method==='GET'){
+        const owner=await env.DB.prepare("SELECT * FROM pipeline_operations WHERE id=? AND status='succeeded'").bind(candidateRoute[1]).first<Json>();
+        if(!owner?.result_key)return new Response(null,{status:404});
+        const context=await env.DB.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').bind(owner.id).first<Json>();
+        if(!context)return new Response(null,{status:404});
+        const input=await getJson(env,context.request_key);await rights(env,owner as any,[...input.resources,...(input.audioSources??[])]);
+        const candidate=await getJson(env,owner.result_key);
+        if(candidate.kind!=='s1_internal_candidate'||candidate.operationId!==owner.id)throw Error('CANDIDATE_SCOPE_INVALID');
+        return Response.json(candidate,{headers:{'cache-control':'private, no-store'}});
+      }
       const contextRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if(contextRoute&&request.method==='GET'){
         const row=await env.DB.prepare('SELECT o.*,c.directions_key,c.directions_hash,c.previews_key,c.choice FROM pipeline_operations o LEFT JOIN pipeline_contexts c ON c.operation_id=o.id WHERE o.id=?').bind(contextRoute[1]).first<Json>();

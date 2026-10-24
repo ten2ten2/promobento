@@ -96,7 +96,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   if(transportFailure)throw Error('MOCK_TRANSPORT_FAILURE');
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
-  if(input.task.startsWith('Organize')){stage='facts';value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
+  if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
   else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:false,skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
@@ -107,7 +107,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
-  else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
+  else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');models.push(stage);
   const data=(value:any)=>'data: '+canonical(value)+'\n\n';let sse='';const reply=stage==='spec'&&malformedSpec&&specRequests===1?'{':canonical(value);

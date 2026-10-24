@@ -95,7 +95,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const serialized=await step.do<string>(name,{retries:{limit:0,delay:'1 second'},timeout:'12 minutes'},async()=>{
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         await directorEnvironment(this.env,op,context,sourceResources,deadline());
-        try{return canonical(await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+name,{system,...request} as any,check,deadline()));}
+        // json_object gateways do not receive the native schema parameter. Supply its contract in text too.
+        const promptSystem=system+(!request.tools?.length&&request.schema?'\nReturn JSON matching this response schema:\n'+canonical(request.schema):'');
+        try{return canonical(await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+name,{system:promptSystem,...request} as any,check,deadline()));}
         catch(error){
           // Persist a completed invalid response as data, rather than retrying the same paid step.
           // Only C's JSON/FilmSpec validation can request a new, corrected call; transport/admission failures cannot.

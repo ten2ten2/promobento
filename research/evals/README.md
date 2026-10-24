@@ -33,6 +33,21 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 
 输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
 
+### 一次执行一份真实导演输入
+
+确认当前 Actions 部署完成、`wrangler whoami` 为项目账户且 staging 没有其他内部会话后，执行：
+
+```sh
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-2026-10-24 deepseek-15 artifacts/s1-deepseek-15
+```
+
+只创建该例一个评测操作，重登记自己的素材权利，再调用真实 A/B/C/E/F；模型 secret 留在 Worker。新增费用受共享临时上限和原阶段/次数/期限约束，未知消费保留预留，不重发同一次请求。输出目录存在时拒绝重跑，失败先读 `report.json` 和 `operation.json`。
+
+到 `awaiting_visual_direction_choice` 后查看 `direction-fit.png`、`direction-amplify.png`、`direction-unexpected.png` 及 `directions.json`。据实际画面选择，把 `choice.example.json` 的 key、绑定摘要和具体 reason 保存为同目录 `choice.json`；脚本才向原 Workflow 发送选择，不默认为 fit。成功后 `index.html` 提供横竖两部实际 MP4 的正常速度播放器，候选/冷审、全部费用与未知项保留在 JSON。负责人视听仍记为 pending，程序成功不代替 4/6 评判。
+
+结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。首次仅运行一题，确认真实模型/媒体结果后再推进其余输入。
+
 ### 仅在确需更新素材时采集
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：

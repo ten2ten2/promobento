@@ -6,7 +6,7 @@
 
 负责人于 2026-10-24 指明 Claude 同样使用现有 `MODEL_COMPAT_API_KEY`，并提供 [ModelSwitch 文档](https://api.modelswitch.org/docs)。已核对统一 OpenAI 兼容接口：规格 C 改回网关 Opus（仅文本规格），F 改用已验证可看图的网关 DeepSeek，与 C 不同家族；A/B/E 仍用 DeepSeek。当前所选步骤只需这一把网关密钥，不再把官方 Anthropic 作为必需条件。网关 Claude 两轮丢图的 `vision:false` 不变；官方模型只作未绑定的备用，`verified:false`，没有伪造新的探针通过。原始证据见[模型探针](evidence/2026-10-23-model-probe/README.md)。
 
-Actions 中的 `MODEL_COMPAT_API_KEY` 已通过[独立维护入口](../apps/cloud/README.md#将已有-actions-模型密钥绑定到-worker)实际绑定到 staging Worker：[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 回执为 `bound`，绑定前后名称核对和健康检查正常，0 模型/渲染请求；不读取或回传密钥值。当前阻止付费调用的是历史费用未确认，不是缺网关密钥。配置目录已更新为 `models-2026-10-24`，研究授权身份、$300 总额、到期日与历史清单均不重置；生产仍关闭。
+Actions 中的 `MODEL_COMPAT_API_KEY` 已通过[独立维护入口](../apps/cloud/README.md#将已有-actions-模型密钥绑定到-worker)实际绑定到 staging Worker：[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 回执为 `bound`，绑定前后名称核对和健康检查正常，0 模型/渲染请求；不读取或回传密钥值。网关密钥问题已解除。负责人随后授权放宽预算门槛，现已配置原 $300 内的 $5 历史风险预留、staging 新增模型费用累计 $10 临时上限（至 2026-10-31 上海时间结束），待本次 Worker 部署；历史实际总额仍未确认，不改成已对账。配置目录已更新为 `models-2026-10-24`，研究授权身份、$300 总额、到期日与历史清单均不重置；生产仍关闭。
 
 新的单次云端预检 [40080916901](evidence/2026-10-24-s1-staging/README.md#现有网关密钥已绑定导演预检到达历史费用门槛) 已在 `b4b56d2` 通过：只部署 Worker、复用原镜像，真实导演 8.698 秒内按 `MODEL_HISTORY_RECONCILIATION_REQUIRED` 终止，0 模型/媒体调用及费用预留。已确认当前步骤不再被缺密钥/能力登记误拦；真实模型鉴权与成功导演仍未执行。C 纠正、全画幅阅读停留拼图及 E/F 共用修复逻辑已部署，不能把这次前置阻断记作它们的云端成功验收。
 
@@ -46,7 +46,7 @@ Actions 中的 `MODEL_COMPAT_API_KEY` 已通过[独立维护入口](../apps/clou
 - **云端工程片提交修复**：[40040999452](https://github.com/ten2ten2/promobento/actions/runs/40040999452)，Worker 提交 `f5b431a`、复用 `860df13` 构建的未变镜像：15 秒、450 帧、1080p/30 fps/AAC、5,320,462 bytes，完整出片/提交/私有下载通过，两处接缝完全一致，lease 归还；harness 113.865 秒。已查看封面和实际 MP4 解码的开场/产品/CTA 三帧。峰值为 null 加明确原因，G1 内存未验证。此前一轮计算成功但最终提交 `NOT_JSON`，经只读 Workflow 步骤定位后修复，没有放宽 JCS；新增峰值契约和实际提交回放各只跑一次最小本地检查，未重跑配乐/导演/全量 CI。[报告与失败记录](evidence/2026-10-24-s1-staging/README.md)。
 - **前置环境证据**：[G1 预探针](evidence/2026-10-23-g1-pre-probe/README.md)与[S1 前置探针](evidence/2026-10-23-pre-s1-probe/README.md)另覆盖攻击、broker/断网、停止/回收、Workflow 事件、捕获格式、WebGL 单帧耗时与冷启动；未覆盖的正式代码 G1 项目仍待验证。
 
-历史模型费用已从四份原始报告整理为 [128 次请求清单](evidence/2026-10-23-model-probe/README.md#历史费用128-次请求尚未对账)：114 次按冻结目录估算 255,521 usd_micros，14 次未知；负责人暂时没有供应商统计，历史总额仍未确认。独立共享研究 D1 已由 [40054228740](https://github.com/ten2ten2/promobento/actions/runs/40054228740) 创建；跨环境原子预算、原始响应持久化/原价补账已有最小本地回放，并随 `8acc356` 部署；历史清单已实际导入，确认总额仍为 null。原独立付费探针 Actions 已停用；历史未对账时拒绝新的付费模型请求，媒体工作继续。
+历史模型费用已从四份原始报告整理为 [128 次请求清单](evidence/2026-10-23-model-probe/README.md#历史费用128-次请求尚未对账)：114 次按冻结目录估算 255,521 usd_micros，14 次未知；负责人暂时没有供应商统计，历史总额仍未确认。独立共享研究 D1 已由 [40054228740](https://github.com/ten2ten2/promobento/actions/runs/40054228740) 创建；跨环境原子预算、原始响应持久化/原价补账已有最小本地回放，并随 `8acc356` 部署；历史清单已实际导入，确认总额仍为 null。原独立付费探针 Actions 已停用；历史未对账时默认拒绝新的付费模型请求；本次继续授权的临时风险预留和新增上限见上文，媒体工作可独立继续。
 
 新增平台恢复的 5 项本地回放通过（672 ms），cloud TypeScript 7.0.2 通过。[40055971723](evidence/2026-10-24-s1-staging/README.md#真实取消原生终止与整次重启防重放通过) 在 `8acc356` 原生验收通过中途取消、强制终止恢复和整次 restart 不重复计算，8 个实例均实际停止/结算，共 5,119 usd_micros 保守上界，无未结；没有重跑完整成片。job 最终失败于导演预检等待 60 秒；确定性准入改为零重试后，[40056929096](evidence/2026-10-24-s1-staging/README.md#导演确定性预检修复通过零模型媒体消费) 在 `eb4843a` 只部署 Worker、复用原镜像并单独通过该分支：首因与实际故障文件齐全，0 模型请求、媒体计算及费用预留，未重复前三项恢复。六题素材入库另经已有 Wrangler 连接和临时内部入口完成，无模型或容器调用；新增 IELTS 原创图与第三方图片的许可边界检查仅运行一次，2 项通过（391 ms），未重跑全量测试。其余性能矩阵与六题作品评测仍待完成。
 

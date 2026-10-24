@@ -9,10 +9,10 @@ import {historicalModelSpend} from '../../../research/model-probe/history.mjs';
 async function load(path){const{outputFiles}=await build({entryPoints:[path],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
  return import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));}
 const budget=await load('apps/cloud/src/model-budget.ts'),{modelStep}=await load('apps/cloud/src/model-client.ts');
-async function fixture(t,confirmed=true){
+async function fixture(t,confirmed=true,history){
  const shared=sqliteD1(),local=sqliteD1();t.after(()=>{shared.db.close();local.db.close();});const{MEDIA,objects}=memoryMedia();
  const env={DB:local.DB,MODEL_LEDGER:shared.DB,PIPELINE_ENVIRONMENT:'staging',MEDIA,MODEL_COMPAT_API_KEY:'synthetic-not-a-secret'};
- const opening=await budget.importModelOpening(env,{kind:'historical_model_spend',authorizationId:budget.modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline fixture, no real provider use'],entries:[]});
+ const opening=await budget.importModelOpening(env,history??{kind:'historical_model_spend',authorizationId:budget.modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline fixture, no real provider use'],entries:[]});
  if(confirmed)await budget.confirmModelOpening(env,{kind:'model_spend_confirmation',authorizationId:budget.modelAuthorizationId,openingManifestHash:opening.openingManifestHash,approvedBy:'owner',totalUsdMicros:1000,basis:'Synthetic opening for isolated tests.',source:'offline fixture'});
  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('model-operation','workspace','project',0,'calibration','active','request',10000000,Date.now(),null,null);
  return{shared,local,env,objects};
@@ -25,6 +25,27 @@ test('historical primary reports inventory every request; unknown prices/usage n
  assert.ok(history.entries.filter(row=>row.quote).every(row=>row.quote.currency==='CNY'&&row.quote.usdRate===6.6863));
  await assert.rejects(budget.assertModelBudgetReady(env),/MODEL_HISTORY_RECONCILIATION_REQUIRED/);
  const different={...history,sources:['different inventory']};await assert.rejects(budget.importModelOpening(env,different),/MODEL_OPENING_CONFLICT/);
+});
+test('temporary history allowance preserves unknown opening, holds $5, caps cumulative new spend at $10 and never enables production',async t=>{
+ const{env,shared}=await fixture(t,false,historicalModelSpend());
+ const before=await budget.modelBudgetStatus(env);assert.equal(before.budgetBasis,'provisional');assert.equal(before.openingConfirmed,false);assert.equal(before.openingMicros,null);
+ assert.equal(before.budgetedHistoryMicros,5000000);assert.equal(before.admissionLimitMicros,15000000);assert.equal(before.limitMicros,300000000);
+ assert.equal(before.recordedHistoricalCalls,128);assert.equal(before.unpricedHistoricalCalls.length,14);
+ await assert.rejects(budget.reserveModelBudget({...env,PIPELINE_ENVIRONMENT:'production'},'prod','prod-op',1,{},'catalog'),/MODEL_HISTORY_RECONCILIATION_REQUIRED/);
+ const competing=await Promise.allSettled([budget.reserveModelBudget(env,'provisional-a','operation-a',7000000,{a:1},'catalog'),
+  budget.reserveModelBudget({...env},'provisional-b','operation-b',7000000,{b:1},'catalog')]);
+ assert.equal(competing.filter(value=>value.status==='fulfilled').length,1);assert.match(competing.find(value=>value.status==='rejected').reason.message,/MODEL_AUTHORIZATION_BUDGET_EXHAUSTED/);
+ const id=competing.find(value=>value.status==='fulfilled').value;await budget.markModelDispatched(env,id);
+ await assert.rejects(budget.reserveModelBudget(env,'over-cap','another-operation',3000001,{},'catalog'),/MODEL_AUTHORIZATION_BUDGET_EXHAUSTED/);
+ assert.equal((await budget.modelBudgetStatus(env)).pending[0].reserved_micros,7000000);
+ await budget.settleModelBudget(env,id,10000,{kind:'synthetic actual'});
+ await budget.reserveModelBudget(env,'remaining','new-operation',9990000,{},'catalog');
+ await assert.rejects(budget.reserveModelBudget(env,'one-more','newer-operation',1,{},'catalog'),/MODEL_AUTHORIZATION_BUDGET_EXHAUSTED/);
+ const after=await budget.modelBudgetStatus(env);assert.equal(after.currentChargedMicros,10000000);assert.equal(after.openingConfirmed,false);assert.equal(after.openingMicros,null);
+ assert.equal(shared.db.prepare('SELECT confirmation_json FROM model_budget_openings').get().confirmation_json,null);
+ const originalDate=Date.now;try{Date.now=()=>Date.parse('2026-11-01T00:00:00+08:00');await assert.rejects(budget.assertModelBudgetReady(env),/MODEL_HISTORY_RECONCILIATION_REQUIRED/);}finally{Date.now=originalDate;}
+ shared.db.prepare('UPDATE model_budget_openings SET manifest_hash=?').run('a'.repeat(64));
+ await assert.rejects(budget.assertModelBudgetReady(env),/MODEL_HISTORY_RECONCILIATION_REQUIRED/);
 });
 test('staging/production compete atomically for one grant; unknown usage stays held and immutable settlement releases only proven amounts',async t=>{
  const{env}=await fixture(t),other={...env,PIPELINE_ENVIRONMENT:'production'};
