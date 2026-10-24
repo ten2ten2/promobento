@@ -26,3 +26,15 @@ mise exec -- node research/evals/run-case.mjs \
 依据这个实际反例，后续补齐 A/B/F 的一次结构纠正，A 的总调用上限从 1 调整为含纠正的 2，金额不提高；素材纠正保持同一 per-asset 预算。C 仍最多两次校验纠正；传输/未知响应不重发。新路径本地有定点回放，真实结果另行记录，不能将本次失败当成成功导演或六题评测。
 
 工具：Node 26.12.0、pnpm 12.14.0、TypeScript 7.0.2、Wrangler 4.152.0；容器继续为 Chromium 151.0.7922.34、FFmpeg `7:6.1.1-3ubuntu5`。生产保持关闭；负责人正常速度视听仍待真实成片。
+
+## 第二次：事实、看图与方向纠正通过，真实 studio 揭示能力准入缺口
+
+`f4088819a91322e6f74521b52907b3142d703d73` 由 [40084165840](https://github.com/ten2ten2/promobento/actions/runs/40084165840) 仅部署 Worker；仍复用同一 renderer/镜像，没有重做媒体或全套 CI（自动全套 push `40084152643` 已取消）。读回历史字段保持 null/false，新模型已用 147 usd_micros，没有因部署重置。
+
+实际命令仅把前节输出目录换为 `artifacts/s1-deepseek-15-corrected-2026-10-24`，新操作 `eval-deepseek-15-1792836265169`。事实整理、真实素材看图，以及三方向经过一次结构/规格纠正后均已通过；有一张 fit studio 帧完成。随后 amplify 的真实 studio 以 `TEXTURE_NOT_IMPLEMENTED` 停止，未等用户选择，也未调用 C/E/F 或出片。
+
+[真正采用的纠正后方向响应](second-attempt/directions-output-repair-response.json)中，fit 为 texture none，amplify 为 glow，unexpected 为 grain。完整协议允许这些未来字段，但当前 S1 渲染器只实现 none；前置 FilmSpec Schema/跨字段检查未覆盖实际支持边界。不能用初始响应代替被采用的纠正后响应，也不能仅删模型字段冒充同一视觉方向。
+
+[完整回执](second-attempt/report.json)记录 4 次模型调用：事实 160、素材 331、方向 6,045、方向纠正 2,125 usd_micros，共 **8,661 usd_micros**；三次预检/studio 计算均已物理停止并结算，保守上界共 **1,019 usd_micros**。本轮合计 9,680 usd_micros，无未知用量或遗留 lease，原生 Workflow errored/已对账，临时内部密钥已删。两轮共享新增模型累计 **8,808 usd_micros**，仍在同一 $10 上限内。
+
+据此把模型看到的 S1 FilmSpec 提示收窄到实际支持的纹理、转场、布局、裁剪与精确字体 face；完整协议不缩减。Worker 在付费 studio/渲染前复用现有 `generateFilmPage` 做纯数据支持性准入，丢弃 HTML、不求值任何创作代码；生成器与真正容器使用相同规则。三方向汇总全部卡片的错误，一次纠正可以看到各卡问题。新边界本地定点回放已通过；容器源码/镜像不变，真实后续结果另记。

@@ -19,7 +19,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
@@ -103,13 +103,17 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
-   value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;}
+   value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');
+  if(stage==='directions'&&unsupportedDirections){
+    if(!models.includes(stage)){value.cards[1].keyframeFilm.style.texture={kind:'glow',amount:0.2};value.cards[2].keyframeFilm.style.texture={kind:'grain',amount:0.12};}
+    else{const last=body.messages.at(-1),feedback=parseCanonicalJson(last.content).validationFeedback;assert.ok(feedback.issues.some((issue:any)=>issue.path==='/cards/1/keyframeFilm/style/texture'));assert.ok(feedback.issues.some((issue:any)=>issue.path==='/cards/2/keyframeFilm/style/texture'));}
+  }
   if(stage===invalidStage&&(!models.includes(stage)||alwaysInvalidStage))value.schemaVersionNote=null;
   if(stage===invalidStage&&models.includes(stage)){
     const last=body.messages.at(-1),feedback=parseCanonicalJson(provider.kind==='anthropic'?last.content[0].text:last.content).validationFeedback;
@@ -159,6 +163,10 @@ test('completed structured output with an extra null field gets one charged corr
  const blocked=await fixture({invalidStage:'facts',alwaysInvalidStage:true});assert.equal(blocked.error.message,'FACT_ANALYSIS_INVALID');assert.deepEqual(blocked.models,['facts','facts']);assert.equal(blocked.settlements,2);assert.equal(blocked.renders.length,0);
  const noColdCalls=await fixture({invalidStage:'coldReview',coldBlock:true});assert.equal(noColdCalls.error.message,'COLD_REVIEW_BLOCK');assert.equal(noColdCalls.specRequests,1);assert.equal(noColdCalls.models.filter(stage=>stage==='coldReview').length,2);
  const unknown=await fixture({transportFailure:true});assert.equal(unknown.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(unknown.networkCalls,1);assert.equal(unknown.settlements,0);
+});
+test('actual page generator gates all direction films and spec before studio/render, preserving the supported S1 subset',async()=>{
+ const directions=await fixture({unsupportedDirections:true});assert.ifError(directions.error);assert.equal(directions.models.filter(stage=>stage==='directions').length,2);assert.equal(directions.studioCount,5);
+ const spec=await fixture({unsupportedSpec:true});assert.ifError(spec.error);assert.equal(spec.specRequests,2);assert.equal(spec.validationFeedback[0].code,'FILM_RUNTIME_UNSUPPORTED');assert.equal(spec.validationFeedback[0].issues[0].code,'TEXTURE_NOT_IMPLEMENTED');assert.equal(spec.renders.length,3);
 });
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);
