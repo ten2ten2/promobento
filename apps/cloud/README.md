@@ -46,6 +46,8 @@
 
 完整但不合法的工具参数以 `MODEL_TOOL_JSON_INVALID` 保存原 arguments 与 usage，先入 R2/结算，再由导演在原调用/金额上限内作一次结构纠正。E 同样校验恰好一个允许工具及完整 FilmSpec；校验失败不能当作视觉通过。无 usage 的不合法响应必须对账，不为纠正再次发出请求；历史已丢失的 usage 不以新适配器回填。
 
+纠正请求携带已完成坏输出的 `previousOutput`（原文字及工具参数），作为数据而非指令；JSON 语法失败不会只给错误码后让模型重新猜整份规格。该反馈不改写原始回执或费用，仍受原阶段次数、金额和绝对期限约束。
+
 原独立 `model-probe.yml` 已停用并移除；[历史脚本](../../research/model-probe/archive/probe-2026-10-23.mjs)只保留作来源。后续真实探针也必须纳入共享账本，不能从归档脚本绕过预算。当前 C 走网关 Opus，F 和其余步骤走网关 DeepSeek；官方备用未绑定，仍保留 `verified:false`。
 
 ## 部署

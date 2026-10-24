@@ -108,7 +108,9 @@ test('complete malformed tool output is persisted and settled before correction;
  globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{tool_calls:[{index:0,id:'bad',function:{name:'submit_candidate',arguments:'{"note":"unfinished'}}]},finish_reason:'tool_calls'}]})+'\n\n'+(requests===1?'data: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\n':'')+'data: [DONE]\n\n');};
  t.after(()=>{globalThis.fetch=originalFetch;});
  const request={system:'Offline fixture.',messages:[{role:'user',text:'Malformed complete tool fixture.'}],maxOutputTokens:64};
- for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','malformed-known',request,()=>assert.fail('invalid tool cannot reach validator')),/MODEL_TOOL_JSON_INVALID/);
+ for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','malformed-known',request,()=>assert.fail('invalid tool cannot reach validator')),error=>{
+  assert.equal(error.message,'MODEL_TOOL_JSON_INVALID');assert.equal(error.completedOutput.toolCalls[0].arguments,'{"note":"unfinished');return true;
+ });
  assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
  const receipt=parseCanonicalJson([...objects.values()].find(object=>parseCanonicalJson(object.bytes).kind==='metered_model_response').bytes);
  assert.equal(receipt.result.failure,'MODEL_TOOL_JSON_INVALID');assert.equal(receipt.result.toolCalls[0].arguments,'{"note":"unfinished');assert.ok(receipt.quote.usdMicros>0);

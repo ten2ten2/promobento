@@ -193,8 +193,11 @@ test('unknown transport spend remains reserved and is not silently retried or se
 test('spec validation repairs completed output only, preserves charges and stops after two corrections',async()=>{
  const fixed=await fixture({fixableSpec:true});assert.ifError(fixed.error);assert.equal(fixed.specRequests,2);assert.equal(fixed.settlements,7);assert.equal(fixed.renders.length,3);
  assert.equal(fixed.validationFeedback[0].code,'FILM_SEMANTICS_INVALID');assert.ok(fixed.validationFeedback[0].issues.some((issue:any)=>issue.path==='/scenes/1/start'));
- const json=await fixture({malformedSpec:true});assert.ifError(json.error);assert.equal(json.specRequests,2);assert.equal(json.validationFeedback[0].code,'MODEL_OUTPUT_JSON_INVALID');assert.equal(json.settlements,7);
- const bad=await fixture({badSpec:true});assert.match(bad.error.message,/FILM_SEMANTICS_INVALID/);assert.equal(bad.specRequests,3);assert.equal(bad.renders.length,0);assert.equal(bad.settlements,6);assert.match(bad.state.result_key,/failure.json$/);
+ const json=await fixture({malformedSpec:true});assert.ifError(json.error);assert.equal(json.specRequests,2);assert.equal(json.validationFeedback[0].code,'MODEL_OUTPUT_JSON_INVALID');
+ assert.deepEqual(json.validationFeedback[0].previousOutput,{text:'{',toolCalls:[]});assert.equal(json.settlements,7);
+ const bad=await fixture({badSpec:true});assert.match(bad.error.message,/FILM_SEMANTICS_INVALID/);
+ assert.equal(bad.specRequests,2,'an identical correction reuses its already-settled invalid response');
+ assert.equal(bad.renders.length,0);assert.equal(bad.settlements,5);assert.match(bad.state.result_key,/failure.json$/);
  const unknown=await fixture({specTransportFailure:true});assert.equal(unknown.error.message,'MOCK_SPEC_TRANSPORT_FAILURE');assert.equal(unknown.specRequests,1);assert.equal(unknown.reservations,4);assert.equal(unknown.settlements,3);assert.equal(unknown.modelBudget.pending.length,1);assert.equal(unknown.renders.length,0);
 });
 test('cancellation fences the next paid stage and preserves the cancelled status',async()=>{const r=await fixture({cancel:true});assert.equal(r.error.message,'OPERATION_FENCED');assert.equal(r.state.status,'cancelled');assert.deepEqual(r.models,['facts','assets','directions']);assert.equal(r.activeStudio,null);});

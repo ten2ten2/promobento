@@ -11,7 +11,9 @@ import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
 /** A complete, durably recorded response with invalid text/tool JSON; never a transport failure. */
-export class ModelJsonOutputError extends Error {constructor(code='MODEL_OUTPUT_JSON_INVALID'){super(code);}}
+export class ModelJsonOutputError extends Error {
+  constructor(code='MODEL_OUTPUT_JSON_INVALID',readonly completedOutput?:{text:string;toolCalls:Json[]}){super(code);}
+}
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -31,10 +33,10 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   await assertModelBudgetReady(env);
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
   const decode=(result:Json)=>{
-    if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure);
+    if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure,{text:result.text,toolCalls:result.toolCalls});
     if(result.failure)throw Error(result.failure);
     if(result.toolCalls.length)return{toolCalls:result.toolCalls};
-    try{return parseModelJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}
+    try{return parseModelJson(result.text) as Json;}catch{throw new ModelJsonOutputError('MODEL_OUTPUT_JSON_INVALID',{text:result.text,toolCalls:result.toolCalls});}
   };
   const finish=async(receipt:Json)=>{
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');

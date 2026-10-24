@@ -74,6 +74,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     s1FilmSchema.$defs.style.properties.texture.properties.kind={const:'none'};
     s1FilmSchema.$defs.transition.properties.type.enum=['cut','crossfade','push','whip'];
     s1FilmSchema.$defs.sceneCommon.properties.layout.maxProperties=0;
+    s1FilmSchema.$defs.sceneCommon.properties.transitionIn.description='Scenes use half-open [start,end) frame intervals. For any non-cut transition, overlap the previous scene by exactly transitionIn.frames: incoming.start = previous.end - transitionIn.frames. Adjacent scenes without overlap must use cut with frames:0. Keep the whole film at the requested totalFrames.';
     // Model hints must expose the same block identities and fact-binding rules as admission.
     // A catalog implementation patch (e.g. 1.0.1) is not a FilmSpec block reference (@1).
     s1FilmSchema.$defs.scene.oneOf[0].properties.block.enum=blockCatalog.map(block=>block.id+'@'+block.version.split('.')[0]);
@@ -137,7 +138,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           const reusedReceiptKey=(error as Error&{completedReceiptKey?:string}).completedReceiptKey;
           return canonical({...(reusedReceiptKey?{reusedReceiptKey}:{}),value:{kind:stage==='spec'?'s1_spec_validation_failure':'s1_model_validation_failure',code:error.message,
             issues:error instanceof DirectorValidationError?error.issues:[{code:error.message,path:''}],
-            ...(error instanceof DirectorValidationError?{previous:error.candidate}:{})}});
+            ...(error instanceof DirectorValidationError?{previous:error.candidate}:{}),
+            ...(error instanceof ModelJsonOutputError&&error.completedOutput?{previousOutput:error.completedOutput}:{})}});
         }
       });
       return (parseCanonicalJson(serialized) as Json).value;
