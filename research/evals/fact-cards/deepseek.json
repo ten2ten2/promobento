@@ -9,7 +9,7 @@
   "videoLanguage": "en",
   "audience": "People exploring an AI chat service and developers evaluating API access",
   "brief": "Show the actual official entry points: chat on the web, then the developer platform. Keep claims functional rather than comparative.",
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-10-24",
   "cta": {
     "text": "Explore DeepSeek",
     "urlLabel": "deepseek.com"
@@ -40,7 +40,7 @@
       "url": "https://www.deepseek.com/en/",
       "title": "DeepSeek official homepage",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     }
   ],
   "assetSources": [

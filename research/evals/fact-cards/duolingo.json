@@ -9,7 +9,7 @@
   "videoLanguage": "en",
   "audience": "People who want to build a regular language-learning habit",
   "brief": "Show an actual lesson and a visible learning path. Emphasize small daily actions rather than promising a fluency outcome.",
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-10-24",
   "cta": {
     "text": "Start learning with Duolingo",
     "urlLabel": "duolingo.com"
@@ -40,7 +40,7 @@
       "url": "https://blog.duolingo.com/duolingo-101-how-to-learn-a-language-on-duolingo/",
       "title": "How to Use Duolingo for Language Learning",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     }
   ],
   "assetSources": [

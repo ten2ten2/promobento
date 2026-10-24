@@ -1,6 +1,6 @@
 # S1 评测输入
 
-题目与使用范围以 [`topics.json`](topics.json) 为准。三家产品已有按 2026-10-23 官方页面整理的事实卡与素材来源：
+题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实已按 2026-10-24 官方页面复核，原确认文案不变；三家产品的入口为：
 
 - [DeepSeek](fact-cards/deepseek.json)：网页对话、API 平台与文档入口；主画面优先官网和无私人内容的初始界面。
 - [MiniMax](fact-cards/minimax.json)：以 MiniMax Code 为软件题目，展示 agent 工作流和 Coding/Work 模式；不引用价格、速度排名或成本节省比例。

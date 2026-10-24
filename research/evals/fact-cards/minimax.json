@@ -9,7 +9,7 @@
   "videoLanguage": "en",
   "audience": "Software teams exploring an agent workspace for coding and other work",
   "brief": "Show a goal becoming a multi-step workflow, using real product material. Distinguish the product's claims from independently measured results.",
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-10-24",
   "cta": {
     "text": "Explore MiniMax Code",
     "urlLabel": "agent.minimax.io"
@@ -40,7 +40,7 @@
       "url": "https://www.minimax.io/",
       "title": "MiniMax official homepage — MiniMax Code",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     }
   ],
   "assetSources": [

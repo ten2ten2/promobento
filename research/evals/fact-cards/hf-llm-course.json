@@ -9,7 +9,7 @@
   "videoLanguage": "en",
   "audience": "Python programmers learning NLP and large language models",
   "brief": "Show the actual learning content and progression, using only attributed factual statements.",
-  "checkedAt": "2026-10-23",
+  "checkedAt": "2026-10-24",
   "cta": {
     "text": "Explore LLM Course",
     "urlLabel": "huggingface.co"
@@ -40,14 +40,14 @@
       "url": "https://huggingface.co/learn/llm-course/chapter1/1",
       "title": "LLM Course — official course page",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     },
     {
       "id": "details",
       "url": "https://raw.githubusercontent.com/huggingface/course/main/LICENSE",
       "title": "Official details or license",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-23"
+      "checkedAt": "2026-10-24"
     }
   ],
   "assetSources": [
