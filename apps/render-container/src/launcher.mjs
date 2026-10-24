@@ -1,6 +1,8 @@
 import http from 'node:http';
 import {spawn} from 'node:child_process';
 import {deadline} from './process.mjs';
+import {uidIsolation} from './isolation.mjs';
+import {canonical} from '@promobento/contracts/canonical';
 if (process.getuid() !== 10002) throw Error('CHROMIUM_UID_REQUIRED');
 let chrome;
 export const FLAGS = ['--no-first-run', '--disable-background-networking', '--disable-component-update', '--disable-sync',
@@ -25,6 +27,9 @@ async function start() {
 }
 const server = http.createServer(async (request, response) => {
   try {
+    if(request.method==='POST'&&request.url==='/isolation'){
+      response.writeHead(200,{'content-type':'application/json'}).end(canonical(uidIsolation()));return;
+    }
     if (request.method !== 'POST' || !['/start', '/kill'].includes(request.url)) { response.writeHead(404).end(); return; }
     if (request.url === '/start') await start(); else await kill();
     response.writeHead(200, {'content-type': 'application/json'}).end('{"ok":true}');

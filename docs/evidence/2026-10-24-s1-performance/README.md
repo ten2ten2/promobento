@@ -1,4 +1,4 @@
-# G1 首轮性能矩阵：先被真实接缝反例阻断
+# G1 性能矩阵与正式选型
 
 [40062546825](https://github.com/ten2ten2/promobento/actions/runs/40062546825) 在 `6102f1191eb224cccba41f9e3f501410e57aa596` 构建/部署正式 staging 镜像 `sha256:1de988bf29842bc9cbfb6aa0af1b58de4cb25230ce6944ccdfafe6d8f49029f5`，Worker `256b6203-c3dd-496e-8a02-f3f9cd6d1db3`。工具仍为 Node 26.12.0、pnpm 12.14.0、Wrangler 4.152.0、Chromium 151.0.7922.34。
 
@@ -23,3 +23,20 @@
 [只读诊断 40064813399](https://github.com/ten2ten2/promobento/actions/runs/40064813399) 成功查询历史日志，但名称过滤只返回 140 条 Worker HTTP 事件，未取得容器 stdout/stderr，不能据此判断进程正常。原始产物保留在该 run 与本机 `artifacts/s1-inspect-40064813399/`，未把请求 IP 等无关字段加入仓库。下一次查询保留原失败窗口、去掉名称过滤，不启动计算。
 
 `ShardDO` 已修复健康检查失败仍发 `/task` 的缺陷：沿用原 30 秒/操作期限，每个探测有界，启动超时与 monitor 提前结束分别记录明确代码及探测状态，再走既有停止/结算。新增单项回放通过（Node 26.12.0，408 ms），没有重跑成片或全套测试；云端启动结果仍待实际验证。
+
+## 正式捕获格式、机型与 studio 延迟通过
+
+[40065497336](https://github.com/ten2ten2/promobento/actions/runs/40065497336) 在 `7f615f95bc28ab864cff4d90d9862f48a48b120a` 部署镜像 `sha256:f40aecc2c5d2b343bcc9c84b03dd22732e72967ac4174d848390fac919670501`，Worker `662e6f5f-dfd0-4886-8547-4426a45069a8`。[40 组原始样本](selection/selection-report.json)为 2D/WebGL × standard-3/4，每个 studio 的 45/165/375 帧轮流采样 10 次；四种捕获格式共 160 次。分位数使用经验最近秩，不把这 4 个实例当作启动分布。
+
+| 画面 / 实例 | still p50 / p95 ms | check p50 / p95 ms | JPEG92 捕获 p50 ms | JPEG92 SSIM 范围 |
+| --- | --- | --- | --- | --- |
+| 2D / standard-3 | 429 / 709 | 434 / 486 | 110.75 | 0.994933–0.998587 |
+| 2D / standard-4 | 395 / 701 | 404 / 457 | 106.57 | 0.994933–0.998587 |
+| WebGL / standard-3 | 447 / 550 | 514 / 712 | 155.12 | 0.997547–0.997612 |
+| WebGL / standard-4 | 396 / 516 | 426 / 472 | 120.90 | 0.997547–0.997612 |
+
+SSIM 比较各 JPEG 与同帧 PNG 解码后的 8-bit RGB 像素。WebGL standard-4 的 JPEG92 捕获中位耗时比 standard-3 低约 22%；2D 的差别小。本组 2D PNG 并未比 JPEG92 慢，WebGL standard-4 的 PNG 中位数为 132.32 ms；JPEG95 质量稍高但字节更多。保留当前 JPEG92、普通 studio standard-3、WebGL 分段 standard-4，PNG 继续用于无损接缝/观测，不据静帧样本调整段数或整片期限。
+
+4 次控制器 ready 分别为 28,718 / 1,745 / 1,592 / 1,698 ms；首个新实例接近原 30 秒门槛，仍未证明上一轮端口失败的原因。本轮全部启动通过，真实 WebGL2/SwiftShader 匹配锁定环境，已查看实际 2D/WebGL PNG。普通评测的 standard-4/benchmark、未授权 check 帧均在预期边界拒绝。
+
+[场景回执](selection/smoke-report.json)耗时 147,025 ms；四次关闭均成功，lease 为空，计算已结算 **10,722 usd_micros** 保守上界，[模型账本](selection/model-budget.json)未变化，本轮密钥已删除。结束后经已批准 Wrangler 连接[只读核对容器应用](selection/container-application.json)，active/starting 均为 0。studio 不创建成片 attempt 行，不能把原报告空的 attempts 数组当物理状态证据；恢复查询现已按计算预留 ID 增补实际状态，后续探针要求返回 true，不用结算值代替停止。

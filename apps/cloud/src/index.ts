@@ -135,11 +135,17 @@ export default {
         const id=recoveryRoute[1]!,op=await env.DB.prepare('SELECT id,status,generation FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
         if(!op)return new Response(null,{status:404});
         const rows=await env.DB.prepare('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
-        const attempts=await Promise.all(rows.results.map(async row=>({...row,physicallyStopped:await env.SHARDS.getByName(row.id).isStopped().catch(()=>null)})));
+        const stopped=new Map<string,boolean|null>();
+        const attempts=await Promise.all(rows.results.map(async row=>{const physicallyStopped=await env.SHARDS.getByName(row.id).isStopped().catch(()=>null);
+          stopped.set(row.id,physicallyStopped);return{...row,physicallyStopped};}));
         const costs=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? ORDER BY r.id').bind(id).all<Json>();
+        // Studio lifetimes do not create pipeline_renders/attempt rows. Inspect their persisted
+        // compute reservations as well; an empty attempts array must not imply physical stop.
+        const costStates=await Promise.all(costs.results.map(async row=>row.kind==='compute'?{...row,
+          physicallyStopped:stopped.has(row.id)?stopped.get(row.id):await env.SHARDS.getByName(row.id).isStopped().catch(()=>null)}:row));
         const notice=await env.DB.prepare("SELECT payload_json FROM pipeline_outbox WHERE operation_id=? AND kind='operation_failure' ORDER BY rowid LIMIT 1").bind(id).first<{payload_json:string}>();
         const failure=notice?{...parseCanonicalJson(notice.payload_json) as Json,evidenceStored:!!await env.MEDIA.head(`operations/${id}/failure.json`)}:null;
-        return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costs.results,failure});
+        return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costStates,failure});
       }
       if (request.method === 'POST' && path === '/internal/s1/renders') {
         const input = await readJson(request); assertRenderJob(input.job);
@@ -176,11 +182,12 @@ export default {
       }
       const studioFrame = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/frames\/(\d+)$/.exec(path);
       if (request.method === 'GET' && studioFrame) return env.OPERATIONS.getByName(studioFrame[1]!).frame(studioFrame[1]!,Number(studioFrame[2]));
-      const studioTool=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/(check|benchmark)\/(\d+)$/.exec(path);
+      const studioTool=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/(check|benchmark|isolation)\/(\d+)$/.exec(path);
       if(request.method==='POST'&&studioTool){
         const id=studioTool[1]!,frame=Number(studioTool[3]),op=await operation(env,id);
         if(studioTool[2]==='benchmark'&&op.purpose!=='calibration')throw Error('BENCHMARK_CALIBRATION_REQUIRED');
-        const stub=env.OPERATIONS.getByName(id);return studioTool[2]==='check'?stub.checkFrame(id,frame):stub.benchmarkFrame(id,frame);
+        if(studioTool[2]==='isolation'&&op.purpose!=='calibration')throw Error('ISOLATION_CALIBRATION_REQUIRED');
+        const stub=env.OPERATIONS.getByName(id);return studioTool[2]==='check'?stub.checkFrame(id,frame):studioTool[2]==='benchmark'?stub.benchmarkFrame(id,frame):stub.isolationFrame(id,frame);
       }
       const closeStudio=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/close$/.exec(path);
       if(request.method==='POST'&&closeStudio){await operation(env,closeStudio[1]!);await env.OPERATIONS.getByName(closeStudio[1]!).closeStudio();return new Response(null,{status:204});}

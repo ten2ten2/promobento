@@ -56,7 +56,8 @@ export async function probeSelection({json,call,upload,request,rules,policy,dire
     }finally{
      await call('operations/'+operationId+'/studio/close',{method:'POST'});
      record.recovery=await json('operations/'+operationId+'/recovery');
-     if(record.recovery.attempts.some(item=>item.physicallyStopped!==true)||record.recovery.costs.some(cost=>cost.actual_micros===null))throw Error('SELECTION_STOP_UNCONFIRMED');save();
+     if(!record.recovery.costs.some(cost=>cost.id===task.taskId&&cost.kind==='compute'&&cost.physicallyStopped===true)
+      ||record.recovery.attempts.some(item=>item.physicallyStopped!==true)||record.recovery.costs.some(cost=>cost.actual_micros===null||cost.kind==='compute'&&cost.physicallyStopped!==true))throw Error('SELECTION_STOP_UNCONFIRMED');save();
     }
    }
   }

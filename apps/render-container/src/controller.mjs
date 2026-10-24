@@ -13,6 +13,7 @@ import {filmSession} from './browser.mjs';
 import {deadline} from './process.mjs';
 import {memoryHealth,filesystemDiagnostic} from './memory.mjs';
 import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
+import {hostIsolation} from './isolation.mjs';
 
 if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
 const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
@@ -122,7 +123,7 @@ const server = http.createServer(async (request, response) => {
       response.writeHead(200, {'content-type':'application/json'}).end(canonical({status:'ready',memoryPeak:memoryHealth()})); return;
     }
     if (request.method === 'GET' && request.url === '/result') { response.writeHead(200, {'content-type': 'application/json'}).end(canonical(result ?? {status: 'idle'})); return; }
-    if (request.method !== 'POST' || !['/task', '/studio/frame','/studio/check','/studio/benchmark'].includes(request.url)) { response.writeHead(404).end(); return; }
+    if (request.method !== 'POST' || !['/task', '/studio/frame','/studio/check','/studio/benchmark','/studio/isolation'].includes(request.url)) { response.writeHead(404).end(); return; }
     const chunks = []; let size = 0;
     for await (const chunk of request) { size += chunk.length; if (size > 4 << 20) throw Error('TASK_TOO_LARGE'); chunks.push(chunk); }
     const input = parseCanonicalJson(Buffer.concat(chunks));
@@ -132,6 +133,17 @@ const server = http.createServer(async (request, response) => {
       try{
        if(request.url==='/studio/frame'){
         const png=await session.frame(input.frameIndex,{format:'png'});response.writeHead(200,{'content-type':'image/png'}).end(png);
+       }else if(request.url==='/studio/isolation'){
+        const work=(async()=>{
+         await session.frame(input.frameIndex,{format:'png'});
+         const page=await session.isolation(),host=await hostIsolation(task,abort.signal);
+         const uidResponse=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000)});
+         if(!uidResponse.ok)throw Error('ISOLATION_LAUNCHER_UNAVAILABLE');
+         const uid=parseCanonicalJson(await uidResponse.text());
+         return{scope:'S1_fixed_network_token_uid_and_browser_corpus_not_S2_arbitrary_code_faults',passed:page.passed&&host.passed&&uid.passed,sandbox:session.sandbox,page,host,uid};
+        })();
+        const value=await deadline(work,30000,'ISOLATION_TIMEOUT',()=>abort.abort());
+        response.writeHead(200,{'content-type':'application/json'}).end(canonical(value));
        }else{
         const work=request.url==='/studio/check'?checkStudio(session,task,input.frameIndex):benchmarkCapture(session,input.frameIndex,workDirectory,abort.signal);
         const value=await deadline(work,request.url==='/studio/check'?task.options.frameTimeoutMs:30000,'STUDIO_TOOL_TIMEOUT',()=>abort.abort());

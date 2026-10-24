@@ -50,6 +50,8 @@ G1 新增 `g1-performance` 场景，分别采集纯 2D/WebGL 的 10 次串行与
 
 修复后的 [40063578112](evidence/2026-10-24-s1-performance/README.md#修复后一次采样被启动故障阻断) 在取到首片回执前遇到控制器端口未监听；只读原生步骤已定位，不把它当作接缝修复失败。7 个实例最终均停止结算，共 17,506 usd_micros 保守上界，无未结费用/遗留密钥。只读日志查询成功但只取回 140 条 Worker HTTP 事件，不能判断容器启动慢或退出；诊断已去掉会遗漏容器日志的名称过滤。已修复未 ready 仍派发任务的问题，保留原期限并区分启动超时/退出；新增单项回放（Node 26.12.0，408 ms）覆盖两种失败、正常派发及停止结算，通过。真实启动、性能与接缝仍待验。
 
-S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。
+`g1-selection` [40065497336](evidence/2026-10-24-s1-performance/README.md#正式捕获格式机型与-studio-延迟通过) 已通过正式 studio 的授权帧 check、PNG/JPEG90/92/95 + RGB SSIM、standard-3/4 选型与实际 still/check 延迟：4 实例/40 组样本、160 次捕获，工具 HTTP p95 均 ≤712 ms；WebGL standard-4 的 JPEG92 捕获中位数 120.90 ms，对比 standard-3 的 155.12 ms。保持 JPEG92、普通 studio standard-3、WebGL 分段 standard-4；实际 PNG 已看，关闭/lease/10,722 usd_micros 保守结算成功，密钥已删除。恢复查询补齐 studio 计算预留的原生停止状态，避免空 attempts 数组造成假阳性；不重跑本轮格式/延迟样本。
 
-`g1-selection` 已补代码：正式 studio 的授权帧 check、校准专用 PNG/JPEG90/92/95 + RGB SSIM、standard-3/4 选型与实际 still/check 延迟；不会重做成片或声音。帧范围/新鲜观测的单项回放通过（11 ms），cloud TypeScript 7.0.2 定点检查通过；实际部署与选型样本待验，默认 JPEG92 / studio standard-3 不变。
+`g1-isolation` 已补正式镜像的固定网络/存储/动态代码、页面与 Node 边界、CSP、容器 HTTP/HTTPS/DNS/TCP、broker 令牌越权和分离 uid 检查；只限校准、授权帧和原始工程素材，回执不返回令牌或进程环境值。实际原生结果待验，S2 任意代码/资源耗尽语料仍未实现。
+
+S1 出口仍包括方案规定的时间/成本指标，以及负责人正常速度试听愿意发布不少于 4/6；暂不进入 S2。生产 `agent-policy.enabled=false` 保持不变。

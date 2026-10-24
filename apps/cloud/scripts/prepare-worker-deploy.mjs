@@ -7,7 +7,7 @@ const {GITHUB_ACTIONS,RENDERER_SHA,RENDERER_DIGEST,CLOUDFLARE_ACCOUNT_ID,WORKER_
 if(GITHUB_ACTIONS!=='true'||!/^sha256:[a-f0-9]{64}$/.test(RENDERER_DIGEST??'')||!/^([a-f0-9]{40})$/.test(RENDERER_SHA??'')
  ||!/^([a-f0-9]{32})$/.test(CLOUDFLARE_ACCOUNT_ID??'')||!WORKER_CONFIG)throw Error('RENDERER_REUSE_SCOPE_INVALID');
 execFileSync('git',['merge-base','--is-ancestor',RENDERER_SHA,'HEAD']);
-execFileSync('git',['diff','--quiet',RENDERER_SHA,'HEAD','--','apps/render-container','packages','contracts','config',
+execFileSync('git',['diff','--quiet',RENDERER_SHA,'HEAD','--','apps/render-container','packages','contracts','config','tests/attacks/film-v1',
  'scripts/build-film-runtime.mjs','scripts/build-render-fonts.mjs','package.json','apps/cloud/package.json','pnpm-lock.yaml','pnpm-workspace.yaml','.mise.toml','.dockerignore']);
 const config=parseCanonicalJson(readFileSync('apps/cloud/wrangler.jsonc','utf8').replace(/^\/\/.*\n/,''));
 config.main=resolve('apps/cloud/src/index.ts');

@@ -1,0 +1,19 @@
+{
+  "scope": "S1_network_storage_dynamic_code_and_page_host_boundary",
+  "expected": {
+    "fetch": "RUNTIME_NETWORK_FORBIDDEN",
+    "fileFetch": "RUNTIME_NETWORK_FORBIDDEN",
+    "webSocket": "RUNTIME_NETWORK_FORBIDDEN",
+    "beacon": "RUNTIME_NETWORK_FORBIDDEN",
+    "storage": "RUNTIME_STORAGE_FORBIDDEN",
+    "indexedDb": "RUNTIME_STORAGE_FORBIDDEN",
+    "cookie": "RUNTIME_STORAGE_FORBIDDEN",
+    "iframe": "RUNTIME_IFRAME_FORBIDDEN",
+    "worker": "RUNTIME_WORKER_FORBIDDEN",
+    "eval": "EvalError",
+    "functionConstructor": "EvalError",
+    "wasm": "unavailable",
+    "nodeGlobals": "unavailable",
+    "engineMutation": "locked"
+  }
+}

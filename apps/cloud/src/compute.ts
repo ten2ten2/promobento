@@ -82,7 +82,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   private work: Promise<Json> | undefined;
   private workHash: string | undefined;
   private async call(path: string, body?: unknown, signal?: AbortSignal) {
-    return this.ctx.container!.getTcpPort(8080).fetch('http://container' + path, {...(body === undefined ? {} : {method: 'POST', body: canonical(body)}),signal});
+    return this.ctx.container!.getTcpPort(8080).fetch('http://container' + path, {...(body === undefined ? {} : {method: 'POST', body: canonical(body)}),...(signal?{signal}:{})});
   }
   async imageDigest() {
     const image = this.ctx.container!.images.render;
@@ -216,15 +216,17 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       }
     }
   }
-  private async studioCommand(command:'frame'|'check'|'benchmark',taskId: string, frameIndex: number) {
+  private async studioCommand(command:'frame'|'check'|'benchmark'|'isolation',taskId: string, frameIndex: number) {
     const studio = await this.ctx.storage.get<Json>('studio'); if (!studio) throw Error('STUDIO_NOT_READY');
     const op = await operation(this.env, studio.operationId, studio.generation); await rights(this.env, op, studio.resources);
     if(command==='benchmark'&&op.purpose!=='calibration')throw Error('BENCHMARK_CALIBRATION_REQUIRED');
+    if(command==='isolation'&&op.purpose!=='calibration')throw Error('ISOLATION_CALIBRATION_REQUIRED');
     return this.call('/studio/'+command, {taskId, frameIndex});
   }
   async frame(taskId:string,frameIndex:number){return this.studioCommand('frame',taskId,frameIndex);}
   async checkFrame(taskId:string,frameIndex:number){return this.studioCommand('check',taskId,frameIndex);}
   async benchmarkFrame(taskId:string,frameIndex:number){return this.studioCommand('benchmark',taskId,frameIndex);}
+  async isolationFrame(taskId:string,frameIndex:number){return this.studioCommand('isolation',taskId,frameIndex);}
   private async finishCost(id: string, instance: string, startedAt?: number) {
     const usage = this.ctx.storage.transactionSync(() => {
       const previous = this.ctx.storage.kv.get<Json>('costUsage');
@@ -294,4 +296,5 @@ export class OperationDO extends DurableObject<PipelineEnv> {
   async frame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).frame(studio.taskId,frameIndex);}
   async checkFrame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).checkFrame(studio.taskId,frameIndex);}
   async benchmarkFrame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).benchmarkFrame(studio.taskId,frameIndex);}
+  async isolationFrame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).isolationFrame(studio.taskId,frameIndex);}
 }

@@ -13,6 +13,8 @@
 
 studio 的 `check` 对同一授权帧重新取 PNG 后读真实 CDP 文字/字体/布局；`benchmark` 只在校准操作中测 PNG、JPEG90/92/95 和解码后 RGB SSIM。seek、截图、观测的整个工具调用互斥，不允许并发请求把不同帧混在一份回执里。所有临时诊断文件在当前任务工作区内，结束即清理。成片仍固定 JPEG92；新增质量选项没有进入客户 FilmSpec 或渲染任务输入。
 
+校准专用 `isolation` 使用[固定攻击项](../../tests/attacks/film-v1/isolation.json)，不接受调用者代码、命令、路径或主机：实际页面检查网络/存储/iframe/Worker、动态代码及引擎锁定，并测 CSP 拦截外部、本地端口与文件图片；控制器测 HTTP/HTTPS、DNS、TCP 与 broker 越权；uid 10002 启动器检查控制器 environ/mem 读取被拒及可读 Chromium 环境的键白名单。回执只有状态、错误码与键名，不返回环境值、内存、令牌或素材内容。它不代替 S2 的任意代码、资源耗尽或全部故障语料。
+
 review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 fps；final 为既定 1080p/30 fps。实验多采样 profile 尚未开放。视频由已授权的 PTS 帧清单取帧，不使用 `<video>`。
 
 阅读停留帧由共享 `filmObservationFrames` 按整片镜头事件生成，再落入各分段；不含计划点的短分段保存空观测数组。Worker 校验每段应有的精确帧、render/画幅、字节身份及 BLOCK 项，不能以任意非空观测代替覆盖。动态/转场 QA 仍在 S2，不能把当前停留帧当作完整时间覆盖。

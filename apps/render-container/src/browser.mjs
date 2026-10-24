@@ -4,6 +4,7 @@ import {chromium} from 'playwright-core';
 import {generateFilmPage} from '../../../packages/film-runtime/dist/page.mjs';
 import {deadline} from './process.mjs';
 import {observe} from './observe.mjs';
+import {pageIsolation} from './isolation.mjs';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -108,6 +109,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
         })(), options.frameTimeoutMs, 'FRAME_TIMEOUT', cancel);
       },
       async observe(renderId, frame) { if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY'); return observe(cdp, plan, renderId, frame); },
+      async isolation() { if(closed||currentFrame<0)throw Error('FRAME_NOT_READY');return pageIsolation(page); },
       async capturePng(frame) {
         if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY');
         return Buffer.from((await cdp.send('Page.captureScreenshot', {format: 'png', optimizeForSpeed: true, captureBeyondViewport: false, clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}})).data, 'base64');

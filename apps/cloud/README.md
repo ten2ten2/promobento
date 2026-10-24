@@ -80,6 +80,8 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 取消先封锁 generation，再分别终止原生 Workflow 和停止计算/studio；平台状态查询故障也不会跳过物理清理。原生创建在取消后才返回时，派发者仍须停止该实例。导演在自己的失败步骤中不终止自己；独立 outbox 和定期对账补齐原生终止。停止/通知重试不调用模型或重捕获媒体。
 
+studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 ID 检查其原生 `physicallyStopped`，读取失败为 null。不能用空的 `attempts` 列表或费用已结算推断 studio 已停止；已有分段状态直接复用，避免重复查询同一个实例。
+
 首个 `claim-execution` 持久步骤在 D1 单次领取执行权。正常 Workflow 重放复用该检查点；整次原生 `restart()` 清空检查点后重领失败，触发清理与对账，不生成新 attempt 或重发付费请求。保留原 generation；取消不能通过重启复活。原生实例过期或状态 API 报错不自动 recreate，需保留未确认再调查。[官方 API 的 restart/terminate 语义](https://developers.cloudflare.com/workflows/build/workers-api/)。
 
 新增路径用 `-f staging_scenario=lifecycle-recovery` 验收：只对本次新建的内部校准操作，在实际分段容器运行时取消；另一次原生强制终止后对账，再整次 restart 检查无新增计算/费用。另检查当前缺密钥/未验证模型的真实导演预检在消费前落失败，以及历史预算状态未被改写。产物为 `recovery-report.json` 与两条原生操作回执，不重做完整成片、13 风格或模型评测。每次操作结束再次确认停止，不删任务、源素材或费用证据；此场景不代替其余性能/安全 G1。
@@ -99,3 +101,9 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 `-f staging_scenario=g1-selection` 只补上述选型和工具延迟，不出片、合成声音或调用模型。原创 2D/WebGL 各用 standard-3/4 打开一次 studio；每组对授权的 45/165/375 帧轮流采样 10 次，分别记录实际 still/check HTTP 延迟、各捕获格式的耗时/字节，以及 JPEG 相对 PNG 的解码后平面 8-bit RGB SSIM。该计算使用镜像里的 FFmpeg 6.1.1，[过滤器支持的 RGB 格式](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavfilter/vf_ssim.c)为 `gbrp`，不把 JPEG 字节摘要当视觉质量。
 
 `selection-report.json` 保存所有原始样本、CPU flags、真实 WebGL 字符串、启动与停止/费用；每组首张实际 PNG 随产物保留。另实测普通评测拒绝 standard-4/benchmark 且零计算，未授权帧拒绝 check。生产默认仍为 JPEG92 / studio standard-3；只有实测选型结论才能调整，新增入口未运行时保留未验证。
+
+### 正式镜像的 S1 隔离检查
+
+`-f staging_scenario=g1-isolation` 对 2D standard-3、WebGL standard-4 各开一个独立 studio，只测授权的 45 帧及[固定攻击项](../../tests/attacks/film-v1/isolation.json)。`POST operations/<id>/studio/isolation/<frame>` 在 Worker 与 ShardDO 均要求校准 purpose，仍检查 generation、许可、task 和帧范围；普通评测和越界帧先拒绝。控制器不执行调用者提供的代码或命令。
+
+`isolation-report.json` 保留真实 Chromium 沙箱、shim/CSP、容器外网/DNS/TCP、broker 无令牌/错令牌/越权读写、uid 隔离和实际停止/结算结果。进程环境只返回键名与权限结果，令牌不进入诊断、URL、子进程或报告。固定请求只访问 example.com、Cloudflare 公共 DNS 地址及本任务的 broker；失败不自动重试。此场景不出片、不调模型，不代替 S2 的资源耗尽与任意镜头故障测试。
