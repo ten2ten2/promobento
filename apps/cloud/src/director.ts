@@ -2,6 +2,7 @@ import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflar
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
+import {renderPageTiming,renderDeadlineMs,planShards} from '@promobento/contracts/render';
 import {filmSpecErrors} from '@promobento/contracts/film';
 import {validate as validFilm} from '@promobento/contracts/validators/film';
 import {validate as validBlock} from '@promobento/contracts/validators/block-params';
@@ -18,6 +19,7 @@ import analysisSchema from '../../../contracts/director-analysis.schema.json';
 import insightSchema from '../../../contracts/asset-insight.schema.json';
 import providers from '../../../config/model-providers.json';
 import platform from '../../../config/platform-presets.json';
+import policy from '../../../config/agent-policy.json';
 import type {FilmSpec} from '../../../contracts/film-runtime.d.ts';
 import {getJson,operation,rights,immutableJson} from './store.ts';
 import {checkedBytes} from './render-workflow.ts';
@@ -74,15 +76,15 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},audioPlanHash:audioPlanHash(audioPlan,{seed:context.seed}),resources:sourceResources},
           options:{target:{aspect,...(platform.aspectLayouts as Json)[aspect],fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
             resources:context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),
-            confirmedFactIds:context.confirmedFactIds,initTimeoutMs:30000,frameTimeoutMs:5000},
+            confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render)},
           inputs:[{...source,name:'film'},...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))],
           audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:context.seed,clearedSources:audioPlan.sources.map((source:Json)=>{
             if(source.licenseRef!==GENERATED_LICENSE)throw Error('AUDIO_RIGHTS_PENDING');return{...source,rightsCleared:true};})},coverFrame:Math.floor(film.totalFrames*.55)};
         // ratio is metadata, not part of the private Target contract.
         delete input.options.target.ratio;
         await enqueueRender(this.env,input,op.generation);
-        const started=Date.now();
-        while(Date.now()-started<360000){
+        const started=Date.now(),renderLimit=renderDeadlineMs(input.job,planShards(input.job,film,{seed:context.seed}),policy.render);
+        while(Date.now()-started<renderLimit){
           checkDeadline();
           await operation(this.env,op.id,op.generation);
           const result=await this.env.DB.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').bind(renderId).first<Json>();
@@ -134,7 +136,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               rendererRelease:context.rendererRelease,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[frame],
               renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:sourceResources},
             options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:450},seed:context.seed,fonts:context.fonts,
-              resources:context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,initTimeoutMs:30000,frameTimeoutMs:5000},
+              resources:context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render)},
             inputs:[{...source,name:'film'},...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))]};
           try{
             await this.env.OPERATIONS.getByName(op.id).studio(op.id,canonical(task));

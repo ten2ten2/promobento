@@ -577,6 +577,8 @@ FilmSpec {
   4. **内部分辨率**：附录 C 实测 dpr 0.75 每帧没有变快（瓶颈不在像素填充），所以不做 `renderScale`；改为由 3D 积木控制场景代价（后期效果、阴影、几何），积木的代价等级按 studio 实测标定。
   5. **studio 实例**：WebGL 只初始化一次，still/check 不重复付出首帧代价。
 
+S1 当前代码先接入原创 `device-3d@1` 与固定 Three.js 0.186.1，不包含上游设备模型或作者形象。仅 3D 页面加载独立 bundle；BlockInstance 的可选 ready/dispose 管理纹理与 context 生命周期。共享分段器自动识别该积木，按 15 帧单元的 6:1 初始代价分配分段（review 30 帧），含其画面或接缝帧的分段用 standard-4；初始化/逐帧期限和整次期限读取 agent-policy。尚未实测的完整 G1 不由这些代码标记替代，当前范围见[实施状态](../implementation-status.md)。
+
 ### 4.7 握手
 
 页面就绪需要同时满足：

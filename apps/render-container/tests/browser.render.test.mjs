@@ -27,7 +27,7 @@ const server=http.createServer((req,res)=>{
   const path=new URL(req.url,'http://localhost').pathname;
   const page=pages.get(path);
   if(page){res.writeHead(200,{'content-type':'text/html; charset=utf-8','content-security-policy':page.csp}).end(page.html);return;}
-  if(/^\/runtime\/(shim|engine|gsap|compat|blocks|boot)\.js$/.test(path)){
+  if(/^\/runtime\/(shim|engine|gsap|compat|blocks|blocks-3d|boot)\.js$/.test(path)){
     res.writeHead(200,{'content-type':'text/javascript'}).end(read('packages/film-runtime/dist/browser/'+path.split('/').at(-1)));return;
   }
   if(path==='/f/geist-sans/600-normal.woff2'){res.writeHead(200,{'content-type':'font/woff2'}).end(readFileSync('/opt/fonts/geist-sans-600.woff2'));return;}

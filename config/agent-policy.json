@@ -227,6 +227,8 @@
   "render": {
     "startupMs": 30000,
     "startupWebglMs": 60000,
+    "frameTimeoutMs": 5000,
+    "frameTimeoutWebglMs": 10000,
     "perFrameBasisMs": 1000,
     "perFrameBasisWebglMs": 6000,
     "shardOverheadMs": 30000,

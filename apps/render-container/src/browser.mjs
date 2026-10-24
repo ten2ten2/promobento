@@ -25,11 +25,11 @@ export function sandboxState() {
 
 /** The caller supplies authorized immutable bytes, not filesystem paths or arbitrary URLs from the film. */
 export async function filmSession({raw, options, browserVersion, resource, videoFrame, font, signal, killBrowser,
-  captureScale = 1, endpoint = 'http://127.0.0.1:9222', runtimeDirectory = new URL('../../../packages/film-runtime/dist/browser/', import.meta.url)}) {
+  expectedWebglRenderer,captureScale = 1, endpoint = 'http://127.0.0.1:9222', runtimeDirectory = new URL('../../../packages/film-runtime/dist/browser/', import.meta.url)}) {
   if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
   if (![1, .5].includes(captureScale)) throw Error('CAPTURE_SCALE_INVALID');
   const generated = generateFilmPage(raw, options), {plan} = generated;
-  const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot'].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
+  const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot',...(plan.usesWebgl?['blocks-3d']:[])].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
   const assets = new Map(Object.values(plan.assets).map(asset => ['/r/' + asset.resourceId, asset]));
   const fonts = new Map(plan.fonts.map(face => [`/f/${face.fontId}/${face.weight}-${face.style}.woff2`, face]));
   const server = http.createServer(async (request, response) => {
@@ -80,8 +80,15 @@ export async function filmSession({raw, options, browserVersion, resource, video
     await page.evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
       manifestHash: plan.manifestHash, frameCount: plan.spec.totalFrames, width: plan.target.width, height: plan.target.height,
       fps: 30, seed: plan.seed, renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'}});
+    const webgl=await page.evaluate(()=>[...document.querySelectorAll('canvas[data-pb-webgl]')].map(canvas=>{
+      const gl=canvas.getContext('webgl2');if(!gl||gl.isContextLost())throw Error('WEBGL_CONTEXT_UNAVAILABLE');
+      const extension=gl.getExtension('WEBGL_debug_renderer_info');
+      return{renderer:gl.getParameter(extension?extension.UNMASKED_RENDERER_WEBGL:gl.RENDERER),vendor:gl.getParameter(extension?extension.UNMASKED_VENDOR_WEBGL:gl.VENDOR),version:gl.getParameter(gl.VERSION)};
+    }));
+    if(plan.usesWebgl&&!webgl.length)throw Error('WEBGL_CONTEXT_UNAVAILABLE');
+    if(plan.usesWebgl&&(!expectedWebglRenderer||webgl.some(value=>value.renderer!==expectedWebglRenderer||!/^WebGL 2/.test(value.version))))throw Error('RENDER_ENVIRONMENT_MISMATCH');
     return {
-      plan, sandbox, timings: {readyMs: Math.round(connectedAt - connectStarted), handshakeMs: Math.round(performance.now() - connectedAt)},
+      plan, sandbox, webgl, timings: {readyMs: Math.round(connectedAt - connectStarted), handshakeMs: Math.round(performance.now() - connectedAt)},
       async frame(frameIndex, {format = 'jpeg'} = {}) {
         if (closed || pageError) throw Error(pageError ?? 'INVALID_SESSION');
         signal?.throwIfAborted();

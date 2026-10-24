@@ -18,6 +18,9 @@ on:
       renderer_digest:
         type: string
         default: ''
+      scenario:
+        type: string
+        default: engineering
 permissions:
   contents: read
 concurrency:
@@ -37,6 +40,7 @@ jobs:
       RECONCILE_OPERATION: ${{ inputs.reconcile_operation }}
       RENDERER_SHA: ${{ inputs.renderer_sha }}
       RENDERER_DIGEST: ${{ inputs.renderer_digest }}
+      STAGING_SCENARIO: ${{ inputs.scenario || 'engineering' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -82,7 +86,7 @@ jobs:
           echo "::add-mask::$key"
           echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"
           printf '%s' "$key" | mise exec -- pnpm --filter @promobento/cloud exec wrangler secret put EVAL_API_KEY --env staging
-      - name: One real 2D render through the deployed pipeline
+      - name: Run only the selected staging scenario
         if: inputs.inspect_run == ''
         run: mise exec -- node apps/cloud/scripts/smoke-render.mjs
       - name: Read-only diagnosis of a prior staging run

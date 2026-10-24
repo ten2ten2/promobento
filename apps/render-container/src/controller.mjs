@@ -64,12 +64,12 @@ async function execute(input) {
     });
     if (input.options.target.width !== config.width || input.options.target.height !== config.height) throw Error('TARGET_SCOPE_MISMATCH');
     const shared = {raw, options: input.options, resource, font, videoFrame: (id, index) => bytes('frame:' + id + ':' + index, 12 << 20),
-      signal: abort.signal, browserVersion: lock.browser.version, killBrowser: () => launch('kill')};
+      signal: abort.signal, browserVersion: lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,killBrowser: () => launch('kill')};
     if (input.mode === 'shard') report = await renderShard({...shared, job: input.job, shard: input.shard, directory: workDirectory,
       imageDigest: process.env.RENDER_IMAGE_DIGEST, encoding: config.encoding, threads: config.threads});
     else {
       session = await filmSession(shared);
-      result = {status: 'ready', frames: input.job.frames, taskId: input.taskId};
+      result = {status: 'ready', frames: input.job.frames, taskId: input.taskId,webgl:session.webgl};
       return;
     }
     await launch('kill');

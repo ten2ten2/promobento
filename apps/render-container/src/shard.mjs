@@ -8,7 +8,7 @@ import {shardEncoder} from './media.mjs';
 import {memoryPeak} from './memory.mjs';
 
 export async function renderShard({job, shard, options, raw, resource, videoFrame, font, directory, browserVersion, imageDigest,
-  encoding, threads, signal, killBrowser}) {
+  encoding, threads, signal, killBrowser,expectedWebglRenderer}) {
   if (job.renderProfile.sampleCount !== 1 || job.renderProfile.shutterAngle !== 0)
     throw Error('RENDER_PROFILE_NOT_IMPLEMENTED');
   if (!Number.isInteger(shard.start) || !Number.isInteger(shard.end) || shard.start < 0 || shard.end > job.totalFrames
@@ -17,7 +17,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const stride = job.quality === 'review' ? 2 : 1, captureScale = 1 / stride;
   if (shard.start % stride || shard.end % stride) throw Error('SHARD_SCOPE_INVALID');
   mkdirSync(join(directory, 'seam-frames'), {recursive: true});
-  const session = await filmSession({raw, options, resource, videoFrame, font, browserVersion, signal, killBrowser, captureScale});
+  const session = await filmSession({raw, options, resource, videoFrame, font, browserVersion, signal, killBrowser, captureScale,expectedWebglRenderer});
   const rendered = performance.now();
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
   const frameDigests = [], seamFrames = [], observations = [];
@@ -53,7 +53,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
       start: shard.start, end: shard.end, imageDigest, chromiumVersion: browserVersion,
       cpuModel: cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1] ?? 'unknown',
       cpuFlagsHash: digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1] ?? '').split(/\s+/).sort()), sandbox: session.sandbox,
-      captureFormat: 'jpeg92', timings: {...session.timings, renderMs, encodeDrainMs: Math.round(performance.now() - draining)},
+      captureFormat: 'jpeg92',...(session.webgl.length?{webgl:session.webgl}:{}),timings: {...session.timings, renderMs, encodeDrainMs: Math.round(performance.now() - draining)},
       peakMemoryMiB: peak.mib, ...(peak.mib===null?{peakMemoryUnavailableReason:peak.unavailableReason}:{}), outputs: {
         shard: sha(readFileSync(join(directory, 'shard.h264'))), frameDigests: sha(readFileSync(join(directory, 'frame-digests.json'))),
         seamFrames, observations: sha(readFileSync(join(directory, 'observations.json')))}};

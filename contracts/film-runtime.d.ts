@@ -119,11 +119,15 @@ export interface BlockDefinition<Params = Record<string, unknown>> {
   build(ctx: SceneContext, params: Params): BlockInstance;
 }
 export interface BlockInstance {
+  /** Trusted asynchronous resources are ready before init is acknowledged. */
+  ready?: Promise<void>;
   /** Draws the scene at a scene-local time in seconds. Either this or a paused GSAP timeline. */
   render?(localSeconds: number): void | Promise<void>;
   timeline?: GsapTimelineLike;
   events: ReadonlyArray<SceneEvent>;
   regions: ReadonlyArray<SceneRegion>;
+  /** Release scene-owned textures, geometries, contexts and other resources. */
+  dispose?(): void | Promise<void>;
 }
 
 /** Untrusted custom scenes register through PB.scene and return a paused timeline. */

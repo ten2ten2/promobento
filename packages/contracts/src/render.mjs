@@ -1,6 +1,16 @@
 import {digest} from './digest.mjs';
 import {validate} from '../generated/render-job.mjs';
 
+export const WEBGL_BLOCKS=Object.freeze(['device-3d@1']);
+export const filmUsesWebgl=spec=>spec.scenes.some(scene=>scene.kind==='block'&&WEBGL_BLOCKS.includes(scene.block));
+export const renderPageTiming=(spec,policy)=>({initTimeoutMs:filmUsesWebgl(spec)?policy.startupWebglMs:policy.startupMs,
+  frameTimeoutMs:filmUsesWebgl(spec)?policy.frameTimeoutWebglMs:policy.frameTimeoutMs});
+export function renderDeadlineMs(job,partition,policy){
+ if(partition.shards.some(shard=>shard.instance==='standard-4'))return Math.max(...partition.shards.map(shard=>
+  (shard.end-shard.start)/(job.quality==='review'?2:1)*(shard.instance==='standard-4'?policy.perFrameBasisWebglMs:policy.perFrameBasisMs)+policy.shardOverheadMs))+policy.totalMs.webglExtra;
+ return job.quality==='review'?policy.totalMs.review:job.durationSeconds===15?policy.totalMs.final15:policy.totalMs.final30;
+}
+
 export function assertRenderJob(job) {
   if (!validate(job) || job.kind !== 'render_job') throw Error('RENDER_JOB_INVALID');
   if (job.durationSeconds * 30 !== job.totalFrames || new Set(job.resources.map(resource => resource.resourceId)).size !== job.resources.length)
@@ -10,7 +20,7 @@ export function assertRenderJob(job) {
 }
 
 /** Cost-aligned initial partition; measured WebGL frame costs can request more 15-frame units at G1. */
-export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = [], webglMaxShards = 24} = {}) {
+export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = WEBGL_BLOCKS, webglMaxShards = 24} = {}) {
   assertRenderJob(job);
   if (job.quality === 'still' || spec.totalFrames !== job.totalFrames || typeof seed !== 'string' || !seed.length) throw Error('SHARD_PLAN_INPUT_INVALID');
   if (![maxShards, webglMaxShards].every(value => Number.isInteger(value) && value >= 1 && value <= 64)) throw Error('SHARD_LIMIT_INVALID');
@@ -18,8 +28,19 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = [], we
   const hasWebgl = spec.scenes.some(usesWebgl), unitFrames = job.quality === 'review' ? 30 : 15, units = job.totalFrames / unitFrames;
   const desired = hasWebgl ? webglMaxShards : job.totalFrames / 150;
   const count = Math.min(units, hasWebgl ? webglMaxShards : maxShards, Math.max(1, Math.ceil(desired / (job.quality === 'review' ? 2 : 1))));
+  const cuts=[0];
+  if(hasWebgl){
+    const weights=Array.from({length:units},(_,unit)=>spec.scenes.some(scene=>usesWebgl(scene)&&scene.start<(unit+1)*unitFrames&&scene.end>unit*unitFrames)?6:1);
+    const prefix=[0];for(const weight of weights)prefix.push(prefix.at(-1)+weight);
+    for(let index=1;index<count;index++){
+      const lower=cuts.at(-1)/unitFrames+1,upper=units-(count-index),target=prefix.at(-1)*index/count;
+      let boundary=lower;while(boundary<upper&&Math.abs(prefix[boundary+1]-target)<Math.abs(prefix[boundary]-target))boundary++;
+      cuts.push(boundary*unitFrames);
+    }
+  }else for(let index=1;index<count;index++)cuts.push(Math.floor(index*units/count)*unitFrames);
+  cuts.push(job.totalFrames);
   const shards = Array.from({length: count}, (_, index) => {
-    const start = Math.floor(index * units / count) * unitFrames, end = Math.floor((index + 1) * units / count) * unitFrames;
+    const start=cuts[index],end=cuts[index+1];
     const scenes = spec.scenes.filter(scene => scene.start < end && scene.end > Math.max(0, start - 1));
     const shardKey = digest({identityVersion: 'film-shard-v1', runtimeVersion: job.runtimeVersion, rendererRelease: job.rendererRelease,
       aspectId: job.aspectId, renderProfile: job.renderProfile, quality: job.quality, start, end, style: spec.style,

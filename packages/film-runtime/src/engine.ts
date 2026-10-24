@@ -169,13 +169,14 @@ const engine: FilmEngine = {
       instance.timeline?.pause();
       instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...helperRegions, ...(textRegions.get(scene.id) ?? [])]}, random});
     }
+    await Promise.all([...instances.values()].map(value=>value.instance.ready));
     await Promise.all([...document.images].map(image => image.decode()));
     if (disposed) throw Error('INVALID_SESSION');
     for (const fit of fitters) fit();
     document.documentElement.dataset.omSignature = 'off';
     window.__omReady = true;
     })(), input.initTimeoutMs, 'INIT_TIMEOUT'); }
-    catch (error) { disposed = true; throw error; }
+    catch (error) { disposed = true;await Promise.allSettled([...instances.values()].map(value=>Promise.resolve().then(()=>value.instance.dispose?.())));throw error; }
   },
   async init(input: Init) {
     const current = requiredPlan();
@@ -222,7 +223,9 @@ const engine: FilmEngine = {
     return {...input, event: 'hit-result', manifestHash: current.manifestHash, hit};
   },
   async dispose(input: Dispose) {
-    check(input, 'dispose'); disposed = true; instances.clear(); textRegions.clear(); fitters.length = 0;
+    check(input, 'dispose'); disposed = true;
+    await Promise.all([...instances.values()].map(value=>value.instance.dispose?.()));
+    instances.clear(); textRegions.clear(); fitters.length = 0;
     for (const bitmap of videoCache.values()) bitmap.close(); videoCache.clear(); videoBytes = 0;
     document.getElementById('film')?.replaceChildren(); window.__omReady = false;
   }

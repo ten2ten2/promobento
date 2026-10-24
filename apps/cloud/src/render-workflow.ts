@@ -1,6 +1,6 @@
 import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudflare:workers';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {planShards, assertRenderJob} from '@promobento/contracts/render';
+import {planShards, assertRenderJob,renderDeadlineMs,filmUsesWebgl} from '@promobento/contracts/render';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {compareSeam} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
@@ -24,7 +24,6 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
     try {
       const input = parseCanonicalJson(await step.do('load-input', async () => canonical(await getJson(this.env, row.job_key)))) as Json;
       assertRenderJob(input.job);
-      const deadlineAt = await step.do<number>('deadline', async () => Number(row.created_at) + (input.job.quality === 'review' ? policy.render.totalMs.review : input.job.durationSeconds === 15 ? policy.render.totalMs.final15 : policy.render.totalMs.final30));
       const op = await operation(this.env, row.operation_id, row.generation);
       if (input.job.operationId !== op.id || input.job.renderId !== row.id) throw Error('RENDER_SCOPE_INVALID');
       const release = await this.env.DB.prepare('SELECT image_digest FROM renderer_releases WHERE id=? AND status=\'active\'').bind(input.job.rendererRelease).first<{image_digest: string}>();
@@ -33,6 +32,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const raw = await checkedBytes(this.env, filmBlob);
       if (filmSourceHash(raw) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
       const film = await getJson(this.env, filmBlob.key), partition = planShards(input.job, film, {seed: input.options.seed});
+      const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
       const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
         const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
         return parseCanonicalJson(await step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '10 minutes'}, async () => {
@@ -72,6 +72,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         const seams = [];
         for (const [index, result] of shards.entries()) {
           if (!renderValid(result.report) || result.report.kind !== 'shard_receipt' || result.report.imageDigest !== release.image_digest) throw Error('SHARD_RECEIPT_INVALID');
+          if(filmUsesWebgl(film)&&!result.report.webgl?.length)throw Error('SHARD_WEBGL_REPORT_MISSING');
           const observations = await getJson(this.env, output(result, '/observations.json').key) as unknown as Json[];
           if (!observations.length) throw Error('QA_OBSERVATION_MISSING');
           for (const observation of observations) if (!observationValid(observation) || observation.findings.some((finding: Json) => finding.severity === 'BLOCK')) throw Error('QA_BLOCK');

@@ -44,7 +44,10 @@ export const blockCatalog = [
   { ...common, id: 'talking-head', category: 'course', cost: 'medium', regions: ['speaker'],
     events: [{name: 'speaker-land', description: 'The speaker nameplate settles.'}],
     params: {type: 'object', additionalProperties: false, required: ['assetKey', 'textSlot'], properties: {
-      assetKey: slot, textSlot: slot, subtitleSlot: slot}}}
+      assetKey: slot, textSlot: slot, subtitleSlot: slot}}},
+  { ...common, id: 'device-3d', category: '3d', cost: 'high', usesWebgl: true, regions: ['product'],
+    events: [{name:'product-land',description:'The real product screen settles on an original 3D display.'}],
+    params:{type:'object',additionalProperties:false,required:['assetKey'],properties:{assetKey:slot,textSlot:slot}}}
 ] as const;
 
 export {blockReferences} from '@promobento/contracts/film';

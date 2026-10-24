@@ -15,7 +15,7 @@ export interface PageOptions {
   initTimeoutMs: number; frameTimeoutMs: number;
 }
 export interface PagePlan {
-  spec: FilmSpec; target: Target; seed: string; manifestHash: string;
+  spec: FilmSpec; usesWebgl: boolean; target: Target; seed: string; manifestHash: string;
   assets: Record<string, AssetHandle & {videoFrames?: AssetRecord['videoFrames']; videoStartSeconds?: number}>;
   fonts: FontRecord[]; initTimeoutMs: number; frameTimeoutMs: number;
 }

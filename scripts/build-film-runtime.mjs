@@ -6,8 +6,9 @@ buildValidators();
 mkdirSync('packages/film-runtime/dist', {recursive: true});
 await build({entryPoints: {
   shim: 'packages/film-runtime/src/shim.ts', engine: 'packages/film-runtime/src/engine.ts',
-  boot: 'packages/film-runtime/src/boot.ts', blocks: 'packages/blocks/src/browser.ts', compat: 'packages/film-runtime/src/compat.js'
+  boot: 'packages/film-runtime/src/boot.ts', blocks: 'packages/blocks/src/browser.ts', compat: 'packages/film-runtime/src/compat.js',
+  'blocks-3d':'packages/blocks/src/device-3d.ts'
 }, outdir: 'packages/film-runtime/dist/browser', bundle: true, format: 'iife', platform: 'browser', target: 'chrome151'});
 await build({entryPoints: ['packages/film-runtime/src/page.ts'], outfile: 'packages/film-runtime/dist/page.mjs',
   bundle: true, format: 'esm', platform: 'node', target: 'node26', packages: 'external'});
-console.log('Built the FilmSpec page generator, OM/clip helpers and nine trusted blocks (standard sampling).');
+console.log('Built the FilmSpec page generator, OM/clip helpers, nine core blocks and conditional WebGL device (standard sampling).');

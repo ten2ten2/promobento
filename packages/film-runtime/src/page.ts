@@ -56,6 +56,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if (slot?.role !== 'number' || !match || !Number.isFinite(Number(match[2]!.replace(',', '.')))) throw Error('METRIC_NUMBER_INVALID');
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
+    if(scene.block==='device-3d@1'&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
     if (typeof scene.params.focus === 'string') {
       const asset = spec.assets[String(scene.params.assetKey)];
       if (!asset?.roi?.[Number(scene.params.focus.slice(4))]) throw Error('ASSET_ROI_UNKNOWN');
@@ -99,13 +100,14 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       assets[key]!.videoStartSeconds = offset;
     }
   }
-  const plan: PagePlan = {spec, target: {aspect:target.aspect,width:target.width,height:target.height,
+  const usesWebgl=spec.scenes.some(scene=>scene.kind==='block'&&blockCatalog.some(block=>block.usesWebgl&&scene.block===block.id+'@1'));
+  const plan: PagePlan = {spec, usesWebgl, target: {aspect:target.aspect,width:target.width,height:target.height,
     safeInsets:{top:target.safeInsets.top,right:target.safeInsets.right,bottom:target.safeInsets.bottom,left:target.safeInsets.left},
     fps:30,totalFrames:spec.totalFrames}, seed: options.seed, manifestHash: digest(spec), assets, fonts,
     initTimeoutMs: options.initTimeoutMs, frameTimeoutMs: options.frameTimeoutMs};
   const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
   const css = [...new Map(fonts.map(font => [`${font.fontId}/${font.weight}/${font.style}`, font])).values()].map(font =>
     `@font-face{font-family:"PB-${font.fontId}";font-weight:${font.weight};font-style:${font.style};src:url("/f/${font.fontId}/${font.weight}-${font.style}.woff2") format("woff2");font-display:block}`).join('');
-  const html = `<!doctype html><html data-om-signature="off"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:${spec.style.palette.roles.bg}}#film{position:relative;width:${target.width}px;height:${target.height}px;overflow:hidden}</style><script src="/runtime/shim.js"></script><script defer src="/runtime/engine.js"></script><script defer src="/runtime/gsap.js"></script><script defer src="/runtime/compat.js"></script><script defer src="/runtime/blocks.js"></script><script defer src="/runtime/boot.js"></script></head><body><main id="film"></main><script type="application/json" id="pb-plan">${safeJson(plan)}</script></body></html>`;
+  const html = `<!doctype html><html data-om-signature="off"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:${spec.style.palette.roles.bg}}#film{position:relative;width:${target.width}px;height:${target.height}px;overflow:hidden}</style><script src="/runtime/shim.js"></script><script defer src="/runtime/engine.js"></script><script defer src="/runtime/gsap.js"></script><script defer src="/runtime/compat.js"></script><script defer src="/runtime/blocks.js"></script>${usesWebgl?'<script defer src="/runtime/blocks-3d.js"></script>':''}<script defer src="/runtime/boot.js"></script></head><body><main id="film"></main><script type="application/json" id="pb-plan">${safeJson(plan)}</script></body></html>`;
   return {html, csp, plan};
 }

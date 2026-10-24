@@ -9,7 +9,7 @@
 | 部分 | 已有代码/材料 | 仍缺的实现或验收 |
 | --- | --- | --- |
 | 契约 | 12 个 v3 Schema 与派生积木参数预编译；新增 film-v1 Composition（identityVersion 2）、构建记录与冻结参考校验；内容/产物指纹及同画幅视频复用，平台 mapping/授权仍分开；旧 v1 入口和内容摘要保留重放；帧协议支持互斥的 aspectId 新包络与 targetId 历史包络 | 客户草稿、真实冻结事务和计费服务仍在 M1/M2；自写镜头/直接改值按 S2 接入，不能把参考校验当成已上线服务 |
-| 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、固定参考 OM/clip 通用函数；PTS 视频帧清单与有界缓存；字体 cmap/缺字检查；正式 staging 的横屏 45→375→45 已完全一致 | 旧横屏逆序差异曾为 0.2827%；新验证只覆盖上述两帧路径，完整四画幅 seek 矩阵仍未完成。已修 ui-journey 退场面板、CDP 画外点选与卡片拆词；15 秒三段出片和 108 张四画幅帧图通过且已看实际画面；WebGL 积木、自写镜头、纹理/布局覆盖未实现 |
+| 片子运行时 | 页面、shim、engine；九个 ★ 积木、四画幅布局、cut/crossfade/push/whip；暂停 GSAP、OM/clip、PTS 视频帧缓存和字体检查；新增真实 Three.js 0.186.1 设备积木、按需 3D bundle、ready/dispose、真实 context 回执及锁定 SwiftShader 校验，尚待云验 | 2D 横屏 45→375→45 已完全一致，旧全矩阵逆序曾差 0.2827%，完整四画幅 seek 仍未完成。15 秒三段出片和 108 张四画幅帧图已有证据；新 WebGL 四画幅定点验收待运行。自写镜头、全局纹理/布局覆盖未实现 |
 | 渲染容器 | [四种模式](../apps/render-container/README.md)；独立 uid、沙箱自检；JPEG92→FFmpeg、PNG 接缝帧、CDP 阅读停留观测；H.264 分段、MP4/AAC 拼接、码率/PTS/GOP/颜色检查与真实帧封面；review 540p/15 fps | 15 秒工程片已验证 450 帧、1080p/30 fps、AAC、PTS/GOP/颜色、体积/码率和接缝；阅读停留观测不是完整动态 Q1/Q2；生产形态 supervisor、studio 回收和 broker 需正式 G1 |
 | 声音 | [DSP/ABC/音效与 CC0 采样接入](../packages/audio/src/NOTICE.md)；不可变 AudioPlan、与积木共用事件点、授权检查、48 kHz 双声道、两遍 loudnorm 与最终响度测量；13 风格各 30 秒均已生成并通过响度/真峰值与样本数门槛 | 负责人尚未试听；显式 lead-in 音效计划及导演的外部音轨/ABC 准入仍需补齐 |
 | 云端 | [内部 staging 链路](../apps/cloud/README.md)：RenderWorkflow、ShardDO、CoordinatorDO、OperationDO、broker；15 秒云端出片、接缝/观测、拼接、提交及私有下载通过；studio 出图/关闭、逆序取帧与旧停止记录对账均有实测。新增准备阶段失败记录、sharding/verifying/assembling 状态、先栅栏后停止、持久停止标记、终态对账修复与成片/进度 outbox 原子提交，已有本地回放 | 新增恢复代码尚未部署；旧 `40038946955` 操作的遗留 sharding 行仍待明确对账，不重启该取消操作。平台重启/强制终止、完整重试与账单对账、正式 G1 未完成；cgroup 峰值按负责人决定为 null 加原因，内存指标仍待验；生产保持关闭 |
@@ -26,6 +26,7 @@
 - **离线导演与登记**：Node 26.12.0 下新增 7 项阶段回放和受影响的 6 项模型配置/计价检查通过；修复 mock 使用旧生成验证器与 SQLite batch 的测试适配问题后，只复验失败分支。未调用任何真实模型，未重跑已有九项管线/适配器检查或媒体。`verified` 现在只表示实际集成证据，官方线路保持 false。
 - **film-v1 产品契约**：新构造器、完整冻结参考准入、画幅视频/平台 mapping 身份、A→B→A 恢复及旧版摘要兼容的单项检查通过（363 ms）。帧协议新旧包络的定点检查通过（136 ms）；首次只发现测试夹具引用旧 revisionId，修正后仅复验该项。未重跑媒体、导演或完整 CI；新结构不自动改写旧作品或对迁移再次收费。
 - **失败恢复与提交边界**：Node 26.12.0 下只运行一次受影响的两份检查文件，7 项通过（总计 633 ms）；覆盖原云端回执的实际提交回放、准备失败落终态、真实 SQLite 原子提交/通知重试/取消栅栏、历史行修复/未知费用保留，以及停止与晚到执行竞态。cloud TypeScript 7.0.2 定点检查通过。没有重跑媒体、配乐、导演或 CI；新增恢复路径未部署。
+- **WebGL 实现的定点检查**：新增页面/积木识别、代价分段及期限检查通过（68 ms）；因 RenderWorkflow 的期限计算改为共享方法，同时回放受影响的已生成回执提交路径（205 ms，通过）。运行时/积木及 cloud TypeScript 7.0.2 检查通过。未重跑导演、配乐、旧媒体或完整 CI；真实 3D 画面与云端行为仍待定点验收。
 - **首次 staging 部署**：[39983255933](https://github.com/ten2ten2/promobento/actions/runs/39983255933)，提交 `546f411`：新迁移、镜像构建/推送、Worker/DO/Workflow/队列部署均成功；内部请求在密钥写入后立即返回 404，集成未通过、未启动影片任务。一次性密钥已经删除；不把部署成功记为 G1 通过。
 - **云端分段故障**：[39985471319](https://github.com/ten2ten2/promobento/actions/runs/39985471319)仅复用已部署 `546f411`：声音产出 720,000 样本帧；画面分段 ENOENT，未提交成片。随后[只读诊断 39986268511](https://github.com/ten2ten2/promobento/actions/runs/39986268511)确认四次计算均已结算，保守资源上界合计 7,845 usd_micros；操作已取消。发现一个已停止/结算的 attempt 仍标 active，已加入终态确认停止后的记录修复入口，不按数据库旧状态重启计算。
 - **并发结算修复**：新增一项 stop/timeout 并发的定点回放通过（27 ms）；固定同一份持久 usage，D1 `INSERT OR IGNORE` 后核对原结算，冲突不能覆盖。未重跑前述 7 项导演回放或已通过媒体。

@@ -6,12 +6,17 @@ import {filmSourceHash} from '@promobento/contracts/film-source';
 import {deriveAudioPlan,audioPlanHash} from '../../../packages/audio/src/plan.mjs';
 import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
+import {webglFixture} from '../../../packages/film-runtime/test/webgl-fixture.mjs';
+import {probeWebgl} from './probe-webgl.mjs';
 
 if(process.env.GITHUB_ACTIONS!=='true')throw Error('ACTIONS_ONLY');
 const base=process.env.STAGING_URL,key=process.env.EVAL_API_KEY,sha=process.env.DEPLOYED_SHA??process.env.GITHUB_SHA,harnessSha=process.env.GITHUB_SHA;
 if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!key||!sha)throw Error('STAGING_ENV_REQUIRED');
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
+const policy=parseCanonicalJson(readFileSync(new URL('config/agent-policy.json',root))),scenario=process.env.STAGING_SCENARIO??'engineering';
+if(!['engineering','webgl-studio'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
+const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
 let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -52,7 +57,7 @@ operationAttempted=true;
 await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'pipeline-smoke',purpose:'calibration',maxMicros:1000000}});
 const envObject=await upload(prefix+'/environment.json',canonical({gitSha:sha,environmentLock:parseCanonicalJson(readFileSync(new URL('apps/render-container/environment.lock.json',root)))}),'application/json');
 await call('releases',{method:'POST',body:{id:releaseId,runtimeVersion:'film-runtime-v1',environmentKey:envObject.key}});
-const spec=filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
+const spec=scenario==='webgl-studio'?webglFixture():filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
 options.fonts[0].licenseRef='geist-ofl-1.1';options.resources[0].kind='svg';
 const resource=await upload(prefix+'/original.svg',readFileSync(new URL('apps/render-container/tests/product.svg',root)),'image/svg+xml');
 const resourceId='res_fixture_dashboard',licenseRef=options.resources[0].licenseRef;
@@ -65,6 +70,11 @@ const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidat
  aspectId:'landscape',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
  resources:[{resourceId,kind:'svg',sha256:resource.sha256}],audioPlanHash:audioPlanHash(plan,{seed:options.seed})};
 const request={job,options,inputs:[{...film,name:'film'},{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:options.seed,clearedSources:[]},coverFrame:165};
+if(scenario==='webgl-studio'){
+ const outcome=await probeWebgl({json,call,request,rules,policy,directory});
+ writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,status:'passed'}));
+ console.log(canonical({status:'passed',scope,elapsedMs:Date.now()-started,aspects:Object.keys(outcome.aspects)}));
+}else{
 // Studio reverse seek already passed in run 39987356301 with this fixture and media environment.
 // Reuse that evidence; each new shard still checks its actual health and reports its memory telemetry.
 await json('renders',{method:'POST',body:request});
@@ -82,10 +92,11 @@ let outcome;
   writeFileSync(directory+'/'+object.key.split('/').at(-1),bytes);
  }
  const leases=await json('capacity');if(leases.length)throw Error('SMOKE_LEASE_NOT_RETURNED');
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,leases,status:'passed'}));
+ writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,leases,status:'passed'}));
  console.log(canonical({status:'passed',renderId,elapsedMs:Date.now()-started,media:outcome.media,peakMemory:outcome.peakMemory,leases}));
+}
 }catch(error){
- writeFileSync(directory+'/smoke-report.json',canonical({scope:'one_2d_staging_render_not_full_G1',gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,status:'failed',error:String(error.stack??error)}));throw error;
+ writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,renderId,elapsedMs:Date.now()-started,authPropagationRetries,status:'failed',error:String(error.stack??error)}));throw error;
 }finally{
  if(operationAttempted){
  await call('operations/'+operationId+'/cancel',{method:'POST'});
