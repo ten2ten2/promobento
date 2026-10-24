@@ -17,4 +17,6 @@ WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真�
 
 输出先进入 `renders/<renderId>/attempts/<taskId>/…`；只有 Workflow 检查接缝、观测和 generation 后才发布引用，失败 attempt 不覆盖成功字节。实现与实际验证范围分开记在[实施状态](../../docs/implementation-status.md)。
 
+分段回执新增可选的 `timings.frameCaptureMs`，按实际编码的源帧顺序记录 seek、ready 确认与 JPEG 截图的毫秒耗时，排除编码器背压、QA 和额外接缝 PNG；历史回执不要求补值。`renderMs` 继续表示原分段阶段总耗时，不能当作逐帧分布。Cloudflare DO 另记录等名额和新实例启动至控制器健康响应的时间；原 `readyMs` 仍仅为 CDP 连接耗时。
+
 内存峰值读取 cgroup v2 `memory.peak` 或同义的 v1 `memory.max_usage_in_bytes`；不会用控制器自身 RSS 或 0 冒充整个实例的峰值。负责人已允许本次内部评测在接口均未暴露时继续出片：分段回执必须写 `peakMemoryMiB:null` 和 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，整片报告汇总为 `peakMemory.status:"unverified"`，G1 此指标仍待验。权限错误或无效读数仍阻断。文件系统失败只保留受限系统路径与 syscall，不记录 broker 令牌或完整用户输入。取消/超时并发时，DO 原子固定同一 usage，D1 结算冲突检查与停止时间记录可重放。

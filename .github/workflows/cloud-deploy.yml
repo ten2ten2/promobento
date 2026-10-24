@@ -29,7 +29,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ inputs.scenario == 'g1-performance' && 60 || 30 }}
     environment: staging
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -95,7 +95,7 @@ jobs:
         if: inputs.inspect_run != ''
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Preserve failed render diagnosis without another render
-        if: failure() && inputs.inspect_run == '' && env.EVAL_API_KEY != ''
+        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'g1-performance' && env.EVAL_API_KEY != ''
         env:
           INSPECT_RUN: ${{ github.run_id }}
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs

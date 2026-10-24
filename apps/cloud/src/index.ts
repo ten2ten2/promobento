@@ -134,7 +134,7 @@ export default {
       if(recoveryRoute&&request.method==='GET'){
         const id=recoveryRoute[1]!,op=await env.DB.prepare('SELECT id,status,generation FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
         if(!op)return new Response(null,{status:404});
-        const rows=await env.DB.prepare('SELECT id,mode,status,started_at,stopped_at FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
+        const rows=await env.DB.prepare('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
         const attempts=await Promise.all(rows.results.map(async row=>({...row,physicallyStopped:await env.SHARDS.getByName(row.id).isStopped().catch(()=>null)})));
         const costs=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? ORDER BY r.id').bind(id).all<Json>();
         const notice=await env.DB.prepare("SELECT payload_json FROM pipeline_outbox WHERE operation_id=? AND kind='operation_failure' ORDER BY rowid LIMIT 1").bind(id).first<{payload_json:string}>();

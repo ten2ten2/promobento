@@ -647,7 +647,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
       - 镜像 ID、Chromium 版本；
       - CPU 型号与 `cpuFlagsHash`（`/proc/cpuinfo` 完整 flags 排序后的摘要）；
       - 沙箱状态（seccomp、命名空间、uid 的实测值）、`--disable-skia-runtime-opts` 状态；
-      - 捕获格式、计时和内存峰值。
+      - 捕获格式、计时和内存峰值。新的 `timings.frameCaptureMs` 按实际编码源帧记录 seek/确认/CDP 捕获毫秒序列，排除编码背压、QA 与接缝 PNG；旧回执可缺该字段。DO 另外记录等待名额和新实例启动到控制器健康响应的耗时，不改写原 CDP `readyMs` 的意义。
       - 2026-10-24 内部评测例外：负责人确认 Cloudflare 未暴露 cgroup 峰值接口时，可写 `peakMemoryMiB:null` 并附 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"` 继续出片，G1 该指标保留未验证；不得填 0 或改用控制器 RSS，其他门槛不变。
    7. 完成后控制器上报结果。ShardDO 立即停止实例，确认状态变为停止，再归还并发许可。
 5. **接缝检查**（Worker 内，无容器）：见第 5.6 节。

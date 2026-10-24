@@ -20,7 +20,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const session = await filmSession({raw, options, resource, videoFrame, font, browserVersion, signal, killBrowser, captureScale,expectedWebglRenderer});
   const rendered = performance.now();
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
-  const frameDigests = [], seamFrames = [], observations = [];
+  const frameDigests = [], frameCaptureMs = [], seamFrames = [], observations = [];
   // Settled reading holds. Dynamic/transition coverage is the separate S2 temporal QA pass.
   const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
   try {
@@ -29,7 +29,9 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
       writeFileSync(join(directory, 'seam-frames', `${shard.start - 1}-cold.png`), png); seamFrames.push(sha(png));
     }
     for (let frame = shard.start; frame < shard.end; frame += stride) {
+      const captureStarted = performance.now();
       const jpeg = await session.frame(frame);
+      frameCaptureMs.push(Math.round((performance.now() - captureStarted) * 1000) / 1000);
       await encoder.frame(jpeg, options.frameTimeoutMs);
       frameDigests.push({frame, sha256: sha(jpeg)});
       if (observeFrames.has(frame)) {
@@ -49,7 +51,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
       start: shard.start, end: shard.end, imageDigest, chromiumVersion: browserVersion,
       cpuModel: cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1] ?? 'unknown',
       cpuFlagsHash: digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1] ?? '').split(/\s+/).sort()), sandbox: session.sandbox,
-      captureFormat: 'jpeg92',...(session.webgl.length?{webgl:session.webgl}:{}),timings: {...session.timings, renderMs, encodeDrainMs: Math.round(performance.now() - draining)},
+      captureFormat: 'jpeg92',...(session.webgl.length?{webgl:session.webgl}:{}),timings: {...session.timings, renderMs, encodeDrainMs: Math.round(performance.now() - draining), frameCaptureMs},
       peakMemoryMiB: peak.mib, ...(peak.mib===null?{peakMemoryUnavailableReason:peak.unavailableReason}:{}), outputs: {
         shard: sha(readFileSync(join(directory, 'shard.h264'))), frameDigests: sha(readFileSync(join(directory, 'frame-digests.json'))),
         seamFrames, observations: sha(readFileSync(join(directory, 'observations.json')))}};

@@ -1,0 +1,77 @@
+{
+  "status": "failed",
+  "scope": "trusted_block_runtime_not_G1_or_product_qa",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {
+    "landscape": {
+      "status": "running",
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ]
+    }
+  },
+  "checks": [],
+  "media": {
+    "status": "passed",
+    "movie": {
+      "totalFrames": 450,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "durationSeconds": 15,
+      "bytes": 5651657,
+      "maxWindowBitrate": 7628216,
+      "hasAudio": true,
+      "reencoded": false
+    },
+    "seams": [
+      {
+        "frame": 149,
+        "identical": false,
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.004629629629629629,
+        "verdict": "pass_within_tolerance"
+      },
+      {
+        "frame": 299,
+        "identical": true,
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0,
+        "verdict": "pass"
+      }
+    ],
+    "goldenFrames": 108
+  },
+  "programStyleSamples": 13,
+  "failure": "AssertionError [ERR_ASSERTION]: landscape-120-reverse: pixel regression: max=1, changed=0.2827449845679012%\n    at compare (file:///app/apps/render-container/tests/browser.render.test.mjs:52:10)\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:109:109"
+}

@@ -464,6 +464,13 @@
             "encodeDrainMs": {
               "type": "integer",
               "minimum": 0
+            },
+            "frameCaptureMs": {
+              "description": "Per encoded source frame, in order: wall time for seek, ready acknowledgement and CDP capture; excludes encoder backpressure, QA and extra seam PNGs. Optional for historical receipts.",
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 900,
+              "items": {"type": "number", "minimum": 0}
             }
           }
         },

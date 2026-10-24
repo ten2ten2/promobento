@@ -122,6 +122,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     try {
       // 24 WebGL shards and audio share a 24-slot workspace. Wait without a container or reservation;
       // the original render deadline, generation and stop latch still bound this attempt.
+      const capacityStartedAt=Date.now();
       for(;;){
         if(this.ctx.storage.kv.get('stopRequested'))throw Error('COMPUTE_ATTEMPT_STOPPED');
         if(Date.now()>=deadlineAt)throw Error('RENDER_DEADLINE');
@@ -130,6 +131,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         if(acquired)break;
         await sleep(Math.min(250,Math.max(0,deadlineAt-Date.now())));
       }
+      const capacityWaitMs=Date.now()-capacityStartedAt;
       await coordinator(this.env).arm();
       await operation(this.env,op.id,op.generation);await rights(this.env,op,task.job.resources);
       const limit=deadlineAt-Date.now();if(limit<1)throw Error('RENDER_DEADLINE');
@@ -160,6 +162,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         } catch {}
         await sleep(250);
       }
+      const containerReadyMs=environmentHealth===null?null:Date.now()-startedAt;
       const peak=typeof environmentHealth==='object'?environmentHealth?.memoryPeak:null;
       // Owner-approved missing interface remains explicit; permission/invalid-value failures still block.
       if(task.mode==='shard'&&peak?.available===false&&!(peak.mib===null&&peak.bytes===null&&peak.unavailableReason==='cgroup_peak_not_exposed')){
@@ -176,7 +179,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
           await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:value.code,diagnostic:value.diagnostic??null,environmentHealth}),task.taskId).run();
           throw Error(value.code);
         }
-        if (value.status === 'succeeded') { outcome = value; break; }
+        if (value.status === 'succeeded') { outcome = {...value,lifecycleTimings:{capacityWaitMs,containerReadyMs}}; break; }
         if (value.status === 'ready' && task.mode === 'studio') {
           await this.ctx.storage.put('studio', {operationId: op.id, generation: op.generation, resources: task.job.resources});
           return {...value,environmentHealth}; // Lease and budget stay held while the studio exists.

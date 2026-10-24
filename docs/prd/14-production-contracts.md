@@ -147,6 +147,8 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 
 RenderProtocol 3.0.0 的页面命令和响应都带 protocolVersion、sessionId、requestId、sequence、revisionId 和 **aspectId**；帧响应还回显帧号与 manifestHash。页面的 `__omTarget` 不含业务 targetId，同画幅目标映射到同一次画幅绘制。每次命令使用新 requestId 和严格递增 sequence。revision、aspect、profile 在会话内固定，变更后新建会话；旧会话、旧请求、已 dispose 的响应全部丢弃。业务侧快照、权益和交付仍按 targetId 管理；film-v1 生产结构、身份及冻结参考校验已接入；客户冻结/交付服务仍按 M1/M2 实施。Schema 兼容旧 targetId 包络读取，但与 aspectId 互斥，不能用一类回执响应另一类命令。`frameTimeout` 覆盖一帧的全部采样、合成和读回，不能逐样本重置。
 
+内部 `shard_receipt.timings.frameCaptureMs` 是按编码源帧排序的真实毫秒序列，覆盖 seek、ready 确认和 CDP JPEG 捕获，不含编码背压、QA 与接缝 PNG。该字段可选以读取历史回执；G1 分布采样要求完整的实际帧数，不用 `renderMs / 帧数` 冒充。原 `readyMs` 保持 CDP 连接语义；DO 结果的 `lifecycleTimings.containerReadyMs` 从新实例启动计至控制器健康响应，`capacityWaitMs` 只计等待计算名额。两类计时与费用通过原内部恢复查询读取，账本和输出身份不因新增诊断字段改变。
+
 `random-seq-v1` 的实现与[固定向量](../../packages/contracts/test/random-vectors.json)在共享契约库：对 UTF-8 的 `seed + NUL + 十进制调用序号` 做 FNV-1a-32（初值 2166136261，逐字节 XOR 后乘 16777619、保留低 32 位），再做 Murmur3 fmix32：XOR 右移 16、乘 `0x85ebca6b`，XOR 右移 13、乘 `0xc2b2ae35`，最后 XOR 右移 16，取无符号 32 位除以 2³²。调用序号从 0 开始，每次 seek 重置；镜头的 `ctx.random` 使用项目 seed 加 NUL 加 sceneId 的独立序列。虚拟 Date/performance 时间为当前影片秒数，初始化阶段为 0，不使用墙钟。该确定性随机源不用于令牌或安全用途。
 
 本地会话从 `previewEpoch:0` 开始，`init` 可带 `valuesOverlay`。后续 `set-values` 提交完整覆盖表及 `requestedEpoch=appliedEpoch+1`；host 校验直接和间接绑定值，再用“冻结值 + 覆盖表”重新 prepare。成功发 `values-applied` 才推进 `appliedEpoch`；失败发 `values-rejected` 并保持上一版，修正后可用新 requestId/sequence 重试同一待应用 epoch。空表恢复冻结值。seek、inspect 及其响应携带实际应用的 `previewEpoch`，旧响应不能覆盖新画面；prepare 失败必须保留或恢复上一版可用状态。
