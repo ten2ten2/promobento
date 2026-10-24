@@ -50,6 +50,19 @@ mise exec -- node research/evals/run-case.mjs \
 
 结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。首次仅运行一题，确认真实模型/媒体结果后再推进其余输入。
 
+### 只复验实际卡片的标题/副标题碰撞
+
+新渲染镜像部署并重新准备输入后，可用已完成的 `write_spec` 回执复现同一 FilmSpec、素材、字体和 seed，只取横屏 270 帧并读 CDP：
+
+```sh
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-current minimax-15 artifacts/s1-card-layout \
+  --check-card-layout \
+  docs/evidence/2026-10-24-s1-director/minimax-second-attempt/review-1-response.json
+```
+
+该模式不调用模型或编码影片，不要求模型密钥。仍先核对当前固定镜像、重新登记自己的素材许可；实际创作页面只在渲染容器执行。`layout-check.json` 要求三组标题/副标题都存在、实际盒子间隔不少于 4 px、原帧观测无 BLOCK；`layout-landscape.png` 留在本机忽略目录，不上传第三方素材图片到 Git/Actions 产物。结束时关闭 studio、取消仅用于单帧的操作、确认物理停止/费用后回收密钥。`layout_validated` 只表示此回归通过，不计入六题候选或 4/6 视听结果。
+
 ### 仅在确需更新素材时采集
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：

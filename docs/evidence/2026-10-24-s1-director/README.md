@@ -2,6 +2,8 @@
 
 2026-10-24 负责人要求「放开一点预算门槛，继续 S1」。本次在原 $300 授权中取 $5 历史风险预留、staging 新增模型实际/未知预留累计上限 $10，至 2026-10-31 上海时间结束。原授权身份、起算、历史清单和确认空值保留；风险预留不等于核实账单。配置与语义见 [14 预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。
 
+本页模型费用按实际返回的 usage 与调用时冻结的目录/汇率计价结算，不是已核对的供应商账单；未知 usage 继续占预留。计算费用另按分配资源记保守上界，不混入模型新增上限。
+
 ## 预算放行已在真实 Worker 生效
 
 [Actions 40082980568](https://github.com/ten2ten2/promobento/actions/runs/40082980568) 在 `bca8861bee6fc43a0ac9f0cd3786874cfd205fae` 仅部署 Worker，版本 `3201b4b7-db88-4d61-8932-70d38b185c18`。命令为 `gh workflow run checks.yml --ref main -f suite=staging -f staging_scenario=deploy-only`，另传 renderer `420e245a72f7655bf3aa1b2a190be65ae95d2257` 和已登记镜像 `sha256:9bfd46ae79e01615b8519e6319ba03f183cfef8f8617011c06b3a3788b34ce84`。
@@ -69,7 +71,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 真实语义错误反馈后，一次 Opus 纠正用时 **28,720 ms**、费用 **10,329 usd_micros**，完整 JSON、Schema、跨字段及实际页面支持性检查全部通过。原生 review `render-dbb3b11c2346d48c9aaa903cffad457aa73750517c4c5c67` 的两个分段与音频已成功，观测及接缝通过后进入拼接；拼接及一次原回退后仍为 `OUTPUT_BITRATE_EXCEEDED`，未交付 MP4，也未到 E/F。旧失败回执未保留具体峰值，不补造数值。
 
-[完整费用与回收回执](fifth-attempt/report.json)：本次模型 **10,329**、8 次计算保守上界合计 **5,243**，总计 **15,572 usd_micros**。计算全部物理停止并结算，容量为空、原生 Workflow 已 errored/对账、临时密钥已删除。共享模型实收 **57,475** 加旧截断预留 **6,196**，占用 **63,671 usd_micros**；历史确认仍为空。
+[完整费用与回收回执](fifth-attempt/report.json)：本次模型 **10,329**、8 次计算保守上界合计 **5,243**，总计 **15,572 usd_micros**。计算全部物理停止并结算，容量为空、原生 Workflow 已 errored/对账、临时密钥已删除。共享模型已计价结算 **57,475** 加旧截断预留 **6,196**，占用 **63,671 usd_micros**；历史确认仍为空。
 
 旧回退沿用正常分段的两秒 VBV reservoir，不能保证滑动一秒峰值。后续只收紧纠正编码的 maxrate/buffer，并把纠正前后实测峰值写入结果；一秒码率门槛、正常分段、尺寸、fps、音频与其他 QA 不变。该修改涉及容器真实源码，必须由 Actions 构建并使用新 release，旧 G1 证据仍绑定原候选，不能以旧镜像复用绕过更新。
 
@@ -81,7 +83,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 冷审确实读取两画幅，但[原始响应](sixth-attempt/cold-review-response.json)在 **1,024 completion token** 时以 `length` 结束，只输出分析散文，没有完整 verdict JSON。新适配器已保存 partial/usage 并结算 **673 usd_micros**，没有把失败记作未知、JSON 通过或冷审通过。操作正确失败，没有交付合格候选；私有 MP4 只取回作内部诊断。实际封面显示 API 镜头的卡片大而空，仍需冷审和创意修复，不因编码通过认定质量合格。
 
-[完整费用/回收](sixth-attempt/report.json)：5 次模型 **28,117**，18 次计算均已停止/结算 **21,012** 保守上界，总计 **49,129 usd_micros**；容量/本轮未知为空，Workflow 已对账、临时内部密钥已删除。共享模型实收 **85,592** 加旧未知 **6,196**，共占用 **91,788 usd_micros**。
+[完整费用/回收](sixth-attempt/report.json)：5 次模型 **28,117**，18 次计算均已停止/结算 **21,012** 保守上界，总计 **49,129 usd_micros**；容量/本轮未知为空，Workflow 已对账、临时内部密钥已删除。共享模型已计价结算 **85,592** 加旧未知 **6,196**，共占用 **91,788 usd_micros**。
 
 下一候选把 F 的输出空间改为 8,192，并在用户消息中明确同一 JSON Schema/禁止分析散文；仍是原 2 次调用、$0.05 阶段预算、全画幅和独立模型检查。截断不自动重试，也不缓存或捏造原 verdict；此 Worker-only 修正复用本节已验证的新镜像。
 
@@ -91,7 +93,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 [E 首次回执](seventh-attempt/review-0-response.json)调用 `write_spec`，仅把 web-claim 的 maxLines 从 2 改为 4，未改善已看到的空卡片。该修复后的 [E 再审](seventh-attempt/review-1-response.json)耗时 **96,637 ms**、完成用量 **8,192 token**，仍在分析和反复考虑修改，未完成工具调用即截断。没有把散文提取为工具或将放宽元数据认作视觉修复；未到 F，不能据此认定增大后的 F 仍截断。
 
-[完整回执](seventh-attempt/report.json)记录三次模型 **15,035**、12 次计算保守上界 **11,491**，共 **26,526 usd_micros**，均已结算、物理停止、容量清空、Workflow 对账和密钥回收。共享模型实收 **100,627** 加旧未知 **6,196**，共占用 **106,823**。第六轮实际横竖 MP4 已另在 Chrome 155.0.8059.85 解码、逐帧查看并默认 1× 播放到结束，无媒体错误；[播放器记录](sixth-attempt/actual-playback.json)不等于负责人视听或冷审通过。
+[完整回执](seventh-attempt/report.json)记录三次模型 **15,035**、12 次计算保守上界 **11,491**，共 **26,526 usd_micros**，均已结算、物理停止、容量清空、Workflow 对账和密钥回收。共享模型已计价结算 **100,627** 加旧未知 **6,196**，共占用 **106,823**。第六轮实际横竖 MP4 已另在 Chrome 155.0.8059.85 解码、逐帧查看并默认 1× 播放到结束，无媒体错误；[播放器记录](sixth-attempt/actual-playback.json)不等于负责人视听或冷审通过。
 
 针对这个具体失败，当前内部候选将 E/F 请求从 medium 改为 low，要求只完成一次工具/完整 JSON，不输出分析散文；E 明确要修复实际画面而不是调宽 maxLines。金额、次数、8192 输出上限、独立冷审及质量门槛不变。[DeepSeek 官方说明](https://api-docs.deepseek.com/guides/thinking_mode/)指出 medium 映射 high；网关只证明参数被接受，尚不能断言它实际转发了此语义。后续仍按真实结果判断。
 
@@ -119,7 +121,7 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 `8acef1e65b89af1ded23055511b93b5c468d3221` 经 [40096746500](https://github.com/ten2ten2/promobento/actions/runs/40096746500) 仅部署 Worker，镜像不变；自动全套 push `40096738412` 已取消。操作 `eval-deepseek-15-1792847367993`，输出 `artifacts/s1-deepseek-15-review-16k-2026-10-24`。本轮取得两份完整、可计费的工具响应，没有截断。
 
-[首份 E](tenth-attempt/review-0-response.json)确实尝试填充空卡片，但发明 `bodySlot`（真实参数为 `subtitleSlot`）并使用未支持的文本 role，完整 FilmSpec 被拒。E 原消息只有 FilmSpec Schema，未像 B/C 提供积木自己的参数 Schema。[一次结构纠正](tenth-attempt/review-0-output-repair-1-response.json)改用实际产品图，却在只允许 `{film}` 的 `write_spec` 参数外又加 `note`，因此 `DIRECTOR_TOOL_INVALID`，未执行该修复、未到 F。不能删除 note 或映射猜测字段后冒充原工具通过。
+[首份 E](tenth-attempt/review-0-response.json)确实尝试填充空卡片，但发明 `bodySlot`（真实参数为 `subtitleSlot`），积木参数校验拒绝。该份通过 FilmSpec 结构校验，`body` 是受支持的文本 role。E 原消息只有 FilmSpec Schema，未像 B/C 提供积木自己的参数 Schema。[一次结构纠正](tenth-attempt/review-0-output-repair-1-response.json)改用实际产品图，却在只允许 `{film}` 的 `write_spec` 参数外又加 `note`，因此 `DIRECTOR_TOOL_INVALID`，未执行该修复、未到 F。不能删除 note 或映射猜测字段后冒充原工具通过。
 
 [完整回执](tenth-attempt/report.json)：两次模型 **3,832**，8 次计算停止/结算 **4,887** 保守上界，共 **8,719 usd_micros**，无本轮未知/遗留容量，Workflow 已对账、密钥已回收。共享模型实际 **110,267** 加旧未知 **20,225**，共占用 **130,492**。
 
@@ -139,4 +141,14 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 [完整回执](minimax-first-attempt/report.json)：两次模型 **136 + 318 = 454 usd_micros**，0 新计算，无本轮未知/容量，Workflow 已对账、密钥已回收。共享模型实际 **116,337** 加未知 **20,225**，占用 **136,562**。
 
-修正把事实响应 Schema 放到原用户消息，结构纠正同时携带相应 Schema/工具契约并区分 JSON 与实际工具回复；A 的事实/素材输出空间改为 4,096，次数/金额不提高。另将 C 的“事实证据逐字当标题”收紧为忠实压缩未定稿文案，明确保留任何用户定稿、名称/URL/CTA、限定条件、归属与事实绑定；不改原事实卡或确认。这是对真实画面中长句标题/空卡片的创作修正，不改变事实和独立冷审标准。
+修正把事实响应 Schema 放到原用户消息，结构纠正同时携带相应 Schema/工具契约并区分 JSON 与实际工具回复；A 的事实/素材输出空间改为 4,096，次数/金额不提高。另将 C 的“事实证据逐字当标题”改为允许忠实压缩未定稿文案，明确保留任何用户定稿、名称/URL/CTA、限定条件、归属与事实绑定；不改原事实卡或确认。这是对真实画面中长句标题/空卡片的创作修正，不改变事实和独立冷审标准。
+
+## MiniMax 第二次：A 显式契约通过，真实卡片布局碰撞导致修复耗尽
+
+`d56cea6a3b7d2e004525d7216fbccd64d233d392` 经 [40099463344](https://github.com/ten2ten2/promobento/actions/runs/40099463344) 仅部署 Worker，同一镜像不变；自动全套 push `40099455917` 已取消。操作 `eval-minimax-15-1792849798870`，输出 `artifacts/s1-minimax-15-contract-2026-10-24`。事实 210 token、素材 838 token 一次通过；B 三张实际方向已查看并选择 Fit，Opus 一次纠正通过。E 完成两轮实际修改后仍要求第三次，按原上限 `DIRECTOR_REPAIR_LIMIT`，未到 F。
+
+已取回并查看原 `review-1` / `review-2` 私有拼图：E 给卡片加上真实素材后，标题和副标题相互重叠。[造成该画面的合法 FilmSpec](minimax-second-attempt/review-1-response.json)在 `feature-grid` 传了受支持的 `assetKey`、`textSlot`、`subtitleSlot`；运行时却给标题 y=52% / h=42%，副标题 y=61% / h=30%，两个区域本身相交。该缺陷不由模型继续改字段或提高修复次数解决。原阅读观测没有对这组文本作成对碰撞检查，因此媒体数值通过不等于此布局正确。
+
+[完整费用与回收](minimax-second-attempt/report.json)：模型 **37,333**，27 次计算停止/结算 **16,712** 保守上界，总计 **54,045 usd_micros**；无本轮未知/残留容量，Workflow 已对账、密钥回收。共享模型已计价结算 **153,670** 加旧未知 **20,225**，占用 **173,895**。本轮 B 请求 max_tokens=8,192，返回 usage 的 completion_tokens=10,857；其推理/输出统计口径尚未核对，按完整 usage 结算 3,631，低于本次预留 4,229，不把请求参数当成已证明的网关硬上限。
+
+修复将上图卡片下方 40% 文案区分为标题 22%、间隔 3%、副标题 15%，`feature-grid` 实现同步为 1.0.1。无图/其他画幅不变，旧 release 保留原字节；离线 Studio 已按现有生成器重新生成，无差异。实际创作代码仍只在容器执行。新镜像必须由 Actions 构建，随后用同一失败 FilmSpec、已批准的私有素材/字体/seed 单独取横屏 270 帧，读 CDP 并要求三组文本间隔 ≥4 px；仅作该回归，不调用模型或编码影片。新入口的两份 Node 脚本语法检查已一次通过，真实回归待部署；不重跑旧矩阵或完整 CI。

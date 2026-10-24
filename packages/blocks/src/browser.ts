@@ -104,7 +104,7 @@ function picture(ctx: SceneContext, key: string, parent: HTMLElement): (time: nu
   return async () => {};
 }
 
-for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: '1.0.0', build(ctx, params) {
+for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.0.1' : '1.0.0', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
   const heading = params.textSlot ? node(safe, {position: 'absolute', top: '0', width: '100%', height: '20%'}) : undefined;
   if (heading) text(ctx, params.textSlot, heading, 2);
@@ -117,9 +117,11 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
       border: `2px solid ${ctx.style.palette.accent}`, padding: wide ? '28px' : '22px', background: ctx.style.palette.bg ?? ''});
     const art = item.assetKey ? node(card, {position: 'absolute', right: '5%', top: '8%', width: wide ? '90%' : '24%', height: wide ? '38%' : '84%'}) : undefined;
     if (art && item.assetKey) drawings.push(picture(ctx, item.assetKey, art));
-    const copy = node(card, {position: 'absolute', left: '7%', top: art && wide ? '52%' : '12%', width: art && !wide ? '62%' : '86%', height: item.subtitleSlot ? '42%' : art && wide ? '40%' : '76%'});
+    // Image-above cards share one 40% copy band: 22% title, 3% gap, 15% subtitle.
+    // The old 42% title area overlapped the subtitle that started at 61%.
+    const copy = node(card, {position: 'absolute', left: '7%', top: art && wide ? '52%' : '12%', width: art && !wide ? '62%' : '86%', height: item.subtitleSlot ? (art && wide ? '22%' : '42%') : (art && wide ? '40%' : '76%')});
     text(ctx, item.textSlot, copy, 3, wide ? 84 : 64);
-    if (item.subtitleSlot) text(ctx, item.subtitleSlot, node(card, {position: 'absolute', left: '7%', top: '61%', width: art && !wide ? '62%' : '86%', height: '30%'}), 2);
+    if (item.subtitleSlot) text(ctx, item.subtitleSlot, node(card, {position: 'absolute', left: '7%', top: art && wide ? '77%' : '61%', width: art && !wide ? '62%' : '86%', height: art && wide ? '15%' : '30%'}), 2);
     // Pure geometry, not an unbound visible numeric module label.
     node(card, {position: 'absolute', left: '7%', bottom: '6%', width: `${Math.min(40, 10 + index * 6)}%`, height: '4px', background: ctx.style.palette.accent ?? ''});
     return card;

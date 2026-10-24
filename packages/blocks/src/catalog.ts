@@ -17,7 +17,7 @@ export const blockCatalog = [
     events: [{name: 'cta-land', description: 'Call to action reaches its reading hold.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot, logoKey: slot } } },
-  { ...common, id: 'feature-grid', category: 'software', regions: ['features'],
+  { ...common, id: 'feature-grid', version: '1.0.1', category: 'software', regions: ['features'],
     events: [{name: 'feature-land', description: 'Feature cards finish their staggered reveal.'}],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
