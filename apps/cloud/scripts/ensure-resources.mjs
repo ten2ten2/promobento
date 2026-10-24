@@ -2,10 +2,11 @@
 // Creates the D1 databases, R2 buckets and Queues listed in resources.json if they are missing.
 // Idempotent; runs from CI with CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID. Never prints the account ID.
 import { readFileSync, appendFileSync } from 'node:fs';
+import {parseCanonicalJson} from '../../../packages/contracts/src/canonical.mjs';
 
 const token = process.env.CLOUDFLARE_API_TOKEN, account = process.env.CLOUDFLARE_ACCOUNT_ID;
 if (!token || !account) throw Error('CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are required');
-const { environments } = JSON.parse(readFileSync(new URL('../resources.json', import.meta.url), 'utf8'));
+const { environments,shared } = parseCanonicalJson(readFileSync(new URL('../resources.json', import.meta.url)));
 const base = `https://api.cloudflare.com/client/v4/accounts/${account}`;
 
 async function api(method, path, body) {
@@ -33,6 +34,11 @@ async function listAll(path, key) {
 
 const rows = [];
 const d1 = await listAll('/d1/database');
+if(shared?.modelLedger){
+  let database=d1.find(database=>database.name===shared.modelLedger),created=false;
+  if(!database){database=await api('POST','/d1/database',{name:shared.modelLedger});created=true;}
+  rows.push(['shared','D1',shared.modelLedger,database.uuid,created]);
+}
 const buckets = (await api('GET', '/r2/buckets')).buckets ?? [];
 const queues = await listAll('/queues');
 for (const [env, names] of Object.entries(environments)) {
