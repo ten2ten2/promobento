@@ -1,0 +1,1240 @@
+{
+  "status": "failed",
+  "scope": "trusted_2d_four_aspect_seek_layout_bridge_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {
+    "landscape": {
+      "status": "passed",
+      "frames": 9,
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "clock": true,
+      "forbiddenApis": true,
+      "textSafeAreaAndCustomFont": true,
+      "hitTest": true,
+      "dispose": true
+    },
+    "portrait": {
+      "status": "passed",
+      "frames": 9,
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "clock": true,
+      "forbiddenApis": true,
+      "textSafeAreaAndCustomFont": true,
+      "hitTest": true,
+      "dispose": true
+    },
+    "feed": {
+      "status": "passed",
+      "frames": 9,
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "clock": true,
+      "forbiddenApis": true,
+      "textSafeAreaAndCustomFont": true,
+      "hitTest": true,
+      "dispose": true
+    },
+    "square": {
+      "status": "passed",
+      "frames": 9,
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 120,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 132,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 342,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "clock": true,
+      "forbiddenApis": true,
+      "textSafeAreaAndCustomFont": true,
+      "hitTest": true,
+      "dispose": true
+    }
+  },
+  "checks": [],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "journey": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.024594907407407406
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0019772376543209878
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0003858024691358025
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0009645061728395061
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.001736111111111111
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.00236304012345679
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0013503086419753088
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.002674897119341564
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0015089163237311386
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.00027434842249657066
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.006601508916323731
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.004286694101508916
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.00102880658436214
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 1,
+        "diffPixelPct": 0.0006858710562414266
+      }
+    ]
+  },
+  "showcase": {
+    "scope": "push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale",
+    "comparisons": [
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "landscape",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "portrait",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "feed",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 149,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 185,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 1,
+        "frame": 299,
+        "mode": "cold",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 299,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      },
+      {
+        "aspect": "square",
+        "scale": 0.5,
+        "frame": 185,
+        "mode": "reverse",
+        "maxChannelDiff": 0,
+        "diffPixelPct": 0
+      }
+    ]
+  },
+  "failure": "AssertionError [ERR_ASSERTION]: showcase-square-0.5-149-reverse: pixel regression: max=1, changed=1.7983539094650205%\n    at compare (file:///app/apps/render-container/tests/browser.render.test.mjs:83:10)\n    at file:///app/apps/render-container/tests/browser.render.test.mjs:204:100"
+}

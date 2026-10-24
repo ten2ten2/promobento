@@ -15,6 +15,11 @@ on:
         description: Already deployed SHA; staging-only harness repair without rebuilding or redeploying
         type: string
         default: ''
+      runtime_case:
+        description: Narrow only a known failed runtime case; all keeps normal coverage
+        type: choice
+        options: [all, showcase-square-review]
+        default: all
       staging_inspect_run:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render
         type: string
@@ -119,6 +124,7 @@ jobs:
             -e PROMOBENTO_MEDIA_ONLY="${{ inputs.suite == 'media' && '1' || '0' }}" \
             -e PROMOBENTO_RUNTIME_ONLY="${{ inputs.suite == 'runtime' && '1' || '0' }}" \
             -e PROMOBENTO_JOURNEY_ONLY="${{ inputs.suite == 'journey' && '1' || '0' }}" \
+            -e PROMOBENTO_RUNTIME_CASE="${{ inputs.suite == 'runtime' && inputs.runtime_case || 'all' }}" \
             -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
