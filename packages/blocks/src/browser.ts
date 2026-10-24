@@ -68,7 +68,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   };
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.1', build(ctx, params) {
+window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.2', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', hasText = typeof params.textSlot === 'string';
   safe.style.zIndex='1';
   if (hasText) text(ctx, params.textSlot, node(safe, {position: 'absolute', left: '0', top: wide ? '25%' : '2%',
@@ -99,13 +99,19 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0
       padding+4+(panel.clientHeight-asset.height*scale)/2+roi.y*asset.height*scale,Math.max(4,roi.width*asset.width*scale-4),Math.max(4,roi.height*asset.height*scale-4),10);draw.stroke();draw.restore();
     highlight=mediaPyramid(draw.getImageData(0,0,chrome.width,chrome.height));
   }
+  let settledPixels=false;
   return {
     ready:source.ready,async render(time) { const p = easeOut(time / 0.7),angle=(1-p)*(wide?-9:-4),translationY=(1-p)*40,zoom=.92+p*.08;
       panel.style.transform = p === 1 ? 'none' : `perspective(${PANEL_PERSPECTIVE}px) rotateY(${angle}deg) translateY(${translationY}px) scale(${zoom})`;
-      surface.pixels.data.fill(0);const options={clip,translationY,zoom};
-      paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
-      paintProjectedMedia(surface.pixels,await source.load(time),{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,angle*Math.PI/180,1,{...options,radius:26});
-      if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,angle*Math.PI/180,easeOut((time-.5)/.4),{...options,radius:0});
+      const highlightOpacity=easeOut((time-.5)/.4),settled=asset.kind!=='video'&&p===1&&(!highlight||highlightOpacity===1);
+      if(!settled||!settledPixels){
+        surface.pixels.data.fill(0);const options={clip,translationY,zoom};
+        paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
+        paintProjectedMedia(surface.pixels,await source.load(time),{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,angle*Math.PI/180,1,{...options,radius:26});
+        if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,angle*Math.PI/180,highlightOpacity,{...options,radius:0});
+      }
+      settledPixels=settled;
+      // Always write, including after a hidden scene. Only the unchanged CPU sampling is reused.
       surface.write(); },
     events: blockEvents('ui-showcase', ctx.frames, params), regions: [region('product', panel, ctx.root)]
   };

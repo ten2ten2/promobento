@@ -18,8 +18,10 @@ const lock=parseCanonicalJson(read('apps/render-container/environment.lock.json'
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
 const journeyOnly=process.env.PROMOBENTO_JOURNEY_ONLY==='1',runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1'||journeyOnly;
 const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review';
+const showcaseOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase';
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
+if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 // A real director repair put a shard boundary inside the push into ui-journey.
@@ -146,7 +148,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of journeyOnly||reviewOnly?[]:Object.keys(rules.aspectLayouts)){
+  for(const aspect of journeyOnly||reviewOnly||showcaseOnly?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -185,7 +187,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  for(const name of journeyOnly?['journey']:['journey','showcase']){
+  for(const name of showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -220,7 +222,7 @@ try{
     }
   }
   }
-  if(!journeyOnly&&!reviewOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
     const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
     const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
     writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');

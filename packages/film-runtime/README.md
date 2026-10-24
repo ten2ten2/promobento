@@ -28,6 +28,8 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 只复验更改后的四画幅 review 取图路径，可在 `suite=runtime` 加 `-f runtime_case=review`；普通 72 项与最终尺寸路径不重跑。
 
+只改 showcase 时，用 `runtime_case=showcase` 检查四画幅最终片/review 的 48 次顺序、逆序与冷 seek 比较，复用其他积木未受影响的结果。静态图片和 ROI 停稳后复用固定像素，但每帧仍写回画布；运动中和视频逐帧取样不变。
+
 测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
 
 九积木为 `hook-title`、`ui-showcase`、`cta-endcard`、`feature-grid`、`curriculum`、`ui-journey`、`metric`、`captions`、`talking-head`。后两者消费已清权、已确认的素材/字幕；数值和 CTA 必须绑定事实。字体由镜像转换并登记 cmap，宿主补齐覆盖范围；缺字和实际字体回退分别由静态检查与 CDP 检查。

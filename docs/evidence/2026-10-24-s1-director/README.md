@@ -293,3 +293,8 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 [40139493361](https://github.com/ten2ten2/promobento/actions/runs/40139493361) 在 `ab4442f` 构建/部署成功，镜像 **`sha256:70644412bc06d55a25c8aee7d4e5a7859bbc841634a365bb8fde6124633a48e7`**，Worker `79769107-701b-4388-9ee0-54d0a377831c`。操作 `eval-minimax-15-1792881915587` 复用第七次的同一付费 C、原素材/字体/seed；[真实 review](showcase-raster/native-review-render.json)在原 90 秒内交付，客户端 **75,439 ms**，149/299 帧接缝均零差异。实际 15 秒、960×540、15 fps、225 帧、有 AAC；原有 VBV 纠正后峰值 **1,424,992 ≤ 2,500,000 bit/s**。[五次计算](showcase-raster/native-report.json)全部物理停止/结算 **8,965 usd_micros**，0 模型，未结与容量为空、临时密钥回收。
 
 已查看实际 MP4 的转场、ROI 和片尾解码图，面板/阴影正常；Chrome 155.0.8059.85 完整 **1×** 播放到结束，无解码错误/掉帧，[解码回执](showcase-raster/native-decoded-video.json)。该回归不计完整导演、最终片或负责人视听。已移除仅用于方形诊断的临时 selector 与画布导出，保留四画幅 review 的必要检查入口；继续完整导演。
+
+
+### 停稳画面的取样优化
+
+上述原 C 回执中，静态 showcase 停稳后每帧仍重复逆透视取样，明显慢于无产品图段。当前 1.0.2 只复用静态图片、入场和 ROI 都停稳时的不变像素，仍每帧写回 canvas，避免隐藏后首次画面丢失；回跳到运动帧立即重算，视频仍逐帧按 PTS 读取。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅确定性与耗时仍待云验，没有据此宣称提速。
