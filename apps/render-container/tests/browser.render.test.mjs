@@ -8,7 +8,6 @@ import {parseCanonicalJson} from '../../../packages/contracts/index.mjs';
 import {audioSamples} from './audio-samples.mjs';
 import {mediaFixture} from './media-fixture.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
-import {pngRgba} from '../../cloud/src/director-sheets.mjs';
 
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')
   throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
@@ -30,7 +29,8 @@ for(let y=0;y<1400;y++)for(let x=0;x<2200;x++){
   const rgb=line?[48,88,70]:detail?[(x%12<6?100:210),188,150]:x<300?[217,226,211]:[237,241,232];
   const at=(y*2200+x)*4;bitmapPixels.set([...rgb,255],at);
 }
-const journeyBitmap=pngRgba(2200,1400,bitmapPixels);
+const journeyBitmap=execFileSync('ffmpeg',['-v','error','-f','rawvideo','-pixel_format','rgba','-video_size','2200x1400','-i','pipe:0',
+  '-frames:v','1','-f','image2pipe','-c:v','png','pipe:1'],{input:bitmapPixels,maxBuffer:16<<20});
 journey.assets.dashboard.resourceId='res_fixture_journey';
 journey.scenes=[
   {...journey.scenes[0],end:66},
