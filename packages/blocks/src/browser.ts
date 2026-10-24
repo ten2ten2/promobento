@@ -65,7 +65,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0
       width: roi.width * asset.width * scale + 'px', height: roi.height * asset.height * scale + 'px'});
   }
   return {
-    async render(time) { const p = easeOut(time / 0.7); panel.style.transform = `perspective(1800px) rotateY(${(1 - p) * (wide ? -9 : -4)}deg) translateY(${(1 - p) * 40}px) scale(${0.92 + p * 0.08})`;
+    async render(time) { const p = easeOut(time / 0.7); panel.style.transform = p === 1 ? 'none' : `perspective(1800px) rotateY(${(1 - p) * (wide ? -9 : -4)}deg) translateY(${(1 - p) * 40}px) scale(${0.92 + p * 0.08})`;
       await draw(time);
       if (highlight) highlight.style.opacity = String(easeOut((time - 0.5) / 0.4)); },
     events: blockEvents('ui-showcase', ctx.frames, params), regions: [region('product', panel, ctx.root)]
@@ -84,7 +84,8 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'cta-endcard', version: '1.0
   const title = node(safe, {position: 'absolute', top: '30%', width: '100%', height: '44%'}); text(ctx, params.textSlot, title);
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '80%', width: '100%', height: '18%'}), 2);
   return {
-    render(time) { const p = easeOut(time / 0.5); title.style.transform = `translateY(${(1 - p) * 24}px)`; accent.style.transform = `rotate(${-12 + p * 12}deg)`; },
+    render(time) { const p = easeOut(time / 0.5); title.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 24}px)`;
+      accent.style.transform = p === 1 ? 'none' : `rotate(${-12 + p * 12}deg)`; },
     events: blockEvents('cta-endcard', ctx.frames, params), regions: [region('cta', title, ctx.root)]
   };
 }});
@@ -124,7 +125,7 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
     return card;
   });
   return {async render(time) { for (const draw of drawings) await draw(time); cards.forEach((card, i) => { const p = easeOut((time - i * .12) / .5);
-    card.style.opacity = String(p); card.style.transform = `translateY(${(1 - p) * 32}px)`; }); },
+    card.style.opacity = String(p); card.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 32}px)`; }); },
   events: blockEvents(id, ctx.frames, params),
   regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root)]};
 }});
@@ -192,6 +193,6 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'talking-head', version: '1.
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', left: wide ? '65%' : '0', top: wide ? '76%' : '93%',
     width: wide ? '35%' : '100%', height: wide ? '20%' : '7%'}), 2);
   return {async render(time) { await draw(time); const p = easeOut(time / .5);
-    title.style.transform = `translateY(${(1 - p) * 20}px)`; title.style.opacity = String(p);
+    title.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 20}px)`; title.style.opacity = String(p);
   }, events: blockEvents('talking-head', ctx.frames, params), regions: [region('speaker', portrait, ctx.root)]};
 }});

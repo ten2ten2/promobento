@@ -74,5 +74,23 @@
     "httpStatus": 403,
     "checkedAt": "2026-10-24",
     "sourceUrl": "https://takeielts.britishcouncil.org/prepare/ielts-ready"
+  },
+  "materialLicenseReview": {
+    "status": "permission_required",
+    "checkedAt": "2026-10-24",
+    "termsUrl": "https://www.britishcouncil.org/terms",
+    "section": "10",
+    "basis": "The official terms permit personal, non-commercial use with credit but restrict other purposes, modifications and graphics separated from their accompanying text. A project-owner approval alone does not establish this third-party permission.",
+    "requiredEvidence": "Permission covering internal product-development video evaluation and the intended screenshot use, or another source with a compatible documented license.",
+    "alternatives": [
+      {
+        "url": "https://www.britishcouncil.hk/sites/default/files/ielts_irp_manuel_20250212_v6.pdf",
+        "description": "Public official Premium user manual with interface examples; not ingested, do not treat Premium as the free package."
+      },
+      {
+        "url": "https://www.ielts.ca/prepare-for-ielts/ielts-ready/",
+        "description": "Public British Council Canada product page; not ingested."
+      }
+    ]
   }
 }

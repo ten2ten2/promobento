@@ -2,6 +2,8 @@
 
 [`Dockerfile`](Dockerfile) 共用固定 Chromium、GSAP、FFmpeg、字体与运行时。仅在 GitHub Actions 构建/推送；`runtime` 是生产形态入口，`browser-test` 是离线工程检查入口。PID 1 只做分离 uid 的启动，随后降为 uid 10003；控制器 10001、Chromium 启动器/浏览器 10002，均无 capability。
 
+固定 Chromium/GSAP 的下载及摘要核验在应用源码层之前；小幅运行时或文档修改可复用 Actions 的依赖层缓存，不重新下载同一浏览器与许可文件。字体仍按当前登记核验并构建，版本和沙箱检查不变。
+
 控制器的私有端口 8080 接受不可变 `render_task`，完整结构见 [Schema](../../contracts/render-job.schema.json)。每实例仅绑定一个任务，broker 令牌只在可信控制器内存中。素材、视频帧和音轨从该任务的 broker 清单读取，原始字节按共享摘要校验；字体来自镜像内审核目录。Chromium 没有令牌，页面不能任意出网。
 
 - **shard**：逐源帧 seek，CDP JPEG 92 直送 FFmpeg；保存 PNG 重叠/末帧、真实 CDP 阅读停留观测和回执。

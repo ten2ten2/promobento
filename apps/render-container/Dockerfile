@@ -17,19 +17,22 @@ COPY packages/film-runtime/package.json packages/film-runtime/package.json
 COPY packages/blocks/package.json packages/blocks/package.json
 COPY apps/cloud/package.json apps/cloud/package.json
 RUN pnpm install --frozen-lockfile --ignore-scripts
-COPY . .
-RUN node scripts/build-film-runtime.mjs \
-    && curl -fsSL --retry 5 --max-time 180 https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip -o /tmp/chrome.zip \
+# Fixed browser/GSAP downloads do not depend on application or documentation edits.
+# Keep them ahead of the source layer so a small runtime repair reuses the Actions build cache.
+RUN curl -fsSL --retry 5 --max-time 180 https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip -o /tmp/chrome.zip \
     && echo '3cfc2bd00d1bafcf8a68dc74c9c92bb7150ddc8d26ade948a776316e1cec4f14  /tmp/chrome.zip' | sha256sum -c - \
     && unzip -q /tmp/chrome.zip -d /opt && rm /tmp/chrome.zip \
-    && node scripts/build-render-fonts.mjs /opt/fonts \
     && curl -fsSL --retry 5 --max-time 180 https://registry.npmjs.org/gsap/-/gsap-3.14.2.tgz -o /tmp/gsap.tgz \
     && tar -xzf /tmp/gsap.tgz -C /tmp package/dist/gsap.min.js \
     && echo 'c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280  /tmp/package/dist/gsap.min.js' | sha256sum -c - \
-    && cp /tmp/package/dist/gsap.min.js packages/film-runtime/dist/browser/gsap.js \
+    && mkdir -p /opt/gsap && cp /tmp/package/dist/gsap.min.js /opt/gsap/gsap.js \
     && curl -fsSL --retry 5 --max-time 60 https://gsap.com/community/standard-license/ -o /opt/GSAP-LICENSE.html \
     && head -n 9 /tmp/package/dist/gsap.min.js > /opt/GSAP-LICENSE.txt \
-    && rm -rf /tmp/package /tmp/gsap.tgz \
+    && rm -rf /tmp/package /tmp/gsap.tgz
+COPY . .
+RUN node scripts/build-film-runtime.mjs \
+    && cp /opt/gsap/gsap.js packages/film-runtime/dist/browser/gsap.js \
+    && node scripts/build-render-fonts.mjs /opt/fonts \
     && dpkg-query -W > /opt/environment-packages.txt \
     && useradd --uid 10001 --create-home controller && useradd --uid 10002 --create-home chromium && useradd --uid 10003 --no-create-home supervisor \
     && mkdir /work /chrome && chown 10001:10001 /work && chown 10002:10002 /chrome

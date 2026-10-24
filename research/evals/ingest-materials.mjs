@@ -16,6 +16,7 @@ const prepared=selected.assets.map(asset=>{
  const topic=topics.topics.find(topic=>topic.id===asset.topicId&&topic.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
  const card=parseCanonicalJson(readFileSync(topic.factCard));
  if(card.status!=='confirmed_for_s1_eval'||card.confirmation.confirmedBy!=='owner'||card.confirmation.scope!=='s1-first-internal-evaluation'||card.rights.scope!=='internal_eval_only'||asset.review!=='approved_for_internal_eval_by_codex'||!asset.reviewedAt)throw Error('MATERIAL_REVIEW_REQUIRED');
+ if(card.materialLicenseReview?.status==='permission_required')throw Error('MATERIAL_SOURCE_PERMISSION_REQUIRED');
  if(!/^[a-z0-9-]+\.png$/.test(asset.file)||!card.assetSources.some(source=>source.url===asset.sourceUrl))throw Error('MATERIAL_SOURCE_INVALID');
  const bytes=readFileSync(join(directory,asset.file));if(bytes.length>8<<20||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'
   ||bytes.readUInt32BE(16)!==asset.width||bytes.readUInt32BE(20)!==asset.height)throw Error('MATERIAL_IDENTITY_INVALID');

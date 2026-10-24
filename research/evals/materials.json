@@ -166,11 +166,12 @@
   ],
   "pending": [
     {
-      "reason": "Browser transport failed; bounded HTTP/1.1 source request returned 403. An authorized capture is needed when the public source is accessible.",
+      "reason": "The original source returned 403. Official public alternatives were identified, but permission covering this project’s screenshot use is not established; no IELTS images processed.",
       "topicId": "ielts-ready",
       "sourceUrl": "https://takeielts.britishcouncil.org/prepare/ielts-ready",
       "httpStatus": 403,
-      "checkedAt": "2026-10-24"
+      "checkedAt": "2026-10-24",
+      "licenseReviewRef": "research/evals/fact-cards/ielts-ready.json#/materialLicenseReview"
     }
   ]
 }

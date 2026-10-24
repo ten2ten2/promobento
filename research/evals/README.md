@@ -14,7 +14,7 @@
 - [Marugoto](fact-cards/marugoto.json)：日本国际交流基金的日语沟通课程；不是 JLPT N2 冲刺班，不使用合格率。
 - [Hugging Face LLM Course](fact-cards/hf-llm-course.json)：Transformer、微调、Datasets 与 Tokenizers；保留 Python 学习基础要求。课程材料复用按其 Apache-2.0 许可保留通知，商标与肖像单独处理。
 
-**IELTS Ready 素材未就绪**：浏览器发生 HTTP/2 协议错误及 HTTP/1.1 导航超时，随后一次有界源请求返回 403；没有绕过访问限制，也没有用虚构界面代替。公开来源恢复可访问，或负责人提供该公开页面的授权截图后，再采集并核对；原有功能事实确认不变。
+**IELTS Ready 素材未就绪**：原页面请求返回 403 的记录保留；另已找到可公开读取的[香港官方使用手册](https://www.britishcouncil.hk/sites/default/files/ielts_irp_manuel_20250212_v6.pdf)及[加拿大官方产品页](https://www.ielts.ca/prepare-for-ielts/ielts-ready/)。[素材条款第 10 节](https://www.britishcouncil.org/terms)限定个人非商业使用，并限制改编、图文分离及其他用途；目前没有适用于本项目内部产品开发评测的第三方许可证据。先不截图、提取图片或入库，采集/入库脚本也会阻断此项。恢复条件为提供覆盖该用途的授权证据或有相容许可的替代素材；原有功能事实确认不变，不把 Premium 手册当作免费套餐界面。
 
 ## 用私有素材清单准备评测
 

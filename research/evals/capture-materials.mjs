@@ -22,6 +22,10 @@ try{
  for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false&&(!selected||topic.id===selected))){
   const card=parseCanonicalJson(readFileSync(new URL(topic.factCard,root)));
   if(card.status!=='confirmed_for_s1_eval'||card.confirmation.confirmedBy!=='owner'||card.rights.scope!=='internal_eval_only'||card.rights.publicUseCleared!==false)throw Error('TOPIC_APPROVAL_REQUIRED');
+  if(card.materialLicenseReview?.status==='permission_required'){
+   report.assets.push({id:topic.id+'-rights',topicId:topic.id,status:'license_pending',sourceUrl:card.materialLicenseReview.termsUrl,error:'MATERIAL_SOURCE_PERMISSION_REQUIRED'});
+   save();console.log(canonical({topicId:topic.id,status:'license_pending'}));continue;
+  }
   for(const[sourceIndex,source]of card.assetSources.entries()){
    // Press resources are not primary lesson/product material. No account/login interactions or downloads.
    if(source.kind==='press_resources')continue;
