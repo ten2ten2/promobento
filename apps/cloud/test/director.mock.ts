@@ -19,7 +19,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
@@ -109,7 +109,13 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
-  else throw Error('MOCK_UNKNOWN_STAGE');models.push(stage);
+  else throw Error('MOCK_UNKNOWN_STAGE');
+  if(stage===invalidStage&&(!models.includes(stage)||alwaysInvalidStage))value.schemaVersionNote=null;
+  if(stage===invalidStage&&models.includes(stage)){
+    const last=body.messages.at(-1),feedback=parseCanonicalJson(provider.kind==='anthropic'?last.content[0].text:last.content).validationFeedback;
+    assert.ok(feedback.issues.some((issue:any)=>issue.path==='/schemaVersionNote'));
+  }
+  models.push(stage);
   const data=(value:any)=>'data: '+canonical(value)+'\n\n';let sse='';const reply=stage==='spec'&&malformedSpec&&specRequests===1?'{':canonical(value);
   if(provider.kind==='anthropic'){
    assert.ok(init.headers['x-api-key']);assert.ok(body.output_config.format);assert.equal(body.system[0].cache_control.ttl,'1h');
@@ -133,7 +139,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   let result:any,error:any;try{result=await new OperationWorkflow({} as any,env).run({payload:{operationId:'mock-operation'}} as any,step);}catch(value){error=value;}
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
   return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,
-   reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),
+   reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env)};
  }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;providers.steps.coldReview=originalCold;db.close();}
 }
@@ -144,6 +150,15 @@ test('A-C/E/F replay both SSE adapters, three real-protocol still requests and u
  assert.deepEqual(r.models,['facts','assets','directions','spec','review','coldReview']);assert.equal(r.reservations,6);assert.equal(r.settlements,6);
  assert.equal(r.choiceCount,1);assert.equal(r.studioCount,5);assert.equal(r.closedCount,5);assert.equal(r.activeStudio,null);assert.equal(r.renders.length,3);
  }
+});
+test('completed structured output with an extra null field gets one charged correction, never stripping or transport retry',async()=>{
+ for(const invalidStage of ['facts','assets','directions','coldReview']){
+  const fixed=await fixture({invalidStage});assert.ifError(fixed.error);assert.equal(fixed.models.filter(stage=>stage===invalidStage).length,2);assert.equal(fixed.reservations,7);assert.equal(fixed.settlements,7);
+  if(invalidStage==='assets')assert.equal(new Set(fixed.modelStages.filter(stage=>stage.startsWith('assets:'))).size,1);
+ }
+ const blocked=await fixture({invalidStage:'facts',alwaysInvalidStage:true});assert.equal(blocked.error.message,'FACT_ANALYSIS_INVALID');assert.deepEqual(blocked.models,['facts','facts']);assert.equal(blocked.settlements,2);assert.equal(blocked.renders.length,0);
+ const noColdCalls=await fixture({invalidStage:'coldReview',coldBlock:true});assert.equal(noColdCalls.error.message,'COLD_REVIEW_BLOCK');assert.equal(noColdCalls.specRequests,1);assert.equal(noColdCalls.models.filter(stage=>stage==='coldReview').length,2);
+ const unknown=await fixture({transportFailure:true});assert.equal(unknown.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(unknown.networkCalls,1);assert.equal(unknown.settlements,0);
 });
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);

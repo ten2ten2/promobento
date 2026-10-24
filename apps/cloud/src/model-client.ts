@@ -59,7 +59,8 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     :{prompt_tokens:inputTokens,completion_tokens:input.maxOutputTokens};
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
   if(worst>limits.maxMicros)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
-  const budgetStage=stage==='assets'?'assets:'+digest(request.messages).slice(0,32):stage;
+  // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
+  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
   try{
     await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,limits.maxMicros,

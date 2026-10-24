@@ -64,7 +64,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 仅修复检查脚本、仍需验证原部署时，可在上述手动入口加 `-f staging_sha=<实际已部署完整SHA>`：跳过迁移、构建和部署，只修复并运行 harness。报告分别记录部署 SHA 和 harness SHA，不把新分支当成已部署。内部密钥写入后先等待只读鉴权就绪（最多 60 秒）；相邻请求仍可能看到旧密钥，此时仅对调度前的确切 `404 Not found` 有界等待，并记录次数。模型/渲染失败和不确定超时不自动重试。
 
-只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件及其 `model-config` Schema、纯单元测试及容器 README；`agent-policy` 仅允许 `cost.catalogVersion` 标签不同，其余预算、限额、编码、渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
+只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件及其 `model-config` Schema、纯单元测试及容器 README；`agent-policy` 仅允许模型目录标签和未被容器导入的 `director.steps` 不同，操作/计算预算、实例限额、编码与渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
 
 仅部署已做必要定点检查的 Worker 时，选择 `-f staging_scenario=deploy-only`：只读取实际 `/healthz`、内部容量与预算状态并保存 `deployment-health.json`，不创建操作或启动模型/媒体。部署仍在 Actions 完成，临时内部密钥照常回收；这不是成功导演或媒体验收。
 
@@ -77,6 +77,10 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 ## 不消费云资源的导演回放
 
 `mise run test:cloud-local` 在本机预编译当前 Schema 后，用真实 `OperationWorkflow`、两种 SSE 适配器、SQLite 预算 SQL 和内存 R2 回放 A–C/E/F。网关默认路径不提供官方密钥，另显式回放原生 Anthropic 适配器。覆盖三方向取帧、12 小时用户等待排除、规格/JSON 校验纠正、review 修复、各画幅冷审、取消栅栏、缺许可/密钥/模型验证的提前阻断，以及未知消费保留预留。`fetch` 完全替换为固定 SSE，容器/成片为明确模拟，不访问外网、不读真实密钥、不构建 Mac 镜像；这些结果不代替媒体质量或 G1。官方模型仅在这个独立 mock bundle 中视为可回放，部署配置的 `verified=false` 不变。
+
+### 完整结构化响应可纠正一次
+
+首次真实事实整理返回额外的 `schemaVersionNote:null`，已完整保存/计费，但严格 Schema 拒绝，未继续素材或出片。A/B/F 对这种完整 JSON/契约失败现可反馈 code/path 和原响应，最多一次新 callId 纠正；首次成功的检查点仍兼容。事实整理和每素材各最多 2 次，总阶段金额保持 $0.01/$0.04；B/F 保持原总调用限额。素材的纠正沿用原第一条图片输入的预算身份，不因反馈消息另开一份费用/次数。F 调用用尽后不再先花 C 的费用做无法复审的修复。未知消费、权限、预算或传输失败不进入纠正。
 
 ### C 的校验纠正不重发未知消费
 

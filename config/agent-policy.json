@@ -248,12 +248,12 @@
     "source": "docs/plans/cloud-motion-v3.md#611-预算限制与-effort",
     "steps": {
       "facts": {
-        "maxCalls": 1,
+        "maxCalls": 2,
         "maxMicros": 10000,
         "effort": "low"
       },
       "assets": {
-        "maxCallsPerAsset": 1,
+        "maxCallsPerAsset": 2,
         "maxMicros": 40000,
         "effort": "low"
       },
