@@ -6,7 +6,7 @@
 
 网关 Claude 最新两轮复测丢图，C/F 已改绑官方 Anthropic Opus/Sonnet。负责人决定暂不添加 `ANTHROPIC_API_KEY`，这两项真实集成保留未验证，模型登记的 `verified=false`；官网能力说明不能充当探针通过。关闭执行时允许保存待接通绑定；启用和付费调用仍拒绝未验证模型。导演预检在任何付费调用前检查所有后续必需的密钥与验证状态；缺失时停止，不暗中降级或先消费其他模型。原始证据见[模型探针](evidence/2026-10-23-model-probe/README.md)。
 
-目前 staging Worker 尚未绑定两家供应商的运行时模型密钥；历史探针使用的 Actions 密钥不会自动成为 Worker secret。模型步骤恢复时仍须通过既有批准渠道绑定、核实官方能力，并完成历史费用确认；当前不调用模型。
+Actions 中已有 `MODEL_COMPAT_API_KEY`，无需负责人重复提供；此前部署流程没有将它绑定到 staging Worker。现已补[独立的密钥维护入口](../apps/cloud/README.md#将已有-actions-模型密钥绑定到-worker)，通过 Actions 的既有 secret 和 Wrangler stdin 绑定，拒绝打断活动操作，不重跑媒体。实际绑定结果待该入口执行；官方 Anthropic 的运行时密钥仍按负责人决定暂不添加。模型步骤恢复仍须核实官方能力并完成历史费用确认，当前不调用模型。
 
 六题真实事实和素材已实际打包为[12 份导演输入](../research/evals/README.md#将六题准备为实际导演输入)，每题 15/30 秒各含横竖两画幅，对应 24 部最终影片。状态为 `prepared_not_executed`；操作级权利重登记、真实模型调用与成片评测仍须在执行时完成，不把准备文件当作评测通过。
 

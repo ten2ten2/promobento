@@ -42,6 +42,18 @@
 
 Actions 为本轮生成并遮蔽 `EVAL_API_KEY`，只经 stdin 绑定到 staging Worker；结束前取消该轮操作、确认 lease 归还并删除密钥。内部入口随即恢复 404，`/healthz` 仍可用。失败报告与已生成媒体在 `s1-staging-deployment` 产物；不删除 D1/R2 的任务、权利和费用证据。需要人工恢复时从此工作流重新部署已核对的分支；不要删除数据库或回滚 Durable Object 迁移。手动使用内部入口时另行绑定密钥，不向聊天或日志粘贴值。官方 Anthropic 的密钥暂不添加，相关真实集成保留未验证。部署、G1、导演和首次六题评测的实际完成范围见[实施状态](../../docs/implementation-status.md)。
 
+### 将已有 Actions 模型密钥绑定到 Worker
+
+仓库 Actions 已有 `MODEL_COMPAT_API_KEY`；它可供工作流使用，但不会自动成为 Worker 的运行时绑定。运行 [Bind staging ModelSwitch key](../../.github/workflows/model-runtime-key.yml)：
+
+```sh
+gh workflow run model-runtime-key.yml --ref main
+```
+
+该维护入口只绑定 staging 的这一项，不构建镜像、不上传 Worker 代码、不调用模型或渲染，也不改模型步骤绑定/预算。它与 staging 部署共用互斥组，拒绝活动内部密钥、未结束操作或未结计算费用；已存在的模型绑定保留，不旋转或覆盖。Actions 只在该步骤向维护脚本注入密钥，Wrangler 子进程只从 stdin 接收该值，不经环境或参数传递，日志/产物只含名称、状态与健康结果。后续普通部署保留已有 secret。
+
+写入后核对 secret 名称和 `/healthz`；这仅证明配置存在，不是模型集成探针。若健康异常，只撤销本次新增的绑定；未知写入结果不重试、不猜测删除。需要人工撤销本次新增项时，通过已有授权运行 `wrangler secret delete MODEL_COMPAT_API_KEY --env staging`，先确认没有其他活动操作；不要删除其他 secret。官方 C/F 和历史费用门槛仍由服务端检查。
+
 studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
 新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1；30 秒分段成片另见 `webgl-film` 证据，正式性能分布与 standard-3/4 对比已有下文独立结果。一般工程片仍使用默认 `engineering` 场景。
