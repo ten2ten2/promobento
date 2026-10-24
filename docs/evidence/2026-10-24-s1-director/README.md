@@ -96,3 +96,13 @@ mise exec -- node research/evals/run-case.mjs \
 针对这个具体失败，当前内部候选将 E/F 请求从 medium 改为 low，要求只完成一次工具/完整 JSON，不输出分析散文；E 明确要修复实际画面而不是调宽 maxLines。金额、次数、8192 输出上限、独立冷审及质量门槛不变。[DeepSeek 官方说明](https://api-docs.deepseek.com/guides/thinking_mode/)指出 medium 映射 high；网关只证明参数被接受，尚不能断言它实际转发了此语义。后续仍按真实结果判断。
 
 另将旧回执的审计引用保留在持久步骤结果外层，不再混入发给模型的校验反馈。原第六轮首次纠正与第七轮的非语义追踪字段差异曾导致新请求计费；修复后相同语义反馈可命中原确切请求。账本和原始费用不改写。
+
+## 第八次：B/C 实际免重付，E 坏工具参数暴露回执保存顺序问题
+
+`dcea81f59e863f7ac638957164d0d58cb315bf27` 经 [40094915466](https://github.com/ten2ten2/promobento/actions/runs/40094915466) 仅部署 Worker，同一镜像不变；自动全套 push `40094908195` 已取消。操作 `eval-deepseek-15-1792845834583`，输出 `artifacts/s1-deepseek-15-low-review-2026-10-24`。B/C 的有效回执与纠正已实际复用，无新 B/C 费用，证明审计字段移出模型反馈后原语义请求命中。两次 review 的实际渲染均通过。
+
+E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 52,091 ms**。再审因工具 arguments 的未闭合字符串在适配器内抛 `SyntaxError`（[原生首因](eighth-attempt/native-workflow-error.json)），早于原始回执/usage 保存；业务终态为 `DIRECTOR_INTERNAL_ERROR`。该请求 **14,029 usd_micros** 预留仍未知，不按新实现回填或记零。尚未执行 F。
+
+[完整费用与回收](eighth-attempt/report.json)：本轮实际模型 2,882、未知预留 14,029，计算全部物理停止并结算 7,744 保守上界，准入合计 **24,655 usd_micros**；容量清空、Workflow 已 errored/对账、密钥已删除。共享模型实际 **103,509** 加两笔未知 **20,225**，共占用 **123,734**，仍在同一有限授权内。
+
+修复后完整坏工具参数以 `MODEL_TOOL_JSON_INVALID` 连同原 arguments/usage 交持久层，先存/结算再给一次结构反馈。E 同样走该严格纠正路径，不能补齐 JSON 冒充工具；原阶段 6 次/$0.30、内部视觉修复 2 次不增加。无 usage 则停在对账，不允许结构纠正重发。Node 26.12.0 下仅运行新增的两项最小适配器/账本检查，**2 项通过，729 ms**，覆盖两协议原参数/后到 usage、结算后失败重放不发第二次请求，以及未知费用继续保留。未重跑已通过的适配器、预算矩阵、媒体或完整 CI。

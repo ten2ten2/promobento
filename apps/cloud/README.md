@@ -40,6 +40,8 @@
 
 终态截断/拒绝仍失败，但先读取后续 usage、保存 partial bytes 与失败标记；已报告用量照常结算，无用量仍占预留，不缓存或自动重发。登记隐藏提示的网关 Claude 路线额外预留 128k 输入 token 的风险空间，以覆盖历史约 110k 的异常注入；阶段与整次金额不提高。
 
+完整但不合法的工具参数以 `MODEL_TOOL_JSON_INVALID` 保存原 arguments 与 usage，先入 R2/结算，再由导演在原调用/金额上限内作一次结构纠正。E 同样校验恰好一个允许工具及完整 FilmSpec；校验失败不能当作视觉通过。无 usage 的不合法响应必须对账，不为纠正再次发出请求；历史已丢失的 usage 不以新适配器回填。
+
 原独立 `model-probe.yml` 已停用并移除；[历史脚本](../../research/model-probe/archive/probe-2026-10-23.mjs)只保留作来源。后续真实探针也必须纳入共享账本，不能从归档脚本绕过预算。当前 C 走网关 Opus，F 和其余步骤走网关 DeepSeek；官方备用未绑定，仍保留 `verified:false`。
 
 ## 部署

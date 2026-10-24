@@ -90,7 +90,11 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     buffer += decoder.decode();
     if (buffer.startsWith('data:')) event(buffer.slice(5).trim());
     if (!finished&&!failure) throw Error('MODEL_STREAM_INCOMPLETE');
-    const result={text, toolCalls: [...toolCalls.values()].map(tool => ({...tool, input: failure?null:parseCanonicalJson(tool.arguments || '{}')})),
+    const calls=[...toolCalls.values()].map(tool=>({...tool,input:null}));
+    if(!failure)for(const tool of calls){
+      try{tool.input=parseCanonicalJson(tool.arguments||'{}');}catch{failure='MODEL_TOOL_JSON_INVALID';}
+    }
+    const result={text, toolCalls: calls,
       usage, firstTokenMs, totalMs: Math.round(performance.now() - started),...(failure?{failure,streamComplete:finished}:{})};
     if(failure)throw new ModelOutputError(failure,result);
     return result;

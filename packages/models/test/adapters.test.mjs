@@ -41,3 +41,15 @@ test('terminal truncation preserves late usage and partial bytes while still rej
    });assert.equal(calls,1);
  }
 });
+test('complete malformed tool arguments retain raw bytes and late usage in both protocols',async()=>{
+ const argumentsText='{"note":"unterminated';
+ for(const[kind,values]of[
+  ['openai-compatible',[{choices:[{delta:{tool_calls:[{index:0,id:'bad',function:{name:'submit_candidate',arguments:argumentsText}}]},finish_reason:'tool_calls'}]},{choices:[],usage:{prompt_tokens:12,completion_tokens:64}},'[DONE]']],
+  ['anthropic',[{type:'message_start',message:{usage:{input_tokens:12,output_tokens:0}}},{type:'content_block_start',index:0,content_block:{type:'tool_use',id:'bad',name:'submit_candidate'}},{type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:argumentsText}},{type:'message_delta',delta:{stop_reason:'tool_use'},usage:{output_tokens:64}},{type:'message_stop'}]]]){
+  let requests=0;await assert.rejects(streamModel({...base,provider:{kind,baseUrl:'https://provider.invalid'},secret:'fixture-secret'},{fetchImpl:async()=>{requests++;return events(values);}}),error=>{
+   assert.ok(error instanceof ModelOutputError);assert.equal(error.message,'MODEL_TOOL_JSON_INVALID');assert.equal(error.result.streamComplete,true);
+   assert.equal(error.result.toolCalls[0].arguments,argumentsText);assert.equal(error.result.toolCalls[0].input,null);
+   assert.equal(error.result.usage.completion_tokens??error.result.usage.output_tokens,64);return true;
+  });assert.equal(requests,1);
+ }
+});

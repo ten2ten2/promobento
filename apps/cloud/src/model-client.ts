@@ -11,7 +11,7 @@ import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
 /** A complete, durably recorded response whose text is not canonical JSON; never a transport failure. */
-export class ModelJsonOutputError extends Error {constructor(){super('MODEL_OUTPUT_JSON_INVALID');}}
+export class ModelJsonOutputError extends Error {constructor(code='MODEL_OUTPUT_JSON_INVALID'){super(code);}}
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -31,6 +31,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   await assertModelBudgetReady(env);
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
   const decode=(result:Json)=>{
+    if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure);
     if(result.failure)throw Error(result.failure);
     if(result.toolCalls.length)return{toolCalls:result.toolCalls};
     try{return parseModelJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}
@@ -41,8 +42,11 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
       await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
     }
-    const value=decode(receipt.result);
-    validate(value);
+    let value:Json;
+    try{value=decode(receipt.result);validate(value);}catch(error){
+      // A malformed completed payload can be corrected only after its actual usage is settled.
+      if(!receipt.quote)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');throw error;
+    }
     const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
     await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
     return{value,cached:false};

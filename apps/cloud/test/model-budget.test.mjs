@@ -103,3 +103,15 @@ test('a parser fix reuses the settled exact response for the same project, prese
  assert.equal(requests,1);assert.equal(value.cached,true);assert.match(value.reusedReceiptKey,/operations\/model-operation\/model-calls/);
  assert.equal((await budget.modelBudgetStatus(env)).currentChargedMicros,before.currentChargedMicros);assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
 });
+test('complete malformed tool output is persisted and settled before correction; unknown usage stays held',async t=>{
+ const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{tool_calls:[{index:0,id:'bad',function:{name:'submit_candidate',arguments:'{"note":"unfinished'}}]},finish_reason:'tool_calls'}]})+'\n\n'+(requests===1?'data: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\n':'')+'data: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Malformed complete tool fixture.'}],maxOutputTokens:64};
+ for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','malformed-known',request,()=>assert.fail('invalid tool cannot reach validator')),/MODEL_TOOL_JSON_INVALID/);
+ assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+ const receipt=parseCanonicalJson([...objects.values()].find(object=>parseCanonicalJson(object.bytes).kind==='metered_model_response').bytes);
+ assert.equal(receipt.result.failure,'MODEL_TOOL_JSON_INVALID');assert.equal(receipt.result.toolCalls[0].arguments,'{"note":"unfinished');assert.ok(receipt.quote.usdMicros>0);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','malformed-unknown',{...request,messages:[{role:'user',text:'Unknown complete tool fixture.'}]},()=>assert.fail('invalid tool cannot reach validator')),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,2);const after=await budget.modelBudgetStatus(env);assert.equal(after.pending.length,1);assert.ok(after.pending[0].reserved_micros>0);
+});

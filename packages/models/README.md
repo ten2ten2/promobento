@@ -6,4 +6,6 @@ Anthropic 使用显式 1 小时前缀缓存和 `output_config.format`；网关�
 
 终态截断/拒绝抛出 `ModelOutputError`，其 `result` 保留 partial text、失败码、流结束状态和后续 usage，供持久层先记录/计费再落失败；不会返回可用结果或自动重试。HTTP/传输中断仍是未知消费；缺少实际 usage 时不能用输出上限伪造实收。
 
+完整工具响应的参数 JSON 也可能不合法。适配器保留原 arguments、usage 与 `MODEL_TOOL_JSON_INVALID`，不让解析异常先于费用回执丢失响应。持久层先保存/结算，再反馈一次结构纠正；没有实际 usage 则保留预留并要求对账，不启动纠正。正常工具参数仍由共享严格解析器解析，不修补残缺 JSON 或忽略重复键。
+
 `parseModelJson` 先尝试共享 `parseCanonicalJson`；只对完整单一 Markdown json 代码围栏去包络后再用同一严格解析器。不会从散文抽取某段 JSON，也不会放宽重复键或后续 Schema 校验；原回执保存不改写的文本。
