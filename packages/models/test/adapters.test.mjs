@@ -26,6 +26,12 @@ test('Anthropic uses explicit prefix caching and joins streamed tool arguments',
     {type:'message_delta',delta:{stop_reason:'tool_use'},usage:{output_tokens:8}},{type:'message_stop'}])});
   assert.deepEqual(result.toolCalls[0].input,{note:'Ready'});assert.equal(result.usage.input_tokens,10);assert.equal(result.usage.output_tokens,8);
 });
+test('an explicit non-thinking request is preserved on the compatible transport',()=>{
+ const provider={kind:'openai-compatible',baseUrl:'https://provider.invalid/v1'};
+ const request=providerRequest({...base,provider,effort:'none',tools:[{name:'submit_candidate',description:'Submit',parameters:{type:'object'}}]});
+ assert.equal(request.body.reasoning_effort,'none');assert.equal(request.body.tools[0].function.name,'submit_candidate');
+ assert.equal(providerRequest({...base,provider}).body.reasoning_effort,'low');
+});
 test('truncated streams fail instead of returning a successful partial response',async()=>{
   await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
     {fetchImpl:async()=>events([{choices:[{delta:{content:'{'},finish_reason:'length'}]}])}),/MODEL_OUTPUT_TRUNCATED/);

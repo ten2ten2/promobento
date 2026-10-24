@@ -315,3 +315,12 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 [40140997061](https://github.com/ten2ten2/promobento/actions/runs/40140997061) 在 `09179831d2b6ebccc879c6938d1a2b11fdc72c6c` 部署成功，镜像 **`sha256:1b1c4cf1372e6406d7ab1a79ccafaebbb51a8eee76d2c13daf2d357d3114d0a5`**，Worker `92042b76-7281-41a5-8f61-ad27de168ba2`。操作 `eval-minimax-15-1792883239966` 沿用第七次的同一付费 C、原素材/字体/seed，[真实 review](showcase-raster/settled-native-review-render.json)在 **72,970 ms** 交付，149/299 帧均零差异；15 秒、960×540、15 fps、AAC、225 帧，VBV 纠正后峰值 **1,457,792 bit/s**。[五次计算](showcase-raster/settled-native-report.json)全部停止/结算 **8,569 usd_micros**，0 模型，容量/未结为空、临时密钥回收。
 
 三个分段 renderMs 为 **20,163 / 15,705 / 13,884**；上轮同片前两段为 25,851 / 22,208 ms。本轮完整墙钟仍为 72.970 秒，单次对照不作延迟分位数或 30 秒 review 目标通过。已查看实际 MP4 的 ROI 停稳图，产品图没有因像素复用丢失；Chrome 155.0.8059.85 完整 1× 播放、无解码错误/掉帧，[解码回执](showcase-raster/settled-native-decoded-video.json)。开始其余题目验收，完整导演仍未通过。
+
+
+## IELTS 首次：草稿通过，E 用满 16k 输出仍未调用工具
+
+操作 `eval-ielts-ready-15-1792883344124` 使用 `0917983` 的固定 release、负责人确认的三项课程内容及已批准原创事实图。已查看三张实际方向图并[选择 Unexpected](ielts-first-attempt/choice.json)：暖底完整事实图较空卡片或缩小的概念设备更清楚。C 一次通过，[首轮真实 review 与五次计算](ielts-first-attempt/report.json)全部成功并停止/结算，随后 E 在输出上限截断，未到最终片/F。
+
+[原始回执诊断](ielts-first-attempt/truncation.json)：usage 的 completion_tokens 恰为 **16,384**，完整流结束，正文 **70,510 字符**仍在反复分析布局，**0 个工具调用**；原回执在私有 R2。没有把部分文字提取成规格或重新请求同一回执。本轮五次模型已结 **24,097**、五次计算 **11,592** 保守上界，无本轮未知，容量为空、密钥回收。共享新增模型已结 **354,394**，原三笔未知 **37,993**，合计占用 **392,387 usd_micros**。
+
+当前只将 E/F 的兼容参数由 low 改为 `reasoning_effort:none`，输出、次数、金额、质量校验及独立上下文不变。依据 [DeepSeek 官方 API](https://api-docs.deepseek.com/api/create-chat-completion/)对 none 的说明；[网关公开文档](https://api.modelswitch.org/docs)未描述此参数，不能据此假定其实际转发。参数传输单项通过（Node 26.12.0，2.50 ms），现有绑定/预算配置检查通过；真实网关效果待下一题验证，原能力登记仍只表示接受过 low。
