@@ -129,8 +129,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           // Persist a completed invalid response as data, rather than retrying the same paid step.
           // Only complete JSON/contract failures can request a corrected call; transport/admission failures cannot.
           if(!repairOutput||!(error instanceof DirectorValidationError||error instanceof ModelJsonOutputError))throw error;
+          const reusedReceiptKey=(error as Error&{completedReceiptKey?:string}).completedReceiptKey;
           return canonical({value:{kind:stage==='spec'?'s1_spec_validation_failure':'s1_model_validation_failure',code:error.message,
             issues:error instanceof DirectorValidationError?error.issues:[{code:error.message,path:''}],
+            ...(reusedReceiptKey?{reusedReceiptKey}:{}),
             ...(error instanceof DirectorValidationError?{previous:error.candidate}:{})}});
         }
       });

@@ -3,6 +3,14 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 /** A terminal provider response still fails, but its bytes/usage can be recorded and settled. */
 export class ModelOutputError extends Error {constructor(code,result){super(code);this.result=result;}}
 
+/** Remove only a whole Markdown transport envelope; JSON itself always uses the shared strict parser. */
+export function parseModelJson(text){
+  try{return parseCanonicalJson(text);}catch(error){
+    const fence=/^\s*```(?:json)?[\t ]*\r?\n([\s\S]*?)\r?\n```\s*$/i.exec(text);
+    if(!fence)throw error;return parseCanonicalJson(fence[1]);
+  }
+}
+
 /** Normalized messages are trusted prompt data, never executable modules. */
 export function providerRequest({provider, model, system, messages, schema, tools = [], effort, maxOutputTokens}) {
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 16384) throw Error('MODEL_OUTPUT_LIMIT_INVALID');

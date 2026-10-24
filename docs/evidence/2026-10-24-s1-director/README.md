@@ -48,3 +48,17 @@ mise exec -- node research/evals/run-case.mjs \
 方向阶段原先一次请求三份完整 15 秒 FilmSpec，超出方向卡本身的职责。修复后 B 只返回三张精简卡和镜头骨架，可信宿主按已确认事实、真实素材、卡片色板/纵深/积木选择构造静音 hero，再由原 studio 截图；完整影片仍只交 C。衍生 FilmSpec 与来源在持久检查点冻结，保留既有完整 keyframeFilm 响应的兼容。B 输出上限 8,192，不以提高总预算解决冗长输出。
 
 适配器今后对终态 length/refusal 仍拒绝结果，但继续读取后续 usage，并把 partial text 和失败状态交持久层保存；有完整 usage 就按原价结算，没有则继续保留预留。截断不进入自动纠正或缓存。本次旧请求仍未知。另按历史 Claude 隐藏输入反例，为登记了隐藏提示的网关路线额外预留 128k 输入 token 风险空间，阶段金额/总额不提高。
+
+## 第四次：三方向与 Opus 实际调用通过，完整 JSON 围栏掩盖规格错误
+
+`d1c36f69879b098832b5c19c84f9b6638848c7de` 经 [40087690141](https://github.com/ten2ten2/promobento/actions/runs/40087690141) 仅部署 Worker，原镜像未变；自动全套 push `40087682603` 已取消。操作 `eval-deepseek-15-1792839467235`，输出目录 `artifacts/s1-deepseek-15-compact-2026-10-24`。复用既有事实/素材理解；精简 B 完成，三张真实 studio PNG 全部生成并下载，Codex 已逐张查看。
+
+已按[实际画面选择 Fit](fourth-attempt/choice.json)：产品入口图更大，Chat/API/Harness 标签更清楚，白底深色对比直接；Amplify 的设备图较小，Unexpected 偏文字索引。方向源与图片引用在该目录 `directions.json`，原生方向等待/恢复已实际通过。这个判断不代替负责人正常速度视听。
+
+随后网关 Opus 经现有 `MODEL_COMPAT_API_KEY` 实际完成三次流式规格响应，耗时 **45,695 / 28,399 / 34,770 ms**，费用 **15,534 / 9,024 / 11,608 usd_micros**；证明所选 Claude 路由实际鉴权与计价已走通。[首份原始响应](fourth-attempt/spec-response.json)及两次纠正都将完整 JSON 包在单一 Markdown json 围栏中。旧处理直接按裸 JSON 解析，因此三次均止于 `MODEL_OUTPUT_JSON_INVALID`，未继续 Schema/跨字段校验，更没有渲染或冷审。
+
+只读检查三份完整 JSON 本体发现相同的实际错误：转场有时长但镜头未重叠，CTA 槽位没有 factId。不能把去围栏等同于规格通过。修复后仅识别完整的单一 Markdown 包络，JSON 本体仍先由共享严格解析器、完整 Schema、跨字段规则和真实页面生成器准入；前后散文、多段代码或重复 JSON 键仍拒绝。
+
+[完整费用/回收回执](fourth-attempt/report.json)：本轮 B 为 2,172 usd_micros，三次 C 合计 36,166，本轮模型共 **38,338**；预检与三次 studio 均停止/结算，保守计算上界 **1,123**。本轮合计 39,461，无本轮未知费用/遗留实例，原生已对账，临时内部密钥已删。四轮共享模型已结 **47,146**，前一轮未知预留 **6,196** 仍保留，合计占用 **53,342 usd_micros**。
+
+后续同项目/工作区/用途、相同请求/模型/目录可优先重新校验已结算的不可变原始回执，不为解析器修复重新请求同一回答。重用不改原费用，不复活原操作；不合格规格给出真正的 code/path 反馈后，才可在原规则下请求纠正。原未知截断仍不回填用量；成功成片与 E/F 仍待实际执行。

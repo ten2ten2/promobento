@@ -91,3 +91,15 @@ test('gateway Opus reserves the observed hidden-input risk before dispatch witho
  await modelStep(env,'model-operation',0,'spec','hidden-input-call',{system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},value=>assert.equal(value.ok,true));
  assert.ok(reserved>50000&&reserved<400000);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
 });
+test('a parser fix reuses the settled exact response for the same project, preserving its old cost without a second request',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'```json\n{"ok":true}\n```'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline original fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','old-parser-call',request,()=>{throw Error('OLD_POSTPROCESSING_BUG');}),/OLD_POSTPROCESSING_BUG/);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ const before=await budget.modelBudgetStatus(env);
+ const value=await modelStep(env,'new-operation',0,'facts','new-parser-call',request,value=>assert.equal(value.ok,true));
+ assert.equal(requests,1);assert.equal(value.cached,true);assert.match(value.reusedReceiptKey,/operations\/model-operation\/model-calls/);
+ assert.equal((await budget.modelBudgetStatus(env)).currentChargedMicros,before.currentChargedMicros);assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+});

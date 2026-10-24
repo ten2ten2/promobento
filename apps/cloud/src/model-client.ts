@@ -1,7 +1,7 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
-import {providerRequest, streamModel, ModelOutputError, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
+import {providerRequest, streamModel, ModelOutputError, parseModelJson, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
 import providersInput from '../../../config/model-providers.json';
 import authorization from '../../../config/model-authorization.json';
 import policyInput from '../../../config/agent-policy.json';
@@ -30,15 +30,18 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
   await assertModelBudgetReady(env);
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
+  const decode=(result:Json)=>{
+    if(result.failure)throw Error(result.failure);
+    if(result.toolCalls.length)return{toolCalls:result.toolCalls};
+    try{return parseModelJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}
+  };
   const finish=async(receipt:Json)=>{
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
     if(receipt.quote){
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
       await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
     }
-    const result=receipt.result;if(result.failure)throw Error(result.failure);let value:Json;
-    if(result.toolCalls.length)value={toolCalls:result.toolCalls};
-    else{try{value=parseCanonicalJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}}
+    const value=decode(receipt.result);
     validate(value);
     const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
     await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
@@ -47,6 +50,27 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   // A durable response may complete bookkeeping after a crash. An absent response never permits resending.
   if(await env.DB.prepare('SELECT id FROM cost_reservations WHERE id=?').bind(callId).first()){
     if(!await env.MEDIA.head(receiptKey))throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');return finish(await getJson(env,receiptKey));
+  }
+  // A parser/validator repair must not pay for the same completed answer again. Scope reuse to
+  // the same workspace/project/purpose, exact request/model/catalog and an immutable settled receipt.
+  const completed=await env.DB.prepare(`SELECT r.id,r.operation_id,s.actual_micros FROM cost_reservations r
+    JOIN cost_settlements s ON s.reservation_id=r.id JOIN pipeline_operations p ON p.id=r.operation_id
+    WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=? AND p.workspace_id=? AND p.project_id=? AND p.purpose=?
+    ORDER BY r.created_at,r.id LIMIT 1`).bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first<Json>();
+  if(completed){
+    const originalKey=`operations/${completed.operation_id}/model-calls/${digest({callId:completed.id})}.json`;
+    if(await env.MEDIA.head(originalKey)){
+      const receipt=await getJson(env,originalKey);
+      if(receipt.kind!=='metered_model_response'||receipt.callId!==completed.id||receipt.requestHash!==key||receipt.model!==ref
+        ||receipt.budgetId!==modelBudgetId(env.PIPELINE_ENVIRONMENT,completed.id)||!receipt.quote||receipt.quote.usdMicros!==completed.actual_micros)throw Error('MODEL_RECEIPT_CONFLICT');
+      if(!receipt.result.failure){
+        let value:Json;
+        try{value=decode(receipt.result);validate(value);}catch(error){if(error instanceof Error)Object.assign(error,{completedReceiptKey:originalKey});throw error;}
+        const stored=await immutableJson(env,`operations/${op.id}/model/${key}.json`,value);
+        await env.DB.prepare('INSERT OR IGNORE INTO model_responses(cache_key,model,response_key,created_at) VALUES(?,?,?,?)').bind(key,ref,stored.key,Date.now()).run();
+        return{value,cached:true,reusedReceiptKey:originalKey};
+      }
+    }
   }
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
   if(provider.kind==='anthropic'){
