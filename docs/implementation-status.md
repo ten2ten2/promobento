@@ -6,15 +6,13 @@
 
 负责人于 2026-10-24 指明 Claude 同样使用现有 `MODEL_COMPAT_API_KEY`，并提供 [ModelSwitch 文档](https://api.modelswitch.org/docs)。已核对统一 OpenAI 兼容接口：规格 C 改回网关 Opus（仅文本规格），F 改用已验证可看图的网关 DeepSeek，与 C 不同家族；A/B/E 仍用 DeepSeek。当前所选步骤只需这一把网关密钥，不再把官方 Anthropic 作为必需条件。网关 Claude 两轮丢图的 `vision:false` 不变；官方模型只作未绑定的备用，`verified:false`，没有伪造新的探针通过。原始证据见[模型探针](evidence/2026-10-23-model-probe/README.md)。
 
-Actions 中的 `MODEL_COMPAT_API_KEY` 已通过[独立维护入口](../apps/cloud/README.md#将已有-actions-模型密钥绑定到-worker)实际绑定到 staging Worker：[40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 回执为 `bound`，绑定前后名称核对和健康检查正常，0 模型/渲染请求；不读取或回传密钥值。网关密钥问题已解除。负责人随后授权放宽预算门槛，现已配置原 $300 内的 $5 历史风险预留、staging 新增模型费用累计 $10 临时上限（至 2026-10-31 上海时间结束），已由 [40082980568](evidence/2026-10-24-s1-director/README.md) 实际部署并读到 provisional 状态；历史实际总额仍未确认，不改成已对账。配置目录已更新为 `models-2026-10-24`，研究授权身份、$300 总额、到期日与历史清单均不重置；生产仍关闭。
+Actions 的网关密钥已由 [40077653946](https://github.com/ten2ten2/promobento/actions/runs/40077653946) 实际绑定，后续真实 DeepSeek 请求已走通。负责人于 2026-10-24 授权有限放宽预算：原 $300 内保留 $5 历史风险预留，staging 新增模型实际/未知预留累计最多 $10，至 2026-10-31 上海时间结束；已实际部署生效。128 次历史清单、14 次未知和 `openingMicros:null` / `openingConfirmed:false` 不改写，授权身份与起算不重置。生产关闭。
 
-新的单次云端预检 [40080916901](evidence/2026-10-24-s1-staging/README.md#现有网关密钥已绑定导演预检到达历史费用门槛) 已在 `b4b56d2` 通过：只部署 Worker、复用原镜像，真实导演 8.698 秒内按 `MODEL_HISTORY_RECONCILIATION_REQUIRED` 终止，0 模型/媒体调用及费用预留。已确认当前步骤不再被缺密钥/能力登记误拦；随后首题 DeepSeek 的真实鉴权/流式响应/usage 结算已通过，但因输出多了未允许字段而停止；Opus 和成功导演仍待验。C 纠正、全画幅阅读停留拼图及 E/F 共用修复逻辑已部署，不能把这次前置阻断记作它们的云端成功验收。
+首题 DeepSeek 15 秒已作[三次真实尝试](evidence/2026-10-24-s1-director/README.md)：实际完成事实、素材看图和方向纠正；分别暴露多余输出字段、未实现纹理和一次请求三份完整预览规格的截断问题。共享新增模型已结 8,808 usd_micros，截断预留 6,196 待对账，合计占用 15,004；计算均已物理停止并结算，临时内部密钥已回收。还没有三方向完整展示、Opus C 或真实成片。
 
-首题 [DeepSeek 15 秒真实尝试](evidence/2026-10-24-s1-director/README.md) 已执行，事实整理因多余 `schemaVersionNote:null` 未过严格 Schema，无方向/成片。模型实际 147 usd_micros，预检计算保守上界 291 usd_micros，均已结算，无遗留计算或内部密钥。已据此补 A/B/F 一次有上限的结构纠正（本地通过，待部署/真实续验），不放宽事实或 Schema。
+已补完整结构纠正、同源页面生成器的支持性准入，并把 B 改为精简方向卡加可信积木 hero；C 保留完整规格职责。终态截断/拒绝将保存 partial bytes、读取后续 usage 后结算或保留未知，再落失败，不缓存或自动重发。新路径已有定点本地检查，待下一次 Worker 部署/真实续验；容器源码/镜像未变，不重跑既有媒体矩阵。
 
-第二次同题尝试已实际通过事实、素材看图及方向纠正，随后 amplify 的 glow 纹理在 studio 被拒绝，未出片。两轮模型累计 8,808 usd_micros，无未知预留或遗留实例。已补实际页面生成器的纯 JSON 支持性准入和收窄的 S1 模型提示，容器源码/镜像不变，待部署续验。
-
-六题真实事实和素材已实际打包为[12 份导演输入](../research/evals/README.md#将六题准备为实际导演输入)，每题 15/30 秒各含横竖两画幅，对应 24 部最终影片。输入包保留 `prepared_not_executed` 的准备状态；实际尝试独立记录于上文。其他例的权利重登记、真实模型调用与全部成片评测仍须在执行时完成，不把准备文件当作评测通过。
+六题素材已打包为[12 份导演输入](../research/evals/README.md#将六题准备为实际导演输入)，每题 15/30 秒各横竖两画幅，对应 24 部最终影片。输入包的 `prepared_not_executed` 表示仅准备；实际尝试独立记录于上文。其他例仍须操作级权利重登记、真实调用、出片与负责人视听。
 
 | 部分 | 已有代码/材料 | 仍缺的实现或验收 |
 | --- | --- | --- |

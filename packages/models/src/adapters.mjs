@@ -1,5 +1,8 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 
+/** A terminal provider response still fails, but its bytes/usage can be recorded and settled. */
+export class ModelOutputError extends Error {constructor(code,result){super(code);this.result=result;}}
+
 /** Normalized messages are trusted prompt data, never executable modules. */
 export function providerRequest({provider, model, system, messages, schema, tools = [], effort, maxOutputTokens}) {
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 16384) throw Error('MODEL_OUTPUT_LIMIT_INVALID');
@@ -26,7 +29,7 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     headers: {'content-type': 'application/json', ...(provider.kind === 'anthropic'
       ? {'x-api-key': secret, 'anthropic-version': '2023-06-01'} : {authorization: 'Bearer ' + secret})}, body: canonical(request.body)});
   if (!response.ok || !response.body) throw Object.assign(Error('MODEL_REQUEST_FAILED'), {status: response.status});
-  let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false;
+  let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false, failure = null;
   const toolCalls = new Map(), decoder = new TextDecoder('utf-8', {fatal: true});
   const emit = delta => { if (!delta) return; firstTokenMs ??= Math.round(performance.now() - started); text += delta; onText(delta); };
   const event = raw => {
@@ -35,8 +38,8 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     if (provider.kind === 'openai-compatible') {
       if (data.usage) usage = data.usage;
       for (const choice of data.choices ?? []) {
-        if (choice.finish_reason === 'length') throw Error('MODEL_OUTPUT_TRUNCATED');
-        if (choice.finish_reason && !['stop', 'tool_calls'].includes(choice.finish_reason)) throw Error('MODEL_OUTPUT_REFUSED');
+        if (choice.finish_reason === 'length') failure='MODEL_OUTPUT_TRUNCATED';
+        else if (choice.finish_reason && !['stop', 'tool_calls'].includes(choice.finish_reason)) failure='MODEL_OUTPUT_REFUSED';
         emit(choice.delta?.content ?? '');
         for (const tool of choice.delta?.tool_calls ?? []) {
           const value = toolCalls.get(tool.index) ?? {id: tool.id, name: '', arguments: ''};
@@ -57,8 +60,8 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
       }
       if (data.type === 'message_delta') {
         usage = {...usage, ...data.usage};
-        if (data.delta?.stop_reason === 'max_tokens') throw Error('MODEL_OUTPUT_TRUNCATED');
-        if (data.delta?.stop_reason && !['end_turn', 'tool_use'].includes(data.delta.stop_reason)) throw Error('MODEL_OUTPUT_REFUSED');
+        if (data.delta?.stop_reason === 'max_tokens') failure='MODEL_OUTPUT_TRUNCATED';
+        else if (data.delta?.stop_reason && !['end_turn', 'tool_use'].includes(data.delta.stop_reason)) failure='MODEL_OUTPUT_REFUSED';
       }
       if (data.type === 'message_stop') finished = true;
     }
@@ -78,8 +81,10 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     }
     buffer += decoder.decode();
     if (buffer.startsWith('data:')) event(buffer.slice(5).trim());
-    if (!finished) throw Error('MODEL_STREAM_INCOMPLETE');
-    return {text, toolCalls: [...toolCalls.values()].map(tool => ({...tool, input: parseCanonicalJson(tool.arguments || '{}')})),
-      usage, firstTokenMs, totalMs: Math.round(performance.now() - started)};
+    if (!finished&&!failure) throw Error('MODEL_STREAM_INCOMPLETE');
+    const result={text, toolCalls: [...toolCalls.values()].map(tool => ({...tool, input: failure?null:parseCanonicalJson(tool.arguments || '{}')})),
+      usage, firstTokenMs, totalMs: Math.round(performance.now() - started),...(failure?{failure,streamComplete:finished}:{})};
+    if(failure)throw new ModelOutputError(failure,result);
+    return result;
   } finally { await reader.cancel(); }
 }

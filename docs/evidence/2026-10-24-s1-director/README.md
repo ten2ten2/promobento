@@ -38,3 +38,13 @@ mise exec -- node research/evals/run-case.mjs \
 [完整回执](second-attempt/report.json)记录 4 次模型调用：事实 160、素材 331、方向 6,045、方向纠正 2,125 usd_micros，共 **8,661 usd_micros**；三次预检/studio 计算均已物理停止并结算，保守上界共 **1,019 usd_micros**。本轮合计 9,680 usd_micros，无未知用量或遗留 lease，原生 Workflow errored/已对账，临时内部密钥已删。两轮共享新增模型累计 **8,808 usd_micros**，仍在同一 $10 上限内。
 
 据此把模型看到的 S1 FilmSpec 提示收窄到实际支持的纹理、转场、布局、裁剪与精确字体 face；完整协议不缩减。Worker 在付费 studio/渲染前复用现有 `generateFilmPage` 做纯数据支持性准入，丢弃 HTML、不求值任何创作代码；生成器与真正容器使用相同规则。三方向汇总全部卡片的错误，一次纠正可以看到各卡问题。新边界本地定点回放已通过；容器源码/镜像不变，真实后续结果另记。
+
+## 第三次：复用理解结果，三份完整预览规格触发截断
+
+`6b0d054e3e497613af229c1361f43c8b5361cdba` 经 [40085536307](https://github.com/ten2ten2/promobento/actions/runs/40085536307) 仅部署 Worker（自动全套 push `40085528275` 已取消）。新操作 `eval-deepseek-15-1792837491696`，输出目录 `artifacts/s1-deepseek-15-supported-2026-10-24`。事实/素材理解直接复用已有有效响应，未重发；方向请求以 `MODEL_OUTPUT_TRUNCATED` 停止。没有方向图、C 或成片。
+
+[实际回执](third-attempt/report.json)保留该方向请求 **6,196 usd_micros 未知消费预留**，没有记作 0 或按最大输出数虚构实收。该旧适配器在读到 length 时立即抛错，没有保存后续 usage；现有原始响应无法补造。预检计算已物理停止并结算 333 usd_micros 保守上界，容量/实例均已清空，原生 Workflow 已对账，临时内部密钥已删除。前三轮共享模型已结 **8,808**、未知预留 **6,196**，准入合计 **15,004 usd_micros**，仍计入同一 $10 新增上限。
+
+方向阶段原先一次请求三份完整 15 秒 FilmSpec，超出方向卡本身的职责。修复后 B 只返回三张精简卡和镜头骨架，可信宿主按已确认事实、真实素材、卡片色板/纵深/积木选择构造静音 hero，再由原 studio 截图；完整影片仍只交 C。衍生 FilmSpec 与来源在持久检查点冻结，保留既有完整 keyframeFilm 响应的兼容。B 输出上限 8,192，不以提高总预算解决冗长输出。
+
+适配器今后对终态 length/refusal 仍拒绝结果，但继续读取后续 usage，并把 partial text 和失败状态交持久层保存；有完整 usage 就按原价结算，没有则继续保留预留。截断不进入自动纠正或缓存。本次旧请求仍未知。另按历史 Claude 隐藏输入反例，为登记了隐藏提示的网关路线额外预留 128k 输入 token 风险空间，阶段金额/总额不提高。

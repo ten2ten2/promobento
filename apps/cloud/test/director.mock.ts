@@ -19,7 +19,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
@@ -98,7 +98,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
-  else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:false,skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
+  else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
@@ -110,6 +110,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');
+  if(stage==='directions'&&compactDirections){for(const card of value.cards){delete card.keyframeFilm;card.usesDepth=card.key==='amplify';}}
   if(stage==='directions'&&unsupportedDirections){
     if(!models.includes(stage)){value.cards[1].keyframeFilm.style.texture={kind:'glow',amount:0.2};value.cards[2].keyframeFilm.style.texture={kind:'grain',amount:0.12};}
     else{const last=body.messages.at(-1),feedback=parseCanonicalJson(last.content).validationFeedback;assert.ok(feedback.issues.some((issue:any)=>issue.path==='/cards/1/keyframeFilm/style/texture'));assert.ok(feedback.issues.some((issue:any)=>issue.path==='/cards/2/keyframeFilm/style/texture'));}
@@ -167,6 +168,11 @@ test('completed structured output with an extra null field gets one charged corr
 test('actual page generator gates all direction films and spec before studio/render, preserving the supported S1 subset',async()=>{
  const directions=await fixture({unsupportedDirections:true});assert.ifError(directions.error);assert.equal(directions.models.filter(stage=>stage==='directions').length,2);assert.equal(directions.studioCount,5);
  const spec=await fixture({unsupportedSpec:true});assert.ifError(spec.error);assert.equal(spec.specRequests,2);assert.equal(spec.validationFeedback[0].code,'FILM_RUNTIME_UNSUPPORTED');assert.equal(spec.validationFeedback[0].issues[0].code,'TEXTURE_NOT_IMPLEMENTED');assert.equal(spec.renders.length,3);
+});
+test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
+ for(const nativeProtocol of [false,true]){
+  const r=await fixture({compactDirections:true,nativeProtocol});assert.ifError(r.error);assert.equal(r.studioCount,5);assert.equal(r.choiceCount,1);assert.equal(r.models.filter(stage=>stage==='directions').length,1);assert.equal(r.result.final.length,2);
+ }
 });
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);

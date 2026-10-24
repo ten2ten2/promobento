@@ -30,6 +30,7 @@ import {directorProgress,commitCandidate,failDirector,directorFailureCode} from 
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet} from './director-sheets.mjs';
+import {directionHero} from './direction-hero.ts';
 import {workflowStarted} from './workflow-state.ts';
 import type {PipelineEnv,Json,BlobRef,Operation} from './pipeline-types.ts';
 
@@ -76,6 +77,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     delete s1FilmSchema.$defs.assetSlot.properties.crop;
     s1FilmSchema.$defs.fontRef.enum=context.fonts.flatMap((font:Json)=>[{fontId:font.fontId,weight:font.weight,style:font.style},
       ...(font.style==='normal'?[{fontId:font.fontId,weight:font.weight}]:[])]);
+    const compactDirectionSchema:Json=structuredClone(directionSchema);delete compactDirectionSchema.$defs.card.properties.keyframeFilm;
     const validateSpec=(value:Json,preview=false)=>{
       if(!validFilm(value))throw new DirectorValidationError('FILM_SCHEMA_INVALID',(validFilm.errors??[]).slice(0,24).map(error=>({code:'SCHEMA_'+error.keyword.toUpperCase(),path:error.instancePath})),value);
       if(value.scenes.some((scene:Json)=>scene.kind!=='block'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'S1_BLOCKS_ONLY',path:'/scenes'}],value);
@@ -201,19 +203,24 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         }));
       }
       await progress('directions');
-      const directions=await runStructured('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose Fit, Amplify, Unexpected directions with different visual/sonic hypotheses. Blocks only. Each card must include keyframeFilm: a complete silent 15-second FilmSpec using the exact confirmed facts, actual resources and fonts from context. Its representative frame must convey that direction. No custom code.',context,facts,insights,blocks:blockCatalog,keyframeFilmSchema:s1FilmSchema,schema:directionSchema})}],schema:directionSchema,maxOutputTokens:12000},value=>{
+      const proposed=await runStructured('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose compact Fit, Amplify, Unexpected cards with distinct visual/sonic hypotheses and 3–8-shot skeletons. Return cards only: do not write keyframeFilm or any full FilmSpec. The host renders a silent trusted-block hero from your palette, depth choice and skeleton; C writes the full selected film later. Use supplied facts, real resources and blocks; at least one card must use depth. Supply bg, ink and accent colors with sources. No custom scenes, invented metrics or speaker footage.',context,facts,insights,blocks:blockCatalog,schema:compactDirectionSchema})}],schema:compactDirectionSchema,maxOutputTokens:8192},value=>{
         if(!validDirections(value))throw new DirectorValidationError('DIRECTIONS_INVALID',schemaIssues(validDirections.errors),value);
         if(canonical(value.cards.map((card:Json)=>card.key).sort())!==canonical(['amplify','fit','unexpected']))throw new DirectorValidationError('DIRECTIONS_INVALID',[{code:'DIRECTION_KEYS_MISMATCH',path:'/cards'}],value);
+        if(!value.cards.some((card:Json)=>card.usesDepth))throw new DirectorValidationError('DIRECTIONS_INVALID',[{code:'DEPTH_DIRECTION_REQUIRED',path:'/cards'}],value);
         const issues:Array<{code:string;path:string}>=[];
         for(const [index,card]of value.cards.entries()){
-          if(!card.keyframeFilm){issues.push({code:'KEYFRAME_REQUIRED',path:'/cards/'+index+'/keyframeFilm'});continue;}
-          try{validateSpec(card.keyframeFilm,true);}catch(error){
+          try{validateSpec(card.keyframeFilm??directionHero(card,context,index),true);}catch(error){
+            if(error instanceof Error&&error.message==='DIRECTION_HERO_UNSUPPORTED'){issues.push({code:error.message,path:'/cards/'+index+'/skeleton'});continue;}
             if(!(error instanceof DirectorValidationError))throw error;
             issues.push(...error.issues.map(issue=>({...issue,path:'/cards/'+index+'/keyframeFilm'+issue.path})));
           }
         }
         if(issues.length)throw new DirectorValidationError('DIRECTIONS_FILM_INVALID',issues.slice(0,24),value);
       });
+      const materialized=parseCanonicalJson(await step.do<string>('materialize-direction-heroes',{retries:{limit:0,delay:'1 second'}},async()=>canonical({
+        directions:{...proposed,cards:proposed.cards.map((card:Json,index:number)=>({...card,keyframeFilm:card.keyframeFilm??directionHero(card,context,index)}))},
+        origins:Object.fromEntries(proposed.cards.map((card:Json)=>[card.key,card.keyframeFilm?'supplied_validated_film':'trusted_direction_hero_v1']))
+      }))) as Json,directions=materialized.directions;
       const previews:Json[]=[];
       for(const card of directions.cards){
         const blob=await step.do<string>('direction-frame-'+card.key,{retries:{limit:0,delay:'1 second'},timeout:'2 minutes'},async()=>{
@@ -236,7 +243,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
             const bytes=new Uint8Array(await response.arrayBuffer()),hash=sha256Bytes(bytes),key=`operations/${op.id}/directions/${card.key}/frame-${frame}.png`;
             const old=await this.env.MEDIA.head(key);if(old&&old.customMetadata?.sha256!==hash)throw Error('IMMUTABLE_OBJECT_CONFLICT');
             if(!old)await this.env.MEDIA.put(key,bytes,{onlyIf:new Headers({'If-None-Match':'*'}),customMetadata:{sha256:hash},httpMetadata:{contentType:'image/png'}});
-            return canonical({direction:card.key,key,sha256:hash,byteLength:bytes.length,mediaType:'image/png',aspect,frame});
+            return canonical({direction:card.key,key,sha256:hash,byteLength:bytes.length,mediaType:'image/png',aspect,frame,filmOrigin:materialized.origins[card.key]});
           }catch(error){failed=true;throw error;}
           finally{try{await this.env.OPERATIONS.getByName(op.id).closeStudio();}catch(error){if(!failed)throw error;}}
         });

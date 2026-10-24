@@ -74,3 +74,20 @@ test('persisted raw model response completes a failed ledger write without anoth
  assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,receipt.quote.usdMicros);
  const cached=await modelStep(env,'model-operation',0,'facts','recovery-call',request,check);assert.equal(cached.cached,true);assert.equal(requests,1);
 });
+test('a completed truncated response is metered and retained, never cached or resent as a correction',async t=>{
+ const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]})+'\n\ndata: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','truncated-call',request,()=>assert.fail('truncated output must not be validated as usable')),/MODEL_OUTPUT_TRUNCATED/);
+ assert.equal(requests,1);const status=await budget.modelBudgetStatus(env);assert.ok(status.currentChargedMicros>0);assert.equal(status.pending.length,0);
+ const receipt=parseCanonicalJson([...objects.values()].find(object=>parseCanonicalJson(object.bytes).kind==='metered_model_response').bytes);
+ assert.equal(receipt.result.failure,'MODEL_OUTPUT_TRUNCATED');assert.equal(receipt.result.text,'{"partial":');
+});
+test('gateway Opus reserves the observed hidden-input risk before dispatch without raising the spec stage cap',async t=>{
+ const{env}=await fixture(t),originalFetch=globalThis.fetch;let reserved=0;
+ globalThis.fetch=async()=>{reserved=(await budget.modelBudgetStatus(env)).pending[0].reserved_micros;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ await modelStep(env,'model-operation',0,'spec','hidden-input-call',{system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},value=>assert.equal(value.ok,true));
+ assert.ok(reserved>50000&&reserved<400000);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});

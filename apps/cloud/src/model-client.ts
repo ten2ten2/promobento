@@ -1,7 +1,7 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
-import {providerRequest, streamModel, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
+import {providerRequest, streamModel, ModelOutputError, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
 import providersInput from '../../../config/model-providers.json';
 import authorization from '../../../config/model-authorization.json';
 import policyInput from '../../../config/agent-policy.json';
@@ -36,7 +36,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
       await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
     }
-    const result=receipt.result;let value:Json;
+    const result=receipt.result;if(result.failure)throw Error(result.failure);let value:Json;
     if(result.toolCalls.length)value={toolCalls:result.toolCalls};
     else{try{value=parseCanonicalJson(result.text) as Json;}catch{throw new ModelJsonOutputError();}}
     validate(value);
@@ -54,7 +54,12 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     const count=await fetch(provider.baseUrl+'/v1/messages/count_tokens',{method:'POST',headers:{'x-api-key':secret,'anthropic-version':'2023-06-01','content-type':'application/json'},body:canonical(body),signal:AbortSignal.timeout(30000)});
     if(!count.ok)throw Error('MODEL_TOKEN_COUNT_UNAVAILABLE');const data=parseCanonicalJson(await count.text()) as Json;
     if(!Number.isSafeInteger(data.input_tokens)||data.input_tokens<0)throw Error('MODEL_TOKEN_COUNT_UNAVAILABLE');inputTokens=data.input_tokens+2048;
-  }else inputTokens+=request.messages.reduce((sum,message)=>sum+(message.images?.length??0)*131072,0);
+  }else{
+    inputTokens+=request.messages.reduce((sum,message)=>sum+(message.images?.length??0)*131072,0);
+    // Gateway Claude has added up to ~110k unrequested input tokens in the retained probes.
+    // Reserve a 128k-token surcharge for registered hidden-prompt routes, not only the ~6.8k baseline.
+    if(model.capabilities.hiddenPromptTokens)inputTokens+=Math.max(131072,model.capabilities.hiddenPromptTokens);
+  }
   const usage=provider.kind==='anthropic'?{input_tokens:0,cache_creation:{ephemeral_1h_input_tokens:inputTokens},output_tokens:input.maxOutputTokens}
     :{prompt_tokens:inputTokens,completion_tokens:input.maxOutputTokens};
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
@@ -68,7 +73,9 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     await operation(env,op.id,op.generation);
   }catch(error){await settleModelBudget(env,reserved,0,{kind:'not_dispatched',reason:'Local admission did not reach the paid request.'},{notDispatched:true});throw error;}
   await markModelDispatched(env,reserved);
-  const result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});
+  let result;
+  try{result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});}
+  catch(error){if(!(error instanceof ModelOutputError))throw error;result=error.result;}
   const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,quote:modelUsageQuote(ref,result.usage,providers),result};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

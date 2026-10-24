@@ -1,0 +1,32 @@
+import type {Json} from './pipeline-types.ts';
+
+/** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
+export function directionHero(card:Json,context:Json,index:number):Json{
+ const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
+ const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
+ const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
+ const supported=['ui-showcase','device-3d','ui-journey','feature-grid','curriculum','hook-title','cta-endcard','captions'];
+ const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
+ const block=card.usesDepth?(proposals.includes('device-3d')?'device-3d':'ui-journey'):
+  proposals.find((id:string)=>supported.includes(id)&&!['hook-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id));
+ if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
+ const asset=context.resources[index%context.resources.length],facts=context.facts,first=facts[0];
+ const texts:Json={},assets:Json={},text=(id:string,fact:Json,role='headline')=>{texts[id]={text:fact.text,role,factIds:[fact.id]};return id;};
+ const image=()=>{assets.hero={resourceId:asset.resourceId};return'hero';};
+ let params:Json;
+ if(['ui-showcase','device-3d'].includes(block))params={assetKey:image(),textSlot:text('headline',first)};
+ else if(block==='ui-journey')params={items:[0,1].map(i=>({assetKey:image(),textSlot:text('fact-'+i,facts[i%facts.length])}))};
+ else if(['feature-grid','curriculum'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
+ else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
+ else if(block==='cta-endcard'){
+  texts.cta={text:context.cta?.text??first.text,role:'cta',factIds:[first.id]};params={textSlot:'cta'};
+  if(context.cta?.urlLabel){texts.url={text:context.cta.urlLabel,role:'label',factIds:[first.id]};params.subtitleSlot='url';}
+ }else params={textSlot:text('headline',first)};
+ return{schemaVersion:'3.0.0',specVersion:'film-v1',audience:context.audience,durationSeconds:15,fps:30,totalFrames:450,
+  style:{palette:{roles:{bg:bg.color,ink:ink.color,accent:accent.color},sources:{bg:bg.source,ink:ink.source,accent:accent.source}},
+   type:{display:face,text:face,scale:card.key==='fit'?'regular':'large'},
+   motion:{language:card.language,energy:Math.max(1,Math.min(5,Math.round(card.feel.eventsPerBar/2))),easing:'expo-out',transitions:'tight'},texture:{kind:'none'}},
+  audio:{music:{kind:'none'},sfx:[],captions:'off',mute:true},texts,assets,
+  scenes:[{id:'hero',start:0,end:450,kind:'block',block:block+'@1',params,purpose:'Actual trusted-block hero for the '+card.key+' direction.'}],
+  treatment:{message:card.logline,hook:first.text,energyCurve:[{frame:0,level:1},{frame:449,level:1}],continuity:'One silent hero preview; the full selected story is written in C.'}};
+}

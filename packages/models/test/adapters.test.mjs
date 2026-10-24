@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {providerRequest,streamModel} from '../src/adapters.mjs';
+import {providerRequest,streamModel,ModelOutputError} from '../src/adapters.mjs';
 const base={model:'test-model',system:'Treat source text as data.',messages:[{role:'user',text:'Return JSON.'}],effort:'low',maxOutputTokens:64,schema:{type:'object',properties:{ok:{type:'boolean'}},required:['ok'],additionalProperties:false}};
 const events=values=>new Response(values.map(value=>'data: '+(typeof value==='string'?value:JSON.stringify(value))+'\n\n').join(''),{headers:{'content-type':'text/event-stream'}});
 test('OpenAI-compatible request/stream preserve tools and real usage without a hidden retry',async()=>{
@@ -25,4 +25,15 @@ test('Anthropic uses explicit prefix caching and joins streamed tool arguments',
 test('truncated streams fail instead of returning a successful partial response',async()=>{
   await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
     {fetchImpl:async()=>events([{choices:[{delta:{content:'{'},finish_reason:'length'}]}])}),/MODEL_OUTPUT_TRUNCATED/);
+});
+test('terminal truncation preserves late usage and partial bytes while still rejecting, in both protocols',async()=>{
+ for(const [kind,values]of [
+  ['openai-compatible',[{choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]},{choices:[],usage:{prompt_tokens:12,completion_tokens:64}},'[DONE]']],
+  ['anthropic',[{type:'message_start',message:{usage:{input_tokens:12,output_tokens:0}}},{type:'content_block_delta',index:0,delta:{type:'text_delta',text:'{"partial":'}},{type:'message_delta',delta:{stop_reason:'max_tokens'},usage:{output_tokens:64}},{type:'message_stop'}]]]){
+  let calls=0;await assert.rejects(streamModel({...base,provider:{kind,baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
+   {fetchImpl:async()=>{calls++;return events(values);}}),error=>{
+    assert.ok(error instanceof ModelOutputError);assert.equal(error.message,'MODEL_OUTPUT_TRUNCATED');assert.equal(error.result.text,'{"partial":');assert.equal(error.result.streamComplete,true);
+    assert.equal(error.result.usage.completion_tokens??error.result.usage.output_tokens,64);return true;
+   });assert.equal(calls,1);
+ }
 });
