@@ -31,7 +31,9 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   const safe = inSafe(ctx), box = safeBox(ctx);
   const orbit = node(ctx.root, {position: 'absolute', border: `2px solid ${ctx.style.palette.accent}`, borderRadius: '50%',
     width: ctx.target.width * 0.8 + 'px', height: ctx.target.width * 0.8 + 'px', left: '52%', top: '-28%', opacity: '0.2'});
-  const title = node(safe, {position: 'absolute', left: '0', top: '24%', width: '100%', height: '53%'});
+  // Keep the fading title on the same compositing path for forward, hidden/reverse and cold seeks.
+  // Otherwise Chromium can round antialiased glyph edges differently after this layer is rebuilt.
+  const title = node(safe, {position: 'absolute', left: '0', top: '24%', width: '100%', height: '53%', willChange: 'transform, opacity'});
   text(ctx, params.textSlot, title);
   const line = node(safe, {position: 'absolute', left: '0', top: '17%', height: '8px', width: '12%', background: ctx.style.palette.accent ?? ''});
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '81%', width: '92%', height: '18%'}), 3);

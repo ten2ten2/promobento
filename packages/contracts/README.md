@@ -25,6 +25,7 @@ if (!validate(spec)) {
 
 ## 本地检查
 
+- `mise run check:repo`、`check:contracts` 及离线 Studio 的生成/核对入口会先预编译验证器；干净工作区不依赖之前测试留下的 `generated/`。
 - `mise run test`：JCS 固定摘要向量、共享算法和所有 Schema 的正反例；预编译结果与完整 Ajv 对照，并在禁止字符串代码生成的 Node 子进程里运行公开入口。
 - `mise run typecheck`：重新构建验证器，检查 Worker 和导入类型，包括非法 JSON 参数和不存在的 Schema 名。
 

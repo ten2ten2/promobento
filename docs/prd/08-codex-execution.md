@@ -21,15 +21,15 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | 任务 | 实际范围 |
 | --- | --- |
 | `install` | pnpm 冻结安装 |
-| `check:repo` | 当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；PRD/协议版本入口；v2 旧标识符不得出现（方案与留证目录除外）；并执行契约与离线参考检查 |
-| `check:contracts` | 生产 Schema 样例、语义、摘要、合法目标与 API 清单；目标与画幅、分段并发；模型配置与授权、价格目录一致 |
+| `check:repo` | 先预编译验证器，再检查当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；PRD/协议版本入口；v2 旧标识符不得出现（方案与留证目录除外）；并执行契约与离线参考检查 |
+| `check:contracts` | 先预编译验证器，再检查生产 Schema 样例、语义、摘要、合法目标与 API 清单；目标与画幅、分段并发；模型配置与授权、价格目录一致 |
 | `test` | 先构建验证器，再运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `typecheck` | 先构建契约验证器，再检查 `apps/cloud` 和 `packages/film-runtime`/`blocks` 的 TypeScript，包含共享契约导入用例 |
 | `build:film-runtime` | 构建 Node 页面生成器、预编译积木参数校验器及浏览器 shim、engine、OM/clip 与九积木 |
 | `test:browser` | CI 隔离镜像内运行九积木帧集、JPEG→MP4/音频链路及既有四画幅 seek/布局/字体/桥接回归；输出 13 种 30 秒程序风格试听；本机直接调用明确失败，见[运行时说明](../../packages/film-runtime/README.md) |
 | `test:cloud-local` | 预编译当前 Schema，在本机以固定 SSE、SQLite 和 R2 模拟回放真实 A–C/E/F 编排、三方向 still 请求、用户等待、修复、冷审拒绝与取消；不访问网络、不构建镜像，不代表云验或模型能力通过 |
 | `build:validators` | 把全部 14 个 v3 Schema（含单位经济、导演分析、音乐准入与研究模型费用）及派生积木参数预编译为独立 ESM 验证器及类型声明；Workers 从 `@promobento/contracts/validators/<name>` 导入，见[共享契约库](../../packages/contracts/README.md) |
-| `build:agent-reference` / `check:agent-reference` | 生成并核对离线 Studio 参考 |
+| `build:agent-reference` / `check:agent-reference` | 先预编译验证器，再生成或核对离线 Studio 参考 |
 
 `build:containers`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 随 S1–S3 的真实实现加入，见[改造方案](../plans/cloud-motion-v3.md)第 13 节。
 
@@ -92,7 +92,7 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 | Cloudflare 容器 | 06 的复杂片、媒体、沙箱与回收，镜像可重复获取；镜像只经 GitHub Actions 构建推送 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
 
-CI 支持手动 `workflow_dispatch`。[工作流](../../.github/workflows/checks.yml)包含 `contracts`、可信积木/媒体的 `browser` 和离线导演的 `cloud-local` job，可只选必要子项。`browser` 只构建并运行离线镜像；`cloud-local` 不访问模型或云资源。[staging 部署工作流](../../.github/workflows/cloud-deploy.yml)仅手动运行，构建/推送镜像、迁移数据库并做一次工程片集成，不隐式发布生产；harness 修复可复用明确的已部署 SHA，见[云端说明](../../apps/cloud/README.md)。实际证据范围见实施状态，完整 G1 尚待。临时探针（如 [G1 预探针](../evidence/2026-10-23-g1-pre-probe/README.md)）运行后删除云端资源。
+CI 支持手动 `workflow_dispatch`。[工作流](../../.github/workflows/checks.yml)包含 `contracts`、可信积木/媒体的 `browser` 和离线导演的 `cloud-local` job，可只选必要子项。`browser` 只构建并运行离线镜像；`suite=runtime` 只复验四画幅顺序/逆序/冷 seek、字体/布局与桥接，不重复媒体和 13 种配乐，未运行项明确记录为 `not_run`；`cloud-local` 不访问模型或云资源。[staging 部署工作流](../../.github/workflows/cloud-deploy.yml)仅手动运行，构建/推送镜像、迁移数据库并做一次工程片集成，不隐式发布生产；harness 修复可复用明确的已部署 SHA，见[云端说明](../../apps/cloud/README.md)。实际证据范围见实施状态，完整 G1 尚待。临时探针（如 [G1 预探针](../evidence/2026-10-23-g1-pre-probe/README.md)）运行后删除云端资源。
 
 长期验收证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或试听材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 

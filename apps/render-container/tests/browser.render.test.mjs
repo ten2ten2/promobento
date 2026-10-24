@@ -15,7 +15,8 @@ const root=new URL('../../../',import.meta.url),read=path=>readFileSync(new URL(
 const rules=parseCanonicalJson(read('config/platform-presets.json'));
 const lock=parseCanonicalJson(read('apps/render-container/environment.lock.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
-const report={status:'running',scope:'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
+const runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1';
+const report={status:'running',scope:runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 const thirty=filmFixture(),thirtyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
@@ -91,8 +92,13 @@ async function checkLayout(handle,aspect){
   }
 }
 try{
-  report.media=await mediaFixture(output,rules,lock);
-  report.programStyleSamples=await audioSamples(output+'/audio-samples');
+  if(runtimeOnly){
+    report.media={status:'not_run',reason:'runtime_only'};
+    report.programStyleSamples={status:'not_run',reason:'runtime_only'};
+  }else{
+    report.media=await mediaFixture(output,rules,lock);
+    report.programStyleSamples=await audioSamples(output+'/audio-samples');
+  }
   for(const aspect of Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};

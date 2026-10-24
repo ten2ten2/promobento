@@ -9,7 +9,7 @@ on:
       suite:
         description: Run only the necessary check
         type: choice
-        options: [all, contracts, browser, media, audio, cloud-local, staging]
+        options: [all, contracts, browser, runtime, media, audio, cloud-local, staging]
         default: all
       staging_sha:
         description: Already deployed SHA; staging-only harness repair without rebuilding or redeploying
@@ -48,7 +48,7 @@ concurrency:
 
 jobs:
   contracts:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'media' && inputs.suite != 'audio' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
+    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'runtime' && inputs.suite != 'media' && inputs.suite != 'audio' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -100,7 +100,7 @@ jobs:
           cache-from: type=gha,scope=film-runtime-tests
           cache-to: type=gha,mode=max,scope=film-runtime-tests
       - name: Check only the changed pipeline contracts, adapters and confirmed eval cards
-        if: inputs.suite != 'media' && inputs.suite != 'audio'
+        if: inputs.suite != 'runtime' && inputs.suite != 'media' && inputs.suite != 'audio'
         run: |
           docker run --rm --network none --entrypoint node promobento-film-runtime-tests:ci --test \
             packages/contracts/test/render-pipeline.test.mjs packages/models/test/adapters.test.mjs tests/evals/input-cards.test.mjs
@@ -113,6 +113,7 @@ jobs:
           sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
           docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
             -e PROMOBENTO_MEDIA_ONLY="${{ inputs.suite == 'media' && '1' || '0' }}" \
+            -e PROMOBENTO_RUNTIME_ONLY="${{ inputs.suite == 'runtime' && '1' || '0' }}" \
             -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \

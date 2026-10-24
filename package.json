@@ -9,14 +9,14 @@
     "node": "26.12.0"
   },
   "scripts": {
-    "check:repo": "node scripts/check-repo.mjs",
-    "check:contracts": "node scripts/check-production-contracts.mjs",
+    "check:repo": "pnpm run build:validators && node scripts/check-repo.mjs",
+    "check:contracts": "pnpm run build:validators && node scripts/check-production-contracts.mjs",
     "test": "pnpm run build:validators && node scripts/run-tests.mjs",
     "build:film-runtime": "node scripts/build-film-runtime.mjs",
     "test:browser": "node apps/render-container/tests/browser.render.test.mjs",
     "test:cloud-local": "node scripts/run-cloud-mock.mjs",
-    "build:agent-reference": "node scripts/build-agent-reference.mjs",
-    "check:agent-reference": "node scripts/check-agent-reference.mjs",
+    "build:agent-reference": "pnpm run build:validators && node scripts/build-agent-reference.mjs",
+    "check:agent-reference": "pnpm run build:validators && node scripts/check-agent-reference.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
     "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"
   },

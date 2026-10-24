@@ -13,12 +13,12 @@ run = "pnpm install --frozen-lockfile"
 [tasks."check:repo"]
 description = "check:repo: current specifications and references only"
 dir = "{{config_root}}"
-run = "node scripts/check-repo.mjs"
+run = "pnpm run build:validators && node scripts/check-repo.mjs"
 
 [tasks."check:contracts"]
 description = "check:contracts: current specifications and references only"
 dir = "{{config_root}}"
-run = "node scripts/check-production-contracts.mjs"
+run = "pnpm run build:validators && node scripts/check-production-contracts.mjs"
 
 [tasks."test"]
 description = "Run Node unit tests in scripts, packages, apps and tests"
@@ -43,12 +43,12 @@ run = "node scripts/run-cloud-mock.mjs"
 [tasks."build:agent-reference"]
 description = "build:agent-reference: current specifications and references only"
 dir = "{{config_root}}"
-run = "node scripts/build-agent-reference.mjs"
+run = "pnpm run build:validators && node scripts/build-agent-reference.mjs"
 
 [tasks."check:agent-reference"]
 description = "check:agent-reference: current specifications and references only"
 dir = "{{config_root}}"
-run = "node scripts/check-agent-reference.mjs"
+run = "pnpm run build:validators && node scripts/check-agent-reference.mjs"
 
 [tasks."build:validators"]
 description = "Precompile the v3 contract Schemas into standalone validators for Workers"
