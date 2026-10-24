@@ -44,7 +44,7 @@ mise exec -- node research/evals/run-case.mjs \
   artifacts/s1-eval-inputs-2026-10-24 deepseek-15 artifacts/s1-deepseek-15
 ```
 
-先读取固定 release，缺失时把本次源码/环境锁证据存入私有 R2 并通过既有登记入口绑定实际部署镜像；已存在的登记不可覆盖，当前镜像与登记不符就停止。之后只创建该例一个评测操作，重登记自己的素材权利，再调用真实 A/B/C/E/F；模型 secret 留在 Worker。新增费用受共享临时上限和原阶段/次数/期限约束，未知消费保留预留，不重发同一次请求。输出目录存在时拒绝重跑，失败先读 `report.json` 和 `operation.json`。
+先读取固定 release，缺失时把该 release 对应的完整 Git 提交及其环境锁存入私有 R2，并通过既有登记入口绑定实际部署镜像；执行脚本的提交另行记录，不能把后续文档或 harness 提交冒充镜像源码。已存在的登记不可覆盖，当前镜像与登记不符就停止。之后只创建该例一个评测操作，重登记自己的素材权利，再调用真实 A/B/C/E/F；模型 secret 留在 Worker。新增费用受共享临时上限和原阶段/次数/期限约束，未知消费保留预留，不重发同一次请求。输出目录存在时拒绝重跑，失败先读 `report.json` 和 `operation.json`。
 
 到 `awaiting_visual_direction_choice` 后查看 `direction-fit.png`、`direction-amplify.png`、`direction-unexpected.png` 及 `directions.json`。据实际画面选择，把 `choice.example.json` 的 key、绑定摘要和具体 reason 保存为同目录 `choice.json`；脚本才向原 Workflow 发送选择，不默认为 fit。成功后 `index.html` 提供横竖两部实际 MP4 的正常速度播放器，候选/冷审、全部费用与未知项保留在 JSON。负责人视听仍记为 pending，程序成功不代替 4/6 评判。
 

@@ -21,6 +21,8 @@ if(manifest.status!=='prepared_not_executed'||manifest.scope!=='internal_eval_on
 const context=read(join(input,item.contextFile));
 if(context.scope!=='internal_eval_only'||context.publicUseCleared!==false||context.rendererRelease!==manifest.rendererRelease
  ||context.factConfirmation.confirmedBy!=='owner'||canonical(context.aspects)!==canonical(['landscape','portrait']))throw Error('CONFIRMED_CONTEXT_REQUIRED');
+if(!/^renderer-[a-f0-9]{12}$/.test(context.rendererRelease))throw Error('PINNED_RENDERER_SOURCE_REQUIRED');
+const rendererSourceSha=execFileSync('git',['rev-parse',context.rendererRelease.slice(9)+'^{commit}'],{encoding:'utf8'}).trim();
 const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/cloud','exec','wrangler',...args],
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-eval-cli.log'},encoding:'utf8',timeout:60000,...options});
 const secrets=parseCanonicalJson(wrangler(['secret','list','--env','staging']));
@@ -33,7 +35,7 @@ mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
 const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_review_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
- rendererRelease:context.rendererRelease,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
+ rendererRelease:context.rendererRelease,rendererSourceSha,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
 let secretBound=false,operationAttempted=false,stopping=false,primaryFailure;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
 const pause=()=>new Promise(resolve=>setTimeout(resolve,2000));
@@ -73,8 +75,8 @@ try{
  if(!probeSource&&!['provisional','confirmed'].includes(report.budgetBefore.budgetBasis))throw Error('MODEL_BUDGET_NOT_READY');
  let release=await json('releases/'+context.rendererRelease,{allowMissing:true});
  if(!release){
-  const environment=await json('objects/'+prefix+'/environment.json',{method:'PUT',body:new TextEncoder().encode(canonical({gitSha:report.sourceSha,
-    environmentLock:read('apps/render-container/environment.lock.json')}))});
+  const environment=await json('objects/'+prefix+'/environment.json',{method:'PUT',body:new TextEncoder().encode(canonical({gitSha:rendererSourceSha,
+    environmentLock:parseCanonicalJson(execFileSync('git',['show',rendererSourceSha+':apps/render-container/environment.lock.json']))}))});
   await call('releases',{method:'POST',body:{id:context.rendererRelease,runtimeVersion:context.runtimeVersion,environmentKey:environment.key}});
   release=await json('releases/'+context.rendererRelease);
  }
