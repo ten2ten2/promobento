@@ -167,7 +167,7 @@ export default {
       }
       if (request.method === 'POST' && path === '/internal/s1/studio') {
         const input = await readJson(request), op = await operation(env, input.job?.operationId);
-        if (input.mode !== 'studio' || input.job.quality !== 'still' || input.instance !== 'standard-3') throw Error('STUDIO_SCOPE_INVALID');
+        if (input.mode !== 'studio' || input.job.quality !== 'still' || !(input.instance==='standard-3'||op.purpose==='calibration'&&input.instance==='standard-4')) throw Error('STUDIO_SCOPE_INVALID');
         assertRenderTask({...input, brokerToken: crypto.randomUUID()}); await rights(env,op,input.job.resources);
         const release = await env.DB.prepare("SELECT image_digest FROM renderer_releases WHERE id=? AND status='active'").bind(input.job.rendererRelease).first<Json>();
         if (!release) throw Error('RENDER_ENVIRONMENT_MISMATCH');
@@ -176,6 +176,12 @@ export default {
       }
       const studioFrame = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/frames\/(\d+)$/.exec(path);
       if (request.method === 'GET' && studioFrame) return env.OPERATIONS.getByName(studioFrame[1]!).frame(studioFrame[1]!,Number(studioFrame[2]));
+      const studioTool=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/(check|benchmark)\/(\d+)$/.exec(path);
+      if(request.method==='POST'&&studioTool){
+        const id=studioTool[1]!,frame=Number(studioTool[3]),op=await operation(env,id);
+        if(studioTool[2]==='benchmark'&&op.purpose!=='calibration')throw Error('BENCHMARK_CALIBRATION_REQUIRED');
+        const stub=env.OPERATIONS.getByName(id);return studioTool[2]==='check'?stub.checkFrame(id,frame):stub.benchmarkFrame(id,frame);
+      }
       const closeStudio=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/studio\/close$/.exec(path);
       if(request.method==='POST'&&closeStudio){await operation(env,closeStudio[1]!);await env.OPERATIONS.getByName(closeStudio[1]!).closeStudio();return new Response(null,{status:204});}
       const events = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/events$/.exec(path);

@@ -19,6 +19,10 @@ on:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render
         type: string
         default: ''
+      staging_inspect_operation:
+        description: Exact child operation from the inspected run; read-only, no replay
+        type: string
+        default: ''
       staging_reconcile_operation:
         description: Confirm stop and reconcile this one failed/cancelled internal operation before smoke
         type: string
@@ -34,7 +38,7 @@ on:
       staging_scenario:
         description: New coverage only; lifecycle-recovery interrupts compute without repeating a complete movie
         type: choice
-        options: [engineering, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance]
+        options: [engineering, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-selection]
         default: engineering
 
 permissions:
@@ -156,6 +160,7 @@ jobs:
     with:
       reuse_deployment: ${{ inputs.staging_sha }}
       inspect_run: ${{ inputs.staging_inspect_run }}
+      inspect_operation: ${{ inputs.staging_inspect_operation }}
       reconcile_operation: ${{ inputs.staging_reconcile_operation }}
       renderer_sha: ${{ inputs.staging_renderer_sha }}
       renderer_digest: ${{ inputs.staging_renderer_digest }}

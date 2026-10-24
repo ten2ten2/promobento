@@ -12,12 +12,13 @@ import {renderAudio} from './audio.mjs';
 import {filmSession} from './browser.mjs';
 import {deadline} from './process.mjs';
 import {memoryHealth,filesystemDiagnostic} from './memory.mjs';
+import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
 
 if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
 const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
 const lock = parseCanonicalJson(readFileSync(new URL('../environment.lock.json', import.meta.url)));
 const fontCatalog = parseCanonicalJson(readFileSync('/opt/fonts/catalog.json'));
-let task, requestHash, result, session, workDirectory, stored = new Map();
+let task, requestHash, result, session, workDirectory,studioBusy=false, stored = new Map();
 const abort = new AbortController();
 const launch = async command => {
   const response = await fetch('http://127.0.0.1:9300/' + command, {method: 'POST', signal: AbortSignal.timeout(35000)});
@@ -69,7 +70,9 @@ async function execute(input) {
       imageDigest: process.env.RENDER_IMAGE_DIGEST, encoding: config.encoding, threads: config.threads});
     else {
       session = await filmSession(shared);
-      result = {status: 'ready', frames: input.job.frames, taskId: input.taskId,webgl:session.webgl};
+      const cpuInfo=readFileSync('/proc/cpuinfo','utf8');
+      result = {status: 'ready', frames: input.job.frames, taskId: input.taskId,webgl:session.webgl,
+        cpuModel:cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1]??'unknown',cpuFlagsHash:digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1]??'').split(/\s+/).sort())};
       return;
     }
     await launch('kill');
@@ -119,14 +122,23 @@ const server = http.createServer(async (request, response) => {
       response.writeHead(200, {'content-type':'application/json'}).end(canonical({status:'ready',memoryPeak:memoryHealth()})); return;
     }
     if (request.method === 'GET' && request.url === '/result') { response.writeHead(200, {'content-type': 'application/json'}).end(canonical(result ?? {status: 'idle'})); return; }
-    if (request.method !== 'POST' || !['/task', '/studio/frame'].includes(request.url)) { response.writeHead(404).end(); return; }
+    if (request.method !== 'POST' || !['/task', '/studio/frame','/studio/check','/studio/benchmark'].includes(request.url)) { response.writeHead(404).end(); return; }
     const chunks = []; let size = 0;
     for await (const chunk of request) { size += chunk.length; if (size > 4 << 20) throw Error('TASK_TOO_LARGE'); chunks.push(chunk); }
     const input = parseCanonicalJson(Buffer.concat(chunks));
-    if (request.url === '/studio/frame') {
-      if (!session || result?.status !== 'ready' || input.taskId !== task.taskId || !task.job.frames.includes(input.frameIndex)) throw Error('STUDIO_SCOPE_INVALID');
-      const png = await session.frame(input.frameIndex, {format: 'png'});
-      response.writeHead(200, {'content-type': 'image/png'}).end(png); return;
+    if (request.url.startsWith('/studio/')) {
+      assertStudioFrame(task,input,Boolean(session&&result?.status==='ready'));
+      if(studioBusy)throw Error('STUDIO_COMMAND_IN_PROGRESS');studioBusy=true;
+      try{
+       if(request.url==='/studio/frame'){
+        const png=await session.frame(input.frameIndex,{format:'png'});response.writeHead(200,{'content-type':'image/png'}).end(png);
+       }else{
+        const work=request.url==='/studio/check'?checkStudio(session,task,input.frameIndex):benchmarkCapture(session,input.frameIndex,workDirectory,abort.signal);
+        const value=await deadline(work,request.url==='/studio/check'?task.options.frameTimeoutMs:30000,'STUDIO_TOOL_TIMEOUT',()=>abort.abort());
+        response.writeHead(200,{'content-type':'application/json'}).end(canonical(value));
+       }
+      }finally{studioBusy=false;}
+      return;
     }
     assertTask(input);
     const identity = digest({...input, brokerToken: null});

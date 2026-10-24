@@ -182,7 +182,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         if (value.status === 'succeeded') { outcome = {...value,lifecycleTimings:{capacityWaitMs,containerReadyMs}}; break; }
         if (value.status === 'ready' && task.mode === 'studio') {
           await this.ctx.storage.put('studio', {operationId: op.id, generation: op.generation, resources: task.job.resources});
-          return {...value,environmentHealth}; // Lease and budget stay held while the studio exists.
+          return {...value,environmentHealth,lifecycleTimings:{capacityWaitMs,containerReadyMs}}; // Lease and budget stay held while the studio exists.
         }
         await sleep(1000);
       }
@@ -195,11 +195,15 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       }
     }
   }
-  async frame(taskId: string, frameIndex: number) {
+  private async studioCommand(command:'frame'|'check'|'benchmark',taskId: string, frameIndex: number) {
     const studio = await this.ctx.storage.get<Json>('studio'); if (!studio) throw Error('STUDIO_NOT_READY');
     const op = await operation(this.env, studio.operationId, studio.generation); await rights(this.env, op, studio.resources);
-    return this.call('/studio/frame', {taskId, frameIndex});
+    if(command==='benchmark'&&op.purpose!=='calibration')throw Error('BENCHMARK_CALIBRATION_REQUIRED');
+    return this.call('/studio/'+command, {taskId, frameIndex});
   }
+  async frame(taskId:string,frameIndex:number){return this.studioCommand('frame',taskId,frameIndex);}
+  async checkFrame(taskId:string,frameIndex:number){return this.studioCommand('check',taskId,frameIndex);}
+  async benchmarkFrame(taskId:string,frameIndex:number){return this.studioCommand('benchmark',taskId,frameIndex);}
   private async finishCost(id: string, instance: string, startedAt?: number) {
     const usage = this.ctx.storage.transactionSync(() => {
       const previous = this.ctx.storage.kv.get<Json>('costUsage');
@@ -261,9 +265,12 @@ export class OperationDO extends DurableObject<PipelineEnv> {
   async closeStudio() { const studio = await this.ctx.storage.get<Json>('studio');if(studio){
     await this.env.SHARDS.getByName(studio.taskId).stopAndSettle();this.clearStudio(studio.taskId);
   } }
-  async frame(operationId: string, frameIndex: number) {
+  private async studioHandle(operationId:string){
     const studio = await this.ctx.storage.get<Json>('studio');
     if (!studio || studio.operationId !== operationId) throw Error('STUDIO_NOT_READY');
-    await operation(this.env, operationId, studio.generation); return this.env.SHARDS.getByName(studio.taskId).frame(studio.taskId, frameIndex);
+    await operation(this.env,operationId,studio.generation);return studio;
   }
+  async frame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).frame(studio.taskId,frameIndex);}
+  async checkFrame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).checkFrame(studio.taskId,frameIndex);}
+  async benchmarkFrame(operationId:string,frameIndex:number){const studio=await this.studioHandle(operationId);return this.env.SHARDS.getByName(studio.taskId).benchmarkFrame(studio.taskId,frameIndex);}
 }

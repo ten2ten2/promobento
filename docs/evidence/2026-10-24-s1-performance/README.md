@@ -11,3 +11,11 @@
 7 个实例均已物理停止、持久结算，分配资源保守上界共 **16,053 usd_micros**；操作取消/对账、lease 归还和本轮内部密钥删除成功。没有调用模型，[历史预算](first-attempt/model-budget.json)保持未确认，不能把这部失败片当作成片 p50/p95 样本。未继续运行剩余 27 部。
 
 修复沿用标题反例的结论：停稳后的位移、缩放或旋转为恒等变换时，恢复 `transform:none`，不保留只影响栅格缓存的绘制表面。相同规则应用到 CTA 图形/标题、静止产品面板和其余入场卡片/文字；几何与动画过程不变。实际复验结果另记，不因代码修改先记通过。
+
+## 修复后一次采样被启动故障阻断
+
+[40063578112](https://github.com/ten2ten2/promobento/actions/runs/40063578112) 在 `ed62c2a37734b71444a19613287daf1341cc9199` 部署镜像 `sha256:cf3c140d45d53a935f93b260bf0b4c3f85f1bc896e22343b603b0bfd294ce476`、Worker `89b32bea-4ef2-4792-a46d-934ce1693913`。首片没有取得计算回执，渲染落 `RENDER_INTERNAL_ERROR`。已有启动循环在控制器健康未成功时仍尝试发任务，错误被归为通用内部错误。
+
+只读 Wrangler 查询的[原生步骤](startup-attempt/native-workflow.json)定位两个分段为 `The container is not listening in the TCP address 10.0.0.1:8080`；其余步骤因失败清理/取消而终止，不能把它们解释为各自计算失败。尚未证明是启动耗时还是进程退出，先读已有日志，不重跑成片，也不增加期限。
+
+[原始状态与费用](startup-attempt/performance-report.json)确认 7 个实例最终全部停止结算，分配资源上界 **17,506 usd_micros**，没有未结费用；内部密钥已删除。原 `stopPending:true` 是失败时的状态，随后清理已确认，不能据此说仍有实例运行。此次未验证 CTA 接缝修复，仍无有效成片分位数样本。

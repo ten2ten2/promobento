@@ -9,6 +9,9 @@ on:
       inspect_run:
         type: string
         default: ''
+      inspect_operation:
+        type: string
+        default: ''
       reconcile_operation:
         type: string
         default: ''
@@ -37,6 +40,7 @@ jobs:
       STAGING_URL: https://promobento-staging.woffordvivian.workers.dev
       DEPLOYED_SHA: ${{ inputs.reuse_deployment || github.sha }}
       INSPECT_RUN: ${{ inputs.inspect_run }}
+      INSPECT_OPERATION: ${{ inputs.inspect_operation }}
       RECONCILE_OPERATION: ${{ inputs.reconcile_operation }}
       RENDERER_SHA: ${{ inputs.renderer_sha }}
       RENDERER_DIGEST: ${{ inputs.renderer_digest }}
@@ -95,7 +99,7 @@ jobs:
         if: inputs.inspect_run != ''
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Preserve failed render diagnosis without another render
-        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'g1-performance' && env.EVAL_API_KEY != ''
+        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-selection' && env.EVAL_API_KEY != ''
         env:
           INSPECT_RUN: ${{ github.run_id }}
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs

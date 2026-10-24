@@ -4,6 +4,8 @@
 
 内部入口位于 `/internal/s1/`：`operations`、不可变 `objects/evals/…`、许可 `rights`、镜像 `releases`、`renders`、`studio`、`creative`；`artifacts/<key>` 只读取当前许可仍有效的已发布输出或已登记方向帧；操作可通过 `operations/<id>/events` 收取进度、`operations/<id>/frames/<frame>` 取许可帧、`operations/<id>/cancel` 取消。请求原文经共享解析器；渲染私有传输经预编译完整 Schema。实际权利记录必须在处理前入 D1，并引用私有 R2 中的来源/许可证据；不能拿素材 JSON 自报清权代替这一步。
 
+已就绪的 studio 可用 `POST operations/<id>/studio/check/<frame>` 对授权帧重新取 PNG 并执行实际 CDP 阅读观测；返回该帧、取帧/观测耗时和原始 `frame_observation`，不是完整动态 Q1。`POST …/studio/benchmark/<frame>` 只允许 `calibration` 操作，在同一帧比较 PNG、JPEG90/92/95；普通评测仍只用 standard-3，只有校准允许 standard-4。每个工具都重新核对 generation/许可及原 task 的允许帧，控制器串行化整个 seek/截图/观测，拒绝交错命令；不能借诊断扩大素材或帧权限。
+
 `RenderWorkflow` 执行分段、声音、接缝/阅读停留观测、拼接和 generation-fenced 提交；`ShardDO` 每次 attempt 使用独立容器，禁网，仅挂该任务的 broker；`CoordinatorDO` 在确认停止前持有并发 lease；`OperationDO` 管 studio 与进度。取消先推进 generation、撤销后续读写，再经 outbox 停止实例。任务、回执、冻结输出引用、费用预留与结算保留；重试不得覆盖已提交字节。
 
 计算费用目前按 **分配的完整 CPU + 内存 + 磁盘 × 实际运行时间**记保守上界，不是 Cloudflare 账单实测值。CPU/内存/磁盘单价来源：[Cloudflare Containers pricing](https://developers.cloudflare.com/containers/platform/pricing/)，2026-10-23；实例规格见[官方表](https://developers.cloudflare.com/containers/platform/limits/)。未知模型 usage 保留预留，不记作零。生产预算未标定，Agent 仍关闭。
@@ -39,6 +41,8 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且容器、共享包、契约、配置、依赖与构建输入均未变化后，只部署 Worker，复用原镜像，不构建推送。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
 
 先诊断再修复：同一入口另加 `-f staging_inspect_run=<原 Actions run ID>`，只查询该次操作的 Workflow 步骤/错误及 D1 状态、attempt 和费用结算，保存 `inspection.json`；不部署、不绑定内部密钥、不新建渲染，不读取任何凭据值。出片失败时，部署工作流也自动保留这份只读诊断，不为收集错误重复渲染。
+
+矩阵子操作另加 `-f staging_inspect_operation=<同一 run 的完整子操作 ID>`，仍须用 `staging_sha` 指定当时部署。只接受该提交/run 前缀下的子操作；同时有界查询其开始/结束附近已存储的 staging 日志，删除凭据字段，保留实际 HTTP/权限结果。日志不可读不冒充“没有错误”，也不会为收集日志启动计算。
 
 只修复已失败/取消的指定操作，可加 `-f staging_reconcile_operation=<operation ID>`。新版本通过 `operations/<id>/reconcile` 再次确认实例停止，补齐旧 attempt 的停止记录及遗留的渲染非终态；返回未结费用清单。不重启计算、不改 generation、不清零未知模型费用、不覆盖 passed 成片或原始失败原因。活动操作拒绝此入口。
 
@@ -87,3 +91,9 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 `performance-report.json` 增量保留每部输入、分段、成片引用、实际回执、物理停止和结算。串行/并发分别用经验最近秩计算 p50/p95，保留样本数，不把不同负载混成一个分布。新实例启动到控制器健康响应、页面握手、等名额、逐帧 seek/确认/JPEG 捕获各自计时；逐帧计时不含编码器背压、QA 和额外接缝 PNG。旧回执可缺逐帧数组，不能用均摊段耗时补造分布。费用仍为实际持久结算的分配资源保守上界，不是供应商账单。
 
 只下载每类首部实际 MP4 与封面，其他影片的不可变引用留在报告及私有 R2；不公开成片。每部结束取消并确认停止/结算，失败不重试出片，未结费用不清零，工作流最终回收本轮密钥。该组件不代替捕获格式/机型对照、安全与 studio 延迟等其余 G1 项，也不放开历史费用和官方模型门槛。实际运行范围见实施状态。
+
+### 捕获格式、机型与 studio 工具选型
+
+`-f staging_scenario=g1-selection` 只补上述选型和工具延迟，不出片、合成声音或调用模型。原创 2D/WebGL 各用 standard-3/4 打开一次 studio；每组对授权的 45/165/375 帧轮流采样 10 次，分别记录实际 still/check HTTP 延迟、各捕获格式的耗时/字节，以及 JPEG 相对 PNG 的解码后平面 8-bit RGB SSIM。该计算使用镜像里的 FFmpeg 6.1.1，[过滤器支持的 RGB 格式](https://github.com/FFmpeg/FFmpeg/blob/n6.1/libavfilter/vf_ssim.c)为 `gbrp`，不把 JPEG 字节摘要当视觉质量。
+
+`selection-report.json` 保存所有原始样本、CPU flags、真实 WebGL 字符串、启动与停止/费用；每组首张实际 PNG 随产物保留。另实测普通评测拒绝 standard-4/benchmark 且零计算，未授权帧拒绝 check。生产默认仍为 JPEG92 / studio standard-3；只有实测选型结论才能调整，新增入口未运行时保留未验证。

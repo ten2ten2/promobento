@@ -89,7 +89,8 @@ export async function filmSession({raw, options, browserVersion, resource, video
     if(plan.usesWebgl&&(!expectedWebglRenderer||webgl.some(value=>value.renderer!==expectedWebglRenderer||!/^WebGL 2/.test(value.version))))throw Error('RENDER_ENVIRONMENT_MISMATCH');
     return {
       plan, sandbox, webgl, timings: {readyMs: Math.round(connectedAt - connectStarted), handshakeMs: Math.round(performance.now() - connectedAt)},
-      async frame(frameIndex, {format = 'jpeg'} = {}) {
+      async frame(frameIndex, {format = 'jpeg',quality = 92} = {}) {
+        if(!['png','jpeg'].includes(format)||format==='jpeg'&&![90,92,95].includes(quality))throw Error('CAPTURE_FORMAT_INVALID');
         if (closed || pageError) throw Error(pageError ?? 'INVALID_SESSION');
         signal?.throwIfAborted();
         const input = {...envelope('seek'), frameIndex};
@@ -99,7 +100,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
             if (ready[key] !== input[key]) throw Error('FRAME_ACK_MISMATCH');
           if (ready.event !== 'frame-ready' || ready.manifestHash !== plan.manifestHash) throw Error('FRAME_ACK_MISMATCH');
           if (pageError) throw Error(pageError);
-          const screenshot = await cdp.send('Page.captureScreenshot', {format, ...(format === 'jpeg' ? {quality: 92} : {}),
+          const screenshot = await cdp.send('Page.captureScreenshot', {format, ...(format === 'jpeg' ? {quality} : {}),
             optimizeForSpeed: true, fromSurface: true, captureBeyondViewport: false,
             clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}});
           currentFrame = frameIndex;
