@@ -22,6 +22,17 @@
 
 DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 取官网下载页发布的原始桌面示例图，账号标签属于官方演示，不是私人账户。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。9 图合计 976,951 bytes；新操作复用原 8 图字节，仅新增 IELTS PNG 与 SVG 源稿并重登记权利。入库未调用模型或启动渲染，操作已关闭、临时密钥已删除。
 
+### 将六题准备为实际导演输入
+
+```sh
+mise exec -- node research/evals/prepare-inputs.mjs \
+  artifacts/s1-eval-inputs renderer-257ca1b6babd
+```
+
+第二个参数必须是将要执行的已登记 renderer release；上例是本轮 G1 的固定版本，不自动追随最新部署。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
+
+输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
+
 ### 仅在确需更新素材时采集
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：
@@ -56,4 +67,4 @@ mise exec -- node research/evals/prepare-audio-review.mjs \
 open artifacts/s1-audio-review/index.html
 ```
 
-试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。当前已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误；负责人听感仍为 `pending`。按正常速度给出「保留 / 调整 / 停用 + 风格名」，不以数值或播放器检查代替负责人判断。
+试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误。负责人在正常速度试听请求下回复「保留」，[现有 13 种全部保留](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)。重新打包时仅对来源 run 和对应样本计划都匹配的材料沿用该决定，其他材料仍待试听。六题实际成片的视听与 4/6 评判另行进行。

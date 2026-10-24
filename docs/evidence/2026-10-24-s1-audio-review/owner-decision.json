@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "3.0.0",
+  "kind": "s1_audio_owner_decision",
+  "sourceRun": "40059971442",
+  "sourceArtifact": "film-runtime-browser",
+  "sourceUrl": "https://github.com/ten2ten2/promobento/actions/runs/40059971442",
+  "decidedBy": "owner",
+  "decidedAt": "2026-10-24T07:35:03.278Z",
+  "reviewRequest": "Listen to the 13 existing 30-second programmatic style samples at the default 1x and choose retain, adjust or disable.",
+  "ownerReply": "保留",
+  "decision": "retain_all",
+  "scope": "existing_13_programmatic_music_style_samples",
+  "samples": [
+    {
+      "style": "mallet",
+      "audioPlanHash": "acb8935c7bb02d194fd54957cd53e28d0bf9c0de3ba09bb9b6015c713fbf1ffd",
+      "decision": "retain"
+    },
+    {
+      "style": "pulse",
+      "audioPlanHash": "3fbd46ff2614d7fe864d39031bfe08c423b4086331cfdbe34b6094465900f908",
+      "decision": "retain"
+    },
+    {
+      "style": "lofi",
+      "audioPlanHash": "ace809ad43d4a763555df359381c22da2eff3467c0b2047aebed2213bed8df9e",
+      "decision": "retain"
+    },
+    {
+      "style": "funk",
+      "audioPlanHash": "28dd4e26caaa1c9cdf02f7151d39191bf7dacfc73f56143ea1a1cc625f840edc",
+      "decision": "retain"
+    },
+    {
+      "style": "trap",
+      "audioPlanHash": "09266b2f69dc008840d1dedaf537b82f87e6bdab5cfc9c14879fda37dbba01d9",
+      "decision": "retain"
+    },
+    {
+      "style": "chiptune",
+      "audioPlanHash": "58f834b7367db064d1c57eaabd6df749f080ddcf3901893855cfc5fa70720dbf",
+      "decision": "retain"
+    },
+    {
+      "style": "ambient",
+      "audioPlanHash": "ae2ec42a088d25bbb556fe3dd283b0b3098ac074fccaa02c465f9c1490792776",
+      "decision": "retain"
+    },
+    {
+      "style": "piano",
+      "audioPlanHash": "790d9475f81a5b938c4966ce68c2c4d8054c0e97b6225d92b0622b389d754256",
+      "decision": "retain"
+    },
+    {
+      "style": "cinematic",
+      "audioPlanHash": "896b23f4a6d3f88021b62e1419fc779541fa0eed34cf1f4db5bd2ef122b7d1fc",
+      "decision": "retain"
+    },
+    {
+      "style": "pizzicato",
+      "audioPlanHash": "e19bb59f144beaf96e8beb23e7043c7c6a72ab3e29aebdffe1c4bd863691db4c",
+      "decision": "retain"
+    },
+    {
+      "style": "acoustic",
+      "audioPlanHash": "169222f51f451ad9388162f2b9a6f89a497ea4889e64fef67817c296727328e5",
+      "decision": "retain"
+    },
+    {
+      "style": "guofeng",
+      "audioPlanHash": "5d4acf658da6d30b0808717ba072e4a658a68e9c1abc9151166db724a73d7326",
+      "decision": "retain"
+    },
+    {
+      "style": "synthwave",
+      "audioPlanHash": "24b986ad30d807e8f09986eded05de9f1798acb05fa807e8a54475d788044792",
+      "decision": "retain"
+    }
+  ]
+}

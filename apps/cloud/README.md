@@ -12,7 +12,7 @@
 
 内部交互任务的 outbox consumer 保留每批最多 5 条，将批量等待明确设为 1 秒，不沿用平台默认的 5 秒；不改变重试、幂等或物理计算名额。成片仍按客户端提交到 passed 计时，排队没有从性能指标中删掉。
 
-满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。真实中途取消、原生终止及 restart 防重放已有[独立证据](../../docs/evidence/2026-10-24-s1-staging/README.md#真实取消原生终止与整次重启防重放通过)；完整并发性能分布仍待验。
+满载时 ShardDO 在原始期限内等待物理 lease，不启动容器、不预留容器费用；每次重查 generation 与持久停止标记，取得名额后再核对许可和预算。这样 24 个 WebGL 分段与声音可共用工作区的 24 个名额，不因瞬时满额直接失败，也不增加并发上限或重置期限。Coordinator alarm 设置失败仍先确认实例停止再归还 lease。该路径随 `1af113f` 部署；`fe3df1e` 修复观测覆盖检查后，30 秒 WebGL 出片/交付和全部计算停止/结算均已通过。真实中途取消、原生终止及 restart 防重放已有[独立证据](../../docs/evidence/2026-10-24-s1-staging/README.md#真实取消原生终止与整次重启防重放通过)；正式 28 部并发/串行分布见下文 G1 性能矩阵。
 
 先在未启动的 DO 上注册唯一 broker，注册最多 30 秒且受原操作绝对期限约束；[官方 API](https://developers.cloudflare.com/containers/api/durable-object-container/#interceptoutboundhttp)允许启动前注册。只有注册成功并重查 generation/停止标记后才分配实例，避免注册等待耗尽整个健康窗口。回执单列 `brokerRegistrationMs`，不会从客户端墙钟中删去它。注册超时为 `RENDER_BROKER_REGISTRATION_TIMEOUT`，尚未分配实例时不记运行费用。
 
@@ -44,7 +44,7 @@ Actions 为本轮生成并遮蔽 `EVAL_API_KEY`，只经 stdin 绑定到 staging
 
 studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-10-24-s1-staging/README.md)通过，普通出片检查复用该证据，不重复取三帧。每个分段仍读取实际健康回执；负责人允许 cgroup 峰值接口均缺失时以 `null` 加明确原因继续本次内部出片，整片 `peakMemory.status` 保留 `unverified`，G1 此指标不算通过。无效读数、权限错误、媒体、沙箱和预算门槛不变。
 
-新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1；30 秒分段成片另见 `webgl-film` 证据，性能分布和 standard-3/4 对比仍未完成。一般工程片仍使用默认 `engineering` 场景。
+新增 WebGL 时选 `-f staging_scenario=webgl-studio`，只覆盖新设备积木的四画幅 0/12/45/375 帧、逆序与独立实例冷 seek、真实 SwiftShader 字符串及停止/lease 归还；不重跑 2D 工程片、配乐或模型。产物为 `webgl-*.png` 和 `webgl-report.json`。这不是完整 G1；30 秒分段成片另见 `webgl-film` 证据，正式性能分布与 standard-3/4 对比已有下文独立结果。一般工程片仍使用默认 `engineering` 场景。
 
 验证新排队/声音集成时选 `-f staging_scenario=webgl-film`：一部 30 秒、24 个 standard-4 分段的原创 3D 校准片，共享工作区 24 个名额，另有程序配乐和四种 lead-in。沿用内部操作 1,000,000 usd_micros 预算，实际费用另从不可变结算收集，不当作预算全额消耗。该场景保存声音/分段计划、实际成片、接缝、只读费用清单与私有下载；不重复先前的四画幅 studio 比较或 13 风格样曲。单次计时不作为 p50/p95 或完整 G1。
 
@@ -100,11 +100,13 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 
 ## G1 性能矩阵
 
-`gh workflow run checks.yml --ref main -f suite=staging -f staging_scenario=g1-performance` 通过同一 Actions 部署入口执行尚未测过的分布：30 秒原创纯 2D 和 WebGL 校准片各 10 次串行，再各 4 路并发，共 28 部。每部独立 operation、预算和权利行，仍使用工作区原有 24 个计算名额及单操作 1,000,000 usd_micros 上限。不会额外跑默认 15 秒工程片、studio 画幅矩阵、13 风格或模型。工作流的 60 分钟只覆盖整组采样，每部原有期限不变。
+`gh workflow run checks.yml --ref main -f suite=staging -f staging_scenario=g1-performance` 通过同一 Actions 部署入口执行正式分布：先采 30 秒原创 WebGL 校准片 10 次串行与 4 路并发，再采纯 2D 同组，共 28 部。每部独立 operation、预算和权利行，仍使用工作区原有 24 个计算名额及单操作 1,000,000 usd_micros 上限。不会额外跑默认 15 秒工程片、studio 画幅矩阵、13 风格或模型。工作流的 60 分钟只覆盖整组采样，每部原有期限不变。
 
 `performance-report.json` 增量保留每部输入、分段、成片引用、实际回执、物理停止和结算。串行/并发分别用经验最近秩计算 p50/p95，保留样本数，不把不同负载混成一个分布。新实例启动到控制器健康响应、页面握手、等名额、逐帧 seek/确认/JPEG 捕获各自计时；逐帧计时不含编码器背压、QA 和额外接缝 PNG。旧回执可缺逐帧数组，不能用均摊段耗时补造分布。费用仍为实际持久结算的分配资源保守上界，不是供应商账单。
 
-只下载每类首部实际 MP4 与封面，其他影片的不可变引用留在报告及私有 R2；不公开成片。每部结束取消并确认停止/结算，失败不重试出片，未结费用不清零，工作流最终回收本轮密钥。该组件不代替捕获格式/机型对照、安全与 studio 延迟等其余 G1 项，也不放开历史费用和官方模型门槛。实际运行范围见实施状态。
+只下载每类首部实际 MP4 与封面，其他影片的不可变引用留在报告及私有 R2；不公开成片。每部结束取消并确认停止/结算，不自动重做整部失败影片；明确基础设施错误仅走上文确认停止/结算后的有界 attempt 重试。未结费用不清零，工作流最终回收本轮密钥。该组件不代替捕获格式/机型对照、安全与 studio 延迟等其余 G1 项，也不放开历史费用和官方模型门槛。
+
+[40073832345](../../docs/evidence/2026-10-24-s1-performance/README.md#28-部完整矩阵通过2d-p50-达到-60-秒目标) 已在 `257ca1b` 完成 28/28 部，复用 `420e245` 的未变镜像。2D 串行墙钟 p50/p95 为 51.861/70.572 秒、四路并发 55.153/76.416 秒；WebGL 串行 67.844/102.814 秒、四路并发 101.524/106.862 秒。392 处接缝全零差异，476 次计算均实际停止并结算；cgroup 峰值仍待验。已有结果继续复用，不因文档或离线评测准备工具变化重跑矩阵。
 
 ### 捕获格式、机型与 studio 工具选型
 
