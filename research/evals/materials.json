@@ -3,11 +3,11 @@
   "kind": "s1_internal_materials",
   "scope": "internal_eval_only",
   "publicUseCleared": false,
-  "operationId": "materials-20261024-ready",
+  "operationId": "materials-20261024-six-ready",
   "rightsDecision": "research/evals/topics.json#/rights",
-  "acquiredAt": "2026-10-24T03:34:19.392Z",
-  "manifestKey": "evals/materials-20261024-ready/manifest.json",
-  "status": "partial",
+  "acquiredAt": "2026-10-24T06:49:37.164Z",
+  "manifestKey": "evals/materials-20261024-six-ready/manifest.json",
+  "status": "ingested_internal_eval",
   "assets": [
     {
       "byteLength": 67363,
@@ -162,16 +162,33 @@
       "sourceUrl": "https://huggingface.co/learn/llm-course/chapter1/1",
       "topicId": "hf-llm-course",
       "width": 1816
+    },
+    {
+      "approvalRef": "research/evals/fact-cards/ielts-ready.json#/originalMaterialApproval",
+      "byteLength": 132574,
+      "description": "Original course-content diagram: practice activities and mock tests, Speaking and Listening short courses in the free package, and live expert webinars. No copied interface, logo, image or outcome claim.",
+      "evidenceKey": "evals/materials-20261024-six-ready/ielts-ready/ielts-ready-facts-rights.json",
+      "factIds": [
+        "practice",
+        "courses",
+        "webinars"
+      ],
+      "height": 1000,
+      "id": "ielts-ready-facts",
+      "key": "evals/materials-20261024-six-ready/ielts-ready/ielts-ready-facts.png",
+      "kind": "image",
+      "licenseRef": "LicenseRef-S1-Internal-Evaluation",
+      "mediaType": "image/png",
+      "origin": "original_factual_diagram",
+      "originalSourceKey": "evals/materials-20261024-six-ready/ielts-ready/ielts-ready-facts-source.svg",
+      "publicUseCleared": false,
+      "resourceId": "res_s1_ielts_ready_facts_aeb1317d51f3",
+      "scope": "internal_eval_only",
+      "sha256": "aeb1317d51f3a7e9249a5adf101b3da5735ec85e4eeebb4ae60f9ae77ee8fb04",
+      "sourceUrl": "https://takeielts.britishcouncil.org/prepare/ielts-ready",
+      "topicId": "ielts-ready",
+      "width": 1600
     }
   ],
-  "pending": [
-    {
-      "reason": "The original source returned 403. Official public alternatives were identified, but permission covering this project’s screenshot use is not established; no IELTS images processed.",
-      "topicId": "ielts-ready",
-      "sourceUrl": "https://takeielts.britishcouncil.org/prepare/ielts-ready",
-      "httpStatus": 403,
-      "checkedAt": "2026-10-24",
-      "licenseReviewRef": "research/evals/fact-cards/ielts-ready.json#/materialLicenseReview"
-    }
-  ]
+  "pending": []
 }

@@ -63,9 +63,12 @@
       "segment": "course",
       "subject": "IELTS Ready",
       "fictional": false,
-      "assets": "sources_identified_not_ingested",
+      "assets": "ingested_internal_eval",
       "facts": "confirmed_for_s1_eval",
-      "factCard": "research/evals/fact-cards/ielts-ready.json"
+      "factCard": "research/evals/fact-cards/ielts-ready.json",
+      "materialIds": [
+        "ielts-ready-facts"
+      ]
     },
     {
       "id": "marugoto",

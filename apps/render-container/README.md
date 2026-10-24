@@ -17,6 +17,8 @@ studio 的 `check` 对同一授权帧重新取 PNG 后读真实 CDP 文字/字�
 
 控制器先做 broker 正向/越权控制，再做 HTTP/HTTPS、DNS、TCP 故意断网请求，逐项保留状态和超时。uid 10002 启动器检查控制器 environ/mem 读取被拒、浏览器父进程环境白名单，并扫描每个可读 Chromium `environ` 的原始字节有无令牌。仅传一次性令牌的 SHA-256 指纹与长度给启动器，不传 bearer；子进程可能覆盖原始 environ 区域，不把其中的 argv 片段当作环境键。回执不返回指纹、环境值、内存、令牌或素材内容；不可读进程不记作无泄漏。它不代替 S2 的任意代码、资源耗尽或全部故障语料。
 
+[正式镜像隔离记录](../../docs/evidence/2026-10-24-s1-performance/README.md#正式镜像隔离通过)已在 `420e245` 的 2D standard-3 与 WebGL standard-4 实测通过上述固定项、完整沙箱与停止结算；不需要为后续素材/文档变更重复该场景。
+
 review 保持同一 30 fps 源时间线，隔帧捕获、半尺寸编码为 15 fps；final 为既定 1080p/30 fps。实验多采样 profile 尚未开放。视频由已授权的 PTS 帧清单取帧，不使用 `<video>`。
 
 阅读停留帧由共享 `filmObservationFrames` 按整片镜头事件生成，再落入各分段；不含计划点的短分段保存空观测数组。Worker 校验每段应有的精确帧、render/画幅、字节身份及 BLOCK 项，不能以任意非空观测代替覆盖。动态/转场 QA 仍在 S2，不能把当前停留帧当作完整时间覆盖。
