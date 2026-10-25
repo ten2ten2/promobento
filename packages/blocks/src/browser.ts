@@ -117,21 +117,32 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0
   };
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'cta-endcard', version: '1.0.0', build(ctx, params) {
-  const safe = inSafe(ctx);
-  const accent = node(safe, {position: 'absolute', top: '9%', left: '0', width: '64px', height: '64px',
-    borderRadius: '20px', background: ctx.style.palette.accent ?? '', transform: 'rotate(-12deg)'});
+window.PB.defineBlock<Record<string, unknown>>({id: 'cta-endcard', version: '1.0.1', build(ctx, params) {
+  const safe = inSafe(ctx), box = safeBox(ctx), group = node(safe, {position: 'absolute', inset: '0'});
+  const accent = node(group, {position: 'absolute', left: '0', width: '96px', height: '6px',
+    borderRadius: '3px', background: ctx.style.palette.accent ?? ''});
+  let logo:HTMLImageElement|undefined;
   if (params.logoKey) {
-    const logo = ctx.asset(String(params.logoKey)); if (logo.kind === 'video') throw Error('LOGO_KIND_INVALID');
-    const image = document.createElement('img'); image.src = logo.url; image.alt = '';
-    Object.assign(image.style, {position: 'absolute', top: '8%', right: '0', width: '120px', height: '120px', objectFit: 'contain'}); safe.append(image);
+    const asset = ctx.asset(String(params.logoKey)); if (asset.kind === 'video') throw Error('LOGO_KIND_INVALID');
+    logo = document.createElement('img'); logo.src = asset.url; logo.alt = '';
+    Object.assign(logo.style, {position: 'absolute', left: '0', width: '120px', height: '120px', objectFit: 'contain'}); group.append(logo);
+    accent.style.display='none';
   }
-  const title = node(safe, {position: 'absolute', top: '30%', width: '100%', height: '44%'}); text(ctx, params.textSlot, title);
-  if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '80%', width: '100%', height: '18%'}), 2);
+  const title = node(group, {position: 'absolute', width: '100%', height: '60%'}), titleText = text(ctx, params.textSlot, title);
+  const subtitle = params.subtitleSlot ? node(group, {position: 'absolute', width: '100%', height: '18%'}) : undefined;
+  const subtitleText = subtitle ? text(ctx, params.subtitleSlot, subtitle, 2) : undefined;
   return {
-    render(time) { const p = easeOut(time / 0.5); title.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 24}px)`;
-      accent.style.transform = p === 1 ? 'none' : `rotate(${-12 + p * 12}deg)`; },
-    events: blockEvents('cta-endcard', ctx.frames, params), regions: [region('cta', title, ctx.root)]
+    render(time) {
+      // Fitted text has its natural height; group the URL with it instead of anchoring it to the screen bottom.
+      const p = easeOut(time / 0.5), gap = Math.max(24,Math.min(40,box.height*.028)), anchor = logo ? 120 : 6;
+      const titleHeight=titleText.offsetHeight, subtitleHeight=subtitleText?.offsetHeight??0;
+      const height=anchor+32+titleHeight+(subtitle?gap+subtitleHeight:0), top=(box.height-height)/2;
+      if(logo)logo.style.top=top+'px';else{accent.style.top=top+'px';accent.style.width=Math.round(64+32*p)+'px';}
+      title.style.top=top+anchor+32+'px';
+      if(subtitle)subtitle.style.top=top+anchor+32+titleHeight+gap+'px';
+      group.style.transform=p===1?'none':`translateY(${(1-p)*24}px)`;
+    },
+    events: blockEvents('cta-endcard', ctx.frames, params), regions: [region('cta', titleText, ctx.root)]
   };
 }});
 

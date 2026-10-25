@@ -19,11 +19,17 @@ const output='/work/film-runtime';mkdirSync(output,{recursive:true});
 const journeyOnly=process.env.PROMOBENTO_JOURNEY_ONLY==='1',runtimeOnly=process.env.PROMOBENTO_RUNTIME_ONLY==='1'||journeyOnly;
 const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review';
 const showcaseOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase';
+const layoutOnly=process.env.PROMOBENTO_RUNTIME_CASE==='layout';
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
+if(layoutOnly)report.scope='four_aspect_ordinary_runtime_and_closing_layout_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const film=filmFixture();film.scenes.at(-1).params.logoKey='dashboard';
+  pages.set('/closing-logo-'+aspect+'.html',generateFilmPage(JSON.stringify(film),pageOptions(aspect,layout)));
+}
 // A real director repair put a shard boundary inside the push into ui-journey.
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
@@ -165,6 +171,8 @@ try{
     for(const frame of [...frames].reverse()){await handle.seek(frame);checks.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`${aspect}-${frame}-reverse`)});}
     for(const frame of frames){const cold=await open(aspect);await cold.seek(frame);checks.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`${aspect}-${frame}-cold`)});await cold.page.close();}
     await handle.seek(375);
+    const closing=await handle.page.evaluate(()=>{const a=document.querySelector('[data-pb-slot="cta"]').getBoundingClientRect(),b=document.querySelector('[data-pb-slot="url"]').getBoundingClientRect();return{gap:b.top-a.bottom};});
+    assert.ok(closing.gap>=20&&closing.gap<=48,JSON.stringify(closing));
     const time=await handle.page.evaluate(()=>({date:Date.now(),constructed:new Date().getTime(),performance:performance.now(),origin:performance.timeOrigin,random:Math.random(),targetKeys:Object.keys(window.__omTarget)}));
     assert.equal(time.date,12500);assert.equal(time.constructed,12500);assert.equal(time.performance,12500);assert.equal(time.origin,0);
     assert.ok(!time.targetKeys.includes('targetId'));
@@ -187,7 +195,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  for(const name of showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  for(const name of layoutOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -223,6 +231,13 @@ try{
   }
   }
   if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
+    report.closingLogos=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const logo=await open(aspect,'/closing-logo-'+aspect+'.html');await logo.seek(375);await checkLayout(logo,aspect);
+      const boxes=await logo.page.evaluate(()=>{const image=document.querySelector('section[data-scene="cta"] img').getBoundingClientRect(),cta=document.querySelector('[data-pb-slot="cta"]').getBoundingClientRect(),url=document.querySelector('[data-pb-slot="url"]').getBoundingClientRect();return{imageBottom:image.bottom,titleTop:cta.top,titleBottom:cta.bottom,urlTop:url.top};});
+      assert.ok(boxes.titleTop-boxes.imageBottom>=31&&boxes.urlTop-boxes.titleBottom>=20,JSON.stringify(boxes));
+      writeFileSync(`${output}/closing-logo-${aspect}.png`,await logo.capture());report.closingLogos.push({aspect,boxes});await logo.page.close();
+    }
     const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('TEXT_FIT_FAILED');
     const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
     writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');
