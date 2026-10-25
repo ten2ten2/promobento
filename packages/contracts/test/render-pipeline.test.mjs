@@ -18,10 +18,10 @@ test('film-v1 identity is canonical and does not accept duplicate JSON keys',()=
 });
 test('shards cover the source grid, bind seed, and review never splits a 15 fps GOP',()=>{
   const a=planShards(job,spec,{seed:'one'}),b=planShards(job,spec,{seed:'two'});
-  assert.deepEqual(a.shards.map(shard=>[shard.start,shard.end]),[[0,150],[150,300],[300,450]]);
+  assert.deepEqual(a.shards.map(shard=>[shard.start,shard.end]),[[0,75],[75,150],[150,225],[225,300],[300,375],[375,450]]);
   assert.notEqual(a.shards[0].shardKey,b.shards[0].shardKey);
   const review=planShards({...job,quality:'review'},spec,{seed:'one'});
-  assert.deepEqual(review.shards.map(shard=>[shard.start,shard.end]),[[0,150],[150,300],[300,450]]);
+  assert.deepEqual(review.shards.map(shard=>[shard.start,shard.end]),[[0,60],[60,150],[150,210],[210,300],[300,360],[360,450]]);
   assert.equal(review.shards.reduce((n,shard)=>n+(shard.end-shard.start)/2,0),225);
   assert.ok(review.shards.every(shard=>shard.start%30===0&&shard.end%30===0));
   const longJob={...job,durationSeconds:30,totalFrames:900},longSpec={...spec,durationSeconds:30,totalFrames:900,

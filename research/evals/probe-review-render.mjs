@@ -1,4 +1,4 @@
-// Re-render one paid, completed FilmSpec through the actual private review pipeline.
+// Re-render one paid, completed FilmSpec through the actual private review/final pipeline.
 // No models, no local author-JS execution, no replacement for a full creative case.
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
@@ -24,18 +24,19 @@ export function completedReviewFilm(receipt){
  throw Error('COMPLETED_FILM_RECEIPT_REQUIRED');
 }
 
-export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping}){
+export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping,quality='review'}){
+ if(!['review','final'].includes(quality))throw Error('FILM_PROBE_QUALITY_INVALID');
  const {film,sourceKind}=completedReviewFilm(receipt);
  if(film.durationSeconds!==context.durationSeconds||film.scenes.some(scene=>scene.kind!=='block')||film.audio.voice
   ||!['procedural','none'].includes(film.audio.music.kind))throw Error('TRUSTED_BLOCK_GENERATED_AUDIO_REVIEW_REQUIRED');
- const source=await json('objects/'+prefix+'/review-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
+ const source=await json('objects/'+prefix+'/'+quality+'-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
  const plan=deriveAudioPlan(film,filmBlockEvents(film));
  if(plan.sources.some(source=>source.licenseRef!==GENERATED_LICENSE))throw Error('GENERATED_AUDIO_RIGHTS_REQUIRED');
  const audio=await json('objects/'+prefix+'/audio-plan.json',{method:'PUT',body:new TextEncoder().encode(canonical(plan))});
- const renderId='review-'+operationId,aspect='landscape',{ratio,...layout}=platform.aspectLayouts[aspect];
+ const renderId=quality+'-'+operationId,aspect='landscape',{ratio,...layout}=platform.aspectLayouts[aspect];
  const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,
   sourceHash:filmSourceHash(canonical(film)),runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,
-  durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality:'review',
+  durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality,
   renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
   audioPlanHash:audioPlanHash(plan,{seed:context.seed}),resources:context.resources.map(asset=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind}))};
  const input={job,options:{target:{aspect,...layout,fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
@@ -44,9 +45,9 @@ export async function probeReviewRender({receipt,context,operationId,prefix,outp
   inputs:[{...source,name:'film'},...context.resources.map(asset=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))],
   audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:context.seed,clearedSources:plan.sources.map(source=>({sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true}))},
   coverFrame:Math.floor(film.totalFrames*.55)};
- const partition=planShards(job,film,{seed:context.seed}),report={scope:'actual_private_review_render_from_completed_paid_spec_no_models',
+ const partition=planShards(job,film,{seed:context.seed}),report={scope:'actual_private_'+quality+'_render_from_completed_paid_spec_no_models',
   sourceCallId:receipt.callId,sourceKind,renderId,sourceHash:job.sourceHash,partition,deadlineMs:renderDeadlineMs(job,partition,policy.render),status:'running'};
- const save=()=>writeFileSync(join(output,'review-render.json'),canonical(report)+'\n');save();
+ const save=()=>writeFileSync(join(output,quality+'-render.json'),canonical(report)+'\n');save();
  try{
   const started=Date.now();report.submittedAt=new Date(started).toISOString();save();
   await json('renders',{method:'POST',body:input});
@@ -55,12 +56,12 @@ export async function probeReviewRender({receipt,context,operationId,prefix,outp
    const state=await json('renders/'+renderId);report.lastState=state;save();
    if(state.status==='passed'){
     report.result=parseCanonicalJson(state.result_json);report.clientWallMs=Date.now()-started;
-    for(const ref of report.result.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))await download(ref,'review-'+ref.key.split('/').at(-1));
+    for(const ref of report.result.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))await download(ref,quality+'-'+ref.key.split('/').at(-1));
     report.status='passed';save();return report;
    }
-   if(['blocked','cancelled'].includes(state.status))throw Error('REVIEW_'+(parseCanonicalJson(state.result_json).code??state.status));
+   if(['blocked','cancelled'].includes(state.status))throw Error(quality.toUpperCase()+'_'+(parseCanonicalJson(state.result_json).code??state.status));
    // Polling grace is only for observing server cleanup. It never extends the render deadline.
-   if(Date.now()-started>=report.deadlineMs+30000)throw Error('EVAL_REVIEW_RESULT_NOT_TERMINAL');
+   if(Date.now()-started>=report.deadlineMs+30000)throw Error('EVAL_'+quality.toUpperCase()+'_RESULT_NOT_TERMINAL');
    await new Promise(resolve=>setTimeout(resolve,2000));
   }
  }catch(error){report.status='failed';report.error=String(error.stack??error);save();throw error;}

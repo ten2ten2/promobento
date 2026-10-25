@@ -44,6 +44,31 @@ export function mediaPyramid(source:Pixels):Pixels[]{
   return levels;
 }
 
+/** Reuses a working pyramid; only changed pixels are blended, in premultiplied alpha. */
+export function blendPyramids(from:Pixels[],to:Pixels[]){
+  if(from.length!==to.length||from.some((level,i)=>level.width!==to[i]!.width||level.height!==to[i]!.height))
+    throw Error('PIXEL_BLEND_SIZE_MISMATCH');
+  const levels=from.map(level=>({...level,data:new Uint8ClampedArray(level.data)}));
+  const changed=from.map((level,index)=>{
+    const other=to[index]!.data,indices:number[]=[];
+    for(let at=0;at<level.data.length;at+=4)
+      if(level.data[at]!==other[at]||level.data[at+1]!==other[at+1]||level.data[at+2]!==other[at+2]||level.data[at+3]!==other[at+3])indices.push(at);
+    return indices;
+  });
+  return{render(progress:number){
+    for(let index=0;index<levels.length;index++){
+      const a=from[index]!.data,b=to[index]!.data,out=levels[index]!.data;
+      for(const at of changed[index]!){
+        if(progress===0||progress===1){const endpoint=progress===0?a:b;for(let channel=0;channel<4;channel++)out[at+channel]=endpoint[at+channel]!;continue;}
+        const first=a[at+3]!*(1-progress),second=b[at+3]!*progress,alpha=first+second;
+        for(let channel=0;channel<3;channel++)out[at+channel]=alpha?(a[at+channel]!*first+b[at+channel]!*second)/alpha:0;
+        out[at+3]=alpha;
+      }
+    }
+    return levels;
+  }};
+}
+
 // One inverse-projected image, blended directly into the fixed logical stage.
 // No tiled Canvas drawImage calls: their antialiased clips left visible cracks,
 // and their source sampling still differed between warm and cold captures.

@@ -7,7 +7,7 @@
 控制器的私有端口 8080 接受不可变 `render_task`，完整结构见 [Schema](../../contracts/render-job.schema.json)。每实例仅绑定一个任务，broker 令牌只在可信控制器内存中。素材、视频帧和音轨从该任务的 broker 清单读取，原始字节按共享摘要校验；字体来自镜像内审核目录。Chromium 没有令牌，页面不能任意出网。
 
 - **shard**：逐源帧 seek，CDP JPEG 92 直送 FFmpeg；保存 PNG 重叠/末帧、真实 CDP 阅读停留观测和回执。
-- **assemble**：按序封装 closed-GOP Annex B，混入冻结 WAV；检查 CFR/PTS、GOP、颜色、AAC、时长、体积及滑动一秒码率，必要时整片重编码一次。纠正时用门槛 70% 的 maxrate 和 20% 的 VBV buffer 留出峰值余量，并记录纠正前后实测值；原一秒码率门槛不变，仍越界就失败。正常分段参数不变，封面来自实际帧。
+- **assemble**：按序封装 closed-GOP Annex B，混入冻结 WAV；检查 CFR/PTS、GOP、颜色、AAC、时长、体积及滑动一秒码率。初始分段和必要的整片纠正均使用门槛 70% 的 maxrate、20% 的 VBV buffer，目标码率不高于该 maxrate，避免大储备反复触发第二次编码；平台预设的交付格式和一秒上限不变。拼接后仍实测滑窗，超过上限只纠正一次并记录前后值，仍越界就失败；封面来自实际帧。
 - **audio**：从冻结 AudioPlan 合成一次，经两遍 loudnorm 和最终响度/真峰值测量；仅对实际越界者做一次补偿增益与过采样限幅并重测，门槛不变，合格母带字节不改；输出 48 kHz 双声道 PCM。
 - **studio**：仅允许该任务列出的 still 帧；生命周期、清权和取消由 Worker/OperationDO 控制。
 
@@ -29,7 +29,7 @@ review 保持同一 30 fps 源时间线，隔帧捕获完整逻辑尺寸的 JPEG
 
 feature-grid 带图卡片沿用既有布局：横屏下方 40% 文案区分为标题 22%、间隔 3%、副标题 15%，避免长标题与副标题重叠。[实际单帧回归入口](../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)保留。CI 的 `suite=runtime / runtime_case=typography` 只检查改变的开场与纯文字网格，不重跑旅程、showcase、媒体或配乐。
 
-`ui-showcase@1` 的 1.0.2 与 `ui-journey@1` 共用固定画布的 CPU 逆透视取样；showcase 的边框、阴影和 ROI 同样参与投影，入场缩放/纵向位移、文字和可信点选保留。静态图片与 ROI 都停稳时仅复用不变的像素，每帧仍写回；回跳到运动帧立即重新取样，视频不复用。源码与历史镜像分开冻结，实际回归范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
+`ui-showcase@1` 的 1.0.3 与 `ui-journey@1` 共用固定画布的 CPU 逆透视取样。showcase 的静态入场先合成面板/图片与 ROI 的端点纹理，按预乘透明度仅融合有差异的像素，每帧只投影一次；停稳底图仍取原全分辨率采样，ROI 同样只融合差异像素。静态图片与 ROI 全部停稳后复用完成像素，每帧仍写回；回跳到运动帧重新取样，视频沿用逐帧原路径。边框、阴影、入场缩放/纵移、文字、点选和历史 renderer release 保留；实际回归范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
 
 WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真实 WebGL2 context 的 renderer/vendor/version，逐次与环境锁的 SwiftShader renderer 核对，不匹配阻断为 `RENDER_ENVIRONMENT_MISMATCH`。studio ready 与分段回执保留实际字符串。初始化/单帧期限按共享策略分别使用 60/10 秒，2D 保持 30/5 秒；同一镜像内纯 2D 页面不加载 3D bundle。3D 资源在引擎 dispose 时释放，失去 context 明确失败，不悄悄重建。
 

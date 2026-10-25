@@ -627,8 +627,8 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
 3. **分段计划**：
    - 每帧代价来自积木声明和 studio 实测；WebGL 帧和运动模糊的子帧按倍数计。
    - 按代价切段，段长为 15 帧的整数倍，目标每段墙钟 30–40 秒。
-   - 纯 2D：30 秒片 6 段（每段 150 帧），15 秒片 3 段。正式 G1 的 28 部矩阵已达到原 2D p50 目标，保留 JPEG92、2D 6 段与 WebGL 24 段/standard-4，不增加物理并发；实测见第 1.2 节。
-   - review 质量走同一流程，源时间轴按 30 帧单元切分，编码为 15 fps 闭合 GOP。纯 2D 保留 15 秒 3 段、30 秒 6 段，给冷启动与拼接留出原 90 秒期限内的余量；WebGL review 仍将段数减半。该内部修正来自实际 MiniMax 冷启动/重试耗尽期限的反例，不提高物理并发上限或改动最终片分段。
+   - 当前纯 2D 候选：15/30 秒均为 6 段，最终片分别每段 75/150 帧，不增加已有 6 段及物理并发上限。原 G1 的 28 部矩阵属于 30 秒、旧音频资源；真实 MiniMax 15 秒在 3 段时仍需 80.238/85.474 秒，短片新分段与当前资源的时间另验，目标不变。
+   - review 质量走同一流程，源时间轴按 30 帧单元切分，编码为 15 fps 闭合 GOP。纯 2D 同为 6 段，15 秒按 60/90 源帧分配，30 秒每段 150 源帧；原 90 秒期限保留。WebGL review 仍将段数减半，WebGL 最终片计划不变。
    - 段数受 `limits.shardsPerRender` 与工作区、全局并发的约束。
 4. **分段渲染**（shard 模式，standard-3；含 WebGL 的段用 standard-4；各段并行）：
    1. 启动固定版本的 Chromium，沙箱自检通过（第 5.5 节）后，从 broker 读取源包，生成页面，完成握手。
@@ -644,7 +644,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
       - `-g 15 -keyint_min 15 -sc_threshold 0`，闭合 GOP；
       - **`-bf 0`**：不用 B 帧，避免拼接处 DTS 不单调；
       - `-threads` 等于实例的 vCPU 配额（standard-3 为 2，standard-4 为 4），不按 VM 内看到的 `nproc`；
-      - VBV 按 `maxVideoBitrate`；**无音频**；
+      - 初始编码同样使用[渲染服务](../../apps/render-container/README.md)的窗口余量，拼接后实测一秒码率；**无音频**；
       - 输出 Annex B 裸流 `shard.h264`，不封装成 mp4。
    6. **输出**：`shard.h264`、`frame-digests.json`、`seam-frames/*.png`、`observations.json`、`receipt.json`。回执包括：
       - 镜像 ID、Chromium 版本；

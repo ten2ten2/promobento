@@ -9,7 +9,7 @@ export const blockCatalog = [
     events: [{name: 'title-land', description: 'Headline settles into its reading position.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot } } },
-  { ...common, id: 'ui-showcase', version: '1.0.2', category: 'software', regions: ['product'],
+  { ...common, id: 'ui-showcase', version: '1.0.3', category: 'software', regions: ['product'],
     events: [{name: 'product-land', description: 'The real product image settles.'}],
     params: { type: 'object', additionalProperties: false, required: ['assetKey'],
       properties: { assetKey: slot, textSlot: {...slot,description:'Optional accompanying copy. Omit for a larger dense diagram or screenshot; keep the essential message in readable text slots elsewhere.'},

@@ -10,8 +10,8 @@ import {probeCardLayout} from './probe-card-layout.mjs';
 import {probeReviewRender} from './probe-review-render.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
-const probeSource=modeArg?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null;
+if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
+const probeSource=modeArg?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
 if(probeSource&&!probeSource.startsWith(resolve('artifacts')+'/')&&!probeSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_COMPLETED_RECEIPT_REQUIRED');
 if(!inputArg||!outputArg||![input,output].every(path=>path.startsWith(resolve('artifacts')+'/'))||existsSync(output))throw Error('NEW_PRIVATE_EVAL_OUTPUT_REQUIRED');
 const read=path=>parseCanonicalJson(readFileSync(path)),manifest=read(join(input,'manifest.json'));
@@ -34,7 +34,7 @@ if(inventory[0]?.results?.[0]?.unfinished!==0)throw Error('OTHER_OPERATION_ACTIV
 mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
-const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_review_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_'+probeQuality+'_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
  rendererRelease:context.rendererRelease,rendererSourceSha,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
 let secretBound=false,operationAttempted=false,stopping=false,primaryFailure;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
@@ -91,8 +91,8 @@ try{
   report.layout=await probeCardLayout({receipt:read(layoutSource),context,operationId,prefix,output,json,call});
   report.status='layout_validated';report.finishedAt=new Date().toISOString();save();
  }else if(probeSource){
-  report.review=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping});
-  report.status='review_render_validated';report.finishedAt=new Date().toISOString();save();
+  report[probeQuality]=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping,quality:probeQuality});
+  report.status=probeQuality+'_render_validated';report.finishedAt=new Date().toISOString();save();
  }else{
  await json('creative',{method:'POST',body:{operationId,contextKey:object.key}});
  const limit=Date.now()+40*60000;let preparedDirections=false,chosen=false,lastStatus='';

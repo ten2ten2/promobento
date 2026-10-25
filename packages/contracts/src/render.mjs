@@ -26,9 +26,9 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = WEBGL_
   if (![maxShards, webglMaxShards].every(value => Number.isInteger(value) && value >= 1 && value <= 64)) throw Error('SHARD_LIMIT_INVALID');
   const webgl = new Set(webglBlocks), usesWebgl = scene => scene.kind === 'block' && webgl.has(scene.block);
   const hasWebgl = spec.scenes.some(usesWebgl), unitFrames = job.quality === 'review' ? 30 : 15, units = job.totalFrames / unitFrames;
-  const desired = hasWebgl ? webglMaxShards : job.totalFrames / 150;
-  // A 2D review keeps 3/6 source-timeline shards: cold starts and assembly still consume its
-  // unchanged 90-second deadline. Only WebGL keeps the previous half-count review policy.
+  const desired = hasWebgl ? webglMaxShards : 6;
+  // Short 2D films also use the existing six-shard allowance: their moving panel must not
+  // share a 150-frame serial capture with all surrounding holds. Review cuts on 30-frame boundaries.
   const count = Math.min(units, hasWebgl ? webglMaxShards : maxShards, Math.max(1, Math.ceil(desired / (hasWebgl && job.quality === 'review' ? 2 : 1))));
   const cuts=[0];
   if(hasWebgl){

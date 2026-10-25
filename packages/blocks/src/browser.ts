@@ -2,7 +2,7 @@ import type { Box, SceneContext, SceneRegion } from '../../../contracts/film-run
 import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
-import {mediaPyramid,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
+import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -73,7 +73,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   };
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.2', build(ctx, params) {
+window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0.3', build(ctx, params) {
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', hasText = typeof params.textSlot === 'string';
   safe.style.zIndex='1';
   if (hasText) text(ctx, params.textSlot, node(safe, {position: 'absolute', left: '0', top: wide ? '25%' : '2%',
@@ -104,16 +104,39 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-showcase', version: '1.0
       padding+4+(panel.clientHeight-asset.height*scale)/2+roi.y*asset.height*scale,Math.max(4,roi.width*asset.width*scale-4),Math.max(4,roi.height*asset.height*scale-4),10);draw.stroke();draw.restore();
     highlight=mediaPyramid(draw.getImageData(0,0,chrome.width,chrome.height));
   }
+  // Static panels, including the ROI, need one projection during the entrance.
+  // At rest retain the original full-resolution sample; only the ROI's changed pixels fade.
+  const prepared=source.ready.then(async()=>{
+    if(asset.kind==='video')return undefined;
+    const media=await source.load(0),copy=(pixels:{width:number;height:number;data:Uint8ClampedArray})=>({width:pixels.width,height:pixels.height,data:new Uint8ClampedArray(pixels.data)});
+    const localBox={x:padding,y:padding,width:box.width,height:box.height};
+    const localClip={x:0,y:0,width:chrome.width,height:chrome.height};
+    const texture={width:chrome.width,height:chrome.height,data:new Uint8ClampedArray(frame[0]!.data)};
+    paintProjectedMedia(texture,media,{x:2,y:2,width:box.width-4,height:box.height-4},localBox,0,0,0,1,{radius:26,clip:localClip});
+    const flatStart=mediaPyramid(copy(texture));
+    if(highlight)paintProjectedMedia(texture,highlight,expanded,localBox,0,0,0,1,{radius:0,clip:localClip});
+    const flat=blendPyramids(flatStart,highlight?mediaPyramid(texture):flatStart);
+    paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,0,1,{clip,radius:0});
+    paintProjectedMedia(surface.pixels,media,{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,0,1,{clip,radius:26});
+    const restStart=[copy(surface.pixels)];
+    if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,0,1,{clip,radius:0});
+    return{flat,rest:blendPyramids(restStart,[copy(surface.pixels)])};
+  });
   let settledPixels=false;
   return {
-    ready:source.ready,async render(time) { const p = easeOut(time / 0.7),angle=(1-p)*(wide?-9:-4),translationY=(1-p)*40,zoom=.92+p*.08;
+    ready:prepared.then(()=>{}),async render(time) { const p = easeOut(time / 0.7),angle=(1-p)*(wide?-9:-4),translationY=(1-p)*40,zoom=.92+p*.08;
       panel.style.transform = p === 1 ? 'none' : `perspective(${PANEL_PERSPECTIVE}px) rotateY(${angle}deg) translateY(${translationY}px) scale(${zoom})`;
       const highlightOpacity=easeOut((time-.5)/.4),settled=asset.kind!=='video'&&p===1&&(!highlight||highlightOpacity===1);
       if(!settled||!settledPixels){
         surface.pixels.data.fill(0);const options={clip,translationY,zoom};
-        paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
-        paintProjectedMedia(surface.pixels,await source.load(time),{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,angle*Math.PI/180,1,{...options,radius:26});
-        if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,angle*Math.PI/180,highlightOpacity,{...options,radius:0});
+        const still=await prepared;
+        if(still&&p===1)surface.pixels.data.set(still.rest.render(highlightOpacity)[0]!.data);
+        else if(still)paintProjectedMedia(surface.pixels,still.flat.render(highlightOpacity),expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
+        else{
+          paintProjectedMedia(surface.pixels,frame,expanded,box,0,0,angle*Math.PI/180,1,{...options,radius:0});
+          paintProjectedMedia(surface.pixels,await source.load(time),{x:2,y:2,width:box.width-4,height:box.height-4},box,0,0,angle*Math.PI/180,1,{...options,radius:26});
+          if(highlight)paintProjectedMedia(surface.pixels,highlight,expanded,box,0,0,angle*Math.PI/180,highlightOpacity,{...options,radius:0});
+        }
       }
       settledPixels=settled;
       // Always write, including after a hidden scene. Only the unchanged CPU sampling is reused.

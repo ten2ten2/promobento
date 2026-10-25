@@ -8,7 +8,7 @@ export function videoArgs({width, height, encoding, threads, strictWindow = fals
     || ![1, 2, 4].includes(threads) || encoding.videoCodec !== 'h264' || ![15, 30].includes(encoding.fps)
     || encoding.gopFrames !== 15 || encoding.pixelFormat !== 'yuv420p') throw Error('ENCODING_PROFILE_UNSUPPORTED');
   // VBV maxrate with a two-second reservoir is not a one-second packet-window ceiling.
-  // Only the existing correction pass uses headroom + a smaller reservoir; normal shards stay unchanged.
+  // Initial shards and the existing correction pass both request this bounded reservoir.
   const rate=strictWindow?Math.floor(encoding.maxVideoBitrate*.7):encoding.maxVideoBitrate;
   const buffer=strictWindow?Math.floor(encoding.maxVideoBitrate*.2):encoding.maxVideoBitrate*2;
   return ['-c:v', 'libx264', '-preset', 'fast', '-profile:v', encoding.profile, '-pix_fmt', 'yuv420p',
@@ -22,7 +22,7 @@ export function videoArgs({width, height, encoding, threads, strictWindow = fals
 /** CDP JPEG bytes go straight to FFmpeg: no RGBA allocation/PNG decoding on the hot path. */
 export function shardEncoder(path, config, signal) {
   const process = childProcess('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'image2pipe',
-    '-framerate', String(config.encoding.fps), '-c:v', 'mjpeg', '-i', 'pipe:0', ...videoArgs(config), '-an', '-f', 'h264', path], {signal});
+    '-framerate', String(config.encoding.fps), '-c:v', 'mjpeg', '-i', 'pipe:0', ...videoArgs({...config,strictWindow:true}), '-an', '-f', 'h264', path], {signal});
   let count = 0;
   return {
     async frame(jpeg, timeoutMs) { await write(process, jpeg, timeoutMs); count++; },

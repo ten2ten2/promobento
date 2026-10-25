@@ -1,4 +1,4 @@
-# S1 真实导演：完整链路仍未通过
+# S1 真实导演：MiniMax 15 秒完整链路通过，其余验收继续
 
 2026-10-24 负责人要求「放开一点预算门槛，继续 S1」。本次在原 $300 授权中取 $5 历史风险预留、staging 新增模型实际/未知预留累计上限 $10，至 2026-10-31 上海时间结束。原授权身份、起算、历史清单和确认空值保留；风险预留不等于核实账单。配置与语义见 [14 预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。
 
@@ -364,12 +364,24 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 操作 `eval-minimax-15-1792888514649` 使用同一 `918e5d5` 固定镜像。环境预检通过，三张真实方向均已查看并[选择 Fit](minimax-ninth-attempt/choice.json)；[C](minimax-ninth-attempt/spec-response.json)一次通过，[三轮 review 媒体](minimax-ninth-attempt/database.json)全部交付、接缝零差异。E 首次把结尾转场改成 cut 却保留 8 帧，完整用量先结算后由一次[结构纠正](minimax-ninth-attempt/review-0-output-repair-1-response.json)恢复 crossfade。两次有效内部修复后，第三次 E 仍要求 write_spec，按原上限停止，未到最终横竖片/F。
 
-已查看三张实际审核拼图（原图仍在私有 R2，[帧引用](minimax-ninth-attempt/review-2-images.json)）。CTA 与网址已紧密成组；开场标题/副标题仍上下分散，原功能网格的文字在大空框中太弱。E 用同一截图填了三张卡，随后将 UI 的中性标题改成未归属的功能声明，又在[下一轮](minimax-ninth-attempt/review-2-response.json)改回原文；还改了不影响画面的 purpose/continuity。当前优先修运行时的排版：开场成组，纯文字功能/课程网格按实际文字高度收紧，去掉空图片框。参数说明明确主标题/辅助文字和可选图片；E 保留原事实/质量门槛，只修具体可见缺陷，不用同图填空或同义改写消耗次数。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅和真实后续效果待验，未重跑完整测试或 CI。
+已查看三张实际审核拼图（原图仍在私有 R2，[帧引用](minimax-ninth-attempt/review-2-images.json)）。CTA 与网址已紧密成组；开场标题/副标题仍上下分散，原功能网格的文字在大空框中太弱。E 用同一截图填了三张卡，随后将 UI 的中性标题改成未归属的功能声明，又在[下一轮](minimax-ninth-attempt/review-2-response.json)改回原文；还改了不影响画面的 purpose/continuity。据此将开场成组、纯文字功能/课程网格按实际文字高度收紧，去掉空图片框。参数说明明确主标题/辅助文字和可选图片；E 保留原事实/质量门槛，只修具体可见缺陷，不用同图填空或同义改写消耗次数。运行时 TypeScript 7.0.2 与浏览器脚本语法通过，四画幅实测见下文；完整导演另行验收，未重跑完整测试或 CI。
 
 [费用与回收](minimax-ninth-attempt/report.json)：6 次新模型已结 **25,312**，19 次计算均物理停止/结算 **18,039** 保守上界，无本轮未知、容量为空、临时密钥回收。共享新增模型已结 **453,700**、原三笔未知 **37,993**，合计占用 **491,693 usd_micros**；原历史 128/14 和开账空值不变。仍无合格候选，不计负责人 4/6。
 
 `b4a53d1` 的最小 [40148619883](https://github.com/ten2ten2/promobento/actions/runs/40148619883) 在首个页面准备时被原运行时规则拒绝：[开场同时返回 timeline 与 render](typography/first-browser-report.json)，没有产生有效布局/像素结果，也未部署到 staging。现把同一开场运动和实际高度排版合并到单一 `render(time)`，不改引擎的互斥规则；只复验本次受影响的 typography 场景。
 
-`f3d7aa7` 的 [40149001200](https://github.com/ten2ten2/promobento/actions/runs/40149001200) 已通过横屏开场和功能网格的布局/字体检查并保存实际 PNG，已查看；随后课程网格的字体检查返回空：[报告](typography/second-browser-report.json)。同一文字槽位在功能/课程镜头复用，测试的全局选择器取到了已隐藏的前一镜头。仅将测试定位收窄到实际可见的 scene/slot，仍要求真实自定义字体；运行时代码与门槛不改，完整像素/其余画幅仍待验。
+`f3d7aa7` 的 [40149001200](https://github.com/ten2ten2/promobento/actions/runs/40149001200) 已通过横屏开场和功能网格的布局/字体检查并保存实际 PNG，已查看；随后课程网格的字体检查返回空：[报告](typography/second-browser-report.json)。同一文字槽位在功能/课程镜头复用，测试的全局选择器取到了已隐藏的前一镜头。仅将测试定位收窄到实际可见的 scene/slot，仍要求真实自定义字体，运行时代码与门槛不改；该轮没有完整像素/其余画幅结果，修正后的证据见下文。
 
-`5e17289` 的 [40149352459](https://github.com/ten2ten2/promobento/actions/runs/40149352459) 取得[四画幅开场、功能与课程的 24 次比较全零差异](typography/browser-report.json)，实际字号/字体、安全区、主辅文间距、长文字拒绝均通过；已查看实际四画幅，纯文字不再落在大空卡框里。该轮覆盖停稳开场 45 帧；补上改变的开场 0/12 帧运动期，只用 `runtime_case=opening` 检查尚缺的 16 次比较，不重跑这些已通过布局、媒体或声音。
+`5e17289` 的 [40149352459](https://github.com/ten2ten2/promobento/actions/runs/40149352459) 取得[四画幅开场、功能与课程的 24 次比较全零差异](typography/browser-report.json)，实际字号/字体、安全区、主辅文间距、长文字拒绝均通过；已查看实际四画幅，纯文字不再落在大空卡框里。随后 `4708235` 的 [40149766557](https://github.com/ten2ten2/promobento/actions/runs/40149766557) 仅补[开场 0/12 帧的 16 次比较](typography/opening-motion-report.json)，同样全零差异；已看实际运动期图。运行时代码仍为 `5e17289`，没有重跑前述通过项、媒体或声音。
+
+[40149355093](https://github.com/ten2ten2/promobento/actions/runs/40149355093) 已在 `5e1728997a213b44f831a6700e10f715bd574747` 构建/部署镜像 **`sha256:15647bfa6a76701b133d0a1d965ac904d894a7a9500d0a5ec0d80e33265bdfbb`**，Worker `d666fba4-5873-4769-a8d3-b65af68c31d1`。[只读健康](typography/deployment-health.json)正常、容量为空、模型账本占用仍为 **491,693 usd_micros**，部署本身 0 模型/渲染、临时密钥回收；真实导演沿用该固定 release 继续，不改生产开关。
+
+## MiniMax 15 秒：首份完整候选通过冷审，渲染时间未达标
+
+操作 `eval-minimax-15-1792891140650` 使用上述固定镜像，[选择 Fit](minimax-15/choice.json)。原 Fit 图片身份与已看画面一致，新 Amplify/Unexpected 均已查看；A/素材理解复用，B/C 新调用。E 只作一次实际修复：去掉界面旁的核验标题，让真实产品图放大；随后 submit_candidate，独立 F 返回[完整 pass](minimax-15/cold-review-response.json)。[候选](minimax-15/candidate.json)与[执行回执](minimax-15/report.json)均保留：选方向到交付 **460,808 ms（7 分 40.808 秒）**，方向就绪 **124,984 ms**。它是 12 份创作输入中的 **1 份**，对应 24 部最终片中的 **2 部**；正常速度负责人视听仍为 pending，MiniMax 30 秒尚未完成。
+
+两部实际 MP4 均为 15 秒、450 帧、1080p/30 fps/AAC，各 149/299 接缝零差异；码率纠正后分别 **6,584,248 / 5,382,688 bit/s ≤ 10,000,000**。已查看原生解码的横竖画面，Chrome 155.0.8059.85 完整 1× 播放无错误/掉帧：[横屏](minimax-15/landscape-film-decoded.json)、[竖屏](minimax-15/portrait-film-decoded.json)。截图改为同源回环播放器中提取已呈现的视频像素，排除了原 file 播放器控件/加载转圈；复用同一不可变 MP4 已通过的完整播放，未重复播放验证。
+
+[实际阶段时间](minimax-15/database.json)显示横竖最终渲染 **85,474 / 80,238 ms**，均未达 45 秒目标。横屏运动分段实际渲染 39,817 ms，75–102 帧捕获多为 0.55–0.80 秒；两部拼接均作第二次编码，assemble 实例约 23–24 秒。当前候选针对这两个实测慢点：静态面板和 ROI 端点预合成、按预乘透明度仅融合差异像素，入场每帧只投影一次；停稳底图保留原取样；15 秒也使用既有 6 段上限，初始分段即采用已有窗口余量。视频、平台上限、绝对期限及物理并发上限不改。新分段单项（34.39 ms）、最终质量参数/旧 review 输出兼容单项（54.59 ms）、像素透明度与回跳/源不变单项（4.22 ms）和运行时 TypeScript 7.0.2 通过，CLI 语法通过；未重跑不受影响的检查。实际收益和新接缝/媒体仍待验证。新 `--check-final-render` 复用该付费规格，只作横屏最终质量回归，不为性能修复重跑模型。
+
+5 次新模型已结 **21,243**，25 次计算均停止/结算 **27,619** 保守上界，无本轮未知、容量为空、临时密钥回收。共享新增模型已结 **474,943**、三笔未知 **37,993**，合计占用 **512,936 usd_micros**；原历史、开账空值、内存例外及生产关闭状态不变。

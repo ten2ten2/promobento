@@ -1,0 +1,165 @@
+{
+  "status": "passed",
+  "scope": "four_aspect_grouped_opening_motion_only",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [
+    "four-aspect grouped opening frame 0/12 forward/reverse/cold seeks"
+  ],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "typography": [
+    {
+      "aspect": "landscape",
+      "comparisons": [
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "portrait",
+      "comparisons": [
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "feed",
+      "comparisons": [
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "square",
+      "comparisons": [
+        {
+          "frame": 12,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 12,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    }
+  ],
+  "sandbox": [
+    {
+      "pid": 221,
+      "uid": 10002,
+      "seccomp": 2,
+      "noNewPrivs": 1,
+      "pidNamespaceDepth": 3
+    },
+    {
+      "pid": 56,
+      "uid": 10002,
+      "seccomp": 2,
+      "noNewPrivs": 1,
+      "pidNamespaceDepth": 3
+    }
+  ],
+  "network": "docker --network none; no external page requests"
+}
