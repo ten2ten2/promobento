@@ -20,16 +20,32 @@ const journeyOnly=process.env.PROMOBENTO_JOURNEY_ONLY==='1',runtimeOnly=process.
 const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review';
 const showcaseOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase';
 const layoutOnly=process.env.PROMOBENTO_RUNTIME_CASE==='layout';
+const typographyOnly=process.env.PROMOBENTO_RUNTIME_CASE==='typography';
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
 if(layoutOnly)report.scope='four_aspect_ordinary_runtime_and_closing_layout_only';
+if(typographyOnly)report.scope='four_aspect_grouped_opening_and_text_only_grid_layout';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   const film=filmFixture();film.scenes.at(-1).params.logoKey='dashboard';
   pages.set('/closing-logo-'+aspect+'.html',generateFilmPage(JSON.stringify(film),pageOptions(aspect,layout)));
 }
+const typography=filmFixture();
+typography.texts={...typography.texts,
+  features:{text:'Useful things.',role:'label',factIds:[]},modules:{text:'Learn by doing.',role:'label',factIds:[]},
+  first:{text:'A clear start.',role:'headline',factIds:[]},'first-detail':{text:'Make the important point first.',role:'body',factIds:[]},
+  second:{text:'Real material.',role:'headline',factIds:[]},'second-detail':{text:'Show what people came for.',role:'body',factIds:[]},
+  third:{text:'One next step.',role:'headline',factIds:[]},'third-detail':{text:'Keep the action close.',role:'body',factIds:[]},
+  fourth:{text:'A little momentum.',role:'headline',factIds:[]}};
+const copyItems=[{textSlot:'first',subtitleSlot:'first-detail'},{textSlot:'second',subtitleSlot:'second-detail'},
+  {textSlot:'third',subtitleSlot:'third-detail'},{textSlot:'fourth'}];
+typography.scenes=[typography.scenes[0],
+  {...typography.scenes[1],id:'features',block:'feature-grid@1',params:{textSlot:'features',items:copyItems}},
+  {...typography.scenes[2],id:'modules',block:'curriculum@1',params:{textSlot:'modules',items:copyItems.slice(0,3)}}];
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts))
+  pages.set('/typography-'+aspect+'.html',generateFilmPage(JSON.stringify(typography),pageOptions(aspect,layout)));
 // A real director repair put a shard boundary inside the push into ui-journey.
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
@@ -154,7 +170,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of journeyOnly||reviewOnly||showcaseOnly?[]:Object.keys(rules.aspectLayouts)){
+  for(const aspect of journeyOnly||reviewOnly||showcaseOnly||typographyOnly?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -195,7 +211,45 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  for(const name of layoutOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
+    report.typography=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=[45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
+      for(const frame of frames){
+        await handle.seek(frame);await checkLayout(handle,aspect);
+        const boxes=await handle.page.evaluate(frame=>{
+          const rect=el=>{const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:r.height};};
+          if(frame===45){const title=rect(document.querySelector('[data-pb-slot="headline"]')),detail=rect(document.querySelector('[data-pb-slot="intro"]'));return{subtitleGap:detail.top-title.bottom};}
+          const scene=document.querySelector(`section[data-scene="${frame===165?'features':'modules'}"]`),heading=rect(scene.querySelector(`[data-pb-slot="${frame===165?'features':'modules'}"]`));
+          const title=scene.querySelector('[data-pb-slot="first"]'),grid=title.parentElement.parentElement.parentElement;
+          return{headingGap:rect(grid).top-heading.bottom,cards:[...grid.children].map(card=>{
+            const slots=[...card.querySelectorAll('[data-pb-slot]')].map(rect);
+            return{card:rect(card),slots,border:parseFloat(getComputedStyle(card).borderTopWidth)};
+          })};
+        },frame);
+        if(frame===45)assert.ok(boxes.subtitleGap>=24&&boxes.subtitleGap<=40,JSON.stringify(boxes));
+        else{
+          assert.ok(Math.abs(boxes.headingGap-32)<1,JSON.stringify(boxes));
+          for(const {card,slots,border}of boxes.cards){
+            assert.equal(border,0);assert.ok(slots.every(slot=>slot.top>=card.top&&slot.bottom<=card.bottom+2),JSON.stringify({card,slots}));
+            if(slots.length===2)assert.ok(slots[1].top-slots[0].bottom>=19,JSON.stringify(slots));
+          }
+        }
+        const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
+        writeFileSync(`${output}/typography-${aspect}-${frame}.png`,png);
+      }
+      for(const frame of [...frames].reverse()){
+        await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`typography-${aspect}-${frame}-reverse`)});
+      }
+      await handle.page.close();
+      for(const frame of frames){
+        const cold=await open(aspect,path);await cold.seek(frame);
+        comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`typography-${aspect}-${frame}-cold`)});await cold.page.close();
+      }
+      report.typography.push({aspect,comparisons,textSafeAreaAndCustomFont:true,groupedHeadings:true,subtitleGap:true});
+    }
+  }
+  for(const name of layoutOnly||typographyOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -230,7 +284,7 @@ try{
     }
   }
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly){
     report.closingLogos=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const logo=await open(aspect,'/closing-logo-'+aspect+'.html');await logo.seek(375);await checkLayout(logo,aspect);
@@ -242,6 +296,7 @@ try{
     const long=await open('landscape','/thirty.html');await long.seek(899);await assert.rejects(long.seek(900),/FRAME_OUT_OF_RANGE/);
     writeFileSync(output+'/landscape-30s-899.png',await long.capture());await long.page.close();report.checks.push('30-second frame bounds');
   }
+  if(typographyOnly){const failure=await open('portrait','/oversized.html',false);await failure.page.close();report.checks.push('oversized text fails');}
   const renderers=readdirSync('/proc').filter(name=>/^\d+$/.test(name)).flatMap(pid=>{
     try{const cmd=readFileSync(`/proc/${pid}/cmdline`,'utf8');if(!cmd.includes('--type=renderer'))return[];
       const status=readFileSync(`/proc/${pid}/status`,'utf8');return[{pid:Number(pid),uid:Number(status.match(/^Uid:\s+(\d+)/m)?.[1]),
@@ -251,7 +306,8 @@ try{
   assert.ok(renderers.length>0);assert.ok(renderers.every(item=>item.uid===10002&&item.seccomp===2&&item.noNewPrivs===1&&item.pidNamespaceDepth>=2),JSON.stringify(renderers));
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
   for(const name of ['journey','showcase'])if(report[name])report.checks.push(`four-aspect ${name} forward/reverse/cold seeks`);
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  if(report.typography)report.checks.push('four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));

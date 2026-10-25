@@ -5,7 +5,7 @@ const common = {
   goldenFrames: [0, 12, 45], editable: []
 };
 export const blockCatalog = [
-  { ...common, id: 'hook-title', category: 'opening', usesGsap: true, regions: ['headline'],
+  { ...common, id: 'hook-title', version:'1.0.1', category: 'opening', usesGsap: true, regions: ['headline'],
     events: [{name: 'title-land', description: 'Headline settles into its reading position.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot } } },
@@ -18,16 +18,17 @@ export const blockCatalog = [
     events: [{name: 'cta-land', description: 'Call to action reaches its reading hold.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot, logoKey: slot } } },
-  { ...common, id: 'feature-grid', version: '1.0.1', category: 'software', regions: ['features'],
+  { ...common, id: 'feature-grid', version: '1.0.2', category: 'software', regions: ['features'],
     events: [{name: 'feature-land', description: 'Feature cards finish their staggered reveal.'}],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
-        required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot, assetKey: slot}}}}}},
-  { ...common, id: 'curriculum', category: 'course', regions: ['modules'],
+        required: ['textSlot'], properties: {textSlot: {...slot,description:'The short dominant card headline; use a headline role for primary promotional copy.'},
+          subtitleSlot: {...slot,description:'Optional supporting detail, with a body/label role.'},assetKey: {...slot,description:'Optional distinct, relevant illustration. Without an image, the block uses a compact typographic layout; never repeat one screenshot merely to fill cards.'}}}}}}},
+  { ...common, id: 'curriculum', version:'1.0.1', category: 'course', regions: ['modules'],
     events: [{name: 'module-land', description: 'The final curriculum module is revealed.'}],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
-        required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}}}}},
+        required: ['textSlot'], properties: {textSlot: {...slot,description:'The short module headline; use a headline role for primary promotional copy.'},subtitleSlot: {...slot,description:'Optional supporting course detail.'}}}}}}},
   { ...common, id: 'ui-journey', version: '1.0.1', category: 'software', cost: 'medium', regions: ['journey'],
     events: [{name: 'product-land', description: 'The camera arrives at the final interface.'}],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {

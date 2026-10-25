@@ -18,7 +18,7 @@ on:
       runtime_case:
         description: Narrow only a known failed runtime case; all keeps normal coverage
         type: choice
-        options: [all, review, showcase, layout]
+        options: [all, review, showcase, layout, typography]
         default: all
       staging_inspect_run:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render

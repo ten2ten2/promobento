@@ -359,3 +359,11 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 
 
 随后操作 `eval-ielts-ready-15-1792888290389` 在同一新镜像沿用 IELTS 第一份完整付费 C、原素材/字体/seed，只走原生 review。[实际媒体](closing-layout/native-review-render.json)在 **53,824 ms** 交付，149/299 帧均零差异；15 秒、960×540、15 fps、225 帧、有 AAC，原有 VBV 纠正后峰值 **1,440,384 ≤ 2,500,000 bit/s**。新镜像的容器启动/沙箱、实际片尾与媒体路径已取得成功回执，但首次健康预检超时的内部原因仍未知，未增加上限或抹掉失败。已查看实际 MP4 片尾，CTA 与网址确已紧密成组；完整 1× 播放无错误/掉帧，[解码](closing-layout/native-decoded-video.json)。[五次计算](closing-layout/native-report.json)全部停止/结算 **6,427 usd_micros**，0 模型、无未结/容量、密钥回收。该回归不计成功导演或负责人通过，接着用 MiniMax 真实界面区分通用导演与 IELTS 图文密度问题。
+
+## MiniMax 第九次：三轮 review 交付，E 在文案上往返耗尽修复
+
+操作 `eval-minimax-15-1792888514649` 使用同一 `918e5d5` 固定镜像。环境预检通过，三张真实方向均已查看并[选择 Fit](minimax-ninth-attempt/choice.json)；[C](minimax-ninth-attempt/spec-response.json)一次通过，[三轮 review 媒体](minimax-ninth-attempt/database.json)全部交付、接缝零差异。E 首次把结尾转场改成 cut 却保留 8 帧，完整用量先结算后由一次[结构纠正](minimax-ninth-attempt/review-0-output-repair-1-response.json)恢复 crossfade。两次有效内部修复后，第三次 E 仍要求 write_spec，按原上限停止，未到最终横竖片/F。
+
+已查看三张实际审核拼图（原图仍在私有 R2，[帧引用](minimax-ninth-attempt/review-2-images.json)）。CTA 与网址已紧密成组；开场标题/副标题仍上下分散，原功能网格的文字在大空框中太弱。E 用同一截图填了三张卡，随后将 UI 的中性标题改成未归属的功能声明，又在[下一轮](minimax-ninth-attempt/review-2-response.json)改回原文；还改了不影响画面的 purpose/continuity。当前优先修运行时的排版：开场成组，纯文字功能/课程网格按实际文字高度收紧，去掉空图片框。参数说明明确主标题/辅助文字和可选图片；E 保留原事实/质量门槛，只修具体可见缺陷，不用同图填空或同义改写消耗次数。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅和真实后续效果待验，未重跑完整测试或 CI。
+
+[费用与回收](minimax-ninth-attempt/report.json)：6 次新模型已结 **25,312**，19 次计算均物理停止/结算 **18,039** 保守上界，无本轮未知、容量为空、临时密钥回收。共享新增模型已结 **453,700**、原三笔未知 **37,993**，合计占用 **491,693 usd_micros**；原历史 128/14 和开账空值不变。仍无合格候选，不计负责人 4/6。

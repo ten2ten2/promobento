@@ -49,22 +49,30 @@ function projectedAsset(ctx:SceneContext,key:string){
   return{asset,ready:decoded.then(()=>{}),load:(_time:number)=>decoded};
 }
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.0', build(ctx, params) {
-  const safe = inSafe(ctx), box = safeBox(ctx);
+window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.1', build(ctx, params) {
+  const safe = inSafe(ctx), box = safeBox(ctx), group = node(safe, {position: 'absolute', inset: '0'});
   const orbit = node(ctx.root, {position: 'absolute', border: `2px solid ${ctx.style.palette.accent}`, borderRadius: '50%',
     width: ctx.target.width * 0.8 + 'px', height: ctx.target.width * 0.8 + 'px', left: '52%', top: '-28%', opacity: '0.2'});
-  const title = node(safe, {position: 'absolute', left: '0', top: '24%', width: '100%', height: '53%'});
-  text(ctx, params.textSlot, title);
-  const line = node(safe, {position: 'absolute', left: '0', top: '17%', height: '8px', width: '12%', background: ctx.style.palette.accent ?? ''});
-  if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '81%', width: '92%', height: '18%'}), 3);
+  const title = node(group, {position: 'absolute', left: '0', width: '100%', height: '60%'}), titleText = text(ctx, params.textSlot, title);
+  const line = node(group, {position: 'absolute', left: '0', height: '8px', width: '12%', background: ctx.style.palette.accent ?? ''});
+  const subtitle = params.subtitleSlot ? node(group, {position: 'absolute', width: '92%', height: '24%'}) : undefined;
+  const subtitleText = subtitle ? text(ctx, params.subtitleSlot, subtitle, 3) : undefined;
   const timeline = window.gsap.timeline({paused: true});
   // At rest, use ordinary text painting instead of retaining an identity-transform raster surface.
   // A persistent will-change layer made the hidden/reverse glyph-edge discrepancy larger.
-  ctx.OM.clock(timeline, time => { const p = easeOut(time / 0.6); title.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * Math.min(48, box.height * 0.04)}px)`;
+  ctx.OM.clock(timeline, time => { const p = easeOut(time / 0.6);
+    group.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * Math.min(48, box.height * 0.04)}px)`;
     title.style.opacity = String(0.35 + 0.65 * p); line.style.width = 12 + p * 18 + '%'; orbit.style.transform = `rotate(${time * 4}deg) scale(${1 + clamp01(time / 5) * 0.15})`; }, (ctx.frames.end - ctx.frames.start) / 30);
   return {
     timeline,
-    events: blockEvents('hook-title', ctx.frames, params), regions: [region('headline', title, ctx.root)]
+    render() {
+      // Measure only after the engine makes this scene active, including on a cold/backward seek.
+      const gap = Math.max(24,Math.min(40,box.height*.028)), titleHeight = titleText.offsetHeight;
+      const height = 8 + 32 + titleHeight + (subtitleText ? gap + subtitleText.offsetHeight : 0), top = (box.height-height)/2;
+      line.style.top=top+'px';title.style.top=top+40+'px';
+      if(subtitle)subtitle.style.top=top+40+titleHeight+gap+'px';
+    },
+    events: blockEvents('hook-title', ctx.frames, params), regions: [region('headline', titleText, ctx.root)]
   };
 }});
 
@@ -160,29 +168,45 @@ function picture(ctx: SceneContext, key: string, parent: HTMLElement): (time: nu
   return async () => {};
 }
 
-for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.0.1' : '1.0.0', build(ctx, params) {
-  const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
+for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.0.2' : '1.0.1', build(ctx, params) {
+  const safe = inSafe(ctx), box = safeBox(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[], compact = items.every(item=>!item.assetKey);
   const heading = params.textSlot ? node(safe, {position: 'absolute', top: '0', width: '100%', height: '20%'}) : undefined;
-  if (heading) text(ctx, params.textSlot, heading, 2);
+  const headingText = heading ? text(ctx, params.textSlot, heading, 2) : undefined;
   const grid = node(safe, {position: 'absolute', top: heading ? '25%' : '4%', width: '100%', height: heading ? '72%' : '92%',
     display: 'grid', gap: wide ? '24px' : '18px', gridTemplateColumns: wide ? `repeat(${id === 'curriculum' ? 2 : items.length}, minmax(0,1fr))` : 'minmax(0,1fr)',
     gridTemplateRows: wide ? id === 'curriculum' ? `repeat(${Math.ceil(items.length / 2)},minmax(0,1fr))` : 'minmax(0,1fr)' : `repeat(${items.length},minmax(0,1fr))`});
   const drawings: Array<(time: number) => Promise<void>> = [];
+  const copyLayouts: Array<{title:HTMLElement; subtitle?:HTMLElement; detail?:HTMLElement}> = [];
   const cards = items.map((item, index) => {
-    const card = node(grid, {position: 'relative', minWidth: '0', minHeight: '0', borderRadius: '24px', overflow: 'hidden',
-      border: `2px solid ${ctx.style.palette.accent}`, padding: wide ? '28px' : '22px', background: ctx.style.palette.bg ?? ''});
+    const card = node(grid, {position: 'relative', minWidth: '0', minHeight: '0', borderRadius: compact ? '0' : '24px', overflow: 'hidden',
+      border: compact ? 'none' : `2px solid ${ctx.style.palette.accent}`, padding: compact ? '0' : wide ? '28px' : '22px', background: ctx.style.palette.bg ?? ''});
     const art = item.assetKey ? node(card, {position: 'absolute', right: '5%', top: '8%', width: wide ? '90%' : '24%', height: wide ? '38%' : '84%'}) : undefined;
     if (art && item.assetKey) drawings.push(picture(ctx, item.assetKey, art));
     // Image-above cards share one 40% copy band: 22% title, 3% gap, 15% subtitle.
     // The old 42% title area overlapped the subtitle that started at 61%.
-    const copy = node(card, {position: 'absolute', left: '7%', top: art && wide ? '52%' : '12%', width: art && !wide ? '62%' : '86%', height: item.subtitleSlot ? (art && wide ? '22%' : '42%') : (art && wide ? '40%' : '76%')});
-    text(ctx, item.textSlot, copy, 3, wide ? 84 : 64);
-    if (item.subtitleSlot) text(ctx, item.subtitleSlot, node(card, {position: 'absolute', left: '7%', top: art && wide ? '77%' : '61%', width: art && !wide ? '62%' : '86%', height: art && wide ? '15%' : '30%'}), 2);
+    const available = compact ? card.clientHeight-28-(item.subtitleSlot?20:0) : 0;
+    const copy = node(card, {position: 'absolute', left: compact ? '0' : '7%', top: compact ? '28px' : art && wide ? '52%' : '12%', width: compact ? '100%' : art && !wide ? '62%' : '86%',
+      height: compact ? available*(item.subtitleSlot ? .6 : 1)+'px' : item.subtitleSlot ? (art && wide ? '22%' : '42%') : (art && wide ? '40%' : '76%')});
+    const title = text(ctx, item.textSlot, copy, 3, wide ? 84 : 64);
+    const subtitle = item.subtitleSlot ? node(card, {position: 'absolute', left: compact ? '0' : '7%', top: art && wide ? '77%' : '61%', width: compact ? '100%' : art && !wide ? '62%' : '86%',
+      height: compact ? available*.4+'px' : art && wide ? '15%' : '30%'}) : undefined;
+    const detail = subtitle ? text(ctx, item.subtitleSlot, subtitle, 2) : undefined;
     // Pure geometry, not an unbound visible numeric module label.
-    node(card, {position: 'absolute', left: '7%', bottom: '6%', width: `${Math.min(40, 10 + index * 6)}%`, height: '4px', background: ctx.style.palette.accent ?? ''});
+    node(card, {position: 'absolute', left: compact ? '0' : '7%', ...(compact ? {top:'0',width:'48px'} : {bottom:'6%',width:`${Math.min(40, 10 + index * 6)}%`}), height: '4px', background: ctx.style.palette.accent ?? ''});
+    copyLayouts.push({title,...(subtitle?{subtitle}:{}),...(detail?{detail}:{})});
     return card;
   });
-  return {async render(time) { for (const draw of drawings) await draw(time); cards.forEach((card, i) => { const p = easeOut((time - i * .12) / .5);
+  return {async render(time) {
+    if(compact){
+      // Text-only features are an editorial band, not empty image-card shells.
+      // Keep fit capacities fixed, then size/centre the group from the actual fitted lines.
+      const rowHeight=Math.max(...copyLayouts.map(item=>28+item.title.offsetHeight+(item.detail?20+item.detail.offsetHeight:0)));
+      const rows=wide?(id==='curriculum'?Math.ceil(items.length/2):1):items.length, gap=wide?24:18;
+      const height=rows*rowHeight+(rows-1)*gap, headingHeight=headingText?.offsetHeight??0, top=(box.height-height-(heading?headingHeight+32:0))/2;
+      if(heading)heading.style.top=top+'px';grid.style.top=top+(heading?headingHeight+32:0)+'px';grid.style.height=height+'px';
+      for(const item of copyLayouts)if(item.subtitle)item.subtitle.style.top=28+item.title.offsetHeight+20+'px';
+    }
+    for (const draw of drawings) await draw(time); cards.forEach((card, i) => { const p = easeOut((time - i * .12) / .5);
     card.style.opacity = String(p); card.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 32}px)`; }); },
   events: blockEvents(id, ctx.frames, params),
   regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root)]};
