@@ -31,6 +31,12 @@ test('G1 counts complete 30s populations, real per-frame timings and settled cos
  assert.equal(summary.groups['2d'].serial.wallMs.p95,109);assert.equal(summary.groups['2d'].parallel.wallMs.p50,1001);
  assert.equal(summary.groups.webgl.serial.frameCaptureMs.count,9000);assert.equal(summary.groups.webgl.parallel.seams.count,92);
  assert.equal(summary.peakMemory.status,'unverified');assert.equal(summary.peakMemory.unavailableCount,420);
+ const twoD=samples.filter(sample=>sample.kind==='2d'),partialSummary=performanceSummary(twoD,{kinds:['2d']});
+ assert.deepEqual(Object.keys(partialSummary.groups),['2d']);assert.deepEqual(partialSummary.groups['2d'],summary.groups['2d']);
+ assert.equal(partialSummary.peakMemory.unavailableCount,84);
+ assert.throws(()=>performanceSummary(twoD),/MATRIX_INCOMPLETE/);
+ assert.throws(()=>performanceSummary(twoD.slice(1),{kinds:['2d']}),/MATRIX_INCOMPLETE/);
+ for(const kinds of [[],['2d','2d'],['unknown'],['webgl']])assert.throws(()=>performanceSummary(twoD,{kinds}),/POPULATION_INVALID/);
  const retried=structuredClone(samples);
  retried[0].recovery.attempts.push({mode:'shard',status:'failed',physicallyStopped:true,result_json:canonical({status:'failed',code:'RENDER_CAPACITY_UNAVAILABLE'})});
  retried[0].recovery.costs.push({kind:'compute',actual_micros:7});

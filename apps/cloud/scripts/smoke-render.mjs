@@ -20,8 +20,8 @@ if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
 const policy=parseCanonicalJson(readFileSync(new URL('config/agent-policy.json',root))),scenario=process.env.STAGING_SCENARIO??'engineering';
-if(!['engineering','webgl-studio','webgl-film','lifecycle-recovery','director-preflight','g1-performance','g1-selection','g1-isolation'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
-const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':scenario==='lifecycle-recovery'?'native_cancel_termination_restart_not_full_G1':scenario==='director-preflight'?'deterministic_director_preflight_only_no_model_or_media_calls':scenario==='g1-performance'?'G1_performance_10_serial_plus_4_concurrent_each_2d_and_webgl':scenario==='g1-selection'?'G1_capture_instance_and_studio_latency_selection':scenario==='g1-isolation'?'G1_formal_image_network_uid_broker_and_browser_isolation':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
+if(!['engineering','webgl-studio','webgl-film','lifecycle-recovery','director-preflight','g1-performance','g1-2d-performance','g1-selection','g1-isolation'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
+const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':scenario==='lifecycle-recovery'?'native_cancel_termination_restart_not_full_G1':scenario==='director-preflight'?'deterministic_director_preflight_only_no_model_or_media_calls':scenario==='g1-performance'?'G1_performance_10_serial_plus_4_concurrent_each_2d_and_webgl':scenario==='g1-2d-performance'?'G1_performance_10_serial_plus_4_concurrent_2d_only':scenario==='g1-selection'?'G1_capture_instance_and_studio_latency_selection':scenario==='g1-isolation'?'G1_formal_image_network_uid_broker_and_browser_isolation':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
 let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -90,9 +90,9 @@ if(scenario==='webgl-film'){
  if(partition.shards.length!==24)throw Error('WEBGL_CALIBRATION_SHARD_COUNT');
  writeFileSync(directory+'/audio-plan.json',canonical(plan));writeFileSync(directory+'/shard-plan.json',canonical(partition));
 }
-if(['lifecycle-recovery','director-preflight','g1-performance','g1-selection','g1-isolation'].includes(scenario)){
- const probe=scenario==='lifecycle-recovery'?probeRecovery:scenario==='director-preflight'?probeDirectorPreflight:scenario==='g1-performance'?probePerformance:scenario==='g1-selection'?probeSelection:probeIsolation;
- const outcome=await probe({json,call,upload,request,rules,policy,directory,operationId,prefix});
+if(['lifecycle-recovery','director-preflight','g1-performance','g1-2d-performance','g1-selection','g1-isolation'].includes(scenario)){
+ const probe=scenario==='lifecycle-recovery'?probeRecovery:scenario==='director-preflight'?probeDirectorPreflight:scenario.startsWith('g1-')&&scenario.endsWith('performance')?probePerformance:scenario==='g1-selection'?probeSelection:probeIsolation;
+ const outcome=await probe({json,call,upload,request,rules,policy,directory,operationId,prefix,...(scenario==='g1-2d-performance'?{kinds:['2d']}:{})});
  writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,status:outcome.status}));
  console.log(canonical({scope,status:outcome.status,elapsedMs:Date.now()-started}));
 }else if(scenario==='webgl-studio'){

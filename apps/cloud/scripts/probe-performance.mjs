@@ -26,13 +26,15 @@ export function distribution(values){
  return{count:sorted.length,min:sorted[0],p50:rank(.5),p95:rank(.95),max:sorted.at(-1)};
 }
 
-export function performanceSummary(samples){
+export function performanceSummary(samples,{kinds=['2d','webgl']}={}){
+ if(!kinds.length||new Set(kinds).size!==kinds.length||kinds.some(kind=>!['2d','webgl'].includes(kind))
+  ||samples.some(sample=>!kinds.includes(sample.kind)))throw Error('PERFORMANCE_POPULATION_INVALID');
  const summary={quantiles:'empirical_nearest_rank',wallClock:'client_POST_start_to_first_passed_response_including_queue_and_1s_polling',
   containerReady:'new_instance_start_to_controller_health_response_not_Chromium_ready',
   frameCapture:'seek_plus_ready_ack_plus_CDP_jpeg92_excludes_encoder_backpressure_QA_and_seam_PNGs',
   costBasis:'allocated_resource_upper_bound_not_vendor_invoice',groups:{}};
  const peakValues=[],allImages=new Set();let unavailablePeaks=0;
- for(const kind of ['2d','webgl']){
+ for(const kind of kinds){
   const population=samples.filter(sample=>sample.kind===kind),groups={};
   for(const [mode,count]of [['serial',10],['parallel',4]]){
    const rows=population.filter(sample=>sample.mode===mode);
@@ -79,10 +81,11 @@ export function performanceSummary(samples){
  return summary;
 }
 
-export async function probePerformance({json,call,upload,request,rules,policy,directory,operationId,prefix}){
+export async function probePerformance({json,call,upload,request,rules,policy,directory,operationId,prefix,kinds=['webgl','2d']}){
  if(process.env.GITHUB_ACTIONS!=='true'||!/^smoke-[a-f0-9]{12}-\d{8,20}$/.test(operationId))throw Error('PERFORMANCE_SCOPE_INVALID');
- const samples=[],open=new Set(),report={scope:'G1_performance_10_serial_plus_4_concurrent_30s_each_2d_and_webgl_not_complete_G1',status:'running',samples,
-  deploymentSha:process.env.DEPLOYED_SHA,harnessSha:process.env.GITHUB_SHA,samplingOrder:['webgl','2d'],workspaceShardLimit:policy.limits.workspaceShardInstances,perOperationBudgetMicros:1000000};
+ if(!kinds.length||new Set(kinds).size!==kinds.length||kinds.some(kind=>!['2d','webgl'].includes(kind)))throw Error('PERFORMANCE_POPULATION_INVALID');
+ const samples=[],open=new Set(),report={scope:kinds.length===2?'G1_performance_10_serial_plus_4_concurrent_30s_each_2d_and_webgl_not_complete_G1':'G1_performance_10_serial_plus_4_concurrent_30s_'+kinds[0]+'_only_not_complete_G1',status:'running',samples,
+  deploymentSha:process.env.DEPLOYED_SHA,harnessSha:process.env.GITHUB_SHA,samplingOrder:kinds,workspaceShardLimit:policy.limits.workspaceShardInstances,perOperationBudgetMicros:1000000};
  const save=()=>writeFileSync(directory+'/performance-report.json',canonical(report));
  const pause=()=>new Promise(resolve=>setTimeout(resolve,1000));
  const opening=await json('model-budget'),initialLeases=await json('capacity');
@@ -155,7 +158,7 @@ export async function probePerformance({json,call,upload,request,rules,policy,di
    const results=await Promise.allSettled(batch.map(run));
    const failed=results.find(result=>result.status==='rejected');if(failed)throw failed.reason;
   }
-  report.summary=performanceSummary(samples);report.modelBudget=await json('model-budget');report.leases=await json('capacity');
+  report.summary=performanceSummary(samples,{kinds});report.modelBudget=await json('model-budget');report.leases=await json('capacity');
  if(report.leases.length||['openingMicros','openingConfirmed','currentChargedMicros','currentReservations'].some(field=>report.modelBudget[field]!==opening[field]))throw Error('PERFORMANCE_FINAL_STATE_CHANGED');
   report.status='passed';save();return report;
  }catch(error){report.status='failed';report.error=String(error.stack??error);save();throw error;}

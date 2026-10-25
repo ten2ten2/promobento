@@ -30,11 +30,17 @@ export function pngPixels(bytes) {
   for (let y = 0; y < height; y++) {
     const offset = y * (stride + 1), filter = raw[offset];
     if (filter > 4) throw Error('SEAM_PNG_UNSUPPORTED');
-    for (let x = 0; x < stride; x++) {
-      const left = x >= channels ? row[x - channels] : 0, up = previous[x], corner = x >= channels ? previous[x - channels] : 0;
-      row[x] = (raw[offset + 1 + x] + [0, left, up, Math.floor((left + up) / 2), paeth(left, up, corner)][filter]) & 255;
+    row.set(raw.subarray(offset + 1, offset + 1 + stride));
+    // Select once per row: the old array expression calculated every predictor, including
+    // Paeth, for every byte even when the PNG row used no filter at all.
+    if (filter === 1) for (let x = channels; x < stride; x++) row[x] = (row[x] + row[x - channels]) & 255;
+    else if (filter === 2) for (let x = 0; x < stride; x++) row[x] = (row[x] + previous[x]) & 255;
+    else if (filter === 3) for (let x = 0; x < stride; x++) row[x] = (row[x] + Math.floor(((x >= channels ? row[x - channels] : 0) + previous[x]) / 2)) & 255;
+    else if (filter === 4) for (let x = 0; x < stride; x++) {
+      row[x] = (row[x] + paeth(x >= channels ? row[x - channels] : 0, previous[x], x >= channels ? previous[x - channels] : 0)) & 255;
     }
-    for (let x = 0; x < width; x++) {
+    if (channels === 4) pixels.set(row, y * stride);
+    else for (let x = 0; x < width; x++) {
       const at = (y * width + x) * 4, source = x * channels;
       pixels[at] = row[source]; pixels[at + 1] = row[source + 1]; pixels[at + 2] = row[source + 2]; pixels[at + 3] = channels === 4 ? row[source + 3] : 255;
     }
@@ -44,7 +50,11 @@ export function pngPixels(bytes) {
 }
 
 export function compareSeam(expected, actual) {
-  const a = pngPixels(expected), b = pngPixels(actual);
+  const a = pngPixels(expected);
+  // A byte-identical image has identical decoded pixels. Decode it once so malformed
+  // identical inputs still fail the same PNG checks rather than bypassing validation.
+  if (Buffer.from(expected).equals(Buffer.from(actual))) return {identical:true,maxChannelDiff:0,diffPixelPct:0,verdict:'pass'};
+  const b = pngPixels(actual);
   if (a.width !== b.width || a.height !== b.height) throw Error('SEAM_DIMENSIONS_MISMATCH');
   let maxChannelDiff = 0, changed = 0;
   for (let i = 0; i < a.pixels.length; i += 4) {

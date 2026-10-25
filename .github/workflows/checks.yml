@@ -43,7 +43,7 @@ on:
       staging_scenario:
         description: New coverage only; lifecycle-recovery interrupts compute without repeating a complete movie
         type: choice
-        options: [deploy-only, engineering, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-selection, g1-isolation]
+        options: [deploy-only, engineering, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-2d-performance, g1-selection, g1-isolation]
         default: engineering
 
 permissions:

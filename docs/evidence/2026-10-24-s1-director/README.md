@@ -411,3 +411,11 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 已看第三轮[实际拼图引用](minimax-30-second/review-2-images.json)。E0 改标题/补充短文，E1 又改通栏归属；E2 最后仅[提议改写](minimax-30-second/review-2-response.json) “Start with one message, then select a folder.” 为 “One message, then a folder.”，达到原两次上限而停止，未进入最终片/F。每轮 E 先前只看当前规格，不知道已经应用过哪些修改；现补入有界的前次规格与已用次数，要求核对既有修改、一次处理具体缺陷。Node 26.12.0 的既有 E 修复、F 修复及上限/首因三项本地回放通过（417.72 / 820.63 / 240.23 ms），检查历史隔离与次数不重置。F 不接收该历史，不因剩余次数少而降低门槛；实际效果待验。
 
 [实际费用及回收](minimax-30-second/report.json)：4 次新模型 **19,247**，28 次计算均停止/结算 **31,568 usd_micros**，无本轮未知、无容量/密钥遗留。共享新增模型已结 **518,357**、原三笔未知 **37,993**，合计占用 **556,350 usd_micros**；完整通过数仍为 1/12、2/24。
+
+## MiniMax 30 秒第三轮：历史已送达，界面布局仍未收敛
+
+`9dd8b36` 随 [40156758448](https://github.com/ten2ten2/promobento/actions/runs/40156758448) 部署后，操作 `eval-minimax-30-1792899762451` 的三张新方向均已查看并[选择 Fit](minimax-30-third/choice.json)。C 与三轮 E 已实际运行，三部 review 分别在 **42,400 / 58,650 / 43,719 ms** 交付，未到最终片/F；第三次 E 仍请求修复，按原两次上限停止。[原始模型回执、媒体及回收](minimax-30-third/report.json)保留，修复历史不再标为“尚未送达”。
+
+已查看第三轮[实际拼图](minimax-30-third/review-2-images.json)：标题、三列功能与 CTA 清楚；真正界面仍被旁列文案压到小面板。E0 修正过度承诺的开场，E1 去掉 focus，却未去掉占据左列的 textSlot；E2 才要求将同一截图重复放入 ui-journey。这里还有真实尺寸问题，不能把第三次 write_spec 当同义润色而直接放行。现为 C/E 明确已有积木行为：ui-showcase 的 textSlot 占独立列，密集截图应去掉它以获得大面板，必要文案放相邻标题；focus 只高亮，不裁剪/放大，也不靠重复同图放大。该做法已在通过的 MiniMax 15 秒实际采用。原修复上限、文字门槛与独立 F 保留，新提示的真实效果待验。
+
+[费用及回收](minimax-30-third/report.json)：5 次新模型 **25,772**，29 次计算均停止/结算 **25,434 usd_micros**，无本轮未知、容量为空、临时密钥删除。共享新增模型已结 **544,129**、原三笔未知 **37,993**，合计占用 **582,122 usd_micros**；仍为 1/12、2/24，负责人正常速度视听 pending。

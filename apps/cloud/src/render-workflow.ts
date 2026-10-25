@@ -1,13 +1,11 @@
 import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudflare:workers';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {planShards, assertRenderJob,renderDeadlineMs,filmUsesWebgl} from '@promobento/contracts/render';
+import {planShards, assertRenderJob,renderDeadlineMs} from '@promobento/contracts/render';
 import {filmSourceHash} from '@promobento/contracts/film-source';
-import {compareSeam} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {validate as renderValid} from '@promobento/contracts/validators/render-job';
 import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
-import {checkShardObservations} from './render-observations.ts';
+import {verifyRenderShards} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {runRenderTask,AUDIO_INSTANCE} from './render-task.ts';
 import policy from '../../../config/agent-policy.json';
@@ -52,23 +50,8 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
         await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
         await advanceRenderStage(this.env,row.id,op,'verifying');
-        const seams = [];
-        for (const [index, result] of shards.entries()) {
-          const shard=partition.shards[index]!;
-          if (!renderValid(result.report) || result.report.kind !== 'shard_receipt' || result.report.imageDigest !== release.image_digest
-            ||result.report.renderId!==row.id||result.report.shardIndex!==index||result.report.start!==shard.start||result.report.end!==shard.end) throw Error('SHARD_RECEIPT_INVALID');
-          if(filmUsesWebgl(film)&&!result.report.webgl?.length)throw Error('SHARD_WEBGL_REPORT_MISSING');
-          const observationBlob=output(result,'/observations.json');
-          if(observationBlob.sha256!==result.report.outputs.observations)throw Error('SHARD_RECEIPT_INVALID');
-          const observations=parseCanonicalJson(await checkedBytes(this.env,observationBlob));
-          checkShardObservations(input.job,shard,film,observations);
-          if (index) {
-            const frame = partition.shards[index]!.start - 1;
-            const [a,b]=await Promise.all([checkedBytes(this.env, output(shards[index - 1]!, `/seam-frames/${frame}-last.png`)),
-              checkedBytes(this.env, output(result, `/seam-frames/${frame}-cold.png`))]);
-            const seam = {frame, ...compareSeam(a, b)}; if (seam.verdict === 'RENDER_SEAM_BLOCK') throw Error('RENDER_SEAM_BLOCK'); seams.push(seam);
-          }
-        }
+        const seams=await verifyRenderShards({job:input.job,film,partition,shards,imageDigest:release.image_digest,
+          read:blob=>checkedBytes(this.env,blob),output});
         const report = {schemaVersion: '3.0.0', kind: 'seam_report', renderId: row.id, seams};
         await immutableJson(this.env, `renders/${row.id}/seams.json`, report); return canonical(report);
       })) as Json;

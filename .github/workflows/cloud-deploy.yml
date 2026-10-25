@@ -103,7 +103,7 @@ jobs:
         if: inputs.inspect_run != ''
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Preserve failed render diagnosis without another render
-        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'deploy-only' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-selection' && inputs.scenario != 'g1-isolation' && env.EVAL_API_KEY != ''
+        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'deploy-only' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-2d-performance' && inputs.scenario != 'g1-selection' && inputs.scenario != 'g1-isolation' && env.EVAL_API_KEY != ''
         env:
           INSPECT_RUN: ${{ github.run_id }}
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
