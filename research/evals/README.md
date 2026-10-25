@@ -1,5 +1,7 @@
 # S1 评测输入
 
+负责人于 2026-10-25 要求[先部分验收已有结果，问题项暂停](../../docs/implementation-status.md#先部分验收已有结果问题项暂停)。保留既有输入与成片，不继续启动问题项或剩余题目的付费评测。
+
 题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实与确认文案保留；2026-10-25 再次核对 Duolingo、IELTS Ready、Marugoto 和 Hugging Face 的原官方页面，原功能、课程及学习基础陈述仍有依据。IELTS 本次可读到公开页面文字，但原浏览器采集的 403 记录及第三方截图许可限制不因此改变。三家产品的入口为：
 
 - [DeepSeek](fact-cards/deepseek.json)：网页对话、API 平台与文档入口；主画面优先官网和无私人内容的初始界面。
@@ -123,3 +125,5 @@ open artifacts/s1-audio-review/index.html
 ```
 
 试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误。负责人在正常速度试听请求下回复「保留」，[现有 13 种全部保留](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)。重新打包时仅对来源 run 和对应样本计划都匹配的材料沿用该决定，其他材料仍待试听。六题实际成片的视听与 4/6 评判另行进行。
+
+另有[原创 ABC 与派生 WAV 的 15/30 秒内部测试批准及源母带身份](../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。原谱和 WAV 保持私有，不沿用上述 13 风格的保留结论；首次导演请求及超尺寸素材阻断见[实际记录](../../docs/evidence/2026-10-24-s1-director/README.md#原创音乐首轮abc-准入通过超尺寸素材阻断方向预览)，后续联验现已暂停。
