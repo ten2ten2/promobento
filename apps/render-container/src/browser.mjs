@@ -6,6 +6,7 @@ import {deadline} from './process.mjs';
 import {observe} from './observe.mjs';
 import {pageIsolation} from './isolation.mjs';
 import {inRenderPhase} from './failure.mjs';
+import {waitForRuntimeReady} from './readiness.mjs';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -76,9 +77,8 @@ export async function filmSession({raw, options, browserVersion, resource, video
     const connectedAt = performance.now();
     await deadline((async () => {
       await inRenderPhase({phase:'page_load'},()=>page.goto(url, {waitUntil: 'load', timeout: options.initTimeoutMs}));
-      await inRenderPhase({phase:'runtime_ready'},()=>page.waitForFunction(() => window.__omReady || window.__omBootFailed, null, {timeout: options.initTimeoutMs}));
-      const failure = await page.evaluate(() => window.__omBootFailed);
-      if (failure || pageError) throw Error(failure ?? pageError);
+      await inRenderPhase({phase:'runtime_ready'},()=>waitForRuntimeReady({timeoutMs:options.initTimeoutMs,signal,pageError:()=>pageError,
+        read:()=>page.evaluate(()=>({ready:window.__omReady===true,failure:window.__omBootFailed??null}))}));
     })(), options.initTimeoutMs, 'INIT_TIMEOUT', cancel);
     const scope = {protocolVersion: '3.0.0', sessionId: crypto.randomUUID(), revisionId: crypto.randomUUID(), aspectId: plan.target.aspect};
     let sequence = 0, closed = false, currentFrame = -1;

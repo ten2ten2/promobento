@@ -44,3 +44,5 @@ WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真�
 内存峰值读取 cgroup v2 `memory.peak` 或同义的 v1 `memory.max_usage_in_bytes`；不会用控制器自身 RSS 或 0 冒充整个实例的峰值。接口均未暴露时，分段回执必须写 `peakMemoryMiB:null` 和 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，整片报告汇总为 `peakMemory.status:"unverified"`；继续内部出片与 S1 出口按[负责人决定](../../docs/evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)处理。权限错误或无效读数仍阻断。文件系统失败只保留受限系统路径与 syscall，不记录 broker 令牌或完整用户输入。取消/超时并发时，DO 原子固定同一 usage，D1 结算冲突检查与停止时间记录可重放。
 
 内部失败回执补充可信阶段（浏览器启动、seek、截图、编码写入、观测、拼接／声音或上传）、有限帧号及白名单系统码。媒体诊断只保留进程名、退出码／信号和已知错误特征；不序列化原始异常消息、堆栈、URL、请求头或 FFmpeg stderr。最内层阶段随原错误保留，不更改重试类别、预算、期限或停止／结算规则。
+
+初始化的就绪等待由可信控制器定时读取 runtime 的 ready／boot-failure 数据标志，不在作品页面注入 Playwright 的 RAF／eval 轮询。单次 CDP 读取仍受原初始化总期限约束，超时／取消不会接受晚到 ready；页面的网络、计时器与 CSP 限制不变。

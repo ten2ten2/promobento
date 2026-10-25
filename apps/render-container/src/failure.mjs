@@ -18,6 +18,13 @@ export function renderFailureDiagnostic(error){
  const runtimeCode=['TEXT_FIT_FAILED','FONT_RIGHTS_OR_FACE_MISSING','FRAME_OUT_OF_RANGE','RENDER_PAGE_CRASHED','WEBGL_CONTEXT_UNAVAILABLE','FRAME_ACK_MISMATCH']
   .find(code=>new RegExp('(?:^|\\b)'+code+'(?::|\\b)').test(error.message));
  if(runtimeCode)result.runtimeCode=runtimeCode;
+ const signatures=[['page_closed',/Target page, context or browser has been closed|Target closed|Page closed/i],
+  ['context_destroyed',/Execution context was destroyed|Cannot find context/i],['connection_closed',/Connection closed/i],
+  ['csp_eval_blocked',/unsafe-eval|Refused to evaluate.*Content Security Policy/i],['poll_timeout',/Timeout.*exceeded/i],
+  ['runtime_random_forbidden',/RUNTIME_RANDOM_FORBIDDEN/],['runtime_timer_forbidden',/RUNTIME_TIMER_FORBIDDEN/],
+  ['runtime_storage_forbidden',/RUNTIME_STORAGE_FORBIDDEN/],['runtime_eval_forbidden',/RUNTIME_EVAL_FORBIDDEN/]]
+  .filter(([,pattern])=>pattern.test(error.message)).map(([name])=>name);
+ if(signatures.length)result.signatures=signatures;
  if(Number.isInteger(stage?.frame)&&stage.frame>=0&&stage.frame<900)result.frame=stage.frame;
  const code=systemCodes.has(error.code)?error.code:systemCodes.has(error.cause?.code)?error.cause.code:null;
  if(code)result.systemCode=code;

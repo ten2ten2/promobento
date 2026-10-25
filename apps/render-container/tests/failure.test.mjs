@@ -14,4 +14,7 @@ test('failure evidence retains the innermost trusted stage and typed cause witho
  assert.deepEqual(renderFailureDiagnostic(runtime),{phase:'runtime_init',type:'Error',runtimeCode:'TEXT_FIT_FAILED'});
  const unknown=Object.assign(Error(secret),{renderPhase:{phase:secret,frame:-1},code:secret,command:secret,diagnostic:secret});
  assert.deepEqual(renderFailureDiagnostic(unknown),{phase:null,type:'Error'});
+ const closed=Error('page.waitForFunction: Target page, context or browser has been closed '+secret);
+ assert.deepEqual(renderFailureDiagnostic(closed),{phase:null,type:'Error',signatures:['page_closed']});
+ assert.equal(JSON.stringify(renderFailureDiagnostic(closed)).includes(secret),false);
 });
