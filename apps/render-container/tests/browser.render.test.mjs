@@ -134,7 +134,7 @@ async function checkLayout(handle,aspect){
   const layout=rules.aspectLayouts[aspect];
   const visible=await handle.page.evaluate(()=>[...document.querySelectorAll('[data-pb-slot]')].filter(el=>getComputedStyle(el).visibility==='visible'&&el.getClientRects().length).map(el=>{
     const r=el.getBoundingClientRect(),style=getComputedStyle(el);
-    return{slot:el.dataset.pbSlot,x:r.x,y:r.y,width:r.width,height:r.height,fontSize:parseFloat(style.fontSize),role:el.dataset.pbSlot==='cta'?'cta':'other'};
+    return{slot:el.dataset.pbSlot,scene:el.closest('section[data-scene]').dataset.scene,x:r.x,y:r.y,width:r.width,height:r.height,fontSize:parseFloat(style.fontSize),role:el.dataset.pbSlot==='cta'?'cta':'other'};
   }));
   assert.ok(visible.length>0);
   await handle.cdp.send('DOM.enable');await handle.cdp.send('CSS.enable');
@@ -143,7 +143,7 @@ async function checkLayout(handle,aspect){
     assert.ok(text.x>=layout.width*layout.safeInsets.left-2&&text.y>=layout.height*layout.safeInsets.top-2,JSON.stringify(text));
     assert.ok(text.x+text.width<=layout.width*(1-layout.safeInsets.right)+2&&text.y+text.height<=layout.height*(1-layout.safeInsets.bottom)+2,JSON.stringify(text));
     assert.ok(text.fontSize>=(text.role==='cta'?(aspect==='landscape'?28:32):(aspect==='landscape'?32:36)));
-    const {nodeId}=await handle.cdp.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'[data-pb-slot="'+text.slot+'"]'});
+    const {nodeId}=await handle.cdp.send('DOM.querySelector',{nodeId:doc.nodeId,selector:'section[data-scene="'+text.scene+'"] [data-pb-slot="'+text.slot+'"]'});
     const {fonts}=await handle.cdp.send('CSS.getPlatformFontsForNode',{nodeId});
     assert.ok(fonts.length>0&&fonts.every(font=>font.isCustomFont),JSON.stringify(fonts));
   }

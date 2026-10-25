@@ -1,0 +1,18 @@
+{
+  "status": "failed",
+  "scope": "four_aspect_grouped_opening_and_text_only_grid_layout",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "typography": [],
+  "failure": "AssertionError [ERR_ASSERTION]: []\n    at checkLayout (file:///app/apps/render-container/tests/browser.render.test.mjs:148:12)\n    at async file:///app/apps/render-container/tests/browser.render.test.mjs:219:34"
+}

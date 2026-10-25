@@ -369,3 +369,5 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 [费用与回收](minimax-ninth-attempt/report.json)：6 次新模型已结 **25,312**，19 次计算均物理停止/结算 **18,039** 保守上界，无本轮未知、容量为空、临时密钥回收。共享新增模型已结 **453,700**、原三笔未知 **37,993**，合计占用 **491,693 usd_micros**；原历史 128/14 和开账空值不变。仍无合格候选，不计负责人 4/6。
 
 `b4a53d1` 的最小 [40148619883](https://github.com/ten2ten2/promobento/actions/runs/40148619883) 在首个页面准备时被原运行时规则拒绝：[开场同时返回 timeline 与 render](typography/first-browser-report.json)，没有产生有效布局/像素结果，也未部署到 staging。现把同一开场运动和实际高度排版合并到单一 `render(time)`，不改引擎的互斥规则；只复验本次受影响的 typography 场景。
+
+`f3d7aa7` 的 [40149001200](https://github.com/ten2ten2/promobento/actions/runs/40149001200) 已通过横屏开场和功能网格的布局/字体检查并保存实际 PNG，已查看；随后课程网格的字体检查返回空：[报告](typography/second-browser-report.json)。同一文字槽位在功能/课程镜头复用，测试的全局选择器取到了已隐藏的前一镜头。仅将测试定位收窄到实际可见的 scene/slot，仍要求真实自定义字体；运行时代码与门槛不改，完整像素/其余画幅仍待验。
