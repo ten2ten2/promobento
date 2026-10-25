@@ -34,7 +34,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
   async put(key:string,input:any,options:any){if(objects.has(key)&&options?.onlyIf?.get('If-None-Match')==='*')return null;
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
- let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[];
+ let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[];
  const healthCache=new Map<string,string>();
  const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec;
  // Exercise the native Messages transport at C; F keeps the actual independent DeepSeek binding.
@@ -108,9 +108,11 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
    value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
+   reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
+   assert.equal(input.repairContext,undefined,'cold review stays independent of E repair history');
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');
   if(stage==='directions'&&compactDirections){for(const card of value.cards){delete card.keyframeFilm;card.usesDepth=card.key==='amplify';}}
@@ -146,7 +148,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  try{
   let result:any,error:any;try{result=await new OperationWorkflow({} as any,env).run({payload:{operationId:'mock-operation'}} as any,step);}catch(value){error=value;}
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
-  return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,
+  return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
@@ -180,12 +182,17 @@ test('compact direction cards materialize three real-protocol trusted heroes wit
 });
 test('review repairs the spec once and regenerates review before final/cold review',async()=>{
  const r=await fixture({repair:true});assert.ifError(r.error);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);assert.match(r.result.film.texts.headline.text,/worth watching/);
+ assert.deepEqual(r.reviewRequests[0].repairContext,{previousFilms:[],internalRepairs:0,limit:2});
+ assert.equal(r.reviewRequests[1].repairContext.internalRepairs,1);assert.equal(r.reviewRequests[1].repairContext.previousFilms.length,1);
+ assert.equal(r.reviewRequests[1].repairContext.previousFilms[0].texts.headline.text,filmFixture().texts.headline.text);
+ assert.match(r.reviewRequests[1].film.texts.headline.text,/worth watching/);
 });
 test('cold-review rejection withholds candidate delivery',async()=>{const r=await fixture({coldBlock:true});assert.match(r.error.message,/COLD_REVIEW_BLOCK/);assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/failure.json$/);assert.equal(r.activeStudio,null);});
 test('cold-review correction rerenders every aspect, re-reviews and shares the two internal repairs with E',async()=>{
  const good=await fixture({fixableCold:true,repair:true});assert.ifError(good.error);assert.equal(good.result.internalRepairs,2);assert.equal(good.specRequests,2);
  assert.equal(good.models.filter(stage=>stage==='coldReview').length,2);assert.equal(good.renders.filter((row:any)=>row.id===good.result.final[0].renderId).length,1);
  assert.match(good.result.film.texts.headline.text,/worth watching/);assert.equal(good.renders.length,7);assert.equal(good.reservations,good.settlements);
+ assert.deepEqual(good.reviewRequests.at(-1).repairContext,{previousFilms:[],internalRepairs:2,limit:2},'cold repair starts a new E history but retains the shared allowance');
  const spent=await fixture({twoReviewRepairs:true,coldBlock:true});assert.equal(spent.error.message,'COLD_REVIEW_BLOCK');assert.equal(spent.specRequests,1);assert.equal(spent.models.filter(stage=>stage==='coldReview').length,1);assert.equal(spent.models.filter(stage=>stage==='review').length,3);
 });
 test('missing later key, unverified integration and missing rights stop before any model request',async()=>{
@@ -222,6 +229,7 @@ test('director preparation/cleanup preserve the first cause, and internal repair
  assert.equal(parseCanonicalJson(missing.outbox.find((row:any)=>row.kind==='operation_failure').payload_json).code,'DIRECTOR_CONTEXT_MISSING');
  const limit=await fixture({alwaysRepair:true});assert.equal(limit.error.message,'DIRECTOR_REPAIR_LIMIT');assert.equal(limit.state.status,'failed');
  assert.equal(limit.models.filter(stage=>stage==='review').length,3);assert.equal(limit.renders.length,3);assert.equal(limit.models.includes('coldReview'),false);
+ assert.equal(limit.reviewRequests.at(-1).repairContext.internalRepairs,2);assert.equal(limit.reviewRequests.at(-1).repairContext.previousFilms.length,2);
 });
 test('environment preflight is refreshed after user wait, and a broken renderer spends no model tokens',async()=>{
  const good=await fixture();assert.ifError(good.error);assert.equal(good.studioCount,5);assert.equal(good.closedCount,5);assert.equal(good.reservations,6);

@@ -1,0 +1,752 @@
+{
+    "id": "final-eval-minimax-15-1792894943297",
+    "params": {
+        "renderId": "final-eval-minimax-15-1792894943297"
+    },
+    "trigger": {
+        "source": "binding"
+    },
+    "versionId": "ad944274-1d5e-453a-86d4-bb684ab210a5",
+    "queued": "2026-10-25T02:22:35.260Z",
+    "start": "2026-10-25T02:22:38.085Z",
+    "end": "2026-10-25T02:23:44.835Z",
+    "success": true,
+    "error": null,
+    "output": {
+        "media": {
+            "bytes": 5012677,
+            "durationSeconds": 15,
+            "fps": 30,
+            "hasAudio": true,
+            "height": 1080,
+            "maxWindowBitrate": 5854264,
+            "reencoded": false,
+            "totalFrames": 450,
+            "width": 1920
+        },
+        "observationFrames": [
+            {
+                "byteLength": 114051,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/observation-frames/45.png",
+                "mediaType": "image/png",
+                "sha256": "a5caec647b5cea87c1c4d7e99e4fe10a4931ba4f6d9ff285a98db728dd6db6de"
+            },
+            {
+                "byteLength": 144920,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/120.png",
+                "mediaType": "image/png",
+                "sha256": "ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2"
+            },
+            {
+                "byteLength": 144920,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/135.png",
+                "mediaType": "image/png",
+                "sha256": "ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2"
+            },
+            {
+                "byteLength": 120502,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/observation-frames/225.png",
+                "mediaType": "image/png",
+                "sha256": "65885aeea2d796adf1d09a10a80d9c94fb5dc30ce0383fc7bb93bedf04463760"
+            },
+            {
+                "byteLength": 120502,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/observation-frames/270.png",
+                "mediaType": "image/png",
+                "sha256": "65885aeea2d796adf1d09a10a80d9c94fb5dc30ce0383fc7bb93bedf04463760"
+            },
+            {
+                "byteLength": 77989,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/observation-frames/390.png",
+                "mediaType": "image/png",
+                "sha256": "b3edaa9e8fbff3a8286bf887473aee78c3c0da4d46f505985eabaa509bbd6508"
+            },
+            {
+                "byteLength": 77989,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/observation-frames/397.png",
+                "mediaType": "image/png",
+                "sha256": "b3edaa9e8fbff3a8286bf887473aee78c3c0da4d46f505985eabaa509bbd6508"
+            }
+        ],
+        "outputs": [
+            {
+                "byteLength": 5012677,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/film.mp4",
+                "mediaType": "video/mp4",
+                "sha256": "e12bff41b360152db52043fc9da39f40e884b6ddd9e2699247d6dc1d27dc47df"
+            },
+            {
+                "byteLength": 185255,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/poster.png",
+                "mediaType": "image/png",
+                "sha256": "bbe5a2940efc662c8fe93e2caf77eac3d3d39c3d1271939e7f3926bbe230025b"
+            },
+            {
+                "byteLength": 153,
+                "key": "renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/report.json",
+                "mediaType": "application/json",
+                "sha256": "665128b180784b165e74a1e909756e242642680b0b8b4ca64da41276bf9bf793"
+            }
+        ],
+        "peakMemory": {
+            "measurements": [
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 0
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 1
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 2
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 3
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 4
+                },
+                {
+                    "peakMemoryMiB": null,
+                    "peakMemoryUnavailableReason": "cgroup_peak_not_exposed",
+                    "shardIndex": 5
+                }
+            ],
+            "status": "unverified"
+        },
+        "renderId": "final-eval-minimax-15-1792894943297",
+        "seamReport": {
+            "kind": "seam_report",
+            "renderId": "final-eval-minimax-15-1792894943297",
+            "schemaVersion": "3.0.0",
+            "seams": [
+                {
+                    "diffPixelPct": 0,
+                    "frame": 74,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 149,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 224,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 299,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                },
+                {
+                    "diffPixelPct": 0,
+                    "frame": 374,
+                    "identical": true,
+                    "maxChannelDiff": 0,
+                    "verdict": "pass"
+                }
+            ]
+        },
+        "status": "passed"
+    },
+    "rollback": null,
+    "status": "complete",
+    "step_count": 24,
+    "steps": [
+        {
+            "name": "load-render-1",
+            "start": "2026-10-25T02:22:38.280Z",
+            "end": "2026-10-25T02:22:38.339Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:38.280Z",
+                    "end": "2026-10-25T02:22:38.339Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"created_at\":1792894952266,\"finished_at\":null,\"generation\":0,\"id\":\"final-eval-minimax-15-1792894943297\",\"job_key\":\"renders/final-eval-minimax-15-1792894943297/input.json\",\"operation_id\":\"eval-minimax-15-1792894943297\",\"request_hash\":\"de048e82ac1c7a1ce8027537a0f59c9013cada5696f6e500f470905d9cfd3acd\",\"result_json\":null,\"status\":\"queued\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "claim-execution-1",
+            "start": "2026-10-25T02:22:38.365Z",
+            "end": "2026-10-25T02:22:38.622Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:38.365Z",
+                    "end": "2026-10-25T02:22:38.622Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "load-input-1",
+            "start": "2026-10-25T02:22:38.649Z",
+            "end": "2026-10-25T02:22:38.951Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:38.649Z",
+                    "end": "2026-10-25T02:22:38.951Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"audioInputs\":{\"clearedSources\":[{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"music\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_thud\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_tick\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_pop\"},{\"licenseRef\":\"LicenseRef-PromoBento-Generated-Audio\",\"rightsCleared\":true,\"sourceId\":\"sfx_chime\"}],\"seed\":\"s1-eval-minimax-15\"},\"audioInputsBlobs\":[{\"byteLength\":1449,\"key\":\"evals/eval-minimax-15-1792894943297/audio-plan.json\",\"name\":\"audio-plan\",\"sha256\":\"39bed718c85f98ddc92051cc7a7954674bf57513da9ef28927a18213de339241\"}],\"coverFrame\":247,\"inputs\":[{\"byteLength\":4788,\"key\":\"evals/eval-minimax-15-1792894943297/final-film.json\",\"name\":\"film\",\"sha256\":\"539745453a16c485f9f0d160667ffba39088a74d3c5df428f8a48b86bc0b71d3\"},{\"byteLength\":189605,\"key\":\"evals/materials-20261024-reviewed/minimax/minimax-i[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "deadline-1",
+            "start": "2026-10-25T02:22:39.278Z",
+            "end": "2026-10-25T02:22:39.303Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.278Z",
+                    "end": "2026-10-25T02:22:39.303Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "1792895102266",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-sharding-1",
+            "start": "2026-10-25T02:22:39.330Z",
+            "end": "2026-10-25T02:22:39.422Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.330Z",
+                    "end": "2026-10-25T02:22:39.422Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.755Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.755Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.755Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.755Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "6e805234-6e4e-487e-acb4-0b4a83154da2",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.758Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.758Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "33a77fb6-ce37-468b-b855-2f7b82f47db8",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.760Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.760Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "d90c1b57-e986-434f-acc6-50365b8bd364",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.770Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.770Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "35166617-7d65-46a8-820c-f2d361c348e9",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.771Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.771Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "0a0a5e7d-3ce7-4823-b331-392c6853f28e",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-id-1",
+            "start": "2026-10-25T02:22:39.750Z",
+            "end": "2026-10-25T02:22:39.775Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.750Z",
+                    "end": "2026-10-25T02:22:39.775Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "bcf9fe1a-9bd0-41c4-b0d0-5e9121b3aa11",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-0-1",
+            "start": "2026-10-25T02:22:39.775Z",
+            "end": "2026-10-25T02:23:17.384Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.775Z",
+                    "end": "2026-10-25T02:23:17.384Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":1,\"capacityWaitMs\":249,\"containerReadyMs\":16334},\"outputs\":[{\"byteLength\":6666,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"b4b4336ae6e7252d4af37581966d3ad0ee737dda13e233140e215f67de715ff5\"},{\"byteLength\":114051,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/observation-frames/45.png\",\"mediaType\":\"image/png\",\"sha256\":\"a5caec647b5cea87c1c4d7e99e4fe10a4931ba4f6d9ff285a98db728dd6db6de\"},{\"byteLength\":1004,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"9bd893e6c4974be1769d55c683facb0275293ca014aa5925cff8117eff132720\"},{\"byteLength\":1581,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/receipt.json\",\"mediaType\":\"applicat[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-1-1",
+            "start": "2026-10-25T02:22:39.776Z",
+            "end": "2026-10-25T02:23:26.564Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.776Z",
+                    "end": "2026-10-25T02:23:26.564Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":230,\"containerReadyMs\":16175},\"outputs\":[{\"byteLength\":6726,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"2a5290bb562eacd0455c54ddc6a9a7e379b7d20192436f7d48b0781ac16d6718\"},{\"byteLength\":144920,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/120.png\",\"mediaType\":\"image/png\",\"sha256\":\"ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2\"},{\"byteLength\":144920,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/135.png\",\"mediaType\":\"image/png\",\"sha256\":\"ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2\"},{\"byteLength\":351,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observations.json\",\"mediaType\":[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-2-1",
+            "start": "2026-10-25T02:22:39.777Z",
+            "end": "2026-10-25T02:23:15.384Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.777Z",
+                    "end": "2026-10-25T02:23:15.384Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":1,\"capacityWaitMs\":239,\"containerReadyMs\":14466},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/33a77fb6-ce37-468b-b855-2f7b82f47db8/shards/2/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"99ba988c5086cbf006878798f728f5bce5fc900c232dd8cb3cd350fd76f6a8db\"},{\"byteLength\":2,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/33a77fb6-ce37-468b-b855-2f7b82f47db8/shards/2/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\"},{\"byteLength\":1650,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/33a77fb6-ce37-468b-b855-2f7b82f47db8/shards/2/receipt.json\",\"mediaType\":\"application/json\",\"sha256\":\"145020573ed51a4a81a7cb9a107b5fdb7d35d64e753a773fd769f7cbdb4569bb\"},{\"byteLength\":1650,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/33a77fb6-ce37-468b-b855-2f7b82f47db8/shards/2/report.json\",\"mediaType\":\"application/json\",\"s[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-3-1",
+            "start": "2026-10-25T02:22:39.778Z",
+            "end": "2026-10-25T02:23:16.357Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.778Z",
+                    "end": "2026-10-25T02:23:16.357Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":1,\"capacityWaitMs\":171,\"containerReadyMs\":15166},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"d0c5030f01d34489ec8e5321c233f0942ef810358c671a87e00e406a52148f32\"},{\"byteLength\":120502,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/observation-frames/225.png\",\"mediaType\":\"image/png\",\"sha256\":\"65885aeea2d796adf1d09a10a80d9c94fb5dc30ce0383fc7bb93bedf04463760\"},{\"byteLength\":120502,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/observation-frames/270.png\",\"mediaType\":\"image/png\",\"sha256\":\"65885aeea2d796adf1d09a10a80d9c94fb5dc30ce0383fc7bb93bedf04463760\"},{\"byteLength\":4365,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d90c1b57-e986-434f-acc6-50365b8bd364/shards/3/observations.json\",\"mediaType\"[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-4-1",
+            "start": "2026-10-25T02:22:39.778Z",
+            "end": "2026-10-25T02:23:14.973Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.778Z",
+                    "end": "2026-10-25T02:23:14.973Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":226,\"containerReadyMs\":16107},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/35166617-7d65-46a8-820c-f2d361c348e9/shards/4/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"c5f3d8718b60e8613416df9c770fea91e513e2a6f7ab36c2f3fb82936dfb1eac\"},{\"byteLength\":2,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/35166617-7d65-46a8-820c-f2d361c348e9/shards/4/observations.json\",\"mediaType\":\"application/json\",\"sha256\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\"},{\"byteLength\":1654,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/35166617-7d65-46a8-820c-f2d361c348e9/shards/4/receipt.json\",\"mediaType\":\"application/json\",\"sha256\":\"0d5dad1df665a475506841e859ca959be02f7d19aa1d19803a5aad225f6b6b1d\"},{\"byteLength\":1654,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/35166617-7d65-46a8-820c-f2d361c348e9/shards/4/report.json\",\"mediaType\":\"application/json\",\"s[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "shard-5-1",
+            "start": "2026-10-25T02:22:39.780Z",
+            "end": "2026-10-25T02:23:14.326Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.780Z",
+                    "end": "2026-10-25T02:23:14.326Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":205,\"containerReadyMs\":14377},\"outputs\":[{\"byteLength\":6751,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/frame-digests.json\",\"mediaType\":\"application/json\",\"sha256\":\"0c4c7d4552ae7635c78f6622ee4d2b1363165a785dccfc06141a173f9801b1f6\"},{\"byteLength\":77989,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/observation-frames/390.png\",\"mediaType\":\"image/png\",\"sha256\":\"b3edaa9e8fbff3a8286bf887473aee78c3c0da4d46f505985eabaa509bbd6508\"},{\"byteLength\":77989,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/observation-frames/397.png\",\"mediaType\":\"image/png\",\"sha256\":\"b3edaa9e8fbff3a8286bf887473aee78c3c0da4d46f505985eabaa509bbd6508\"},{\"byteLength\":1875,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/0a0a5e7d-3ce7-4823-b331-392c6853f28e/shards/5/observations.json\",\"mediaType\":\"[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "audio-1",
+            "start": "2026-10-25T02:22:39.780Z",
+            "end": "2026-10-25T02:22:58.784Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:22:39.780Z",
+                    "end": "2026-10-25T02:22:58.784Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":1,\"capacityWaitMs\":194,\"containerReadyMs\":10827},\"outputs\":[{\"byteLength\":2880078,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/bcf9fe1a-9bd0-41c4-b0d0-5e9121b3aa11/audio/mixed.wav\",\"mediaType\":\"audio/wav\",\"sha256\":\"27776fcad8f2feee83581f8d0e1a615cee55abb3283cb18d3d2be09ab326ad0b\"},{\"byteLength\":106,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/bcf9fe1a-9bd0-41c4-b0d0-5e9121b3aa11/audio/report.json\",\"mediaType\":\"application/json\",\"sha256\":\"2ef1dea1592f9054e6beed4836845ad4307a9d4e655f35e35f4897a48f981fa1\"}],\"report\":{\"correction\":null,\"lufs\":-14.01,\"path\":\"mixed.wav\",\"sampleFrames\":720000,\"silent\":false,\"truePeak\":-1.32},\"status\":\"succeeded\",\"taskId\":\"bcf9fe1a-9bd0-41c4-b0d0-5e9121b3aa11\"}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "verify-shards-1",
+            "start": "2026-10-25T02:23:26.586Z",
+            "end": "2026-10-25T02:23:32.541Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:23:26.586Z",
+                    "end": "2026-10-25T02:23:32.541Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"kind\":\"seam_report\",\"renderId\":\"final-eval-minimax-15-1792894943297\",\"schemaVersion\":\"3.0.0\",\"seams\":[{\"diffPixelPct\":0,\"frame\":74,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":149,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":224,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":299,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"},{\"diffPixelPct\":0,\"frame\":374,\"identical\":true,\"maxChannelDiff\":0,\"verdict\":\"pass\"}]}",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "mark-assembling-1",
+            "start": "2026-10-25T02:23:32.574Z",
+            "end": "2026-10-25T02:23:32.761Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:23:32.574Z",
+                    "end": "2026-10-25T02:23:32.761Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "true",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "assemble-id-1",
+            "start": "2026-10-25T02:23:32.792Z",
+            "end": "2026-10-25T02:23:32.822Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:23:32.792Z",
+                    "end": "2026-10-25T02:23:32.822Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 5,
+                    "delay": 10000,
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "4af139c9-e3ab-433d-bcf0-22b113485d03",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "assemble-1",
+            "start": "2026-10-25T02:23:32.854Z",
+            "end": "2026-10-25T02:23:44.505Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:23:32.854Z",
+                    "end": "2026-10-25T02:23:44.505Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"lifecycleTimings\":{\"brokerRegistrationMs\":2,\"capacityWaitMs\":140,\"containerReadyMs\":1772},\"outputs\":[{\"byteLength\":5012677,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/film.mp4\",\"mediaType\":\"video/mp4\",\"sha256\":\"e12bff41b360152db52043fc9da39f40e884b6ddd9e2699247d6dc1d27dc47df\"},{\"byteLength\":185255,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/poster.png\",\"mediaType\":\"image/png\",\"sha256\":\"bbe5a2940efc662c8fe93e2caf77eac3d3d39c3d1271939e7f3926bbe230025b\"},{\"byteLength\":153,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/4af139c9-e3ab-433d-bcf0-22b113485d03/out/report.json\",\"mediaType\":\"application/json\",\"sha256\":\"665128b180784b165e74a1e909756e242642680b0b8b4ca64da41276bf9bf793\"}],\"report\":{\"bytes\":5012677,\"durationSeconds\":15,\"fps\":30,\"hasAudio\":true,\"height\":1080,\"maxWindowBitrate\":5854264,\"reencoded\":false,\"totalFrames\":450,\"width\":1920},\"status\":\"succeeded\",\"taskId\":\"4af139c9-e3ab-433[truncated output]",
+            "success": true,
+            "type": "step"
+        },
+        {
+            "name": "commit-render-1",
+            "start": "2026-10-25T02:23:44.523Z",
+            "end": "2026-10-25T02:23:44.809Z",
+            "attempts": [
+                {
+                    "start": "2026-10-25T02:23:44.523Z",
+                    "end": "2026-10-25T02:23:44.809Z",
+                    "success": true,
+                    "error": null
+                }
+            ],
+            "config": {
+                "retries": {
+                    "limit": 0,
+                    "delay": "1 second",
+                    "backoff": "exponential"
+                },
+                "timeout": "10 minutes"
+            },
+            "output": "{\"media\":{\"bytes\":5012677,\"durationSeconds\":15,\"fps\":30,\"hasAudio\":true,\"height\":1080,\"maxWindowBitrate\":5854264,\"reencoded\":false,\"totalFrames\":450,\"width\":1920},\"observationFrames\":[{\"byteLength\":114051,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/d52fe662-ef85-4b5f-85f4-aeb6f3b9ea1c/shards/0/observation-frames/45.png\",\"mediaType\":\"image/png\",\"sha256\":\"a5caec647b5cea87c1c4d7e99e4fe10a4931ba4f6d9ff285a98db728dd6db6de\"},{\"byteLength\":144920,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/120.png\",\"mediaType\":\"image/png\",\"sha256\":\"ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2\"},{\"byteLength\":144920,\"key\":\"renders/final-eval-minimax-15-1792894943297/attempts/6e805234-6e4e-487e-acb4-0b4a83154da2/shards/1/observation-frames/135.png\",\"mediaType\":\"image/png\",\"sha256\":\"ffdc142d6380d55e2d764aacba0b498ff14cbd5a3aa1c7630214d284892e4ac2\"},{\"byteLength\":120502,\"key\":\"renders/final-eval-minimax-15-1792894943297/a[truncated output]",
+            "success": true,
+            "type": "step"
+        }
+    ]
+}

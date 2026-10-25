@@ -50,7 +50,7 @@ async function execute(input) {
     return bytes('resource:' + resourceId);
   };
   const config = {width: rules.aspectLayouts[input.job.aspectId].width, height: rules.aspectLayouts[input.job.aspectId].height,
-    encoding: rules.encodingProfiles.mp4_h264_1080_v1, threads: input.instance === 'standard-4' ? 4 : input.mode === 'audio' ? 1 : 2};
+    encoding: rules.encodingProfiles.mp4_h264_1080_v1, threads: input.mode === 'audio' ? 1 : input.instance === 'standard-4' ? 4 : input.instance === 'standard-3' ? 2 : 1};
   if (input.job.quality === 'review') { config.encoding = {...config.encoding, fps: 15, targetVideoBitrate: 2000000, maxVideoBitrate: 2500000}; }
   const prefix = 'renders/' + input.job.renderId + '/attempts/' + input.taskId + (input.mode === 'shard' ? '/shards/' + input.shard.index : input.mode === 'audio' ? '/audio' : '/out');
   let report;

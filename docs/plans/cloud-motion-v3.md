@@ -643,7 +643,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
       - 宽高、`yuv420p`、BT.709、profile 与 level 一致；
       - `-g 15 -keyint_min 15 -sc_threshold 0`，闭合 GOP；
       - **`-bf 0`**：不用 B 帧，避免拼接处 DTS 不单调；
-      - `-threads` 等于实例的 vCPU 配额（standard-3 为 2，standard-4 为 4），不按 VM 内看到的 `nproc`；
+      - `-threads` 等于实例的 vCPU 配额（standard-2 为 1、standard-3 为 2、standard-4 为 4），不按 VM 内看到的 `nproc`；
       - 初始编码同样使用[渲染服务](../../apps/render-container/README.md)的窗口余量，拼接后实测一秒码率；**无音频**；
       - 输出 Annex B 裸流 `shard.h264`，不封装成 mp4。
    6. **输出**：`shard.h264`、`frame-digests.json`、`seam-frames/*.png`、`observations.json`、`receipt.json`。回执包括：
@@ -918,6 +918,8 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **轮数**：最多 2 轮（`maxInternalRepairs`）。
 
 当前 S1 将已捕获的全部阅读停留 PNG 按画幅拼图，并绑定格子/source/frame 与实际成片引用，不再只截前 12/16 张。每秒图、完整 Q1/Q2 发现与运动/声音曲线仍按本节目标接齐；实际范围见[实施状态](../implementation-status.md)。
+
+E 同时接收当前候选已经应用过的历史规格，以及共用的已用/上限次数，用来核对前次修稿，避免无依据反转已处理的选择；冷审修复后的新一轮 E 重置该历史，但不重置次数。F 不接收 E 的修稿历史或次数，仍独立按原需求和当前成片判断。次数耗尽时发现问题仍落原失败，不自动提交。
 
 ### 6.7 阶段 F：冷审与提交
 
