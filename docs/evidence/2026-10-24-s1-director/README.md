@@ -348,3 +348,14 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 当前将 `cta-endcard@1` 实现升为 1.0.1：按已适配的实际文字高度居中排列 CTA/URL，Logo 或短线与文字同组、共同入场；原文字、字号下限、点选和音效事件不变。同时在原 showcase 参数描述中说明 focus 只是高亮、不放大，密集素材可省去伴随标题以给图片更多面积。新增四画幅带 Logo 与 CTA/URL 间距检查，实际布局/冷审待验；不更改任何成片质量、费用或修复门槛。
 
 [本轮回执](ielts-third-attempt/report.json)：5 次模型已结 **24,267**、29 次计算全部停止/结算 **34,299** 保守上界，无本轮未知、容量为空、密钥回收。共享新增模型已结 **428,388**，三笔未知 **37,993**，合计占用 **466,381 usd_micros**。
+
+
+### 新片尾的四画幅检查通过
+
+`918e5d5` 的 [40146197967](https://github.com/ten2ten2/promobento/actions/runs/40146197967) 在固定 Chromium 151.0.7922.34 取得[原 72 次比较全零差异](closing-layout/browser-report.json)，四画幅 CTA/URL 间距、原安全区/字体/点选及带 Logo 的四组布局均通过。已查看横竖默认片尾及 feed/方形 Logo 版，CTA 与网址成组、不再相距半屏。报告收尾也实际通过，原变量错误不再列为未验证；不重跑旅程/showcase 专项、媒体或配乐。真实 IELTS 与独立冷审另行验证。
+
+
+[40146200239](https://github.com/ten2ten2/promobento/actions/runs/40146200239) 在 `918e5d562afa5bfcb3cf578c04f6b8a4dc0e9283` 构建/部署成功，新镜像 **`sha256:dbacb2d070778aa6eeda1d0bc8874a8f57012270e7132024b0e43cb89b7aa021`**，Worker `bc55b664-692a-41e2-9c44-ce2172d28aeb`。首次真实操作 `eval-ielts-ready-15-1792887960107` 在导演的独立容器健康预检返回 `RENDER_STARTUP_TIMEOUT`，没有调用任何模型、生成方向或提交作品；[唯一计算](closing-layout/director-startup-failure.json)在 45.492 秒停止并结算 **2,781 usd_micros**，未结/容量为空、临时密钥回收。不能用部署健康或 CI 代替该容器通过，也不能由空 attempts 推断零计算（该路径为 studio 模式）。保留启动上限与失败，转用已付费规格的模型零调用原生 review 核对新镜像启动与实际片尾，不反复付费重跑导演。
+
+
+随后操作 `eval-ielts-ready-15-1792888290389` 在同一新镜像沿用 IELTS 第一份完整付费 C、原素材/字体/seed，只走原生 review。[实际媒体](closing-layout/native-review-render.json)在 **53,824 ms** 交付，149/299 帧均零差异；15 秒、960×540、15 fps、225 帧、有 AAC，原有 VBV 纠正后峰值 **1,440,384 ≤ 2,500,000 bit/s**。新镜像的容器启动/沙箱、实际片尾与媒体路径已取得成功回执，但首次健康预检超时的内部原因仍未知，未增加上限或抹掉失败。已查看实际 MP4 片尾，CTA 与网址确已紧密成组；完整 1× 播放无错误/掉帧，[解码](closing-layout/native-decoded-video.json)。[五次计算](closing-layout/native-report.json)全部停止/结算 **6,427 usd_micros**，0 模型、无未结/容量、密钥回收。该回归不计成功导演或负责人通过，接着用 MiniMax 真实界面区分通用导演与 IELTS 图文密度问题。
