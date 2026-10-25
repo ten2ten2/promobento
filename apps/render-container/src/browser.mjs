@@ -5,6 +5,7 @@ import {generateFilmPage} from '../../../packages/film-runtime/dist/page.mjs';
 import {deadline} from './process.mjs';
 import {observe} from './observe.mjs';
 import {pageIsolation} from './isolation.mjs';
+import {inRenderPhase} from './failure.mjs';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -61,10 +62,10 @@ export async function filmSession({raw, options, browserVersion, resource, video
   try {
     const connectStarted = performance.now();
     signal?.throwIfAborted();
-    browser = await chromium.connectOverCDP(endpoint, {timeout: options.initTimeoutMs});
+    browser = await inRenderPhase({phase:'browser_connect'},()=>chromium.connectOverCDP(endpoint, {timeout: options.initTimeoutMs}));
     if (browser.version() !== browserVersion) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-    context = await browser.newContext({viewport: {width: plan.target.width, height: plan.target.height}, deviceScaleFactor: 1});
-    page = await context.newPage();
+    context = await inRenderPhase({phase:'browser_context'},()=>browser.newContext({viewport: {width: plan.target.width, height: plan.target.height}, deviceScaleFactor: 1}));
+    page = await inRenderPhase({phase:'browser_context'},()=>context.newPage());
     const sandbox = sandboxState();
     const cdp = await context.newCDPSession(page);
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', {source: scripts.get('/runtime/shim.js').toString()});
@@ -74,17 +75,17 @@ export async function filmSession({raw, options, browserVersion, resource, video
     const url = `http://127.0.0.1:${server.address().port}/film.html`;
     const connectedAt = performance.now();
     await deadline((async () => {
-      await page.goto(url, {waitUntil: 'load', timeout: options.initTimeoutMs});
-      await page.waitForFunction(() => window.__omReady || window.__omBootFailed, null, {timeout: options.initTimeoutMs});
+      await inRenderPhase({phase:'page_load'},()=>page.goto(url, {waitUntil: 'load', timeout: options.initTimeoutMs}));
+      await inRenderPhase({phase:'runtime_ready'},()=>page.waitForFunction(() => window.__omReady || window.__omBootFailed, null, {timeout: options.initTimeoutMs}));
       const failure = await page.evaluate(() => window.__omBootFailed);
       if (failure || pageError) throw Error(failure ?? pageError);
     })(), options.initTimeoutMs, 'INIT_TIMEOUT', cancel);
     const scope = {protocolVersion: '3.0.0', sessionId: crypto.randomUUID(), revisionId: crypto.randomUUID(), aspectId: plan.target.aspect};
     let sequence = 0, closed = false, currentFrame = -1;
     const envelope = command => ({...scope, command, sequence: ++sequence, requestId: crypto.randomUUID()});
-    await page.evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
+    await inRenderPhase({phase:'runtime_init'},()=>page.evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
       manifestHash: plan.manifestHash, frameCount: plan.spec.totalFrames, width: plan.target.width, height: plan.target.height,
-      fps: 30, seed: plan.seed, renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'}});
+      fps: 30, seed: plan.seed, renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'}}));
     const webgl=await page.evaluate(()=>[...document.querySelectorAll('canvas[data-pb-webgl]')].map(canvas=>{
       const gl=canvas.getContext('webgl2');if(!gl||gl.isContextLost())throw Error('WEBGL_CONTEXT_UNAVAILABLE');
       const extension=gl.getExtension('WEBGL_debug_renderer_info');
@@ -100,14 +101,14 @@ export async function filmSession({raw, options, browserVersion, resource, video
         signal?.throwIfAborted();
         const input = {...envelope('seek'), frameIndex};
         return deadline((async () => {
-          const ready = await page.evaluate(input => window.__omEngine.seekFrame(input), input);
+          const ready = await inRenderPhase({phase:'frame_seek',frame:frameIndex},()=>page.evaluate(input => window.__omEngine.seekFrame(input), input));
           for (const key of ['protocolVersion', 'sessionId', 'revisionId', 'aspectId', 'requestId', 'sequence', 'frameIndex'])
             if (ready[key] !== input[key]) throw Error('FRAME_ACK_MISMATCH');
           if (ready.event !== 'frame-ready' || ready.manifestHash !== plan.manifestHash) throw Error('FRAME_ACK_MISMATCH');
           if (pageError) throw Error(pageError);
-          const screenshot = await cdp.send('Page.captureScreenshot', {format, ...(format === 'jpeg' ? {quality} : {}),
+          const screenshot = await inRenderPhase({phase:'frame_capture',frame:frameIndex},()=>cdp.send('Page.captureScreenshot', {format, ...(format === 'jpeg' ? {quality} : {}),
             optimizeForSpeed: true, fromSurface: true, captureBeyondViewport: false,
-            clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}});
+            clip: {x: 0, y: 0, width: plan.target.width, height: plan.target.height, scale: captureScale}}));
           currentFrame = frameIndex;
           return Buffer.from(screenshot.data, 'base64');
         })(), options.frameTimeoutMs, 'FRAME_TIMEOUT', cancel);

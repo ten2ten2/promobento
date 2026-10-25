@@ -42,3 +42,5 @@ WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真�
 分段回执新增可选的 `timings.frameCaptureMs`，按实际编码的源帧顺序记录 seek、ready 确认与 JPEG 截图的毫秒耗时，排除编码器背压、QA 和额外接缝 PNG；历史回执不要求补值。`renderMs` 继续表示原分段阶段总耗时，不能当作逐帧分布。Cloudflare DO 另记录等名额和新实例启动至控制器健康响应的时间；原 `readyMs` 仍仅为 CDP 连接耗时。
 
 内存峰值读取 cgroup v2 `memory.peak` 或同义的 v1 `memory.max_usage_in_bytes`；不会用控制器自身 RSS 或 0 冒充整个实例的峰值。接口均未暴露时，分段回执必须写 `peakMemoryMiB:null` 和 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，整片报告汇总为 `peakMemory.status:"unverified"`；继续内部出片与 S1 出口按[负责人决定](../../docs/evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)处理。权限错误或无效读数仍阻断。文件系统失败只保留受限系统路径与 syscall，不记录 broker 令牌或完整用户输入。取消/超时并发时，DO 原子固定同一 usage，D1 结算冲突检查与停止时间记录可重放。
+
+内部失败回执补充可信阶段（浏览器启动、seek、截图、编码写入、观测、拼接／声音或上传）、有限帧号及白名单系统码。媒体诊断只保留进程名、退出码／信号和已知错误特征；不序列化原始异常消息、堆栈、URL、请求头或 FFmpeg stderr。最内层阶段随原错误保留，不更改重试类别、预算、期限或停止／结算规则。

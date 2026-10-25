@@ -11,8 +11,10 @@ import {probeReviewRender} from './probe-review-render.mjs';
 import {readApprovedMusic,admitMusic} from './admit-music.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--score','--music'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
+if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--score','--music'].includes(modeArg)||!sourceArg))throw Error('EVAL_MODE_INVALID');
+if(extra.length&&(!['--check-review-render','--check-final-render'].includes(modeArg)||extra.length!==2||!['--score','--music'].includes(extra[0])||!extra[1]))throw Error('EVAL_MODE_INVALID');
 const probeSource=modeArg?.startsWith('--check-')?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
+const musicMode=['--score','--music'].includes(modeArg)?modeArg:extra[0],musicFile=musicMode===modeArg?sourceArg:extra[1];
 if(probeSource&&!probeSource.startsWith(resolve('artifacts')+'/')&&!probeSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_COMPLETED_RECEIPT_REQUIRED');
 if(!inputArg||!outputArg||![input,output].every(path=>path.startsWith(resolve('artifacts')+'/'))||existsSync(output))throw Error('NEW_PRIVATE_EVAL_OUTPUT_REQUIRED');
 const read=path=>parseCanonicalJson(readFileSync(path)),manifest=read(join(input,'manifest.json'));
@@ -23,7 +25,7 @@ const context=read(join(input,item.contextFile));
 if(context.scope!=='internal_eval_only'||context.publicUseCleared!==false||context.rendererRelease!==manifest.rendererRelease
  ||context.factConfirmation.confirmedBy!=='owner'||canonical(context.aspects)!==canonical(['landscape','portrait']))throw Error('CONFIRMED_CONTEXT_REQUIRED');
 if(!/^renderer-[a-f0-9]{12}$/.test(context.rendererRelease))throw Error('PINNED_RENDERER_SOURCE_REQUIRED');
-const music=['--score','--music'].includes(modeArg)?readApprovedMusic(modeArg==='--score'?'score':'upload',resolve(sourceArg),context.durationSeconds*30):null;
+const music=musicMode?readApprovedMusic(musicMode==='--score'?'score':'upload',resolve(musicFile),context.durationSeconds*30):null;
 const rendererSourceSha=execFileSync('git',['rev-parse',context.rendererRelease.slice(9)+'^{commit}'],{encoding:'utf8'}).trim();
 const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/cloud','exec','wrangler',...args],
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-eval-cli.log'},encoding:'utf8',timeout:60000,...options});
@@ -87,8 +89,11 @@ try{
  operationAttempted=true;
  await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'s1-'+item.topicId,purpose:'evaluation',maxMicros:3000000}});
  for(const admission of item.rightsAdmissions)await call('rights',{method:'POST',body:{operationId,...admission}});
+ let externalMusic;
  if(music){
   const admitted=await admitMusic(music,{operationId,prefix,json,call});
+  externalMusic={...admitted.source,licenseRef:music.licenseRef,approvals:music.approval.scoreApprovals,
+   ...(music.kind==='score'?{text:new TextDecoder('utf-8',{fatal:true}).decode(music.bytes)}:{})};
   context.audioSources=[...(context.audioSources??[]),admitted.source];
   context.music={allowedKinds:[music.kind],required:admitted.selector,
    instruction:'Use this supplied owner-approved original music, unmuted, for the full film. Keep the original melody at 96 BPM; the 15-second film uses its first half. SFX may follow the film events.'};
@@ -100,7 +105,7 @@ try{
   report.layout=await probeCardLayout({receipt:read(layoutSource),context,operationId,prefix,output,json,call});
   report.status='layout_validated';report.finishedAt=new Date().toISOString();save();
  }else if(probeSource){
-  report[probeQuality]=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping,quality:probeQuality});
+  report[probeQuality]=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping,quality:probeQuality,externalMusic});
   report.status=probeQuality+'_render_validated';report.finishedAt=new Date().toISOString();save();
  }else{
  await json('creative',{method:'POST',body:{operationId,contextKey:object.key}});

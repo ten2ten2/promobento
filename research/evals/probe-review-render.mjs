@@ -5,8 +5,8 @@ import {join} from 'node:path';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {renderPageTiming,planShards,renderDeadlineMs} from '@promobento/contracts/render';
-import {deriveAudioPlan,audioPlanHash,GENERATED_LICENSE} from '../../packages/audio/src/plan.mjs';
-import {filmBlockEvents} from '../../packages/blocks/src/events.mjs';
+import {audioPlanHash} from '../../packages/audio/src/plan.mjs';
+import {directorAudio} from '../../apps/cloud/src/director-audio.ts';
 import {parseModelJson} from '../../packages/models/src/adapters.mjs';
 import platform from '../../config/platform-presets.json' with {type:'json'};
 import policy from '../../config/agent-policy.json' with {type:'json'};
@@ -24,26 +24,30 @@ export function completedReviewFilm(receipt){
  throw Error('COMPLETED_FILM_RECEIPT_REQUIRED');
 }
 
-export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping,quality='review'}){
+export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping,quality='review',externalMusic}){
  if(!['review','final'].includes(quality))throw Error('FILM_PROBE_QUALITY_INVALID');
  const {film,sourceKind}=completedReviewFilm(receipt);
  if(film.durationSeconds!==context.durationSeconds||film.scenes.some(scene=>scene.kind!=='block')||film.audio.voice
-  ||!['procedural','none'].includes(film.audio.music.kind))throw Error('TRUSTED_BLOCK_GENERATED_AUDIO_REVIEW_REQUIRED');
+  ||!externalMusic&&!['procedural','none'].includes(film.audio.music.kind))throw Error('TRUSTED_BLOCK_GENERATED_AUDIO_REVIEW_REQUIRED');
+ if(externalMusic){
+  const selector=externalMusic.kind==='score'?{kind:'score',scoreRef:externalMusic.scoreRef}:{kind:'upload',resourceId:externalMusic.resourceId};
+  if(film.audio.mute||canonical(film.audio.music)!==canonical(selector))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
+ }
+ const sound=directorAudio(film,externalMusic?[externalMusic]:[],context.seed),{plan}=sound;
  const source=await json('objects/'+prefix+'/'+quality+'-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
- const plan=deriveAudioPlan(film,filmBlockEvents(film));
- if(plan.sources.some(source=>source.licenseRef!==GENERATED_LICENSE))throw Error('GENERATED_AUDIO_RIGHTS_REQUIRED');
  const audio=await json('objects/'+prefix+'/audio-plan.json',{method:'PUT',body:new TextEncoder().encode(canonical(plan))});
  const renderId=quality+'-'+operationId,aspect='landscape',{ratio,...layout}=platform.aspectLayouts[aspect];
  const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,
   sourceHash:filmSourceHash(canonical(film)),runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,
   durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality,
   renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
-  audioPlanHash:audioPlanHash(plan,{seed:context.seed}),resources:context.resources.map(asset=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind}))};
+  audioPlanHash:audioPlanHash(plan,{seed:context.seed}),resources:[...context.resources.map(asset=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind})),
+   ...(externalMusic?[{resourceId:externalMusic.resourceId,sha256:externalMusic.sha256,kind:'audio'}]:[])]};
  const input={job,options:{target:{aspect,...layout,fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
   resources:context.resources.map(asset=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),
   confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render)},
   inputs:[{...source,name:'film'},...context.resources.map(asset=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))],
-  audioInputsBlobs:[{...audio,name:'audio-plan'}],audioInputs:{seed:context.seed,clearedSources:plan.sources.map(source=>({sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true}))},
+  audioInputsBlobs:[{...audio,name:'audio-plan'},...sound.blobs],audioInputs:sound.inputs,
   coverFrame:Math.floor(film.totalFrames*.55)};
  const partition=planShards(job,film,{seed:context.seed}),report={scope:'actual_private_'+quality+'_render_from_completed_paid_spec_no_models',
   sourceCallId:receipt.callId,sourceKind,renderId,sourceHash:job.sourceHash,partition,deadlineMs:renderDeadlineMs(job,partition,policy.render),status:'running'};

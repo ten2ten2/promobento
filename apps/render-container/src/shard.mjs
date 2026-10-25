@@ -7,6 +7,7 @@ import {filmSession} from './browser.mjs';
 import {shardEncoder} from './media.mjs';
 import {memoryPeak} from './memory.mjs';
 import {reviewPng} from './review-pixels.mjs';
+import {inRenderPhase} from './failure.mjs';
 
 export async function renderShard({job, shard, options, raw, resource, videoFrame, font, directory, browserVersion, imageDigest,
   encoding, threads, signal, killBrowser,expectedWebglRenderer}) {
@@ -20,7 +21,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   mkdirSync(join(directory, 'seam-frames'), {recursive: true});
   // Capture the logical full-size source for both qualities. Review JPEGs are reduced by
   // the existing FFmpeg scale filter; QA PNGs use deterministic CPU pixel reduction.
-  const session = await filmSession({raw, options, resource, videoFrame, font, browserVersion, signal, killBrowser,expectedWebglRenderer});
+  const session = await inRenderPhase({phase:'browser_session'},()=>filmSession({raw, options, resource, videoFrame, font, browserVersion, signal, killBrowser,expectedWebglRenderer}));
   const outputPng=bytes=>stride===2?reviewPng(bytes):bytes;
   const rendered = performance.now();
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
@@ -29,25 +30,26 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
   try {
     if (shard.start > 0) {
-      const png = outputPng(await session.frame(shard.start - 1, {format: 'png'}));
+      const png = await inRenderPhase({phase:'cold_seam',frame:shard.start-1},async()=>outputPng(await session.frame(shard.start - 1, {format: 'png'})));
       writeFileSync(join(directory, 'seam-frames', `${shard.start - 1}-cold.png`), png); seamFrames.push(sha(png));
     }
     for (let frame = shard.start; frame < shard.end; frame += stride) {
       const captureStarted = performance.now();
       const jpeg = await session.frame(frame);
       frameCaptureMs.push(Math.round((performance.now() - captureStarted) * 1000) / 1000);
-      await encoder.frame(jpeg, options.frameTimeoutMs);
+      await inRenderPhase({phase:'encoder_write',frame},()=>encoder.frame(jpeg, options.frameTimeoutMs));
       frameDigests.push({frame, sha256: sha(jpeg)});
       if (observeFrames.has(frame)) {
-        observations.push(await session.observe(job.renderId, frame));
+        observations.push(await inRenderPhase({phase:'frame_observation',frame},()=>session.observe(job.renderId, frame)));
         mkdirSync(join(directory, 'observation-frames'), {recursive: true});
-        writeFileSync(join(directory, 'observation-frames', frame + '.png'), outputPng(await session.capturePng(frame)));
+        const png=await inRenderPhase({phase:'observation_capture',frame},async()=>outputPng(await session.capturePng(frame)));
+        writeFileSync(join(directory, 'observation-frames', frame + '.png'), png);
       }
     }
-    const png = outputPng(await session.frame(shard.end - 1, {format: 'png'}));
+    const png = await inRenderPhase({phase:'last_seam',frame:shard.end-1},async()=>outputPng(await session.frame(shard.end - 1, {format: 'png'})));
     writeFileSync(join(directory, 'seam-frames', `${shard.end - 1}-last.png`), png); seamFrames.push(sha(png));
     const renderMs = Math.round(performance.now() - rendered), draining = performance.now();
-    await encoder.finish((shard.end - shard.start) / stride, 30000);
+    await inRenderPhase({phase:'encoder_drain'},()=>encoder.finish((shard.end - shard.start) / stride, 30000));
     writeFileSync(join(directory, 'frame-digests.json'), canonical(frameDigests));
     writeFileSync(join(directory, 'observations.json'), canonical(observations));
     const cpuInfo = readFileSync('/proc/cpuinfo', 'utf8'), peak = memoryPeak();

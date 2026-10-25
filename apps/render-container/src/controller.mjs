@@ -11,7 +11,8 @@ import {assemble} from './media.mjs';
 import {renderAudio} from './audio.mjs';
 import {filmSession} from './browser.mjs';
 import {deadline,mapIO} from './process.mjs';
-import {memoryHealth,filesystemDiagnostic} from './memory.mjs';
+import {memoryHealth} from './memory.mjs';
+import {inRenderPhase,renderFailureDiagnostic} from './failure.mjs';
 import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
 import {hostIsolation,collectIsolation} from './isolation.mjs';
 
@@ -55,8 +56,8 @@ async function execute(input) {
   const prefix = 'renders/' + input.job.renderId + '/attempts/' + input.taskId + (input.mode === 'shard' ? '/shards/' + input.shard.index : input.mode === 'audio' ? '/audio' : '/out');
   let report;
   if (input.mode === 'shard' || input.mode === 'studio') {
-    await launch('start');
-    const raw = await bytes('film', 8 << 20);
+    await inRenderPhase({phase:'chromium_start'},()=>launch('start'));
+    const raw = await inRenderPhase({phase:'broker_input_read'},()=>bytes('film', 8 << 20));
     if (filmSourceHash(raw) !== input.job.sourceHash) throw Error('SOURCE_SCOPE_MISMATCH');
     input.options.fonts = input.options.fonts.map(face => {
       const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
@@ -76,36 +77,36 @@ async function execute(input) {
         cpuModel:cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1]??'unknown',cpuFlagsHash:digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1]??'').split(/\s+/).sort())};
       return;
     }
-    await launch('kill');
+    await inRenderPhase({phase:'chromium_stop'},()=>launch('kill'));
   } else if (input.mode === 'assemble') {
     const sources=input.inputs.filter(object=>/^shard:\d+$/.test(object.name)).sort((a,b)=>Number(a.name.slice(6))-Number(b.name.slice(6)));
     const shards=sources.map(object=>join(workDirectory,object.name.replace(':','-')+'.h264'));
     const audioPath=objects.has('audio')?join(workDirectory,'mixed.wav'):undefined;
-    await mapIO([...sources.map((object,index)=>({name:object.name,path:shards[index]})),...(audioPath?[{name:'audio',path:audioPath}]:[])],
-      async source=>writeFileSync(source.path,await bytes(source.name)));
-    report = await assemble({shards, audioPath, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
+    await inRenderPhase({phase:'assemble_inputs'},()=>mapIO([...sources.map((object,index)=>({name:object.name,path:shards[index]})),...(audioPath?[{name:'audio',path:audioPath}]:[])],
+      async source=>writeFileSync(source.path,await bytes(source.name))));
+    report = await inRenderPhase({phase:'media_assemble'},()=>assemble({shards, audioPath, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
       coverFrame: input.job.quality === 'review' ? Math.floor(input.coverFrame / 2) : input.coverFrame,
       config: input.job.quality === 'review' ? {...config, width: config.width / 2, height: config.height / 2} : config,
-      totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes, signal: abort.signal});
+      totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes, signal: abort.signal}));
   } else {
     const plan = parseCanonicalJson(await bytes('audio-plan', 4 << 20));
     const {audioPlanHash} = await import('../../../packages/audio/src/plan.mjs');
     if (audioPlanHash(plan,{seed:input.audioInputs.seed}) !== input.job.audioPlanHash) throw Error('AUDIO_PLAN_SCOPE_MISMATCH');
     const bytesBySource = new Map();
     for (const source of plan.sources.filter(source => source.sha256)) bytesBySource.set(source.sourceId, await bytes('audio:' + source.sourceId));
-    report = await renderAudio({plan, inputs: {...input.audioInputs, clearedSources: new Map(input.audioInputs.clearedSources.map(source => [source.sourceId, source])),
-      bytesBySource, scores: new Map(input.audioInputs.scores ?? [])}, directory: workDirectory, signal: abort.signal});
+    report = await inRenderPhase({phase:'audio_render'},()=>renderAudio({plan, inputs: {...input.audioInputs, clearedSources: new Map(input.audioInputs.clearedSources.map(source => [source.sourceId, source])),
+      bytesBySource, scores: new Map(input.audioInputs.scores ?? [])}, directory: workDirectory, signal: abort.signal}));
     report = {...report, path: 'mixed.wav'};
   }
   writeFileSync(join(workDirectory, 'report.json'), canonical(report));
   // Temporary sources and intermediate pre-master PCM are never uploaded as deliverables.
   const allowed = input.mode === 'assemble' ? ['film.mp4', 'poster.png', 'report.json'] : input.mode === 'audio' ? ['mixed.wav', 'report.json'] : null;
-  const outputs=await mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))),async path=>{
+  const outputs=await inRenderPhase({phase:'output_upload'},()=>mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))),async path=>{
     const name = relative(workDirectory, path);
     const mediaType = name.endsWith('.png') ? 'image/png' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.h264') ? 'video/h264'
       : name.endsWith('.wav') ? 'audio/wav' : 'application/json';
     return broker.write(prefix + '/' + name, readFileSync(path), mediaType);
-  });
+  }));
   return {status: 'succeeded', taskId: input.taskId, outputs, report};
 }
 
@@ -158,7 +159,7 @@ const server = http.createServer(async (request, response) => {
       task = input; requestHash = identity; result = {status: 'active', taskId: input.taskId};
       const limit = input.mode === 'studio' ? 20 * 60000 : input.mode === 'shard' ? (input.shard.end - input.shard.start) * (input.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
       void deadline(execute(input), limit, 'RENDER_DEADLINE', () => abort.abort()).then(value => { if (value) result = value; },
-        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:filesystemDiagnostic(error),
+        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:renderFailureDiagnostic(error),
           ...(error.bitrateCorrection?{bitrateCorrection:error.bitrateCorrection}:{})}; })
         .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
     }
