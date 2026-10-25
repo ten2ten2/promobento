@@ -200,7 +200,7 @@ Worker  api.promobento（鉴权占位，按 12 接入）
   └─ Containers（scheduling_policy = durable_object，DO 用 ctx.container 启动）
        ├─ render 镜像  固定版本 chrome-headless-shell（当前锁定 151.0.7922.34）、ffmpeg、控制器、film-runtime、积木、字体登记
        │     模式：shard（standard-3；含 WebGL 的段用 standard-4）、studio（standard-3）、
-       │           assemble（standard-3）、audio（自定义 1 vCPU / 3 GiB）
+       │           assemble（standard-2）、audio（standard-2）
        └─ asset 镜像   standard-4：ffmpeg、图片处理、字体校验、Kokoro TTS
               模式：probe | normalize | proxy | extract | image | fontcheck | tts
 外部
@@ -654,7 +654,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
       - 内存接口缺失时的内部评测与 S1 出口例外，按[负责人决定](../evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)。回执仍写 `peakMemoryMiB:null`、`peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，该指标保留未验证；不得填 0 或改用控制器 RSS，其他门槛不变。
    7. 完成后控制器上报结果。ShardDO 立即停止实例，确认状态变为停止，再归还并发许可。
 5. **接缝检查**（Worker 内，无容器）：见第 5.6 节。
-6. **拼接**（assemble 模式，standard-3）：
+6. **拼接**（assemble 模式，当前 standard-2）：
    - 按顺序把各段 Annex B 裸流首尾相接，以 `-r 30` 一次封装成 mp4，同时混入冻结音轨（AAC-LC 48 kHz 双声道 128 kbps），开启 `faststart`。
    - 用 ffprobe 核对：总帧数、PTS 连续且单调、CFR、每 15 帧一个关键帧、宽高、像素格式与色彩。
    - 码率：分段各自满足 VBV，不等于整条码流满足。拼接后按 1 秒滑动窗口计算整片码率；超过 `maxVideoBitrate` 时，在 assemble 内对整片重编码一次（同参数、整片 VBV），回执中记录 `reencoded:true`。
@@ -882,6 +882,7 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 - **校验**（第 4.2 节）：失败时把错误结构化返回，最多修正 2 次。
   - 当前 C 已对完整响应的 JSON、Schema 与跨字段错误保存持久反馈，换新 callId 纠正；无效响应照常计费但不缓存/渲染。网络、截断和未知消费不进入纠正循环，原 3 次/阶段费用/绝对期限不变。
   - C/E 的提示 Schema 枚举当前 `id@major` 积木引用与已确认的事实 ID，并明确 CTA、数值、引语等槽位的事实绑定规则；积木实现的补丁版本不能写成 FilmSpec 引用。执行准入仍以完整 Schema 与跨字段校验为准。
+  - C/E/F 共用文案层级指引：已明确归属的产品功能陈述不另加“未经独立测量”长句；实际效果/性能声明仍须有确认事实支持，免责声明不能替代证据。网格共用的来源/归属放通栏 `textSlot`，单卡 `subtitleSlot` 只放简短的条目补充，保留原字号、两行容量与全部画幅的适配门槛。
 - **通过后**：
   1. 生成积木版草稿，自写镜头先用简报卡占位。
   2. 审核文字槽位后，草稿即可在浏览器播放。
@@ -1262,8 +1263,8 @@ v3.0 这一节前后不一致：一处写单帧 PNG 截图 50–140 毫秒，附
 **各模式用途**：
 
 - shard、studio：standard-3；含 WebGL 的 shard 用 standard-4，G1 对比后定。
-- assemble：standard-3。
-- audio：自定义 1 vCPU / 3 GiB，2026-10-22 已实测可以启动。
+- assemble：当前实现为 standard-2。
+- audio：当前为 standard-2（1 vCPU / 6 GiB），固定一个 FFmpeg 线程；实际派发与计价见[云端说明](../../apps/cloud/README.md)。自定义 1 vCPU / 3 GiB 仅为前置探针样本，不是当前配置。
 - 资产处理：standard-4。
 
 **控制器与实例管理**：
