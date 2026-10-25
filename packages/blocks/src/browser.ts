@@ -57,20 +57,17 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'hook-title', version: '1.0.
   const line = node(group, {position: 'absolute', left: '0', height: '8px', width: '12%', background: ctx.style.palette.accent ?? ''});
   const subtitle = params.subtitleSlot ? node(group, {position: 'absolute', width: '92%', height: '24%'}) : undefined;
   const subtitleText = subtitle ? text(ctx, params.subtitleSlot, subtitle, 3) : undefined;
-  const timeline = window.gsap.timeline({paused: true});
-  // At rest, use ordinary text painting instead of retaining an identity-transform raster surface.
-  // A persistent will-change layer made the hidden/reverse glyph-edge discrepancy larger.
-  ctx.OM.clock(timeline, time => { const p = easeOut(time / 0.6);
-    group.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * Math.min(48, box.height * 0.04)}px)`;
-    title.style.opacity = String(0.35 + 0.65 * p); line.style.width = 12 + p * 18 + '%'; orbit.style.transform = `rotate(${time * 4}deg) scale(${1 + clamp01(time / 5) * 0.15})`; }, (ctx.frames.end - ctx.frames.start) / 30);
   return {
-    timeline,
-    render() {
+    render(time) {
       // Measure only after the engine makes this scene active, including on a cold/backward seek.
-      const gap = Math.max(24,Math.min(40,box.height*.028)), titleHeight = titleText.offsetHeight;
+      const p = easeOut(time/.6), gap = Math.max(24,Math.min(40,box.height*.028)), titleHeight = titleText.offsetHeight;
       const height = 8 + 32 + titleHeight + (subtitleText ? gap + subtitleText.offsetHeight : 0), top = (box.height-height)/2;
       line.style.top=top+'px';title.style.top=top+40+'px';
       if(subtitle)subtitle.style.top=top+40+titleHeight+gap+'px';
+      // No identity-transform raster surface at rest; motion and layout share one draw authority.
+      group.style.transform = p === 1 ? 'none' : `translateY(${(1-p)*Math.min(48,box.height*.04)}px)`;
+      title.style.opacity = String(.35+.65*p);line.style.width=12+p*18+'%';
+      orbit.style.transform = `rotate(${time*4}deg) scale(${1+clamp01(time/5)*.15})`;
     },
     events: blockEvents('hook-title', ctx.frames, params), regions: [region('headline', titleText, ctx.root)]
   };

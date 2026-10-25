@@ -367,3 +367,5 @@ PNG 夹具首次误用了有尺寸上限的 review-sheet 编码器，[4012864478
 已查看三张实际审核拼图（原图仍在私有 R2，[帧引用](minimax-ninth-attempt/review-2-images.json)）。CTA 与网址已紧密成组；开场标题/副标题仍上下分散，原功能网格的文字在大空框中太弱。E 用同一截图填了三张卡，随后将 UI 的中性标题改成未归属的功能声明，又在[下一轮](minimax-ninth-attempt/review-2-response.json)改回原文；还改了不影响画面的 purpose/continuity。当前优先修运行时的排版：开场成组，纯文字功能/课程网格按实际文字高度收紧，去掉空图片框。参数说明明确主标题/辅助文字和可选图片；E 保留原事实/质量门槛，只修具体可见缺陷，不用同图填空或同义改写消耗次数。运行时 TypeScript 7.0.2 与浏览器脚本语法通过；实际四画幅和真实后续效果待验，未重跑完整测试或 CI。
 
 [费用与回收](minimax-ninth-attempt/report.json)：6 次新模型已结 **25,312**，19 次计算均物理停止/结算 **18,039** 保守上界，无本轮未知、容量为空、临时密钥回收。共享新增模型已结 **453,700**、原三笔未知 **37,993**，合计占用 **491,693 usd_micros**；原历史 128/14 和开账空值不变。仍无合格候选，不计负责人 4/6。
+
+`b4a53d1` 的最小 [40148619883](https://github.com/ten2ten2/promobento/actions/runs/40148619883) 在首个页面准备时被原运行时规则拒绝：[开场同时返回 timeline 与 render](typography/first-browser-report.json)，没有产生有效布局/像素结果，也未部署到 staging。现把同一开场运动和实际高度排版合并到单一 `render(time)`，不改引擎的互斥规则；只复验本次受影响的 typography 场景。

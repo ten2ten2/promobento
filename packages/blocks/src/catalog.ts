@@ -5,7 +5,7 @@ const common = {
   goldenFrames: [0, 12, 45], editable: []
 };
 export const blockCatalog = [
-  { ...common, id: 'hook-title', version:'1.0.1', category: 'opening', usesGsap: true, regions: ['headline'],
+  { ...common, id: 'hook-title', version:'1.0.1', category: 'opening', regions: ['headline'],
     events: [{name: 'title-land', description: 'Headline settles into its reading position.'}],
     params: { type: 'object', additionalProperties: false, required: ['textSlot'],
       properties: { textSlot: slot, subtitleSlot: slot } } },
