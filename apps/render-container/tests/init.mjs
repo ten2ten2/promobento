@@ -7,6 +7,7 @@ const chrome=spawn('setpriv',[...drop(10002),'/opt/chrome-headless-shell-linux64
   '--no-first-run','--disable-background-networking','--disable-component-update','--disable-extensions',
   '--disable-sync','--disable-default-apps','--hide-scrollbars','--mute-audio','--force-color-profile=srgb',
   '--font-render-hinting=none','--disable-lcd-text','--disable-skia-runtime-opts','--disable-partial-raster',
+  '--disable-dev-shm-usage',
   '--use-angle=swiftshader','--enable-unsafe-swiftshader','--js-flags=--max-old-space-size=2048',
   '--remote-debugging-address=127.0.0.1','--remote-debugging-port=9222','--user-data-dir=/chrome/profile','about:blank'],
   {env:{...env,HOME:'/chrome'},stdio:['ignore','ignore','pipe']});

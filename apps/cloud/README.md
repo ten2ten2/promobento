@@ -156,6 +156,8 @@ RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `pa
 
 取消先封锁 generation，再分别终止原生 Workflow 和停止计算/studio；平台状态查询故障也不会跳过物理清理。原生创建在取消后才返回时，派发者仍须停止该实例。导演在自己的失败步骤中不终止自己；独立 outbox 和定期对账补齐原生终止。停止/通知重试不调用模型或重捕获媒体。
 
+ShardDO 每次停止都先持久化不可复活标记；仅当原生 `container.running` 为真时调用 `destroy()`，随后仍核对已停，才释放名额和结算。已经停止或未分配的实例不重复销毁；运行中销毁失败仍保持名额和未知费用。失败控制器的私有诊断引用仅在键严格属于当前 attempt、摘要／长度有效时保存，消息正文不进入普通失败回执。
+
 studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 ID 检查其原生 `physicallyStopped`，读取失败为 null。不能用空的 `attempts` 列表或费用已结算推断 studio 已停止；已有分段状态直接复用，避免重复查询同一个实例。
 
 首个 `claim-execution` 持久步骤在 D1 单次领取执行权。正常 Workflow 重放复用该检查点；整次原生 `restart()` 清空检查点后重领失败，触发清理与对账，不生成新 attempt 或重发付费请求。保留原 generation；取消不能通过重启复活。原生实例过期或状态 API 报错不自动 recreate，需保留未确认再调查。[官方 API 的 restart/terminate 语义](https://developers.cloudflare.com/workflows/build/workers-api/)。

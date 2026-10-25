@@ -18,6 +18,7 @@ test('failure evidence retains the innermost trusted stage and typed cause witho
  const closed=Error('page.waitForFunction: Target page, context or browser has been closed '+secret);
  assert.deepEqual(renderFailureDiagnostic(closed),{phase:null,type:'Error',signatures:['page_closed']});
  assert.equal(JSON.stringify(renderFailureDiagnostic(closed)).includes(secret),false);
+ assert.deepEqual(renderFailureDiagnostic(Error('page.evaluate: Target crashed '+secret)),{phase:null,type:'Error',runtimeCode:'RENDER_PAGE_CRASHED'});
  assert.deepEqual(renderFailureDiagnostic(Error('The source image cannot be decoded. '+secret)),{phase:null,type:'Error',signatures:['image_decode_failed']});
  const foreign=runInNewContext('new TypeError("fixture is not a function")');assert.equal(foreign instanceof Error,false);
  await assert.rejects(inRenderPhase({phase:'runtime_ready'},()=>{throw foreign;}),error=>error===foreign);

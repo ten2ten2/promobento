@@ -457,8 +457,14 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40215346538](https://github.com/ten2ten2/promobento/actions/runs/40215346538) 的 `b46dff7` 镜像 `sha256:04f67ed9930cccd5e0577a2e845b5aae9c2100fb93605cae8ed2549b345b0b44` 复验仍失败；[回执](duolingo-score-render/resource-cause-metrics.json)同时保留 runtime_ready 内部错误和实际端口启动超时，零模型、全部停止／结算、密钥回收。最小 VM 回放随后证实 `instanceof Error` 会丢失另一 realm 的错误消息和类型，已改为保留结构化 Error；[40216396651](https://github.com/ten2ten2/promobento/actions/runs/40216396651) 的 `d7d1038` 镜像仍在同一阶段失败，[实际指标](duolingo-score-render/foreign-cause-metrics.json)保留七次计算停止／结算及 **19,270 usd_micros** 分配资源上界，零模型、容量为空、密钥回收。
 
-同一付费 FilmSpec、冻结选项、两张实际输入图和固定字体，在本机缓存的 Actions 原镜像 `68be977…`、断网及完整 Chromium 沙箱下初始化并取得第 45 帧。它只缩小排查范围，不代替云端 broker、原生联调或音乐成片验收。下一次诊断对仍无法分类的 runtime_ready 错误额外保存有界、去令牌的私有消息，仅经原 attempt 的 broker 写入 R2；普通回执仍只给白名单字段及私有对象引用，原消息不进入公开仓库或 Actions 产物。不再根据通用错误猜测 CSP、内存或平台根因。
+同一付费 FilmSpec、冻结选项、两张实际输入图和固定字体，在本机缓存的 Actions 原镜像 `68be977…`、断网及完整 Chromium 沙箱下初始化并取得第 45 帧。[40218003686](https://github.com/ten2ten2/promobento/actions/runs/40218003686) 随后在 `d4bc18b` 部署有界私有消息捕获及节拍接力代码；操作 `eval-duolingo-15-1792950689524` 的私有回执明确为 Chromium 页面崩溃。原消息保留在私有 attempt R2，不进入公开仓库或 Actions 产物。
+
+本机仅改变共享内存配额取得了反例与修复：512 MiB 成功、64 MiB 同样页面崩溃，64 MiB 加 `--disable-dev-shm-usage` 后再次成功，完整 uid／namespace／seccomp 沙箱仍通过。新选项让 Chromium 改用容器私有 `/tmp`，不改变字体、画质、分镜、超时或模型；云端实际 `/dev/shm` 容量尚未读到，修复效果仍须同规格云验。
+
+本轮无新模型调用，原生实例清单确认七项均 `inactive`；终态恢复 API 两次超时，D1 最后一读仍有三项计算停止／结算待补，保留 **20,039 usd_micros** 预留，其余四项已结 **10,866** 分配资源上界，临时密钥已删。停止实现现先固定旧任务不可复活，再只对实际 `running` 的实例调用 destroy；已停实例不再进入重复销毁请求。定点检查保留运行中销毁失败不得归还名额的门槛。恢复前不启动下一部。
 
 ## 负责人否定旧版 MiniMax 15 秒的质量
 
-[正常速度质量决定](minimax-15/owner-review.json)为 **不愿意发布**：品牌 Logo、可感知且踩点的配乐和有趣记忆点不足，整体无聊。旧规格使用 88 BPM 的 ambient，交付媒体有 AAC 音轨；音轨存在不能代替实际视听反馈。保留原技术交付与模型冷审记录，负责人质量不记通过。下一版围绕 “One brief. A whole crew.” 做单个品牌标记在 Coding／Work／Media 之间踩点接力，再回到真实产品与原 CTA；不批量复制功能卡片顺排。官方 Logo 已查看，新增 staging 入库被自动权限审核拦住，正等负责人明确批准；原九项素材不动。新接力参数已用原创工程标记在缓存的 Actions 镜像中检查：四画幅 56 次逆序／冷 seek 比较零差异、落点与布局通过，已查看实际图；这不是 MiniMax 新成片或负责人质量通过。13 种样曲的保留决定不变，也不等于其在这部片中的使用有效。
+[正常速度质量决定](minimax-15/owner-review.json)为 **不愿意发布**：品牌 Logo、可感知且踩点的配乐和有趣记忆点不足，整体无聊。旧规格使用 88 BPM 的 ambient；重新分析两部原 MP4 的实际 AAC，均为 **−14.04 LUFS、−1.25 dBTP**。负责人质量仍不通过，下一版改用鼓点明确的配乐和可见击打，不靠继续加大音量。保留原技术交付与模型冷审记录。
+
+下一版围绕 “One brief. A whole crew.” 做单个品牌标记在 Coding／Work／Media 之间踩点接力，再回到真实产品与原 CTA；不批量复制功能卡片顺排。官方 Logo 已查看，新增 staging 入库被自动权限审核拦住，正等负责人明确批准；原九项素材不动。新接力参数已用原创工程标记在缓存的 Actions 镜像中检查：四画幅 56 次逆序／冷 seek 比较零差异、落点与布局通过，已查看实际图；这不是 MiniMax 新成片或负责人质量通过。13 种样曲的保留决定不变，也不等于其在这部片中的使用有效。

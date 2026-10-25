@@ -16,7 +16,7 @@ const systemCodes=new Set(['ENOENT','EACCES','ENOSPC','EROFS','EPIPE','ECONNRESE
 export function renderFailureDiagnostic(error){
  const stage=error.renderPhase,phase=phases.has(stage?.phase)?stage.phase:null;
  const result={phase,type:['Error','TypeError','RangeError','TimeoutError','AbortError'].includes(error.name)?error.name:'Error'};
- const runtimeCode=['TEXT_FIT_FAILED','FONT_RIGHTS_OR_FACE_MISSING','FRAME_OUT_OF_RANGE','RENDER_PAGE_CRASHED','WEBGL_CONTEXT_UNAVAILABLE','FRAME_ACK_MISMATCH']
+ const runtimeCode=/Target crashed/i.test(error.message)?'RENDER_PAGE_CRASHED':['TEXT_FIT_FAILED','FONT_RIGHTS_OR_FACE_MISSING','FRAME_OUT_OF_RANGE','RENDER_PAGE_CRASHED','WEBGL_CONTEXT_UNAVAILABLE','FRAME_ACK_MISMATCH']
   .find(code=>new RegExp('(?:^|\\b)'+code+'(?::|\\b)').test(error.message));
  if(runtimeCode)result.runtimeCode=runtimeCode;
  const signatures=[['page_closed',/Target page, context or browser has been closed|Target closed|Page closed/i],

@@ -208,19 +208,47 @@ test('broker registration precedes allocation, is bounded and cannot start after
  }
 });
 
-test('native capacity failure survives cleanup disconnect; slot and unknown cost wait for confirmed stop',async t=>{
+test('unallocated native capacity failure is already stopped and does not call destroy again',async t=>{
  const{db,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
   .run(task.taskId,task.job.renderId,task.job.operationId,0,task.mode,task.instance,'active',Date.now());
  ctx.container.interceptOutboundHttp=async()=>{throw Error('There is no container instance that can be provided to this Durable Object, try again later');};
- ctx.container.destroy=async()=>{throw Error('Network connection lost.');};
+ let destroys=0;ctx.container.destroy=async()=>{destroys++;throw Error('Network connection lost.');};
  await assert.rejects(shard.execute(canonical(task)),/RENDER_CAPACITY_UNAVAILABLE/);
  const row=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
  assert.equal(row.code,'RENDER_CAPACITY_UNAVAILABLE');assert.equal(row.diagnostic.phase,'broker');
- assert.equal(counts().starts,0);assert.equal(counts().leases,1);
- assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,0);
- ctx.container.destroy=async()=>{ctx.container.running=false;};await shard.stopAndSettle();
+ assert.equal(counts().starts,0);assert.equal(counts().leases,0);assert.equal(destroys,0);
+ assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
+ await shard.stopAndSettle();
  assert.equal(counts().starts,0);assert.equal(counts().leases,0);assert.equal(ctx.container.running,false);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,1);
  assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json).code,'RENDER_CAPACITY_UNAVAILABLE');
+});
+
+test('stop is idempotent but a running instance still requires confirmed destruction',async t=>{
+ const{shard,ctx,values}=await computeFixture(t);let destroys=0;
+ ctx.container.destroy=async()=>{destroys++;throw Error('Network connection lost.');};
+ await shard.stop();assert.equal(destroys,0);assert.equal(values.get('stopRequested'),true);
+ ctx.container.running=true;
+ await assert.rejects(shard.stop(),/Network connection lost/);assert.equal(ctx.container.running,true);
+ ctx.container.destroy=async()=>{destroys++;ctx.container.running=false;};
+ await shard.stop();await shard.stop();assert.equal(destroys,2);assert.equal(await shard.isStopped(),true);
+});
+
+test('failed controller evidence retains only an attempt-scoped private diagnostic reference',async t=>{
+ const{db,shard,task,ctx}=await computeFixture(t,{stopBeforeStart:false});
+ task.deadlineAt=Date.now()+120000;
+ db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
+  .run(task.taskId,task.job.renderId,task.job.operationId,0,task.mode,task.instance,'active',Date.now());
+ const ref={key:`renders/${task.job.renderId}/attempts/${task.taskId}/shards/${task.shard.index}/private-failure.json`,sha256:'b'.repeat(64),byteLength:100};
+ ctx.container.monitor=()=>new Promise(()=>{});
+ ctx.container.getTcpPort=()=>({async fetch(url){
+  if(url.endsWith('/healthz'))return Response.json({status:'ready'});
+  if(url.endsWith('/task'))return new Response(null,{status:202});
+  return Response.json({status:'failed',code:'RENDER_INTERNAL_ERROR',diagnostic:{phase:'runtime_ready',type:'Error'},privateFailure:{...ref,message:'must not be forwarded'}});
+ }});
+ await assert.rejects(shard.execute(canonical(task)),/RENDER_INTERNAL_ERROR/);
+ const result=parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(task.taskId).result_json);
+ assert.deepEqual(result.privateFailure,{...ref,mediaType:'application/json'});
+ assert.equal(JSON.stringify(result).includes('must not be forwarded'),false);
 });

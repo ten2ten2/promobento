@@ -8,6 +8,8 @@ let chrome;
 export const FLAGS = ['--no-first-run', '--disable-background-networking', '--disable-component-update', '--disable-sync',
   '--disable-extensions', '--disable-default-apps', '--mute-audio', '--hide-scrollbars', '--force-color-profile=srgb',
   '--font-render-hinting=none', '--disable-lcd-text', '--disable-skia-runtime-opts', '--disable-partial-raster',
+  // Tall-image preparation crashes Chromium with a 64 MiB /dev/shm. Use private /tmp, not a weaker sandbox.
+  '--disable-dev-shm-usage',
   '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--js-flags=--max-old-space-size=2048'];
 async function kill() {
   if (!chrome || chrome.exitCode !== null || chrome.signalCode !== null) return;

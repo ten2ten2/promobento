@@ -93,7 +93,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   async stop() {
     // Attempt IDs are never reusable. A delayed execute RPC must not start after a confirmed stop.
     this.ctx.storage.kv.put('stopRequested',true);
-    await this.ctx.container!.destroy();
+    if(this.ctx.container!.running)await this.ctx.container!.destroy();
     if (this.ctx.container!.running) throw Error('COMPUTE_STOP_UNCONFIRMED');
     this.token = undefined;
   }
@@ -214,7 +214,12 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         const response = await this.call('/result'); if (!response.ok) throw Error('RENDER_CONTROLLER_UNAVAILABLE');
         const value = await response.json<Json>();
         if (value.status === 'failed') {
-          await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:value.code,diagnostic:value.diagnostic??null,environmentHealth}),task.taskId).run();
+          const ref=value.privateFailure;
+          const privateFailure=ref?.key===`renders/${task.job.renderId}/attempts/${task.taskId}${suffix}/private-failure.json`
+            &&/^[a-f0-9]{64}$/.test(ref.sha256)&&Number.isSafeInteger(ref.byteLength)&&ref.byteLength>0&&ref.byteLength<=(40<<10)
+            ?{key:ref.key,sha256:ref.sha256,byteLength:ref.byteLength,mediaType:'application/json'}:null;
+          await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code:value.code,diagnostic:value.diagnostic??null,environmentHealth,
+            ...(privateFailure?{privateFailure}:{})}),task.taskId).run();
           throw Error(value.code);
         }
         if (value.status === 'succeeded') { outcome = {...value,lifecycleTimings:{capacityWaitMs,brokerRegistrationMs,containerReadyMs}}; break; }

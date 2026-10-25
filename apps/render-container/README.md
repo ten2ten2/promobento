@@ -4,6 +4,8 @@
 
 固定 Chromium/GSAP 的下载及摘要核验在应用源码层之前；小幅运行时或文档修改可复用 Actions 的依赖层缓存，不重新下载同一浏览器与许可文件。字体仍按当前登记核验并构建，版本和沙箱检查不变。
 
+Chromium 使用 `--disable-dev-shm-usage`，将共享内存文件放到容器私有 `/tmp`，避免 64 MiB `/dev/shm` 在高图预处理时触发页面崩溃。该反例已用同一原规格复现：512 MiB 成功，64 MiB 崩溃，64 MiB 加该选项成功；浏览器仍以 uid 10002、完整 namespace/seccomp 沙箱运行，不使用 `--no-sandbox`。CI 浏览器入口与正式启动器共用此选项，云端成片另按实际回执判断。
+
 控制器的私有端口 8080 接受不可变 `render_task`，完整结构见 [Schema](../../contracts/render-job.schema.json)。每实例仅绑定一个任务，broker 令牌只在可信控制器内存中。素材、视频帧和音轨从该任务的 broker 清单读取，原始字节按共享摘要校验；字体来自镜像内审核目录。Chromium 没有令牌，页面不能任意出网。
 
 - **shard**：逐源帧 seek，CDP JPEG 92 直送 FFmpeg；保存 PNG 重叠/末帧、真实 CDP 阅读停留观测和回执。
