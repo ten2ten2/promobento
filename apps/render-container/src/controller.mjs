@@ -13,6 +13,7 @@ import {filmSession} from './browser.mjs';
 import {deadline,mapIO} from './process.mjs';
 import {memoryHealth} from './memory.mjs';
 import {inRenderPhase,renderFailureDiagnostic} from './failure.mjs';
+import {savePrivateFailure} from './private-failure.mjs';
 import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
 import {hostIsolation,collectIsolation} from './isolation.mjs';
 
@@ -159,7 +160,13 @@ const server = http.createServer(async (request, response) => {
       task = input; requestHash = identity; result = {status: 'active', taskId: input.taskId};
       const limit = input.mode === 'studio' ? 20 * 60000 : input.mode === 'shard' ? (input.shard.end - input.shard.start) * (input.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
       void deadline(execute(input), limit, 'RENDER_DEADLINE', () => abort.abort()).then(value => { if (value) result = value; },
-        error => { result = {status: 'failed', taskId: input.taskId, code: error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic:renderFailureDiagnostic(error),
+        async error => {
+          const code=error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic=renderFailureDiagnostic(error);
+          const broker=brokerClient(input.brokerToken,AbortSignal.any([abort.signal,AbortSignal.timeout(3000)]));
+          const privateFailure=code==='RENDER_INTERNAL_ERROR'&&diagnostic.phase==='runtime_ready'
+            ? await savePrivateFailure(error,input,(...args)=>broker.write(...args)) : null;
+          result = {status: 'failed', taskId: input.taskId, code,diagnostic,
+          ...(privateFailure?{privateFailure}:{}),
           ...(error.bitrateCorrection?{bitrateCorrection:error.bitrateCorrection}:{})}; })
         .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
     }

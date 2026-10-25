@@ -455,8 +455,10 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 下一步修正浏览器素材服务把实际读取错误吞成 HTTP 500 的诊断缺口：保留原始可信错误对象，优先于随后派生的页面解码失败返回，并仅输出原白名单元数据；同时辨认图像解码、内存分配和脚本异常的固定特征。静态核对原冻结输入的图片键、字节长度、尺寸、音源和字体引用一致，未改写 FilmSpec 或放宽期限。
 
-[40215346538](https://github.com/ten2ten2/promobento/actions/runs/40215346538) 的 `b46dff7` 镜像 `sha256:04f67ed9930cccd5e0577a2e845b5aae9c2100fb93605cae8ed2549b345b0b44` 复验仍失败；[回执](duolingo-score-render/resource-cause-metrics.json)同时保留 runtime_ready 内部错误和实际端口启动超时，零模型、全部停止／结算、密钥回收。随后最小 VM 回放证实诊断包装器使用 `instanceof Error` 会丢失另一 realm 的错误消息和类型；现改为保留结构化 Error，仍只输出白名单特征。该诊断缺陷本地已修正，云端底层失败类型尚待这处修正后的回执。
+[40215346538](https://github.com/ten2ten2/promobento/actions/runs/40215346538) 的 `b46dff7` 镜像 `sha256:04f67ed9930cccd5e0577a2e845b5aae9c2100fb93605cae8ed2549b345b0b44` 复验仍失败；[回执](duolingo-score-render/resource-cause-metrics.json)同时保留 runtime_ready 内部错误和实际端口启动超时，零模型、全部停止／结算、密钥回收。最小 VM 回放随后证实 `instanceof Error` 会丢失另一 realm 的错误消息和类型，已改为保留结构化 Error；[40216396651](https://github.com/ten2ten2/promobento/actions/runs/40216396651) 的 `d7d1038` 镜像仍在同一阶段失败，[实际指标](duolingo-score-render/foreign-cause-metrics.json)保留七次计算停止／结算及 **19,270 usd_micros** 分配资源上界，零模型、容量为空、密钥回收。
+
+同一付费 FilmSpec、冻结选项、两张实际输入图和固定字体，在本机缓存的 Actions 原镜像 `68be977…`、断网及完整 Chromium 沙箱下初始化并取得第 45 帧。它只缩小排查范围，不代替云端 broker、原生联调或音乐成片验收。下一次诊断对仍无法分类的 runtime_ready 错误额外保存有界、去令牌的私有消息，仅经原 attempt 的 broker 写入 R2；普通回执仍只给白名单字段及私有对象引用，原消息不进入公开仓库或 Actions 产物。不再根据通用错误猜测 CSP、内存或平台根因。
 
 ## 负责人否定旧版 MiniMax 15 秒的质量
 
-[正常速度质量决定](minimax-15/owner-review.json)为 **不愿意发布**：品牌 Logo、可感知且踩点的配乐和有趣记忆点不足，整体无聊。旧规格使用 88 BPM 的 ambient，交付媒体有 AAC 音轨；音轨存在不能代替实际视听反馈。保留原技术交付与模型冷审记录，负责人质量不记通过。下一版先做清楚的品牌标识、节拍驱动的产品动作及一个记忆点，不继续批量复制功能卡片顺排。13 种样曲的保留决定不变，也不等于其在这部片中的使用有效。
+[正常速度质量决定](minimax-15/owner-review.json)为 **不愿意发布**：品牌 Logo、可感知且踩点的配乐和有趣记忆点不足，整体无聊。旧规格使用 88 BPM 的 ambient，交付媒体有 AAC 音轨；音轨存在不能代替实际视听反馈。保留原技术交付与模型冷审记录，负责人质量不记通过。下一版围绕 “One brief. A whole crew.” 做单个品牌标记在 Coding／Work／Media 之间踩点接力，再回到真实产品与原 CTA；不批量复制功能卡片顺排。官方 Logo 已查看，新增 staging 入库被自动权限审核拦住，正等负责人明确批准；原九项素材不动。新接力参数已用原创工程标记在缓存的 Actions 镜像中检查：四画幅 56 次逆序／冷 seek 比较零差异、落点与布局通过，已查看实际图；这不是 MiniMax 新成片或负责人质量通过。13 种样曲的保留决定不变，也不等于其在这部片中的使用有效。

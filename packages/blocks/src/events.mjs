@@ -1,6 +1,12 @@
+import {featureLandings} from './brand-relay.ts';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='feature-grid'&&params.beatFrames!==undefined){
+    const landings=featureLandings(params.items.length,params.beatFrames);
+    if(landings.at(-1)>=duration)throw Error('FEATURE_BEAT_AFTER_SCENE');
+    return landings.map((frame,index)=>({name:index===params.items.length-1?'feature-land':'feature-step-'+(index+1),frame}));
+  }
   const fixed = {'hook-title': ['title-land', 18], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
     metric: ['metric-land', 36], 'talking-head': ['speaker-land', 15], 'device-3d':['product-land',24]};
   let event = fixed[id];

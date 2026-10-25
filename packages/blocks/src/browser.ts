@@ -3,6 +3,7 @@ import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
 import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
+import {brandRelayPose} from './brand-relay.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -188,8 +189,12 @@ function picture(ctx: SceneContext, key: string, parent: HTMLElement): (time: nu
   return async () => {};
 }
 
-for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.0.2' : '1.0.1', build(ctx, params) {
+for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.1.0' : '1.0.1', build(ctx, params) {
   const safe = inSafe(ctx), box = safeBox(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[], compact = items.every(item=>!item.assetKey);
+  const relayKey=id==='feature-grid'&&typeof params.logoKey==='string'?params.logoKey:undefined;
+  if(relayKey&&!compact)throw Error('BRAND_RELAY_TEXT_ROLES_REQUIRED');
+  const beatFrames=id==='feature-grid'&&typeof params.beatFrames==='number'?params.beatFrames:undefined;
+  const logoSize=wide?112:96,copyTop=relayKey&&wide?logoSize+32:28;
   const heading = params.textSlot ? node(safe, {position: 'absolute', top: '0', width: '100%', height: '20%'}) : undefined;
   const headingText = heading ? text(ctx, params.textSlot, heading, 2) : undefined;
   const grid = node(safe, {position: 'absolute', top: heading ? '25%' : '4%', width: '100%', height: heading ? '72%' : '92%',
@@ -204,32 +209,45 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
     if (art && item.assetKey) drawings.push(picture(ctx, item.assetKey, art));
     // Image-above cards share one 40% copy band: 22% title, 3% gap, 15% subtitle.
     // The old 42% title area overlapped the subtitle that started at 61%.
-    const available = compact ? card.clientHeight-28-(item.subtitleSlot?20:0) : 0;
-    const copy = node(card, {position: 'absolute', left: compact ? '0' : '7%', top: compact ? '28px' : art && wide ? '52%' : '12%', width: compact ? '100%' : art && !wide ? '62%' : '86%',
+    const available = compact ? card.clientHeight-copyTop-(item.subtitleSlot?20:0) : 0;
+    const textLeft=relayKey&&!wide?logoSize+32+'px':compact?'0':'7%',textWidth=relayKey&&!wide?`calc(100% - ${logoSize+32}px)`:compact?'100%':art&&!wide?'62%':'86%';
+    const copy = node(card, {position: 'absolute', left: textLeft, top: compact ? copyTop+'px' : art && wide ? '52%' : '12%', width: textWidth,
       height: compact ? available*(item.subtitleSlot ? .6 : 1)+'px' : item.subtitleSlot ? (art && wide ? '22%' : '42%') : (art && wide ? '40%' : '76%')});
     const title = text(ctx, item.textSlot, copy, 3, wide ? 84 : 64);
-    const subtitle = item.subtitleSlot ? node(card, {position: 'absolute', left: compact ? '0' : '7%', top: art && wide ? '77%' : '61%', width: compact ? '100%' : art && !wide ? '62%' : '86%',
+    const subtitle = item.subtitleSlot ? node(card, {position: 'absolute', left: textLeft, top: art && wide ? '77%' : '61%', width: textWidth,
       height: compact ? available*.4+'px' : art && wide ? '15%' : '30%'}) : undefined;
     const detail = subtitle ? text(ctx, item.subtitleSlot, subtitle, 2) : undefined;
     // Pure geometry, not an unbound visible numeric module label.
-    node(card, {position: 'absolute', left: compact ? '0' : '7%', ...(compact ? {top:'0',width:'48px'} : {bottom:'6%',width:`${Math.min(40, 10 + index * 6)}%`}), height: '4px', background: ctx.style.palette.accent ?? ''});
+    node(card, {position: 'absolute', left: compact ? '0' : '7%', ...(compact ? {top:'0',width:'48px'} : {bottom:'6%',width:`${Math.min(40, 10 + index * 6)}%`}), height: '4px', background: ctx.style.palette.accent ?? '',...(relayKey?{display:'none'}:{})});
     copyLayouts.push({title,...(subtitle?{subtitle}:{}),...(detail?{detail}:{})});
     return card;
   });
+  let logo:HTMLImageElement|undefined;
+  if(relayKey){
+    const asset=ctx.asset(relayKey);if(asset.kind==='video')throw Error('LOGO_KIND_INVALID');
+    logo=document.createElement('img');logo.src=asset.url;logo.alt='';logo.draggable=false;
+    Object.assign(logo.style,{position:'absolute',width:logoSize+'px',height:logoSize+'px',objectFit:'contain',pointerEvents:'none',zIndex:'1'});grid.append(logo);
+  }
   return {async render(time) {
     if(compact){
       // Text-only features are an editorial band, not empty image-card shells.
       // Keep fit capacities fixed, then size/centre the group from the actual fitted lines.
-      const rowHeight=Math.max(...copyLayouts.map(item=>28+item.title.offsetHeight+(item.detail?20+item.detail.offsetHeight:0)));
+      const rowHeight=Math.max(relayKey&&!wide?logoSize+16:0,...copyLayouts.map(item=>copyTop+item.title.offsetHeight+(item.detail?20+item.detail.offsetHeight:0)));
       const rows=wide?(id==='curriculum'?Math.ceil(items.length/2):1):items.length, gap=wide?24:18;
       const height=rows*rowHeight+(rows-1)*gap, headingHeight=headingText?.offsetHeight??0, top=(box.height-height-(heading?headingHeight+32:0))/2;
       if(heading)heading.style.top=top+'px';grid.style.top=top+(heading?headingHeight+32:0)+'px';grid.style.height=height+'px';
-      for(const item of copyLayouts)if(item.subtitle)item.subtitle.style.top=28+item.title.offsetHeight+20+'px';
+      for(const item of copyLayouts)if(item.subtitle)item.subtitle.style.top=copyTop+item.title.offsetHeight+20+'px';
     }
-    for (const draw of drawings) await draw(time); cards.forEach((card, i) => { const p = easeOut((time - i * .12) / .5);
-    card.style.opacity = String(p); card.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 32}px)`; }); },
+    for (const draw of drawings) await draw(time); cards.forEach((card, i) => { const p = easeOut((time - i * (beatFrames === undefined ? .12 : beatFrames/30)) / .5);
+    card.style.opacity = String(p); card.style.transform = p === 1 ? 'none' : `translateY(${(1 - p) * 32}px)`; });
+    if(logo&&beatFrames!==undefined){
+      const pose=brandRelayPose(time*30,beatFrames,cards.map(card=>({x:card.offsetLeft+8,y:card.offsetTop+(wide?0:Math.max(0,(card.offsetHeight-logoSize)/2))})));
+      logo.style.left=pose.x+'px';logo.style.top=pose.y+'px';logo.style.opacity=String(clamp01(time/.5));
+      logo.style.transform=pose.moving?`scale(${pose.scale}) rotate(${pose.rotation}deg)`:'none';
+    }
+  },
   events: blockEvents(id, ctx.frames, params),
-  regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root)]};
+  regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root),...(logo?[region('brand-relay',logo,ctx.root)]:[])]};
 }});
 
 window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.1', build(ctx, params) {

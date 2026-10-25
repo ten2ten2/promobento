@@ -22,12 +22,15 @@ const showcaseOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase';
 const layoutOnly=process.env.PROMOBENTO_RUNTIME_CASE==='layout';
 const typographyOnly=process.env.PROMOBENTO_RUNTIME_CASE==='typography';
 const openingOnly=process.env.PROMOBENTO_RUNTIME_CASE==='opening';
+const relayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='relay';
+const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly;
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
 if(layoutOnly)report.scope='four_aspect_ordinary_runtime_and_closing_layout_only';
 if(typographyOnly)report.scope='four_aspect_grouped_opening_and_text_only_grid_layout';
 if(openingOnly)report.scope='four_aspect_grouped_opening_motion_only';
+if(relayOnly)report.scope='four_aspect_brand_relay_motion_and_beat_landings_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
@@ -48,6 +51,16 @@ typography.scenes=[typography.scenes[0],
   {...typography.scenes[2],id:'modules',block:'curriculum@1',params:{textSlot:'modules',items:copyItems.slice(0,3)}}];
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))
   pages.set('/typography-'+aspect+'.html',generateFilmPage(JSON.stringify(typography),pageOptions(aspect,layout)));
+const relay=filmFixture();
+relay.texts={...relay.texts,first:{text:'Coding',role:'headline',factIds:[]},second:{text:'Work',role:'headline',factIds:[]},third:{text:'Media',role:'headline',factIds:[]}};
+relay.assets.mark={resourceId:'res_fixture_mark'};
+relay.scenes=[{id:'relay',kind:'block',block:'feature-grid@1',start:0,end:450,params:{logoKey:'mark',beatFrames:18,
+  items:['first','second','third'].map(textSlot=>({textSlot}))},purpose:'One original mark moves between roles on a beat grid.'}];
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const options=pageOptions(aspect,layout);
+  options.resources.push({resourceId:'res_fixture_mark',kind:'image',width:168,height:168,licenseRef:'fixture-original-mark',rightsCleared:true});
+  pages.set('/relay-'+aspect+'.html',generateFilmPage(JSON.stringify(relay),options));
+}
 // A real director repair put a shard boundary inside the push into ui-journey.
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
@@ -91,6 +104,7 @@ const server=http.createServer((req,res)=>{
   }
   if(path==='/f/geist-sans/600-normal.woff2'){res.writeHead(200,{'content-type':'font/woff2'}).end(readFileSync('/opt/fonts/geist-sans-600.woff2'));return;}
   if(path==='/r/res_fixture_dashboard'){res.writeHead(200,{'content-type':'image/svg+xml'}).end(read('apps/render-container/tests/product.svg'));return;}
+  if(path==='/r/res_fixture_mark'){res.writeHead(200,{'content-type':'image/svg+xml'}).end('<svg xmlns="http://www.w3.org/2000/svg" width="168" height="168" viewBox="0 0 168 168"><circle cx="84" cy="84" r="78" fill="#d9fa73"/><path d="M45 88L72 115L125 55" fill="none" stroke="#101712" stroke-width="16"/></svg>');return;}
   if(path==='/r/res_fixture_journey'){res.writeHead(200,{'content-type':'image/png'}).end(journeyBitmap);return;}
   res.writeHead(404).end();
 });
@@ -172,7 +186,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly?[]:Object.keys(rules.aspectLayouts)){
+  for(const aspect of focusedRuntime?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -213,7 +227,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly){
     report.typography=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=openingOnly?[0,12]:[0,12,45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
@@ -251,7 +265,43 @@ try{
       report.typography.push({aspect,comparisons,textSafeAreaAndCustomFont:true,groupedHeadings:true,subtitleGap:true});
     }
   }
-  for(const name of layoutOnly||typographyOnly||openingOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  if(relayOnly||!focusedRuntime){
+    report.relay=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const path='/relay-'+aspect+'.html',handle=await open(aspect,path),frames=[0,15,24,33,42,51,89],baseline=new Map(),states=new Map(),comparisons=[];
+      for(const frame of frames){
+        await handle.seek(frame);
+        const pose=await handle.page.evaluate(()=>{
+          const image=document.querySelector('section[data-scene="relay"] img'),rect=image.getBoundingClientRect();
+          return{decoded:image.complete&&image.naturalWidth===168,x:rect.x,y:rect.y,width:rect.width,height:rect.height,
+            transform:getComputedStyle(image).transform,cards:[...image.parentElement.children].filter(el=>el!==image).map(el=>{
+              const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};
+            })};
+        });
+        assert.equal(pose.decoded,true);
+        if([15,33,51,89].includes(frame)){
+          assert.equal(pose.transform,'none');
+          const index=frame===15?0:frame===33?1:2,card=pose.cards[index];
+          assert.ok(Math.abs(pose.x-card.x-8)<1,JSON.stringify(pose));
+          if(aspect==='landscape')assert.ok(Math.abs(pose.y-card.y)<1,JSON.stringify(pose));
+          else assert.ok(Math.abs(pose.y+pose.height/2-card.y-card.height/2)<1,JSON.stringify(pose));
+        }
+        if(frame===89)await checkLayout(handle,aspect);
+        const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
+        writeFileSync(`${output}/relay-${aspect}-${frame}.png`,png);
+      }
+      for(const frame of [...frames].reverse()){
+        await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`relay-${aspect}-${frame}-reverse`)});
+      }
+      await handle.page.close();
+      for(const frame of frames){
+        const cold=await open(aspect,path);await cold.seek(frame);
+        comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`relay-${aspect}-${frame}-cold`)});await cold.page.close();
+      }
+      report.relay.push({aspect,comparisons,decodedLogo:true,exactLandings:true,textSafeAreaAndCustomFont:true});
+    }
+  }
+  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -286,7 +336,7 @@ try{
     }
   }
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly&&!openingOnly){
+  if(!focusedRuntime){
     report.closingLogos=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const logo=await open(aspect,'/closing-logo-'+aspect+'.html');await logo.seek(375);await checkLayout(logo,aspect);
@@ -309,7 +359,8 @@ try{
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
   for(const name of ['journey','showcase'])if(report[name])report.checks.push(`four-aspect ${name} forward/reverse/cold seeks`);
   if(report.typography)report.checks.push(openingOnly?'four-aspect grouped opening frame 0/12 forward/reverse/cold seeks':'four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly&&!openingOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  if(report.relay)report.checks.push('four-aspect brand relay forward/reverse/cold seeks and exact beat landings');
+  if(!focusedRuntime)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));

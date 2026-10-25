@@ -27,7 +27,9 @@ review 保持同一 30 fps 源时间线，隔帧捕获完整逻辑尺寸的 JPEG
 
 对比度按原方案的普通文字 **4.5:1**、大字 **3:1** 判断，不四舍五入。大字由 CDP 的实际字号/字重识别（24px，或至少 18⅔px 且字重 ≥700），不依赖作者标记或槽位 role；其余字体、裁切、安全区和遮挡判断不变。
 
-`hook-title@1` 1.0.1 按实际适配后的标题/副标题高度居中成组，不再将副标题固定在安全区底部。`feature-grid@1` 1.0.2 与 `curriculum@1` 1.0.1 的纯文字组合按实际内容收紧为居中的排版带，去掉空图片卡片的外框，标题/补充说明保留间距；不靠重复一张截图填空。槽位文字、字号下限、音效事件及四画幅方向不变，历史 renderer release 保留原实现。
+`hook-title@1` 1.0.1 按实际适配后的标题/副标题高度居中成组，不再将副标题固定在安全区底部。`feature-grid@1` 与 `curriculum@1` 1.0.1 的纯文字组合按实际内容收紧为居中的排版带，去掉空图片卡片的外框，标题/补充说明保留间距；不靠重复一张截图填空。原参数的槽位文字、字号下限、音效事件及四画幅方向不变，历史 renderer release 保留原实现。
+
+`feature-grid@1` 1.1.0 可用 `beatFrames`（6–60 个源帧）将每项停稳间隔与音乐整拍对齐；首项在局部第 15 帧停稳，末项须在镜头结束前。自动音效逐项跟随停稳事件，最后一项仍用 `feature-land`，不重复播放。可再传清权的 `logoKey`：单个 Logo 随各项停稳依次移动，横屏在标题上方、其余画幅在左侧；此时只用文字项，不与重复截图混排。未提供新参数的旧用法保持原行为。CI `suite=runtime / runtime_case=relay` 只检查四画幅的 Logo 解码、落点、布局及顺序／逆序／冷 seek，不重跑成片或 13 种配乐。
 
 feature-grid 带图卡片沿用既有布局：横屏下方 40% 文案区分为标题 22%、间隔 3%、副标题 15%，避免长标题与副标题重叠。[实际单帧回归入口](../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)保留。CI 的 `suite=runtime / runtime_case=typography` 只检查改变的开场与纯文字网格，不重跑旅程、showcase、媒体或配乐。
 
@@ -44,6 +46,8 @@ WebGL 页面按需加载固定 Three.js 0.186.1；控制器通过 CDP 读取真�
 内存峰值读取 cgroup v2 `memory.peak` 或同义的 v1 `memory.max_usage_in_bytes`；不会用控制器自身 RSS 或 0 冒充整个实例的峰值。接口均未暴露时，分段回执必须写 `peakMemoryMiB:null` 和 `peakMemoryUnavailableReason:"cgroup_peak_not_exposed"`，整片报告汇总为 `peakMemory.status:"unverified"`；继续内部出片与 S1 出口按[负责人决定](../../docs/evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)处理。权限错误或无效读数仍阻断。文件系统失败只保留受限系统路径与 syscall，不记录 broker 令牌或完整用户输入。取消/超时并发时，DO 原子固定同一 usage，D1 结算冲突检查与停止时间记录可重放。
 
 内部失败回执补充可信阶段（浏览器启动、seek、截图、编码写入、观测、拼接／声音或上传）、有限帧号及白名单系统码。媒体诊断只保留进程名、退出码／信号和已知错误特征；不序列化原始异常消息、堆栈、URL、请求头或 FFmpeg stderr。最内层阶段随原错误保留，不更改重试类别、预算、期限或停止／结算规则。
+
+对于仍无法分类的 `runtime_ready / RENDER_INTERNAL_ERROR`，控制器另经原 attempt 的 broker 写入私有 `private-failure.json`，最多保存各 2,048 字符的错误消息及直接 cause，替换 broker 令牌和 Bearer 值，不存堆栈、请求头、源文件或完整任务。普通回执仅返回私有对象引用；该对象不进入公开 GitHub／Actions 产物。写入最多 3 秒，失败不覆盖原故障或阻挡清理，也不延长原渲染期限。
 
 初始化的就绪等待由可信控制器定时读取 runtime 的 ready／boot-failure 数据标志，不在作品页面注入 Playwright 的 RAF／eval 轮询。单次 CDP 读取仍受原初始化总期限约束，超时／取消不会接受晚到 ready；页面的网络、计时器与 CSP 限制不变。
 
