@@ -7,7 +7,7 @@ export async function waitForRuntimeReady({read,timeoutMs,pageError=()=>null,sig
   const state=await read();signal?.throwIfAborted();
   if(performance.now()>=until)throw Error('INIT_TIMEOUT');
   const failure=pageError()||state.failure;
-  if(failure)throw failure instanceof Error?failure:Error(failure);
+  if(failure)throw typeof failure==='object'&&typeof failure.message==='string'?failure:Error(failure);
   if(state.ready===true)return;
   const remaining=until-performance.now();if(remaining<=0)throw Error('INIT_TIMEOUT');
   await new Promise(resolve=>setTimeout(resolve,Math.min(25,remaining)));

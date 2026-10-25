@@ -3,7 +3,8 @@ import {filesystemDiagnostic} from './memory.mjs';
 /** Keep the innermost trusted stage. Never include source text, URLs, headers or raw errors. */
 export async function inRenderPhase(phase,work){
  try{return await work();}catch(error){
-  if(!(error instanceof Error))error=Error('RENDER_INTERNAL_ERROR');
+  // Browser/VM library errors may come from another realm; instanceof would discard their cause.
+  if(!error||typeof error!=='object'||typeof error.message!=='string')error=Error(typeof error==='string'?error:'RENDER_INTERNAL_ERROR');
   error.renderPhase??=phase;throw error;
  }
 }

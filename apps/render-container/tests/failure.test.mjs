@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {runInNewContext} from 'node:vm';
 import {inRenderPhase,renderFailureDiagnostic} from '../src/failure.mjs';
 
 test('failure evidence retains the innermost trusted stage and typed cause without exposing arbitrary messages',async()=>{
@@ -18,4 +19,7 @@ test('failure evidence retains the innermost trusted stage and typed cause witho
  assert.deepEqual(renderFailureDiagnostic(closed),{phase:null,type:'Error',signatures:['page_closed']});
  assert.equal(JSON.stringify(renderFailureDiagnostic(closed)).includes(secret),false);
  assert.deepEqual(renderFailureDiagnostic(Error('The source image cannot be decoded. '+secret)),{phase:null,type:'Error',signatures:['image_decode_failed']});
+ const foreign=runInNewContext('new TypeError("fixture is not a function")');assert.equal(foreign instanceof Error,false);
+ await assert.rejects(inRenderPhase({phase:'runtime_ready'},()=>{throw foreign;}),error=>error===foreign);
+ assert.deepEqual(renderFailureDiagnostic(foreign),{phase:'runtime_ready',type:'TypeError',signatures:['not_callable']});
 });
