@@ -446,22 +446,30 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 随后六段横屏低清 review 中出现 `RENDER_INTERNAL_ERROR`，现有容器回执 `diagnostic:null`；音频另报容量错误，未取得音乐母带或 review 成片。没有到 E／最终片／F。[数值与停止回执](duolingo-score-render/metrics.json)保留：两次新模型 **10,821**，11 次计算均停止／结算 **9,764 usd_micros** 分配资源上界，容量为空、临时密钥回收，无本轮未知。共享新增模型已结 **564,149**、原三笔未知 **37,993**，占用 **602,142 usd_micros**。原始模型响应、规格和媒体均保持私有。
 
-负责人批准 Actions 新建安全诊断镜像，只复验已付费的同一规格，不再调用模型。诊断只记录可信阶段、帧号、白名单错误类型／系统码和媒体进程特征，不保留任意错误文本、URL、请求头、凭据或源素材内容。原操作不重启，不把未知内部错误加入自动重试。
+负责人批准 Actions 新建安全诊断镜像，只复验已付费的同一规格，不再调用模型。普通失败回执只记录可信阶段、帧号、白名单错误类型／系统码和媒体进程特征，不输出任意错误文本、URL、请求头、凭据或源素材内容；有界私有消息的范围见下文。原操作不重启，不把未知内部错误加入自动重试。
 
 
 [40212843174](https://github.com/ten2ten2/promobento/actions/runs/40212843174) 在 `66e64b8e2ff92d07b84d06c426b60d5d4f46a104` 构建并部署诊断镜像 `sha256:d44258ae3a6cb7ff539a16dd4debda1d06a0a1f0ee0e2d8afdafdbff83223e19`。原付费规格的[零模型复验](duolingo-score-render/diagnostic-metrics.json)仍失败：两段的首个可见内部错误在 `runtime_ready`，即 Playwright 页内就绪等待；另有容量／连接失败。七次计算全部停止／结算，分配资源上界 **12,277 usd_micros**，密钥回收、容量为空，共享模型占用未变。
 
 同一 Playwright 1.62.1、严格 CSP 和时钟 shim 的本机无素材合成空页检查通过（Chrome 155.0.8059.85），没有复现该失败。新候选改为可信宿主直接读取同一 ready／boot-failure 标志，保留原初始化绝对期限、取消和首因；不使用页内 RAF／eval 轮询，也不放宽沙箱。具体底层错误另只记录关闭、上下文、CSP 或禁止 API 的固定特征。宿主等待与诊断安全定点检查通过。随后 [40214002553](https://github.com/ten2ten2/promobento/actions/runs/40214002553) 构建 `1c4cfb8` 镜像 `sha256:ce3c93eae63de0392d8cee177c8b1bf175f3d756f6e3c9de1859f699dc3b0695`，同一规格的[再次零模型复验](duolingo-score-render/host-readiness-metrics.json)仍在 runtime_ready 失败；该改动没有解除阻断。全部计算已停止／结算，密钥回收、无容量遗留，模型占用未变。
 
-下一步修正浏览器素材服务把实际读取错误吞成 HTTP 500 的诊断缺口：保留原始可信错误对象，优先于随后派生的页面解码失败返回，并仅输出原白名单元数据；同时辨认图像解码、内存分配和脚本异常的固定特征。静态核对原冻结输入的图片键、字节长度、尺寸、音源和字体引用一致，未改写 FilmSpec 或放宽期限。
+随后修正浏览器素材服务把实际读取错误吞成 HTTP 500 的诊断缺口：保留原始可信错误对象，优先于随后派生的页面解码失败返回，并仅输出原白名单元数据；同时辨认图像解码、内存分配和脚本异常的固定特征。静态核对原冻结输入的图片键、字节长度、尺寸、音源和字体引用一致，未改写 FilmSpec 或放宽期限。
 
 [40215346538](https://github.com/ten2ten2/promobento/actions/runs/40215346538) 的 `b46dff7` 镜像 `sha256:04f67ed9930cccd5e0577a2e845b5aae9c2100fb93605cae8ed2549b345b0b44` 复验仍失败；[回执](duolingo-score-render/resource-cause-metrics.json)同时保留 runtime_ready 内部错误和实际端口启动超时，零模型、全部停止／结算、密钥回收。最小 VM 回放随后证实 `instanceof Error` 会丢失另一 realm 的错误消息和类型，已改为保留结构化 Error；[40216396651](https://github.com/ten2ten2/promobento/actions/runs/40216396651) 的 `d7d1038` 镜像仍在同一阶段失败，[实际指标](duolingo-score-render/foreign-cause-metrics.json)保留七次计算停止／结算及 **19,270 usd_micros** 分配资源上界，零模型、容量为空、密钥回收。
 
 同一付费 FilmSpec、冻结选项、两张实际输入图和固定字体，在本机缓存的 Actions 原镜像 `68be977…`、断网及完整 Chromium 沙箱下初始化并取得第 45 帧。[40218003686](https://github.com/ten2ten2/promobento/actions/runs/40218003686) 随后在 `d4bc18b` 部署有界私有消息捕获及节拍接力代码；操作 `eval-duolingo-15-1792950689524` 的私有回执明确为 Chromium 页面崩溃。原消息保留在私有 attempt R2，不进入公开仓库或 Actions 产物。
 
-本机仅改变共享内存配额取得了反例与修复：512 MiB 成功、64 MiB 同样页面崩溃，64 MiB 加 `--disable-dev-shm-usage` 后再次成功，完整 uid／namespace／seccomp 沙箱仍通过。新选项让 Chromium 改用容器私有 `/tmp`，不改变字体、画质、分镜、超时或模型；云端实际 `/dev/shm` 容量尚未读到，修复效果仍须同规格云验。
+本机仅改变共享内存配额取得了反例与修复：512 MiB 成功、64 MiB 同样页面崩溃，64 MiB 加 `--disable-dev-shm-usage` 后再次成功，完整 uid／namespace／seccomp 沙箱仍通过。新选项让 Chromium 改用容器私有 `/tmp`，不改变字体、画质、分镜、超时或模型；云端实际 `/dev/shm` 容量尚未读到。
 
-本轮无新模型调用，原生实例清单确认七项均 `inactive`；终态恢复 API 两次超时，D1 最后一读仍有三项计算停止／结算待补，保留 **20,039 usd_micros** 预留，其余四项已结 **10,866** 分配资源上界，临时密钥已删。停止实现现先固定旧任务不可复活，再只对实际 `running` 的实例调用 destroy；已停实例不再进入重复销毁请求。定点检查保留运行中销毁失败不得归还名额的门槛。恢复前不启动下一部。
+该轮无新模型调用。原生清单先确认七项均 `inactive`，终态恢复 API 两次超时，三项计算保留预留，没有手工清零。[40219486055](https://github.com/ten2ten2/promobento/actions/runs/40219486055) 部署 `d5714be` 后，既有恢复入口已补齐全部停止／结算：[最终回执指标](duolingo-score-render/private-cause-metrics.json)为 **74,704 usd_micros** 保守分配资源上界、无本轮未知、空容量、密钥回收。停止先固定旧任务不可复活，再只销毁实际 running 的实例；运行中销毁失败仍不得归还名额。
+
+### 页面崩溃解除，ABC 母带成功，整片仍超时
+
+在同一 `d5714be`／镜像 `sha256:e219c1821c01e957f4b0f83b5c551a90a58c7ce37cead93d2de3bb9d30cea97f` 下，操作 `eval-duolingo-15-1792951862017` 的[六个实际分段与原谱母带均成功](duolingo-score-render/shm-fixed-metrics.json)，没有再发生页面崩溃。ABC 的 15 秒混音为 **720,000 样本帧、−13.99 LUFS、−2.73 dBTP**，通过原音频数值门槛。最后的组装在原 **90 秒** 总限内未完成，结果仍为 `RENDER_DEADLINE`，未交付合格整片。各分段冷启动实际为 37.250–42.718 秒；保留原期限，不用延长时限掩盖启动成本。
+
+该轮零模型，八次计算全部停止／结算，共 **22,723 usd_micros** 保守分配资源上界；无本轮未知，容量为空、密钥回收。已成功分段与母带保持私有，用于视听诊断和下一步时延分析，不重跑这些成功子项。
+
+用同一未改动的装配器在本机复用这七份真实云端产物，生成私有 `artifacts/s1-duolingo-15-score-preview-2026-10-26/index.html`：15 秒、960×540／15 fps review、AAC、1,347,292 bytes；没有重编码或重新合成音乐。已查看实际封面与播放画面，Chrome 155.0.8059.85 完整 1× 解码 225 帧、零掉帧／错误；自动播放检查静音，不代替听感判断。这个诊断预览没有修复云端时限失败，不计完整导演、最终片或负责人质量通过；MiniMax 新版另等 Logo 入库授权。
 
 ## 负责人否定旧版 MiniMax 15 秒的质量
 
