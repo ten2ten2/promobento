@@ -35,7 +35,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
   const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot',...(plan.usesWebgl?['blocks-3d']:[])].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
   const assets = new Map(Object.values(plan.assets).map(asset => ['/r/' + asset.resourceId, asset]));
   const fonts = new Map(plan.fonts.map(face => [`/f/${face.fontId}/${face.weight}-${face.style}.woff2`, face]));
-  let isolationEnabled=false;
+  let isolationEnabled=false,requestFailure;
   const server = http.createServer(async (request, response) => {
     try {
       if (request.method !== 'GET') { response.writeHead(405).end(); return; }
@@ -46,7 +46,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
       if(path==='/runtime/isolation-probe.js'&&isolationEnabled){
         response.writeHead(200,{'content-type':'text/javascript','cache-control':'no-store'}).end(readFileSync(new URL('./isolation-page.js',import.meta.url)));return;
       }
-      if (assets.has(path)) { const asset = assets.get(path); const bytes = await resource(asset.resourceId);
+      if (assets.has(path)) { const asset = assets.get(path); const bytes = await inRenderPhase({phase:'broker_input_read'},()=>resource(asset.resourceId));
         response.writeHead(200, {'content-type': asset.kind === 'svg' ? 'image/svg+xml' : 'application/octet-stream'}).end(bytes); return; }
       const frame = /^\/frames\/(res_[A-Za-z0-9_-]{4,64})\/(\d+)\.webp$/.exec(path);
       if (frame && videoFrame && [...assets.values()].some(asset => asset.resourceId === frame[1] && asset.videoFrames?.some(item => item.index === Number(frame[2])))) {
@@ -54,7 +54,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
       }
       if (fonts.has(path)) { const bytes = await font(fonts.get(path)); response.writeHead(200, {'content-type': 'font/woff2'}).end(bytes); return; }
       response.writeHead(404).end();
-    } catch { response.writeHead(500).end(); }
+    } catch(error) { requestFailure??=error;response.writeHead(500).end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   let browser, context, page;
@@ -77,7 +77,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
     const connectedAt = performance.now();
     await deadline((async () => {
       await inRenderPhase({phase:'page_load'},()=>page.goto(url, {waitUntil: 'load', timeout: options.initTimeoutMs}));
-      await inRenderPhase({phase:'runtime_ready'},()=>waitForRuntimeReady({timeoutMs:options.initTimeoutMs,signal,pageError:()=>pageError,
+      await inRenderPhase({phase:'runtime_ready'},()=>waitForRuntimeReady({timeoutMs:options.initTimeoutMs,signal,pageError:()=>requestFailure??pageError,
         read:()=>page.evaluate(()=>({ready:window.__omReady===true,failure:window.__omBootFailed??null}))}));
     })(), options.initTimeoutMs, 'INIT_TIMEOUT', cancel);
     const scope = {protocolVersion: '3.0.0', sessionId: crypto.randomUUID(), revisionId: crypto.randomUUID(), aspectId: plan.target.aspect};

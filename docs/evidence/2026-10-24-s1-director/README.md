@@ -451,7 +451,9 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40212843174](https://github.com/ten2ten2/promobento/actions/runs/40212843174) 在 `66e64b8e2ff92d07b84d06c426b60d5d4f46a104` 构建并部署诊断镜像 `sha256:d44258ae3a6cb7ff539a16dd4debda1d06a0a1f0ee0e2d8afdafdbff83223e19`。原付费规格的[零模型复验](duolingo-score-render/diagnostic-metrics.json)仍失败：两段的首个可见内部错误在 `runtime_ready`，即 Playwright 页内就绪等待；另有容量／连接失败。七次计算全部停止／结算，分配资源上界 **12,277 usd_micros**，密钥回收、容量为空，共享模型占用未变。
 
-同一 Playwright 1.62.1、严格 CSP 和时钟 shim 的本机无素材合成空页检查通过（Chrome 155.0.8059.85），没有复现该失败。新候选改为可信宿主直接读取同一 ready／boot-failure 标志，保留原初始化绝对期限、取消和首因；不使用页内 RAF／eval 轮询，也不放宽沙箱。具体底层错误另只记录关闭、上下文、CSP 或禁止 API 的固定特征。当前仅宿主等待与诊断安全定点检查通过，原规格云验待完成。
+同一 Playwright 1.62.1、严格 CSP 和时钟 shim 的本机无素材合成空页检查通过（Chrome 155.0.8059.85），没有复现该失败。新候选改为可信宿主直接读取同一 ready／boot-failure 标志，保留原初始化绝对期限、取消和首因；不使用页内 RAF／eval 轮询，也不放宽沙箱。具体底层错误另只记录关闭、上下文、CSP 或禁止 API 的固定特征。宿主等待与诊断安全定点检查通过。随后 [40214002553](https://github.com/ten2ten2/promobento/actions/runs/40214002553) 构建 `1c4cfb8` 镜像 `sha256:ce3c93eae63de0392d8cee177c8b1bf175f3d756f6e3c9de1859f699dc3b0695`，同一规格的[再次零模型复验](duolingo-score-render/host-readiness-metrics.json)仍在 runtime_ready 失败；该改动没有解除阻断。全部计算已停止／结算，密钥回收、无容量遗留，模型占用未变。
+
+下一步修正浏览器素材服务把实际读取错误吞成 HTTP 500 的诊断缺口：保留原始可信错误对象，优先于随后派生的页面解码失败返回，并仅输出原白名单元数据；同时辨认图像解码、内存分配和脚本异常的固定特征。静态核对原冻结输入的图片键、字节长度、尺寸、音源和字体引用一致，未改写 FilmSpec 或放宽期限。
 
 ## 负责人否定旧版 MiniMax 15 秒的质量
 

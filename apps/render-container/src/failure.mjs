@@ -22,7 +22,11 @@ export function renderFailureDiagnostic(error){
   ['context_destroyed',/Execution context was destroyed|Cannot find context/i],['connection_closed',/Connection closed/i],
   ['csp_eval_blocked',/unsafe-eval|Refused to evaluate.*Content Security Policy/i],['poll_timeout',/Timeout.*exceeded/i],
   ['runtime_random_forbidden',/RUNTIME_RANDOM_FORBIDDEN/],['runtime_timer_forbidden',/RUNTIME_TIMER_FORBIDDEN/],
-  ['runtime_storage_forbidden',/RUNTIME_STORAGE_FORBIDDEN/],['runtime_eval_forbidden',/RUNTIME_EVAL_FORBIDDEN/]]
+  ['runtime_storage_forbidden',/RUNTIME_STORAGE_FORBIDDEN/],['runtime_eval_forbidden',/RUNTIME_EVAL_FORBIDDEN/],
+  ['image_decode_failed',/source image cannot be decoded|image could not be decoded|EncodingError|IMAGE_DECODE_FAILED/i],
+  ['canvas_security',/tainted canvases|SecurityError/i],['allocation_failed',/out of memory|allocation failed|Invalid typed array length|Array buffer allocation/i],
+  ['stack_exhausted',/Maximum call stack/i],['undefined_property',/Cannot read properties of (?:undefined|null)/],
+  ['not_callable',/is not a function/],['missing_reference',/is not defined/]]
   .filter(([,pattern])=>pattern.test(error.message)).map(([name])=>name);
  if(signatures.length)result.signatures=signatures;
  if(Number.isInteger(stage?.frame)&&stage.frame>=0&&stage.frame<900)result.frame=stage.frame;

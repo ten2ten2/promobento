@@ -9,6 +9,7 @@ test('controller readiness polling respects boot failure, cancellation, read err
  await assert.rejects(waitForRuntimeReady({timeoutMs:5,read:async()=>({ready:false})}),/INIT_TIMEOUT/);
  await assert.rejects(waitForRuntimeReady({timeoutMs:2,read:async()=>{await new Promise(r=>setTimeout(r,5));return{ready:true};}}),/INIT_TIMEOUT/);
  const error=Error('FIXTURE_READ_FAILED');await assert.rejects(waitForRuntimeReady({timeoutMs:100,read:async()=>{throw error;}}),e=>e===error);
+ await assert.rejects(waitForRuntimeReady({timeoutMs:100,read:async()=>({ready:false,failure:'The source image cannot be decoded.'}),pageError:()=>error}),e=>e===error);
  const controller=new AbortController();controller.abort(error);let used=false;
  await assert.rejects(waitForRuntimeReady({timeoutMs:100,signal:controller.signal,read:async()=>{used=true;return{ready:true};}}),e=>e===error);assert.equal(used,false);
 });

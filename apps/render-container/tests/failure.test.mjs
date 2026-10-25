@@ -17,4 +17,5 @@ test('failure evidence retains the innermost trusted stage and typed cause witho
  const closed=Error('page.waitForFunction: Target page, context or browser has been closed '+secret);
  assert.deepEqual(renderFailureDiagnostic(closed),{phase:null,type:'Error',signatures:['page_closed']});
  assert.equal(JSON.stringify(renderFailureDiagnostic(closed)).includes(secret),false);
+ assert.deepEqual(renderFailureDiagnostic(Error('The source image cannot be decoded. '+secret)),{phase:null,type:'Error',signatures:['image_decode_failed']});
 });
