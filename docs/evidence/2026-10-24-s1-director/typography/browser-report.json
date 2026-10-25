@@ -1,0 +1,207 @@
+{
+  "status": "passed",
+  "scope": "four_aspect_grouped_opening_and_text_only_grid_layout",
+  "browser": "151.0.7922.34",
+  "controllerUid": 10001,
+  "aspects": {},
+  "checks": [
+    "oversized text fails",
+    "four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks"
+  ],
+  "media": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "programStyleSamples": {
+    "status": "not_run",
+    "reason": "runtime_only"
+  },
+  "typography": [
+    {
+      "aspect": "landscape",
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "portrait",
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "feed",
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    },
+    {
+      "aspect": "square",
+      "comparisons": [
+        {
+          "frame": 375,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "reverse",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 45,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 165,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        },
+        {
+          "frame": 375,
+          "mode": "cold",
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0
+        }
+      ],
+      "textSafeAreaAndCustomFont": true,
+      "groupedHeadings": true,
+      "subtitleGap": true
+    }
+  ],
+  "sandbox": [
+    {
+      "pid": 53,
+      "uid": 10002,
+      "seccomp": 2,
+      "noNewPrivs": 1,
+      "pidNamespaceDepth": 3
+    }
+  ],
+  "network": "docker --network none; no external page requests"
+}

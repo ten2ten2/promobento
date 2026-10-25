@@ -21,11 +21,13 @@ const reviewOnly=process.env.PROMOBENTO_RUNTIME_CASE==='review';
 const showcaseOnly=process.env.PROMOBENTO_RUNTIME_CASE==='showcase';
 const layoutOnly=process.env.PROMOBENTO_RUNTIME_CASE==='layout';
 const typographyOnly=process.env.PROMOBENTO_RUNTIME_CASE==='typography';
+const openingOnly=process.env.PROMOBENTO_RUNTIME_CASE==='opening';
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
 if(layoutOnly)report.scope='four_aspect_ordinary_runtime_and_closing_layout_only';
 if(typographyOnly)report.scope='four_aspect_grouped_opening_and_text_only_grid_layout';
+if(openingOnly)report.scope='four_aspect_grouped_opening_motion_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
@@ -170,7 +172,7 @@ try{
     report.media=await mediaFixture(output,rules,lock);
     report.programStyleSamples=await audioSamples(output+'/audio-samples');
   }
-  for(const aspect of journeyOnly||reviewOnly||showcaseOnly||typographyOnly?[]:Object.keys(rules.aspectLayouts)){
+  for(const aspect of journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly?[]:Object.keys(rules.aspectLayouts)){
     const handle=await open(aspect),baseline=new Map(),states=new Map(),checks=[];
     report.aspects[aspect]={status:'running',comparisons:checks};
     await assert.rejects(handle.page.evaluate(input=>window.__omEngine.seekFrame(input),
@@ -214,12 +216,12 @@ try{
   if(!journeyOnly&&!reviewOnly&&!showcaseOnly){
     report.typography=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
-      const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=[45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
+      const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=openingOnly?[0,12]:[0,12,45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
       for(const frame of frames){
         await handle.seek(frame);await checkLayout(handle,aspect);
         const boxes=await handle.page.evaluate(frame=>{
           const rect=el=>{const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:r.height};};
-          if(frame===45){const title=rect(document.querySelector('[data-pb-slot="headline"]')),detail=rect(document.querySelector('[data-pb-slot="intro"]'));return{subtitleGap:detail.top-title.bottom};}
+          if(frame<120){const title=rect(document.querySelector('[data-pb-slot="headline"]')),detail=rect(document.querySelector('[data-pb-slot="intro"]'));return{subtitleGap:detail.top-title.bottom};}
           const scene=document.querySelector(`section[data-scene="${frame===165?'features':'modules'}"]`),heading=rect(scene.querySelector(`[data-pb-slot="${frame===165?'features':'modules'}"]`));
           const title=scene.querySelector('[data-pb-slot="first"]'),grid=title.parentElement.parentElement.parentElement;
           return{headingGap:rect(grid).top-heading.bottom,cards:[...grid.children].map(card=>{
@@ -227,7 +229,7 @@ try{
             return{card:rect(card),slots,border:parseFloat(getComputedStyle(card).borderTopWidth)};
           })};
         },frame);
-        if(frame===45)assert.ok(boxes.subtitleGap>=24&&boxes.subtitleGap<=40,JSON.stringify(boxes));
+        if(frame<120)assert.ok(boxes.subtitleGap>=24&&boxes.subtitleGap<=40,JSON.stringify(boxes));
         else{
           assert.ok(Math.abs(boxes.headingGap-32)<1,JSON.stringify(boxes));
           for(const {card,slots,border}of boxes.cards){
@@ -249,7 +251,7 @@ try{
       report.typography.push({aspect,comparisons,textSafeAreaAndCustomFont:true,groupedHeadings:true,subtitleGap:true});
     }
   }
-  for(const name of layoutOnly||typographyOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  for(const name of layoutOnly||typographyOnly||openingOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -284,7 +286,7 @@ try{
     }
   }
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly&&!openingOnly){
     report.closingLogos=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const logo=await open(aspect,'/closing-logo-'+aspect+'.html');await logo.seek(375);await checkLayout(logo,aspect);
@@ -306,8 +308,8 @@ try{
   assert.ok(renderers.length>0);assert.ok(renderers.every(item=>item.uid===10002&&item.seccomp===2&&item.noNewPrivs===1&&item.pidNamespaceDepth>=2),JSON.stringify(renderers));
   report.sandbox=renderers;assert.deepEqual(externalRequests,[]);report.network='docker --network none; no external page requests';
   for(const name of ['journey','showcase'])if(report[name])report.checks.push(`four-aspect ${name} forward/reverse/cold seeks`);
-  if(report.typography)report.checks.push('four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
+  if(report.typography)report.checks.push(openingOnly?'four-aspect grouped opening frame 0/12 forward/reverse/cold seeks':'four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!typographyOnly&&!openingOnly)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
   writeFileSync(output+'/environment-packages.txt',readFileSync('/opt/environment-packages.txt'));
