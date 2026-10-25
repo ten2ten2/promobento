@@ -8,10 +8,11 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {probeCardLayout} from './probe-card-layout.mjs';
 import {probeReviewRender} from './probe-review-render.mjs';
+import {readApprovedMusic,admitMusic} from './admit-music.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
-const probeSource=modeArg?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
+if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--score','--music'].includes(modeArg)||!sourceArg||extra.length))throw Error('EVAL_MODE_INVALID');
+const probeSource=modeArg?.startsWith('--check-')?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
 if(probeSource&&!probeSource.startsWith(resolve('artifacts')+'/')&&!probeSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_COMPLETED_RECEIPT_REQUIRED');
 if(!inputArg||!outputArg||![input,output].every(path=>path.startsWith(resolve('artifacts')+'/'))||existsSync(output))throw Error('NEW_PRIVATE_EVAL_OUTPUT_REQUIRED');
 const read=path=>parseCanonicalJson(readFileSync(path)),manifest=read(join(input,'manifest.json'));
@@ -22,6 +23,7 @@ const context=read(join(input,item.contextFile));
 if(context.scope!=='internal_eval_only'||context.publicUseCleared!==false||context.rendererRelease!==manifest.rendererRelease
  ||context.factConfirmation.confirmedBy!=='owner'||canonical(context.aspects)!==canonical(['landscape','portrait']))throw Error('CONFIRMED_CONTEXT_REQUIRED');
 if(!/^renderer-[a-f0-9]{12}$/.test(context.rendererRelease))throw Error('PINNED_RENDERER_SOURCE_REQUIRED');
+const music=['--score','--music'].includes(modeArg)?readApprovedMusic(modeArg==='--score'?'score':'upload',resolve(sourceArg),context.durationSeconds*30):null;
 const rendererSourceSha=execFileSync('git',['rev-parse',context.rendererRelease.slice(9)+'^{commit}'],{encoding:'utf8'}).trim();
 const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/cloud','exec','wrangler',...args],
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-eval-cli.log'},encoding:'utf8',timeout:60000,...options});
@@ -85,6 +87,13 @@ try{
  operationAttempted=true;
  await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'s1-'+item.topicId,purpose:'evaluation',maxMicros:3000000}});
  for(const admission of item.rightsAdmissions)await call('rights',{method:'POST',body:{operationId,...admission}});
+ if(music){
+  const admitted=await admitMusic(music,{operationId,prefix,json,call});
+  context.audioSources=[...(context.audioSources??[]),admitted.source];
+  context.music={allowedKinds:[music.kind],required:admitted.selector,
+   instruction:'Use this supplied owner-approved original music, unmuted, for the full film. Keep the original melody at 96 BPM; the 15-second film uses its first half. SFX may follow the film events.'};
+  report.audioInput=admitted;save();
+ }
  const object=await json('objects/'+prefix+'/context.json',{method:'PUT',body:new TextEncoder().encode(canonical(context))});
  report.startedAt=new Date().toISOString();report.status='running';save();
  if(layoutSource){
@@ -120,6 +129,7 @@ try{
   }else if(state.status==='succeeded'){
    const candidate=await json('operations/'+operationId+'/candidate');writeFileSync(join(output,'candidate.json'),canonical(candidate)+'\n');
    if(candidate.final.length!==context.aspects.length||candidate.publicUseCleared!==false)throw Error('EVAL_FINAL_ASPECTS_MISSING');
+   if(music&&(candidate.film.audio.mute===true||canonical(candidate.film.audio.music)!==canonical(music.selector)))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
    for(const[index,movie]of candidate.final.entries())for(const ref of movie.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))
     await download(ref,context.aspects[index]+'-'+ref.key.split('/').at(-1));
    writeFileSync(join(output,'index.html'),'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>'+escape(caseId)+' · S1 内部视听</title><style>body{margin:32px auto;max-width:1050px;padding:0 24px;background:#101712;color:#f4f8ee;font:18px system-ui}video{width:100%;max-height:75vh;background:#000}section{margin:32px 0}a{color:#d9fa73}</style><h1>'+escape(caseId)+'</h1><p>内部评测 · 正常速度 1× · 待负责人视听，不公开成片</p>'+context.aspects.map(aspect=>'<section><h2>'+escape(aspect)+'</h2><video controls preload="metadata" poster="'+aspect+'-poster.png" src="'+aspect+'-film.mp4"></video></section>').join('')+'<p><a href="candidate.json">候选、事实与冷审</a> · <a href="report.json">实际费用与运行回执</a></p></html>');

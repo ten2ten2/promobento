@@ -192,6 +192,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(!['software','course'].includes(context.audience)||![15,30].includes(context.durationSeconds)||!context.resources?.length||context.resources.length>12
           ||!Array.isArray(context.facts)||!context.facts.length||!Array.isArray(context.aspects)||!context.aspects.length
           ||context.aspects.some((aspect:string)=>!(aspect in platform.aspectLayouts))||context.facts.some((fact:Json)=>!context.confirmedFactIds.includes(fact.id)))throw Error('DIRECTOR_INPUT_INVALID');
+        // Every later studio task carries the full image catalog, including unused images.
+        if(context.resources.some((asset:Json)=>![asset.width,asset.height].every(size=>Number.isInteger(size)&&size>=1&&size<=4096)))throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
         // Fail before the first paid call if a later required provider is unavailable.
         for(const ref of new Set([providers.steps.facts,providers.steps.assets,providers.steps.directions,providers.steps.spec,providers.steps.review,providers.steps.coldReview])){
           const provider=(providers.providers as Json)[ref.split('/')[0]!];if(!this.env[provider.secret as 'ANTHROPIC_API_KEY'|'MODEL_COMPAT_API_KEY'])throw Error('MODEL_SECRET_MISSING');

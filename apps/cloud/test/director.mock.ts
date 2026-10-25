@@ -19,7 +19,7 @@ import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetS
 const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
- audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,unconfirmedHistory=false,httpFailure=false,
+ audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
  nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
@@ -79,6 +79,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  const resource=await immutableJson(env,'evals/mock/original.json',{original:'fixture image'});
  objects.set(resource.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});resource.sha256=sha256Bytes(png);resource.byteLength=png.length;resource.mediaType='image/png';
  context.resources=[{...resource,...options.resources[0]}];
+ if(oversizedResource)context.resources[0].height=5064;
  await immutableJson(env,'evals/mock/rights.json',{basis:'Original synthetic test fixture; not real third-party clearance.'});
  if(!noRights)db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation',options.resources[0].resourceId,resource.sha256,options.resources[0].licenseRef,'evals/mock/rights.json','internal_eval_only',null);
  if(audio){
@@ -236,6 +237,7 @@ test('director preparation/cleanup preserve the first cause, and internal repair
 test('environment preflight is refreshed after user wait, and a broken renderer spends no model tokens',async()=>{
  const good=await fixture();assert.ifError(good.error);assert.equal(good.studioCount,5);assert.equal(good.closedCount,5);assert.equal(good.reservations,6);
  const bad=await fixture({healthFailure:true,cleanupFailure:true});assert.equal(bad.error.message,'MOCK_RENDER_UNAVAILABLE');assert.equal(bad.networkCalls,0);assert.equal(bad.reservations,0);assert.equal(bad.state.status,'failed');
+ const oversized=await fixture({oversizedResource:true});assert.equal(oversized.error.message,'DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');assert.equal(oversized.networkCalls,0);assert.equal(oversized.reservations,0);assert.equal(oversized.studioCount,0);
 });
 test('shared model ledger gates unknown opening and retains unresolved transport liability across the real director',async()=>{
  const blocked=await fixture({unconfirmedHistory:true});assert.equal(blocked.error.message,'MODEL_HISTORY_RECONCILIATION_REQUIRED');assert.equal(blocked.networkCalls,0);assert.equal(blocked.studioCount,0);

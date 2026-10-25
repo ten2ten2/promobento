@@ -428,4 +428,4 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [实际回执](duolingo-score-attempt/report.json)：6 次新模型已结 **5,211**，两次计算预留均已停止/结算（合计 **393 usd_micros** 保守上界），无本轮未知、无容量、临时密钥已删。共享新增模型已结 **549,340**、三笔未知 **37,993**，合计占用 **587,333 usd_micros**。
 
-已在断网的独立 Chrome 155.0.8059.85 中将全图缩为 **1893×4096**，没有裁剪；新图已查看并[入私有库](duolingo-score-attempt/selected-materials-ingestion.json)，原图及其 R2 引用保留。该次收据只覆盖旧目录的八项素材，不能替换包含 IELTS 原创图的九项完整清单；完整清单未改写。完整目录接入、音乐到成片及正常速度视听，均按[负责人指示暂停](../../implementation-status.md#先部分验收已有结果问题项暂停)。
+已在断网的独立 Chrome 155.0.8059.85 中将全图缩为 **1893×4096**，没有裁剪；新图已查看并[入私有库](duolingo-score-attempt/selected-materials-ingestion.json)，原图及其 R2 引用保留。该次收据只覆盖旧目录的八项素材。负责人恢复 S1 并批准复用、重新登记私有 staging 的九项素材后，操作 `materials-20261026-full-bounded` 已将派生图接回[完整清单](../../../research/evals/materials.json)，IELTS 原创 PNG／SVG 与 HF 许可通知原引用保留，全部九项复用字节，未调用模型或渲染。私有完整清单为 `evals/materials-20261026-full-bounded/manifest.json`，入库操作已关闭、无未结费用、临时密钥已删。输入准备与服务端初始预检现会提前拒绝超过 4096 边长的目录项；本地定点回放通过，不再等到付费模型之后的方向 studio 才发现。ABC／WAV 到成片和正常速度视听仍待验。

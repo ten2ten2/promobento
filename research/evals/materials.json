@@ -3,10 +3,10 @@
   "kind": "s1_internal_materials",
   "scope": "internal_eval_only",
   "publicUseCleared": false,
-  "operationId": "materials-20261024-six-ready",
+  "operationId": "materials-20261026-full-bounded",
   "rightsDecision": "research/evals/topics.json#/rights",
-  "acquiredAt": "2026-10-24T06:49:37.164Z",
-  "manifestKey": "evals/materials-20261024-six-ready/manifest.json",
+  "acquiredAt": "2026-10-25T16:03:43.413Z",
+  "manifestKey": "evals/materials-20261026-full-bounded/manifest.json",
   "status": "ingested_internal_eval",
   "assets": [
     {
@@ -104,23 +104,41 @@
       "width": 750
     },
     {
-      "byteLength": 305418,
+      "byteLength": 490367,
+      "derivation": {
+        "browser": "155.0.8059.85",
+        "method": "inert_PNG_full_image_downscale_no_crop",
+        "original": {
+          "byteLength": 305418,
+          "height": 5064,
+          "key": "evals/materials-20261024-reviewed/duolingo/duolingo-path.png",
+          "resourceId": "res_s1_duolingo_path_f42c270b26db",
+          "sha256": "f42c270b26db3f95e87b0bf0e14f33d31307a910fe27aee38230e1d8cad53dba",
+          "width": 2340
+        },
+        "output": {
+          "byteLength": 490367,
+          "height": 4096,
+          "sha256": "fcacd797be59d6cf528f8564ad061b0a15f8aa32d21078ed955be43054e9a04d",
+          "width": 1893
+        }
+      },
       "description": "Official example learning path",
-      "evidenceKey": "evals/materials-20261024-reviewed/duolingo/duolingo-path-rights.json",
-      "height": 5064,
+      "evidenceKey": "evals/materials-20261025-bounded-path/duolingo/duolingo-path-rights.json",
+      "height": 4096,
       "id": "duolingo-path",
       "imageUrl": "https://s3.us-east-1.amazonaws.com/content.duolingo.com/Duolingo+101%3A+How+to+learn+a+language+on+Duolingo/9-pathUnit.png",
-      "key": "evals/materials-20261024-reviewed/duolingo/duolingo-path.png",
+      "key": "evals/materials-20261025-bounded-path/duolingo/duolingo-path.png",
       "kind": "image",
       "licenseRef": "LicenseRef-S1-Internal-Evaluation",
       "mediaType": "image/png",
       "publicUseCleared": false,
-      "resourceId": "res_s1_duolingo_path_f42c270b26db",
+      "resourceId": "res_s1_duolingo_path_fcacd797be59",
       "scope": "internal_eval_only",
-      "sha256": "f42c270b26db3f95e87b0bf0e14f33d31307a910fe27aee38230e1d8cad53dba",
+      "sha256": "fcacd797be59d6cf528f8564ad061b0a15f8aa32d21078ed955be43054e9a04d",
       "sourceUrl": "https://blog.duolingo.com/duolingo-101-how-to-learn-a-language-on-duolingo/",
       "topicId": "duolingo",
-      "width": 2340
+      "width": 1893
     },
     {
       "byteLength": 91596,

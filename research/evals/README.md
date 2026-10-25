@@ -1,6 +1,6 @@
 # S1 评测输入
 
-负责人于 2026-10-25 要求[先部分验收已有结果，问题项暂停](../../docs/implementation-status.md#先部分验收已有结果问题项暂停)。保留既有输入与成片，不继续启动问题项或剩余题目的付费评测。
+负责人在部分验收后要求[继续 S1，先补真实音乐路径](../../docs/implementation-status.md#s1-恢复先补真实音乐路径)。保留既有输入与成片，沿用原内部评测、模型预算和生产关闭边界。
 
 题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实与确认文案保留；2026-10-25 再次核对 Duolingo、IELTS Ready、Marugoto 和 Hugging Face 的原官方页面，原功能、课程及学习基础陈述仍有依据。IELTS 本次可读到公开页面文字，但原浏览器采集的 403 记录及第三方截图许可限制不因此改变。三家产品的入口为：
 
@@ -22,7 +22,7 @@
 
 `materials.json` 的每项提供 `resourceId`、`key`、`sha256`、`byteLength`、尺寸、`licenseRef` 与 `evidenceKey`；字节只在 staging R2。新评测操作先按 cloud 内部 `rights` 入口为自己的 operationId 重新登记同一证据，再将素材加入 `context.resources`。题目用 `materialIds` 选择素材，不能因为同一目录有其他品牌的图就串用。Hugging Face 图附原课程仓库 Apache-2.0 通知及署名；这批素材整体仍限内部评测，不作为免署名商用素材包。
 
-DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 取官网下载页发布的原始桌面示例图，账号标签属于官方演示，不是私人账户。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。9 图合计 976,951 bytes；新操作复用原 8 图字节，仅新增 IELTS PNG 与 SVG 源稿并重登记权利。入库未调用模型或启动渲染，操作已关闭、临时密钥已删除。
+DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 取官网下载页发布的原始桌面示例图，账号标签属于官方演示，不是私人账户。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。当前 9 图合计 1,161,900 bytes。Duolingo 路径全图等比缩为 1893×4096，未裁剪；原 2340×5064 图及其许可、R2 引用仍保留在派生记录。2026-10-26 负责人批准复用并重新登记私有 staging 素材，完整九项清单已入库，IELTS PNG／SVG 和 HF 许可通知保持原引用。此轮复用全部字节，未调用模型或渲染，操作已关闭、临时密钥已删除。
 
 ### 将六题准备为实际导演输入
 
@@ -126,4 +126,16 @@ open artifacts/s1-audio-review/index.html
 
 试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误。负责人在正常速度试听请求下回复「保留」，[现有 13 种全部保留](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)。重新打包时仅对来源 run 和对应样本计划都匹配的材料沿用该决定，其他材料仍待试听。六题实际成片的视听与 4/6 评判另行进行。
 
-另有[原创 ABC 与派生 WAV 的 15/30 秒内部测试批准及源母带身份](../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。原谱和 WAV 保持私有，不沿用上述 13 风格的保留结论；首次导演请求及超尺寸素材阻断见[实际记录](../../docs/evidence/2026-10-24-s1-director/README.md#原创音乐首轮abc-准入通过超尺寸素材阻断方向预览)，后续联验现已暂停。
+另有[原创 ABC 与派生 WAV 的 15/30 秒内部测试批准及源母带身份](../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。原谱和 WAV 保持私有，不沿用上述 13 风格的保留结论；首次导演请求及超尺寸素材阻断见[实际记录](../../docs/evidence/2026-10-24-s1-director/README.md#原创音乐首轮abc-准入通过超尺寸素材阻断方向预览)。恢复后仅复用已批准的原谱和母带，不重新合成源母带：
+
+```sh
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-current duolingo-15 artifacts/s1-duolingo-15-score \
+  --score artifacts/s1-original-music/s1-original.abc
+
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-current duolingo-30 artifacts/s1-duolingo-30-upload \
+  --music artifacts/s1-audio-source-proposal/out/30/mixed.wav
+```
+
+`--score` / `--music` 先核对批准的字节身份与时长，再为本次操作登记许可，随后交给真实导演；音源使用私有固定键，许可仍逐操作登记。导演须返回指定且未静音的音乐选择，脚本不改写其 FilmSpec；最终候选不匹配即失败。15/30 秒各自取批准的谱长或对应 WAV，以上两个命令只是用法示例，不代表四种组合均已验收。
