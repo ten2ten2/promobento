@@ -135,7 +135,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:(badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource).replace('power2.out','power1.out')}}]};
    }else{
     assert.equal(body.max_tokens,32768);
-    assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,spec.scenes[1].brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);
+    assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,spec.scenes[1].brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);assert.match(input.apiNotes,/inside safeInsets after transforms/);
     assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);
     const first=input.phase==='motion-0';assert.match(input.currentSource,first?/power1.out/:/power2.out/);
     if(first)assert.equal(input.phaseWindow.start,0);else assert.equal(input.phaseWindow.end,spec.scenes[1].end-spec.scenes[1].start);
