@@ -271,7 +271,7 @@
       "scenes": {
         "maxCallsPerScene": 12,
         "maxMicrosPerScene": 350000,
-        "effort": "medium"
+        "effort": "none"
       },
       "review": {
         "maxCalls": 6,

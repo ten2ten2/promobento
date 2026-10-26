@@ -12,14 +12,16 @@ export function parseModelJson(text){
 }
 
 /** Normalized messages are trusted prompt data, never executable modules. */
-export function providerRequest({provider, model, system, messages, schema, tools = [], effort, maxOutputTokens}) {
+export function providerRequest({provider, model, system, messages, schema, tools = [], toolChoice, effort, maxOutputTokens}) {
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 16384) throw Error('MODEL_OUTPUT_LIMIT_INVALID');
+  if(toolChoice!==undefined&&(!tools.some(tool=>tool.name===toolChoice)||provider.kind!=='openai-compatible'))throw Error('MODEL_TOOL_CHOICE_UNSUPPORTED');
   if (provider.kind === 'openai-compatible') {
     const content = message => message.images?.length ? [{type: 'text', text: message.text}, ...message.images.map(image =>
       ({type: 'image_url', image_url: {url: `data:${image.mediaType};base64,${image.base64}`}}))] : message.text;
     return {path: '/chat/completions', body: {model, messages: [{role: 'system', content: system}, ...messages.map(message =>
       ({role: message.role, content: content(message)}))], max_tokens: maxOutputTokens, stream: true, stream_options: {include_usage: true},
-      reasoning_effort: effort, ...(tools.length ? {tools: tools.map(tool => ({type: 'function', function: tool}))} : {response_format: {type: 'json_object'}})}};
+      reasoning_effort: effort, ...(tools.length ? {tools: tools.map(tool => ({type: 'function', function: tool})),
+        ...(toolChoice?{tool_choice:{type:'function',function:{name:toolChoice}}}:{})} : {response_format: {type: 'json_object'}})}};
   }
   if (provider.kind !== 'anthropic') throw Error('MODEL_PROVIDER_UNSUPPORTED');
   return {path: '/v1/messages', body: {model, system: [{type: 'text', text: system, cache_control: {type: 'ephemeral', ttl: '1h'}}],

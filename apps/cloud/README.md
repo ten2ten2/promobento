@@ -142,6 +142,8 @@ B 选择信息形态、运动语言与骨架；方向 hero 仍是静音可信积
 
 原生 `edit_file` 参数从同一共享契约派生，但下发为自包含 Schema：`path` 明确为当前模块的字符串，不能留下指向父 Schema 的 `$ref`。D 首次只开放 create，E 只开放 str_replace/insert；坏路径按具体 code/path 反馈，不把模型返回的对象路径静默转换为字符串。
 
+D 当前内部候选用 `reasoning_effort:none`，兼容接口另外命名指定 `edit_file`；不再只靠提示要求自动选择工具。原 16,384 输出上限、每镜头调用/费用和完整源码/帧校验不变。Anthropic 路线保留原工具行为；适配语义见[模型接口](../../packages/models/README.md)。网关实际返回源码仍待重验，截断不自动重试。
+
 当前新路径的实际验证范围统一见[实施状态](../../docs/implementation-status.md)。
 
 ## 导演使用已批准的音乐

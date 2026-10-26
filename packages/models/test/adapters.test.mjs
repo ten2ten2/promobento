@@ -31,6 +31,11 @@ test('an explicit non-thinking request is preserved on the compatible transport'
  const request=providerRequest({...base,provider,effort:'none',tools:[{name:'submit_candidate',description:'Submit',parameters:{type:'object'}}]});
  assert.equal(request.body.reasoning_effort,'none');assert.equal(request.body.tools[0].function.name,'submit_candidate');
  assert.equal(providerRequest({...base,provider}).body.reasoning_effort,'low');
+ const forced=providerRequest({...base,provider,effort:'none',toolChoice:'edit_file',tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]});
+ assert.deepEqual(forced.body.tool_choice,{type:'function',function:{name:'edit_file'}});
+ assert.equal(providerRequest({...base,provider}).body.tool_choice,undefined);
+ assert.throws(()=>providerRequest({...base,provider,toolChoice:'missing'}),/MODEL_TOOL_CHOICE_UNSUPPORTED/);
+ assert.throws(()=>providerRequest({...base,provider:{kind:'anthropic',baseUrl:'https://provider.invalid'},toolChoice:'edit_file',tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]}),/MODEL_TOOL_CHOICE_UNSUPPORTED/);
 });
 test('truncated streams fail instead of returning a successful partial response',async()=>{
   await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},

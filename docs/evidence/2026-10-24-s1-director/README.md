@@ -561,3 +561,16 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 核对发现下发的 edit_file 参数带有指向父 Schema 的悬空 `#/$defs/scenePath`，且旧纠正只给通用错误；现改为自包含的路径字符串/当前模块枚举、按阶段限定命令、反馈具体 path 错误。离线检查原源码另发现 Q0 误把局部 parent/top 当全局，已按词法作用域修复；原源码里的变量 tag 元素工厂仍按当前准入拒绝，不改写成已通过。D 指引现明确字面量建元素和扁平 ctx 调色板。路径纠正 D/E 回放、受影响 Q0 单元与 cloud 类型检查通过。修复已由 [40333954887](https://github.com/ten2ten2/promobento/actions/runs/40333954887) 在 `a022de4d0e1133b3714dc43ef51ab89b3f896c35` 构建镜像并部署；[健康回执](custom-first-attempt/deployment-health-40333954887.json)为 ok、容量为空、零模型/渲染调用，临时密钥已回收。新输入须固定 `renderer-a022de4d0e11`；真实导演重验仍待，不重跑已通过矩阵。
 
 [完整费用与回收](custom-first-attempt/report.json)：10 次模型合计 **44,779 usd_micros**，5 次计算全部停止/结算 **4,321 usd_micros** 保守上界，本轮合计 **49,100 usd_micros**（约 $0.0491）；没有本轮未知消费，容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **694,836**，原三笔未知 **37,993** 保留，合计占用 **732,829 usd_micros**。本轮没有新成片，不增加 1/12、2/24；新的真实评测须另获授权，不自动重开失败操作。
+
+
+### 第二次自写导演：C 通过，D 输出用尽仍未调用工具
+
+负责人单独批准修复后的同一 MiniMax 15 秒评测一次，数据/网关/私有范围、单次 $3 与共享新增模型 $10 不变。操作 `eval-minimax-15-1793028517511` 使用已部署的 `a022de4` 和固定 `renderer-a022de4d0e11`，没有重跑已通过的安全/帧矩阵。
+
+事实与五份素材理解复用缓存；新的 B 三方向和 C 完整规格已通过。已看三张实际 PNG 与[完整方向](custom-second-attempt/directions.json)，[选择 amplify](custom-second-attempt/choice.json)：需求文字先形成运动平面，再交给真实产品画面，变化比固定框换图或三节点导航更具体。预览图没有裁字，并实际用了既有可信 3D display，不把静帧当成自写动作已实现。[C 回执](custom-second-attempt/spec-response.json)声明一个 0–288 帧 custom（spec-to-pet），后接可信 3D 产品与 CTA，不是固定三张 ui-showcase。
+
+[D 失败元数据](custom-second-attempt/scene-failure.json)记录 medium 请求在 16,384 completion token 时终态截断，保留约 5.7 万字符的分析文字、零 toolCalls；没有生成可执行模块，也没有进入实际镜头检查、review、E/F 或最终片。完整原文保存在同一私有 R2 不可变回执和本机忽略目录，不从散文提取代码或补造工具调用。这次没有验证修复后的对象路径实际返回正确。
+
+修复方向为 D 的 none 请求加兼容接口命名 edit_file，输出上限仍为 16,384，不靠扩容或重发原截断请求。[DeepSeek 官方契约](https://api-docs.deepseek.com/api/create-chat-completion/)要求非思考模式才支持命名强制工具；实际 ModelSwitch 转发仍待验证。当前 Anthropic 路线保留原默认/严格工具行为，不给不支持的模型强制工具参数。阶段金额、次数和整次期限不变。
+
+[本轮费用与回收](custom-second-attempt/report.json)：三次真实模型合计 **31,734 usd_micros**，四次计算全部停止/结算 **4,407 usd_micros** 保守上界，合计 **36,141 usd_micros**（约 $0.0361）。没有本轮未知、容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **726,570**，原三笔未知 **37,993** 保留，合计占用 **764,563 usd_micros**。没有新成片或覆盖数增加；不自动再开新评测。

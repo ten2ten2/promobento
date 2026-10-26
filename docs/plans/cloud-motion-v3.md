@@ -1010,12 +1010,13 @@ E 同时接收当前候选已经应用过的历史规格，以及共用的已用
 | A2 素材理解 | `assets` | 看图、JSON | `deepseek-v4.1-flash-1017` | low | 每个素材 2 次（含一次结构纠正） | $0.04 |
 | B 方向 | `directions` | JSON | `deepseek-v4.1-flash-1017` | high | 3 | $0.40 |
 | C 规格 | `spec` | JSON、强推理 | `modelswitch/claude-opus-5-5` | high | 3 | $0.40 |
-| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | medium | 12 | $0.35 |
+| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | none（内部候选） | 12 | $0.35 |
 | E 整片 review | `review` | 看图、工具 | `deepseek-v4.1-flash-1017` | none（内部候选） | 6 | $0.30 |
 | F 冷审 | `coldReview` | 看图、JSON | `modelswitch/deepseek-v4.1-flash-1017` | none（内部候选） | 2 | $0.05 |
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
+- D 的 medium 请求已实际用满 16,384 输出 token，只有长篇分析、零工具调用。当前内部候选改为 none，并在兼容接口命名指定 edit_file；原输出、每镜头次数/金额与整次期限不提高。[DeepSeek 官方契约](https://api-docs.deepseek.com/api/create-chat-completion/)允许非思考模式的命名强制工具；网关效果仍待真验。当前 Anthropic 路线不下发该强制选择，保留严格工具声明与本地完整校验，不改变旧调用。
 - E 在 medium/low 的 8,192 token、以及后续 low 的 16,384 token 上限均有实际截断；IELTS 的后一次完整响应用尽额度仍是散文分析，没有工具调用。当前内部候选将 E/F 的兼容接口参数改为 `reasoning_effort:none`，E 仍最多 16,384、F 8,192；[DeepSeek 官方接口](https://api-docs.deepseek.com/api/create-chat-completion/)说明 none 关闭思考。网关公开文档未说明该参数细节，是否生效及冷审质量须真实评测，不将旧“接受 low”记为已验证 none。次数、阶段金额、完整校验和质量标准不变。
 - A/B/E/F 的完整 JSON/工具/契约错误在实际 usage 已结算时可反馈一次纠正，使用新 callId 并保留原始响应/usage；不能丢弃多余字段或补造工具参数后冒充通过。A 的总调用限额包含这次纠正，B/E/F 沿用原总调用上限，全部阶段金额不提高；F 总调用已用尽时不再花 C 的费用尝试无法复审的修复。未知消费、终态截断与传输错误不重发。
 - A 的事实/素材 JSON 输出空间为 4,096；响应 Schema 与纠正所需的完整契约同时出现在用户消息，不仅依赖 system 提示。该调整针对 MiniMax 的实际散文回答及 1,024-token 纠正截断，不提高原 $0.01/$0.04 阶段金额。

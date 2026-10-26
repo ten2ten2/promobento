@@ -2,6 +2,8 @@ export interface Provider {kind: 'anthropic' | 'openai-compatible'; baseUrl: str
 export interface ModelRequest {
   provider: Provider; model: string; system: string; messages: Array<{role: 'user' | 'assistant'; text: string; images?: Array<{mediaType: string; base64: string}>}>;
   schema?: Record<string, unknown>; tools?: Array<{name: string; description: string; parameters: Record<string, unknown>}>;
+  /** Optional named tool on the compatible transport; omit for providers/models without forced tool support. */
+  toolChoice?: string;
   effort: string; maxOutputTokens: number;
 }
 export function providerRequest(input: ModelRequest): {path: string; body: Record<string, unknown>};

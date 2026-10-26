@@ -123,6 +123,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
    value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
+   assert.equal(body.reasoning_effort,'none');assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
    assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
    const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);assert.doesNotMatch(canonical(params),/\$ref/);
