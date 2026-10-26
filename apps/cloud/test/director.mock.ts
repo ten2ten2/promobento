@@ -114,7 +114,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
-  else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/cold_review/);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
+  else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.equal(body.max_tokens,16384);assert.deepEqual(body.tools.map((entry:any)=>entry.function.name),['submit_cold_review']);assert.deepEqual(body.tools[0].function.parameters,input.responseSchema);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    assert.equal(input.repairContext,undefined,'cold review stays independent of E repair history');
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');
@@ -128,6 +128,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const last=body.messages.at(-1),feedback=parseCanonicalJson(provider.kind==='anthropic'?last.content[0].text:last.content).validationFeedback;
     assert.ok(feedback.issues.some((issue:any)=>issue.path==='/schemaVersionNote'));
   }
+  if(stage==='coldReview')value={toolCalls:[{id:'mock-cold-review',name:'submit_cold_review',arguments:'',input:value}]};
   models.push(stage);
   const data=(value:any)=>'data: '+canonical(value)+'\n\n';let sse='';const reply=stage==='spec'&&malformedSpec&&specRequests===1?'{':canonical(value);
   if(provider.kind==='anthropic'){
