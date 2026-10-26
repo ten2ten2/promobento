@@ -235,7 +235,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       });
       const materialized=parseCanonicalJson(await step.do<string>('materialize-direction-heroes',{retries:{limit:0,delay:'1 second'}},async()=>canonical({
         directions:{...proposed,cards:proposed.cards.map((card:Json,index:number)=>({...card,keyframeFilm:card.keyframeFilm??directionHero(card,context,index)}))},
-        origins:Object.fromEntries(proposed.cards.map((card:Json)=>[card.key,card.keyframeFilm?'supplied_validated_film':'trusted_direction_hero_v1']))
+        origins:Object.fromEntries(proposed.cards.map((card:Json)=>[card.key,card.keyframeFilm?'supplied_validated_film':'trusted_direction_hero_v2']))
       }))) as Json,directions=materialized.directions;
       const previews:Json[]=[];
       for(const card of directions.cards){

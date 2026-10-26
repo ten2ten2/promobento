@@ -8,13 +8,16 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  const supported=['ui-showcase','device-3d','ui-journey','feature-grid','curriculum','hook-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('device-3d')?'device-3d':'ui-journey'):
+  proposals.find((id:string)=>['ui-showcase','ui-journey'].includes(id))??
   proposals.find((id:string)=>supported.includes(id)&&!['hook-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id));
  if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
- const asset=context.resources[index%context.resources.length],facts=context.facts,first=facts[0];
+ // Compare palette/depth on the same primary cleared image, not an auxiliary logo or a random catalog item.
+ const asset=context.resources[0],facts=context.facts,first=facts[0];
+ const caption={...first,text:context.product??context.brand??first.text};
  const texts:Json={},assets:Json={},text=(id:string,fact:Json,role='headline')=>{texts[id]={text:fact.text,role,factIds:[fact.id]};return id;};
  const image=()=>{assets.hero={resourceId:asset.resourceId};return'hero';};
  let params:Json;
- if(['ui-showcase','device-3d'].includes(block))params={assetKey:image(),textSlot:text('headline',first)};
+ if(['ui-showcase','device-3d'].includes(block))params={assetKey:image(),textSlot:text('headline',caption)};
  else if(block==='ui-journey')params={items:[0,1].map(i=>({assetKey:image(),textSlot:text('fact-'+i,facts[i%facts.length])}))};
  else if(['feature-grid','curriculum'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
  else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
