@@ -628,10 +628,13 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 这是新增五次授权中的第 3 次，操作 `eval-minimax-15-1793035823866`。[40369018751](https://github.com/ten2ten2/promobento/actions/runs/40369018751) 已将 `8a55883` Worker-only 部署，[健康正常、容量为空](custom-seventh-attempt/deployment-health-40369018751.json)，[仍复用原 a022de4 镜像](custom-seventh-attempt/renderer-reuse-40369018751.json)，该部署只读健康/容量，零模型/渲染调用。A–C、布局沿用成功缓存，方向摘要不变。
 
-[0–90 帧补丁](custom-seventh-attempt/motion-response-metadata.json)在显式 32,768 输出额度下返回合法 str_replace，实际输出 **5,241 token**、费用 **1,594 usd_micros**。网关接受了这个额度参数，但该输出小于 16k，不能据此确认原来更难的补丁已解决截断。下一段 90–180 帧没有返回模型响应，而是 [HTTP 502](custom-seventh-attempt/request-failure.json)；实际用量未知，**41,636 usd_micros** 继续占用，不清零或重发。当前只确认 HTTP 状态；上游具体原因仍缺网关侧诊断。
+[0–90 帧补丁](custom-seventh-attempt/motion-response-metadata.json)在显式 32,768 输出额度下返回合法 str_replace，实际输出 **5,241 token**、费用 **1,594 usd_micros**。网关接受了这个额度参数，但该输出小于 16k，不能据此确认原来更难的补丁已解决截断。下一段 90–180 帧没有返回模型响应，而是 [HTTP 502](custom-seventh-attempt/request-failure.json)；实际用量未知，**41,636 usd_micros** 继续占用，不清零或重发。当前只确认 HTTP 状态；上游具体原因仍缺网关侧诊断。账户侧可按上海时间 **2026-10-27 01:34:05**、模型 `deepseek-v4.1-flash-1017` 定位这笔请求，完整本地调用身份与预留见上述回执。
 
 独立于这笔未知调用，已将原布局和成功补丁按共享 edit_file 实现组装，放入既有 Actions 构建镜像的禁网、独立 UID Chromium，首次实际运行 D 生成的开场。两画幅已捕获 0/18/36/63/89 帧；harness 初次漏传字体 cmap，补上已安装字体的原 cmap 后，仅补查 63/89 帧。原 [63 帧阅读观测](custom-seventh-attempt/partial-original-frames.json)发现两画幅 `spec-timer` 均越过安全区：整列贴边后放大 2% 会向外扩张。字体无缺字/回退，对比度约 10.15，不能把这些通过项替代安全区阻断。
 
 仅修改几何内边距的手工派生版本，在同一两画幅 63 帧得到[零 finding](custom-seventh-attempt/partial-manual-inset-fix.json)，并已查看真实 PNG。D 示例与指引据此改为按最大变换预留镜头余量、在变换后检查 safeInsets；这是局部几何修复证据，不是模型已修复或完整动作/冷 seek/成片通过。私有输入、源码、原图及派生图保留在 `artifacts/s1-minimax-custom-partial-check-2026-10-27/`，没有公开视频或截图。
 
 [费用与清理](custom-seventh-attempt/report.json)：模型已结 **1,594**、未知预留 **41,636**；四次计算全部停止/结算，保守上界 **2,923**，合计实际/预留占用 **46,153 usd_micros**。容量为空、原生 Workflow 已对账、临时密钥已回收。共享新增模型已结 **751,158**，四笔未知 **79,629**，合计占用 **830,787 usd_micros**。新增五次已用三次、剩余两次保留，不用新的操作重发这笔未知补丁。网关账户负责人/供应商需提供该原请求的最终响应、用量与失败诊断；据此结算/修复后再安排后续评测，原期限和 $10 上限不变。没有新影片，S1 仍未通过。
+
+
+安全区指引修复已由 [40371748505](https://github.com/ten2ten2/promobento/actions/runs/40371748505) 将 `d966ad6b7b5e4e78119f95ef218c526847ff78ed` Worker-only 部署。[部署健康](custom-seventh-attempt/deployment-health-40371748505.json)为 ok、容量为空、零模型/渲染调用，[镜像保持 a022de4](custom-seventh-attempt/renderer-reuse-40371748505.json)，临时密钥已回收。Node 26.12.0 的定点 D/E 回放通过；没有重跑全量测试、渲染矩阵或新的付费评测，剩余两次未消费。
