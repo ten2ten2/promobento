@@ -5,7 +5,7 @@ import {assertRenderJob, assertRenderTask, planShards} from '@promobento/contrac
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
 import {reconcileOperation,dispatchRender,dispatchRenderProgress} from './render-recovery.ts';
-import {dispatchDirectorFailure,dispatchDirectorProgress} from './director-recovery.ts';
+import {dispatchDirectorFailure,dispatchDirectorProgress,getReviewDraft} from './director-recovery.ts';
 import {importModelOpening,confirmModelOpening,modelBudgetStatus} from './model-budget.ts';
 import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative,recoverWorkflows} from './workflow-recovery.ts';
@@ -61,7 +61,10 @@ export default {
           owner=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
           resources=(await getJson(env,context!.request_key)).resources;
         }
-        if(!owner||!['active','awaiting_user','succeeded'].includes(owner.status))return new Response(null,{status:404});
+        if(owner?.status==='failed'){
+          const draft=await getReviewDraft(env,owner.id);
+          if(!draft?.movies.some((entry:Json)=>entry.movie.outputs.some((output:Json)=>output.key===key)))return new Response(null,{status:404});
+        }else if(!owner||!['active','awaiting_user','succeeded'].includes(owner.status))return new Response(null,{status:404});
         await rights(env,owner as any,resources);const object=await env.MEDIA.get(key);if(!object)return new Response(null,{status:404});
         return new Response(object.body,{headers:{'content-type':object.httpMetadata?.contentType??'application/octet-stream','cache-control':'private, no-store'}});
       }
@@ -141,6 +144,11 @@ export default {
         const candidate=await getJson(env,owner.result_key);
         if(candidate.kind!=='s1_internal_candidate'||candidate.operationId!==owner.id)throw Error('CANDIDATE_SCOPE_INVALID');
         return Response.json(candidate,{headers:{'cache-control':'private, no-store'}});
+      }
+      const reviewDraftRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/review-draft$/.exec(path);
+      if(reviewDraftRoute&&request.method==='GET'){
+        const draft=await getReviewDraft(env,reviewDraftRoute[1]!);
+        return draft?Response.json(draft,{headers:{'cache-control':'private, no-store'}}):new Response(null,{status:404});
       }
       const contextRoute=/^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if(contextRoute&&request.method==='GET'){

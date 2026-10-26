@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {admitDirectorAudio,directorAudio} from '../src/director-audio.ts';
-import {commitCandidate,failDirector,dispatchDirectorFailure,dispatchDirectorProgress} from '../src/director-recovery.ts';
+import {commitCandidate,commitReviewDraft,failDirector,dispatchDirectorFailure,dispatchDirectorProgress} from '../src/director-recovery.ts';
 import {immutableJson} from '../src/store.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
@@ -70,7 +70,7 @@ test('director terminal fencing preserves first cause, retries cleanup only and 
  const{db,env,op,objects}=fixture(t);let closes=0;
  env.OPERATIONS.getByName=()=>({async closeStudio(){assert.equal(db.prepare('SELECT status FROM pipeline_operations').get().status,'failed');if(++closes===1)throw Error('CLEANUP_UNAVAILABLE');},async progress(){throw Error('NOTICE_UNAVAILABLE');}});
  db.prepare('INSERT INTO cost_reservations VALUES(?,?,?,?,?,?,?,?)').run('unknown-model',op.id,'request','model','spec',12345,'fixture',Date.now());
- await assert.rejects(failDirector(env,op,'SOURCE_UNAVAILABLE'),/CLEANUP_UNAVAILABLE/);
+ await assert.rejects(failDirector(env,op,'SOURCE_UNAVAILABLE'),/COMPUTE_STOP_UNCONFIRMED/);
  await failDirector(env,op,'OPERATION_DEADLINE');
  const first=db.prepare("SELECT * FROM pipeline_outbox WHERE kind='operation_failure'").get();assert.equal(parseCanonicalJson(first.payload_json).code,'SOURCE_UNAVAILABLE');
  assert.equal(parseCanonicalJson(objects.get(`operations/${op.id}/failure.json`).bytes).code,'SOURCE_UNAVAILABLE');assert.equal(closes,2);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
@@ -84,4 +84,18 @@ test('director terminal fencing preserves first cause, retries cleanup only and 
  await assert.rejects(commitCandidate(env,op,'different-key'),/CANDIDATE_COMMIT_CONFLICT/);
  db.prepare("UPDATE pipeline_operations SET generation=1,status='cancelled'").run();await dispatchDirectorProgress(env,{operationId:op.id,payloadJson:success.payload_json});
  assert.equal(db.prepare('SELECT generation FROM pipeline_operations').get().generation,1);
+});
+
+test('review-draft handoff is idempotent, keeps the failure reason and cannot become an accepted candidate',async t=>{
+ const{db,env,op}=fixture(t),key=`operations/${op.id}/review-draft.json`;
+ await commitReviewDraft(env,op,key,'DIRECTOR_REPAIR_LIMIT');
+ await commitReviewDraft(env,op,key,'DIRECTOR_REPAIR_LIMIT');
+ await failDirector(env,op,'NOTICE_UNAVAILABLE');
+ const row=db.prepare('SELECT status,result_key FROM pipeline_operations').get();assert.deepEqual({...row},{status:'failed',result_key:key});
+ assert.equal(parseCanonicalJson(db.prepare("SELECT payload_json FROM pipeline_outbox WHERE kind='operation_failure'").get().payload_json).code,'DIRECTOR_REPAIR_LIMIT');
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='operation_failure'").get().n,1);
+ await assert.rejects(commitCandidate(env,op,`operations/${op.id}/candidate.json`),/OPERATION_FENCED/);
+ await assert.rejects(commitReviewDraft(env,op,key,'ASSET_RIGHTS_PENDING'),/REVIEW_DRAFT_SCOPE_INVALID/);
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1").run();
+ await assert.rejects(commitReviewDraft(env,op,key,'DIRECTOR_REPAIR_LIMIT'),/OPERATION_FENCED/);
 });

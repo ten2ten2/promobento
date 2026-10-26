@@ -9,6 +9,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {probeCardLayout} from './probe-card-layout.mjs';
 import {probeReviewRender} from './probe-review-render.mjs';
 import {readApprovedMusic,admitMusic} from './admit-music.mjs';
+import {reviewPage} from './review-page.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
 if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--score','--music'].includes(modeArg)||!sourceArg))throw Error('EVAL_MODE_INVALID');
@@ -64,7 +65,6 @@ async function download(ref,file){
  if(bytes.length!==ref.byteLength||sha256Bytes(bytes)!==ref.sha256)throw Error('EVAL_OUTPUT_IDENTITY_MISMATCH');
  writeFileSync(join(output,file),bytes);
 }
-const escape=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 save();
 try{
  wrangler(['secret','put','EVAL_API_KEY','--env','staging'],{input:key});secretBound=true;
@@ -137,9 +137,23 @@ try{
    if(music&&(candidate.film.audio.mute===true||canonical(candidate.film.audio.music)!==canonical(music.selector)))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
    for(const[index,movie]of candidate.final.entries())for(const ref of movie.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))
     await download(ref,context.aspects[index]+'-'+ref.key.split('/').at(-1));
-   writeFileSync(join(output,'index.html'),'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>'+escape(caseId)+' · S1 内部视听</title><style>body{margin:32px auto;max-width:1050px;padding:0 24px;background:#101712;color:#f4f8ee;font:18px system-ui}video{width:100%;max-height:75vh;background:#000}section{margin:32px 0}a{color:#d9fa73}</style><h1>'+escape(caseId)+'</h1><p>内部评测 · 正常速度 1× · 待负责人视听，不公开成片</p>'+context.aspects.map(aspect=>'<section><h2>'+escape(aspect)+'</h2><video controls preload="metadata" poster="'+aspect+'-poster.png" src="'+aspect+'-film.mp4"></video></section>').join('')+'<p><a href="candidate.json">候选、事实与冷审</a> · <a href="report.json">实际费用与运行回执</a></p></html>');
+   writeFileSync(join(output,'index.html'),reviewPage({title:caseId,movies:context.aspects.map(aspect=>({aspect,quality:'final',file:aspect+'-film.mp4',poster:aspect+'-poster.png'}))}));
    report.status='candidate_delivered_pending_owner_review';report.finishedAt=new Date().toISOString();save();break;
   }else if(['failed','cancelled'].includes(state.status)){
+   const draft=state.status==='failed'&&state.result_key===`operations/${operationId}/review-draft.json`
+    ?await json('operations/'+operationId+'/review-draft'):null;
+   if(draft){
+    if(draft.kind!=='s1_internal_review_draft'||draft.operationId!==operationId||draft.publicUseCleared!==false||draft.acceptanceStatus!=='unapproved'
+     ||!draft.movies?.length||draft.movies.some(entry=>!context.aspects.includes(entry.aspect)||entry.movie.status!=='passed'))throw Error('EVAL_REVIEW_DRAFT_INVALID');
+    if(music&&(draft.film.audio.mute===true||canonical(draft.film.audio.music)!==canonical(music.selector)))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
+    writeFileSync(join(output,'review-draft.json'),canonical(draft)+'\n');
+    for(const entry of draft.movies)for(const ref of entry.movie.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))
+     await download(ref,entry.aspect+'-'+ref.key.split('/').at(-1));
+    writeFileSync(join(output,'index.html'),reviewPage({title:caseId,draft:true,coldReviewStatus:draft.coldReviewStatus,
+     movies:draft.movies.map(entry=>({aspect:entry.aspect,quality:entry.quality,file:entry.aspect+'-film.mp4',poster:entry.aspect+'-poster.png'}))}));
+    report.status='review_draft_delivered_pending_owner_review';report.reviewDraft={reason:draft.reason,coldReviewStatus:draft.coldReviewStatus,internalRepairs:draft.internalRepairs,countsTowardAcceptance:false};
+    report.finishedAt=new Date().toISOString();save();break;
+   }
    report.failure=await json('operations/'+operationId+'/recovery');throw Error('EVAL_DIRECTOR_'+(report.failure.failure?.code??state.status.toUpperCase()));
   }
   await pause();

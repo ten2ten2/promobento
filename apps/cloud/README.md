@@ -130,6 +130,8 @@ E/F 均收到原始 `briefContext` 和所选方向的冻结数据；不把导演
 
 F 的具体 BLOCK 发现可触发一次规格修复，再经过 E、全画幅重渲和第二次独立 F；同一规格不变则以 `COLD_REVIEW_NO_CHANGE` 停止。E/F 共用最多两次 `internalRepairs`，不各自重置；C 的 3 次调用、F 的 2 次调用、阶段金额与整次期限也不重置。首次成功的检查点名称保留，修复影片另用新名称/引用，不覆盖先前成片。第二次 F 仍 BLOCK 或额度已用尽时不交付候选。
 
+达到修改上限或 F 无法继续修复时，按[内部审片退出规则](../../docs/plans/cloud-motion-v3.md#66-阶段-e整片-review)保留未验收的 `review-draft.json`。`GET operations/<id>/review-draft` 只供内部负责人取回，操作仍是 `failed`，`candidate` 接口仍返回 404；不会增加修改次数或绕过 F。草稿绑定最后实际渲染的规格／影片、原停止原因、未应用建议及冷审状态。`artifacts/<key>` 在这类失败操作中只放行草稿所列的已通过媒体，仍核对 generation 与当前许可；普通失败、取消、旧代际和其他输出不开放。
+
 ## 导演使用已批准的音乐
 
 图片仍放 `context.resources`；可选的 `context.audioSources` 单独列出最多四个音乐源，不送入看图模型。每项提供 `kind: "score" | "upload"`、`resourceId`、`sha256`、私有 `evals/…` 的 `key`、`byteLength`；ABC 另有 FilmSpec 使用的 `scoreRef`（例如 `audio/original.abc`）。不接受目录中自报的 `rightsCleared` 或许可证；可信宿主从 D1 权利行和私有 R2 证据读取许可。完整结构见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)。

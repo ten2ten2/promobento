@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {OperationWorkflow} from '../src/director.ts';
+import worker from '../src/index.ts';
 import {ShardDO} from '../src/compute.ts';
 import {AUDIO_INSTANCE} from '../src/render-task.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -18,7 +19,7 @@ import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetS
 
 const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
-async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,
+async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
  nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
@@ -31,7 +32,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  };},async batch(statements:any[]){db.exec('BEGIN');try{const rows=statements.map(statement=>statement.runSync());db.exec('COMMIT');return rows;}catch(error){db.exec('ROLLBACK');throw error;}}};
  const objects=new Map<string,any>();
  const MEDIA={async head(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,httpMetadata:value.httpMetadata}:null;},
-  async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
+  async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,body:Uint8Array.from(value.bytes),customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
   async put(key:string,input:any,options:any){if(objects.has(key)&&options?.onlyIf?.get('If-None-Match')==='*')return null;
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
  let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[];
@@ -70,7 +71,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    objects.set(frame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});frame.sha256=sha256Bytes(png);frame.byteLength=png.length;frame.mediaType='image/png';
    const motionFrame={...frame,key:frame.key.replace('/observation-frames/45.png','/motion-frames/90.png')};
    if(motionSamples)objects.set(motionFrame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});
-   const result={renderId:request.job.renderId,status:'passed',outputs:[],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence'}};
+   const fakeMovie=await immutableJson(env,`renders/${request.job.renderId}/mock/film.mp4`,{scope:'simulated_not_media_evidence'});
+   const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence'}};
    db.prepare("UPDATE pipeline_renders SET status='passed',result_json=? WHERE id=?").run(canonical(result),request.job.renderId);
   }}};
  const opening=await importModelOpening(env,{kind:'historical_model_spend',authorizationId:modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline synthetic fixture; no provider spend'],entries:[]});
@@ -116,7 +118,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
-   value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:clone(fixed)}}]}:submitted;}
+   const suggestion=clone(fixed);if(alwaysRepair&&reviewRound===3)suggestion.texts.headline.text='An unapplied third suggestion.';
+   value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:suggestion}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.equal(body.max_tokens,16384);assert.deepEqual(body.tools.map((entry:any)=>entry.function.name),['submit_cold_review']);assert.deepEqual(body.tools[0].function.parameters,input.responseSchema);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    assert.match(body.tools[0].function.description,/complete cold_review/);assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?3:2);
    if(motionSamples){assert.deepEqual(input.motionFrames[0].tiles.map((tile:any)=>tile.frame),[90]);assert.equal(input.motionFrames[0].aspect,context.aspects[0]);assert.match(input.motionFrames[0].scope,/mid_hops_not_full_motion_or_audio/);}
@@ -151,13 +154,31 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  const step:any={async do(name:string,optionsOrFn:any,callback?:any){const fn=callback??optionsOrFn;clock+=100;
    if(name==='preflight')assert.equal(optionsOrFn.retries.limit,0,'missing keys/rights/verification are deterministic admission failures');
    if(cancel&&name==='spec'){db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1").run();}
+   if(cancelHandoff&&name==='handoff-review-draft'){db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1").run();}
    return fn();},async waitForEvent(){choiceCount++;assert.equal(activeStudio,null);
     const row=db.prepare('SELECT directions_hash,previews_key FROM pipeline_contexts').get();assert.equal((parseCanonicalJson(new Uint8Array(await(await MEDIA.get(row.previews_key))!.arrayBuffer())) as any[]).length,3);
     clock+=12*3600000;return{payload:{key:'fit',directionsHash:row.directions_hash}};}};
  try{
   let result:any,error:any;try{result=await new OperationWorkflow({} as any,env).run({payload:{operationId:'mock-operation'}} as any,step);}catch(value){error=value;}
   const state=db.prepare('SELECT status,result_key FROM pipeline_operations').get();
-  return{result,error,state,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,
+  let draftApi;
+  if(result?.kind==='s1_internal_review_draft'){
+   env.S1_ENABLED='internal_eval';env.EVAL_API_KEY='fixture-internal-key';
+   const read=(path:string,authorized=true)=>worker.fetch(new Request('https://fixture.invalid/internal/s1/'+path,{headers:authorized?{authorization:'Bearer fixture-internal-key'}:{}}),env,{} as any);
+   const route='operations/mock-operation/',file=result.movies[0].movie.outputs[0].key;
+   const draft=await read(route+'review-draft');assert.equal(draft.status,200);assert.deepEqual(parseCanonicalJson(await draft.text()),result);
+   assert.equal((await read(route+'candidate')).status,404);assert.equal((await read(route+'review-draft',false)).status,404);
+   assert.equal((await read('artifacts/'+file)).status,200);
+   const other=db.prepare('SELECT result_json FROM pipeline_renders WHERE id<>? LIMIT 1').get(result.movies[0].movie.renderId);
+   if(other){const outside=parseCanonicalJson(other.result_json).outputs[0].key;
+    if(!result.movies.some((entry:any)=>entry.movie.outputs.some((output:any)=>output.key===outside)))assert.equal((await read('artifacts/'+outside)).status,404);}
+   db.prepare('UPDATE pipeline_rights SET revoked_at=1').run();
+   assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,422);
+   db.prepare('UPDATE pipeline_rights SET revoked_at=NULL').run();db.prepare('UPDATE pipeline_operations SET generation=generation+1').run();
+   assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,404);
+   draftApi='private_draft_only_rights_and_generation_checked';
+  }
+  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
@@ -177,7 +198,7 @@ test('completed structured output with an extra null field gets one charged corr
   if(invalidStage==='assets')assert.equal(new Set(fixed.modelStages.filter(stage=>stage.startsWith('assets:'))).size,1);
  }
  const blocked=await fixture({invalidStage:'facts',alwaysInvalidStage:true});assert.equal(blocked.error.message,'FACT_ANALYSIS_INVALID');assert.deepEqual(blocked.models,['facts','facts']);assert.equal(blocked.settlements,2);assert.equal(blocked.renders.length,0);
- const noColdCalls=await fixture({invalidStage:'coldReview',coldBlock:true});assert.equal(noColdCalls.error.message,'COLD_REVIEW_BLOCK');assert.equal(noColdCalls.specRequests,1);assert.equal(noColdCalls.models.filter(stage=>stage==='coldReview').length,2);
+ const noColdCalls=await fixture({invalidStage:'coldReview',coldBlock:true});assert.ifError(noColdCalls.error);assert.equal(noColdCalls.result.reason,'COLD_REVIEW_BLOCK');assert.equal(noColdCalls.specRequests,1);assert.equal(noColdCalls.models.filter(stage=>stage==='coldReview').length,2);
  const unknown=await fixture({transportFailure:true});assert.equal(unknown.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(unknown.networkCalls,1);assert.equal(unknown.settlements,0);
 });
 test('actual page generator gates all direction films and spec before studio/render, preserving the supported S1 subset',async()=>{
@@ -196,7 +217,7 @@ test('review repairs the spec once and regenerates review before final/cold revi
  assert.equal(r.reviewRequests[1].repairContext.previousFilms[0].texts.headline.text,filmFixture().texts.headline.text);
  assert.match(r.reviewRequests[1].film.texts.headline.text,/worth watching/);
 });
-test('cold-review rejection withholds candidate delivery',async()=>{const r=await fixture({coldBlock:true});assert.match(r.error.message,/COLD_REVIEW_BLOCK/);assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/failure.json$/);assert.equal(r.activeStudio,null);});
+test('cold-review rejection retains a private unapproved draft, never a passed candidate',async()=>{const r=await fixture({coldBlock:true});assert.ifError(r.error);assert.equal(r.result.reason,'COLD_REVIEW_BLOCK');assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/review-draft.json$/);assert.equal(r.result.coldReviewStatus,'blocked');assert.equal(r.result.cold.verdict,'block');assert.equal(r.result.acceptanceStatus,'unapproved');assert.equal(r.result.movies.length,2);assert.equal(r.activeStudio,null);});
 test('relay evidence travels separately to E and F without shrinking all-aspect reading sheets or increasing stage budgets',async()=>{
  const r=await fixture({motionSamples:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.cold.verdict,'pass');
 });
@@ -205,7 +226,7 @@ test('cold-review correction rerenders every aspect, re-reviews and shares the t
  assert.equal(good.models.filter(stage=>stage==='coldReview').length,2);assert.equal(good.renders.filter((row:any)=>row.id===good.result.final[0].renderId).length,1);
  assert.match(good.result.film.texts.headline.text,/worth watching/);assert.equal(good.renders.length,7);assert.equal(good.reservations,good.settlements);
  assert.deepEqual(good.reviewRequests.at(-1).repairContext,{previousFilms:[],internalRepairs:2,limit:2},'cold repair starts a new E history but retains the shared allowance');
- const spent=await fixture({twoReviewRepairs:true,coldBlock:true});assert.equal(spent.error.message,'COLD_REVIEW_BLOCK');assert.equal(spent.specRequests,1);assert.equal(spent.models.filter(stage=>stage==='coldReview').length,1);assert.equal(spent.models.filter(stage=>stage==='review').length,3);
+ const spent=await fixture({twoReviewRepairs:true,coldBlock:true});assert.ifError(spent.error);assert.equal(spent.result.reason,'COLD_REVIEW_BLOCK');assert.equal(spent.specRequests,1);assert.equal(spent.models.filter(stage=>stage==='coldReview').length,1);assert.equal(spent.models.filter(stage=>stage==='review').length,3);
 });
 test('missing later key, unverified integration and missing rights stop before any model request',async()=>{
  for(const [options,code]of [[{missingKey:true},'MODEL_SECRET_MISSING'],[{unverified:true},'MODEL_INTEGRATION_UNVERIFIED'],[{noRights:true},'ASSET_RIGHTS_PENDING']] as const){
@@ -239,9 +260,14 @@ test('admitted ABC follows the actual director-to-render path; missing independe
 test('director preparation/cleanup preserve the first cause, and internal repairs stop at two',async()=>{
  const missing=await fixture({missingContext:true,cleanupFailure:true});assert.equal(missing.error.message,'DIRECTOR_CONTEXT_MISSING');assert.equal(missing.state.status,'failed');
  assert.equal(parseCanonicalJson(missing.outbox.find((row:any)=>row.kind==='operation_failure').payload_json).code,'DIRECTOR_CONTEXT_MISSING');
- const limit=await fixture({alwaysRepair:true});assert.equal(limit.error.message,'DIRECTOR_REPAIR_LIMIT');assert.equal(limit.state.status,'failed');
+ const limit=await fixture({alwaysRepair:true});assert.ifError(limit.error);assert.equal(limit.result.reason,'DIRECTOR_REPAIR_LIMIT');assert.equal(limit.state.status,'failed');
  assert.equal(limit.models.filter(stage=>stage==='review').length,3);assert.equal(limit.renders.length,3);assert.equal(limit.models.includes('coldReview'),false);
  assert.equal(limit.reviewRequests.at(-1).repairContext.internalRepairs,2);assert.equal(limit.reviewRequests.at(-1).repairContext.previousFilms.length,2);
+ assert.deepEqual(limit.result.film,limit.reviewRequests.at(-1).film);assert.equal(limit.result.unappliedSuggestion.texts.headline.text,'An unapplied third suggestion.');
+ assert.equal(limit.result.coldReviewStatus,'not_run');assert.equal(limit.result.acceptanceStatus,'unapproved');assert.equal(limit.result.publicUseCleared,false);
+ assert.equal(limit.result.movies.length,1);assert.equal(limit.result.movies[0].quality,'review');assert.equal(limit.draftApi,'private_draft_only_rights_and_generation_checked');
+ assert.equal(limit.reservations,limit.settlements);assert.equal(limit.activeStudio,null);
+ const cancelled=await fixture({alwaysRepair:true,cancelHandoff:true});assert.equal(cancelled.error.message,'OPERATION_FENCED');assert.equal(cancelled.state.status,'cancelled');assert.equal(cancelled.result,undefined);
 });
 test('environment preflight is refreshed after user wait, and a broken renderer spends no model tokens',async()=>{
  const good=await fixture();assert.ifError(good.error);assert.equal(good.studioCount,5);assert.equal(good.closedCount,5);assert.equal(good.reservations,6);

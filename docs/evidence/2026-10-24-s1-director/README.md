@@ -513,6 +513,12 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40260579571](https://github.com/ten2ten2/promobento/actions/runs/40260579571) 构建并部署 `6ce57ab`／镜像 `sha256:8b2c0b86b86d907e733c2cb046ae0ea99953c17359888e2ec3276dd2ad3ed954`。操作 `eval-minimax-15-1792983373084` 复用上一轮完整 E1 回执和同素材、seed，零模型复验。实际云端 AudioPlan 的庆祝音效为 **306 帧、−6 dB**；低清 MP4 成功提交，客户端从提交到观察通过为 **66.382 秒**（含轮询），15 秒、225 帧、960×540／15 fps、AAC，五处接缝零差异、没有重编码。实际片完整 1× 解码零错误／掉帧，开场、产品状态和 CTA 已查看，有声播放／重播控件通过。
 
-WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.05 dB 容差内；但实际 MP4 的 AAC 实测为 **−14.1 LUFS、−0.2 dBTP**，超过原 **−1 dBTP** 上限。当时 `media.mjs` 只检查 AAC 格式，未测编码后的响度／真峰，因此这轮云端 `passed` 只记出片，不记音频验收通过。此片保留为私有诊断预览 `artifacts/s1-minimax-15-pocket-sfx-db-2026-10-26/index.html`。负责人继续后，已按[渲染服务](../../../apps/render-container/README.md)补上编码后实测与一次纠正：复用原私有 MP4 和 WAV 的离线反例达到 **−14.06 LUFS、−2.13 dBTP**，逐字节比较确认视频码流未变，修复版位于 `artifacts/s1-aac-peak-repair-2026-10-26`；新路径云验待完成。内容审片、踩点、高清横竖最终片、F 和负责人发布意愿仍未通过或未完成。
+WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.05 dB 容差内；但实际 MP4 的 AAC 实测为 **−14.1 LUFS、−0.2 dBTP**，超过原 **−1 dBTP** 上限。当时 `media.mjs` 只检查 AAC 格式，未测编码后的响度／真峰，因此这轮云端 `passed` 只记出片，不记音频验收通过。此片保留为私有诊断预览 `artifacts/s1-minimax-15-pocket-sfx-db-2026-10-26/index.html`。负责人继续后，已按[渲染服务](../../../apps/render-container/README.md)补上编码后实测与一次纠正：复用原私有 MP4 和 WAV 的离线反例达到 **−14.06 LUFS、−2.13 dBTP**，逐字节比较确认视频码流未变，修复版位于 `artifacts/s1-aac-peak-repair-2026-10-26`；实际云验见下节。内容审片、踩点、高清横竖最终片、F 和负责人发布意愿仍未通过或未完成。
 
 [本轮数值与回收](minimax-pocket/sfx-db-metrics.json)：零模型，八次计算全部停止／结算，共 **13,083 usd_micros** 保守资源上界；空容量、无本轮未知、临时密钥回收。共享模型占用仍为 **659,522 usd_micros**，旧未知没有清零。S1 完整通过数不变。
+
+### 最终 AAC 纠正已通过原规格云验
+
+[40267510307](https://github.com/ten2ten2/promobento/actions/runs/40267510307) 构建并部署 `8f77bc9`。操作 `eval-minimax-15-1792988121897` 复用同一已付费 E1 规格、素材与 seed，零模型交付 15 秒低清片；组装器先测最终 AAC，再从原 WAV 纠正一次。最终 **−14.06 LUFS／−2.13 dBTP**，通过原 ±0.5 LU／≤−1 dBTP 门槛；视频未重编码，五处接缝零差异。客户端观察通过 **87.710 秒**，不是性能分位数。
+
+[数值回执](minimax-pocket/aac-gate-metrics.json)保留实际编码和停止结果：八次计算全部停止／结算，共 **14,847 usd_micros** 保守上界，空容量、临时密钥撤销、无新增未知。Chrome 155.0.8059.85 完整 1× 静音解码 225 帧，零掉帧／错误；听感与踩点仍待判断。私有播放器为 `artifacts/s1-minimax-15-pocket-aac-gate-2026-10-26/index.html`。本轮未调用 E/F，不增加完整导演或最终片通过数。

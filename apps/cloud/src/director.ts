@@ -26,7 +26,7 @@ import {checkedBytes} from './render-workflow.ts';
 import {enqueueRender} from './render-store.ts';
 import {modelStep,ModelJsonOutputError} from './model-client.ts';
 import {admitDirectorAudio,directorAudio,type AdmittedMusic} from './director-audio.ts';
-import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
+import {directorProgress,commitCandidate,commitReviewDraft,failDirector,directorFailureCode} from './director-recovery.ts';
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet} from './director-sheets.mjs';
@@ -297,8 +297,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           validationFeedback=value;
         }
       };
-      const completeCandidate=async()=>{
+      const completeCandidate=async():Promise<Json>=>{
         let film=await writeSpec(),internalRepairs=0;
+        const reviewDraft=(reason:string,movies:Json[],evidenceKey:string,cold:Json|null,unappliedSuggestion:Json|null=null)=>({
+          kind:'s1_internal_review_draft',film,movies,reason,reviewEvidenceKey:evidenceKey,cold,unappliedSuggestion,internalRepairs,
+          acceptanceStatus:'unapproved',coldReviewStatus:cold?'blocked':'not_run'});
         for(let coldRound=0;;coldRound++){
           const previousFilms:Json[]=[];
           for(let round=0;;round++){
@@ -313,7 +316,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               if(call.name==='write_spec')validateSpec(call.input.film);
             });
             const call=review.toolCalls[0];if(call.name==='submit_candidate')break;
-            if(internalRepairs>=policy.limits.maxInternalRepairs)throw Error('DIRECTOR_REPAIR_LIMIT');
+            if(internalRepairs>=policy.limits.maxInternalRepairs)return reviewDraft('DIRECTOR_REPAIR_LIMIT',
+              [{aspect:context.aspects[0],quality:'review',movie}],sampled.evidenceKey,null,call.input.film);
             internalRepairs++;previousFilms.push(film);film=call.input.film;
           }
           const final=await Promise.all(context.aspects.map((aspect:string)=>render(film,coldRound===0?'final':'final-cold-repair',aspect,'final')));
@@ -327,17 +331,28 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           });
           const cold=coldResponse.toolCalls[0].input;
           if(cold.verdict==='pass')return{film,final,cold,sampled,internalRepairs};
-          if(coldRound>=1||internalRepairs>=policy.limits.maxInternalRepairs)throw Error('COLD_REVIEW_BLOCK');
+          const blockedDraft=()=>reviewDraft('COLD_REVIEW_BLOCK',final.map((movie:Json,index:number)=>({aspect:context.aspects[index],quality:'final',movie})),sampled.evidenceKey,cold);
+          if(coldRound>=1||internalRepairs>=policy.limits.maxInternalRepairs)return blockedDraft();
           const calls=await this.env.DB.prepare("SELECT COUNT(*) AS n FROM cost_reservations WHERE operation_id=? AND kind='model' AND stage='coldReview'").bind(op.id).first<{n:number}>();
-          if((calls?.n??0)>=policy.director.steps.coldReview.maxCalls)throw Error('COLD_REVIEW_BLOCK');
+          if((calls?.n??0)>=policy.director.steps.coldReview.maxCalls)return blockedDraft();
           internalRepairs++;
           const corrected=await writeSpec('spec-cold-repair',{previous:film,review:cold,evidenceKey:sampled.evidenceKey,
             instruction:'Correct the concrete cold-review findings, preserving confirmed facts. A new full review and all-aspect render will verify the correction.'});
-          if(canonical(corrected)===canonical(film))throw Error('COLD_REVIEW_NO_CHANGE');
+          if(canonical(corrected)===canonical(film))return {...blockedDraft(),reason:'COLD_REVIEW_NO_CHANGE'};
           film=corrected;
         }
       };
-      const {film,final,cold,sampled,internalRepairs}=await completeCandidate();
+      const outcome=await completeCandidate();
+      if(outcome.kind==='s1_internal_review_draft'){
+        const handedOff=await step.do<string>('handoff-review-draft',{retries:{limit:0,delay:'1 second'}},async()=>{
+          checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
+          const draft={...outcome,operationId:op.id,generation:op.generation,scope:'internal_eval_only',publicUseCleared:false,ownerNormalSpeedReview:'pending'};
+          const object=await immutableJson(this.env,`operations/${op.id}/review-draft.json`,draft);
+          await commitReviewDraft(this.env,op,object.key,outcome.reason);return canonical(draft);
+        });
+        return parseCanonicalJson(handedOff);
+      }
+      const {film,final,cold,sampled,internalRepairs}=outcome;
       const delivered=await step.do<string>('deliver-candidate',{retries:{limit:0,delay:'1 second'}},async()=>{
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         const candidate={kind:'s1_internal_candidate',operationId:op.id,film,final,cold,coldReviewEvidenceKey:sampled.evidenceKey,internalRepairs,publicUseCleared:false,ownerNormalSpeedReview:'pending'};

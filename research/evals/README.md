@@ -54,6 +54,8 @@ mise exec -- node research/evals/run-case.mjs \
 
 到 `awaiting_visual_direction_choice` 后查看 `direction-fit.png`、`direction-amplify.png`、`direction-unexpected.png` 及 `directions.json`。据实际画面选择，把 `choice.example.json` 的 key、绑定摘要和具体 reason 保存为同目录 `choice.json`；脚本才向原 Workflow 发送选择，不默认为 fit。成功后 `index.html` 提供横竖两部实际 MP4 的正常速度播放器，候选/冷审、全部费用与未知项保留在 JSON。负责人视听仍记为 pending，程序成功不代替 4/6 评判。
 
+自动审片耗尽修改额度时，脚本按[内部审片退出规则](../../docs/plans/cloud-motion-v3.md#66-阶段-e整片-review)下载 `review-draft.json` 与其绑定的现有影片，生成标明「待人工审片／自动质量审查未通过」的私有 `index.html`，提供从头有声 1× 播放。报告状态为 `review_draft_delivered_pending_owner_review`，`countsTowardAcceptance:false`；云端操作仍为 `failed`，原失败码和未解决的冷审保留。E 停止时可能只有横屏低清片，不补造竖屏或最终片；新的修改建议尚未应用，不重新付费渲染。本地正常交接不代表作品通过。
+
 结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。首次仅运行一题，确认真实模型/媒体结果后再推进其余输入。
 
 与 Actions harness 一样，密钥更新后的相邻请求可能仍看到旧绑定；仅对路由/调度前确切 `404 Not found` 等待最多 30 秒，并记录 `authPropagationRetries`。资源本身不存在、模型/媒体错误及未知超时不重发；一次 capacity 鉴权成功也不假定后续请求已全部传播。

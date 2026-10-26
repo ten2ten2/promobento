@@ -7,7 +7,7 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 const [arg,...extra]=process.argv.slice(2),file=resolve(arg??'');
 if(!arg||extra.length||!file.startsWith(resolve('artifacts')+'/')||!file.endsWith('/report.json'))throw Error('PRIVATE_CASE_REPORT_REQUIRED');
 const report=parseCanonicalJson(readFileSync(file));
-if(report.scope!=='internal_eval_only'||report.publicUseCleared!==false||!['failed','cancelled'].includes(report.status)
+if(report.scope!=='internal_eval_only'||report.publicUseCleared!==false||!['failed','cancelled','review_draft_delivered_pending_owner_review'].includes(report.status)
  ||!/^eval-[a-z0-9-]+-\d{13}$/.test(report.operationId??''))throw Error('TERMINAL_EVAL_CASE_REQUIRED');
 const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/cloud','exec','wrangler',...args],
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-recovery-cli.log'},encoding:'utf8',timeout:60000,...options});
