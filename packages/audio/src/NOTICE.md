@@ -12,7 +12,7 @@
 | `samples.mjs` | `cli/lib/samples.js` 的插值及音符包络 | 固定小样本目录和有界 PCM 解码；删除目录发现、出网、静默解码失败及 `Math.random` 回退。 |
 | `beats.mjs` | `cli/lib/beats.js` | 谱通量、FFT、节拍及能量分析；去掉无限额外部解码，限于已审 30 秒 PCM，显式 confidence 和 4/4 假设。 |
 
-`index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；最终响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
+`index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；WAV 母带响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
 
 FilmSpec 的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
 

@@ -10,8 +10,10 @@ Chromium 使用 `--disable-dev-shm-usage`，将共享内存文件放到容器私
 
 - **shard**：逐源帧 seek，CDP JPEG 92 直送 FFmpeg；保存 PNG 重叠/末帧、真实 CDP 阅读停留观测和回执。
 - **assemble**：按序封装 closed-GOP Annex B，混入冻结 WAV；检查 CFR/PTS、GOP、颜色、AAC、时长、体积及滑动一秒码率。初始分段和必要的整片纠正均使用门槛 70% 的 maxrate、20% 的 VBV buffer，目标码率不高于该 maxrate，避免大储备反复触发第二次编码；平台预设的交付格式和一秒上限不变。拼接后仍实测滑窗，超过上限只纠正一次并记录前后值，仍越界就失败；封面来自实际帧。
-- **audio**：从冻结 AudioPlan 合成一次，经两遍 loudnorm 和最终响度/真峰值测量；仅对实际越界者做一次补偿增益与过采样限幅并重测，门槛不变，合格母带字节不改；输出 48 kHz 双声道 PCM。
+- **audio**：从冻结 AudioPlan 合成一次，经两遍 loudnorm 和 WAV 母带响度/真峰值测量；仅对实际越界者做一次补偿增益与过采样限幅并重测，门槛不变，合格母带字节不改；输出 48 kHz 双声道 PCM。
 - **studio**：仅允许该任务列出的 still 帧；生命周期、清权和取消由 Worker/OperationDO 控制。
+
+AAC 编码后的响度／真峰值尚未接入自动校验；已有[母带通过但实际 MP4 真峰超标的反例](../../docs/evidence/2026-10-24-s1-director/README.md#音效增益修复已云验编码后的音频峰值仍不合格)。该片仅作诊断预览，音频验收未通过；恢复时先补编码后实测与峰值处理，保留原 −1 dBTP 上限。
 
 FFmpeg 线程按实例的整数 CPU 配额设置：standard-2 为 1、standard-3 为 2、standard-4 为 4；音频固定为 1。拼接实际使用 standard-2，不再沿用分段的双线程默认值。
 
