@@ -13,7 +13,8 @@ execFileSync('git',['diff','--quiet',RENDERER_SHA,'HEAD','--','apps/render-conta
  ':(exclude)apps/render-container/README.md',':(exclude)config/model-providers.json',':(exclude)config/model-authorization.json',
  ':(exclude)config/agent-policy.json',':(exclude)contracts/model-config.schema.json',':(exclude)packages/models',':(glob,exclude)packages/**/test/**/*.test.mjs']);
 // The runtime does not import model providers/authorizations. For the shared policy, permit
-// only a catalog label or model-only director step change; operation/compute budgets, limits and every rendering field stay protected.
+// only a catalog label, model-only director step or Worker-enforced review wall-clock change.
+// Operation/compute budgets, limits, final deadlines and container rendering fields stay protected.
 // model-config's validator is consumed by the Worker, not the renderer's task/film validators.
 assertRendererPolicyCompatible(parseCanonicalJson(execFileSync('git',['show',RENDERER_SHA+':config/agent-policy.json'])),
  parseCanonicalJson(readFileSync('config/agent-policy.json')));

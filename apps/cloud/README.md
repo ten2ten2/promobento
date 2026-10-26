@@ -22,7 +22,7 @@
 
 实际容器启动后必须在 `render.containerStartupMs`（45 秒）与整次渲染剩余期限内取得控制器 ready，单次探测最多 5 秒；到期才返回的 ready 不接受。物理启动与沙箱页面初始化分开，页面仍严格使用原 2D 30 秒 / WebGL 60 秒。未就绪时不派发 `/task`；超时与进程提前退出分别记录 `RENDER_STARTUP_TIMEOUT` / `RENDER_STARTUP_EXITED`，保留实际健康窗口、探测次数、最后状态与 monitor 状态。alarm 和执行轮询都沿用同一绝对期限，不因注册等待或重试重新计时；同一 DO 不重启计算。
 
-当前纯 2D 的 15/30 秒均采用既有上限内的 6 段，15 秒最终片每段 75 帧；review 仍按源时间轴 30 帧单元切分并编码为 15 fps，15 秒段长为 60/90 帧。该候选针对真实 MiniMax 的运动帧串行开销，原绝对期限、WebGL 计划和全局/工作区名额不变；实际性能验证见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
+当前纯 2D 的 15/30 秒均采用既有上限内的 6 段，15 秒最终片每段 75 帧；review 仍按源时间轴 30 帧单元切分并编码为 15 fps，15 秒段长为 60/90 帧。内部 review 使用[负责人批准的 180 秒止损上限](../../docs/plans/cloud-motion-v3.md#53-期限)，不是性能验收目标；最终片期限、WebGL 计划和全局/工作区名额不变。实际性能验证见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)。
 
 原生无可用实例记 `RENDER_CAPACITY_UNAVAILABLE`，网络断开按 startup/dispatch/execute 区分，Worker→DO RPC 断开另记 `RENDER_RPC_CONNECTION_LOST`；每个 attempt 保留首因。清理再次断开不覆盖首因，也不据此归还名额或清零未结费用。
 
@@ -80,7 +80,7 @@ studio 的 45→375→45 与关闭已在 [39987356301](../../docs/evidence/2026-
 
 仅修复检查脚本、仍需验证原部署时，可在上述手动入口加 `-f staging_sha=<实际已部署完整SHA>`：跳过迁移、构建和部署，只修复并运行 harness。报告分别记录部署 SHA 和 harness SHA，不把新分支当成已部署。内部密钥写入后先等待只读鉴权就绪（最多 60 秒）；相邻请求仍可能看到旧密钥，此时仅对调度前的确切 `404 Not found` 有界等待，并记录次数。模型/渲染失败和不确定超时不自动重试。
 
-只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件及其 `model-config` Schema、未被容器导入的 `packages/models` 适配器、纯单元测试及容器 README；`agent-policy` 仅允许模型目录标签和未被容器导入的 `director.steps` 不同，操作/计算预算、实例限额、编码与渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
+只改 Worker 时，可改用 `-f staging_renderer_sha=<已部署镜像源码完整SHA> -f staging_renderer_digest=sha256:<实际registry摘要>`：确认镜像源码为当前祖先，且实际渲染输入未变化后，只部署 Worker，复用原镜像，不构建推送。守卫只排除未被容器运行时导入的模型供应商/授权文件及其 `model-config` Schema、未被容器导入的 `packages/models` 适配器、纯单元测试及容器 README；`agent-policy` 仅允许模型目录标签、`director.steps` 和仅由 Worker 执行的 `render.totalMs.review` 不同。容器保留自身阶段超时；操作/计算预算、实例限额、最终片期限、编码与其他渲染规则仍逐项相同。其他共享源码、契约、配置、依赖、字体和许可仍受保护。`renderer-reuse.json` 分别保留镜像来源和摘要，部署 SHA 仍是新 Worker 的提交。镜像摘要必须来自原部署回执，不能填写本地 image ID。
 
 仅部署已做必要定点检查的 Worker 时，选择 `-f staging_scenario=deploy-only`：只读取实际 `/healthz`、内部容量与预算状态并保存 `deployment-health.json`，不创建操作或启动模型/媒体。部署仍在 Actions 完成，临时内部密钥照常回收；这不是成功导演或媒体验收。
 

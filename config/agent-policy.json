@@ -239,7 +239,7 @@
     "totalMs": {
       "final30": 240000,
       "final15": 150000,
-      "review": 90000,
+      "review": 180000,
       "webglExtra": 120000
     },
     "captureFormat": "jpeg92",

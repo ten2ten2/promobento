@@ -90,7 +90,7 @@ mise exec -- node research/evals/run-case.mjs \
   docs/evidence/2026-10-24-s1-director/minimax-second-attempt/review-1-response.json
 ```
 
-仅接纳完整、未截断/拒绝的原始回执；C 的单一 JSON 围栏由同一共享解析器处理，不补造工具或改写 FilmSpec。原程序配乐／无音乐用法保持不变。复验已批准的 ABC／WAV 时，在 `--check-review-render <回执>` 或 `--check-final-render <回执>` 后追加 `--score <私有 ABC>`／`--music <私有 WAV>`；仍先核对批准的字节与时长、重登记许可，并复用导演同一音频计划构造器。指定音源必须与原 FilmSpec 完全一致，不静音、不替换选择器。使用本题同一私有素材、字体、seed 与新的固定 release。经既有 `renders` 入口实际执行横屏低清 review、音频、接缝/原观测、拼接、提交与私有下载；服务端仍执行原绝对期限。`review-render.json` 保留源回执、计划、期限及媒体结果，MP4/封面仅留本机私有忽略目录。与单帧模式共用许可登记、容量/费用核对和密钥回收，`review_render_validated` 不计入导演成功、最终片或 4/6；一个样本也不代表 p50/p95。
+仅接纳完整、未截断/拒绝的原始回执；C 的单一 JSON 围栏由同一共享解析器处理，不补造工具或改写 FilmSpec。原程序配乐／无音乐用法保持不变。复验已批准的 ABC／WAV 时，在 `--check-review-render <回执>` 或 `--check-final-render <回执>` 后追加 `--score <私有 ABC>`／`--music <私有 WAV>`；仍先核对批准的字节与时长、重登记许可，并复用导演同一音频计划构造器。指定音源必须与原 FilmSpec 完全一致，不静音、不替换选择器。使用本题同一私有素材、字体、seed 与实际部署的固定 release。经既有 `renders` 入口实际执行横屏低清 review、音频、接缝/原观测、拼接、提交与私有下载；服务端执行[当前批准的绝对期限](../../docs/plans/cloud-motion-v3.md#53-期限)。`review-render.json` 保留源回执、计划、期限及媒体结果，MP4/封面仅留本机私有忽略目录。与单帧模式共用许可登记、容量/费用核对和密钥回收，`review_render_validated` 不计入导演成功、最终片或 4/6；一个样本也不代表 p50/p95。
 
 只核对当前最终编码与耗时时，将同一命令改为 `--check-final-render`，例如用 [`minimax-15/review-0-response.json`](../../docs/evidence/2026-10-24-s1-director/minimax-15/review-0-response.json)。它仍不调用模型，但请求横屏最终质量，按服务端 1080p/30 fps 与原期限交付；回执及原始 MP4 为 `final-render.json` / `final-film.mp4`。这是同一付费规格在新固定镜像下的原生回归，不替代完整 A–C/E/F 或负责人验收；原 review 命令、参数和输出名保持不变。
 

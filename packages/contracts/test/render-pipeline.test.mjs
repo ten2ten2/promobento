@@ -34,7 +34,9 @@ test('shards cover the source grid, bind seed, and review never splits a 15 fps 
   const webgl={...spec,scenes:spec.scenes.map(scene=>({...scene,kind:'block',block:'device-3d@1'}))};
   assert.equal(planShards(job,webgl,{seed:'one'}).shards.length,24);
   assert.equal(planShards({...job,quality:'review'},webgl,{seed:'one'}).shards.length,12);
-  assert.equal(renderDeadlineMs({...job,quality:'review'},review,policy.render),90000);
+  assert.equal(renderDeadlineMs({...job,quality:'review'},review,policy.render),180000);
+  assert.equal(renderDeadlineMs(job,a,policy.render),150000);
+  assert.equal(renderDeadlineMs(longJob,planShards(longJob,longSpec,{seed:'one'}),policy.render),240000);
   assert.deepEqual(renderPageTiming(spec,policy.render),{initTimeoutMs:30000,frameTimeoutMs:5000});
   assert.deepEqual(renderPageTiming(webgl,policy.render),{initTimeoutMs:60000,frameTimeoutMs:10000});
 });
