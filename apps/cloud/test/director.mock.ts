@@ -128,11 +128,13 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
    const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.doesNotMatch(canonical(params),/\$ref/);
    if(input.phase==='layout'){
+    assert.equal(body.max_tokens,16384);
     assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);
     assert.equal(input.scene.brief,'Static base only; full choreography is supplied in the next motion edit.');
     if(fixableCustomPath&&models.includes(stage))assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));
     value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:(badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource).replace('power2.out','power1.out')}}]};
    }else{
+    assert.equal(body.max_tokens,32768);
     assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,spec.scenes[1].brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);
     assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);
     const first=input.phase==='motion-0';assert.match(input.currentSource,first?/power1.out/:/power2.out/);

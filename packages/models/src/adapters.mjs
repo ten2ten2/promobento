@@ -13,7 +13,7 @@ export function parseModelJson(text){
 
 /** Normalized messages are trusted prompt data, never executable modules. */
 export function providerRequest({provider, model, system, messages, schema, tools = [], toolChoice, effort, maxOutputTokens}) {
-  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 16384) throw Error('MODEL_OUTPUT_LIMIT_INVALID');
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 32768) throw Error('MODEL_OUTPUT_LIMIT_INVALID');
   if(toolChoice!==undefined&&(!tools.some(tool=>tool.name===toolChoice)||provider.kind!=='openai-compatible'))throw Error('MODEL_TOOL_CHOICE_UNSUPPORTED');
   if (provider.kind === 'openai-compatible') {
     const content = message => message.images?.length ? [{type: 'text', text: message.text}, ...message.images.map(image =>

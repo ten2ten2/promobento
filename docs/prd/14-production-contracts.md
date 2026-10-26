@@ -52,11 +52,11 @@
 
 新建 CompositionManifest 使用 `identityVersion:2`、`capabilityProfile:"film-v1"`，固定 project/revision、15/30 秒、30 fps、450/900 帧、seed，以及源码、依赖、资源、布局、事实内容、runtime/renderer、平台规则和 `renderProfile`。所有业务 variant 的入口为同一个 `film.json`，`sourceHash` 与 `sourceArchiveHash` 绑定同一份规范源包；`targetOverrideHash:null`，画幅差异由固定运行时与布局处理。事实只引用 `factContentHash`；确认与证据不写入 Composition，完整 `factManifestHash` 在冻结快照固定。`styleLabel` 和内容语言元数据可省略；网站 Cookie/语言/主题不进入创作身份。
 
-`createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。S1 只接受积木源，自写镜头按 S2 接入。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
+`createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。负责人已批准 DOM/SVG/Canvas2D 自写镜头提前进入内部 S1，源码准入、隔离和实际帧要求见[实施范围](../plans/cloud-motion-v3.md#s1-一条龙真实题目从需求到成片)。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
 
 `resource_manifest` 保存实际素材的 path、sha256、byteLength、mediaType 和稳定 licenseRef。Asset broker 按 hash 解析不可变存储；可信构建/渲染记录实际访问的资源、音源和混音，与清单核对，不能只信 Agent 自报。源码包保存代码和静态创作声明，素材单独按资源 hash 引用；不包含自身 manifest、QA 输出、临时 URL 或日志。字体子集、塑形和回退配置一同冻结；按实际文字检查字素簇、塑形和回退，不能用 `document.fonts.ready` 证明无缺字。
 
-film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` 一份来源，不要求第二份 `values.json` 或目标专有 `.mjs`。保存规范 JCS UTF-8 字节，不因请求 API 升级改写旧源文件，不归一化客户原文。直接改值与自写镜头编辑按 S2 接入，当前契约支持不能当作客户编辑器已实现。
+film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` 一份来源，不要求第二份 `values.json` 或目标专有 `.mjs`。保存规范 JCS UTF-8 字节，不因请求 API 升级改写旧源文件，不归一化客户原文。内部 D/E 已接入自写模块编辑；客户直接改值及完整编辑器仍按 S2 接入。
 
 历史 `identityVersion:1` 保留原入口和 `values.json` 读取：内容严格为 `{kind:"source_values",values:{...}}` 的 JCS UTF-8 字节，最多 1 MiB、256 项。它不携带请求协议版本；格式由固定的 runtime 和依赖解释，单纯升级 API 协议不能改写该文件。颜色按声明转成小写，其他用户原文不归一化。`sourceValuesBytes` 与 `parseSourceValues` 继续服务这些记录。
 
@@ -109,7 +109,7 @@ film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落
 
 字段白名单以共享包的同名函数为准。完整收据摘要、创作内容摘要和输出指纹分别计算，不能互相替代。
 
-新 film-v1 的 `sourceHash` 与 `sourceArchiveHash` 使用 `filmSourceIdentity` 固定规范 `film.json` 的路径、字节摘要和长度；`filmBuildReceipt` 与 `filmBuildErrors` 核对实际源字节和可信清单。S1 拒绝自写镜头和额外源文件，不能用遗漏依赖的单文件身份执行代码。旧 `identityVersion:1` 继续使用 `sourceHash = digest(targetSourceIdentity(build))`。可信构建器先解析目标依赖，再记录入口路径，以及实际执行所用的每个本地文件的路径、原始字节 SHA-256 和长度；必须包括 `values.json` 和共享依赖。文件按路径的 UTF-16 顺序排序，入口路径也参加摘要。同字节换入口、改参数或改共享文件都会改变对应摘要。`sourceFileDigests` 和 `targetSourceIdentity` 已可复用；依赖发现、沙箱构建和实际执行观察仍待实现，不能把调用方提交的文件列表当作可信构建结果。
+新 film-v1 的 `sourceHash` 与 `sourceArchiveHash` 使用 `filmSourceIdentity` 固定规范 `film.json` 及全部已声明自写模块的路径、字节摘要和长度；模块保留原始 UTF-8 字节。`filmBuildReceipt` 与 `filmBuildErrors` 核对实际源字节和可信清单，缺模块或夹带额外源文件均拒绝；旧积木单文件身份不变。旧 `identityVersion:1` 继续使用 `sourceHash = digest(targetSourceIdentity(build))`。可信构建器先解析目标依赖，再记录入口路径，以及实际执行所用的每个本地文件的路径、原始字节 SHA-256 和长度；必须包括 `values.json` 和共享依赖。文件按路径的 UTF-16 顺序排序，入口路径也参加摘要。同字节换入口、改参数或改共享文件都会改变对应摘要。`sourceFileDigests` 和 `targetSourceIdentity` 已可复用；历史自由依赖的发现、沙箱构建和实际执行观察仍待实现，不能把调用方提交的文件列表当作可信构建结果。
 
 历史 `identityVersion:1` 的 `sourceArchiveHash = digest(sourceArchiveIdentity(files))` 固定完整源包的规范文件清单，每项包含路径、原始字节 SHA-256 和长度，按路径排序。它不是 ZIP 压缩字节的摘要；传输包可另校验字节 hash。可信 `sourceArchiveFiles` 必须由实际解包得到，并证明每个目标构建文件都属于该源包，`values.json` 的字节与构建读取的值完全一致。
 

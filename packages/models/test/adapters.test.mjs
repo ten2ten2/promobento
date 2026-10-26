@@ -31,6 +31,8 @@ test('an explicit non-thinking request is preserved on the compatible transport'
  const request=providerRequest({...base,provider,effort:'none',tools:[{name:'submit_candidate',description:'Submit',parameters:{type:'object'}}]});
  assert.equal(request.body.reasoning_effort,'none');assert.equal(request.body.tools[0].function.name,'submit_candidate');
  assert.equal(providerRequest({...base,provider}).body.reasoning_effort,'low');
+ assert.equal(providerRequest({...base,provider,maxOutputTokens:32768}).body.max_tokens,32768);
+ for(const maxOutputTokens of [0,32769,1.5])assert.throws(()=>providerRequest({...base,provider,maxOutputTokens}),/MODEL_OUTPUT_LIMIT_INVALID/);
  const forced=providerRequest({...base,provider,effort:'none',toolChoice:'edit_file',tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]});
  assert.deepEqual(forced.body.tool_choice,{type:'function',function:{name:'edit_file'}});
  assert.equal(providerRequest({...base,provider}).body.tool_choice,undefined);
