@@ -142,7 +142,7 @@ B 选择信息形态、运动语言与骨架；方向 hero 仍是静音可信积
 
 原生 `edit_file` 参数从同一共享契约派生，但下发为自包含 Schema：`path` 明确为当前模块的字符串，不能留下指向父 Schema 的 `$ref`。D 首次只开放 create，E 只开放 str_replace/insert；坏路径按具体 code/path 反馈，不把模型返回的对象路径静默转换为字符串。
 
-D 当前内部候选用 `reasoning_effort:none`，兼容接口另外命名指定 `edit_file`；不再只靠提示要求自动选择工具。原 16,384 输出上限、每镜头调用/费用和完整源码/帧校验不变。Anthropic 路线保留原工具行为；适配语义见[模型接口](../../packages/models/README.md)。网关实际返回源码仍待重验，截断不自动重试。
+D 当前内部候选用 `reasoning_effort:none`，兼容接口另外命名指定 `edit_file`；不再只靠提示要求自动选择工具。一次完整生成仍曾截断，现将同一镜头分为两步：先 create 可运行的静态构图与已声明槽位，再以 str_replace/insert 在原文件内实现完整原 brief 的动作。静态底稿不提交影片；两步都通过 Q0 后，只有最终源码进入实际帧检查和整片渲染。原 16,384 输出上限、每镜头共用调用/费用和完整源码/帧校验不变。Anthropic 路线保留原工具行为；适配语义见[模型接口](../../packages/models/README.md)。网关实际返回源码仍待重验，截断不自动重试。新模型回执记录选择的 effort、工具选择和输出上限，不据此声称供应商已按参数执行。
 
 当前新路径的实际验证范围统一见[实施状态](../../docs/implementation-status.md)。
 

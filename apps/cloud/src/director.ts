@@ -213,28 +213,34 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       await progress('scenes');
       for(const scene of custom){
         const p=customScenePlan(scene),key=digest({scene,style:film.style,texts:p.textSlots.map(id=>[id,film.texts[id]]),assets:p.assetKeys.map(id=>[id,film.assets[id]]),aspects:context.aspects});
-        let cached=sceneCache.get(scene.module),feedback:Json|undefined;
+        let cached=sceneCache.get(scene.module);
         if(cached?.key!==key){
           const resources=context.resources.filter((asset:Json)=>p.assetKeys.some(id=>film.assets[id].resourceId===asset.resourceId));
           await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
           const images=await Promise.all(resources.map((asset:BlobRef)=>image(asset)));
           let source:string|undefined;
-          for(let attempt=0;;attempt++){
-            const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,
-              scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
-              resources,sourceImages:'Images follow resources in the same order. Inspect their actual content and preserve it; do not infer UI details from file names.',targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
-              treatment:film.treatment,...(source?{currentSource:source}:{}),...(feedback?{validationFeedback:feedback}:{})}),...(images.length?{images}:{})}],
-              tools:[{name:'edit_file',description:'Create or repair only this custom scene module. input.path is the literal path string, never an object. Do not execute code or create files elsewhere.',parameters:customEditParameters([scene.module],source?['str_replace','insert']:['create'])}],
-              ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'?{toolChoice:'edit_file'}:{}),maxOutputTokens:16384},value=>{
-              const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
-              if(typeof calls[0].input?.path!=='string'||calls[0].input.path!==scene.module)throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_PATH_STRING_REQUIRED',path:'/toolCalls/0/input/path'}],value);
-              if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input}))throw new DirectorValidationError('CUSTOM_TOOL_INVALID',schemaIssues(validTool.errors),value);
-              try{const next=applyCustomEdit(source,calls[0].input,scene.module),errors=customSourceErrors(scene,next,film as FilmSpec);if(errors.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',errors.map(issue=>({code:issue.code,path:'/source/'+issue.line})),value);}
-              catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
-            },true,scene.id);
-            if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
-            source=applyCustomEdit(source,value.toolCalls[0].input,scene.module);cached={key,source};sceneCache.set(scene.module,cached);break;
+          for(const phase of ['layout','motion']){
+            let feedback:Json|undefined;
+            for(let attempt=0;;attempt++){
+              const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,phase,
+                phaseTask:phase==='layout'?'Create only a small runnable static base, not the finished shot: mount every declared text/asset with named handles and aspect-aware geometry; show a clean initial pose. Define function draw(t) for that static pose and wire it with ctx.OM.clock to a paused timeline of the exact duration. Do not solve choreography, glyph masks, transitions or elaborate motion yet. The next edit implements the original full brief; this base is never submitted as a film. Keep the source compact.'
+                  :'Patch the existing draw(t) and only the necessary motion setup to implement the ORIGINAL scene brief below. Reuse the existing geometry, named handles, text and assets; do not rebuild the file or add a second framework. Make one unique str_replace or insert, not create. Keep the edit compact and deterministic; the full original frame/reading plan will be checked.',
+                scene:phase==='layout'?{...scene,brief:'Static base only; full choreography is supplied in the next motion edit.'}:scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
+                resources,sourceImages:'Images follow resources in the same order. Inspect their actual content and preserve it; do not infer UI details from file names.',targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
+                treatment:phase==='layout'?{message:film.treatment.message}:film.treatment,...(source?{currentSource:source}:{}),...(feedback?{validationFeedback:feedback}:{})}),...(images.length?{images}:{})}],
+                tools:[{name:'edit_file',description:'Create or repair only this custom scene module. input.path is the literal path string, never an object. Do not execute code or create files elsewhere.',parameters:customEditParameters([scene.module],source?['str_replace','insert']:['create'])}],
+                ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'?{toolChoice:'edit_file'}:{}),maxOutputTokens:16384},value=>{
+                const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
+                if(typeof calls[0].input?.path!=='string'||calls[0].input.path!==scene.module)throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_PATH_STRING_REQUIRED',path:'/toolCalls/0/input/path'}],value);
+                if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input}))throw new DirectorValidationError('CUSTOM_TOOL_INVALID',schemaIssues(validTool.errors),value);
+                try{const next=applyCustomEdit(source,calls[0].input,scene.module),errors=customSourceErrors(scene,next,film as FilmSpec);if(errors.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',errors.map(issue=>({code:issue.code,path:'/source/'+issue.line})),value);}
+                catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
+              },true,scene.id);
+              if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
+              source=applyCustomEdit(source,value.toolCalls[0].input,scene.module);break;
+            }
           }
+          cached={key,source:source!};sceneCache.set(scene.module,cached);
         }
         sceneSources[scene.module]=cached!.source;
       }

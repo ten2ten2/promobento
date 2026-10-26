@@ -31,6 +31,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   if(request.messages.some(message=>message.images?.length)&&!model.capabilities.vision)throw Error('MODEL_VISION_UNAVAILABLE');
   if(request.tools?.length&&!model.capabilities.tools)throw Error('MODEL_TOOLS_UNAVAILABLE');
   const input:ModelRequest={...request,provider,model:ref.slice(ref.indexOf('/')+1),effort:limits.effort};
+  const requestSettings={providerKind:provider.kind,effort:input.effort,toolChoice:input.toolChoice??null,maxOutputTokens:input.maxOutputTokens};
   const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(key).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
@@ -46,7 +47,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
     if(receipt.quote){
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
-      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence});
+      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence,...(receipt.requestSettings?{requestSettings:receipt.requestSettings}:{})});
     }
     let value:Json;
     try{value=decode(receipt.result);validate(value);}catch(error){
@@ -113,7 +114,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     if(!(error instanceof ModelOutputError)){
       const status=(error as {status?:unknown})?.status;
       await immutableJson(env,receiptKey.replace(/\.json$/,'-request-failure.json'),{
-        kind:'model_request_failure',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,
+        kind:'model_request_failure',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,
         code:error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_TRANSPORT_FAILED',
         httpStatus:Number.isInteger(status)&&Number(status)>=100&&Number(status)<=599?status:null,usageStatus:'unknown'
       }).catch(()=>{}); // Optional diagnosis must not replace the original provider/transport failure.
@@ -121,6 +122,6 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     }
     result=error.result;
   }
-  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,quote:modelUsageQuote(ref,result.usage,providers),result};
+  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,quote:modelUsageQuote(ref,result.usage,providers),result};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

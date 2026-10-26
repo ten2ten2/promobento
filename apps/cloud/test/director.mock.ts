@@ -126,9 +126,17 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal(body.reasoning_effort,'none');assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
    assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
-   const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);assert.doesNotMatch(canonical(params),/\$ref/);
-   if(fixableCustomPath&&models.includes(stage)){assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));}
-   value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
+   const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.doesNotMatch(canonical(params),/\$ref/);
+   if(input.phase==='layout'){
+    assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);
+    assert.equal(input.scene.brief,'Static base only; full choreography is supplied in the next motion edit.');
+    if(fixableCustomPath&&models.includes(stage))assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));
+    value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:(badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource).replace('power2.out','power1.out')}}]};
+   }else{
+    assert.equal(input.phase,'motion');assert.equal(input.scene.brief,spec.scenes[1].brief);assert.match(input.currentSource,/power1.out/);
+    assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);
+    value={toolCalls:[{id:'mock-motion',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:'power1.out',newStr:'power2.out'}}]};
+   }}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);}
    assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
@@ -199,6 +207,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
+   modelReceipts:[...objects].filter(([key])=>key.includes('/model-calls/')&&!key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes)),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
  }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;db.close();}
 }
@@ -320,11 +329,12 @@ test('concurrent stop and timeout settle one persisted compute usage and reject 
 // These are transport/control-flow checks; pixel quality and isolation are exercised in the container.
 test('custom D source is scoped and metered, checked in both aspects before review, and E edits rerender without another D call',async()=>{
  const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
- assert.equal(r.models.filter(stage=>stage==='scenes').length,1);assert.ok(r.modelStages.includes('scenes:product'));
+ assert.equal(r.models.filter(stage=>stage==='scenes').length,2);assert.ok(r.modelStages.includes('scenes:product'));
+ assert.ok(r.modelReceipts.filter((receipt:any)=>receipt.callId.includes('-scene-')).every((receipt:any)=>receipt.requestSettings.effort==='none'&&receipt.requestSettings.toolChoice==='edit_file'));
  assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.1.0');
  assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
- const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,2);assert.equal(corrected.reservations,corrected.settlements);
+ const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,3);assert.equal(corrected.reservations,corrected.settlements);
  const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
  const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
 });
