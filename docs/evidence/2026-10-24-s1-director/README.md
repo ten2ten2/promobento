@@ -571,6 +571,8 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 [D 失败元数据](custom-second-attempt/scene-failure.json)记录 medium 请求在 16,384 completion token 时终态截断，保留约 5.7 万字符的分析文字、零 toolCalls；没有生成可执行模块，也没有进入实际镜头检查、review、E/F 或最终片。完整原文保存在同一私有 R2 不可变回执和本机忽略目录，不从散文提取代码或补造工具调用。这次没有验证修复后的对象路径实际返回正确。
 
-修复方向为 D 的 none 请求加兼容接口命名 edit_file，输出上限仍为 16,384，不靠扩容或重发原截断请求。[DeepSeek 官方契约](https://api-docs.deepseek.com/api/create-chat-completion/)要求非思考模式才支持命名强制工具；实际 ModelSwitch 转发仍待验证。当前 Anthropic 路线保留原默认/严格工具行为，不给不支持的模型强制工具参数。阶段金额、次数和整次期限不变。
+修复方向为 D 的 none 请求加兼容接口命名 edit_file，输出上限仍为 16,384，不靠扩容或重发原截断请求。[DeepSeek 官方契约](https://api-docs.deepseek.com/api/create-chat-completion/)要求非思考模式才支持命名强制工具；实际 ModelSwitch 转发仍待验证。当前 Anthropic 路线保留原默认/严格工具行为，不给不支持的模型强制工具参数。阶段金额、次数和整次期限不变。七项适配器检查、旧链路/自写 D/E 两项回放与 cloud TypeScript 通过。
+
+[40353224512](https://github.com/ten2ten2/promobento/actions/runs/40353224512) 已将 `61120ffc8863698b4a5b0a96b1c8d79fb9c7c814` 作为 Worker-only 修复部署，[复用原 a022de4 镜像](custom-second-attempt/renderer-reuse-40353224512.json)，未构建或重跑渲染矩阵。[健康回执](custom-second-attempt/deployment-health-40353224512.json)为 ok、容量为空、零模型/渲染调用，临时密钥已回收。下次仍用固定 `renderer-a022de4d0e11`；同一 context 与 amplify 方向的已成功 A–C 可按既有缓存复用，D 的新模式/工具选择需另获真实评测授权。
 
 [本轮费用与回收](custom-second-attempt/report.json)：三次真实模型合计 **31,734 usd_micros**，四次计算全部停止/结算 **4,407 usd_micros** 保守上界，合计 **36,141 usd_micros**（约 $0.0361）。没有本轮未知、容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **726,570**，原三笔未知 **37,993** 保留，合计占用 **764,563 usd_micros**。没有新成片或覆盖数增加；不自动再开新评测。
