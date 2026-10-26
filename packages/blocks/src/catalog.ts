@@ -33,9 +33,11 @@ export const blockCatalog = [
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
       textSlot: slot, items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
         required: ['textSlot'], properties: {textSlot: {...slot,description:'The short module headline; use a headline role for primary promotional copy.'},subtitleSlot: {...slot,description:'Optional supporting course detail.'}}}}}}},
-  { ...common, id: 'ui-journey', version: '1.0.1', category: 'software', cost: 'medium', regions: ['journey'],
-    events: [{name: 'product-land', description: 'The camera arrives at the final interface.'}],
+  { ...common, id: 'ui-journey', version: '1.1.0', category: 'software', cost: 'medium', regions: ['journey'],
+    events: [{name: 'product-land', description: 'The camera arrives at the final interface.'},
+      ...[1,2,3].map(index=>({name:'product-step-'+index,description:'A non-final product state arrives on its music beat; emitted only with beatFrames.'}))],
     params: {type: 'object', additionalProperties: false, required: ['items'], properties: {
+      beatFrames:{type:'integer',minimum:6,maximum:60,description:'Optional beat-choreographed handoffs with no decorative frame or ROI. At 30 fps, first arrival is beatFrames, subsequent arrivals every 3 beats: one beat for handoff, two for short-copy reading with a slow dolly. Use distinct real states and short headlines. Leave at least one beat after the final arrival. Omit to preserve the original continuous horizontal journey.'},
       items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
         required: ['assetKey', 'textSlot'], properties: {textSlot: slot, assetKey: slot}}}}}},
   { ...common, id: 'metric', category: 'data', regions: ['metric'],

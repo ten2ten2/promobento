@@ -23,7 +23,8 @@ const layoutOnly=process.env.PROMOBENTO_RUNTIME_CASE==='layout';
 const typographyOnly=process.env.PROMOBENTO_RUNTIME_CASE==='typography';
 const openingOnly=process.env.PROMOBENTO_RUNTIME_CASE==='opening';
 const relayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='relay';
-const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly;
+const journeyBeatsOnly=process.env.PROMOBENTO_RUNTIME_CASE==='journey-beats';
+const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly;
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
@@ -31,6 +32,7 @@ if(layoutOnly)report.scope='four_aspect_ordinary_runtime_and_closing_layout_only
 if(typographyOnly)report.scope='four_aspect_grouped_opening_and_text_only_grid_layout';
 if(openingOnly)report.scope='four_aspect_grouped_opening_motion_only';
 if(relayOnly)report.scope='four_aspect_brand_relay_motion_and_beat_landings_only';
+if(journeyBeatsOnly)report.scope='four_aspect_beat_journey_handoffs_and_reading_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
@@ -62,6 +64,13 @@ for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   pages.set('/relay-'+aspect+'.html',generateFilmPage(JSON.stringify(relay),options));
 }
 // A real director repair put a shard boundary inside the push into ui-journey.
+const journeyBeats=filmFixture();
+journeyBeats.texts={...journeyBeats.texts,first:{text:'Start a timer.',role:'headline',factIds:[]},
+  second:{text:'Hold to pause.',role:'headline',factIds:[]},third:{text:'Make it smile.',role:'headline',factIds:[]}};
+journeyBeats.scenes=[{id:'journey',kind:'block',block:'ui-journey@1',start:0,end:450,params:{beatFrames:18,
+  items:['first','second','third'].map(textSlot=>({textSlot,assetKey:'dashboard'}))},purpose:'Exercise beat-timed image handoffs.'}];
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts))
+  pages.set('/journey-beats-'+aspect+'.html',generateFilmPage(JSON.stringify(journeyBeats),pageOptions(aspect,layout)));
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
 // Match the real failure's raster format/resolution, not just an SVG with broad flat shapes.
@@ -227,7 +236,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly&&!journeyBeatsOnly){
     report.typography=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=openingOnly?[0,12]:[0,12,45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
@@ -301,7 +310,34 @@ try{
       report.relay.push({aspect,comparisons,decodedLogo:true,exactLandings:true,textSafeAreaAndCustomFont:true});
     }
   }
-  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  if(journeyBeatsOnly||!focusedRuntime){
+    report.journeyBeats=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const path='/journey-beats-'+aspect+'.html',handle=await open(aspect,path),frames=[0,9,27,63,81,117,135,161],baseline=new Map(),states=new Map(),comparisons=[];
+      // Warm through every source frame, rather than comparing only sparse seeks.
+      for(let frame=0;frame<=161;frame++){
+        await handle.seek(frame);
+        if(!frames.includes(frame))continue;
+        if([27,81,135].includes(frame)){
+          await checkLayout(handle,aspect);
+          const slots=await handle.page.evaluate(()=>[...document.querySelectorAll('[data-pb-slot]')].filter(el=>getComputedStyle(el).visibility==='visible').map(el=>el.dataset.pbSlot));
+          assert.deepEqual(slots,[["first"],["second"],["third"]][[27,81,135].indexOf(frame)]);
+        }
+        const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
+        writeFileSync(`${output}/journey-beats-${aspect}-${frame}.png`,png);
+      }
+      for(const frame of [...frames].reverse()){
+        await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`journey-beats-${aspect}-${frame}-reverse`)});
+      }
+      await handle.page.close();
+      for(const frame of frames){
+        const cold=await open(aspect,path);await cold.seek(frame);
+        comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`journey-beats-${aspect}-${frame}-cold`)});await cold.page.close();
+      }
+      report.journeyBeats.push({aspect,comparisons,allThreeReadingStates:true,textSafeAreaAndCustomFont:true});
+    }
+  }
+  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -360,6 +396,7 @@ try{
   for(const name of ['journey','showcase'])if(report[name])report.checks.push(`four-aspect ${name} forward/reverse/cold seeks`);
   if(report.typography)report.checks.push(openingOnly?'four-aspect grouped opening frame 0/12 forward/reverse/cold seeks':'four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
   if(report.relay)report.checks.push('four-aspect brand relay forward/reverse/cold seeks and exact beat landings');
+  if(report.journeyBeats)report.checks.push('four-aspect beat journey continuous/reverse/cold seeks and all reading states');
   if(!focusedRuntime)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');

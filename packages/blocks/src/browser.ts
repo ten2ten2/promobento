@@ -4,6 +4,7 @@ import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
 import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
 import {brandRelayPose} from './brand-relay.ts';
+import {journeyPose} from './journey-motion.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -250,7 +251,8 @@ for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<
   regions: [region(id === 'curriculum' ? 'modules' : 'features', grid, ctx.root),...(logo?[region('brand-relay',logo,ctx.root)]:[])]};
 }});
 
-window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.1', build(ctx, params) {
+window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.1.0', build(ctx, params) {
+  if (typeof params.beatFrames === 'number') return beatJourney(ctx, params as {beatFrames:number;items:Item[]});
   const safe = inSafe(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[];
   safe.style.overflow = 'hidden';
   safe.style.zIndex = '1';
@@ -290,6 +292,38 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'ui-journey', version: '1.0.
     surface.write();
   }, events: blockEvents('ui-journey', ctx.frames, params), regions: [region('journey', safe, ctx.root)]};
 }});
+
+function beatJourney(ctx:SceneContext,params:{beatFrames:number;items:Item[]}) {
+  const safe=inSafe(ctx),box=safeBox(ctx),wide=ctx.target.aspect==='landscape';
+  safe.style.zIndex='1';
+  const surface=cpuSurface(ctx),events=blockEvents('ui-journey',ctx.frames,params);
+  const items=params.items.map((item,index)=>{
+    const flipped=index%2===1;
+    const heading=node(safe,{position:'absolute',left:wide?(flipped?'2%':'64%'):'2%',top:wide?'28%':'2%',
+      width:wide?'34%':'96%',height:wide?'48%':'23%'});
+    text(ctx,item.textSlot,heading,3);
+    const screen={x:box.width*(wide?(flipped?.40:0):.02),y:box.height*(wide?.03:.28),
+      width:box.width*(wide?.60:.96),height:box.height*(wide?.94:.70)};
+    return{heading,screen,source:projectedAsset(ctx,item.assetKey!)};
+  });
+  return{ready:Promise.all(items.map(item=>item.source.ready)).then(()=>{}),async render(time:number){
+    surface.pixels.data.fill(0);
+    for(const [index,item]of items.entries()){
+      const pose=journeyPose(time*30,index,items.length,params.beatFrames);
+      item.heading.style.visibility=pose.textOpacity>0?'visible':'hidden';
+      item.heading.style.opacity=String(pose.textOpacity);
+      item.heading.style.transform=pose.textY===0?'none':`translateY(${pose.textY}px)`;
+      if(pose.opacity){
+        const from=Math.floor(pose.position),to=Math.min(items.length-1,from+1),progress=pose.position-from;
+        const a=items[from]!.screen,b=items[to]!.screen;
+        const screen={x:a.x+(b.x-a.x)*progress,y:a.y+(b.y-a.y)*progress,
+          width:a.width+(b.width-a.width)*progress,height:a.height+(b.height-a.height)*progress};
+        paintProjectedMedia(surface.pixels,await item.source.load(time),screen,box,0,0,pose.angle*Math.PI/180,1,{zoom:pose.zoom,radius:0});
+      }
+    }
+    surface.write();
+  },events,regions:[region('journey',safe,ctx.root)]};
+}
 
 window.PB.defineBlock<Record<string, unknown>>({id: 'metric', version: '1.0.0', build(ctx, params) {
   const safe = inSafe(ctx), title = node(safe, {position: 'absolute', top: '20%', width: '100%', height: '44%'});

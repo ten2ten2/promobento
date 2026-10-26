@@ -39,5 +39,7 @@ test('relay keypose sheets preserve their own source scope without relabelling t
  const frames=[90,99,108,117,126].map(frame=>({key:'renders/fixture/motion-frames/'+frame+'.png'})),bytes=pngRgba(1,1,Uint8Array.from([0,180,255,255]));
  const sheet=await reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes,sampleKind:'brand_relay_keyposes'});
  assert.deepEqual(sheet.tiles.map(tile=>tile.frame),[90,99,108,117,126]);assert.match(sheet.scope,/mid_hops_not_full_motion_or_audio/);
+ const journey=await reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes,sampleKind:'beat_choreography_keyposes'});
+ assert.deepEqual(journey.tiles,sheet.tiles);assert.match(journey.scope,/choreography_arrivals_and_transitions_not_full_motion_or_audio/);
  await assert.rejects(reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes}),/REVIEW_FRAME_REFERENCE_INVALID/);
 });

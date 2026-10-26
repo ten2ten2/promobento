@@ -1,7 +1,13 @@
 import {featureLandings} from './brand-relay.ts';
+import {journeyLandings} from './journey-motion.ts';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='ui-journey'&&params.beatFrames!==undefined){
+    const landings=journeyLandings(params.items.length,params.beatFrames);
+    if(landings.at(-1)+params.beatFrames>duration)throw Error('JOURNEY_READING_HOLD_MISSING');
+    return landings.map((frame,index)=>({name:index===params.items.length-1?'product-land':'product-step-'+(index+1),frame}));
+  }
   if(id==='feature-grid'&&params.beatFrames!==undefined){
     const landings=featureLandings(params.items.length,params.beatFrames);
     if(landings.at(-1)>=duration)throw Error('FEATURE_BEAT_AFTER_SCENE');
@@ -28,17 +34,22 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
+   return blockEvents('ui-journey',scene,scene.params).map(event=>Math.floor((scene.start+event.frame+Math.floor(scene.params.beatFrames/2))/stride)*stride);
   const settled=scene.start+Math.max(45,...blockEvents(scene.block.split('@')[0],{start:scene.start,end:scene.end},scene.params).map(event=>event.frame+6));
   const hold=Math.min(scene.end-1,settled),middle=Math.floor((scene.start+scene.end)/2);
   return[hold,...(middle>=settled?[middle]:[])].map(frame=>Math.floor(frame/stride)*stride);
  }))].sort((a,b)=>a-b);
 }
 
-/** Brand-relay keyposes for visual review, separate from settled text QA. */
+/** Beat choreography keyposes for visual review, separate from settled text QA. */
 export function filmMotionFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
+   return blockEvents('ui-journey',scene,scene.params).flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
+    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block!=='feature-grid@1'||!scene.params.logoKey||scene.params.beatFrames===undefined)return[];
   const landings=blockEvents('feature-grid',scene,scene.params).map(event=>scene.start+event.frame);
   return landings.flatMap((frame,index)=>index?[Math.floor((landings[index-1]+frame)/2),frame]:[frame])

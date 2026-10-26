@@ -146,7 +146,7 @@ F 的具体 BLOCK 发现可触发一次规格修复，再经过 E、全画幅重
 
 模型阶段先核对所有后续密钥和能力，再检查当前渲染器登记、实际镜像摘要、Chromium 沙箱、字体、broker/R2 读与实际 PNG 取帧，并确认 studio 停止；预检容器计入当前操作的计算预算。Coordinator 按 release/镜像/runtime/environment 缓存成功结果 10 分钟；缓存过期、换镜像或跨越用户等待时重新探测，失败不发模型请求、不缓存成功。S1 不使用的 Workers AI/ASR 仍待 S3 集成，不能由此算作已验证。studio 在启动前持久化所有权，启动失败或取消后仍能找到并停止；停止失败保留句柄供 outbox/alarm 处理，旧关闭请求不能删掉新 studio 的句柄。这些新增路径已有定点回放，实际云验范围见实施状态。
 
-RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `parseCanonicalJson` 恢复；不依赖平台结构化对象的属性形态，也不放宽 JCS 对非 JSON 值的拒绝。最终提交不自动重试确定性失败，避免原始错误被后续期限错误掩盖。`test/render-commit.test.mjs` 只回放已生成的云端计算回执，检查实际提交代码，不重新捕获或编码媒体。
+RenderWorkflow 的复合步骤值以共享 `canonical` 文本持久化、经 `parseCanonicalJson` 恢复；不依赖平台结构化对象的属性形态，也不放宽 JCS 对非 JSON 值的拒绝。最终提交不自动重试确定性失败，避免原始错误被后续期限错误掩盖。`test/render-commit.test.mjs` 使用已有六段最终片回执及其原规格，先核对现行计划与回执的帧区间；只回放已完成的计算／接缝步骤，检查实际提交、通知及准备失败终态，拒绝未缓存的新计算，不重新捕获或编码媒体。
 
 渲染记录依次为 `queued → sharding → verifying → assembling → passed`，失败/取消为 `blocked`/`cancelled`。准备输入也在失败处理范围内；失败先封锁新 attempt，再确认实例停止。`fail-render` 检查点只重试清理，最多三次重试，保留首个错误和 `stopPending`；确认失败时 lease 不归还。ShardDO 持久化单次 attempt 的停止标记，晚到 execute 不能重新启动。最终成片与 `render_progress` outbox 原子提交；通知由既有队列独立重试，陈旧 generation 的通知丢弃，查询渲染记录不依赖通知到达。
 

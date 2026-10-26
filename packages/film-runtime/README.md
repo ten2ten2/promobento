@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。`hook-title` 使用暂停的 GSAP 时间轴；其余积木按镜头时间绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程与 showcase 保留 DOM 文字及点选，图片、showcase 边框/阴影和 ROI 以 CPU 逆透视取样后单次写入固定画布，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
+S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。积木按镜头时间确定性绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程与 showcase 保留 DOM 文字及点选，图片、showcase 边框/阴影和 ROI 以 CPU 逆透视取样后单次写入固定画布，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
 
 ## 构建和调用
 
@@ -37,6 +37,8 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 九积木为 `hook-title`、`ui-showcase`、`cta-endcard`、`feature-grid`、`curriculum`、`ui-journey`、`metric`、`captions`、`talking-head`。后两者消费已清权、已确认的素材/字幕；数值和 CTA 必须绑定事实。字体由镜像转换并登记 cmap，宿主补齐覆盖范围；缺字和实际字体回退分别由静态检查与 CDP 检查。
 
 `cta-endcard@1` 的 1.0.1 将 CTA 与网址按实际文字高度组成一个居中组，不再将网址固定到画面底部。提供 Logo 时作为组内锚点；否则用短横线而非远离文字的方块。文字、字号下限和 CTA/URL 点选保留。`ui-showcase` 的 `focus` 只高亮 ROI，不放大或裁剪；密集课程图可不传 `textSlot` 以获得更多面积，必要宣传文字仍用可读槽位呈现。
+
+`ui-journey@1` 的 1.1.0 可选 `beatFrames`，将不同真实状态串成按拍接力：首落点为一拍，后续每三拍到达（交接一拍、短标题阅读两拍），阅读时产品缓慢推近；交接只显示一个真实状态，途中匹配切换，标题先退后进。横屏交替左右构图，其他画幅保持上文下图。没有装饰边框或 ROI。最后落点后至少留一拍；不传参数仍使用原连续横移。声音事件为 `product-step-1…3` 和末次 `product-land`。可信观测分别覆盖每个状态的阅读位置，动态帧另取每次交接中点与落点。仅复验此分支用 `suite=runtime -f runtime_case=journey-beats`，检查四画幅、三次阅读、连续播放后的逆序／冷 seek；不替代实际产品动效视听。
 
 `device-3d@1` 用 Three.js 0.186.1 将已清权静态截图/SVG 贴到原创设备几何，正文仍经 `ctx.text` 呈现；不接受视频纹理。仅含该积木的页面加载 `blocks-3d.js`，纯 2D 不加载 Three.js。相机/模型姿态只由镜头时间决定，不创建动画循环；初始化等待图片、纹理和首帧，销毁时释放几何、材质、纹理与 WebGL context。`BlockInstance.ready`/`dispose` 为可选资源生命周期，旧积木不需改写。来源与 MIT 通知见[积木许可](../blocks/NOTICE.md)。
 
