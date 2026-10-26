@@ -1,5 +1,6 @@
 import {featureLandings} from './brand-relay.ts';
 import {journeyLandings} from './journey-motion.ts';
+import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
@@ -24,7 +25,7 @@ export function blockEvents(id, frames, params) {
 }
 export function filmBlockEvents(spec) {
   return spec.scenes.flatMap(scene => {
-    if (scene.kind !== 'block') throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+    if(scene.kind==='custom')return customScenePlan(scene).events.map(event=>({...event,sceneId:scene.id}));
     return blockEvents(scene.block.split('@')[0], {start: scene.start, end: scene.end}, scene.params).map(event => ({...event, sceneId: scene.id}));
   });
 }
@@ -33,7 +34,7 @@ export function filmBlockEvents(spec) {
 export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
-  if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
    return blockEvents('ui-journey',scene,scene.params).map(event=>Math.floor((scene.start+event.frame+Math.floor(scene.params.beatFrames/2))/stride)*stride);
   const settled=scene.start+Math.max(45,...blockEvents(scene.block.split('@')[0],{start:scene.start,end:scene.end},scene.params).map(event=>event.frame+6));
@@ -46,7 +47,8 @@ export function filmObservationFrames(spec,quality){
 export function filmMotionFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
-  if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  if(scene.kind==='custom')return [...new Set([scene.start,scene.end-1,...customScenePlan(scene).events.map(event=>scene.start+event.frame),
+    ...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])].map(frame=>Math.floor(frame/stride)*stride);
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
    return blockEvents('ui-journey',scene,scene.params).flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
     .map(frame=>Math.floor((scene.start+frame)/stride)*stride);

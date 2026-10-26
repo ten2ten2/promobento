@@ -9,7 +9,7 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('device-3d')?'device-3d':'ui-journey'):
   proposals.find((id:string)=>['ui-showcase','ui-journey'].includes(id))??
-  proposals.find((id:string)=>supported.includes(id)&&!['hook-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id));
+  proposals.find((id:string)=>supported.includes(id)&&!['hook-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id))??(proposals.includes('custom')?'ui-showcase':undefined);
  if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
  // Compare palette/depth on the same primary cleared image, not an auxiliary logo or a random catalog item.
  const asset=context.resources[0],facts=context.facts,first=facts[0];

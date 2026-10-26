@@ -45,3 +45,15 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 自写镜头、全局纹理效果、布局覆盖和本地改值预览仍明确拒绝。当前阅读停留观测不等于 S2 的完整动态 Q1/Q2，也不能替代负责人正常速度试听及审美签字；页面本身不播放音轨。
 
 卡片与名牌可通过 text-slot mount 的 `maxFontSize` 保持层级；自动适配仍受角色最小字号约束，不拆开单词或截断原文来伪装适配成功。退场界面在整段旅程结束时真正隐藏，可信点选只查询画面内的交集；越界文字仍会记录 BLOCK。
+
+## 自写镜头：源码与规格分开
+
+`FilmSpec.scenes[]` 的 `custom` 使用 `module: scenes/<id>/index.js` 和创作 `brief`。当前首轮支持 DOM、SVG 图形、Canvas2D 与暂停 GSAP 时间线；自写 WebGL/Three.js、任意依赖和导入未开放。每个模块是单个 `PB.scene(id, ctx => ({timeline}))` 注册，作品只在独立 uid 的 Chromium 沙箱中执行，不在页面生成器、Worker 或控制器求值。
+
+`params` 声明 `textSlots`、`assetKeys`、局部整数帧 `events: [{name,frame}]`、`readingHolds: [{start,end}]`，可用 `hardest:true` 指定先验证的镜头。源码用 `ctx.text('id').mount(...)` 与 `ctx.asset('id')` 的字面量引用，不能自行写可见文案；时间线完整覆盖本镜头，`ctx.OM.clock` 提供冷/逆向 seek 的纯函数绘制。具体 API 见 [film-runtime.d.ts](../../contracts/film-runtime.d.ts)。
+
+可信调用者给 `generateFilmPage` 的 `PageOptions.customSources` 提供路径到原始源码的映射。静态 Q0 使用锁定 Acorn，仅解析语法和明确禁用项；动态求值的全局及普通/async/generator 构造器在加载源码前封锁；可信宿主通过直接 CDP 函数桥接，不借页面 eval。实际隔离仍依靠 shim/CSP、容器出网与分离 uid、宿主期限和停止回收。模块每份最多 64 KiB、合计 512 KiB；只允许当前 FilmSpec 列明的路径；每镜头声明的事件/首尾/阅读取帧去重后最多 24 个。控制器从已授权的不可变 `inputs` 读同名模块，完成 Q0 和完整 sourceHash 核对后才启动浏览器，并仅在本地同源路径提供源码。
+
+`filmSourceHash(raw, customSources)`、构建回执与分段身份包含全部模块原始字节。纯积木省略该参数，原摘要不变。实际 CDP 观测拒绝自写 DOM 中的未绑定文字和被改写的文字；Canvas/SVG 文字绘制在当前准入中禁用。四画幅、重复/逆向/冷 seek、运行时攻击及资源耗尽的实际范围见[实施状态](../../docs/implementation-status.md)。
+
+定点 CI：`suite=runtime / runtime_case=custom`；它不重做配乐、工程片或完整 G1。

@@ -46,7 +46,8 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = WEBGL_
     const scenes = spec.scenes.filter(scene => scene.start < end && scene.end > Math.max(0, start - 1));
     const shardKey = digest({identityVersion: 'film-shard-v1', runtimeVersion: job.runtimeVersion, rendererRelease: job.rendererRelease,
       aspectId: job.aspectId, renderProfile: job.renderProfile, quality: job.quality, start, end, style: spec.style,
-      seed, audio: job.audioPlanHash ?? null, scenes, texts: spec.texts, assets: spec.assets, resources: job.resources});
+      seed, audio: job.audioPlanHash ?? null, scenes, texts: spec.texts, assets: spec.assets, resources: job.resources,
+      ...(spec.scenes.some(scene=>scene.kind==='custom')?{sourceHash:job.sourceHash}:{})});
     return {index, start, end, instance: scenes.some(usesWebgl) ? 'standard-4' : 'standard-3', shardKey};
   });
   return {schemaVersion: '3.0.0', kind: 'shard_plan', renderId: job.renderId, totalFrames: job.totalFrames, shards};

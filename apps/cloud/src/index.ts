@@ -1,4 +1,5 @@
 import {PROTOCOL_VERSION} from './version.ts';
+import {directingMethodPack,directingMethodRef} from '../../../packages/methods/directing.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {assertRenderJob, assertRenderTask, planShards} from '@promobento/contracts/render';
@@ -121,7 +122,8 @@ export default {
         const previous=await env.DB.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
         if(previous&&previous.request_key!==input.contextKey)throw Error('IDEMPOTENCY_CONFLICT');
         const id='creative-'+op.id;
-        await env.DB.batch([env.DB.prepare('INSERT OR IGNORE INTO pipeline_contexts(operation_id,request_key) VALUES(?,?)').bind(op.id,input.contextKey),
+        const method=previous?null:await immutableJson(env,`operations/${op.id}/directing-method-${directingMethodRef(directingMethodPack).contentHash}.json`,directingMethodPack);
+        await env.DB.batch([env.DB.prepare('INSERT OR IGNORE INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').bind(op.id,input.contextKey,method?.key??null),
           env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)').bind(id,op.id,'creative',canonical({operationId:op.id}))]);
         ctx.waitUntil(flush(env));return Response.json({operationId:op.id},{status:202});
       }

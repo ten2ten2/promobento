@@ -25,6 +25,8 @@ test('eval input preparation rejects an oversized source before writing any case
  for(const item of manifest.cases){
   const context=parseCanonicalJson(readFileSync(join(temp,'artifacts/prepared',item.contextFile)));
   assert.ok(context.resources.every(asset=>asset.topicId===item.topicId));
+  assert.equal(context.creativeBriefVersion,'director-led-v1');
+  if(item.topicId==='minimax'){assert.match(context.brief,/director chooses/i);assert.doesNotMatch(context.notes,/Suggested 30-fps schedule|then three concise|Use cta-endcard/);}
   assert.equal(context.rendererRelease,'renderer-fbf1a740f146');assert.equal(context.publicUseCleared,false);
  }
  assert.equal(manifest.cases.filter(item=>item.topicId==='ielts-ready').length,2);

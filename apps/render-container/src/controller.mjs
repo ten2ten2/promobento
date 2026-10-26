@@ -57,9 +57,14 @@ async function execute(input) {
   const prefix = 'renders/' + input.job.renderId + '/attempts/' + input.taskId + (input.mode === 'shard' ? '/shards/' + input.shard.index : input.mode === 'audio' ? '/audio' : '/out');
   let report;
   if (input.mode === 'shard' || input.mode === 'studio') {
-    await inRenderPhase({phase:'chromium_start'},()=>launch('start'));
     const raw = await inRenderPhase({phase:'broker_input_read'},()=>bytes('film', 8 << 20));
-    if (filmSourceHash(raw) !== input.job.sourceHash) throw Error('SOURCE_SCOPE_MISMATCH');
+    const sources={};
+    for(const object of input.inputs.filter(object=>object.name.startsWith('scenes/')))
+      sources[object.name]=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await bytes(object.name,65536));
+    if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_SCOPE_MISMATCH');
+    // Only inert source bytes are read in the controller. The browser executes them after the shim.
+    input.options={...input.options,customSources:sources};
+    await inRenderPhase({phase:'chromium_start'},()=>launch('start'));
     input.options.fonts = input.options.fonts.map(face => {
       const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
       if (!installed) throw Error('FONT_FACE_UNAVAILABLE');

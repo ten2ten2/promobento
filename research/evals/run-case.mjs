@@ -23,6 +23,7 @@ const item=manifest.cases.find(item=>item.id===caseId);
 if(manifest.status!=='prepared_not_executed'||manifest.scope!=='internal_eval_only'||manifest.publicUseCleared!==false||!item
  ||!/^([a-z0-9-]+)-(15|30)$/.test(caseId)||item.contextFile!==caseId+'.json')throw Error('APPROVED_PREPARED_CASE_REQUIRED');
 const context=read(join(input,item.contextFile));
+if(!probeSource&&(manifest.creativeBriefVersion!=='director-led-v1'||context.creativeBriefVersion!=='director-led-v1'))throw Error('EVAL_REFRESH_DIRECTOR_INPUTS_REQUIRED');
 if(context.scope!=='internal_eval_only'||context.publicUseCleared!==false||context.rendererRelease!==manifest.rendererRelease
  ||context.factConfirmation.confirmedBy!=='owner'||canonical(context.aspects)!==canonical(['landscape','portrait']))throw Error('CONFIRMED_CONTEXT_REQUIRED');
 if(!/^renderer-[a-f0-9]{12}$/.test(context.rendererRelease))throw Error('PINNED_RENDERER_SOURCE_REQUIRED');
@@ -132,7 +133,7 @@ try{
     report.choiceAcknowledgedAt=new Date().toISOString();report.choice=choice;report.status='running';chosen=true;save();
    }
   }else if(state.status==='succeeded'){
-   const candidate=await json('operations/'+operationId+'/candidate');writeFileSync(join(output,'candidate.json'),canonical(candidate)+'\n');
+   const candidate=await json('operations/'+operationId+'/candidate');writeFileSync(join(output,'candidate.json'),canonical(candidate)+'\n');report.directingMethod=candidate.directingMethod??null;
    if(candidate.final.length!==context.aspects.length||candidate.publicUseCleared!==false)throw Error('EVAL_FINAL_ASPECTS_MISSING');
    if(music&&(candidate.film.audio.mute===true||canonical(candidate.film.audio.music)!==canonical(music.selector)))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
    for(const[index,movie]of candidate.final.entries())for(const ref of movie.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))
@@ -146,7 +147,7 @@ try{
     if(draft.kind!=='s1_internal_review_draft'||draft.operationId!==operationId||draft.publicUseCleared!==false||draft.acceptanceStatus!=='unapproved'
      ||!draft.movies?.length||draft.movies.some(entry=>!context.aspects.includes(entry.aspect)||entry.movie.status!=='passed'))throw Error('EVAL_REVIEW_DRAFT_INVALID');
     if(music&&(draft.film.audio.mute===true||canonical(draft.film.audio.music)!==canonical(music.selector)))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
-    writeFileSync(join(output,'review-draft.json'),canonical(draft)+'\n');
+    writeFileSync(join(output,'review-draft.json'),canonical(draft)+'\n');report.directingMethod=draft.directingMethod??null;
     for(const entry of draft.movies)for(const ref of entry.movie.outputs.filter(ref=>/\/(film.mp4|poster.png)$/.test(ref.key)))
      await download(ref,entry.aspect+'-'+ref.key.split('/').at(-1));
     writeFileSync(join(output,'index.html'),reviewPage({title:caseId,draft:true,coldReviewStatus:draft.coldReviewStatus,

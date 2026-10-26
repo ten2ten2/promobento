@@ -132,6 +132,16 @@ F 的具体 BLOCK 发现可触发一次规格修复，再经过 E、全画幅重
 
 达到修改上限或 F 无法继续修复时，按[内部审片退出规则](../../docs/plans/cloud-motion-v3.md#66-阶段-e整片-review)保留未验收的 `review-draft.json`。`GET operations/<id>/review-draft` 只供内部负责人取回，操作仍是 `failed`，`candidate` 接口仍返回 404；不会增加修改次数或绕过 F。草稿绑定最后实际渲染的规格／影片、原停止原因、未应用建议及冷审状态。`artifacts/<key>` 在这类失败操作中只放行草稿所列的已通过媒体，仍核对 generation 与当前许可；普通失败、取消、旧代际和其他输出不开放。
 
+## 导演选择结构，D 实现自写镜头
+
+负责人批准把 DOM/SVG/Canvas2D 自写镜头提前到 S1；完整 S2、生产与客户入口未因此开放。新创作在 `creative` 准入时冻结 `packages/methods/directing.ts`，B/C/D/E/F 按阶段召回。方法版本/内容摘要进入模型缓存身份、费用用量与候选/草稿；已有操作的空 `directing_method_key` 保留原积木路径，不追溯改写已付费检查点。新操作先用真实自写 health 镜头确认当前 renderer 支持它，再发模型请求。
+
+B 选择信息形态、运动语言与骨架；方向 hero 仍是静音可信积木的构图预览，不冒充自写镜头效果。C 写 Treatment 和完整 FilmSpec，自行决定结构/时间；需要原创动作时声明 custom scene（本轮最多两个），不把做不到的动作降成固定截图顺排。D 按 `hardest` 顺序调用既有 `edit_file`，只写该 scene 的模块；静态解析不求值。每镜头的 12 次/$0.35 原上限独立累计，修复、重放、整次费用与期限不重置。
+
+所有模块按 [运行时接口](../../packages/film-runtime/README.md)准入并冻结原始字节。D 在每个请求画幅的独立 studio 中先检查事件/首尾姿势和阅读窗口，保存实际 PNG、CDP 观测与 proof，并做逆序与新实例冷 seek 像素比较，确认关闭后才渲整片。Q0 或真实局部检查失败则不提交候选；不是自动放宽 QA。E 可通过唯一匹配的 `str_replace`/`insert` 定点改当前模块，仍使用 E/F 共用两次修复额度；修改后重新检查并渲染。F 继续独立看实际画面，不带 D/E 对话。自写镜头另有每秒及事件姿势，不能把静态阅读图当作完整运动审片。
+
+当前新路径的实际验证范围统一见[实施状态](../../docs/implementation-status.md)。
+
 ## 导演使用已批准的音乐
 
 图片仍放 `context.resources`；可选的 `context.audioSources` 单独列出最多四个音乐源，不送入看图模型。每项提供 `kind: "score" | "upload"`、`resourceId`、`sha256`、私有 `evals/…` 的 `key`、`byteLength`；ABC 另有 FilmSpec 使用的 `scoreRef`（例如 `audio/original.abc`）。不接受目录中自报的 `rightsCleared` 或许可证；可信宿主从 D1 权利行和私有 R2 证据读取许可。完整结构见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)。
@@ -195,3 +205,5 @@ studio 不建立成片 attempt 行；恢复查询会同时按持久计算预留 
 `-f staging_scenario=g1-isolation` 对 2D standard-3、WebGL standard-4 各开一个独立 studio，只测授权的 45 帧及[固定攻击项](../../tests/attacks/film-v1/isolation.json)。`POST operations/<id>/studio/isolation/<frame>` 在 Worker 与 ShardDO 均要求校准 purpose，仍检查 generation、许可、task 和帧范围；普通评测和越界帧先拒绝。控制器不执行调用者提供的代码或命令。
 
 `isolation-report.json` 保留真实 Chromium 沙箱、shim/CSP、容器外网/DNS/TCP、broker 无令牌/错令牌/越权读写、uid 隔离和实际停止/结算结果。CSP 用普通同源脚本执行；令牌仅以指纹供 uid 探针检查原始进程字节，bearer 不传给启动器，指纹也不进报告。只保留父浏览器白名单键名、子进程的可读性/字节数/泄漏布尔值与权限结果，避免将重用的 argv 字节当作环境键或输出其中内容。固定请求只访问 example.com、Cloudflare 公共 DNS 地址及本任务的 broker；失败不自动重试。此场景不出片、不调模型，不代替 S2 的资源耗尽与任意镜头故障测试。
+
+新自写路径的零模型云验入口：`suite=staging / staging_scenario=custom-studio`，只检查原创源码传输、四画幅正/逆/冷 seek 与实际 CDP 阅读观测，不合成声音、编码影片或调用导演模型。

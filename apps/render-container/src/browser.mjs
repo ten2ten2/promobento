@@ -7,6 +7,7 @@ import {observe} from './observe.mjs';
 import {pageIsolation} from './isolation.mjs';
 import {inRenderPhase} from './failure.mjs';
 import {waitForRuntimeReady} from './readiness.mjs';
+import {pageCaller} from './page-call.mjs';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -33,6 +34,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
   if (![1, .5].includes(captureScale)) throw Error('CAPTURE_SCALE_INVALID');
   const generated = generateFilmPage(raw, options), {plan} = generated;
   const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot',...(plan.usesWebgl?['blocks-3d']:[])].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
+  for(const [path,source]of Object.entries(options.customSources??{}))scripts.set('/'+path,Buffer.from('"use strict";\n'+source));
   const assets = new Map(Object.values(plan.assets).map(asset => ['/r/' + asset.resourceId, asset]));
   const fonts = new Map(plan.fonts.map(face => [`/f/${face.fontId}/${face.weight}-${face.style}.woff2`, face]));
   let isolationEnabled=false,requestFailure;
@@ -58,7 +60,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   let browser, context, page;
-  const cancel = () => { void killBrowser?.(); };
+  const cancel = () => { void Promise.resolve(killBrowser?.()).catch(()=>{}); };
   signal?.addEventListener('abort', cancel, {once: true});
   try {
     const connectStarted = performance.now();
@@ -69,6 +71,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
     page = await inRenderPhase({phase:'browser_context'},()=>context.newPage());
     const sandbox = sandboxState();
     const cdp = await context.newCDPSession(page);
+    const evaluate=pageCaller(cdp);
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', {source: scripts.get('/runtime/shim.js').toString()});
     let pageError;
     page.on('crash', () => { pageError = 'RENDER_PAGE_CRASHED'; });
@@ -78,15 +81,15 @@ export async function filmSession({raw, options, browserVersion, resource, video
     await deadline((async () => {
       await inRenderPhase({phase:'page_load'},()=>page.goto(url, {waitUntil: 'load', timeout: options.initTimeoutMs}));
       await inRenderPhase({phase:'runtime_ready'},()=>waitForRuntimeReady({timeoutMs:options.initTimeoutMs,signal,pageError:()=>requestFailure??pageError,
-        read:()=>page.evaluate(()=>({ready:window.__omReady===true,failure:window.__omBootFailed??null}))}));
+        read:()=>evaluate(()=>({ready:window.__omReady===true,failure:window.__omBootFailed??null}))}));
     })(), options.initTimeoutMs, 'INIT_TIMEOUT', cancel);
     const scope = {protocolVersion: '3.0.0', sessionId: crypto.randomUUID(), revisionId: crypto.randomUUID(), aspectId: plan.target.aspect};
     let sequence = 0, closed = false, currentFrame = -1;
     const envelope = command => ({...scope, command, sequence: ++sequence, requestId: crypto.randomUUID()});
-    await inRenderPhase({phase:'runtime_init'},()=>page.evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
+    await inRenderPhase({phase:'runtime_init'},()=>evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
       manifestHash: plan.manifestHash, frameCount: plan.spec.totalFrames, width: plan.target.width, height: plan.target.height,
       fps: 30, seed: plan.seed, renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'}}));
-    const webgl=await page.evaluate(()=>[...document.querySelectorAll('canvas[data-pb-webgl]')].map(canvas=>{
+    const webgl=await evaluate(()=>[...document.querySelectorAll('canvas[data-pb-webgl]')].map(canvas=>{
       const gl=canvas.getContext('webgl2');if(!gl||gl.isContextLost())throw Error('WEBGL_CONTEXT_UNAVAILABLE');
       const extension=gl.getExtension('WEBGL_debug_renderer_info');
       return{renderer:gl.getParameter(extension?extension.UNMASKED_RENDERER_WEBGL:gl.RENDERER),vendor:gl.getParameter(extension?extension.UNMASKED_VENDOR_WEBGL:gl.VENDOR),version:gl.getParameter(gl.VERSION)};
@@ -101,7 +104,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
         signal?.throwIfAborted();
         const input = {...envelope('seek'), frameIndex};
         return deadline((async () => {
-          const ready = await inRenderPhase({phase:'frame_seek',frame:frameIndex},()=>page.evaluate(input => window.__omEngine.seekFrame(input), input));
+          const ready = await inRenderPhase({phase:'frame_seek',frame:frameIndex},()=>evaluate(input => window.__omEngine.seekFrame(input), input));
           for (const key of ['protocolVersion', 'sessionId', 'revisionId', 'aspectId', 'requestId', 'sequence', 'frameIndex'])
             if (ready[key] !== input[key]) throw Error('FRAME_ACK_MISMATCH');
           if (ready.event !== 'frame-ready' || ready.manifestHash !== plan.manifestHash) throw Error('FRAME_ACK_MISMATCH');
@@ -115,7 +118,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
       },
       async observe(renderId, frame) { if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY'); return observe(cdp, plan, renderId, frame); },
       async isolation() { if(closed||currentFrame<0)throw Error('FRAME_NOT_READY');isolationEnabled=true;
-        try{return await pageIsolation(page);}finally{isolationEnabled=false;}
+        try{return await pageIsolation(page,evaluate);}finally{isolationEnabled=false;}
       },
       async capturePng(frame) {
         if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY');
@@ -123,13 +126,13 @@ export async function filmSession({raw, options, browserVersion, resource, video
       },
       async close() {
         if (closed) return; closed = true;
-        try { await deadline(page.evaluate(input => window.__omEngine.dispose(input), envelope('dispose')), 1000, 'DISPOSE_TIMEOUT', cancel); }
-        finally { signal?.removeEventListener('abort', cancel); await context.close(); await browser.close(); await new Promise(resolve => server.close(resolve)); }
+        try { await deadline(evaluate(input => window.__omEngine.dispose(input), envelope('dispose')), 1000, 'DISPOSE_TIMEOUT', cancel); }
+        finally { signal?.removeEventListener('abort', cancel); await Promise.allSettled([context.close(),browser.close()]);server.closeAllConnections();await new Promise(resolve => server.close(resolve)); }
       }
     };
   } catch (error) {
     signal?.removeEventListener('abort', cancel);
-    await context?.close().catch(() => {}); await browser?.close().catch(() => {}); await new Promise(resolve => server.close(resolve));
+    await context?.close().catch(() => {}); await browser?.close().catch(() => {});server.closeAllConnections();await new Promise(resolve => server.close(resolve));
     throw error;
   }
 }

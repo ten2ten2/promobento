@@ -13,6 +13,7 @@ export interface AssetRecord {
 export interface PageOptions {
   target: Target; seed: string; fonts: FontRecord[]; resources: AssetRecord[]; confirmedFactIds: string[];
   initTimeoutMs: number; frameTimeoutMs: number;
+  customSources?: Record<string,string>;
 }
 export interface PagePlan {
   spec: FilmSpec; usesWebgl: boolean; target: Target; seed: string; manifestHash: string;

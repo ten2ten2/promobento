@@ -25,8 +25,7 @@ export function blockReferences(params) {
 /** Static source declarations, not pixel observations or a substitute for Q1/Q2. */
 export function filmTextBindings(spec) {
   return spec.scenes.flatMap(scene => {
-    if (scene.kind !== 'block') throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
-    const slots = scene.block === 'captions@1'
+    const slots = scene.kind==='custom'?(scene.params?.textSlots??[]).map(slotId=>({slotId,start:scene.start,end:scene.end})):scene.block === 'captions@1'
       ? scene.params.cues.map(cue => ({slotId:cue.textSlot,start:scene.start+cue.start,end:scene.start+cue.end}))
       : blockReferences(scene.params).texts.map(slotId => ({slotId,start:scene.start,end:scene.end}));
     return slots.map(({slotId,start,end}) => {

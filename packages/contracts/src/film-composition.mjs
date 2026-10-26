@@ -8,14 +8,14 @@ import {validate as blockValid} from '../generated/block-params.mjs';
 const sourceError=error=>/^[A-Z][A-Z0-9_]+$/.test(error?.message??'')?error.message:'FILM_SOURCE_INVALID';
 
 /** Read actual canonical source bytes; this never evaluates an author's code. */
-export function filmBuildReceipt(raw) {
+export function filmBuildReceipt(raw,customSources={}) {
   if(typeof raw==='string'?(raw.length>8*1048576||new TextEncoder().encode(raw).length>8*1048576):raw?.byteLength>8*1048576)throw Error('FILM_SOURCE_TOO_LARGE');
   let identity,film;
-  try{identity=filmSourceIdentity(raw);film=parseCanonicalJson(raw);}catch(error){throw Error(sourceError(error));}
+  try{identity=filmSourceIdentity(raw,customSources);film=parseCanonicalJson(raw);}catch(error){throw Error(sourceError(error));}
   const text=canonical(film);
   const actual=typeof raw==='string'?raw:new TextDecoder('utf-8',{fatal:true}).decode(raw);
   if(actual!==text)throw Error('FILM_SOURCE_NOT_CANONICAL');
-  return {capabilityProfile:'film-v1',entrypoint:'film.json',sourceArchiveHash:digest(identity),files:identity.files,filmSource:text};
+  return {capabilityProfile:'film-v1',entrypoint:'film.json',sourceArchiveHash:digest(identity),files:identity.files,filmSource:text,...(Object.keys(customSources).length?{customSources}:{})};
 }
 
 /** Structural/content checks only. License, fact confirmation, QA and membership remain separate gates. */
@@ -24,7 +24,7 @@ export function filmCompositionErrors(composition,context={}) {
   if(!validate(composition)||composition.kind!=='composition'||composition.identityVersion!==2||composition.capabilityProfile!=='film-v1')return ['FILM_COMPOSITION_INVALID'];
   const {presetConfig:rules,filmSource,resourceManifest,factManifest}=context;
   let build,film;
-  try{build=filmBuildReceipt(filmSource);film=parseCanonicalJson(build.filmSource);}catch(error){return [sourceError(error)];}
+  try{build=filmBuildReceipt(filmSource,context.customSources);film=parseCanonicalJson(build.filmSource);}catch(error){return [sourceError(error)];}
   if(!rules||rules.rulesVersion!==composition.presetRulesVersion)return ['PRESET_VERSION_UNAVAILABLE'];
   fail(composition.sourceArchiveHash===build.sourceArchiveHash,'SOURCE_ARCHIVE_HASH_MISMATCH');
   fail(composition.durationSeconds===film.durationSeconds&&composition.totalFrames===film.totalFrames&&composition.fps===film.fps,'DURATION_FRAME_MISMATCH');
@@ -46,6 +46,7 @@ export function filmCompositionErrors(composition,context={}) {
     fail(!aspects.has(variant.aspectId)||aspects.get(variant.aspectId)===key,'FILM_ASPECT_DIVERGENCE');aspects.set(variant.aspectId,key);
   }
   for(const scene of film.scenes){
+    if(scene.kind==='custom')continue;
     fail(blockValid({block:scene.block,params:scene.params}),'BLOCK_PARAMS_INVALID');
     for(const key of blockReferences(scene.params).assets)fail(Object.hasOwn(film.assets,key),'ASSET_SLOT_UNKNOWN');
   }
@@ -79,8 +80,8 @@ export function filmCompositionErrors(composition,context={}) {
 }
 
 /** New film-v1 writes use identityVersion 2; legacy v1 helpers retain their original byte identities. */
-export function createFilmComposition({filmSource,resourceManifest,factManifest,dependencyManifest,presetConfig,...input}) {
-  const build=filmBuildReceipt(filmSource),film=parseCanonicalJson(build.filmSource);
+export function createFilmComposition({filmSource,customSources,resourceManifest,factManifest,dependencyManifest,presetConfig,...input}) {
+  const build=filmBuildReceipt(filmSource,customSources),film=parseCanonicalJson(build.filmSource);
   const {targetIds=targets(presetConfig).map(target=>target.targetId),coverFrame=Math.floor(film.totalFrames*.55),...metadata}=input;
   if(!dependencyManifest||typeof dependencyManifest!=='object'||!Object.keys(dependencyManifest).length)throw Error('DEPENDENCY_MANIFEST_REQUIRED');
   if(!Array.isArray(targetIds)||new Set(targetIds).size!==targetIds.length||!targetIds.length)throw Error('INVALID_TARGET_PAIR');
@@ -96,7 +97,7 @@ export function createFilmComposition({filmSource,resourceManifest,factManifest,
       resourceContentHash:composition.resourceContentHash,audioHash:digest(audioIdentity(resourceManifest)),coverFrame};
     return {...variant,variantHash:digest(variantIdentity(composition,variant,presetConfig))};
   });
-  const errors=filmCompositionErrors(composition,{filmSource,resourceManifest,factManifest,presetConfig});
+  const errors=filmCompositionErrors(composition,{filmSource,customSources,resourceManifest,factManifest,presetConfig});
   if(errors.length)throw Error(errors.join(','));return composition;
 }
 
@@ -107,7 +108,7 @@ export function filmBuildErrors(composition,builds,archiveFiles){
     const build=builds&&Object.hasOwn(builds,variant.targetId)?builds[variant.targetId]:null;
     if(!build){errors.push('SOURCE_BUILD_REQUIRED');continue;}
     try{
-      const actual=filmBuildReceipt(build.filmSource);
+      const actual=filmBuildReceipt(build.filmSource,build.customSources);
       if(build.capabilityProfile!=='film-v1'||build.entrypoint!=='film.json'||build.sourceArchiveHash!==composition.sourceArchiveHash)errors.push('SOURCE_BUILD_SCOPE_MISMATCH');
       if(actual.sourceArchiveHash!==variant.sourceHash||actual.sourceArchiveHash!==composition.sourceArchiveHash)errors.push('SOURCE_HASH_MISMATCH');
       if(canonical(build.files)!==canonical(actual.files))errors.push('SOURCE_BUILD_FILE_MISMATCH');

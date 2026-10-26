@@ -8,7 +8,8 @@ import {deriveAudioPlan,audioPlanHash} from '../../../packages/audio/src/plan.mj
 import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {webglFixture} from '../../../packages/film-runtime/test/webgl-fixture.mjs';
-import {probeWebgl} from './probe-webgl.mjs';
+import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
+import {probeStudio,probeWebgl} from './probe-webgl.mjs';
 import {probeRecovery,probeDirectorPreflight} from './probe-recovery.mjs';
 import {probePerformance} from './probe-performance.mjs';
 import {probeSelection} from './probe-selection.mjs';
@@ -20,7 +21,7 @@ if(!/^https:\/\/promobento-staging\.[a-z0-9-]+\.workers\.dev$/.test(base??'')||!
 const root=new URL('../../../',import.meta.url),directory='artifacts/staging';mkdirSync(directory,{recursive:true});
 const rules=parseCanonicalJson(readFileSync(new URL('config/platform-presets.json',root)));
 const policy=parseCanonicalJson(readFileSync(new URL('config/agent-policy.json',root))),scenario=process.env.STAGING_SCENARIO??'engineering';
-if(!['engineering','webgl-studio','webgl-film','lifecycle-recovery','director-preflight','g1-performance','g1-2d-performance','g1-selection','g1-isolation'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
+if(!['engineering','custom-studio','webgl-studio','webgl-film','lifecycle-recovery','director-preflight','g1-performance','g1-2d-performance','g1-selection','g1-isolation'].includes(scenario))throw Error('STAGING_SCENARIO_INVALID');
 const scope=scenario==='engineering'?'one_2d_staging_render_not_full_G1':scenario==='webgl-film'?'one_30s_webgl_24_shard_lead_in_render_not_full_G1':scenario==='lifecycle-recovery'?'native_cancel_termination_restart_not_full_G1':scenario==='director-preflight'?'deterministic_director_preflight_only_no_model_or_media_calls':scenario==='g1-performance'?'G1_performance_10_serial_plus_4_concurrent_each_2d_and_webgl':scenario==='g1-2d-performance'?'G1_performance_10_serial_plus_4_concurrent_2d_only':scenario==='g1-selection'?'G1_capture_instance_and_studio_latency_selection':scenario==='g1-isolation'?'G1_formal_image_network_uid_broker_and_browser_isolation':'webgl_studio_four_aspect_seek_not_full_G1_or_film_performance';
 let authPropagationRetries=0;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
@@ -66,7 +67,8 @@ operationAttempted=true;
 await json('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'pipeline-smoke',purpose:'calibration',maxMicros:1000000}});
 const envObject=await upload(prefix+'/environment.json',canonical({gitSha:sha,environmentLock:parseCanonicalJson(readFileSync(new URL('apps/render-container/environment.lock.json',root)))}),'application/json');
 await call('releases',{method:'POST',body:{id:releaseId,runtimeVersion:'film-runtime-v1',environmentKey:envObject.key}});
-const spec=scenario.startsWith('webgl-')?webglFixture():filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
+const custom=scenario==='custom-studio'?customFixture():null,customSources=custom?.sources??{};
+const spec=custom?.film??(scenario.startsWith('webgl-')?webglFixture():filmFixture()),options=pageOptions('landscape',rules.aspectLayouts.landscape);delete options.target.ratio;
 if(scenario==='webgl-film'){
  spec.durationSeconds=30;spec.totalFrames=900;spec.scenes[0].end=900;spec.treatment.energyCurve[1].frame=899;
  spec.audio={music:{kind:'procedural',style:'mallet',bpm:100},sfx:[{id:'whoosh',at:{frame:60}},{id:'whip',at:{frame:180}},{id:'riser',at:{frame:450}},{id:'reverse',at:{frame:870}}],captions:'off'};
@@ -78,12 +80,13 @@ const resourceId='res_fixture_dashboard',licenseRef=options.resources[0].license
 const evidence=await upload(prefix+'/rights.json',canonical({resourceId,sha256:resource.sha256,licenseRef,scope:'internal_eval_only',approvedBy:'owner',
  source:'PromoBento original engineering SVG in apps/render-container/tests/product.svg',basis:'Original geometric illustration authored for this repository; no third-party interface, logo, person or commercial claim.'}),'application/json');
 await call('rights',{method:'POST',body:{operationId,resourceId,sha256:resource.sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
+const modules=[];for(const [path,source]of Object.entries(customSources))modules.push({...await upload(prefix+'/'+path,new TextEncoder().encode(source),'text/javascript'),name:path});
 const film=await upload(prefix+'/film.json',canonical(spec),'application/json'),plan=deriveAudioPlan(spec,filmBlockEvents(spec));
 const audio=await upload(prefix+'/audio-plan.json',canonical(plan),'application/json');
-const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,sourceHash:filmSourceHash(canonical(spec)),runtimeVersion:'film-runtime-v1',rendererRelease:releaseId,
+const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,sourceHash:filmSourceHash(canonical(spec),customSources),runtimeVersion:'film-runtime-v1',rendererRelease:releaseId,
  aspectId:'landscape',durationSeconds:spec.durationSeconds,totalFrames:spec.totalFrames,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
  resources:[{resourceId,kind:'svg',sha256:resource.sha256}],audioPlanHash:audioPlanHash(plan,{seed:options.seed})};
-const request={job,options,inputs:[{...film,name:'film'},{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],
+const request={job,options,inputs:[{...film,name:'film'},...modules,{...resource,name:'resource:'+resourceId}],audioInputsBlobs:[{...audio,name:'audio-plan'}],
  audioInputs:{seed:options.seed,clearedSources:plan.sources.map(source=>({sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true}))},coverFrame:165};
 const partition=planShards(job,spec,{seed:options.seed});
 if(scenario==='webgl-film'){
@@ -95,6 +98,9 @@ if(['lifecycle-recovery','director-preflight','g1-performance','g1-2d-performanc
  const outcome=await probe({json,call,upload,request,rules,policy,directory,operationId,prefix,...(scenario==='g1-2d-performance'?{kinds:['2d']}:{})});
  writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,status:outcome.status}));
  console.log(canonical({scope,status:outcome.status,elapsedMs:Date.now()-started}));
+}else if(scenario==='custom-studio'){
+ const outcome=await probeStudio({json,call,request,rules,policy,directory,kind:'custom'});
+ writeFileSync(directory+'/smoke-report.json',canonical({scope:'custom_studio_four_aspect_source_transport_seek_and_Q1_no_models_or_movie',gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,outcome,status:'passed'}));
 }else if(scenario==='webgl-studio'){
  const outcome=await probeWebgl({json,call,request,rules,policy,directory});
  writeFileSync(directory+'/smoke-report.json',canonical({scope,gitSha:sha,harnessSha,operationId,elapsedMs:Date.now()-started,authPropagationRetries,outcome,status:'passed'}));

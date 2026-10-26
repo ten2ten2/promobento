@@ -18,7 +18,7 @@ on:
       runtime_case:
         description: Narrow only a known failed runtime case; all keeps normal coverage
         type: choice
-        options: [all, review, showcase, layout, typography, opening, relay, journey-beats]
+        options: [all, review, showcase, layout, typography, opening, relay, journey-beats, custom]
         default: all
       staging_inspect_run:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render
@@ -43,7 +43,7 @@ on:
       staging_scenario:
         description: New coverage only; lifecycle-recovery interrupts compute without repeating a complete movie
         type: choice
-        options: [deploy-only, engineering, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-2d-performance, g1-selection, g1-isolation]
+        options: [deploy-only, engineering, custom-studio, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-2d-performance, g1-selection, g1-isolation]
         default: engineering
 
 permissions:
@@ -130,6 +130,16 @@ jobs:
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
             promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log
           test -s artifacts/film-runtime/report.json
+      - name: Bound custom source CPU and memory faults
+        if: inputs.suite == 'runtime' && inputs.runtime_case == 'custom'
+        shell: bash
+        run: |
+          for fault in custom-loop custom-memory custom-init-loop; do
+            docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
+              -e PROMOBENTO_RUNTIME_CASE="$fault" --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
+              -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
+              promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee "artifacts/film-runtime/$fault.log"
+          done
       - name: Master only the two failed program styles
         if: inputs.suite == 'audio'
         shell: bash

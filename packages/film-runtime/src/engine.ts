@@ -1,5 +1,6 @@
 import { randomSequence } from '@promobento/contracts/random';
-import type { BlockDefinition, BlockInstance, FilmScene, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
+import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
+import {customScenePlan} from '@promobento/contracts/custom-source';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import type { PagePlan, FilmEngine } from './types.ts';
@@ -7,6 +8,7 @@ import type { PagePlan, FilmEngine } from './types.ts';
 const clock = window.__pbTakeClock?.();
 if (!clock) throw Error('RUNTIME_CLOCK_HANDOFF_MISSING');
 const blocks = new Map<string, BlockDefinition>();
+const customScenes = new Map<string,(ctx:SceneContext)=>CustomScene>();
 const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>}>();
 const fitters: Array<() => void> = [];
 const textRegions = new Map<string, SceneRegion[]>();
@@ -18,10 +20,15 @@ window.__omReady = false;
 Object.defineProperty(window, 'PB', {value: Object.freeze({
   info: Object.freeze({apiVersion: '3.0.0' as const, specVersion: 'film-v1' as const}),
   defineBlock<Params>(definition: BlockDefinition<Params>): void {
-    if (plan || blocks.has(definition.id)) throw Error('BLOCK_REGISTRATION_CLOSED');
+    const path=new URL((document.currentScript as HTMLScriptElement|null)?.src??location.href).pathname;
+    if (plan || blocks.has(definition.id)||!['/runtime/blocks.js','/runtime/blocks-3d.js'].includes(path)) throw Error('BLOCK_REGISTRATION_CLOSED');
     blocks.set(definition.id, definition as BlockDefinition);
   },
-  scene(): never { throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED'); }
+  scene(id:string,factory:(ctx:SceneContext)=>CustomScene):void {
+    const path=new URL((document.currentScript as HTMLScriptElement|null)?.src??location.href).pathname;
+    if(plan||customScenes.has(id)||path!==`/scenes/${id}/index.js`||typeof factory!=='function')throw Error('CUSTOM_REGISTRATION_INVALID');
+    customScenes.set(id,factory);
+  }
 }), writable: false, configurable: false});
 const requiredPlan = (): PagePlan => { if (!plan) throw Error('INVALID_SESSION'); return plan; };
 const check = (input: Envelope & {command: string}, command: string): void => {
@@ -123,17 +130,18 @@ const engine: FilmEngine = {
     await Promise.all([...fontLoads, document.fonts.ready]);
     if (disposed) throw Error('INVALID_SESSION');
     for (const scene of input.spec.scenes) {
-      if (scene.kind !== 'block') throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
-      const [id] = scene.block.split('@');
-      const definition = blocks.get(id!);
-      if (!definition) throw Error('BLOCK_UNKNOWN');
+      const definition = scene.kind==='block'?blocks.get(scene.block.split('@')[0]!):null;
+      if (scene.kind==='block'&&!definition) throw Error('BLOCK_UNKNOWN');
+      const factory=scene.kind==='custom'?customScenes.get(scene.id):null;
+      if(scene.kind==='custom'&&!factory)throw Error('CUSTOM_SOURCE_MISSING');
       const root = document.createElement('section'); root.dataset.scene = scene.id;
       Object.assign(root.style, {position: 'absolute', inset: '0', overflow: 'hidden', visibility: 'hidden', background: input.spec.style.palette.roles.bg});
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
       const helperRegions: SceneRegion[] = [];
       const ctx: SceneContext = {
-        root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: [],
+        root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
+          Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget}, helperRegions), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
@@ -163,7 +171,14 @@ const engine: FilmEngine = {
           }};
         }
       };
-      const instance = definition.build(ctx, scene.params);
+      let instance:BlockInstance;
+      if(scene.kind==='custom'){
+        const declared=customScenePlan(scene),built=factory!(ctx);
+        if(!built?.timeline||!['pause','seek','duration'].every(key=>typeof (built.timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
+        if(Math.abs(built.timeline.duration()-(scene.end-scene.start)/30)>1/30)throw Error('CUSTOM_TIMELINE_DURATION');
+        if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
+        instance={timeline:built.timeline,events:declared.events,regions:built.regions??[]};
+      }else instance=definition!.build(ctx,scene.params);
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');
       instance.timeline?.pause();
@@ -226,6 +241,7 @@ const engine: FilmEngine = {
     check(input, 'dispose'); disposed = true;
     await Promise.all([...instances.values()].map(value=>value.instance.dispose?.()));
     instances.clear(); textRegions.clear(); fitters.length = 0;
+    customScenes.clear();
     for (const bitmap of videoCache.values()) bitmap.close(); videoCache.clear(); videoBytes = 0;
     document.getElementById('film')?.replaceChildren(); window.__omReady = false;
   }

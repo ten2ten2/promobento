@@ -6,6 +6,7 @@ export function sqliteD1(){
  const db=new DatabaseSync(':memory:');
  db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
  const DB={prepare(sql){
   let args=[];

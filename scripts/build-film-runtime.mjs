@@ -11,4 +11,4 @@ await build({entryPoints: {
 }, outdir: 'packages/film-runtime/dist/browser', bundle: true, format: 'iife', platform: 'browser', target: 'chrome151'});
 await build({entryPoints: ['packages/film-runtime/src/page.ts'], outfile: 'packages/film-runtime/dist/page.mjs',
   bundle: true, format: 'esm', platform: 'node', target: 'node26', packages: 'external'});
-console.log('Built the FilmSpec page generator, OM/clip helpers, nine core blocks and conditional WebGL device (standard sampling).');
+console.log('Built the FilmSpec page generator, OM/clip helpers, trusted blocks, sandboxed custom scenes and conditional WebGL device (standard sampling).');

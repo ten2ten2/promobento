@@ -29,7 +29,7 @@ for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false)){
   if(![15,30].includes(durationSeconds)||canonical([...topics.variants.aspects].sort())!==canonical(['landscape','portrait']))throw Error('EVAL_VARIANTS_INVALID');
   const id=topic.id+'-'+durationSeconds,context={audience:topic.segment,targetAudience:card.audience,brand:card.brand,product:card.product,
    videoLanguage:card.videoLanguage,durationSeconds,fps:30,aspects:topics.variants.aspects,seed:'s1-eval-'+id,
-   brief:card.brief,notes:card.notes,cta:card.cta,facts:card.facts,sources:card.sources,confirmedFactIds:card.confirmation.factIds,factConfirmation:card.confirmation,
+   creativeBriefVersion:'director-led-v1',brief:card.brief,notes:card.notes,cta:card.cta,facts:card.facts,sources:card.sources,confirmedFactIds:card.confirmation.factIds,factConfirmation:card.confirmation,
    runtimeVersion:'film-runtime-v1',rendererRelease,fonts:[{fontId:'geist-sans',weight:600,style:'normal',licenseRef:'geist-ofl-1.1',rightsCleared:true}],
    resources,audioSources:[],music:{allowedKinds:['procedural','none'],proceduralStyles:AUDIO_STYLES},scope:'internal_eval_only',publicUseCleared:false};
   cases.push({id,topicId:topic.id,durationSeconds,aspects:context.aspects,contextFile:id+'.json',context,
@@ -40,7 +40,7 @@ if(cases.length!==12)throw Error('EVAL_TWELVE_CREATIVE_CASES_REQUIRED');
 mkdirSync(directory,{recursive:true});
 for(const item of cases)writeFileSync(join(directory,item.contextFile),canonical(item.context)+'\n');
 const manifest={schemaVersion:'3.0.0',kind:'s1_eval_prepared_inputs',status:'prepared_not_executed',scope:'internal_eval_only',publicUseCleared:false,
- rendererRelease,materialManifestKey:materials.manifestKey,creativeCases:cases.length,expectedFinalFilms:24,
+ rendererRelease,creativeBriefVersion:'director-led-v1',materialManifestKey:materials.manifestKey,creativeCases:cases.length,expectedFinalFilms:24,
  cases:cases.map(({context,...item})=>item)};
 writeFileSync(join(directory,'manifest.json'),canonical(manifest)+'\n');
 console.log(canonical({status:manifest.status,creativeCases:manifest.creativeCases,expectedFinalFilms:manifest.expectedFinalFilms,manifest:join(directory,'manifest.json')}));

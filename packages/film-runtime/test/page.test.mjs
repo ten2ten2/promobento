@@ -49,7 +49,7 @@ test('parameters and referenced text/assets are checked, and unfinished capabili
   const spec=filmFixture();spec.scenes[0].params.inject='x';assert.throws(()=>make(spec),/BLOCK_PARAMS_INVALID/);
   delete spec.scenes[0].params.inject;spec.scenes[0].params.textSlot='missing';assert.throws(()=>make(spec),/TEXT_SLOT_UNKNOWN/);
   const custom=filmFixture();custom.scenes[0]={...custom.scenes[0],kind:'custom',module:'scenes/hook/index.js',brief:'test'};
-  delete custom.scenes[0].block;delete custom.scenes[0].params;assert.throws(()=>make(custom),/CUSTOM_SCENES_NOT_IMPLEMENTED/);
+  delete custom.scenes[0].block;delete custom.scenes[0].params;assert.throws(()=>make(custom),/CUSTOM_SOURCE_MISSING/);
   const layout=filmFixture();layout.scenes[0].layout={portrait:{x:1}};assert.throws(()=>make(layout),/LAYOUT_OVERRIDES_NOT_IMPLEMENTED/);
 });
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{

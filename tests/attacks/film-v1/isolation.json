@@ -10,8 +10,8 @@
     "cookie": "RUNTIME_STORAGE_FORBIDDEN",
     "iframe": "RUNTIME_IFRAME_FORBIDDEN",
     "worker": "RUNTIME_WORKER_FORBIDDEN",
-    "eval": "EvalError",
-    "functionConstructor": "EvalError",
+    "eval": "RUNTIME_EVAL_FORBIDDEN",
+    "functionConstructor": "RUNTIME_EVAL_FORBIDDEN",
     "wasm": "unavailable",
     "nodeGlobals": "unavailable",
     "engineMutation": "locked"

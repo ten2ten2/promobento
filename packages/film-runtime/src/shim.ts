@@ -19,6 +19,13 @@ const deny = (code: string) => function(): never { throw Error(code); };
 const replace = (object: object, key: PropertyKey, value: unknown): void => {
   Object.defineProperty(object, key, {value, configurable: false, writable: false});
 };
+// CDP-driven calls may inherit debugger CSP exemptions. Seal the actual constructors,
+// including indirect/async/generator access, before either libraries or author scripts load.
+const noEval=deny('RUNTIME_EVAL_FORBIDDEN');
+for(const factory of [function(){},async function(){},function*(){},async function*(){}])
+  replace(Object.getPrototypeOf(factory),'constructor',noEval);
+replace(window,'Function',noEval);
+replace(window,'eval',noEval);
 
 function VirtualDate(this: unknown, ...args: unknown[]): Date | string {
   if (!new.target) return new NativeDate(seconds * 1000).toString();

@@ -15,7 +15,8 @@ export class ModelJsonOutputError extends Error {
   constructor(code='MODEL_OUTPUT_JSON_INVALID',readonly completedOutput?:{text:string;toolCalls:Json[]}){super(code);}
 }
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
-  request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs) {
+  request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs,
+  context:{directingMethod?:{id:string;version:string;contentHash:string};sceneId?:string}={}) {
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
   const op=await operation(env,operationId,generation), ref=providers.steps[stage], model=providers.models[ref], provider=providers.providers[ref?.split('/')[0]];
   if(!ref||!model?.capabilities.verified||!authorization.models.includes(ref)||!authorization.purposes.includes(op.purpose)
@@ -24,10 +25,13 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   if(!secret)throw Error('MODEL_SECRET_MISSING');
   const limits=policy.director.steps[stage];
   if(!limits)throw Error('MODEL_STAGE_UNKNOWN');
+  if(stage==='scenes'&&!/^[a-z][a-z0-9-]{0,47}$/.test(context.sceneId??''))throw Error('MODEL_SCENE_REQUIRED');
+  const stageLimit=stage==='scenes'?limits.maxMicrosPerScene:limits.maxMicros;
+  const methodEvidence=context.directingMethod?{directingMethod:context.directingMethod}:{};
   if(request.messages.some(message=>message.images?.length)&&!model.capabilities.vision)throw Error('MODEL_VISION_UNAVAILABLE');
   if(request.tools?.length&&!model.capabilities.tools)throw Error('MODEL_TOOLS_UNAVAILABLE');
   const input:ModelRequest={...request,provider,model:ref.slice(ref.indexOf('/')+1),effort:limits.effort};
-  const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input}, key=digest(identity);
+  const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(key).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
   await assertModelBudgetReady(env);
@@ -42,7 +46,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
     if(receipt.quote){
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
-      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs});
+      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence});
     }
     let value:Json;
     try{value=decode(receipt.result);validate(value);}catch(error){
@@ -93,13 +97,13 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
   const usage=provider.kind==='anthropic'?{input_tokens:0,cache_creation:{ephemeral_1h_input_tokens:inputTokens},output_tokens:input.maxOutputTokens}
     :{prompt_tokens:inputTokens,completion_tokens:input.maxOutputTokens};
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
-  if(worst>limits.maxMicros)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
+  if(worst>stageLimit)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
-  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
+  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage==='scenes'?'scenes:'+context.sceneId:stage;
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
   try{
-    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,limits.maxMicros,
-      limits.maxCalls??limits.maxCallsPerAsset??1);
+    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
+      limits.maxCalls??limits.maxCallsPerAsset??limits.maxCallsPerScene??1);
     await operation(env,op.id,op.generation);
   }catch(error){await settleModelBudget(env,reserved,0,{kind:'not_dispatched',reason:'Local admission did not reach the paid request.'},{notDispatched:true});throw error;}
   await markModelDispatched(env,reserved);
@@ -109,7 +113,7 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     if(!(error instanceof ModelOutputError)){
       const status=(error as {status?:unknown})?.status;
       await immutableJson(env,receiptKey.replace(/\.json$/,'-request-failure.json'),{
-        kind:'model_request_failure',callId,requestHash:key,budgetId:reserved,model:ref,
+        kind:'model_request_failure',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,
         code:error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_TRANSPORT_FAILED',
         httpStatus:Number.isInteger(status)&&Number(status)>=100&&Number(status)<=599?status:null,usageStatus:'unknown'
       }).catch(()=>{}); // Optional diagnosis must not replace the original provider/transport failure.
@@ -117,6 +121,6 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     }
     result=error.result;
   }
-  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,quote:modelUsageQuote(ref,result.usage,providers),result};
+  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,quote:modelUsageQuote(ref,result.usage,providers),result};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

@@ -45,9 +45,14 @@
     "./film-composition": {
       "types": "./src/film-composition.d.mts",
       "default": "./src/film-composition.mjs"
+    },
+    "./custom-source": {
+      "types": "./src/custom-source.d.mts",
+      "default": "./src/custom-source.mjs"
     }
   },
   "dependencies": {
+    "acorn": "8.19.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1"
   }

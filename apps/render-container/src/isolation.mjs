@@ -20,9 +20,9 @@ export async function collectIsolation({sandbox,token,probes}){
  return report;
 }
 
-export async function pageIsolation(page){
+export async function pageIsolation(page,evaluate=page.evaluate.bind(page)){
  const expected=parseCanonicalJson(readFileSync(new URL('../../../tests/attacks/film-v1/isolation.json',import.meta.url))).expected;
- await page.evaluate(()=>{
+ await evaluate(()=>{
   const script=document.createElement('script');script.id='pb-isolation-script';script.src='/runtime/isolation-probe.js';
   window.__pbIsolationState='loading';script.onload=()=>window.__pbIsolationState='loaded';script.onerror=()=>window.__pbIsolationState='failed';
   document.head.appendChild(script);
@@ -31,14 +31,14 @@ export async function pageIsolation(page){
  try{
   const until=Date.now()+5000;
   while(Date.now()<until){
-   const value=await page.evaluate(()=>({state:window.__pbIsolationState,actual:window.__pbIsolationProbe??null}));
+   const value=await evaluate(()=>({state:window.__pbIsolationState,actual:window.__pbIsolationProbe??null}));
    if(value.state==='failed')throw Error('ISOLATION_PAGE_LOAD_FAILED');
    if(value.state==='loaded'){if(!value.actual)throw Error('ISOLATION_PAGE_RESULTS_MISSING');actual=value.actual;break;}
    await delay(25); // Let the normal script run between debugger evaluations, not inside one.
   }
   if(!actual)throw Error('ISOLATION_PAGE_TIMEOUT');
- }finally{await page.evaluate(()=>{document.getElementById('pb-isolation-script')?.remove();delete window.__pbIsolationProbe;delete window.__pbIsolationState;}).catch(()=>{});}
- const images=await page.evaluate(async()=>{
+ }finally{await evaluate(()=>{document.getElementById('pb-isolation-script')?.remove();delete window.__pbIsolationProbe;delete window.__pbIsolationState;}).catch(()=>{});}
+ const images=await evaluate(async()=>{
   const violations=[],listener=event=>violations.push({directive:event.effectiveDirective,blockedUri:event.blockedURI});
   document.addEventListener('securitypolicyviolation',listener);
   try{

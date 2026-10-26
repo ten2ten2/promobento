@@ -12,6 +12,8 @@ import {sha256Bytes,digest} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
 import {pngRgba} from '../src/director-sheets.mjs';
 import {immutableJson,settle} from '../src/store.ts';
+import {directingMethodPack} from '../../../packages/methods/directing.ts';
+import {filmSourceHash} from '@promobento/contracts/film-source';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import providers from '../../../config/model-providers.json';
 import platform from '../../../config/platform-presets.json';
@@ -21,9 +23,10 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
  const DB={prepare(sql:string){let args:any[]=[];return{
   bind(...values:any[]){args=values;return this;},
@@ -45,6 +48,9 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  if(unverified)specModel.capabilities.verified=false;
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
+ if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
+  params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200}]}};
+ const fixtureSource='PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);const timeline=gsap.timeline({paused:true});timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});';
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
  const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
  const submitted={toolCalls:[{id:'mock-submit',name:'submit_candidate',arguments:'',input:{note:'Synthetic fixture accepted.'}}]};
@@ -58,12 +64,14 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    async studio(_id:string,text:string){const task=parseCanonicalJson(text),{generation,imageDigest,deadlineAt,...input}=task;
     if(healthFailure&&task.taskId.startsWith('health-'))throw Error('MOCK_RENDER_UNAVAILABLE');
     assertRenderTask({...input,brokerToken:'fixture-non-secret-token'});activeStudio=task;studioCount++;return canonical({status:'ready'});},
+   async checkFrame(_id:string,frame:number){return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts:[],regions:[],findings:[]}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));return new Response(png);},
    async closeStudio(){if(cleanupFailure)throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
   };}},
   OUTBOX:{async send(item:any){if(item.kind!=='render')throw Error('MOCK_UNEXPECTED_OUTBOX');
    const input=await(await MEDIA.get(db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(item.payloadJson?parseCanonicalJson(item.payloadJson).renderId:item.id.slice(7)).job_key))!.arrayBuffer();
    const request=parseCanonicalJson(new Uint8Array(input)),frame=await immutableJson(env,`renders/${request.job.renderId}/mock/observation-frames/45.png`,{mock:'not rendered'});
+   if(customScene){const modules=Object.fromEntries(request.inputs.filter((blob:any)=>blob.name.startsWith('scenes/')).map((blob:any)=>[blob.name,new TextDecoder().decode(objects.get(blob.key).bytes)]));assert.equal(request.job.sourceHash,filmSourceHash(objects.get(request.inputs.find((blob:any)=>blob.name==='film').key).bytes,modules));}
    assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',mode:'audio',instance:AUDIO_INSTANCE,taskId:'mock-audio-task',brokerToken:'fixture-non-secret-token',job:request.job,inputs:request.audioInputsBlobs,audioInputs:request.audioInputs});
    if(audio){assert.equal(request.audioInputs.scores[0][0],'music');assert.equal(request.audioInputs.clearedSources[0].requestHash,digest({text:request.audioInputs.scores[0][1],totalFrames:450}));
     assert.equal(request.audioInputsBlobs[1].name,'audio:music');assert.ok(request.job.resources.some((r:any)=>r.kind==='audio'));}
@@ -93,7 +101,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    ...(!missingApproval?{scoreApprovals:[{totalFrames:450,requestHash:digest({text,totalFrames:450})}]}:{})});
   db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation','res_original_score',sha256,'LicenseRef-Original-Fixture','evals/mock/audio-rights.json','internal_eval_only',null);
  }
- await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key) VALUES(?,?)').run('mock-operation','evals/mock/context.json');
+ const method=customScene?await immutableJson(env,'operations/mock-operation/directing-method.json',directingMethodPack):null;
+ await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').run('mock-operation','evals/mock/context.json',method?.key??null);
  let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
   // No native fetch fallback: any unexpected URL fails before network access.
@@ -106,20 +115,21 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
-  else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
+  else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
    value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
+  else if(input.task.startsWith('Implement')){stage='scenes';value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    const suggestion=clone(fixed);if(alwaysRepair&&reviewRound===3)suggestion.texts.headline.text='An unapplied third suggestion.';
-   value=change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:suggestion}}]}:submitted;}
+   value=customSourceRepair&&reviewRound===1?{toolCalls:[{id:'mock-source-edit',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:'power2.out',newStr:'power3.out'}}]}:change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:suggestion}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.equal(body.max_tokens,16384);assert.deepEqual(body.tools.map((entry:any)=>entry.function.name),['submit_cold_review']);assert.deepEqual(body.tools[0].function.parameters,input.responseSchema);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
    assert.match(body.tools[0].function.description,/complete cold_review/);assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?3:2);
    if(motionSamples){assert.deepEqual(input.motionFrames[0].tiles.map((tile:any)=>tile.frame),[90]);assert.equal(input.motionFrames[0].aspect,context.aspects[0]);assert.match(input.motionFrames[0].scope,/mid_hops_not_full_motion_or_audio/);}
@@ -181,6 +191,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
+   moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
  }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;db.close();}
 }
@@ -297,4 +308,15 @@ test('concurrent stop and timeout settle one persisted compute usage and reject 
   await shard.stopAndSettle();assert.equal(canonical(values.get('costUsage')),usage);
   await assert.rejects(settle(env,'task-stop',Number(rows[0].actual_micros)+1,{changed:true}),/COST_SETTLEMENT_CONFLICT/);
  }finally{db.close();}
+});
+
+// These are transport/control-flow checks; pixel quality and isolation are exercised in the container.
+test('custom D source is scoped and metered, checked in both aspects before review, and E edits rerender without another D call',async()=>{
+ const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
+ assert.equal(r.models.filter(stage=>stage==='scenes').length,1);assert.ok(r.modelStages.includes('scenes:product'));
+ assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.1.0');
+ assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
+ assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
+ const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
+ const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
 });

@@ -31,7 +31,12 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       if (!release) throw Error('RENDER_ENVIRONMENT_MISMATCH');
       const filmBlob = input.inputs.find((blob: BlobRef) => blob.name === 'film'); if (!filmBlob) throw Error('SOURCE_UNAVAILABLE');
       const raw = await checkedBytes(this.env, filmBlob);
-      if (filmSourceHash(raw) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
+      const sources:Record<string,string>={};
+      for(const blob of input.inputs.filter((blob:BlobRef)=>blob.name.startsWith('scenes/'))){
+        if(blob.byteLength>65536)throw Error('CUSTOM_SOURCE_SIZE');
+        sources[blob.name]=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await checkedBytes(this.env,blob));
+      }
+      if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
       const film = parseCanonicalJson(raw) as Json, partition = planShards(input.job, film, {seed: input.options.seed});
       const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
       const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {

@@ -76,5 +76,17 @@ export async function observe(cdp, plan, renderId, frame) {
       [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < (largeText?3:4.5), 'low-contrast']])
       if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId});
   }
+  const customIds=new Set(plan.spec.scenes.filter(scene=>scene.kind==='custom'&&scene.start<=frame&&frame<scene.end).map(scene=>scene.id));
+  if(customIds.size)for(const [node,row]of rowFor){
+    if(nodes.nodeType[node]!==3||!strings[nodes.nodeValue[node]]?.trim())continue;
+    let active=true,custom=false,slot;
+    for(let current=parent(node);current>=0;current=parent(current)){
+      if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||style(current,'opacity')==='0')active=false;
+      const attrs=attributes(current);if(customIds.has(attrs.get('data-scene')))custom=true;
+      slot??=attrs.get('data-pb-slot');
+    }
+    if(active&&custom&&!slot)throw Error('CUSTOM_TEXT_UNBOUND');
+  }
+  for(const text of texts)if(customIds.size&&text.text!==plan.spec.texts[text.slotId].text)throw Error('CUSTOM_TEXT_MISMATCH');
   return {schemaVersion: '3.0.0', kind: 'frame_observation', renderId, aspectId: plan.target.aspect, frame, texts, regions, findings};
 }

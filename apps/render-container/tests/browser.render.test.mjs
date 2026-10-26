@@ -8,6 +8,8 @@ import {parseCanonicalJson} from '../../../packages/contracts/index.mjs';
 import {audioSamples} from './audio-samples.mjs';
 import {mediaFixture} from './media-fixture.mjs';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
+import {pageCaller} from '../src/page-call.mjs';
+import {waitForRuntimeReady} from '../src/readiness.mjs';
 import {reviewPng} from '../src/review-pixels.mjs';
 
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')
@@ -141,7 +143,8 @@ async function open(aspect,path='/'+aspect+'.html',expectReady=true){
   await cdp.send('Page.addScriptToEvaluateOnNewDocument',{source:shim});
   page.on('request',request=>{if(/^https?:/.test(request.url())&&!request.url().startsWith('http://127.0.0.1:8090/'))externalRequests.push(request.url());});
   await page.goto('http://127.0.0.1:8090'+path,{waitUntil:'load'});
-  await page.waitForFunction(()=>window.__omReady||window.__omBootFailed,null,{timeout:40000});
+  page.evaluate=pageCaller(cdp);
+  await waitForRuntimeReady({timeoutMs:40000,read:()=>page.evaluate(()=>({ready:window.__omReady===true||Boolean(window.__omBootFailed),failure:null}))});
   const error=await page.evaluate(()=>window.__omBootFailed);
   if(!expectReady){assert.match(error,/TEXT_FIT_FAILED/);return{page,cdp};}
   assert.equal(error,undefined);
