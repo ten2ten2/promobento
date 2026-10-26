@@ -54,6 +54,12 @@ const customEditParameters=(paths:string[],commands:string[])=>{
     .map(variant=>({...variant,properties:{...variant.properties,path:{...agentToolsSchema.$defs.scenePath,enum:paths}}}));
   return variants.length===1?variants[0]:{type:'object',oneOf:variants};
 };
+// Authoring work chunks only: never change the director's scene, event or reading timing.
+const motionWorkWindows=(scene:FilmSpec['scenes'][number])=>{
+  const duration=scene.end-scene.start,candidates=[...new Set(customScenePlan(scene).readingHolds.map(hold=>hold.end).filter(end=>end>0&&end<duration))].sort((a,b)=>a-b);
+  const cuts=candidates.length?[...new Set([duration/3,2*duration/3].map(goal=>candidates.reduce((a,b)=>Math.abs(a-goal)<=Math.abs(b-goal)?a:b)))].sort((a,b)=>a-b):[];
+  const bounds=[0,...cuts,duration];return bounds.slice(0,-1).map((start,index)=>({start,end:bounds[index+1]!}));
+};
 const toBase64=(bytes:Uint8Array)=>{
   if(bytes.length>1<<20)throw Error('MODEL_IMAGE_TOO_LARGE');let binary='';for(let start=0;start<bytes.length;start+=32768)binary+=String.fromCharCode(...bytes.subarray(start,start+32768));return btoa(binary);
 };
@@ -219,12 +225,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
           const images=await Promise.all(resources.map((asset:BlobRef)=>image(asset)));
           let source:string|undefined;
-          for(const phase of ['layout','motion']){
+          const phases:Array<{name:string;window?:{start:number;end:number}}>=[{name:'layout'},...motionWorkWindows(scene).map((window,index)=>({name:'motion-'+index,window}))];
+          const apiExample=`const box=document.createElement('div'); const s=ctx.target.safeInsets,w=ctx.target.width,h=ctx.target.height; Object.assign(box.style,{position:'absolute',left:w*s.left+'px',top:h*s.top+'px',width:w*(1-s.left-s.right)+'px',height:h*(1-s.top-s.bottom)+'px'}); ctx.root.append(box); ${p.textSlots.length?`ctx.text(${canonical(p.textSlots[0])}).mount(box,{maxLines:3,maxFontSize:48,align:'start'});`:''} const timeline=gsap.timeline({paused:true}); function draw(t){box.style.opacity='1';box.style.transform='none';} ctx.OM.clock(timeline,draw,(ctx.frames.end-ctx.frames.start)/30); return {timeline};`;
+          for(const {name:phase,window} of phases){
             let feedback:Json|undefined;
             for(let attempt=0;;attempt++){
               const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,phase,
                 phaseTask:phase==='layout'?'Create only a small runnable static base, not the finished shot: mount every declared text/asset with named handles and aspect-aware geometry; show a clean initial pose. Define function draw(t) for that static pose and wire it with ctx.OM.clock to a paused timeline of the exact duration. Do not solve choreography, glyph masks, transitions or elaborate motion yet. The next edit implements the original full brief; this base is never submitted as a film. Keep the source compact.'
-                  :'Patch the existing draw(t) and only the necessary motion setup to implement the ORIGINAL scene brief below. Reuse the existing geometry, named handles, text and assets; do not rebuild the file or add a second framework. Make one unique str_replace or insert, not create. Keep the edit compact and deterministic; the full original frame/reading plan will be checked.',
+                :'Patch only the next phaseWindow of the ORIGINAL scene brief below. The window uses scene-local half-open integer frames; divide by 30 for local seconds. Preserve every already-authored earlier window, derive all states from absolute time, and leave later windows at the current ending pose until the next edit. Reuse the geometry, named handles, text and assets; do not rebuild the file or solve later windows. Make one small unique str_replace or insert, not create. These are authoring chunks, not new film cuts; the complete original frame/reading plan will be checked.',
+                ...(window?{phaseWindow:window}:{}),apiExample,
+                apiNotes:'The API example shows one actor, not the film design; mount every actual declared slot/asset in your module. ctx.text().mount supplies the registered font family/weight and fitting: never override the returned element fontFamily, fontWeight or fontSize. Place it in a bounded parent and use mount options. In landscape non-CTA text requires maxFontSize>=32 (CTA>=28); other aspects require >=36 (CTA>=32), so use at least 36/32 when targeting both. Keep text readable after transforms. OM.clock returns the SAME timeline and already sets its duration: call it directly, never timeline.add(OM.clock(...)) or timeline.add(timeline), and do not add a second duration filler.',
                 scene:phase==='layout'?{...scene,brief:'Static base only; full choreography is supplied in the next motion edit.'}:scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
                 resources,sourceImages:'Images follow resources in the same order. Inspect their actual content and preserve it; do not infer UI details from file names.',targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
                 treatment:phase==='layout'?{message:film.treatment.message}:film.treatment,...(source?{currentSource:source}:{}),...(feedback?{validationFeedback:feedback}:{})}),...(images.length?{images}:{})}],
