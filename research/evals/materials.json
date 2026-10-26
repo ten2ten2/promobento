@@ -3,10 +3,10 @@
   "kind": "s1_internal_materials",
   "scope": "internal_eval_only",
   "publicUseCleared": false,
-  "operationId": "materials-20261026-full-bounded",
+  "operationId": "materials-20261026-branded",
   "rightsDecision": "research/evals/topics.json#/rights",
-  "acquiredAt": "2026-10-25T16:03:43.413Z",
-  "manifestKey": "evals/materials-20261026-full-bounded/manifest.json",
+  "acquiredAt": "2026-10-26T00:22:06.805Z",
+  "manifestKey": "evals/materials-20261026-branded/manifest.json",
   "status": "ingested_internal_eval",
   "assets": [
     {
@@ -45,6 +45,26 @@
       "sourceUrl": "https://agent.minimax.io/download",
       "topicId": "minimax",
       "width": 2200
+    },
+    {
+      "approvalRef": "research/evals/fact-cards/minimax.json#/materialApprovals/minimax-code-logo",
+      "byteLength": 6023,
+      "description": "Official MiniMax Code product mark from the same product/download page as the approved interface; no generated or redrawn logo.",
+      "evidenceKey": "evals/materials-20261026-branded/minimax/minimax-code-logo-rights.json",
+      "height": 168,
+      "id": "minimax-code-logo",
+      "imageUrl": "https://cdn.hailuo.ai/mavis-chat/download-preview/brand/dac3aa5b02ae/preview-agent-logo.png",
+      "key": "evals/materials-20261026-branded/minimax/minimax-code-logo.png",
+      "kind": "image",
+      "licenseRef": "LicenseRef-S1-Internal-Evaluation",
+      "mediaType": "image/png",
+      "publicUseCleared": false,
+      "resourceId": "res_s1_minimax_code_logo_dac3aa5b02ae",
+      "scope": "internal_eval_only",
+      "sha256": "dac3aa5b02ae124e80ccd132387110518ddcac0610b4d51d763e9ba6bdc08e6b",
+      "sourceUrl": "https://agent.minimax.io/download",
+      "topicId": "minimax",
+      "width": 168
     },
     {
       "byteLength": 36730,

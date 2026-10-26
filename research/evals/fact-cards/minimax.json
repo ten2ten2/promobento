@@ -8,8 +8,8 @@
   "product": "MiniMax Code",
   "videoLanguage": "en",
   "audience": "Software teams exploring an agent workspace for coding and other work",
-  "brief": "Show a goal becoming a multi-step workflow, using real product material. Distinguish the product's claims from independently measured results.",
-  "checkedAt": "2026-10-24",
+  "brief": "One brief. A whole crew. Make a playful, beat-led MiniMax Code promo in which one authentic brand mark conducts Coding, Work and Media, grounded in the real product interface and confirmed capabilities.",
+  "checkedAt": "2026-10-26",
   "cta": {
     "text": "Explore MiniMax Code",
     "urlLabel": "agent.minimax.io"
@@ -40,7 +40,7 @@
       "url": "https://www.minimax.io/",
       "title": "MiniMax official homepage — MiniMax Code",
       "basis": "first_party_product_statement",
-      "checkedAt": "2026-10-24"
+      "checkedAt": "2026-10-26"
     }
   ],
   "assetSources": [
@@ -52,7 +52,7 @@
     {
       "kind": "product_page_screenshot",
       "url": "https://agent.minimax.io/download",
-      "capture": "Official desktop product/download page; no account content"
+      "capture": "Official desktop preview and inspected product logo; no personal account content"
     }
   ],
   "assets": "ingested_internal_eval",
@@ -62,7 +62,7 @@
     "publicUseCleared": false,
     "storage": "staging_R2"
   },
-  "notes": "No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests. Owner rejected the previous 15-second film as boring: no clear product logo, music was not perceptible or beat-synchronized, and no memorable moment. The next candidate needs an authentic, cleared MiniMax Code brand mark, a clearly audible rhythmic score, visual landings on musical beats, and one memorable product action rather than a static feature-list tour. Preserve the confirmed facts and exact supplied CTA; no invented performance claim.",
+  "notes": "No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests. Owner rejected the previous 15-second film as boring: no clear product logo, music was not perceptible or beat-synchronized, and no memorable moment. The next candidate needs an authentic, cleared MiniMax Code brand mark, a clearly audible rhythmic score, visual landings on musical beats, and one memorable product action rather than a static feature-list tour. Preserve the confirmed facts and exact supplied CTA; no invented performance claim. Revision direction: use the official cleared logo as one memorable baton/conductor, hopping between Coding / Work / Media headings with feature-grid.logoKey and beatFrames, then hold it on the CTA. Media is a capability category, not a third official mode. Use an audible rhythmic procedural funk score at 100 BPM (18 source frames per beat) rather than ambient; choose exact beat-aligned settle frames using the supplied block events (first feature landing is local frame 15). Short, playful typography and concise role labels; no empty image cards or repeated screenshot filler. Give the real product interface one clear readable moment. Preserve Explore MiniMax Code and agent.minimax.io exactly. The opening metaphor may be One brief. A whole crew., fact-bound to agents; do not add generic not-independently-measured disclaimers for ordinary product features. No performance/results claim. Art direction: prefer a deep navy stage, vivid cyan/blue mark and bold warm-white type; let the real white UI remain a distinct readable product moment. One moving logo, not a repeated logo on every card. Use short reading holds and rhythmic motion, not large empty panels or tiny disclaimer lines.",
   "confirmation": {
     "confirmedBy": "owner",
     "confirmedAt": "2026-10-23T14:11:15.046Z",
@@ -75,6 +75,18 @@
     ]
   },
   "materialIds": [
-    "minimax-interface"
-  ]
+    "minimax-interface",
+    "minimax-code-logo"
+  ],
+  "materialApprovals": {
+    "minimax-code-logo": {
+      "status": "approved",
+      "approvedBy": "owner",
+      "approvedOn": "2026-10-26",
+      "scope": "internal_eval_only",
+      "storage": "staging_R2",
+      "publicUseCleared": false,
+      "basis": "Owner explicitly approved adding the inspected official MiniMax Code logo to private staging and using it for this internal S1 revision. No public Git media or public film use."
+    }
+  }
 }

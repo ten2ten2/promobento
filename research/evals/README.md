@@ -8,7 +8,7 @@
 - [MiniMax](fact-cards/minimax.json)：以 MiniMax Code 为软件题目，展示 agent 工作流和 Coding/Work 模式；不引用价格、速度排名或成本节省比例。
 - [Duolingo](fact-cards/duolingo.json)：短课、读写听说与个性化练习；官方入门文章含可定位的产品界面截图。
 
-负责人已确认六张卡中的官网功能/课程内容陈述用于 **S1 首次内部评测**，确认范围与事实 ID 保存在卡片中；不含虚构业绩，也不授权公开成片。2026-10-24 已为六题逐张查看并在私有 staging R2 入库 **9 张**素材：五题的 8 张来源图片，以及经负责人批准的 IELTS Ready 原创事实图。源 URL、实际字节身份、尺寸和 D1 权利证据引用见 [`materials.json`](materials.json)；图片不进 Git，不对外发布。每次真实评测前仍核对事实和权利记录，品牌页面发生变化时复核。
+负责人已确认六张卡中的官网功能/课程内容陈述用于 **S1 首次内部评测**，确认范围与事实 ID 保存在卡片中；不含虚构业绩，也不授权公开成片。现有 **10 张**已查看素材在私有 staging R2：五题原 8 张来源图片、经负责人批准的 IELTS Ready 原创事实图，以及 2026-10-26 另行批准的官方 MiniMax Code Logo。源 URL、实际字节身份、尺寸和 D1 权利证据引用见 [`materials.json`](materials.json)；图片不进 Git，不对外发布。每次真实评测前仍核对事实和权利记录，品牌页面发生变化时复核。
 
 负责人于 2026-10-23 确认将三门虚构课程替换为真实公开课程，仅限内部评测：
 
@@ -22,7 +22,9 @@
 
 `materials.json` 的每项提供 `resourceId`、`key`、`sha256`、`byteLength`、尺寸、`licenseRef` 与 `evidenceKey`；字节只在 staging R2。新评测操作先按 cloud 内部 `rights` 入口为自己的 operationId 重新登记同一证据，再将素材加入 `context.resources`。题目用 `materialIds` 选择素材，不能因为同一目录有其他品牌的图就串用。Hugging Face 图附原课程仓库 Apache-2.0 通知及署名；这批素材整体仍限内部评测，不作为免署名商用素材包。
 
-DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 取官网下载页发布的原始桌面示例图，账号标签属于官方演示，不是私人账户。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。当前 9 图合计 1,161,900 bytes。Duolingo 路径全图等比缩为 1893×4096，未裁剪；原 2340×5064 图及其许可、R2 引用仍保留在派生记录。2026-10-26 负责人批准复用并重新登记私有 staging 素材，完整九项清单已入库，IELTS PNG／SVG 和 HF 许可通知保持原引用。此轮复用全部字节，未调用模型或渲染，操作已关闭、临时密钥已删除。
+DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 使用官网下载页发布的原始桌面示例图与真实透明 Logo，账号标签属于官方演示，不是私人账户；2026-10-26 再核对官网的产品名、Coding/Work 与 agent／多媒体陈述，原事实不变。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。
+
+完整十项清单合计 **1,167,923 bytes**，私有 manifest 为 `evals/materials-20261026-branded/manifest.json`。本轮只新增 168×168、6,023 bytes 的官方 Logo，采用[单项负责人批准](fact-cards/minimax.json#/materialApprovals/minimax-code-logo)；原九项只复用字节、重登记许可，IELTS PNG／SVG、HF 通知及 Duolingo 原图引用保留。路径派生图仍为未裁剪的 1893×4096，原 2340×5064 图不删除。入库无模型或渲染调用，操作已关闭并回收临时密钥。
 
 ### 将六题准备为实际导演输入
 
@@ -110,6 +112,8 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-2
 入库使用已有 Wrangler 连接和 stdin 临时密钥，不读取或导出凭据；已有 `EVAL_API_KEY` 时拒绝覆盖。它核对当前图片与复用回执，原字节已入库时只为新操作重登记证据，不重复上传。仅对调度前确切 `404 Not found` 等待密钥传播；不重试未知超时或素材错误。完成或失败均取消该无计算操作、对账并删除自己的临时密钥。结果先写被 Git 忽略的 `ingestion.json`；仅在真实入库后更新仓库素材索引和事实卡状态。部分成功保留已有 R2 字节与权利记录，不删除或覆盖。
 
 原创事实图另在 `selected.json` 标记 `origin:"original_factual_diagram"`、`factIds`、`originalSourceFile` 与卡片的 `approvalRef`，随已查看的 PNG 一起提交无脚本/外链的 SVG 源稿。负责人批准只适用于该原创图，不撤销第三方截图的许可限制。源稿和逐项批准引用随权利证据保存，不能把来源网页标成截图授权。
+
+后来单独批准的素材可在事实卡 `materialApprovals[素材 ID]` 记录负责人批准日期、内部使用和 staging R2 范围，在 `selected.json` 用 `approvalRef` 指向该条。入库证据沿用这次具体批准，不把新素材回填成旧的通用批准日期；没有单项记录的既有素材继续原用法，IELTS 的第三方截图限制也不改变。
 
 旧虚构课程卡及其编造的价格、提分率和学员结果已退出评测集。六题实际模型成片与负责人视听验收仍未完成。代码回归另用 [`filmFixture`](../../packages/film-runtime/test/fixture.mjs) 和原创无字界面。
 

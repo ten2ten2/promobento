@@ -14,5 +14,11 @@ export function materialApproval(card,asset){
  }
  if(card.materialLicenseReview?.status==='permission_required')throw Error('MATERIAL_SOURCE_PERMISSION_REQUIRED');
  if(!source)throw Error('MATERIAL_SOURCE_INVALID');
- return{source,original:null};
+ const explicit=card.materialApprovals?.[asset.id];
+ if(explicit||asset.approvalRef){
+  if(!explicit||explicit.status!=='approved'||explicit.approvedBy!=='owner'||explicit.scope!=='internal_eval_only'
+   ||explicit.storage!=='staging_R2'||explicit.publicUseCleared!==false||!/^\d{4}-\d{2}-\d{2}$/.test(explicit.approvedOn??'')
+   ||!explicit.basis||asset.approvalRef!==`research/evals/fact-cards/${card.topicId}.json#/materialApprovals/${asset.id}`)throw Error('MATERIAL_EXPLICIT_APPROVAL_REQUIRED');
+ }
+ return{source,original:null,...(explicit?{explicit}: {})};
 }

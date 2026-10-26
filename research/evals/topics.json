@@ -40,7 +40,8 @@
       "facts": "confirmed_for_s1_eval",
       "factCard": "research/evals/fact-cards/minimax.json",
       "materialIds": [
-        "minimax-interface"
+        "minimax-interface",
+        "minimax-code-logo"
       ]
     },
     {

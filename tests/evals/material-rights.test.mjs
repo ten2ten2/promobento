@@ -30,3 +30,15 @@ test('owner approval admits only the original factual diagram and does not clear
  assert.throws(()=>materialApproval(card,{...asset,origin:undefined}),/MATERIAL_SOURCE_PERMISSION_REQUIRED/);
  assert.equal(card.materialLicenseReview.status,'permission_required');
 });
+
+test('a later named material approval retains its own date and private staging scope without changing existing usage',()=>{
+ const card={topicId:'fixture',assetSources:[{url:'https://example.com/product',kind:'product_page_screenshot'}],materialApprovals:{mark:{
+  status:'approved',approvedBy:'owner',approvedOn:'2026-10-26',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,basis:'Owner approved this mark for a private internal revision.'}}};
+ const asset={id:'mark',sourceUrl:card.assetSources[0].url,approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/mark'};
+ assert.equal(materialApproval(card,asset).explicit.approvedOn,'2026-10-26');
+ assert.equal(materialApproval(card,{id:'existing-screen',sourceUrl:asset.sourceUrl}).original,null);
+ for(const change of [{approvalRef:undefined},{approvalRef:'another-approval'},{id:'other-mark'}])
+  assert.throws(()=>materialApproval(card,{...asset,...change}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);
+ const publicCard=structuredClone(card);publicCard.materialApprovals.mark.publicUseCleared=true;
+ assert.throws(()=>materialApproval(publicCard,asset),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);
+});
