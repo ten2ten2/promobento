@@ -558,6 +558,6 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 [C 原始回执](custom-first-attempt/spec-response.json)给出两个 custom（request-cut、hardest hold-release）和 CTA；不是三张固定 ui-showcase。D 按最难镜头先行，但[首次](custom-first-attempt/scene-hold-release-fe0d22865bf0edd3-0-response.json)与[一次纠正](custom-first-attempt/scene-hold-release-fe0d22865bf0edd3-1-response.json)都把 `input.path` 写为 `{module:"scenes/hold-release/index.js"}`，不符合字符串契约，实际停止为 `CUSTOM_TOOL_INVALID`。没有转换坏路径、执行源码或生成 review/最终片，E/F 未运行。
 
-核对发现下发的 edit_file 参数带有指向父 Schema 的悬空 `#/$defs/scenePath`，且旧纠正只给通用错误；现改为自包含的路径字符串/当前模块枚举、按阶段限定命令、反馈具体 path 错误。离线检查原源码另发现 Q0 误把局部 parent/top 当全局，已按词法作用域修复；原源码里的变量 tag 元素工厂仍按当前准入拒绝，不改写成已通过。D 指引现明确字面量建元素和扁平 ctx 调色板。路径纠正 D/E 回放、受影响 Q0 单元与 cloud 类型检查通过；这批修复尚未通过真实导演重验。
+核对发现下发的 edit_file 参数带有指向父 Schema 的悬空 `#/$defs/scenePath`，且旧纠正只给通用错误；现改为自包含的路径字符串/当前模块枚举、按阶段限定命令、反馈具体 path 错误。离线检查原源码另发现 Q0 误把局部 parent/top 当全局，已按词法作用域修复；原源码里的变量 tag 元素工厂仍按当前准入拒绝，不改写成已通过。D 指引现明确字面量建元素和扁平 ctx 调色板。路径纠正 D/E 回放、受影响 Q0 单元与 cloud 类型检查通过。修复已由 [40333954887](https://github.com/ten2ten2/promobento/actions/runs/40333954887) 在 `a022de4d0e1133b3714dc43ef51ab89b3f896c35` 构建镜像并部署；[健康回执](custom-first-attempt/deployment-health-40333954887.json)为 ok、容量为空、零模型/渲染调用，临时密钥已回收。新输入须固定 `renderer-a022de4d0e11`；真实导演重验仍待，不重跑已通过矩阵。
 
 [完整费用与回收](custom-first-attempt/report.json)：10 次模型合计 **44,779 usd_micros**，5 次计算全部停止/结算 **4,321 usd_micros** 保守上界，本轮合计 **49,100 usd_micros**（约 $0.0491）；没有本轮未知消费，容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **694,836**，原三笔未知 **37,993** 保留，合计占用 **732,829 usd_micros**。本轮没有新成片，不增加 1/12、2/24；新的真实评测须另获授权，不自动重开失败操作。
