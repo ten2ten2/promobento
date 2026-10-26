@@ -91,12 +91,13 @@ try{
    decisionRef:original||explicit?asset.approvalRef:manifest.rightsDecision,decidedBy:original?original.approvedBy:explicit?explicit.approvedBy:topics.decidedBy,decidedAt:original?original.approvedAt:explicit?explicit.approvedOn:topics.decidedAt,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),
    ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
-   acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
+   acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),...(asset.derivation?{derivation:asset.derivation}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
   await call('rights',{method:'POST',body:{operationId,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
   manifest.assets.push({id:asset.id,topicId:asset.topicId,resourceId,key:object.key,sha256,byteLength:object.byteLength,kind:'image',mediaType:'image/png',width:asset.width,height:asset.height,
    sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSourceKey:sourceObject.key,approvalRef:asset.approvalRef}:{}),
    ...(explicit?{approvalRef:asset.approvalRef}:{}),
+   ...(asset.derivation?{derivation:asset.derivation}:{}),
    ...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),scope:'internal_eval_only',publicUseCleared:false});save();
   console.log(canonical({id:asset.id,key:object.key,byteLength:object.byteLength}));
  }

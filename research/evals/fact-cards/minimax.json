@@ -7,8 +7,8 @@
   "brand": "MiniMax",
   "product": "MiniMax Code",
   "videoLanguage": "en",
-  "audience": "Software teams exploring an agent workspace for coding and other work",
-  "brief": "One brief. A whole crew. Make a playful, beat-led MiniMax Code promo in which one authentic brand mark conducts Coding, Work and Media, grounded in the real product interface and confirmed capabilities.",
+  "audience": "Software builders who want to turn an idea into useful, expressive behavior",
+  "brief": "Give this pocket pet a job. Tell a playful MiniMax Code CLI example through its real timer-ready, held-paused and happy-completion states. Make the changing face the memory point, with authentic early branding and beat-led music, not a generic feature inventory.",
   "checkedAt": "2026-10-26",
   "cta": {
     "text": "Explore MiniMax Code",
@@ -32,6 +32,30 @@
       "text": "The product description includes working with images, video and audio, and creating scripts and voiceovers.",
       "claim": true,
       "sourceId": "homepage"
+    },
+    {
+      "id": "pet-timer",
+      "text": "In the documented MiniMax Code CLI example, the first request adds a Pomodoro timer to an existing browser pet.",
+      "claim": true,
+      "sourceId": "pocket-demo"
+    },
+    {
+      "id": "pet-hold",
+      "text": "The follow-up requests hold-to-pause behavior for that timer.",
+      "claim": true,
+      "sourceId": "pocket-demo"
+    },
+    {
+      "id": "pet-celebration",
+      "text": "The same example adds a completion celebration, shown by the happy pet in the browser footage.",
+      "claim": true,
+      "sourceId": "pocket-demo"
+    },
+    {
+      "id": "pet-provenance",
+      "text": "This is a CLI example using an existing starter and BYOK. The maintainer finished the visual design; the visibly labeled ten-second demo is not generation time.",
+      "claim": false,
+      "sourceId": "pocket-demo"
     }
   ],
   "sources": [
@@ -40,6 +64,13 @@
       "url": "https://www.minimax.io/",
       "title": "MiniMax official homepage — MiniMax Code",
       "basis": "first_party_product_statement",
+      "checkedAt": "2026-10-26"
+    },
+    {
+      "id": "pocket-demo",
+      "url": "https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md",
+      "title": "MiniMax Code official pocket-pet CLI worked example",
+      "basis": "first_party_documented_example",
       "checkedAt": "2026-10-26"
     }
   ],
@@ -53,6 +84,11 @@
       "kind": "product_page_screenshot",
       "url": "https://agent.minimax.io/download",
       "capture": "Official desktop preview and inspected product logo; no personal account content"
+    },
+    {
+      "kind": "official_demo_video_stills",
+      "url": "https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md",
+      "capture": "Three real decoded states from the fixed official demo; cropped to the browser pet, preserving its visible ten-second-demo label."
     }
   ],
   "assets": "ingested_internal_eval",
@@ -62,19 +98,26 @@
     "publicUseCleared": false,
     "storage": "staging_R2"
   },
-  "notes": "No cost, speed, ranking, output-rights or measured completion claims. Recheck product naming before a run. Do not substitute this card for the director model gateway's capability tests. Owner rejected the previous 15-second film as boring: no clear product logo, music was not perceptible or beat-synchronized, and no memorable moment. The next candidate needs an authentic, cleared MiniMax Code brand mark, a clearly audible rhythmic score, visual landings on musical beats, and one memorable product action rather than a static feature-list tour. Preserve the confirmed facts and exact supplied CTA; no invented performance claim. Revision direction: use the official cleared logo as one memorable baton/conductor, hopping between Coding / Work / Media headings with feature-grid.logoKey and beatFrames, then hold it on the CTA. Media is a capability category, not a third official mode. Use an audible rhythmic procedural funk score at 100 BPM (18 source frames per beat) rather than ambient; choose exact beat-aligned settle frames using the supplied block events (first feature landing is local frame 15). Short, playful typography and concise role labels; no empty image cards or repeated screenshot filler. Give the real product interface one clear readable moment. Preserve Explore MiniMax Code and agent.minimax.io exactly. The opening metaphor may be One brief. A whole crew., fact-bound to agents; do not add generic not-independently-measured disclaimers for ordinary product features. No performance/results claim. Art direction: prefer a deep navy stage, vivid cyan/blue mark and bold warm-white type; let the real white UI remain a distinct readable product moment. One moving logo, not a repeated logo on every card. Use short reading holds and rhythmic motion, not large empty panels or tiny disclaimer lines.",
+  "notes": "Owner rejected the previous film as boring. The generic role relay also failed independent review for circular copy and the tiny blank desktop UI. The new private direction uses the approved real pocket-pet case: ready timer, paused sleepy face, then a smiling celebration. These are three different stills decoded from the official edited demo, not live interaction footage in our film. Show them large enough to read in both landscape and portrait; a single cropped pet is naturally portrait-oriented. Use cta-endcard with the cleared logo as an opening title if helpful, then three concise ui-showcase shots with textSlot captions and finally the exact supplied CTA. Prefer the ready/paused/celebrate stills; the preserved empty desktop screenshot is not the story. Do not return to a Coding/Work/Media inventory or claim the pet is the MiniMax logo or physical hardware. Required readable on-screen credit once: \"CLI example · Maintainer-finished visuals\". Do not claim the visual design or starter was generated from scratch, or confuse the visible ten-second demo timer with coding time. No test-count, performance, cost or outcome guarantee. Use audible procedural funk at 100 BPM and deliberate beat landings; a short chime can mark the happy face. Suggested 30-fps schedule with cut transitions: branded opener 0–69; ready 69–177; paused 177–285; celebrate 285–381; CTA 381–450. Product landings are local 21, so the three real-state reveals land at global 90/198/306; final CTA local 15 lands at 396. Keep enough read time, warm-white type, deep navy and cobalt/cyan. Show the authentic cleared mark early and on the ending. Preserve Explore MiniMax Code and agent.minimax.io exactly. Use only the confirmed case facts needed for this short story; keep the original general facts intact, not mandatory on-screen text.",
   "confirmation": {
     "confirmedBy": "owner",
-    "confirmedAt": "2026-10-23T14:11:15.046Z",
+    "confirmedAt": "2026-10-26",
     "scope": "s1-first-internal-evaluation",
-    "allowedUse": "Official-source product features and course contents only; no invented outcomes; no public renders.",
+    "allowedUse": "Previously confirmed official features plus the owner-approved documented pocket-pet CLI example and its imagery, for private S1 evaluation only. No speed/model-performance inference or attribution of maintainer visual polish to the model.",
     "factIds": [
       "modes",
       "agents",
-      "creation"
+      "creation",
+      "pet-timer",
+      "pet-hold",
+      "pet-celebration",
+      "pet-provenance"
     ]
   },
   "materialIds": [
+    "minimax-pet-ready",
+    "minimax-pet-paused",
+    "minimax-pet-celebrate",
     "minimax-interface",
     "minimax-code-logo"
   ],
@@ -87,6 +130,33 @@
       "storage": "staging_R2",
       "publicUseCleared": false,
       "basis": "Owner explicitly approved adding the inspected official MiniMax Code logo to private staging and using it for this internal S1 revision. No public Git media or public film use."
+    },
+    "minimax-pet-ready": {
+      "status": "approved",
+      "approvedBy": "owner",
+      "approvedOn": "2026-10-26",
+      "scope": "internal_eval_only",
+      "storage": "staging_R2",
+      "publicUseCleared": false,
+      "basis": "Owner explicitly approved using the official pocket-pet demo imagery and corresponding case facts in this private S1 revision. No public media, speed inference or attribution of maintainer visual polish to the model. The repository first-party-code MIT notice is not treated as a license for all video assets."
+    },
+    "minimax-pet-paused": {
+      "status": "approved",
+      "approvedBy": "owner",
+      "approvedOn": "2026-10-26",
+      "scope": "internal_eval_only",
+      "storage": "staging_R2",
+      "publicUseCleared": false,
+      "basis": "Owner explicitly approved using the official pocket-pet demo imagery and corresponding case facts in this private S1 revision. No public media, speed inference or attribution of maintainer visual polish to the model. The repository first-party-code MIT notice is not treated as a license for all video assets."
+    },
+    "minimax-pet-celebrate": {
+      "status": "approved",
+      "approvedBy": "owner",
+      "approvedOn": "2026-10-26",
+      "scope": "internal_eval_only",
+      "storage": "staging_R2",
+      "publicUseCleared": false,
+      "basis": "Owner explicitly approved using the official pocket-pet demo imagery and corresponding case facts in this private S1 revision. No public media, speed inference or attribution of maintainer visual polish to the model. The repository first-party-code MIT notice is not treated as a license for all video assets."
     }
   }
 }

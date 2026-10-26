@@ -33,3 +33,15 @@ export function filmObservationFrames(spec,quality){
   return[hold,...(middle>=settled?[middle]:[])].map(frame=>Math.floor(frame/stride)*stride);
  }))].sort((a,b)=>a-b);
 }
+
+/** Brand-relay keyposes for visual review, separate from settled text QA. */
+export function filmMotionFrames(spec,quality){
+ const stride=quality==='review'?2:1;
+ return [...new Set(spec.scenes.flatMap(scene=>{
+  if(scene.kind!=='block')throw Error('CUSTOM_SCENES_NOT_IMPLEMENTED');
+  if(scene.block!=='feature-grid@1'||!scene.params.logoKey||scene.params.beatFrames===undefined)return[];
+  const landings=blockEvents('feature-grid',scene,scene.params).map(event=>scene.start+event.frame);
+  return landings.flatMap((frame,index)=>index?[Math.floor((landings[index-1]+frame)/2),frame]:[frame])
+   .map(frame=>Math.floor(frame/stride)*stride);
+ }))].sort((a,b)=>a-b);
+}

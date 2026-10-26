@@ -34,3 +34,10 @@ test('review reduction preserves thin strokes and separates labelled frames from
  const unusedLeft=sheet.tiles[1].left,unusedTop=sheet.tiles[2].top;
  assert.deepEqual([...decoded.pixels.slice((unusedTop*sheet.width+unusedLeft)*4,(unusedTop*sheet.width+unusedLeft)*4+4)],[40,50,61,255]);
 });
+
+test('relay keypose sheets preserve their own source scope without relabelling them as text QA',async()=>{
+ const frames=[90,99,108,117,126].map(frame=>({key:'renders/fixture/motion-frames/'+frame+'.png'})),bytes=pngRgba(1,1,Uint8Array.from([0,180,255,255]));
+ const sheet=await reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes,sampleKind:'brand_relay_keyposes'});
+ assert.deepEqual(sheet.tiles.map(tile=>tile.frame),[90,99,108,117,126]);assert.match(sheet.scope,/mid_hops_not_full_motion_or_audio/);
+ await assert.rejects(reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes}),/REVIEW_FRAME_REFERENCE_INVALID/);
+});

@@ -3,12 +3,131 @@
   "kind": "s1_internal_materials",
   "scope": "internal_eval_only",
   "publicUseCleared": false,
-  "operationId": "materials-20261026-branded",
+  "operationId": "materials-20261026-pocket-demo",
   "rightsDecision": "research/evals/topics.json#/rights",
-  "acquiredAt": "2026-10-26T00:22:06.805Z",
-  "manifestKey": "evals/materials-20261026-branded/manifest.json",
+  "acquiredAt": "2026-10-26T01:39:08.801Z",
+  "manifestKey": "evals/materials-20261026-pocket-demo/manifest.json",
   "status": "ingested_internal_eval",
   "assets": [
+    {
+      "approvalRef": "research/evals/fact-cards/minimax.json#/materialApprovals/minimax-pet-ready",
+      "attribution": "MiniMax Code CLI pocket-pet example; visual design finished by the maintainer.",
+      "byteLength": 152578,
+      "derivation": {
+        "crop": {
+          "height": 800,
+          "width": 640,
+          "x": 1040,
+          "y": 130
+        },
+        "method": "decode_exact_source_time_then_crop_no_redraw",
+        "preserved": "Real pet pixels, controls and the visible ten-second-demo label. No generation-time inference.",
+        "source": {
+          "byteLength": 2795041,
+          "height": 1080,
+          "sha256": "27ba011d7319401fd3f147b259e109b769a145755dbde4798fad057504a16bae",
+          "sourceCommit": "da22f11c55d4748155d7162c1030414228a00565",
+          "url": "https://raw.githubusercontent.com/MiniMax-AI/minimax-code/da22f11c55d4748155d7162c1030414228a00565/docs/assets/pocket-pet-demo.mp4",
+          "width": 1920
+        },
+        "timeSeconds": 1
+      },
+      "description": "Official pocket-pet CLI example, timer ready; maintainer-finished visual design.",
+      "evidenceKey": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-ready-rights.json",
+      "height": 800,
+      "id": "minimax-pet-ready",
+      "key": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-ready.png",
+      "kind": "image",
+      "licenseNoticeKey": "evals/materials-20261026-pocket-demo/minimax/minimax-pocket-source-license.txt",
+      "licenseRef": "LicenseRef-S1-Internal-Evaluation",
+      "licenseSource": "https://raw.githubusercontent.com/MiniMax-AI/minimax-code/da22f11c55d4748155d7162c1030414228a00565/LICENSE",
+      "mediaType": "image/png",
+      "publicUseCleared": false,
+      "resourceId": "res_s1_minimax_pet_ready_5456c7673117",
+      "scope": "internal_eval_only",
+      "sha256": "5456c767311764a6f7f9f24388d54898240b5a142175a5a2bef4a4a2717cdd2b",
+      "sourceUrl": "https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md",
+      "topicId": "minimax",
+      "width": 640
+    },
+    {
+      "approvalRef": "research/evals/fact-cards/minimax.json#/materialApprovals/minimax-pet-paused",
+      "attribution": "MiniMax Code CLI pocket-pet example; visual design finished by the maintainer.",
+      "byteLength": 165375,
+      "derivation": {
+        "crop": {
+          "height": 800,
+          "width": 640,
+          "x": 200,
+          "y": 130
+        },
+        "method": "decode_exact_source_time_then_crop_no_redraw",
+        "preserved": "Real pet pixels, controls and the visible ten-second-demo label. No generation-time inference.",
+        "source": {
+          "byteLength": 2795041,
+          "height": 1080,
+          "sha256": "27ba011d7319401fd3f147b259e109b769a145755dbde4798fad057504a16bae",
+          "sourceCommit": "da22f11c55d4748155d7162c1030414228a00565",
+          "url": "https://raw.githubusercontent.com/MiniMax-AI/minimax-code/da22f11c55d4748155d7162c1030414228a00565/docs/assets/pocket-pet-demo.mp4",
+          "width": 1920
+        },
+        "timeSeconds": 19
+      },
+      "description": "Official pocket-pet CLI example, held-paused state and sleepy face.",
+      "evidenceKey": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-paused-rights.json",
+      "height": 800,
+      "id": "minimax-pet-paused",
+      "key": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-paused.png",
+      "kind": "image",
+      "licenseRef": "LicenseRef-S1-Internal-Evaluation",
+      "mediaType": "image/png",
+      "publicUseCleared": false,
+      "resourceId": "res_s1_minimax_pet_paused_87e4e6e95971",
+      "scope": "internal_eval_only",
+      "sha256": "87e4e6e95971dddf655eae08a8566a0917f583f1e8961e7e06d110ba701fe1d2",
+      "sourceUrl": "https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md",
+      "topicId": "minimax",
+      "width": 640
+    },
+    {
+      "approvalRef": "research/evals/fact-cards/minimax.json#/materialApprovals/minimax-pet-celebrate",
+      "attribution": "MiniMax Code CLI pocket-pet example; visual design finished by the maintainer.",
+      "byteLength": 204979,
+      "derivation": {
+        "crop": {
+          "height": 800,
+          "width": 640,
+          "x": 200,
+          "y": 130
+        },
+        "method": "decode_exact_source_time_then_crop_no_redraw",
+        "preserved": "Real pet pixels, controls and the visible ten-second-demo label. No generation-time inference.",
+        "source": {
+          "byteLength": 2795041,
+          "height": 1080,
+          "sha256": "27ba011d7319401fd3f147b259e109b769a145755dbde4798fad057504a16bae",
+          "sourceCommit": "da22f11c55d4748155d7162c1030414228a00565",
+          "url": "https://raw.githubusercontent.com/MiniMax-AI/minimax-code/da22f11c55d4748155d7162c1030414228a00565/docs/assets/pocket-pet-demo.mp4",
+          "width": 1920
+        },
+        "timeSeconds": 28
+      },
+      "description": "Official pocket-pet CLI example, completed timer and smiling celebration.",
+      "evidenceKey": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-celebrate-rights.json",
+      "height": 800,
+      "id": "minimax-pet-celebrate",
+      "key": "evals/materials-20261026-pocket-demo/minimax/minimax-pet-celebrate.png",
+      "kind": "image",
+      "licenseRef": "LicenseRef-S1-Internal-Evaluation",
+      "mediaType": "image/png",
+      "publicUseCleared": false,
+      "resourceId": "res_s1_minimax_pet_celebrate_30ef343ff279",
+      "scope": "internal_eval_only",
+      "sha256": "30ef343ff279aa25bb80b7ef54c410ed14044d8bae56e8a29d96b57a26d53fc3",
+      "sourceUrl": "https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md",
+      "topicId": "minimax",
+      "width": 640
+    },
     {
       "byteLength": 67363,
       "description": "Official homepage interaction area and Chat/API/Harness entry points; announcement with unconfirmed cost/speed claims excluded.",

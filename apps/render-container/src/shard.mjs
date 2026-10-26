@@ -2,7 +2,7 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {canonical} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes as sha} from '@promobento/contracts/digest';
-import {filmObservationFrames} from '../../../packages/blocks/src/events.mjs';
+import {filmObservationFrames,filmMotionFrames} from '../../../packages/blocks/src/events.mjs';
 import {filmSession} from './browser.mjs';
 import {shardEncoder} from './media.mjs';
 import {memoryPeak} from './memory.mjs';
@@ -28,6 +28,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const frameDigests = [], frameCaptureMs = [], seamFrames = [], observations = [];
   // Settled reading holds. Dynamic/transition coverage is the separate S2 temporal QA pass.
   const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
+  const motionFrames = new Set(filmMotionFrames(session.plan.spec,job.quality));
   try {
     if (shard.start > 0) {
       const png = await inRenderPhase({phase:'cold_seam',frame:shard.start-1},async()=>outputPng(await session.frame(shard.start - 1, {format: 'png'})));
@@ -44,6 +45,11 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
         mkdirSync(join(directory, 'observation-frames'), {recursive: true});
         const png=await inRenderPhase({phase:'observation_capture',frame},async()=>outputPng(await session.capturePng(frame)));
         writeFileSync(join(directory, 'observation-frames', frame + '.png'), png);
+      }
+      if (motionFrames.has(frame)) {
+        mkdirSync(join(directory, 'motion-frames'), {recursive: true});
+        const png=await inRenderPhase({phase:'observation_capture',frame},async()=>outputPng(await session.capturePng(frame)));
+        writeFileSync(join(directory, 'motion-frames', frame + '.png'), png);
       }
     }
     const png = await inRenderPhase({phase:'last_seam',frame:shard.end-1},async()=>outputPng(await session.frame(shard.end - 1, {format: 'png'})));

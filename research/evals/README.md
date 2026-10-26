@@ -5,10 +5,10 @@
 题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实与确认文案保留；2026-10-25 再次核对 Duolingo、IELTS Ready、Marugoto 和 Hugging Face 的原官方页面，原功能、课程及学习基础陈述仍有依据。IELTS 本次可读到公开页面文字，但原浏览器采集的 403 记录及第三方截图许可限制不因此改变。三家产品的入口为：
 
 - [DeepSeek](fact-cards/deepseek.json)：网页对话、API 平台与文档入口；主画面优先官网和无私人内容的初始界面。
-- [MiniMax](fact-cards/minimax.json)：以 MiniMax Code 为软件题目，展示 agent 工作流和 Coding/Work 模式；不引用价格、速度排名或成本节省比例。
+- [MiniMax](fact-cards/minimax.json)：以 MiniMax Code 为软件题目；当前改片展示官方 pocket-pet CLI 的计时、暂停和庆祝案例，保留一般功能事实，不引用价格、速度排名或成本节省比例。
 - [Duolingo](fact-cards/duolingo.json)：短课、读写听说与个性化练习；官方入门文章含可定位的产品界面截图。
 
-负责人已确认六张卡中的官网功能/课程内容陈述用于 **S1 首次内部评测**，确认范围与事实 ID 保存在卡片中；不含虚构业绩，也不授权公开成片。现有 **10 张**已查看素材在私有 staging R2：五题原 8 张来源图片、经负责人批准的 IELTS Ready 原创事实图，以及 2026-10-26 另行批准的官方 MiniMax Code Logo。源 URL、实际字节身份、尺寸和 D1 权利证据引用见 [`materials.json`](materials.json)；图片不进 Git，不对外发布。每次真实评测前仍核对事实和权利记录，品牌页面发生变化时复核。
+负责人已确认六张卡中的官网功能/课程内容陈述用于 **S1 首次内部评测**，2026-10-26 又批准 MiniMax 官方演示画面及对应案例事实；当前确认范围与事实 ID 保存在卡片中，不含虚构业绩，也不授权公开成片。现有 **13 张**已查看素材在私有 staging R2，含原十项及三张 pocket-pet 官方演示裁帧。源 URL、实际字节身份、尺寸和 D1 权利证据引用见 [`materials.json`](materials.json)；图片不进 Git，不对外发布。每次真实评测前仍核对事实和权利记录，品牌页面发生变化时复核。
 
 负责人于 2026-10-23 确认将三门虚构课程替换为真实公开课程，仅限内部评测：
 
@@ -24,7 +24,9 @@
 
 DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度公告与登录二维码。MiniMax 使用官网下载页发布的原始桌面示例图与真实透明 Logo，账号标签属于官方演示，不是私人账户；2026-10-26 再核对官网的产品名、Coding/Work 与 agent／多媒体陈述，原事实不变。Duolingo 取官方入门文章的三种练习与学习路径示例，保留原图。Marugoto 取官方 Minato/课程界面组合。Hugging Face 课程图以原 1816×529 尺寸栅格化，排除页面广告、视频和作者肖像。IELTS 图用原创几何图标和文字，保留免费套餐限定、来源和内部评测标记。
 
-完整十项清单合计 **1,167,923 bytes**，私有 manifest 为 `evals/materials-20261026-branded/manifest.json`。本轮只新增 168×168、6,023 bytes 的官方 Logo，采用[单项负责人批准](fact-cards/minimax.json#/materialApprovals/minimax-code-logo)；原九项只复用字节、重登记许可，IELTS PNG／SVG、HF 通知及 Duolingo 原图引用保留。路径派生图仍为未裁剪的 1893×4096，原 2340×5064 图不删除。入库无模型或渲染调用，操作已关闭并回收临时密钥。
+完整十三项清单合计 **1,690,855 bytes**，私有 manifest 为 `evals/materials-20261026-pocket-demo/manifest.json`。官方 Logo 及三张新裁帧分别采用[单项负责人批准](fact-cards/minimax.json#/materialApprovals)；其余十项复用原字节、重登记许可，IELTS PNG／SVG、HF 通知及 Duolingo 原图引用保留。路径派生图仍为未裁剪的 1893×4096，原 2340×5064 图不删除。入库无模型或渲染调用，操作已关闭并回收临时密钥。
+
+三张新图来自[固定官方版本的演示](https://github.com/MiniMax-AI/minimax-code/blob/da22f11c55d4748155d7162c1030414228a00565/docs/demo.md)，分别取 1／19／28 秒的准备、暂停和庆祝状态，裁为 640×800，保留真实设备与可见的十秒演示标记；源视频身份、时间点和裁剪范围随清权证据保存。它们是动效改片用的状态图，不是连续操作录屏。成片须保留 CLI 案例与维护者完成视觉设计的署名，不把演示计时当生成速度、不称从零生成完整视觉设计。根 MIT 通知只作为来源材料保留，不当作所有视频素材的使用许可。
 
 ### 将六题准备为实际导演输入
 

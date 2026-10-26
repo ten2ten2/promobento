@@ -40,6 +40,9 @@
       "facts": "confirmed_for_s1_eval",
       "factCard": "research/evals/fact-cards/minimax.json",
       "materialIds": [
+        "minimax-pet-ready",
+        "minimax-pet-paused",
+        "minimax-pet-celebrate",
         "minimax-interface",
         "minimax-code-logo"
       ]

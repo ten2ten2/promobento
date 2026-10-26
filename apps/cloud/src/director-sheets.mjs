@@ -46,10 +46,11 @@ function copyReduced(source,pixels,width,left,top,tileWidth,tileHeight){
  }
 }
 
-export async function reviewContactSheet({aspect,frames,load}){
+export async function reviewContactSheet({aspect,frames,load,sampleKind='reading_holds'}){
+ if(!['reading_holds','brand_relay_keyposes'].includes(sampleKind))throw Error('REVIEW_SAMPLE_KIND_INVALID');
  if(!['landscape','portrait','feed','square'].includes(aspect)||!Array.isArray(frames)||!frames.length||frames.length>120)throw Error('REVIEW_FRAME_COVERAGE_MISSING');
  const sequence=frames.map(blob=>{
-  const match=/\/observation-frames\/(\d+)\.png$/.exec(blob.key);if(!match)throw Error('REVIEW_FRAME_REFERENCE_INVALID');
+  const match=(sampleKind==='reading_holds'?/\/observation-frames\/(\d+)\.png$/:/\/motion-frames\/(\d+)\.png$/).exec(blob.key);if(!match)throw Error('REVIEW_FRAME_REFERENCE_INVALID');
   return{blob,frame:Number(match[1])};
  }).sort((a,b)=>a.frame-b.frame);
  if(sequence.some((entry,index)=>entry.frame>899||index&&entry.frame===sequence[index-1].frame))throw Error('REVIEW_FRAME_REFERENCE_INVALID');
@@ -78,5 +79,5 @@ export async function reviewContactSheet({aspect,frames,load}){
  }
  const bytes=pngRgba(width,height,pixels);
  if(bytes.length>1<<20)throw Error('MODEL_IMAGE_TOO_LARGE');
- return{bytes,width,height,tiles,columns,rows,padding:'frame_labels_gutters_and_unlisted_cells_are_review_chrome_not_film_pixels',scope:'all_actual_reading_hold_frames_not_per_second_or_full_Q2'};
+ return{bytes,width,height,tiles,columns,rows,padding:'frame_labels_gutters_and_unlisted_cells_are_review_chrome_not_film_pixels',scope:sampleKind==='reading_holds'?'all_actual_reading_hold_frames_not_per_second_or_full_Q2':'actual_brand_relay_landings_and_mid_hops_not_full_motion_or_audio_review'};
 }

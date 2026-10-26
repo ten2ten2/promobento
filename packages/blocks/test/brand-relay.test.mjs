@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {brandRelayPose} from '../src/brand-relay.ts';
-import {blockEvents,filmBlockEvents} from '../src/events.mjs';
+import {blockEvents,filmBlockEvents,filmObservationFrames,filmMotionFrames} from '../src/events.mjs';
 import {deriveAudioPlan} from '../../audio/src/plan.mjs';
 import {validate} from '../../contracts/generated/block-params.mjs';
 
@@ -36,4 +36,15 @@ test('brand mark lands exactly and replays a moving pose after reverse or cold s
     assert.deepEqual(brandRelayPose(24,18,points),moving);
     assert.deepEqual(brandRelayPose(400,18,points),{...points[2],scale:1,rotation:0,moving:false});
   }
+});
+
+test('review captures the actual relay landings and mid-hops without treating moving poses as reading QA',()=>{
+ const spec={scenes:[{id:'crew',kind:'block',block:'feature-grid@1',start:75,end:240,params}]};
+ assert.deepEqual(filmMotionFrames(spec,'final'),[90,99,108,117,126]);
+ assert.deepEqual(filmMotionFrames(spec,'review'),[90,98,108,116,126]);
+ assert.deepEqual(filmObservationFrames(spec,'final'),[132,157]);
+ assert.deepEqual(filmObservationFrames(spec,'review'),[132,156]);
+ const legacy={scenes:[{...spec.scenes[0],params:{items:params.items}}]};
+ assert.deepEqual(filmMotionFrames(legacy,'final'),[]);
+ assert.deepEqual(filmMotionFrames({scenes:[{...spec.scenes[0],params:{...params,logoKey:undefined}}]},'final'),[]);
 });
