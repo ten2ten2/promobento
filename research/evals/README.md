@@ -60,6 +60,8 @@ mise exec -- node research/evals/run-case.mjs \
 
 与 Actions harness 一样，密钥更新后的相邻请求可能仍看到旧绑定；仅对路由/调度前确切 `404 Not found` 等待最多 30 秒，并记录 `authPropagationRetries`。资源本身不存在、模型/媒体错误及未知超时不重发；一次 capacity 鉴权成功也不假定后续请求已全部传播。
 
+真实客户端曾在读取操作状态时遇到 `UND_ERR_SOCKET`（HTTP/2 对端关闭）。现在只对主循环的只读操作快照 GET 最多额外尝试两次，并记录 `operationReadTransportRetries`；不会重发 POST、模型/渲染请求、HTTP 错误或超时。超过上限仍走原取消、停止/结算和密钥回收，不能把断连当成创作失败或未知调用可重发的依据。
+
 若原操作已失败/取消，但客户端清理超时导致 `report.json` 缺物理停止/费用回执，先读错误，再只恢复该已结束操作的清理：
 
 ```sh

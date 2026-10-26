@@ -10,6 +10,7 @@ import {probeCardLayout} from './probe-card-layout.mjs';
 import {probeReviewRender} from './probe-review-render.mjs';
 import {readApprovedMusic,admitMusic} from './admit-music.mjs';
 import {reviewPage} from './review-page.mjs';
+import {readOperationState} from './read-operation.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
 if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--score','--music'].includes(modeArg)||!sourceArg))throw Error('EVAL_MODE_INVALID');
@@ -41,7 +42,7 @@ mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
 const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':'s1_actual_'+probeQuality+'_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
- rendererRelease:context.rendererRelease,rendererSourceSha,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
+ rendererRelease:context.rendererRelease,rendererSourceSha,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,operationReadTransportRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
 let secretBound=false,operationAttempted=false,stopping=false,primaryFailure;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
 const pause=()=>new Promise(resolve=>setTimeout(resolve,2000));
@@ -113,7 +114,7 @@ try{
  const limit=Date.now()+40*60000;let preparedDirections=false,chosen=false,lastStatus='';
  for(;;){
   if(stopping)throw Error('EVAL_INTERRUPTED');if(Date.now()>=limit)throw Error('EVAL_WALL_CLOCK_LIMIT');
-  const state=await json('operations/'+operationId);writeFileSync(join(output,'operation.json'),canonical(state)+'\n');
+  const state=await readOperationState(()=>json('operations/'+operationId),{wait:pause,onRetry:()=>{report.operationReadTransportRetries++;save();}});writeFileSync(join(output,'operation.json'),canonical(state)+'\n');
   if(state.status!==lastStatus){lastStatus=state.status;console.log(canonical({operationId,status:state.status}));}
   if(state.status==='awaiting_user'&&!chosen){
    if(!preparedDirections){

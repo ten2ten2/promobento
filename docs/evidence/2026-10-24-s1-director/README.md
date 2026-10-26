@@ -576,3 +576,12 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 [40353224512](https://github.com/ten2ten2/promobento/actions/runs/40353224512) 已将 `61120ffc8863698b4a5b0a96b1c8d79fb9c7c814` 作为 Worker-only 修复部署，[复用原 a022de4 镜像](custom-second-attempt/renderer-reuse-40353224512.json)，未构建或重跑渲染矩阵。[健康回执](custom-second-attempt/deployment-health-40353224512.json)为 ok、容量为空、零模型/渲染调用，临时密钥已回收。下次仍用固定 `renderer-a022de4d0e11`；同一 context 与 amplify 方向的已成功 A–C 可按既有缓存复用，D 的新模式/工具选择需另获真实评测授权。
 
 [本轮费用与回收](custom-second-attempt/report.json)：三次真实模型合计 **31,734 usd_micros**，四次计算全部停止/结算 **4,407 usd_micros** 保守上界，合计 **36,141 usd_micros**（约 $0.0361）。没有本轮未知、容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **726,570**，原三笔未知 **37,993** 保留，合计占用 **764,563 usd_micros**。没有新成片或覆盖数增加；不自动再开新评测。
+
+
+### 第三次自写评测：客户端快照断连，零新增模型调用
+
+负责人另批准最多两次新评测，每次 $3 内、仍计入原共享新增模型 $10；仅同一 MiniMax 15 秒和已批准的数据/网关/私有范围，有候选即停，下一次只在明确修复后使用。第 1 次为操作 `eval-minimax-15-1793030321675`，Worker `61120ff`、renderer 仍为 `a022de4`。
+
+[真实客户端回执](custom-third-attempt/report.json)记录状态快照 GET 遇到 `UND_ERR_SOCKET`，HTTP/2 对端关闭。A/素材/B 沿用缓存，三张方向的 studio 已计算，但客户端尚未接回可选方向就进入清理；没有新增模型调用，D 的 none/命名工具效果仍未验证。操作 generation 已升为 1 并取消，原生 Workflow terminated/已对账；四次计算全部停止/结算，共 **2,417 usd_micros** 保守上界，容量为空、无未结、临时密钥已回收。共享模型占用仍为 **764,563 usd_micros**，不能把这次断连算成新一次 D 失败。
+
+已只给主循环的只读操作快照增加两次有界 socket-reset 重试并记录次数；不重发创作 POST、工具/模型/渲染请求、HTTP 错误或超时。新覆盖检查通过，原费用、期限和清理路径不变；剩余第 2 次评测尚待使用。
