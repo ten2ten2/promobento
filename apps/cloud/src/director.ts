@@ -165,7 +165,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         await directorEnvironment(this.env,op,context,sourceResources,deadline(),methods!==null);
         // json_object gateways do not receive the native schema parameter. Supply its contract in text too.
         const method=methods?recallDirecting(methods,stage,context.audience):null;
-        const promptSystem=(methods?system.replace('S1 uses trusted blocks only','Use trusted blocks and, when needed, sandboxed custom scenes'):system)+(method?'\nDIRECTING METHOD (fixed for this operation):\n'+canonical(method):'')
+        const promptSystem=(methods?system.replace('S1 uses trusted blocks only, 15 or 30 seconds at 30 fps. No custom JS, HTML, network or hidden text.',
+          'Films are 15 or 30 seconds at 30 fps. Use trusted blocks or declared sandboxed DOM/SVG/Canvas2D custom scenes when needed. Only D/E author scoped modules; never execute author code in the host. No network, hidden text or unsupported APIs.'):system)+(method?'\nDIRECTING METHOD (fixed for this operation):\n'+canonical(method):'')
           +(!request.tools?.length&&request.schema?'\nReturn JSON matching this response schema:\n'+canonical(request.schema):'');
         const adapted=methods&&['directions','spec'].includes(stage)?{...request,messages:request.messages.map((message:Json)=>{
           const payload=parseCanonicalJson(message.text) as Json;
@@ -208,12 +209,15 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         const p=customScenePlan(scene),key=digest({scene,style:film.style,texts:p.textSlots.map(id=>[id,film.texts[id]]),assets:p.assetKeys.map(id=>[id,film.assets[id]]),aspects:context.aspects});
         let cached=sceneCache.get(scene.module),feedback:Json|undefined;
         if(cached?.key!==key){
+          const resources=context.resources.filter((asset:Json)=>p.assetKeys.some(id=>film.assets[id].resourceId===asset.resourceId));
+          await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
+          const images=await Promise.all(resources.map((asset:BlobRef)=>image(asset)));
           let source:string|undefined;
           for(let attempt=0;;attempt++){
             const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,
               scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
-              resources:context.resources.filter((asset:Json)=>p.assetKeys.some(id=>film.assets[id].resourceId===asset.resourceId)),targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
-              treatment:film.treatment,...(source?{currentSource:source}:{}),...(feedback?{validationFeedback:feedback}:{})})}],
+              resources,sourceImages:'Images follow resources in the same order. Inspect their actual content and preserve it; do not infer UI details from file names.',targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
+              treatment:film.treatment,...(source?{currentSource:source}:{}),...(feedback?{validationFeedback:feedback}:{})}),...(images.length?{images}:{})}],
               tools:[{name:'edit_file',description:'Create or repair only this custom scene module; do not execute code or create files elsewhere.',parameters:agentToolsSchema.$defs.call_edit_file.properties.input}],maxOutputTokens:16384},value=>{
               const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file'||!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input}))throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
               try{const next=applyCustomEdit(source,calls[0].input,scene.module),errors=customSourceErrors(scene,next,film as FilmSpec);if(errors.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',errors.map(issue=>({code:issue.code,path:'/source/'+issue.line})),value);}

@@ -122,7 +122,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
    value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
-  else if(input.task.startsWith('Implement')){stage='scenes';value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
+  else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
+   assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
+   assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
+   value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
