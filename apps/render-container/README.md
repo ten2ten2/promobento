@@ -13,7 +13,9 @@ Chromium 使用 `--disable-dev-shm-usage`，将共享内存文件放到容器私
 - **audio**：从冻结 AudioPlan 合成一次，经两遍 loudnorm 和 WAV 母带响度/真峰值测量；仅对实际越界者做一次补偿增益与过采样限幅并重测，门槛不变，合格母带字节不改；输出 48 kHz 双声道 PCM。
 - **studio**：仅允许该任务列出的 still 帧；生命周期、清权和取消由 Worker/OperationDO 控制。
 
-AAC 编码后的响度／真峰值尚未接入自动校验；已有[母带通过但实际 MP4 真峰超标的反例](../../docs/evidence/2026-10-24-s1-director/README.md#音效增益修复已云验编码后的音频峰值仍不合格)。该片仅作诊断预览，音频验收未通过；恢复时先补编码后实测与峰值处理，保留原 −1 dBTP 上限。
+assemble 对实际 MP4 的 AAC 解码信号测响度／真峰。新云端任务通过同一 audio 结果的受校验 `audio-report` 引用传入冻结响度目标、真峰上限和静音状态；历史直接 assemble 用法保持原 −14 LUFS／−1 dBTP 默认，不新增必填参数。有声结果须在响度目标 ±0.5 LU 内、真峰不高于原上限，非预期静音阻断。合格文件不重写；越界时只从原 WAV 做一次补偿增益、4× 过采样和带延迟补偿的限幅，再编码 AAC，视频直接复制。限幅余量依据本次 AAC 相对 WAV 的实测峰值增量加 0.4 dB，复测仍不合格则以 `OUTPUT_AUDIO_OUT_OF_RANGE` 阻断；失败回执保留数值，不交给模型改片。`media.audio` 记录最终实测及必要的纠正前值；`reencoded` 仍只表示视频重编码。实现依据见 [FFmpeg limiter](https://ffmpeg.org/ffmpeg-filters.html#alimiter)，[原始超标反例](../../docs/evidence/2026-10-24-s1-director/README.md#音效增益修复已云验编码后的音频峰值仍不合格)不改记通过。
+
+`tests/encoded-audio.render.test.mjs` 可在已有隔离镜像内单独执行，覆盖实际合成音频的 AAC 超峰、一次纠正、合格字节不改、纠正失败阻断、静音和无音轨；同一用例接入既有媒体检查，不重做 13 种配乐或浏览器矩阵。
 
 FFmpeg 线程按实例的整数 CPU 配额设置：standard-2 为 1、standard-3 为 2、standard-4 为 4；音频固定为 1。拼接实际使用 standard-2，不再沿用分段的双线程默认值。
 

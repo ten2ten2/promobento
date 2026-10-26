@@ -15,7 +15,8 @@ export async function renderAudio({plan, inputs, directory, signal}) {
   writeFileSync(raw, generated.wav);
   if (generated.silent) {
     if (!plan.mute && plan.events.length) throw Error('AUDIO_UNEXPECTED_SILENCE');
-    writeFileSync(output, generated.wav); return {path: output, sampleFrames: generated.sampleFrames, silent: true, lufs: null, truePeak: null};
+    writeFileSync(output, generated.wav); return {path: output, sampleFrames: generated.sampleFrames, silent: true, lufs: null, truePeak: null,
+      loudnessTarget: plan.loudnessTarget, truePeakMax: plan.truePeakMax};
   }
   const filter = `loudnorm=I=${plan.loudnessTarget}:TP=${plan.truePeakMax}:LRA=11:print_format=json`;
   const measure = await run('ffmpeg', ['-hide_banner', '-nostats', '-i', raw, '-af', filter, '-f', 'null', '-'], {signal});
@@ -52,5 +53,6 @@ export async function renderAudio({plan, inputs, directory, signal}) {
   const stream = parseCanonicalJson(probe.stdout).streams[0];
   if (stream.codec_name !== 'pcm_s16le' || stream.sample_rate !== '48000' || stream.channels !== 2
     || Math.abs(Number(stream.duration_ts) - generated.sampleFrames) > 0) throw Error('AUDIO_SAMPLE_LENGTH_INVALID');
-  return {path: output, sampleFrames: generated.sampleFrames, silent: false, lufs, truePeak, correction};
+  return {path: output, sampleFrames: generated.sampleFrames, silent: false, lufs, truePeak, correction,
+    loudnessTarget: plan.loudnessTarget, truePeakMax: plan.truePeakMax};
 }

@@ -14,6 +14,8 @@
 
 `index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；WAV 母带响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
 
+WAV 合格不代替 AAC 编码后的验收。最终 MP4 的测量、一次有界纠正与失败阻断由[渲染服务 assemble](../../../apps/render-container/README.md)完成，冻结母带不覆盖。
+
 FilmSpec 的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
 
 ## Lead-in 事件先冻结，再合成

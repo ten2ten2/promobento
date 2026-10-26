@@ -85,7 +85,14 @@ async function execute(input) {
     const audioPath=objects.has('audio')?join(workDirectory,'mixed.wav'):undefined;
     await inRenderPhase({phase:'assemble_inputs'},()=>mapIO([...sources.map((object,index)=>({name:object.name,path:shards[index]})),...(audioPath?[{name:'audio',path:audioPath}]:[])],
       async source=>writeFileSync(source.path,await bytes(source.name))));
-    report = await inRenderPhase({phase:'media_assemble'},()=>assemble({shards, audioPath, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
+    let audioLimits;
+    if (objects.has('audio-report')) {
+      const master = parseCanonicalJson(await bytes('audio-report', 64 << 10));
+      if (!audioPath || !Number.isFinite(master.loudnessTarget) || !Number.isFinite(master.truePeakMax) || typeof master.silent !== 'boolean')
+        throw Error('AUDIO_MASTER_REPORT_INVALID');
+      audioLimits = {loudnessTarget: master.loudnessTarget, truePeakMax: master.truePeakMax, silent: master.silent};
+    }
+    report = await inRenderPhase({phase:'media_assemble'},()=>assemble({shards, audioPath, audioLimits, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
       coverFrame: input.job.quality === 'review' ? Math.floor(input.coverFrame / 2) : input.coverFrame,
       config: input.job.quality === 'review' ? {...config, width: config.width / 2, height: config.height / 2} : config,
       totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes, signal: abort.signal}));
@@ -167,6 +174,7 @@ const server = http.createServer(async (request, response) => {
             ? await savePrivateFailure(error,input,(...args)=>broker.write(...args)) : null;
           result = {status: 'failed', taskId: input.taskId, code,diagnostic,
           ...(privateFailure?{privateFailure}:{}),
+          ...(error.audioValidation?{audioValidation:error.audioValidation}:{}),
           ...(error.bitrateCorrection?{bitrateCorrection:error.bitrateCorrection}:{})}; })
         .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
     }

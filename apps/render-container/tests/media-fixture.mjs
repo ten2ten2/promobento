@@ -16,6 +16,7 @@ import {renderShard} from '../src/shard.mjs';
 import {renderAudio} from '../src/audio.mjs';
 import {assemble} from '../src/media.mjs';
 import {filmSession} from '../src/browser.mjs';
+import {encodedAudioFixture} from './encoded-audio.render.test.mjs';
 
 export async function mediaFixture(output, rules, lock) {
   const directory = join(output, 'media'); mkdirSync(directory, {recursive: true});
@@ -55,7 +56,7 @@ export async function mediaFixture(output, rules, lock) {
   }
   const audio = await renderAudio({plan, inputs: {seed: options.seed, clearedSources: new Map(plan.sources.map(source => [source.sourceId,
     {...source, rightsCleared: true}]))}, directory, signal: undefined});
-  const movie = await assemble({shards: paths, audioPath: join(directory, 'mixed.wav'), outputPath: join(directory, 'film.mp4'),
+  const movie = await assemble({shards: paths, audioPath: join(directory, 'mixed.wav'), audioLimits: audio, outputPath: join(directory, 'film.mp4'),
     posterPath: join(directory, 'poster.png'), coverFrame: 225, config: {width: 1920, height: 1080, encoding: rules.encodingProfiles.mp4_h264_1080_v1, threads: 2},
     totalFrames: 450, maxBytes: rules.productLimits.maxOutputFileBytes});
   const goldenFrames = [];
@@ -68,7 +69,8 @@ export async function mediaFixture(output, rules, lock) {
       }
     } finally { await session.close(); }
   }
-  const report = {scope: 'CI original engineering fixture; not G1 or product aesthetic acceptance', status: failures.length ? 'failed' : 'passed', failures, diagnosticOnly: Boolean(failures.length), receipts, seams, audio, movie, goldenFrames};
+  const encodedAudio = await encodedAudioFixture(join(directory, 'encoded-audio'));
+  const report = {scope: 'CI original engineering fixture; not G1 or product aesthetic acceptance', status: failures.length ? 'failed' : 'passed', failures, diagnosticOnly: Boolean(failures.length), receipts, seams, audio, movie, goldenFrames, encodedAudio};
   writeFileSync(join(directory, 'report.json'), canonical(report));
   assert.deepEqual(failures, [], canonical(failures)); return {status: 'passed', movie, seams, goldenFrames: goldenFrames.length};
 }

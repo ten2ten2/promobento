@@ -657,6 +657,7 @@ RenderWorkflow 驱动这些步骤。每步结果写入 D1 和 R2 之后才推进
 6. **拼接**（assemble 模式，当前 standard-2）：
    - 按顺序把各段 Annex B 裸流首尾相接，以 `-r 30` 一次封装成 mp4，同时混入冻结音轨（AAC-LC 48 kHz 双声道 128 kbps），开启 `faststart`。
    - 用 ffprobe 核对：总帧数、PTS 连续且单调、CFR、每 15 帧一个关键帧、宽高、像素格式与色彩。
+   - 对实际 AAC 解码信号核对冻结响度目标和真峰上限，不能用 WAV 母带结果代替。超标时按[渲染服务](../../apps/render-container/README.md)只从原 WAV 纠正一次并复测，视频复制；仍超标或出现非预期静音即阻断，不放宽第 7 节门槛。
    - 码率：分段各自满足 VBV，不等于整条码流满足。拼接后按 1 秒滑动窗口计算整片码率；超过 `maxVideoBitrate` 时，在 assemble 内对整片重编码一次（同参数、整片 VBV），回执中记录 `reencoded:true`。
    - 生成 poster 和关键帧 PNG。每个目标的封面按 PRD 03 从真实帧中选择。
 7. **QA**：见第 7 节。
