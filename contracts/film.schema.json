@@ -141,7 +141,7 @@
           ]
         },
         "id": {"$ref": "#/$defs/id"},
-        "gain": {"type": "number", "minimum": -30, "maximum": 6}
+        "gain": {"type": "number", "minimum": -30, "maximum": 6, "description": "Sound-effect gain in dB; 0 is unity, omitted defaults to -6 dB. Not a linear amplitude multiplier."}
       }
     },
     "textSlot": {

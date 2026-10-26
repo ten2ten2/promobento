@@ -32,6 +32,7 @@ export interface FilmSpec {
     music: { kind: 'procedural'; style: string; bpm?: number } | { kind: 'score'; scoreRef: string }
       | { kind: 'upload'; resourceId: string } | { kind: 'none' };
     voice?: { resourceId: string; transcriptId: string } | { tts: { voiceId: string; transcriptId: string } };
+    /** gain is dB (-30 to +6); omitted defaults to -6 dB, 0 is unity. */
     sfx: 'auto' | Array<{ at: { sceneId: string; event: string } | { frame: number }; id: string; gain?: number }>;
     captions: 'auto' | 'off'; mute?: boolean;
   };

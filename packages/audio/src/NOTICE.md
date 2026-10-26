@@ -14,6 +14,8 @@
 
 `index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；最终响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
 
+FilmSpec 的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
+
 ## Lead-in 事件先冻结，再合成
 
 `whoosh`、`whip`、`riser`、`reverse` 的 `at` 是冲击/收束落点，不是波形起点。便携目录保存 48 kHz 样本数，`deriveAudioPlan` 写入每个事件的 `sfxTiming:{anchorFrame,synthesisSamples,durationSamples,leadSamples}`，并计算覆盖实际声音的半开帧区间。`synthesisSamples` 是 DSP 请求时长，`durationSamples` 是实际源波形长度；现有 mix 给 riser/reverse 多一个偏移样本，原样保留，不为此改写已经验收的配乐。源样本零位于 `anchorFrame*1600-leadSamples`；仅在影片首尾裁切，早于片头的源样本不后移到片头。whip 的 6,336 样本前导不是整数帧，仍按样本精确对齐。整个音效都在片头之前时明确拒绝 `SFX_OUTSIDE_FILM`。

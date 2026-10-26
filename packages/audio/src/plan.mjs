@@ -70,7 +70,7 @@ export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, extern
     if(frameEndExclusive<=frameStart||timing&&start+timing.synthesisSamples<=0)throw Error('SFX_OUTSIDE_FILM');
     plan.events.push({eventId,kind:'sfx',sourceId,frameStart,frameEndExclusive,
       ...(timing?{sfxTiming:{anchorFrame:frame,...timing}}:{}),
-      gainDb:request.gain===undefined?-6:20*Math.log10(Math.max(1e-3,request.gain)),fadeOutFrames:Math.min(3,frameEndExclusive-frameStart)});
+      gainDb:request.gain??-6,fadeOutFrames:Math.min(3,frameEndExclusive-frameStart)});
   }
   assertAudioPlan(plan);
   return plan;

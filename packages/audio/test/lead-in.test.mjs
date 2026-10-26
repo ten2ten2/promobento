@@ -7,6 +7,16 @@ import {SFX_LEAD_TIMING} from '../src/catalog.mjs';
 import {rng} from '../src/dsp.mjs';
 import {filmFixture} from '../../film-runtime/test/fixture.mjs';
 
+test('explicit FilmSpec SFX gain is decibels in the actual PCM, including zero and the default',()=>{
+ for(const gain of[-30,-6,0,6,undefined]){
+  const film=filmFixture();film.audio={music:{kind:'none'},sfx:[{id:'tick',at:{frame:30},...(gain===undefined?{}:{gain})}],captions:'off'};
+  const plan=deriveAudioPlan(film,[]),rendered=synthesizePlan(plan,{seed:'sfx-gain-units',
+   clearedSources:new Map(plan.sources.map(source=>[source.sourceId,{...source,rightsCleared:true}]))});
+  let peak=0;for(let i=48000;i<49600;i++)peak=Math.max(peak,Math.abs(rendered.wav.readInt16LE(44+i*4))/32767);
+  assert.ok(Math.abs(peak-.35*10**((gain??-6)/20))<=1/32767,'gain '+gain+' dB');
+ }
+});
+
 test('frozen lead-ins align to the hit at sample precision, including fractional frames and clipped beginnings',()=>{
  const seed='lead-in-fixture';
  for(const[id,anchorFrame]of[['whoosh',30],['whip',0],['riser',30],['reverse',60]]){
