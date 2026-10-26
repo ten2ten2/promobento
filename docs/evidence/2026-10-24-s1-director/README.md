@@ -634,7 +634,18 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 仅修改几何内边距的手工派生版本，在同一两画幅 63 帧得到[零 finding](custom-seventh-attempt/partial-manual-inset-fix.json)，并已查看真实 PNG。D 示例与指引据此改为按最大变换预留镜头余量、在变换后检查 safeInsets；这是局部几何修复证据，不是模型已修复或完整动作/冷 seek/成片通过。私有输入、源码、原图及派生图保留在 `artifacts/s1-minimax-custom-partial-check-2026-10-27/`，没有公开视频或截图。
 
-[费用与清理](custom-seventh-attempt/report.json)：模型已结 **1,594**、未知预留 **41,636**；四次计算全部停止/结算，保守上界 **2,923**，合计实际/预留占用 **46,153 usd_micros**。容量为空、原生 Workflow 已对账、临时密钥已回收。共享新增模型已结 **751,158**，四笔未知 **79,629**，合计占用 **830,787 usd_micros**。新增五次已用三次、剩余两次保留，不用新的操作重发这笔未知补丁。网关账户负责人/供应商需提供该原请求的最终响应、用量与失败诊断；据此结算/修复后再安排后续评测，原期限和 $10 上限不变。没有新影片，S1 仍未通过。
+[费用与清理](custom-seventh-attempt/report.json)：模型已结 **1,594**、未知预留 **41,636**；四次计算全部停止/结算，保守上界 **2,923**，合计实际/预留占用 **46,153 usd_micros**。容量为空、原生 Workflow 已对账、临时密钥已回收。共享新增模型已结 **751,158**，四笔未知 **79,629**，合计占用 **830,787 usd_micros**。新增五次已用三次、剩余两次保留，不用新的操作重发这笔未知补丁。该笔调用的结算仍需网关账户负责人/供应商提供原响应/用量与失败诊断；后续新的修复版请求不能重发其未知内容，原期限和 $10 上限不变。没有新影片，S1 仍未通过。
 
 
 安全区指引修复已由 [40371748505](https://github.com/ten2ten2/promobento/actions/runs/40371748505) 将 `d966ad6b7b5e4e78119f95ef218c526847ff78ed` Worker-only 部署。[部署健康](custom-seventh-attempt/deployment-health-40371748505.json)为 ok、容量为空、零模型/渲染调用，[镜像保持 a022de4](custom-seventh-attempt/renderer-reuse-40371748505.json)，临时密钥已回收。Node 26.12.0 的定点 D/E 回放通过；没有重跑全量测试、渲染矩阵或新的付费评测，剩余两次未消费。
+
+
+### 第八次自写评测：修复版未重发旧未知，布局 helper 的非字面量访问被拒
+
+负责人再次要求继续后，使用新增五次中的第 4 次，操作 `eval-minimax-15-1793056694926`。使用已部署 `d966ad6` 的安全区修复和原 a022de4 renderer；A–C 命中成功缓存，完整方向摘要相同，保留 amplify。D 输入实际包含新的内边距/API 指引，请求身份区别于第七次的未知补丁；没有重发旧 502，原 **41,636 usd_micros** 未结预留仍保留。
+
+[两份原始模块的静态诊断](custom-eighth-attempt/source-validation.json)均在第 27 行 `ctx.asset(key)` 得到 `CUSTOM_SLOT_UNDECLARED`，并触发 `CUSTOM_DECLARATION_UNUSED`。模型将字面量传给 photo/pic helper，但 helper 内仍是动态访问；一次纠正后同样错误。两次均完整返回 edit_file/create 和实际 usage，没有发生新的 HTTP 502、输出截断或未知消费；未进入动作编写、源码执行、review/E/F 或影片输出。
+
+问题是具体纠正信息不足，不放宽原字面量门槛。D 初次请求现给出本镜头的 handle 示例；D/E 的 Q0 反馈共用实际出错行和针对性 hint：`pic(ctx.asset("mark"), parent)`，helper 只读已解析 handle 的 url，不再调用 ctx.asset(key)。对原第二份模块作这个手工文本修复后，共享 Q0 返回零错误；这只证明修复写法，不是模型已纠正或运行时通过。调用/金额、每阶段一次结构纠正及实际帧门槛不变。新增动态 helper 拒绝/带 hint 纠正分支及既有 D/E 定点回放、cloud TypeScript 检查通过，未重跑全量测试或媒体矩阵。
+
+[费用与回收](custom-eighth-attempt/report.json)：两笔模型合计 **4,909 usd_micros**；四次计算全部停止/结算，保守上界 **3,270**，本轮合计 **8,179**。无本轮未知、容量为空、Workflow 已对账、临时密钥已回收。共享新增模型已结 **756,067**，原四笔未知 **79,629**，合计占用 **835,696 usd_micros**。新增五次已用四次、剩余一次；仍无新影片，不增加 S1 通过数。

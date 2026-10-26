@@ -60,6 +60,18 @@ const motionWorkWindows=(scene:FilmSpec['scenes'][number])=>{
   const cuts=candidates.length?[...new Set([duration/3,2*duration/3].map(goal=>candidates.reduce((a,b)=>Math.abs(a-goal)<=Math.abs(b-goal)?a:b)))].sort((a,b)=>a-b):[];
   const bounds=[0,...cuts,duration];return bounds.slice(0,-1).map((start,index)=>({start,end:bounds[index+1]!}));
 };
+const customLiteralGuidance=(scene:FilmSpec['scenes'][number])=>{
+  const p=customScenePlan(scene);
+  return 'Q0 inspects the actual ctx.text/ctx.asset call, not the caller of your helper. ctx.asset(key) and ctx.text(id) are invalid even when every helper call passes a literal. Pass an already-resolved handle to helpers instead of passing an id. '
+    +(p.assetKeys.length?`For example: function pic(asset,parent){const img=document.createElement('img');img.src=asset.url;parent.append(img);return img;} pic(ctx.asset(${canonical(p.assetKeys[0])}),parent); `:'This scene declares no assets. ')
+    +(p.textSlots.length?`Likewise pass ctx.text(${canonical(p.textSlots[0])}) to a layout helper, or mount that literal call directly. `:'This scene declares no text slots. ')
+    +'Keep a literal ctx.text/ctx.asset access for every declared slot/asset; do not delete a declaration to hide an invalid access.';
+};
+const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec)=>{
+  const lines=source.split('\n');
+  return customSourceErrors(scene,source,film).map(issue=>({code:issue.code,path:'/source/'+issue.line,sourceLine:(lines[issue.line-1]??'').slice(0,400),
+    ...(['CUSTOM_SLOT_UNDECLARED','CUSTOM_DECLARATION_UNUSED'].includes(issue.code)?{hint:customLiteralGuidance(scene)}:{})}));
+};
 const toBase64=(bytes:Uint8Array)=>{
   if(bytes.length>1<<20)throw Error('MODEL_IMAGE_TOO_LARGE');let binary='';for(let start=0;start<bytes.length;start+=32768)binary+=String.fromCharCode(...bytes.subarray(start,start+32768));return btoa(binary);
 };
@@ -68,7 +80,7 @@ const schemaIssues=(errors:ReadonlyArray<{keyword:string;instancePath:string;par
   (errors??[]).slice(0,24).map(error=>({code:'SCHEMA_'+error.keyword.toUpperCase(),path:error.instancePath+
     (typeof error.params.additionalProperty==='string'?'/'+error.params.additionalProperty:'')}));
 class DirectorValidationError extends Error {
-  constructor(code:string,readonly issues:Array<{code:string;path:string}>,readonly candidate:Json){super(code);}
+  constructor(code:string,readonly issues:Array<{code:string;path:string;sourceLine?:string;hint?:string}>,readonly candidate:Json){super(code);}
 }
 
 export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operationId:string}> {
@@ -233,7 +245,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,phase,
                 phaseTask:phase==='layout'?'Create only a small runnable static base, not the finished shot: mount every declared text/asset with named handles and aspect-aware geometry; show a clean initial pose. Define function draw(t) for that static pose and wire it with ctx.OM.clock to a paused timeline of the exact duration. Do not solve choreography, glyph masks, transitions or elaborate motion yet. The next edit implements the original full brief; this base is never submitted as a film. Keep the source compact.'
                 :'Patch only the next phaseWindow of the ORIGINAL scene brief below. The window uses scene-local half-open integer frames; divide by 30 for local seconds. Preserve every already-authored earlier window, derive all states from absolute time, and leave later windows at the current ending pose until the next edit. Reuse the geometry, named handles, text and assets; do not rebuild the file or solve later windows. Make one small unique str_replace or insert, not create. These are authoring chunks, not new film cuts; the complete original frame/reading plan will be checked.',
-                ...(window?{phaseWindow:window}:{}),apiExample,
+                ...(window?{phaseWindow:window}:{}),apiExample,literalAccessGuidance:customLiteralGuidance(scene),
                 apiNotes:'The API example shows one actor, not the film design; mount every actual declared slot/asset in your module. ctx.text().mount supplies the registered font family/weight and fitting: never override the returned element fontFamily, fontWeight or fontSize. Place it in a bounded parent and use mount options. In landscape non-CTA text requires maxFontSize>=32 (CTA>=28); other aspects require >=36 (CTA>=32), so use at least 36/32 when targeting both. Keep text readable and inside safeInsets after transforms, not just at rest. A scale-up of a column placed exactly on a safe edge pushes text outside it; reserve interior camera/overscan margin sized for the maximum transform, or move only an inner actor with room. The example reserves 2% per side for a small dolly, not an unlimited transform allowance. OM.clock returns the SAME timeline and already sets its duration: call it directly, never timeline.add(OM.clock(...)) or timeline.add(timeline), and do not add a second duration filler.',
                 scene:phase==='layout'?{...scene,brief:'Static base only; full choreography is supplied in the next motion edit.'}:scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
                 resources,sourceImages:'Images follow resources in the same order. Inspect their actual content and preserve it; do not infer UI details from file names.',targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
@@ -243,7 +255,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
                 const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
                 if(typeof calls[0].input?.path!=='string'||calls[0].input.path!==scene.module)throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_PATH_STRING_REQUIRED',path:'/toolCalls/0/input/path'}],value);
                 if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input}))throw new DirectorValidationError('CUSTOM_TOOL_INVALID',schemaIssues(validTool.errors),value);
-                try{const next=applyCustomEdit(source,calls[0].input,scene.module),errors=customSourceErrors(scene,next,film as FilmSpec);if(errors.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',errors.map(issue=>({code:issue.code,path:'/source/'+issue.line})),value);}
+                try{const next=applyCustomEdit(source,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);}
                 catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
               },true,scene.id);
               if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
@@ -406,7 +418,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               if(!['write_spec','submit_candidate',...(sceneModules.length?['edit_file']:[])].includes(call?.name))throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'ALLOWED_TOOL_REQUIRED',path:'/toolCalls/0/name'}],value);
               if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:call.name,input:call.input}))throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',schemaIssues(validTool.errors?.filter(error=>error.schemaPath.startsWith('#/$defs/call_'+call.name+'/'))),value);
               if(call.name==='write_spec')validateSpec(call.input.film);
-              if(call.name==='edit_file'){const scene=film.scenes.find((scene:Json)=>scene.kind==='custom'&&scene.module===call.input.path);if(!scene)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/input/path'}],value);try{const source=applyCustomEdit(sceneSources[scene.module],call.input,scene.module);const errors=customSourceErrors(scene,source,film as FilmSpec);if(errors.length)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',errors.map(issue=>({code:issue.code,path:'/source/'+issue.line})),value);}catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:(error as Error).message,path:'/input'}],value);}}
+              if(call.name==='edit_file'){const scene=film.scenes.find((scene:Json)=>scene.kind==='custom'&&scene.module===call.input.path);if(!scene)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/input/path'}],value);try{const source=applyCustomEdit(sceneSources[scene.module],call.input,scene.module);const issues=customSourceIssues(scene,source,film as FilmSpec);if(issues.length)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',issues,value);}catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:(error as Error).message,path:'/input'}],value);}}
             });
             const call=review.toolCalls[0];if(call.name==='submit_candidate')break;
             if(internalRepairs>=policy.limits.maxInternalRepairs)return reviewDraft('DIRECTOR_REPAIR_LIMIT',
