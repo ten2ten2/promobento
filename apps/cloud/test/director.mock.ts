@@ -23,7 +23,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -125,8 +125,11 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
    assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
-   value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
+   const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);assert.doesNotMatch(canonical(params),/\$ref/);
+   if(fixableCustomPath&&models.includes(stage)){assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));}
+   value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource}}]};}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
+   if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);}
    assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
@@ -320,6 +323,7 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.1.0');
  assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
+ const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,2);assert.equal(corrected.reservations,corrected.settlements);
  const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
  const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
 });

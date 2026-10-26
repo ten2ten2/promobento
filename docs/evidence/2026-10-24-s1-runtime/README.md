@@ -19,3 +19,21 @@
 ## 干净环境的原入口恢复可用
 
 原合并 CI 的 `contracts` 在生成验证器前就导入共享 film-v1 契约，报 `ERR_MODULE_NOT_FOUND`；不是 Schema 本身失败。`check:repo`、`check:contracts` 和离线 Studio 生成/核对现在自动预编译，不新增手工前置步骤。Node 26.12.0 下当前仓库、契约样例和 Studio 同步检查通过；未重跑全量 Node、类型或完整 CI。合并 CI 中已通过的离线导演及媒体子项继续按其原提交范围复用。
+
+
+## DOM/SVG/Canvas2D 自写镜头通过正式镜像定点验证
+
+[40327334464](https://github.com/ten2ten2/promobento/actions/runs/40327334464) 在 `9562707e2875289dc65be4ec3d3ccb25cd6336a7` 通过 `suite=runtime,runtime_case=custom`。[原始报告](custom-report-40327334464.json)覆盖原创自写 DOM/SVG/Canvas2D、暂停 GSAP/OM.clock 的四画幅 72 次逆序/独立冷 seek 比较、阅读停留 CDP 检查，以及旧可信积木经新宿主调用桥的实际取帧。实际 PNG 已下载并查看竖屏 180 帧；这是工程夹具，不是 MiniMax 成片或负责人质量验收。
+
+[修复前的真实反例](custom-preseal-negative.json)中，帧比较通过，但间接 Function 在宿主 CDP 驱动的回调里未被 CSP 阻断。修复为在任何库/作品脚本载入前封闭 eval/Function 及普通、async、generator、async-generator 原型上的动态构造入口；可信宿主改用直接 CDP 调用桥，作品拿不到该句柄，不再依赖页面的 eval/Function。正式镜像中网络、存储、iframe、定时器及五种动态执行入口共九项均被阻断。
+
+资源故障分容器执行：[绘制死循环](custom-loop-40327334464.json)在 3 秒宿主期限后约 4,013 ms 完成回收；[内存分配失败](custom-memory-40327334464.json)在 58 ms 返回 RangeError；[初始化死循环](custom-init-loop-40327334464.json)在 2 秒期限后约 2,096 ms 回收。内存项验证的是实际分配失败的受控退出，不代表测得 cgroup 峰值或完整 OOM 语料。Chromium 151.0.7922.34、Node 26.12.0，断网、独立 uid 与 Chromium 沙箱沿用正式隔离路径。未重做媒体/配乐/G1 分布或全量测试。
+
+
+### 云端源码传输与四画幅 studio 已通过
+
+[40328040010](https://github.com/ten2ten2/promobento/actions/runs/40328040010) 在 `3aaa64692f11b1c6a004f77bee2ea360f4cba6dd` 由 Actions 构建/推送镜像 `sha256:5d32d143cb98ab946bde9f0bdaf3724df68536d83739e6bcab791ff5d6d7f28c` 并部署 staging。运行时输入沿用上一节的已验证实现；本提交另外修复新导演系统提示与自写代码禁令的冲突，并让 D 接收本镜头实际使用的已清权图片，相关 D/E 回放与 cloud 类型检查通过。
+
+[原始云端报告](cloud-custom-report-40328040010.json)：八个独立 studio 实例，四画幅的 0/36/180/330/449 帧逆序及新实例冷 180 帧共 24 次比较全零差异，原始模块经私有 R2/broker 传输并核对源码身份。实际阅读停留没有 BLOCK；四画幅各保留一条 text-covered REVIEW，实际 PNG 中可见文字未被遮住，未将该观察删除或改为零发现。已看真实竖屏 180 帧。
+
+八次计算均已关闭并[结算](cloud-custom-costs-40328040010.json)，资源保守上界共 **5,163 usd_micros**，没有未结计算；容量为空，操作已取消，Actions 临时内部密钥已回收。这轮不调用模型、不合成声音或生成影片，不能据此增加真实创作通过数；峰值仍未测得。

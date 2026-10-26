@@ -1,0 +1,13 @@
+{
+  "scope": "sandboxed_custom_DOM_SVG_Canvas_GSAP_not_cloud_or_owner_quality",
+  "mode": "custom-memory",
+  "aspects": [],
+  "attacks": [],
+  "passed": true,
+  "fault": {
+    "bounded": true,
+    "elapsedMs": 58,
+    "hostDeadlineMs": 3000,
+    "reason": "RangeError: Array buffer allocation failed"
+  }
+}

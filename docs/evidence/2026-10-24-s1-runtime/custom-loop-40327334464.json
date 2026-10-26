@@ -1,0 +1,13 @@
+{
+  "scope": "sandboxed_custom_DOM_SVG_Canvas_GSAP_not_cloud_or_owner_quality",
+  "mode": "custom-loop",
+  "aspects": [],
+  "attacks": [],
+  "passed": true,
+  "fault": {
+    "bounded": true,
+    "elapsedMs": 4013,
+    "hostDeadlineMs": 3000,
+    "reason": "FRAME_TIMEOUT"
+  }
+}

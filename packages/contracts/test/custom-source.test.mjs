@@ -24,6 +24,9 @@ test('Q0 rejects global evaluation, foreign scope, raw text, imports and unsuppo
  for(const bad of ['fetch("https://example.com")','new Function("return 1")()','document.cookie','document.createElement("iframe")','const x=document.createElement("canvas");x.getContext("webgl2")','heading.textContent="unbound"','import("https://example.com/x.js")','Object.getPrototypeOf(()=>{}).constructor("return 1")()'])
   assert.ok(customSourceErrors(scene,source.replace('const w=',bad+'; const w='),film).length,bad);
  assert.ok(customSourceErrors(scene,source.replace("PB.scene('product'","PB.scene('other'"),film).length);
+ const local=source.replace('const w=',"const local=(parent)=>{const top=1;return parent+top;};const w=");
+ assert.deepEqual(customSourceErrors(scene,local,film),[]);
+ for(const bad of ['parent.location','top.location','const local=(top)=>top;top.location'])assert.ok(customSourceErrors(scene,source.replace('const w=',bad+';const w='),film).some(issue=>issue.code==='CUSTOM_FORBIDDEN_API'));
  assert.ok(customSourceErrors(scene,'throw Error("must never execute in Node");',film).length);
  assert.throws(()=>applyCustomEdit(source,{command:'str_replace',path:scene.module,oldStr:'a',newStr:'b'},scene.module),/AMBIGUOUS/);
  assert.throws(()=>applyCustomEdit(source,{command:'insert',path:'scenes/other/index.js',insertLine:0,newStr:'x'},scene.module),/SCOPE/);

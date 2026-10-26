@@ -20,6 +20,37 @@ const forbiddenNames=new Set(['eval','Function','AsyncFunction','GeneratorFuncti
 const forbiddenMembers=new Set(['constructor','prototype','__proto__','ownerDocument','defaultView','contentWindow','contentDocument','innerHTML','outerHTML','textContent','innerText',
   'insertAdjacentHTML','insertAdjacentText','createTextNode','write','writeln','fillText','strokeText','defineBlock','ticker','cssText','getRandomValues','randomUUID']);
 const memberName=node=>node.computed?node.property.type==='Literal'?node.property.value:null:node.property.name;
+const isFunction=node=>['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
+function bindPattern(node,names){
+  if(!node)return;
+  if(node.type==='Identifier')names.add(node.name);
+  else if(node.type==='RestElement')bindPattern(node.argument,names);
+  else if(node.type==='AssignmentPattern')bindPattern(node.left,names);
+  else if(node.type==='ArrayPattern')node.elements.forEach(item=>bindPattern(item,names));
+  else if(node.type==='ObjectPattern')node.properties.forEach(item=>bindPattern(item.type==='RestElement'?item.argument:item.value,names));
+}
+function scopeBindings(node){
+  const names=new Set();
+  if(isFunction(node)){
+    bindPattern(node.id,names);node.params.forEach(param=>bindPattern(param,names));
+    const hoisted=value=>{
+      if(!value||typeof value!=='object'||isFunction(value))return;
+      if(value.type==='VariableDeclaration'&&value.kind==='var')value.declarations.forEach(item=>bindPattern(item.id,names));
+      for(const [key,child]of Object.entries(value))if(!['loc','start','end'].includes(key)){
+        if(Array.isArray(child))child.forEach(hoisted);else hoisted(child);
+      }
+    };hoisted(node.body);
+  }else if(node.type==='BlockStatement'){
+    for(const statement of node.body){
+      if(statement.type==='VariableDeclaration')statement.declarations.forEach(item=>bindPattern(item.id,names));
+      else if(['FunctionDeclaration','ClassDeclaration'].includes(statement.type))bindPattern(statement.id,names);
+    }
+  }else if(node.type==='CatchClause')bindPattern(node.param,names);
+  else if(['ForStatement','ForInStatement','ForOfStatement'].includes(node.type)){
+    const declaration=node.init??node.left;if(declaration?.type==='VariableDeclaration')declaration.declarations.forEach(item=>bindPattern(item.id,names));
+  }
+  return names;
+}
 /** Q0 only: parses bounded source data. The Chromium sandbox, CSP and host deadlines enforce isolation. */
 export function customSourceErrors(scene,source,spec) {
   const errors=[],fail=(code,node)=>{if(errors.length<24)errors.push({code,line:node?.loc?.start.line??1});};
@@ -31,11 +62,13 @@ export function customSourceErrors(scene,source,spec) {
     ||call.arguments.length!==2||call.arguments[0].value!==scene.id||!['ArrowFunctionExpression','FunctionExpression'].includes(factory?.type)
     ||factory.async||factory.generator||factory.params.length!==1||factory.params[0].type!=='Identifier')return[{code:'CUSTOM_REGISTRATION_INVALID',line:1}];
   let plan;try{plan=customScenePlan(scene);}catch(error){return[{code:error.message,line:1}];}
-  const used={text:new Set(),asset:new Set()};
+  const used={text:new Set(),asset:new Set()},scopes=[];
   function walk(node,parent){
     if(!node||typeof node!=='object')return;
+    const scoped=isFunction(node)||['BlockStatement','CatchClause','ForStatement','ForInStatement','ForOfStatement'].includes(node.type);
+    if(scoped)scopes.push(scopeBindings(node));
     const property=parent&&(parent.type==='MemberExpression'&&parent.property===node&&!parent.computed||parent.type==='Property'&&parent.key===node&&!parent.computed&&!parent.shorthand);
-    if(node.type==='Identifier'&&!property&&forbiddenNames.has(node.name))fail('CUSTOM_FORBIDDEN_API',node);
+    if(node.type==='Identifier'&&!property&&forbiddenNames.has(node.name)&&!scopes.some(scope=>scope.has(node.name)))fail('CUSTOM_FORBIDDEN_API',node);
     if(['ImportDeclaration','ImportExpression','ExportNamedDeclaration','ExportDefaultDeclaration','ExportAllDeclaration','WithStatement','ThisExpression','MetaProperty'].includes(node.type))fail('CUSTOM_FORBIDDEN_SYNTAX',node);
     if(node.type==='MemberExpression'){
       const key=memberName(node);
@@ -58,8 +91,9 @@ export function customSourceErrors(scene,source,spec) {
     for(const [key,value]of Object.entries(node))if(!['loc','start','end'].includes(key)){
       if(Array.isArray(value))value.forEach(child=>walk(child,node));else if(value&&typeof value==='object')walk(value,node);
     }
+    if(scoped)scopes.pop();
   }
-  walk(factory.body);
+  walk(factory);
   if(plan.textSlots.some(key=>!used.text.has(key))||plan.assetKeys.some(key=>!used.asset.has(key)))fail('CUSTOM_DECLARATION_UNUSED',factory);
   return errors;
 }

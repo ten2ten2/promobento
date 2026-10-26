@@ -1,0 +1,625 @@
+{
+  "scope": "sandboxed_custom_DOM_SVG_Canvas_GSAP_not_cloud_or_owner_quality",
+  "mode": "custom",
+  "aspects": [
+    {
+      "aspect": "landscape",
+      "comparisons": [
+        {
+          "frame": 449,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 449,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        }
+      ],
+      "separateUidSandbox": true
+    },
+    {
+      "aspect": "portrait",
+      "comparisons": [
+        {
+          "frame": 449,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 449,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        }
+      ],
+      "separateUidSandbox": true
+    },
+    {
+      "aspect": "feed",
+      "comparisons": [
+        {
+          "frame": 449,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 449,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        }
+      ],
+      "separateUidSandbox": true
+    },
+    {
+      "aspect": "square",
+      "comparisons": [
+        {
+          "frame": 449,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "reverse",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 0,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 18,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 36,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 80,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 126,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 180,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 270,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 330,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        },
+        {
+          "frame": 449,
+          "mode": "cold",
+          "identical": true,
+          "maxChannelDiff": 0,
+          "diffPixelPct": 0,
+          "verdict": "pass"
+        }
+      ],
+      "separateUidSandbox": true
+    }
+  ],
+  "attacks": [
+    {
+      "name": "network",
+      "blocked": true
+    },
+    {
+      "name": "storage",
+      "blocked": true
+    },
+    {
+      "name": "iframe",
+      "blocked": true
+    },
+    {
+      "name": "timer",
+      "blocked": true
+    }
+  ],
+  "passed": false
+}

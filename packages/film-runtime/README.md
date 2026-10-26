@@ -32,7 +32,7 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 只改普通文字/片尾布局时，用 `runtime_case=layout` 检查原 72 项及四画幅带 Logo 的片尾布局，不重做旅程/showcase 专项、媒体或配乐。
 
-测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。该 CI 配置只执行仓库内的可信积木，Cloudflare 正式隔离仍需 G1 实测。
+测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。CI 分别执行可信积木和原创自写镜头/攻击夹具；Cloudflare 正式隔离与当前已验证范围见[实施状态](../../docs/implementation-status.md)。
 
 九积木为 `hook-title`、`ui-showcase`、`cta-endcard`、`feature-grid`、`curriculum`、`ui-journey`、`metric`、`captions`、`talking-head`。后两者消费已清权、已确认的素材/字幕；数值和 CTA 必须绑定事实。字体由镜像转换并登记 cmap，宿主补齐覆盖范围；缺字和实际字体回退分别由静态检查与 CDP 检查。
 
@@ -42,7 +42,7 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 
 `device-3d@1` 用 Three.js 0.186.1 将已清权静态截图/SVG 贴到原创设备几何，正文仍经 `ctx.text` 呈现；不接受视频纹理。仅含该积木的页面加载 `blocks-3d.js`，纯 2D 不加载 Three.js。相机/模型姿态只由镜头时间决定，不创建动画循环；初始化等待图片、纹理和首帧，销毁时释放几何、材质、纹理与 WebGL context。`BlockInstance.ready`/`dispose` 为可选资源生命周期，旧积木不需改写。来源与 MIT 通知见[积木许可](../blocks/NOTICE.md)。
 
-自写镜头、全局纹理效果、布局覆盖和本地改值预览仍明确拒绝。当前阅读停留观测不等于 S2 的完整动态 Q1/Q2，也不能替代负责人正常速度试听及审美签字；页面本身不播放音轨。
+全局纹理效果、布局覆盖和本地改值预览仍明确拒绝。当前阅读停留观测不等于 S2 的完整动态 Q1/Q2，也不能替代负责人正常速度试听及审美签字；页面本身不播放音轨。
 
 卡片与名牌可通过 text-slot mount 的 `maxFontSize` 保持层级；自动适配仍受角色最小字号约束，不拆开单词或截断原文来伪装适配成功。退场界面在整段旅程结束时真正隐藏，可信点选只查询画面内的交集；越界文字仍会记录 BLOCK。
 
@@ -51,6 +51,8 @@ Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/
 `FilmSpec.scenes[]` 的 `custom` 使用 `module: scenes/<id>/index.js` 和创作 `brief`。当前首轮支持 DOM、SVG 图形、Canvas2D 与暂停 GSAP 时间线；自写 WebGL/Three.js、任意依赖和导入未开放。每个模块是单个 `PB.scene(id, ctx => ({timeline}))` 注册，作品只在独立 uid 的 Chromium 沙箱中执行，不在页面生成器、Worker 或控制器求值。
 
 `params` 声明 `textSlots`、`assetKeys`、局部整数帧 `events: [{name,frame}]`、`readingHolds: [{start,end}]`，可用 `hardest:true` 指定先验证的镜头。源码用 `ctx.text('id').mount(...)` 与 `ctx.asset('id')` 的字面量引用，不能自行写可见文案；时间线完整覆盖本镜头，`ctx.OM.clock` 提供冷/逆向 seek 的纯函数绘制。具体 API 见 [film-runtime.d.ts](../../contracts/film-runtime.d.ts)。
+
+当前 Q0 要求 createElement/createElementNS/getContext 的 tag、namespace、context 为字面量，不接受把变量 tag 传入通用建元素工厂；布局辅助函数可接收已创建的元素。`ctx.style.palette` 是直接的 bg/ink/accent 等角色值，不是 FilmSpec 中的 palette.roles 包装。
 
 可信调用者给 `generateFilmPage` 的 `PageOptions.customSources` 提供路径到原始源码的映射。静态 Q0 使用锁定 Acorn，仅解析语法和明确禁用项；动态求值的全局及普通/async/generator 构造器在加载源码前封锁；可信宿主通过直接 CDP 函数桥接，不借页面 eval。实际隔离仍依靠 shim/CSP、容器出网与分离 uid、宿主期限和停止回收。模块每份最多 64 KiB、合计 512 KiB；只允许当前 FilmSpec 列明的路径；每镜头声明的事件/首尾/阅读取帧去重后最多 24 个。控制器从已授权的不可变 `inputs` 读同名模块，完成 Q0 和完整 sourceHash 核对后才启动浏览器，并仅在本地同源路径提供源码。
 

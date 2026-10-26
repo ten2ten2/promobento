@@ -548,3 +548,16 @@ WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.0
 四画幅连续到 161 帧后的 64 次逆序／独立冷 seek 比较全零差异，三次阅读的字体／安全区通过，Chrome 151.0.7922.34，沿用 Actions 构建镜像并覆盖本轮 bundle。已看真实动效帧及播放器，Chrome 155.0.8059.85 完整有声 1× 解码两部各 81 帧；横屏首次掉 1 帧、竖屏零掉帧，无解码／页面错误，不重跑取代负面记录。样片只检查动效方向，尚未达到参考中的多场景衔接，不计完整片或负责人质量通过；本轮没有追加付费导演运行。短片最终 AAC 实测 −14.24 LUFS／−1.55 dBTP。
 
 [40291309966](https://github.com/ten2ten2/promobento/actions/runs/40291309966) 已在 `481775410db86c0819898263650add6bd946e2e1` 构建并推送配套镜像、部署 staging Worker：镜像 `sha256:514f736159fc87c8d7b066899933034e25dc397c869f26f6b314457c0b2e6e56`，Worker `2c18b071-f553-4f47-b870-76a0719aa303`。本轮只执行 `deploy-only`：健康正常、容量为空，零模型／影片任务，临时密钥撤销；未重复本地已通过的运行时检查或全量 CI。新分支实际云端出片仍待验，下一轮输入须固定 `renderer-481775410db8`，不能复用旧 `8f77bc9` 登记。自动全量运行 `40291309151` 已取消，生产保持关闭。
+
+
+### 首次自写导演：C 通过，D 的对象路径被拒绝，无新片
+
+负责人单独批准将已清权的 MiniMax 案例图、Logo、确认事实、提示和生成源码发给现有 modelswitch DeepSeek/Claude，仅一份 15 秒横竖候选，单次操作 $3、共享新增模型 $10 内，影片不公开。`3aaa646` 的[安全与云端 studio 证据](../2026-10-24-s1-runtime/README.md#domsvgcanvas2d-自写镜头通过正式镜像定点验证)通过后，操作 `eval-minimax-15-1793020830467` 实际运行。
+
+A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已看三图及[完整方向](custom-first-attempt/directions.json)，[选择 unexpected](custom-first-attempt/choice.json)：光标从承载需求转为暂停/释放剪辑，蓝/奶油配色与真实素材一致；amplify 预览出现大字裁切和低对比，fit 更易回到平静的截图工作台。静音 hero 仍是可信积木构图预览，没有展示新动作，不当作自写镜头已实现。
+
+[C 原始回执](custom-first-attempt/spec-response.json)给出两个 custom（request-cut、hardest hold-release）和 CTA；不是三张固定 ui-showcase。D 按最难镜头先行，但[首次](custom-first-attempt/scene-hold-release-fe0d22865bf0edd3-0-response.json)与[一次纠正](custom-first-attempt/scene-hold-release-fe0d22865bf0edd3-1-response.json)都把 `input.path` 写为 `{module:"scenes/hold-release/index.js"}`，不符合字符串契约，实际停止为 `CUSTOM_TOOL_INVALID`。没有转换坏路径、执行源码或生成 review/最终片，E/F 未运行。
+
+核对发现下发的 edit_file 参数带有指向父 Schema 的悬空 `#/$defs/scenePath`，且旧纠正只给通用错误；现改为自包含的路径字符串/当前模块枚举、按阶段限定命令、反馈具体 path 错误。离线检查原源码另发现 Q0 误把局部 parent/top 当全局，已按词法作用域修复；原源码里的变量 tag 元素工厂仍按当前准入拒绝，不改写成已通过。D 指引现明确字面量建元素和扁平 ctx 调色板。路径纠正 D/E 回放、受影响 Q0 单元与 cloud 类型检查通过；这批修复尚未通过真实导演重验。
+
+[完整费用与回收](custom-first-attempt/report.json)：10 次模型合计 **44,779 usd_micros**，5 次计算全部停止/结算 **4,321 usd_micros** 保守上界，本轮合计 **49,100 usd_micros**（约 $0.0491）；没有本轮未知消费，容量为空、Workflow 已 errored/对账、临时密钥已回收。共享新增模型已结 **694,836**，原三笔未知 **37,993** 保留，合计占用 **732,829 usd_micros**。本轮没有新成片，不增加 1/12、2/24；新的真实评测须另获授权，不自动重开失败操作。
