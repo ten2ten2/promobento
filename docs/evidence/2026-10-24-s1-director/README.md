@@ -33,7 +33,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 `f4088819a91322e6f74521b52907b3142d703d73` 由 [40084165840](https://github.com/ten2ten2/promobento/actions/runs/40084165840) 仅部署 Worker；仍复用同一 renderer/镜像，没有重做媒体或全套 CI（自动全套 push `40084152643` 已取消）。读回历史字段保持 null/false，新模型已用 147 usd_micros，没有因部署重置。
 
-实际命令仅把前节输出目录换为 `artifacts/s1-deepseek-15-corrected-2026-10-24`，新操作 `eval-deepseek-15-1792836265169`。事实整理、真实素材看图，以及三方向经过一次结构/规格纠正后均已通过；有一张 fit studio 帧完成。随后 amplify 的真实 studio 以 `TEXTURE_NOT_IMPLEMENTED` 停止，未等用户选择，也未调用 C/E/F 或出片。
+该轮原始回执现归档于 `artifacts/history/s1-deepseek-15-corrected-2026-10-24`，新操作 `eval-deepseek-15-1792836265169`。事实整理、真实素材看图，以及三方向经过一次结构/规格纠正后均已通过；有一张 fit studio 帧完成。随后 amplify 的真实 studio 以 `TEXTURE_NOT_IMPLEMENTED` 停止，未等用户选择，也未调用 C/E/F 或出片。
 
 [真正采用的纠正后方向响应](second-attempt/directions-output-repair-response.json)中，fit 为 texture none，amplify 为 glow，unexpected 为 grain。完整协议允许这些未来字段，但当前 S1 渲染器只实现 none；前置 FilmSpec Schema/跨字段检查未覆盖实际支持边界。不能用初始响应代替被采用的纠正后响应，也不能仅删模型字段冒充同一视觉方向。
 
@@ -43,7 +43,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ## 第三次：复用理解结果，三份完整预览规格触发截断
 
-`6b0d054e3e497613af229c1361f43c8b5361cdba` 经 [40085536307](https://github.com/ten2ten2/promobento/actions/runs/40085536307) 仅部署 Worker（自动全套 push `40085528275` 已取消）。新操作 `eval-deepseek-15-1792837491696`，输出目录 `artifacts/s1-deepseek-15-supported-2026-10-24`。事实/素材理解直接复用已有有效响应，未重发；方向请求以 `MODEL_OUTPUT_TRUNCATED` 停止。没有方向图、C 或成片。
+`6b0d054e3e497613af229c1361f43c8b5361cdba` 经 [40085536307](https://github.com/ten2ten2/promobento/actions/runs/40085536307) 仅部署 Worker（自动全套 push `40085528275` 已取消）。新操作 `eval-deepseek-15-1792837491696`，输出目录 `artifacts/history/s1-deepseek-15-supported-2026-10-24`。事实/素材理解直接复用已有有效响应，未重发；方向请求以 `MODEL_OUTPUT_TRUNCATED` 停止。没有方向图、C 或成片。
 
 [实际回执](third-attempt/report.json)保留该方向请求 **6,196 usd_micros 未知消费预留**，没有记作 0 或按最大输出数虚构实收。该旧适配器在读到 length 时立即抛错，没有保存后续 usage；现有原始响应无法补造。预检计算已物理停止并结算 333 usd_micros 保守上界，容量/实例均已清空，原生 Workflow 已对账，临时内部密钥已删除。前三轮共享模型已结 **8,808**、未知预留 **6,196**，准入合计 **15,004 usd_micros**，仍计入同一 $10 新增上限。
 
@@ -53,7 +53,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ## 第四次：三方向与 Opus 实际调用通过，完整 JSON 围栏掩盖规格错误
 
-`d1c36f69879b098832b5c19c84f9b6638848c7de` 经 [40087690141](https://github.com/ten2ten2/promobento/actions/runs/40087690141) 仅部署 Worker，原镜像未变；自动全套 push `40087682603` 已取消。操作 `eval-deepseek-15-1792839467235`，输出目录 `artifacts/s1-deepseek-15-compact-2026-10-24`。复用既有事实/素材理解；精简 B 完成，三张真实 studio PNG 全部生成并下载，Codex 已逐张查看。
+`d1c36f69879b098832b5c19c84f9b6638848c7de` 经 [40087690141](https://github.com/ten2ten2/promobento/actions/runs/40087690141) 仅部署 Worker，原镜像未变；自动全套 push `40087682603` 已取消。操作 `eval-deepseek-15-1792839467235`，输出目录 `artifacts/history/s1-deepseek-15-compact-2026-10-24`。复用既有事实/素材理解；精简 B 完成，三张真实 studio PNG 全部生成并下载，Codex 已逐张查看。
 
 已按[实际画面选择 Fit](fourth-attempt/choice.json)：产品入口图更大，Chat/API/Harness 标签更清楚，白底深色对比直接；Amplify 的设备图较小，Unexpected 偏文字索引。方向源与图片引用在该目录 `directions.json`，原生方向等待/恢复已实际通过。这个判断不代替负责人正常速度视听。
 
@@ -67,7 +67,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ## 第五次：已付费回执复用与规格纠正通过，review 拼接码率失败
 
-`d94ef6aa61944544855f3823cc3f55b1d9446ef3` 经 [40089888901](https://github.com/ten2ten2/promobento/actions/runs/40089888901) 仅部署 Worker，仍使用旧镜像；自动全套 push `40089881296` 已取消。操作 `eval-deepseek-15-1792841857404`，输出目录 `artifacts/s1-deepseek-15-receipt-2026-10-24`。事实/素材/B 沿用有效结果，三方向摘要与已查看版本完全一致，复用原 Fit 选择；首份 C 原始回执重新准入，没有再次计费。
+`d94ef6aa61944544855f3823cc3f55b1d9446ef3` 经 [40089888901](https://github.com/ten2ten2/promobento/actions/runs/40089888901) 仅部署 Worker，仍使用旧镜像；自动全套 push `40089881296` 已取消。操作 `eval-deepseek-15-1792841857404`，输出目录 `artifacts/history/s1-deepseek-15-receipt-2026-10-24`。事实/素材/B 沿用有效结果，三方向摘要与已查看版本完全一致，复用原 Fit 选择；首份 C 原始回执重新准入，没有再次计费。
 
 真实语义错误反馈后，一次 Opus 纠正用时 **28,720 ms**、费用 **10,329 usd_micros**，完整 JSON、Schema、跨字段及实际页面支持性检查全部通过。原生 review `render-dbb3b11c2346d48c9aaa903cffad457aa73750517c4c5c67` 的两个分段与音频已成功，观测及接缝通过后进入拼接；拼接及一次原回退后仍为 `OUTPUT_BITRATE_EXCEEDED`，未交付 MP4，也未到 E/F。旧失败回执未保留具体峰值，不补造数值。
 
@@ -79,7 +79,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 [40092112348](https://github.com/ten2ten2/promobento/actions/runs/40092112348) 在 `dda33944656156b2edd37eac8899d013e8464d8c` 由 Actions 实际构建并推送新镜像 `sha256:6e58bae5dc9a2117652cf8829721546d9b2cd51d5c723c34dfaff2deb1606986`，Worker `5d5992a0-7ed6-42d9-8330-3cee62c64c1e`。只部署/读健康，未重跑原 G1/隔离/配乐矩阵，自动全套 push `40092105527` 已取消。新输入固定 `renderer-dda339446561`，旧 release 不改绑。
 
-操作 `eval-deepseek-15-1792843644103`，输出 `artifacts/s1-deepseek-15-vbv-2026-10-24`。新方向图已逐张查看并[选择 Fit](sixth-attempt/choice.json)；A/素材复用，B 和新 release 对应的 C 按新请求计费。规格一次纠正通过，真实 review 及 E 的 `submit_candidate` 已通过，横/竖两部 **15 秒、450 帧、1080p/30 fps/AAC** 已实际生成并提交。review 的滑动一秒峰值由 3,785,344 降至 **1,577,016** bit/s，横版由 14,578,464 降至 **6,238,848**，竖版由 11,731,512 降至 **5,583,520**；分别低于原 2.5M / 10M 门槛，未调宽标准。媒体报告见[实际回执](sixth-attempt/media-diagnosis.json)。
+操作 `eval-deepseek-15-1792843644103`，输出 `artifacts/history/s1-deepseek-15-vbv-2026-10-24`。新方向图已逐张查看并[选择 Fit](sixth-attempt/choice.json)；A/素材复用，B 和新 release 对应的 C 按新请求计费。规格一次纠正通过，真实 review 及 E 的 `submit_candidate` 已通过，横/竖两部 **15 秒、450 帧、1080p/30 fps/AAC** 已实际生成并提交。review 的滑动一秒峰值由 3,785,344 降至 **1,577,016** bit/s，横版由 14,578,464 降至 **6,238,848**，竖版由 11,731,512 降至 **5,583,520**；分别低于原 2.5M / 10M 门槛，未调宽标准。媒体报告见[实际回执](sixth-attempt/media-diagnosis.json)。
 
 冷审确实读取两画幅，但[原始响应](sixth-attempt/cold-review-response.json)在 **1,024 completion token** 时以 `length` 结束，只输出分析散文，没有完整 verdict JSON。新适配器已保存 partial/usage 并结算 **673 usd_micros**，没有把失败记作未知、JSON 通过或冷审通过。操作正确失败，没有交付合格候选；私有 MP4 只取回作内部诊断。实际封面显示 API 镜头的卡片大而空，仍需冷审和创意修复，不因编码通过认定质量合格。
 
@@ -89,7 +89,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ## 第七次：E 修改元数据后再次长输出，尚未执行修正后的 F
 
-`be5b3bf1a0e7738a7f6ae76468ff89126f363892` 经 [40093788760](https://github.com/ten2ten2/promobento/actions/runs/40093788760) 仅部署 Worker（自动全套 push `40093781592` 已取消），同一新镜像不变。操作 `eval-deepseek-15-1792844833456`，输出 `artifacts/s1-deepseek-15-cold-2026-10-24`。冻结方向未变，沿用前轮已查看的 Fit 选择；规格纠正通过，review 渲染成功。
+`be5b3bf1a0e7738a7f6ae76468ff89126f363892` 经 [40093788760](https://github.com/ten2ten2/promobento/actions/runs/40093788760) 仅部署 Worker（自动全套 push `40093781592` 已取消），同一新镜像不变。操作 `eval-deepseek-15-1792844833456`，输出 `artifacts/history/s1-deepseek-15-cold-2026-10-24`。冻结方向未变，沿用前轮已查看的 Fit 选择；规格纠正通过，review 渲染成功。
 
 [E 首次回执](seventh-attempt/review-0-response.json)调用 `write_spec`，仅把 web-claim 的 maxLines 从 2 改为 4，未改善已看到的空卡片。该修复后的 [E 再审](seventh-attempt/review-1-response.json)耗时 **96,637 ms**、完成用量 **8,192 token**，仍在分析和反复考虑修改，未完成工具调用即截断。没有把散文提取为工具或将放宽元数据认作视觉修复；未到 F，不能据此认定增大后的 F 仍截断。
 
@@ -101,7 +101,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 ## 第八次：B/C 实际免重付，E 坏工具参数暴露回执保存顺序问题
 
-`dcea81f59e863f7ac638957164d0d58cb315bf27` 经 [40094915466](https://github.com/ten2ten2/promobento/actions/runs/40094915466) 仅部署 Worker，同一镜像不变；自动全套 push `40094908195` 已取消。操作 `eval-deepseek-15-1792845834583`，输出 `artifacts/s1-deepseek-15-low-review-2026-10-24`。B/C 的有效回执与纠正已实际复用，无新 B/C 费用，证明审计字段移出模型反馈后原语义请求命中。两次 review 的实际渲染均通过。
+`dcea81f59e863f7ac638957164d0d58cb315bf27` 经 [40094915466](https://github.com/ten2ten2/promobento/actions/runs/40094915466) 仅部署 Worker，同一镜像不变；自动全套 push `40094908195` 已取消。操作 `eval-deepseek-15-1792845834583`，输出 `artifacts/history/s1-deepseek-15-low-review-2026-10-24`。B/C 的有效回执与纠正已实际复用，无新 B/C 费用，证明审计字段移出模型反馈后原语义请求命中。两次 review 的实际渲染均通过。
 
 E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 52,091 ms**。再审因工具 arguments 的未闭合字符串在适配器内抛 `SyntaxError`（[原生首因](eighth-attempt/native-workflow-error.json)），早于原始回执/usage 保存；业务终态为 `DIRECTOR_INTERNAL_ERROR`。该请求 **14,029 usd_micros** 预留仍未知，不按新实现回填或记零。尚未执行 F。
 
@@ -111,7 +111,7 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 ## 第九次：low 仍触及输出上限，按实际负载放宽 E token 空间
 
-`aec4da98e18362121543fa97628bdadb3d8be41c` 经 [40095952537](https://github.com/ten2ten2/promobento/actions/runs/40095952537) 仅部署 Worker，复用相同镜像；自动全套 push `40095942148` 已取消。操作 `eval-deepseek-15-1792846835293`，输出 `artifacts/s1-deepseek-15-tool-receipt-2026-10-24`。B/C 继续免重付，review 媒体通过，E 在 low 请求下仍于 **8,192 token / 59,322 ms** 终态截断。没有进入自动结构纠正，坏工具路径没有在该轮触发；F 未执行。
+`aec4da98e18362121543fa97628bdadb3d8be41c` 经 [40095952537](https://github.com/ten2ten2/promobento/actions/runs/40095952537) 仅部署 Worker，复用相同镜像；自动全套 push `40095942148` 已取消。操作 `eval-deepseek-15-1792846835293`，输出 `artifacts/history/s1-deepseek-15-tool-receipt-2026-10-24`。B/C 继续免重付，review 媒体通过，E 在 low 请求下仍于 **8,192 token / 59,322 ms** 终态截断。没有进入自动结构纠正，坏工具路径没有在该轮触发；F 未执行。
 
 [完整回执](ninth-attempt/report.json)：本轮模型 **2,926**，8 次计算停止/结算 **4,904** 保守上界，合计 **7,830 usd_micros**。容量/本轮未知为空，Workflow 对账、密钥回收完成。共享模型实际 **106,435** 加旧未知 **20,225**，共占用 **126,660**。这表明仅请求 low 不能保证短输出，不能把网关参数接受等同真实强度已验证。
 
@@ -119,7 +119,7 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 ## 第十次：完整工具响应已取得，E 缺少积木参数定义导致猜字段
 
-`8acef1e65b89af1ded23055511b93b5c468d3221` 经 [40096746500](https://github.com/ten2ten2/promobento/actions/runs/40096746500) 仅部署 Worker，镜像不变；自动全套 push `40096738412` 已取消。操作 `eval-deepseek-15-1792847367993`，输出 `artifacts/s1-deepseek-15-review-16k-2026-10-24`。本轮取得两份完整、可计费的工具响应，没有截断。
+`8acef1e65b89af1ded23055511b93b5c468d3221` 经 [40096746500](https://github.com/ten2ten2/promobento/actions/runs/40096746500) 仅部署 Worker，镜像不变；自动全套 push `40096738412` 已取消。操作 `eval-deepseek-15-1792847367993`，输出 `artifacts/history/s1-deepseek-15-review-16k-2026-10-24`。本轮取得两份完整、可计费的工具响应，没有截断。
 
 [首份 E](tenth-attempt/review-0-response.json)确实尝试填充空卡片，但发明 `bodySlot`（真实参数为 `subtitleSlot`），积木参数校验拒绝。该份通过 FilmSpec 结构校验，`body` 是受支持的文本 role。E 原消息只有 FilmSpec Schema，未像 B/C 提供积木自己的参数 Schema。[一次结构纠正](tenth-attempt/review-0-output-repair-1-response.json)改用实际产品图，却在只允许 `{film}` 的 `write_spec` 参数外又加 `note`，因此 `DIRECTOR_TOOL_INVALID`，未执行该修复、未到 F。不能删除 note 或映射猜测字段后冒充原工具通过。
 
@@ -129,13 +129,13 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 ## 第十一次：契约修正通过，DeepSeek 仍耗尽两轮视觉修复
 
-`92824a46909985e7b22b580920ebd5f27b7477bf` 经 [40097605133](https://github.com/ten2ten2/promobento/actions/runs/40097605133) 仅部署 Worker，同一镜像不变；自动全套 push `40097596386` 已取消。操作 `eval-deepseek-15-1792848186867`，输出 `artifacts/s1-deepseek-15-block-review-2026-10-24`。三次 E 都给出完整、合法的 `write_spec`；前两次修改已实际重新渲染。模型将空 API 卡片换成设备实图后继续调整，第三次仍要求修改，按原 **2 次内部视觉修复**落 `DIRECTOR_REPAIR_LIMIT`，未执行第三次改动、未到 F。保留该质量负例，不提高修复次数或假定质量通过，先推进其他题目。
+`92824a46909985e7b22b580920ebd5f27b7477bf` 经 [40097605133](https://github.com/ten2ten2/promobento/actions/runs/40097605133) 仅部署 Worker，同一镜像不变；自动全套 push `40097596386` 已取消。操作 `eval-deepseek-15-1792848186867`，输出 `artifacts/history/s1-deepseek-15-block-review-2026-10-24`。三次 E 都给出完整、合法的 `write_spec`；前两次修改已实际重新渲染。模型将空 API 卡片换成设备实图后继续调整，第三次仍要求修改，按原 **2 次内部视觉修复**落 `DIRECTOR_REPAIR_LIMIT`，未执行第三次改动、未到 F。保留该质量负例，不提高修复次数或假定质量通过，先推进其他题目。
 
 [完整回执](eleventh-attempt/report.json)及[三份工具响应](eleventh-attempt/review-2-response.json)：模型 **5,616**，36 次计算（含新增 3D 镜头）均已物理停止/结算 **27,822** 保守上界，总计 **33,438 usd_micros**。无本轮未知/残留容量，Workflow 已对账、临时密钥已回收。共享模型实际 **115,883** 加旧未知 **20,225**，占用 **136,108**。模型/工具的完整契约已经可用，但不能据此把创作质量负例改成合格候选。
 
 ## MiniMax 首次：事实回复是散文，纠正上下文缺实际输出契约
 
-执行前复核 [MiniMax 官网](https://www.minimax.io/)及[产品页](https://agent.minimax.io/about)，MiniMax Code 命名与已确认的三条功能声明仍可核对，未引入页面上的价格、速度/效果或其他新事实。操作 `eval-minimax-15-1792848706708`，输出 `artifacts/s1-minimax-15-2026-10-24`，使用同一部署。
+执行前复核 [MiniMax 官网](https://www.minimax.io/)及[产品页](https://agent.minimax.io/about)，MiniMax Code 命名与已确认的三条功能声明仍可核对，未引入页面上的价格、速度/效果或其他新事实。操作 `eval-minimax-15-1792848706708`，输出 `artifacts/history/s1-minimax-15-2026-10-24`，使用同一部署。
 
 [A 首份回答](minimax-first-attempt/facts-response.json)为 403 token 的散文/表格，不是 `fact_analysis`；[纠正](minimax-first-attempt/facts-output-repair-1-response.json)尝试输出事实数组，又在 **1,024 token** 截断。原 A 用户消息只带事实和 brief，Schema 只在 system，纠正消息也没重给实际契约；当前提示不足以稳定约束该线路。不能由此断言网关丢弃 system。尚未调用素材/B/C 或渲染。
 
@@ -145,7 +145,7 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 ## MiniMax 第二次：A 显式契约通过，真实卡片布局碰撞导致修复耗尽
 
-`d56cea6a3b7d2e004525d7216fbccd64d233d392` 经 [40099463344](https://github.com/ten2ten2/promobento/actions/runs/40099463344) 仅部署 Worker，同一镜像不变；自动全套 push `40099455917` 已取消。操作 `eval-minimax-15-1792849798870`，输出 `artifacts/s1-minimax-15-contract-2026-10-24`。事实 210 token、素材 838 token 一次通过；B 三张实际方向已查看并选择 Fit，Opus 一次纠正通过。E 完成两轮实际修改后仍要求第三次，按原上限 `DIRECTOR_REPAIR_LIMIT`，未到 F。
+`d56cea6a3b7d2e004525d7216fbccd64d233d392` 经 [40099463344](https://github.com/ten2ten2/promobento/actions/runs/40099463344) 仅部署 Worker，同一镜像不变；自动全套 push `40099455917` 已取消。操作 `eval-minimax-15-1792849798870`，输出 `artifacts/history/s1-minimax-15-contract-2026-10-24`。事实 210 token、素材 838 token 一次通过；B 三张实际方向已查看并选择 Fit，Opus 一次纠正通过。E 完成两轮实际修改后仍要求第三次，按原上限 `DIRECTOR_REPAIR_LIMIT`，未到 F。
 
 已取回并查看原 `review-1` / `review-2` 私有拼图：E 给卡片加上真实素材后，标题和副标题相互重叠。[造成该画面的合法 FilmSpec](minimax-second-attempt/review-1-response.json)在 `feature-grid` 传了受支持的 `assetKey`、`textSlot`、`subtitleSlot`；运行时却给标题 y=52% / h=42%，副标题 y=61% / h=30%，两个区域本身相交。该缺陷不由模型继续改字段或提高修复次数解决。原阅读观测没有对这组文本作成对碰撞检查，因此媒体数值通过不等于此布局正确。
 
@@ -157,13 +157,13 @@ E 首次完成 `write_spec`，计 **2,882 usd_micros / 8,033 completion token / 
 
 [40104630266](https://github.com/ten2ten2/promobento/actions/runs/40104630266) 在 `9d5ad9dbd46abcf65545390d07ec728c8be278c2` 由 Actions 构建/推送新镜像 **`sha256:f6599e3c5595a685bb214c4e844215c6d956f2dfd7d34d70d3f1083cb2d1527b`**，Worker `2cb2edea-c767-4aae-9201-c786ea3d7e8e`；仅部署/读健康，自动全套 push `40104621352` 已取消。实际镜像身份见[部署回执](card-layout/deployment-metadata.json)，与新 release 的当前元数据一致，没有复用旧容器源码。
 
-新输入 `artifacts/s1-eval-inputs-layout-2026-10-24` 固定 `renderer-9d5ad9dbd46a`；按[单帧命令](../../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)传原 MiniMax E `review-1` 完整回执。操作 `eval-minimax-15-1792854734062`，输出 `artifacts/s1-card-layout-2026-10-24`。实际 1080p 横屏 270 帧使用同一 FilmSpec、素材、Geist 600 与 seed；三组标题盒底至副标题盒顶的间隔均 **19.953125 px**，原帧观测无 BLOCK。[完整 CDP 记录](card-layout/layout-check.json)与[费用/回收](card-layout/report.json)可核对。
+新输入 `artifacts/history/s1-eval-inputs-layout-2026-10-24` 固定 `renderer-9d5ad9dbd46a`；按[单帧命令](../../../research/evals/README.md#只复验实际卡片的标题副标题碰撞)传原 MiniMax E `review-1` 完整回执。操作 `eval-minimax-15-1792854734062`，输出 `artifacts/history/s1-card-layout-2026-10-24`。实际 1080p 横屏 270 帧使用同一 FilmSpec、素材、Geist 600 与 seed；三组标题盒底至副标题盒顶的间隔均 **19.953125 px**，原帧观测无 BLOCK。[完整 CDP 记录](card-layout/layout-check.json)与[费用/回收](card-layout/report.json)可核对。
 
 Codex 已查看实际 PNG，原标题/副标题重叠消失，完整文本及图片均保留；PNG 只留本机私有忽略目录。一次 studio 已物理停止并结算 **1,191 usd_micros** 分配资源保守上界，0 模型/影片编码，模型共享占用前后均 **173,895**；容量/未结为空，临时密钥已删。该回归不计入候选或 4/6，下一步继续真实 MiniMax 导演/冷审；未重做配乐、媒体矩阵或完整 CI。
 
 ## MiniMax 第三次：实际冷启动临近 30 秒，重试耗尽 review 期限
 
-同一 `9d5ad9d` 部署，操作 `eval-minimax-15-1792854953412`，输出 `artifacts/s1-minimax-15-layout-fixed-2026-10-24`。A/素材复用，新的 B 三图实际查看后选择 Fit；C 一次结构纠正完成。首个 review 分段在 **30,000 ms** 未 ready；同行分段实际控制器启动 **29,381 ms**、音频 **25,812 ms**。确认失败实例停止/结算、退避 15 秒后，新 attempt 已进入执行，但耗尽原 **90 秒**整片期限而落 `RENDER_DEADLINE`，未到 E/F。该期限从本次 render 入队计算，不把方向选择等待误算进来。
+同一 `9d5ad9d` 部署，操作 `eval-minimax-15-1792854953412`，输出 `artifacts/history/s1-minimax-15-layout-fixed-2026-10-24`。A/素材复用，新的 B 三图实际查看后选择 Fit；C 一次结构纠正完成。首个 review 分段在 **30,000 ms** 未 ready；同行分段实际控制器启动 **29,381 ms**、音频 **25,812 ms**。确认失败实例停止/结算、退避 15 秒后，新 attempt 已进入执行，但耗尽原 **90 秒**整片期限而落 `RENDER_DEADLINE`，未到 E/F。该期限从本次 render 入队计算，不把方向选择等待误算进来。
 
 [完整回执](minimax-third-attempt/report.json)：新 B/C/纠正模型共 **26,359**，8 次计算停止并结算 **10,877** 保守上界，总计 **37,236 usd_micros**。容量/本轮未知为空，Workflow 已对账、密钥回收。共享模型已计价 **180,029** 加旧未知 **20,225**，占用 **200,254**。
 
@@ -177,7 +177,7 @@ Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、rev
 
 首个私有 CLI 在 capacity 取得鉴权成功后，下一次只读 budget 仍收到旧绑定的确切 `404 Not found`，在创建操作前停止，[零模型/计算记录](review-cold-start/auth-propagation-no-work.json)保留。CLI 已复用 Actions harness 的 30 秒传播守卫：仅该路由前、未接纳工作的确切响应可等待；资源缺失、已接纳任务、供应商/媒体失败与未知超时不重发。
 
-操作 `eval-minimax-15-1792857839971`，输出 `artifacts/s1-review-render-propagation-fixed-2026-10-25`。用原付费 E1 完整 FilmSpec、真实私有素材/字体/seed，只走一次横屏 review；[原生 D1 入队到提交 **79,241 ms**](review-cold-start/native-render-timing.json)，客户端读到通过 **81,248 ms**。三段各 150 源帧，实际 **960×540 / 15 fps / 225 帧 / 15 秒 / AAC**，两处接缝零差异；原观测和媒体/提交通过。[完整计划和媒体](review-cold-start/review-render.json)保留原 90 秒期限及一次 VBV 重编码（1 秒滑窗峰值 1,631,568 ≤ 2,500,000 bit/s）。这不是 review p50 ≤30 秒目标达标的证据。
+操作 `eval-minimax-15-1792857839971`，输出 `artifacts/history/s1-review-render-propagation-fixed-2026-10-25`。用原付费 E1 完整 FilmSpec、真实私有素材/字体/seed，只走一次横屏 review；[原生 D1 入队到提交 **79,241 ms**](review-cold-start/native-render-timing.json)，客户端读到通过 **81,248 ms**。三段各 150 源帧，实际 **960×540 / 15 fps / 225 帧 / 15 秒 / AAC**，两处接缝零差异；原观测和媒体/提交通过。[完整计划和媒体](review-cold-start/review-render.json)保留原 90 秒期限及一次 VBV 重编码（1 秒滑窗峰值 1,631,568 ≤ 2,500,000 bit/s）。这不是 review p50 ≤30 秒目标达标的证据。
 
 [5 次计算](review-cold-start/report.json)全部首次成功、物理停止并结算 **9,410 usd_micros** 保守上界，实际控制器 ready **2,814–28,449 ms**；无模型调用，模型共享占用前后均 **200,254**，容量/未结为空、密钥回收。Chromium 155.0.8059.85 对实际 MP4 的 1.5/9/13.5 秒解码图已查看，三卡文字不重叠、CTA/URL 保留；完整 1× 播放到 15 秒无解码错误/掉帧，[解码回执](review-cold-start/decoded-video.json)。媒体与 PNG 只留私有目录，未进 Git/Actions 产物。该回归不计候选、完整导演或负责人视听；G1 分布/隔离/配乐未重跑，峰值仍待验。
 
@@ -185,7 +185,7 @@ Node 26.12.0 定点分段检查一次通过（194 ms），覆盖 15/30 秒、rev
 
 2026-10-25 再核对 [MiniMax 官网](https://www.minimax.io/)的 Code 命名、Coding/Work、agents 及多模态创作声明，原确认事实仍有官网依据；不采纳新价格/排名或业绩。`agent.minimax.io/about` 本次抓取不可达，官网已足以核对原三项声明，素材和原确认不改。
 
-同一 `ed3fc49` 部署，操作 `eval-minimax-15-1792858052602`，输出 `artifacts/s1-minimax-15-coldstart-fixed-2026-10-25`。三张新方向 PNG 已查看：Fit 的实际产品界面最大且边界清晰，Amplify 的深色设备图更小，Unexpected 的浅色设备图对比偏弱，选择 Fit。客户端开始到方向就绪 **86.518 秒**（单例，不作 p50）。C 一次纠正完成；E 两次有效修改均进入下一轮媒体，前两轮 review 全部通过。
+同一 `ed3fc49` 部署，操作 `eval-minimax-15-1792858052602`，输出 `artifacts/history/s1-minimax-15-coldstart-fixed-2026-10-25`。三张新方向 PNG 已查看：Fit 的实际产品界面最大且边界清晰，Amplify 的深色设备图更小，Unexpected 的浅色设备图对比偏弱，选择 Fit。客户端开始到方向就绪 **86.518 秒**（单例，不作 p50）。C 一次纠正完成；E 两次有效修改均进入下一轮媒体，前两轮 review 全部通过。
 
 第三轮三段画面均成功，控制器 ready **1,858–1,938 ms**；音频实例却在新的 **45,000 ms** 健康窗口内始终未 ready，监视器仍 pending，9 次探测最后为 timeout。停止/回收尚未完成时原 **90 秒**期限耗尽，按 `RENDER_DEADLINE` 结束，未调用第三次 E、最终片或 F。[三次固定输入](minimax-fourth-attempt/render-inputs/review-2.json)显示第一/二轮 AudioPlan 身份相同，但第三轮已改变；不能直接拿上一轮声音替代本轮计划。尚未查明这次音频实例不就绪的原生原因，保留失败，不再调宽整片期限或重复同一例碰运气。
 
@@ -203,7 +203,7 @@ Node 26.12.0 下仅一次新增的音频派发单项检查通过（66 ms / 命�
 
 [40113457211](https://github.com/ten2ten2/promobento/actions/runs/40113457211) 在 `e9be39b01b5559285264b6f9117db419d8bef8e8` 只部署 Worker，[复用](audio-sizing/renderer-reuse.json)原 `ed3fc49` 实际镜像；自动全套 `40113456118` 已取消。操作 `eval-minimax-15-1792861103225` 复用第四次付费 E1，FilmSpec 身份与原失败 review-2 完全相同（`ca260452…9ac49c`），素材/字体/seed 不变。客户端读到通过 **74,669 ms**，原 90 秒期限内交付 15 秒 / 540p / 15 fps / 225 帧 / AAC，两处接缝零差异；5 次计算全部首次成功、停止/结算 **6,729 usd_micros** 保守上界。[实际音频 standard-2](audio-sizing/report.json) ready **13,715 ms**，720,000 样本帧、−14 LUFS、−1.03 dBTP；0 模型，共享占用仍 **234,834**，容量/未结为空、密钥回收。[媒体计划](audio-sizing/review-render.json)与[部署身份](audio-sizing/deployment-metadata.json)齐全。
 
-实际 MP4 的 1.5/9/13.5 秒已解码查看，Chrome 155.0.8059.85 完整 1× 播放到 15 秒无错误/掉帧；[解码回执](audio-sizing/decoded-video.json)留存，视频/PNG 仅在私有忽略目录 `artifacts/s1-review-audio-1cpu-2026-10-25`。该例证明一核配置下同源媒体链路可用；45 秒健康超时的平台首因、G1 新资源分布与完整导演另行判断。
+实际 MP4 的 1.5/9/13.5 秒已解码查看，Chrome 155.0.8059.85 完整 1× 播放到 15 秒无错误/掉帧；[解码回执](audio-sizing/decoded-video.json)留存，本机仅保留回执于 `artifacts/history/s1-review-audio-1cpu-2026-10-25`，视频／PNG 沿用原 R2 引用。该例证明一核配置下同源媒体链路可用；45 秒健康超时的平台首因、G1 新资源分布与完整导演另行判断。
 
 ## 审片补齐原需求，保留宣传故事而非改成核验页
 
@@ -213,7 +213,7 @@ C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相
 
 ## MiniMax 第五次：两轮媒体通过，改稿丢失 CTA 事实绑定
 
-`58a92048bcbd06c79b4c723396735bec6dc3c0b0` 经 [40114873459](https://github.com/ten2ten2/promobento/actions/runs/40114873459) 只部署 Worker，[复用](minimax-fifth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像；[部署健康](minimax-fifth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792862141172`，私有输出 `artifacts/s1-minimax-15-brief-review-2026-10-25`。A/B 复用，三张实际方向图和冻结方向与已查看版本一致，[沿用 Fit 选择](minimax-fifth-attempt/choice.json)。方向就绪 46.535 秒，仅是单次样本。C 一次纠正后通过，两个 review 的原生媒体 Workflow 均完成；本轮没有再次发生音频 ready 超时。
+`58a92048bcbd06c79b4c723396735bec6dc3c0b0` 经 [40114873459](https://github.com/ten2ten2/promobento/actions/runs/40114873459) 只部署 Worker，[复用](minimax-fifth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像；[部署健康](minimax-fifth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792862141172`，私有输出 `artifacts/history/s1-minimax-15-brief-review-2026-10-25`。A/B 复用，三张实际方向图和冻结方向与已查看版本一致，[沿用 Fit 选择](minimax-fifth-attempt/choice.json)。方向就绪 46.535 秒，仅是单次样本。C 一次纠正后通过，两个 review 的原生媒体 Workflow 均完成；本轮没有再次发生音频 ready 超时。
 
 [E 第二轮原始工具](minimax-fifth-attempt/review-1-response.json)把积木实现补丁版本误写为 `feature-grid@1.0.1`，同时将 CTA `Explore MiniMax Code` 的 `factIds` 清为空。[一次纠正](minimax-fifth-attempt/review-1-output-repair-1-response.json)修好积木引用，完整 FilmSpec Schema 通过，但共享跨字段校验仍返回 `CLAIM_UNBOUND /texts/cta`。已用实际付费回执和原确认事实在本地定位，不再重新请求模型复现。不能删除 CTA 的事实绑定要求或代填无关事实来放行；未到最终横竖渲染/F，也没有合格候选。
 
@@ -223,7 +223,7 @@ C/E 提示现在聚焦用户要的具体产品/课程故事、按片长选择相
 
 ## MiniMax 第六次：CTA 绑定通过，旅程转场的真实接缝暴露栅格历史差异
 
-`4548184dd27d28d12de59db03e26ea6e3079ee95` 经 [40124728590](https://github.com/ten2ten2/promobento/actions/runs/40124728590) 只部署 Worker，[复用](minimax-sixth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像，[部署健康](minimax-sixth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792869602772`，私有输出 `artifacts/s1-minimax-15-fact-bindings-2026-10-25`。已再次查看三张实际方向图，选择 Fit；方向就绪 **43.194 秒**，不作分位数。执行前复核 MiniMax 官网仍使用 MiniMax Code 名称及原三项产品描述，没有扩充已确认事实。
+`4548184dd27d28d12de59db03e26ea6e3079ee95` 经 [40124728590](https://github.com/ten2ten2/promobento/actions/runs/40124728590) 只部署 Worker，[复用](minimax-sixth-attempt/renderer-reuse.json)同一 `ed3fc49` 镜像，[部署健康](minimax-sixth-attempt/deployment-health.json)正常。操作 `eval-minimax-15-1792869602772`，私有输出 `artifacts/history/s1-minimax-15-fact-bindings-2026-10-25`。已再次查看三张实际方向图，选择 Fit；方向就绪 **43.194 秒**，不作分位数。执行前复核 MiniMax 官网仍使用 MiniMax Code 名称及原三项产品描述，没有扩充已确认事实。
 
 C 用满三次规格调用后通过；首轮 review 在原 90 秒内完成。已付费 [E 工具回执](minimax-sixth-attempt/review-0-response.json)保留 `id@major` 与 CTA 事实绑定，通过完整准入，生成[第二轮 FilmSpec](minimax-sixth-attempt/review-1-film.json)。该轮 3 段画面和声音均执行成功，但在 **149 帧**接缝被拦下：最大通道差 **92**、差异像素 **5.1107253086419755%**；299 帧完全一致。没有拼接该轮影片、执行最终横竖片或 F。
 
@@ -469,7 +469,7 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 该轮零模型，八次计算全部停止／结算，共 **22,723 usd_micros** 保守分配资源上界；无本轮未知，容量为空、密钥回收。已成功分段与母带保持私有，用于视听诊断和下一步时延分析，不重跑这些成功子项。
 
-用同一未改动的装配器在本机复用这七份真实云端产物，生成私有 `artifacts/s1-duolingo-15-score-preview-2026-10-26/index.html`：15 秒、960×540／15 fps review、AAC、1,347,292 bytes；没有重编码或重新合成音乐。已查看实际封面与播放画面，Chrome 155.0.8059.85 完整 1× 解码 225 帧、零掉帧／错误；自动播放检查静音，不代替听感判断。这个诊断预览没有修复云端时限失败，不计完整导演、最终片或负责人质量通过；MiniMax 新版见下节。
+用同一未改动的装配器在本机复用这七份真实云端产物，生成过私有诊断预览，本机回执现归档于 `artifacts/history/s1-duolingo-15-score-preview-2026-10-26/`：15 秒、960×540／15 fps review、AAC、1,347,292 bytes；没有重编码或重新合成音乐。已查看实际封面与播放画面，Chrome 155.0.8059.85 完整 1× 解码 225 帧、零掉帧／错误；自动播放检查静音，不代替听感判断。这个诊断预览没有修复云端时限失败，不计完整导演、最终片或负责人质量通过；MiniMax 新版见下节。
 
 ### ABC 15 秒云端整片已通过
 
@@ -499,7 +499,7 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40255753593](https://github.com/ten2ten2/promobento/actions/runs/40255753593) 构建并部署 `b19435f`／镜像 `sha256:005d7c646d505c241d7a393477143a42272f8adccd95a94a4690eb2afba57d54`。操作 `eval-minimax-15-1792979531490` 的三张实际方向图均已查看，选择宠物占幅最大的 Fit；C 完成，六个低清画面分段与程序配乐均成功。母带为 **720,000 样本帧、−14.03 LUFS、−1.35 dBTP**。分段实际控制器 ready 为 **13.898–31.482 秒**，最后一段停止后还需校验及组装，原 **90 秒**总限耗尽；未到 E、最终片或 F，不增加通过数。
 
-[本轮数值与回收](minimax-pocket/attempt-metrics.json)：七次新模型 **21,041**、11 次计算 **19,609 usd_micros** 保守资源上界，全部停止／结算、容量为空、临时密钥回收，无本轮未知。私有完整回执和分段保留在 `artifacts/s1-minimax-15-pocket-2026-10-26` 及原 R2 引用。
+[本轮数值与回收](minimax-pocket/attempt-metrics.json)：七次新模型 **21,041**、11 次计算 **19,609 usd_micros** 保守资源上界，全部停止／结算、容量为空、临时密钥回收，无本轮未知。私有原始回执在 `artifacts/history/s1-minimax-15-pocket-2026-10-26`，分段沿用原 R2 引用。
 
 负责人随后批准[内部 review 止损上限调整为 180 秒](../../plans/cloud-motion-v3.md#53-期限)。这次失败仍按原期限保留，续跑使用同一镜像、素材、seed 和已付费规格；性能目标、预算、取消和质量检查不变。
 
@@ -507,7 +507,7 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40258179685](https://github.com/ten2ten2/promobento/actions/runs/40258179685) 部署 `7151ff2` Worker，复用 `b19435f` 镜像。操作 `eval-minimax-15-1792980997507` 的 A/B/C 均复用已付费回执，三张实际方向图再次查看后选择 Fit；随后三部 **15 秒、960×540／15 fps、AAC** 的完整低清审片全部交付，没有重编码。E 第一轮去掉三段字幕、第二轮又恢复，第三轮仍要求修改，并把 ROI 高亮框误当作会裁剪放大的参数；达到原两次修稿上限后以 `DIRECTOR_REPAIR_LIMIT` 停止。不继续这一轮付费改稿；未到高清最终片或 F，不增加完整通过数。
 
-第三部实际 MP4 已查看开场、计时、暂停、庆祝及 CTA；Chrome 155.0.8059.85 完整 1× 静音解码 **225 帧、零错误／掉帧**。私有播放器在 `artifacts/s1-minimax-15-pocket-review180-2026-10-26/index.html`，从头有声播放与重播按钮已实际检查。实际 AAC 为 **−13.8 LUFS、−1.4 dBFS 真峰值**；节拍分析为 **100 BPM、可靠度 0.735**，最强检测网格与状态落点相差约 **291 ms**，尚不记为踩点通过，负责人试听待完成。
+第三部实际 MP4 已查看开场、计时、暂停、庆祝及 CTA；Chrome 155.0.8059.85 完整 1× 静音解码 **225 帧、零错误／掉帧**。当时的私有播放器已完成有声播放／重播检查；本机现仅保留回执于 `artifacts/history/s1-minimax-15-pocket-review180-2026-10-26/`。实际 AAC 为 **−13.8 LUFS、−1.4 dBFS 真峰值**；节拍分析为 **100 BPM、可靠度 0.735**，最强检测网格与状态落点相差约 **291 ms**，尚不记为踩点通过，负责人试听待完成。
 
 [本轮数值与回收](minimax-pocket/review180-metrics.json)：三部从云端渲染记录创建到提交分别为 **74.694／62.323／54.789 秒**，均未触及新上限；这轮结果不说明必须用满 180 秒。仅新增三次 E，模型 **5,572**；28 次计算 **34,371 usd_micros** 保守资源上界，全部停止／结算、空容量、密钥回收，无本轮未知。此前失败记录保持不变。
 
@@ -517,7 +517,7 @@ E0 缩短卡片文字与标题，得到已看实际[拼图引用](minimax-30-fir
 
 [40260579571](https://github.com/ten2ten2/promobento/actions/runs/40260579571) 构建并部署 `6ce57ab`／镜像 `sha256:8b2c0b86b86d907e733c2cb046ae0ea99953c17359888e2ec3276dd2ad3ed954`。操作 `eval-minimax-15-1792983373084` 复用上一轮完整 E1 回执和同素材、seed，零模型复验。实际云端 AudioPlan 的庆祝音效为 **306 帧、−6 dB**；低清 MP4 成功提交，客户端从提交到观察通过为 **66.382 秒**（含轮询），15 秒、225 帧、960×540／15 fps、AAC，五处接缝零差异、没有重编码。实际片完整 1× 解码零错误／掉帧，开场、产品状态和 CTA 已查看，有声播放／重播控件通过。
 
-WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.05 dB 容差内；但实际 MP4 的 AAC 实测为 **−14.1 LUFS、−0.2 dBTP**，超过原 **−1 dBTP** 上限。当时 `media.mjs` 只检查 AAC 格式，未测编码后的响度／真峰，因此这轮云端 `passed` 只记出片，不记音频验收通过。此片保留为私有诊断预览 `artifacts/s1-minimax-15-pocket-sfx-db-2026-10-26/index.html`。负责人继续后，已按[渲染服务](../../../apps/render-container/README.md)补上编码后实测与一次纠正：复用原私有 MP4 和 WAV 的离线反例达到 **−14.06 LUFS、−2.13 dBTP**，逐字节比较确认视频码流未变，修复版位于 `artifacts/s1-aac-peak-repair-2026-10-26`；实际云验见下节。内容审片、踩点、高清横竖最终片、F 和负责人发布意愿仍未通过或未完成。
+WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.05 dB 容差内；但实际 MP4 的 AAC 实测为 **−14.1 LUFS、−0.2 dBTP**，超过原 **−1 dBTP** 上限。当时 `media.mjs` 只检查 AAC 格式，未测编码后的响度／真峰，因此这轮云端 `passed` 只记出片，不记音频验收通过。此片的私有渲染引用与回执保留在 `artifacts/history/s1-minimax-15-pocket-sfx-db-2026-10-26/`。负责人继续后，已按[渲染服务](../../../apps/render-container/README.md)补上编码后实测与一次纠正：复用原私有 MP4 和 WAV 的离线反例达到 **−14.06 LUFS、−2.13 dBTP**，逐字节比较确认视频码流未变，修复数值与原始回执位于 `artifacts/history/s1-aac-peak-repair-2026-10-26`；实际云验见下节。内容审片、踩点、高清横竖最终片、F 和负责人发布意愿仍未通过或未完成。
 
 [本轮数值与回收](minimax-pocket/sfx-db-metrics.json)：零模型，八次计算全部停止／结算，共 **13,083 usd_micros** 保守资源上界；空容量、无本轮未知、临时密钥回收。共享模型占用仍为 **659,522 usd_micros**，旧未知没有清零。S1 完整通过数不变。
 
@@ -525,7 +525,7 @@ WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.0
 
 [40267510307](https://github.com/ten2ten2/promobento/actions/runs/40267510307) 构建并部署 `8f77bc9`。操作 `eval-minimax-15-1792988121897` 复用同一已付费 E1 规格、素材与 seed，零模型交付 15 秒低清片；组装器先测最终 AAC，再从原 WAV 纠正一次。最终 **−14.06 LUFS／−2.13 dBTP**，通过原 ±0.5 LU／≤−1 dBTP 门槛；视频未重编码，五处接缝零差异。客户端观察通过 **87.710 秒**，不是性能分位数。
 
-[数值回执](minimax-pocket/aac-gate-metrics.json)保留实际编码和停止结果：八次计算全部停止／结算，共 **14,847 usd_micros** 保守上界，空容量、临时密钥撤销、无新增未知。Chrome 155.0.8059.85 完整 1× 静音解码 225 帧，零掉帧／错误；听感与踩点仍待判断。私有播放器为 `artifacts/s1-minimax-15-pocket-aac-gate-2026-10-26/index.html`。本轮未调用 E/F，不增加完整导演或最终片通过数。
+[数值回执](minimax-pocket/aac-gate-metrics.json)保留实际编码和停止结果：八次计算全部停止／结算，共 **14,847 usd_micros** 保守上界，空容量、临时密钥撤销、无新增未知。Chrome 155.0.8059.85 完整 1× 静音解码 225 帧，零掉帧／错误；听感与踩点仍待判断。私有渲染引用与回执在 `artifacts/history/s1-minimax-15-pocket-aac-gate-2026-10-26/`。本轮未调用 E/F，不增加完整导演或最终片通过数。
 
 ### Pocket-pet 高清横竖候选通过冷审，负责人仍不愿发布
 
@@ -543,7 +543,7 @@ WAV 母带为 **−14.32 LUFS、−0.97 dBTP**，落在当时母带实现的 0.0
 
 本次动效改动据负责人提供的 [Claude duet 参考](https://github.com/alchaincyf/huashu-motion/blob/main/docs/media/claude-duet.gif)采用连续主体接力、尺度和构图变化；不使用参考中的人物或品牌素材。已去掉输入里固定的“三张 showcase 顺排”要求，新增可信 `ui-journey` 按拍交接及各状态观测。
 
-私有横竖 5.4 秒样片已生成，播放器为 `artifacts/s1-minimax-journey-motion-2026-10-26/index.html`：每 1.8 秒交接一次，阅读时缓慢推近；一次只画一个真实状态，交接时标题先退后进，消除首版样片的双图／文字重影。
+私有横竖 5.4 秒样片曾生成，本机保留输入、源码与回执于 `artifacts/history/s1-minimax-journey-motion-2026-10-26/`：每 1.8 秒交接一次，阅读时缓慢推近；一次只画一个真实状态，交接时标题先退后进，消除首版样片的双图／文字重影。
 
 四画幅连续到 161 帧后的 64 次逆序／独立冷 seek 比较全零差异，三次阅读的字体／安全区通过，Chrome 151.0.7922.34，沿用 Actions 构建镜像并覆盖本轮 bundle。已看真实动效帧及播放器，Chrome 155.0.8059.85 完整有声 1× 解码两部各 81 帧；横屏首次掉 1 帧、竖屏零掉帧，无解码／页面错误，不重跑取代负面记录。样片只检查动效方向，尚未达到参考中的多场景衔接，不计完整片或负责人质量通过；本轮没有追加付费导演运行。短片最终 AAC 实测 −14.24 LUFS／−1.55 dBTP。
 
@@ -632,7 +632,7 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 独立于这笔未知调用，已将原布局和成功补丁按共享 edit_file 实现组装，放入既有 Actions 构建镜像的禁网、独立 UID Chromium，首次实际运行 D 生成的开场。两画幅已捕获 0/18/36/63/89 帧；harness 初次漏传字体 cmap，补上已安装字体的原 cmap 后，仅补查 63/89 帧。原 [63 帧阅读观测](custom-seventh-attempt/partial-original-frames.json)发现两画幅 `spec-timer` 均越过安全区：整列贴边后放大 2% 会向外扩张。字体无缺字/回退，对比度约 10.15，不能把这些通过项替代安全区阻断。
 
-仅修改几何内边距的手工派生版本，在同一两画幅 63 帧得到[零 finding](custom-seventh-attempt/partial-manual-inset-fix.json)，并已查看真实 PNG。D 示例与指引据此改为按最大变换预留镜头余量、在变换后检查 safeInsets；这是局部几何修复证据，不是模型已修复或完整动作/冷 seek/成片通过。私有输入、源码、原图及派生图保留在 `artifacts/s1-minimax-custom-partial-check-2026-10-27/`，没有公开视频或截图。
+仅修改几何内边距的手工派生版本，在同一两画幅 63 帧得到[零 finding](custom-seventh-attempt/partial-manual-inset-fix.json)，并已查看真实 PNG。D 示例与指引据此改为按最大变换预留镜头余量、在变换后检查 safeInsets；这是局部几何修复证据，不是模型已修复或完整动作/冷 seek/成片通过。私有输入、源码与观测回执保留在 `artifacts/history/s1-minimax-custom-partial-check-2026-10-27/`，没有公开视频或截图。
 
 [费用与清理](custom-seventh-attempt/report.json)：模型已结 **1,594**、未知预留 **41,636**；四次计算全部停止/结算，保守上界 **2,923**，合计实际/预留占用 **46,153 usd_micros**。容量为空、原生 Workflow 已对账、临时密钥已回收。共享新增模型已结 **751,158**，四笔未知 **79,629**，合计占用 **830,787 usd_micros**。新增五次已用三次、剩余两次保留，不用新的操作重发这笔未知补丁。该笔调用的结算仍需网关账户负责人/供应商提供原响应/用量与失败诊断；后续新的修复版请求不能重发其未知内容，原期限和 $10 上限不变。没有新影片，S1 仍未通过。
 
@@ -662,7 +662,7 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 这次多命令工具 Schema 顶层只有 type/oneOf，没有显式 properties/required；无法从回执确认网关怎样处理它。当前把命令字段、共同必填项与 command 枚举也显式放到根部，保留原分支与共享严格校验，排除这处传输歧义。空参数仍拒绝，不补造工具参数或增加纠正次数。
 
-为避免再付费写完后才发现底稿不能运行，另将真实 0–180 帧部分模块在既有禁网、独立 UID Chromium 中试运行。[原模块](custom-ninth-attempt/partial-original-init.json)横屏报 TEXT_FIT_FAILED:spec-timer，竖屏先报 TEXT_SIZE_INVALID：文字父框缺高度、credit 上限 32 低于竖屏原下限。[手工补父框/字号](custom-ninth-attempt/partial-box-font-fix.json)后横屏 63/143 帧无 finding，竖屏仍不适配；[竖屏重排](custom-ninth-attempt/partial-portrait-reflow.json)后 63 帧通过，但 143 帧沿用横屏上移量而越界；只改竖屏这个落点后，[143 帧无 finding](custom-ninth-attempt/partial-portrait-chip-fix.json)，未重复已通过且未受影响的横屏/早期帧。已看真实横竖 PNG；这些是手工诊断派生版本，不是模型已修复或完整运动质量通过。输入、原源、派生源码和 PNG 私有保存在 `artifacts/s1-minimax-custom-midpoint-check-2026-10-27/`。
+为避免再付费写完后才发现底稿不能运行，另将真实 0–180 帧部分模块在既有禁网、独立 UID Chromium 中试运行。[原模块](custom-ninth-attempt/partial-original-init.json)横屏报 TEXT_FIT_FAILED:spec-timer，竖屏先报 TEXT_SIZE_INVALID：文字父框缺高度、credit 上限 32 低于竖屏原下限。[手工补父框/字号](custom-ninth-attempt/partial-box-font-fix.json)后横屏 63/143 帧无 finding，竖屏仍不适配；[竖屏重排](custom-ninth-attempt/partial-portrait-reflow.json)后 63 帧通过，但 143 帧沿用横屏上移量而越界；只改竖屏这个落点后，[143 帧无 finding](custom-ninth-attempt/partial-portrait-chip-fix.json)，未重复已通过且未受影响的横屏/早期帧。已看真实横竖 PNG；这些是手工诊断派生版本，不是模型已修复或完整运动质量通过。输入、原源、派生源码和观测回执私有保存在 `artifacts/history/s1-minimax-custom-midpoint-check-2026-10-27/`。
 
 源码还把矩形 inset 擦除注释为字形遮罩，没有实现 brief 中的实际字形关系。编排核对又发现布局阶段原本隐藏完整 brief，动作阶段却要求沿用底稿几何；它因此拿不到 C 的画幅图像比例/落点等构图要求。当前布局阶段保留完整原 brief，只限制本步实现静态姿势；动作可纠正不满足原构图的几何。D 另收到逐槽位最小字号、父框正宽高、隐藏文字仍拟合、竖屏重排及变换后安全区的明确要求；未放宽字号、行数、真实素材或原视觉机制。工具根字段/空参数纠正及既有 D/E 定点回放、cloud TypeScript 检查通过；未跑全量测试或重复媒体矩阵。
 
@@ -687,7 +687,7 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 实际检查停止为 **CUSTOM_SEEK_MISMATCH**，尚无 review、E/F 或新影片。[离线同源诊断](custom-eleventh-attempt/seek-diagnosis.json)使用已有 Actions 镜像及当前运行时覆盖，严格保留 Chromium 沙箱和原比较门槛：开场竖屏五张前向图与云端逐像素相同；逆序 62/36 帧分别有 **0.120274% / 0.310523%** 像素变化，最大通道差均为 **1**，超过原 0.1% 范围。DOM/样式/布局完全相同，差异集中在裁切宠物图的光栅区域。只将 will-change 改为固定 transform 的手工派生仍失败，没有把它记作修复或放宽容差；冷 seek、完整新片与正常速度视听未通过。
 
-已看云端第 314 帧的横竖实际 PNG：宠物图到了庆祝状态，但旁边仍是最初的 Request / Add a Pomodoro timer，必需署名没有出现。原源码始终选中 face 0、credit opacity 为 0；因此即使像素问题解决也不能交付。当前修正 D 的原子编辑指引，要求一份补丁覆盖该窗口的所有内容/可见性/镜头分支，最后窗口核对全部事件与阅读点。另补局部检查失败证据留存：阻断观测、失败比较值、前向/实际逆序或冷 seek PNG 及冻结模块引用在失败前保存，不再只有一条错误码。实际源码与私有帧保存在 `artifacts/s1-minimax-custom-opus-7-2026-10-27/`，不公开媒体；上述修正的真实云验仍待。
+已看云端第 314 帧的横竖实际 PNG：宠物图到了庆祝状态，但旁边仍是最初的 Request / Add a Pomodoro timer，必需署名没有出现。原源码始终选中 face 0、credit opacity 为 0；因此即使像素问题解决也不能交付。当前修正 D 的原子编辑指引，要求一份补丁覆盖该窗口的所有内容/可见性/镜头分支，最后窗口核对全部事件与阅读点。另补局部检查失败证据留存：阻断观测、失败比较值、前向/实际逆序或冷 seek PNG 及冻结模块引用在失败前保存，不再只有一条错误码。实际源码与私有帧引用保存在 `artifacts/history/s1-minimax-custom-opus-7-2026-10-27/`，不公开媒体；上述修正的真实云验仍待。
 
 Node **26.12.0** 的相关 D/E 回放与新增失败留证回放两项通过，分别覆盖原图片/新文本输入、原子编辑要求，以及逆序/冷 seek 失败图和 Q1 阻断观测；cloud TypeScript **7.0.2** 通过。未跑全量测试、完整 CI 或重复原安全/媒体矩阵。
 
@@ -711,7 +711,7 @@ Node **26.12.0** 的相关契约与导演方法检查通过；自写镜头 D/E�
 
 ### 方法 1.3.0 实际评测：低对比度修复未生效
 
-负责人批准在原预算内新增一轮同一题的私有评测；操作 `eval-minimax-15-1793088833772` 使用 [40447117159](https://github.com/ten2ten2/promobento/actions/runs/40447117159) 部署的 `a849e1c` 镜像和方法 1.3.0。三张实际方向图已查看，选择蓝色、以宠物为主体的连续叙事。C 生成一个自写镜头与 CTA，D 完成源码；横屏第 83 帧文字对比度 **1.925:1** 阻断，模型按原规则进行一次定点修复后，复查仍为 **1.925:1**，未出 review 或最终片。[观测与费用摘要](custom-method130-attempt/summary.json)，完整私有素材和回执在 `artifacts/s1-minimax-method130-2026-10-27/`。
+负责人批准在原预算内新增一轮同一题的私有评测；操作 `eval-minimax-15-1793088833772` 使用 [40447117159](https://github.com/ten2ten2/promobento/actions/runs/40447117159) 部署的 `a849e1c` 镜像和方法 1.3.0。三张实际方向图已查看，选择蓝色、以宠物为主体的连续叙事。C 生成一个自写镜头与 CTA，D 完成源码；横屏第 83 帧文字对比度 **1.925:1** 阻断，模型按原规则进行一次定点修复后，复查仍为 **1.925:1**，未出 review 或最终片。[观测与费用摘要](custom-method130-attempt/summary.json)，私有源码和回执在 `artifacts/history/s1-minimax-method130-2026-10-27/`，原素材仍按清权清单引用。
 
 已查看实际帧：蓝色卡面的深色请求文字可见但对比不足。源码修复只设置了父容器颜色；`ctx.text().mount()` 给返回的文字元素设置了内联颜色，因此父级颜色没有生效。方法 1.4.0 在场景指引中明确该 API 行为和按阅读窗口检查对比度，旧冻结方法不改；后续部署及真实评测见下节。一次零模型离线复验因本机旧镜像缺少自写契约而停止；拉取本次精确镜像返回 registry 401，手工派生未通过实际帧检查，不能交付为新影片。
 
@@ -725,7 +725,7 @@ D 完成两个自写镜头，先做 `followup`。其提前探针的横竖两画�
 
 随后 `request` 的一份动作补丁因 `document.createRange()` 超出沙箱 API 范围被 Q0 拒绝，一次纠正后通过。全部模块进入完整检查时，原 **20 分钟整次活动上限**耗尽：活动开始于上海时间 **17:03:35.413**，方向选择暂停 **46.023 秒**，绝对截止 **17:24:21.436**；完整检查自 **17:23:24.655** 开始，**17:24:23.608** 返回 `RENDER_DEADLINE`。D1 没有影片渲染行，尚未到 review、E/F 或最终片。不是 180 秒单片 review 超时，也不是预算耗尽；未延长或重置期限。
 
-[范围、时间与费用](custom-method140-attempt/summary.json)：11 次模型 **199,705 usd_micros**，11 次计算 **12,624 usd_micros** 保守资源上界，合计 **212,329 usd_micros**。全部计算停止并结算，无本轮未知、容量为空、临时密钥回收；共享新增模型占用 **1,362,734 usd_micros**，旧五笔未知保留。完整私有回执和帧在 `artifacts/s1-minimax-method140-2026-10-27/`。本次授权已使用，没有新视频，不增加 S1 通过数。
+[范围、时间与费用](custom-method140-attempt/summary.json)：11 次模型 **199,705 usd_micros**，11 次计算 **12,624 usd_micros** 保守资源上界，合计 **212,329 usd_micros**。全部计算停止并结算，无本轮未知、容量为空、临时密钥回收；共享新增模型占用 **1,362,734 usd_micros**，旧五笔未知保留。私有原始回执和帧引用在 `artifacts/history/s1-minimax-method140-2026-10-27/`。本次授权已使用，没有新视频，不增加 S1 通过数。
 
 ### 方法 1.5.0：横屏低清审片已生成，E 无用量截断
 

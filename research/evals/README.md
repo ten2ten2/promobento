@@ -18,6 +18,14 @@
 
 **IELTS Ready 已改用原创事实图**：负责人于 2026-10-24 批准只画已确认的练习、短课与专家直播，不仿造课程界面。1600×1000 原创图已查看并入库；PNG、可编辑 SVG 源稿及权利证据均在私有 R2，原事实确认不变。原页面的 403 和[官网图片许可缺口](https://www.britishcouncil.org/terms)仍保留在卡片：公开官方备选不等于可复用图片。脚本只按原图 ID、事实 ID 和负责人批准放行原创图，仍拒绝该站截图/图片，不把 Premium 手册当免费套餐界面。
 
+## 本机产物只保留可继续使用的部分
+
+`artifacts/` 保留当前审片、重要横竖成片版本、手工改稿、已选 13 首配乐、原谱／母带和素材许可来源。当前审片入口为 `artifacts/s1-minimax-method150-2026-10-27/index.html`；既有配乐试听和手工改稿入口保持原路径。
+
+旧轮次的原始 JSON 回执、冻结输入与源码集中在 `artifacts/history/<原目录名>/`。这里不是完整下载包，不保留历史播放器、逐帧截图、H.264 分段或重复 WAV；历史媒体和图片按各轮回执中的 R2／Actions 引用查找。费用未知项和许可记录不能作为临时输出删除。
+
+临时下载与诊断用完即删；不要把同一轮完整 CI 产物和已整理的试听／成片各留一份。依赖及编译缓存继续使用既有目录，不纳入媒体清理。
+
 ## 用私有素材清单准备评测
 
 `materials.json` 的每项提供 `resourceId`、`key`、`sha256`、`byteLength`、尺寸、`licenseRef` 与 `evidenceKey`；字节只在 staging R2。新评测操作先按 cloud 内部 `rights` 入口为自己的 operationId 重新登记同一证据，再将素材加入 `context.resources`。题目用 `materialIds` 选择素材，不能因为同一目录有其他品牌的图就串用。Hugging Face 图附原课程仓库 Apache-2.0 通知及署名；这批素材整体仍限内部评测，不作为免署名商用素材包。
@@ -32,10 +40,10 @@ DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度
 
 ```sh
 mise exec -- node research/evals/prepare-inputs.mjs \
-  artifacts/s1-eval-inputs renderer-257ca1b6babd
+  artifacts/s1-eval-inputs-current renderer-6204a149bc68
 ```
 
-第二个参数必须固定为将要执行的 renderer release；上例是本轮 G1 的旧镜像版本，不自动追随最新部署。镜像更新后须用新发布 SHA 前 12 位（`renderer-<12位SHA>`）重新准备输入，不能把旧 release 改绑新镜像。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
+第二个参数必须固定为将要执行的 renderer release；上例对应已部署的 `6204a14` 镜像，不自动追随新部署。镜像更新后须用新发布 SHA 前 12 位（`renderer-<12位SHA>`）重新准备输入，不能把旧 release 改绑新镜像。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
 
 输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
 
@@ -47,7 +55,7 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 
 ```sh
 mise exec -- node research/evals/run-case.mjs \
-  artifacts/s1-eval-inputs-2026-10-24 deepseek-15 artifacts/s1-deepseek-15
+  artifacts/s1-eval-inputs-current minimax-15 artifacts/s1-minimax-15-new
 ```
 
 先读取固定 release，缺失时把该 release 对应的完整 Git 提交及其环境锁存入私有 R2，并通过既有登记入口绑定实际部署镜像；执行脚本的提交另行记录，不能把后续文档或 harness 提交冒充镜像源码。已存在的登记不可覆盖，当前镜像与登记不符就停止。之后只创建该例一个评测操作，重登记自己的素材权利，再调用真实 A/B/C/E/F；模型 secret 留在 Worker。新增费用受共享临时上限和原阶段/次数/期限约束，未知消费保留预留，不重发同一次请求。输出目录存在时拒绝重跑，失败先读 `report.json` 和 `operation.json`。
@@ -125,13 +133,10 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-2
 
 ## 先试听已经生成的 13 种配乐
 
-[40059971442 的 `film-runtime-browser` 产物](https://github.com/ten2ten2/promobento/actions/runs/40059971442)保存完整 13 段合格母带及 `audio-samples/index.json`；该 run 整体因 2D seek 失败，不影响这 13 段的独立 `rendered` 结果。不要重新合成，下载后打包原 WAV 即可：
+[40059971442 的 `film-runtime-browser` 产物](https://github.com/ten2ten2/promobento/actions/runs/40059971442)保存完整 13 段合格母带及 `audio-samples/index.json`；该 run 整体因 2D seek 失败，不影响这 13 段的独立 `rendered` 结果。本机已经整理好原 WAV 和播放器，不必重新下载或合成：
 
 ```sh
-gh run download 40059971442 --name film-runtime-browser --dir artifacts/s1-audio-source
-mise exec -- node research/evals/prepare-audio-review.mjs \
-  artifacts/s1-audio-source/audio-samples artifacts/s1-audio-review 40059971442
-open artifacts/s1-audio-review/index.html
+open artifacts/s1-audio-review-2026-10-24/index.html
 ```
 
 试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误。负责人在正常速度试听请求下回复「保留」，[现有 13 种全部保留](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)。重新打包时仅对来源 run 和对应样本计划都匹配的材料沿用该决定，其他材料仍待试听。六题实际成片的视听与 4/6 评判另行进行。
