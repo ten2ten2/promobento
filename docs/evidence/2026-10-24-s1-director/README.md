@@ -20,7 +20,7 @@ E 请求于上海时间 **2026-10-27 18:05:30.906** 派发，模型 `modelswitch
 
 本地自写镜头仅在独立 UID 的 Chromium 沙箱执行；源视频经帧拼图保留原速鼠标及界面响应。按 Start、暂停、恢复、剪辑点、庆祝和 CTA 的帧标记重混程序音乐与打击音效。横屏低清片为 15 秒、960×540／15 fps／225 帧，AAC **−14.12 LUFS／−1.35 dBTP**；八次逆序／未受影响帧比较零差异，九处文字观察无 BLOCK。Chrome **156.0.8078.48** 无头有声 1× 播放掉 **3/225 帧**，无页面或解码错误，重播有效；掉帧原因、实际桌面播放和音乐听感待确认。负责人判定此版仍不通过：录到的是案例成品的操作，而不是 MiniMax Agent 界面如何接收和完成任务；下一版需要获得真实 Agent 界面操作及同一任务结果的可用素材和授权。前一真实操作版曾在非无头播放掉 2/225 帧，原因未定位；其回执仍在 [summary.json](custom-method150-attempt/summary.json)。当前输入、授权、源码和检查保存在本机私有 `manual-revision-rhythm/`；视频未加入自动导演素材清单，高清横竖、自动流程成功与 S1 覆盖数均不变。
 
-下一版素材候选为 [DevZoneX 的 MiniMax Code 桌面端教程](https://www.youtube.com/watch?v=Wn7Ijd2RBx4)。作者在[配套文章](https://devzonex.dev/blog/minimax-code-build-deploy-real-app)中称，用同一个 ServiceKar 项目演示需求、构建和成品，并披露视频由 MiniMax 赞助；文章标出的章节为需求 06:11、构建 10:24、成品演示 22:03。尚未核验对应画面或取得第三方录屏的剪辑许可，不能将其用于成片；获得许可后还须核对真实画面、对应关系及本次案例事实。
+下一版素材候选为 [DevZoneX 的 MiniMax Code 桌面端教程](https://www.youtube.com/watch?v=Wn7Ijd2RBx4)。作者在[配套文章](https://devzonex.dev/blog/minimax-code-build-deploy-real-app)中称，用同一个 ServiceKar 项目演示需求、构建和成品，并披露视频由 MiniMax 赞助；文章标出的章节为需求 06:11、构建 10:24、成品演示 22:03。负责人于 2026-10-28 表示该录屏已获本次非公开内部评测剪辑许可；尚未收到可用于剪辑的源文件，也尚未核验对应画面、任务关系及本次案例事实。公开页面是在线播放入口，取得可编辑素材后再处理。
 
 ## Pocket-pet 高清横竖候选通过冷审，负责人仍不愿发布
 
