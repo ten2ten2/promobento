@@ -1,0 +1,341 @@
+{
+  "scope": "internal_eval_only_review_not_accepted_candidate",
+  "operationId": "eval-minimax-15-1793094623437",
+  "methodVersion": "1.5.0",
+  "sourceSha": "6204a149bc68b9c55ec806f971e6cb1544944be3",
+  "renderer": {
+    "currentImageDigest": "sha256:b8c13de462be9f0ffeea266aa14517bb82473184261b965b586227747877ee3b",
+    "environment_key": "evals/eval-minimax-15-1793094623437/environment.json",
+    "id": "renderer-6204a149bc68",
+    "image_digest": "sha256:b8c13de462be9f0ffeea266aa14517bb82473184261b965b586227747877ee3b",
+    "runtime_version": "film-runtime-v1",
+    "status": "active"
+  },
+  "choice": {
+    "directionsHash": "54d0ffb1a3211375ad896b0dcfe6aeb271379d28fc662db25de1ad57f40704cd",
+    "key": "fit",
+    "reason": "Choose the single continuous Start/Resume/Reset anchor: it provides a concrete visual handoff between documented requests and real captured states instead of a repeated screenshot tour. The actual fit hero is a clear cream CTA composition, not evidence that the custom choreography is implemented. Amplify visibly crops long generic copy and its proposed let-go wording conflicts with the documented hold-to-pause behavior; unexpected risks a static transcript. Keep the cleared state pixels and required credit, without simulating button input or timer counting."
+  },
+  "activeLimitMs": 1800000,
+  "customProof": [
+    {
+      "sceneId": "pet-story",
+      "aspect": "landscape",
+      "frames": 11,
+      "comparisons": [
+        {
+          "diffPixelPct": 0,
+          "frame": 377,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 317,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 270,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 227,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 198,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 143,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 126,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 71,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 36,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 9,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 0,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 227,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "cold",
+          "verdict": "pass"
+        }
+      ],
+      "blockingFindings": []
+    },
+    {
+      "sceneId": "pet-story",
+      "aspect": "portrait",
+      "frames": 11,
+      "comparisons": [
+        {
+          "diffPixelPct": 0,
+          "frame": 377,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 317,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 270,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 227,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 198,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 143,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 126,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 71,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 36,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 9,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 0,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "reverse",
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 227,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "mode": "cold",
+          "verdict": "pass"
+        }
+      ],
+      "blockingFindings": []
+    }
+  ],
+  "review": {
+    "renderId": "render-b5738fef9de01f95e229a7639029cc28de37807ffaf910a5",
+    "status": "passed",
+    "wallMs": 83442,
+    "media": {
+      "audio": {
+        "correction": null,
+        "loudnessTarget": -14,
+        "lufs": -14.15,
+        "silent": false,
+        "truePeak": -1.46,
+        "truePeakMax": -1
+      },
+      "bytes": 1515006,
+      "durationSeconds": 15,
+      "fps": 15,
+      "hasAudio": true,
+      "height": 540,
+      "maxWindowBitrate": 1404672,
+      "reencoded": false,
+      "totalFrames": 225,
+      "width": 960
+    },
+    "seamReport": {
+      "kind": "seam_report",
+      "renderId": "render-b5738fef9de01f95e229a7639029cc28de37807ffaf910a5",
+      "schemaVersion": "3.0.0",
+      "seams": [
+        {
+          "diffPixelPct": 0,
+          "frame": 59,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 149,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 209,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 299,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "verdict": "pass"
+        },
+        {
+          "diffPixelPct": 0,
+          "frame": 359,
+          "identical": true,
+          "maxChannelDiff": 0,
+          "verdict": "pass"
+        }
+      ]
+    }
+  },
+  "playback": {
+    "duration": 15,
+    "width": 960,
+    "height": 540,
+    "rate": 1,
+    "muted": false,
+    "audioDecodedBytes": 262690,
+    "totalVideoFrames": 225,
+    "droppedVideoFrames": 0,
+    "error": null,
+    "elapsedMs": 15326
+  },
+  "replay": {
+    "time": 0.410887,
+    "rate": 1,
+    "muted": false
+  },
+  "browser": "156.0.8078.48",
+  "pageErrors": [],
+  "reviewModel": {
+    "callId": "eval-minimax-15-1793094623437-review-0",
+    "model": "modelswitch/deepseek-v4.1-flash-1017",
+    "failure": "MODEL_TOOL_JSON_INVALID",
+    "usage": null,
+    "quote": null,
+    "toolArgumentLength": 5225,
+    "parseFailure": "Unterminated string in JSON at position 5225",
+    "totalMs": 102540
+  },
+  "modelCalls": 7,
+  "settledModelMicros": 92776,
+  "unresolved": [
+    {
+      "id": "eval-minimax-15-1793094623437-review-0",
+      "kind": "model",
+      "reservedMicros": 40505
+    }
+  ],
+  "computeCount": 18,
+  "computeMicros": 32531,
+  "allComputeStopped": true,
+  "capacity": [],
+  "internalKeyRevoked": true,
+  "sharedBudgetMicros": 1496015,
+  "countsTowardAcceptance": false
+}
