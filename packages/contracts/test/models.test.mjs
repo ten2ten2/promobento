@@ -23,14 +23,18 @@ test('gateway bindings use the existing shared key and keep unbound official mod
 
 test('a vision step cannot bind gateway Claude after the image-loss probe', () => {
   const config = providers(); config.steps.scenes = 'modelswitch/claude-sonnet-5-5';
-  assert.deepEqual(modelConfigErrors(config, authorization(), policy,{requireVerified:false}), ['Step scenes needs vision, which modelswitch/claude-sonnet-5-5 lacks']);
+  const imagePolicy=structuredClone(policy);delete imagePolicy.director.steps.scenes.inputMode;
+  assert.deepEqual(modelConfigErrors(config, authorization(), imagePolicy,{requireVerified:false}), ['Step scenes needs vision, which modelswitch/claude-sonnet-5-5 lacks']);
+  assert.deepEqual(modelConfigErrors(config,authorization(),policy),[]);
+  config.steps.assets='modelswitch/claude-sonnet-5-5';assert.ok(modelConfigErrors(config,authorization(),policy).some(error=>error.startsWith('Step assets needs vision')));
+  const invalid=structuredClone(policy);invalid.director.steps.scenes.inputMode='automatic-fallback';assert.ok(modelConfigErrors(providers(),authorization(),invalid).includes('Unknown scenes inputMode'));
 });
 
 test('unverified, unauthorized or unpriced models are refused', () => {
   const unverified = providers(); unverified.models['modelswitch/deepseek-v4.1-flash-1017'].capabilities.verified = false;
   assert.ok(modelConfigErrors(unverified, authorization(), policy).includes('Bound model modelswitch/deepseek-v4.1-flash-1017 is not verified'));
   const auth = authorization(); auth.models = auth.models.filter(ref => ref !== 'modelswitch/claude-opus-5-5');
-  assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step spec binds unauthorized model modelswitch/claude-opus-5-5']);
+  assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step spec binds unauthorized model modelswitch/claude-opus-5-5','Step scenes binds unauthorized model modelswitch/claude-opus-5-5']);
   const unknown = providers(); unknown.steps.triage = 'modelswitch/unknown-model';
   assert.deepEqual(modelConfigErrors(unknown, authorization(), policy,{requireVerified:false}), ['Step triage binds unregistered model modelswitch/unknown-model']);
   const drift = authorization(); drift.catalogVersion = 'models-2026-01-01';

@@ -16,6 +16,7 @@ import {directingMethodPack} from '../../../packages/methods/directing.ts';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import providers from '../../../config/model-providers.json';
+import policy from '../../../config/agent-policy.json';
 import platform from '../../../config/platform-presets.json';
 import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetStatus} from '../src/model-budget.ts';
 
@@ -23,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode=''}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -40,7 +41,9 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
  let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[];
  const healthCache=new Map<string,string>();
- const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec;
+ const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec,originalScenes=providers.steps.scenes,originalSceneMode=policy.director.steps.scenes.inputMode,originalSceneEffort=policy.director.steps.scenes.effort;
+ if(!textOnlyScenes){providers.steps.scenes='modelswitch/deepseek-v4.1-flash-1017';policy.director.steps.scenes.inputMode='images';policy.director.steps.scenes.effort='none';}
+ if(sceneInputMode)policy.director.steps.scenes.inputMode=sceneInputMode;
  // Exercise the native Messages transport at C; F keeps the actual independent DeepSeek binding.
  if(nativeProtocol)providers.steps.spec='anthropic/claude-opus-5-5';
  const specModel=(providers.models as any)[providers.steps.spec],originalVerified=specModel.capabilities.verified;
@@ -123,9 +126,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
    value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
-   assert.equal(body.reasoning_effort,'none');assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
+   assert.equal(body.reasoning_effort,textOnlyScenes?'high':'none');if(textOnlyScenes)assert.equal(body.tool_choice,undefined);else assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
-   assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
+   if(textOnlyScenes){assert.equal(typeof body.messages[1].content,'string');assert.equal(body.model,'claude-opus-5-5');assert.equal(input.assetObservations.length,input.resources.length);assert.equal(input.assetObservations[0].sha256,input.resources[0].sha256);assert.equal(input.assetObservations[0].resourceId,input.resources[0].resourceId);assert.equal(input.assetObservations[0].insight.description,'Original fixture.');assert.match(input.sourceImages,/no images are attached/i);}
+   else assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
    const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.doesNotMatch(canonical(params),/\$ref/);
    if(input.phase==='layout'){
     assert.equal(body.max_tokens,16384);
@@ -219,7 +223,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
    modelReceipts:[...objects].filter(([key])=>key.includes('/model-calls/')&&!key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes)),
    requestFailures:[...objects].filter(([key])=>key.endsWith('-request-failure.json')).map(([,value])=>parseCanonicalJson(value.bytes))};
- }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;db.close();}
+ }finally{Date.now=originalDate;globalThis.fetch=originalFetch;specModel.capabilities.verified=originalVerified;providers.steps.spec=originalSpec;providers.steps.scenes=originalScenes;policy.director.steps.scenes.inputMode=originalSceneMode;policy.director.steps.scenes.effort=originalSceneEffort;db.close();}
 }
 
 test('A-C/E/F replay both SSE adapters, three real-protocol still requests and user wait exclusion',async()=>{
@@ -347,6 +351,9 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,4);assert.equal(corrected.reservations,corrected.settlements);
  const literal=await fixture({customScene:true,fixableCustomAsset:true});assert.ifError(literal.error);assert.equal(literal.models.filter(stage=>stage==='scenes').length,4);assert.equal(literal.reservations,literal.settlements);
  const empty=await fixture({customScene:true,emptyCustomMotion:true});assert.ifError(empty.error);assert.equal(empty.models.filter(stage=>stage==='scenes').length,4);assert.equal(empty.reservations,empty.settlements);
+ const textOnly=await fixture({customScene:true,textOnlyScenes:true});assert.ifError(textOnly.error);assert.equal(textOnly.state.status,'succeeded');assert.ok(textOnly.modelReceipts.filter((receipt:any)=>receipt.callId.includes('-scene-')).every((receipt:any)=>receipt.model==='modelswitch/claude-opus-5-5'&&receipt.requestSettings.toolChoice===null&&receipt.requestSettings.effort==='high'));assert.equal(textOnly.reservations,textOnly.settlements);
+ const mode=await fixture({customScene:true,textOnlyScenes:true,sceneInputMode:'automatic-fallback'});assert.equal(mode.error.message,'MODEL_SCENE_INPUT_MODE_INVALID');assert.equal(mode.networkCalls,0);
+ const vision=await fixture({customScene:true,textOnlyScenes:true,sceneInputMode:'images'});assert.equal(vision.error.message,'MODEL_VISION_UNAVAILABLE');assert.equal(vision.networkCalls,0);
  const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
  const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
 });

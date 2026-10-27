@@ -1005,30 +1005,30 @@ E 同时接收当前候选已经应用过的历史规格，以及共用的已用
 
 每个步骤单独绑定模型。初始绑定由负责人 2026-10-23 指定：能力探针证实 DeepSeek V4.1 Flash 1017 可以看图、调用工具，所以凡它能做的步骤都用它；最关键的一步（规格）用 Claude Opus 5.5。2026-10-24 负责人指明网关 Claude 共用 `MODEL_COMPAT_API_KEY`；按[网关文档](https://api.modelswitch.org/docs)，C 恢复网关 Opus（纯文本），F 改用已验证看图的网关 DeepSeek，与 C 不同家族。官方模型只保留未绑定备用，不再要求添加官方密钥。网关 Claude 的旧视觉失败不撤销；Gemini 3.8 Flash 不再使用（慢、工具参数丢失）。
 
-| 步骤 | 绑定名 | 需要的能力 | 初始模型 | 推理强度 | 调用上限 | 费用上限 |
+| 步骤 | 绑定名 | 需要的能力 | 当前候选模型 | 推理强度 | 调用上限 | 费用上限 |
 | --- | --- | --- | --- | --- | --- | --- |
 | A1 事实整理 | `facts` | JSON | `deepseek-v4.1-flash-1017` | low | 2（含一次结构纠正） | $0.01 |
 | A2 素材理解 | `assets` | 看图、JSON | `deepseek-v4.1-flash-1017` | low | 每个素材 2 次（含一次结构纠正） | $0.04 |
 | B 方向 | `directions` | JSON | `deepseek-v4.1-flash-1017` | high | 3 | $0.40 |
 | C 规格 | `spec` | JSON、强推理 | `modelswitch/claude-opus-5-5` | high | 3 | $0.40 |
-| D 每个自写镜头 | `scenes` | 看图、工具、写代码 | `deepseek-v4.1-flash-1017` | none（内部候选） | 12 | $0.35 |
+| D 每个自写镜头 | `scenes` | A 真实看图观察、文本编程、工具 | `modelswitch/claude-opus-5-5` | high（内部候选） | 12 | $0.35 |
 | E 整片 review | `review` | 看图、工具 | `deepseek-v4.1-flash-1017` | none（内部候选） | 6 | $0.30 |
 | F 冷审 | `coldReview` | 看图、JSON | `modelswitch/deepseek-v4.1-flash-1017` | none（内部候选） | 2 | $0.05 |
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
-- D 的 medium 请求已实际用满 16,384 输出 token，只有长篇分析、零工具调用；none 加兼容接口命名 edit_file 的整段生成仍出现同类截断。当前进一步分步生成，不提高原输出、每镜头次数/金额或整次期限。[DeepSeek 官方契约](https://api-docs.deepseek.com/api/create-chat-completion/)允许非思考模式的命名强制工具，不能据此把网关的实际输出记为遵守参数。当前 Anthropic 路线不下发该强制选择，保留严格工具声明与本地完整校验，不改变旧调用。
-- E 在 medium/low 的 8,192 token、以及后续 low 的 16,384 token 上限均有实际截断；IELTS 的后一次完整响应用尽额度仍是散文分析，没有工具调用。当前内部候选将 E/F 的兼容接口参数改为 `reasoning_effort:none`，E 仍最多 16,384、F 8,192；[DeepSeek 官方接口](https://api-docs.deepseek.com/api/create-chat-completion/)说明 none 关闭思考。网关公开文档未说明该参数细节，是否生效及冷审质量须真实评测，不将旧“接受 low”记为已验证 none。次数、阶段金额、完整校验和质量标准不变。
+- D 的 DeepSeek 路线在 medium、none/命名工具、分步生成下仍先后出现截断、空参数及无工具/无 usage；32k 请求已实际返回 25,027 个输出 token，不把问题继续归为原 16k 上限。当前候选改用现有网关 Opus/high 与显式 `inputMode:asset-insights`，接收 A 看过真实素材后的逐资源观察；默认/`images` 仍要求 D 直接 vision，不能自动降级或改变 Claude 的 vision:false。D 只在已测兼容 DeepSeek 路线强制 edit_file，Claude 保留默认工具选择。布局 16,384／动作 32,768，每镜头 12 次/$0.35 和整次期限不变；仍需实际源码/帧/成片验证，不记模型已定型。
+- E 在 medium/low 的 8,192 token、以及后续 low 的 16,384 token 上限均有实际截断；IELTS 的后一次完整响应用尽额度仍是散文分析，没有工具调用。当前内部候选将 E/F 的兼容接口参数改为 `reasoning_effort:none`，E/F 均最多 16,384；[DeepSeek 官方接口](https://api-docs.deepseek.com/api/create-chat-completion/)说明 none 关闭思考。网关公开文档未说明该参数细节，是否生效及冷审质量须真实评测，不将旧“接受 low”记为已验证 none。次数、阶段金额、完整校验和质量标准不变。
 - A/B/E/F 的完整 JSON/工具/契约错误在实际 usage 已结算时可反馈一次纠正，使用新 callId 并保留原始响应/usage；不能丢弃多余字段或补造工具参数后冒充通过。A 的总调用限额包含这次纠正，B/E/F 沿用原总调用上限，全部阶段金额不提高；F 总调用已用尽时不再花 C 的费用尝试无法复审的修复。未知消费、终态截断与传输错误不重发。
 - A 的事实/素材 JSON 输出空间为 4,096；响应 Schema 与纠正所需的完整契约同时出现在用户消息，不仅依赖 system 提示。该调整针对 MiniMax 的实际散文回答及 1,024-token 纠正截断，不提高原 $0.01/$0.04 阶段金额。
 - B 的精简方向卡在 Duolingo 真实调用中仍以 8,192 个计费输出 token 截断；已返回 4,665 bytes、接近完整的三卡 JSON。内部候选将单次输出空间调整为 16,384，保留 high、三次调用、原 $0.40 阶段金额和完整 Schema；不接纳截断结果，也不重发原请求。实际结果见[导演证据](../evidence/2026-10-24-s1-director/README.md#素材尺寸修复后方向输出截断已结算)。
 - B（方向）是创意上影响最大的步骤之一，按"纯文本用 DeepSeek"的原则初始绑到 DeepSeek。S1 评测时与 Opus 5.5 做对照，效果明显落后时换绑。
-- D、E 写代码和看整片的质量直接决定成片，DeepSeek 在这两步的效果未经验证。S2 按每个可用结果的费用和负责人评分做对照；只有负责人日后选择直连官方 Sonnet 时才另存 `ANTHROPIC_API_KEY`，不是当前网关路线的前置。
+- D、E 写代码和看整片的质量直接决定成片，当前 D 的 Opus 文本代码路线仍待真实镜头验收，E 沿用可看图的 DeepSeek。S2 按每个可用结果的费用和负责人评分做对照；只有负责人日后选择直连官方 Sonnet 时才另存 `ANTHROPIC_API_KEY`，不是当前网关路线的前置。
 - F 用与写规格 C 的 Opus 不同家族的 DeepSeek，保持独立上下文，不带导演对话。当前只用已实测可看图的线路；网关 Claude 的图片恢复需要真实复测后才能再用于 F。
 - 改稿中的镜头内修改用 `scenes`，结构修改沿用 `spec` 和 `review`。
 
 - **墙钟上限**：创作 20 分钟，改稿 8 分钟，准备 8 分钟。
-- **阶段上限用尽时**：结构化返回"预算用尽"，流水线按规则降级（例如自写镜头改用最接近的积木），不追加调用。
+- **阶段上限用尽时**：结构化返回"预算用尽"，不追加调用。只有已实现且保持原需求/质量的可信降级路径才能使用；当前 S1 不自动把失败自写镜头换成积木，停止并按审片规则保留已有草稿。
 - **时间期限**：上次评审 P1 的约定仍然有效——`BUDGET` 一词不再用于时间期限（用 `RENDER_DEADLINE`、`FRAME_TIMEOUT`）。
 - **单位成本超标时**，按以下顺序优化：
   1. 缓存命中与前缀稳定性；
