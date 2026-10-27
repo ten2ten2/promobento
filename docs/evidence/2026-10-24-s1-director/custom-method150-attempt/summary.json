@@ -337,5 +337,123 @@
   "capacity": [],
   "internalKeyRevoked": true,
   "sharedBudgetMicros": 1496015,
-  "countsTowardAcceptance": false
+  "countsTowardAcceptance": false,
+  "ownerVisualReview": {
+    "decision": "rejected",
+    "source": "Owner feedback in current conversation, 2026-10-27",
+    "basis": "Sampled actual playback frames and existing motion frames; not a full frame-by-frame audit or subjective audio review.",
+    "issues": [
+      "Opening leaves most of the frame empty; the tiny logo-to-button alignment is not visible enough, and the product arrives too late.",
+      "Long unchanged states and hard screenshot cuts read as a slideshow rather than the chosen continuous-anchor direction.",
+      "Source page backgrounds, different device/control crops and embedded pointers cause visible discontinuity; the footer is partly clipped.",
+      "Story text/device overlap the CTA around 12.5 seconds.",
+      "Brand naming appears late, hold-to-pause breaks awkwardly, and the result lacks the earlier label pattern."
+    ],
+    "unverified": [
+      "Subjective sound and perceived state-change/music alignment",
+      "Exact boundaries of every static interval",
+      "HD landscape and portrait final films"
+    ],
+    "countsTowardAcceptance": false
+  },
+  "localManualRevision": {
+    "scope": "private_manual_derivative_not_model_candidate",
+    "artifactDirectory": "artifacts/s1-minimax-method150-2026-10-27/manual-revision",
+    "player": "artifacts/s1-minimax-method150-2026-10-27/index.html",
+    "newModelCalls": 0,
+    "newCloudRenderCalls": 0,
+    "environment": {
+      "baseImage": "cloudflare-dev/sharddo-render-be8778cc0e8c:9d72cd91",
+      "network": "none",
+      "readOnlyHostOverlays": [
+        "packages",
+        "node_modules",
+        "config",
+        "contracts",
+        "apps/render-container/src"
+      ],
+      "scope": "cached_actions_base_with_current_runtime_not_frozen_staging_release",
+      "baseImageDigest": "sha256:68be977c8ad9dc1c7abc2d27a701faddf3d88ed389cd8dfe64c01a6a4c4fa076",
+      "hostOverlayCommit": "fb26248",
+      "node": "26.12.0",
+      "renderBrowser": "151.0.7922.34",
+      "playbackBrowser": "156.0.8078.48",
+      "sandbox": {
+        "chromiumUid": 10002,
+        "nestedPidNamespace": true,
+        "seccomp": true,
+        "separateUserNamespace": true
+      }
+    },
+    "visualChange": "Manual editorial derivative, not an automatic D/E repair or a new model candidate. Replaces the invisible logo-to-control handoff with an immediate actual Ready LCD close-up and brand. Crops exclude source page background, control/pointer/footer regions; actual timer pixels and ten-second-demo label remain. A registered LCD viewport replaces, rather than claims to repair, the full-device fixed-button direction. Camera push/reframing and fades are editorial, not live timer/click behavior.",
+    "frameChecks": {
+      "comparisons": 17,
+      "maxChannelDiff": 1,
+      "maxDiffPixelPct": 0.00028935185185185184,
+      "limits": {
+        "maxChannelDiff": 2,
+        "diffPixelPct": 0.1
+      },
+      "blockingFindings": []
+    },
+    "media": {
+      "audio": {
+        "correction": null,
+        "loudnessTarget": -14,
+        "lufs": -14.12,
+        "silent": false,
+        "truePeak": -1.29,
+        "truePeakMax": -1
+      },
+      "bytes": 2433086,
+      "durationSeconds": 15,
+      "fps": 15,
+      "hasAudio": true,
+      "height": 540,
+      "maxWindowBitrate": 1679928,
+      "reencoded": false,
+      "totalFrames": 225,
+      "width": 960
+    },
+    "motionCheck": {
+      "method": "FFmpeg freezedetect, noise=-60dB, minimum duration=0.6 seconds; all 225 encoded frames decoded",
+      "detectedFreezeStartSeconds": [
+        12.4
+      ],
+      "interpretation": "No qualifying freeze detected before 12.4s; the end card is held for reading. This measures pixel change, not motion quality."
+    },
+    "playback": {
+      "browser": "156.0.8078.48",
+      "captureDroppedFrames": 8,
+      "plain": {
+        "audioDecodedBytes": 262671,
+        "droppedVideoFrames": 2,
+        "duration": 15,
+        "elapsedMs": 15199,
+        "error": null,
+        "height": 540,
+        "muted": false,
+        "rate": 1,
+        "state": "播放完毕 · 可从头重看",
+        "totalVideoFrames": 225,
+        "volume": 1,
+        "width": 960
+      },
+      "replay": {
+        "muted": false,
+        "rate": 1,
+        "time": 0.376549
+      },
+      "pageErrors": [],
+      "verdict": "not_passed_zero_drop_gate",
+      "cause": "unresolved"
+    },
+    "subjectiveListening": "unverified",
+    "ownerReview": "pending",
+    "notGenerated": [
+      "HD landscape final",
+      "portrait review or final"
+    ],
+    "countsTowardAcceptance": false
+  }
 }
