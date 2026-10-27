@@ -1017,7 +1017,7 @@ E 同时接收当前候选已经应用过的历史规格，以及共用的已用
 | 改稿分流 | `triage` | JSON | `deepseek-v4.1-flash-1017` | low | 1 | $0.01 |
 
 - 步骤绑定只描述能力要求；绑定到哪个供应商的哪个模型由 `config/model-providers.json` 决定（第 6.12 节）。费用上限与供应商无关，换绑后评测集必须仍满足第 1.1 节。
-- D 的 DeepSeek 路线在 medium、none/命名工具、分步生成下仍先后出现截断、空参数及无工具/无 usage；32k 请求已实际返回 25,027 个输出 token，不把问题继续归为原 16k 上限。当前候选改用现有网关 Opus/high 与显式 `inputMode:asset-insights`，接收 A 看过真实素材后的逐资源观察；默认/`images` 仍要求 D 直接 vision，不能自动降级或改变 Claude 的 vision:false。D 只在已测兼容 DeepSeek 路线强制 edit_file，Claude 保留默认工具选择。布局 16,384／动作 32,768，每镜头 12 次/$0.35 和整次期限不变；仍需实际源码/帧/成片验证，不记模型已定型。
+- D 的 DeepSeek 路线在 medium、none/命名工具、分步生成下仍先后出现截断、空参数及无工具/无 usage；32k 请求已实际返回 25,027 个输出 token，不把问题继续归为原 16k 上限。当前候选改用现有网关 Opus/high 与显式 `inputMode:asset-insights`，接收 A 看过真实素材后的逐资源观察；默认/`images` 仍要求 D 直接 vision，不能自动降级或改变 Claude 的 vision:false。D 只在已测兼容 DeepSeek 路线强制 edit_file，Claude 保留默认工具选择。布局 16,384／动作 32,768，每镜头 12 次/$0.35 和整次期限不变；真实 Opus 已完成六次原生编辑、两份模块通过 Q0 并执行；竖屏逆序像素与后段文案/署名仍未通过，不记模型已定型。
 - E 在 medium/low 的 8,192 token、以及后续 low 的 16,384 token 上限均有实际截断；IELTS 的后一次完整响应用尽额度仍是散文分析，没有工具调用。当前内部候选将 E/F 的兼容接口参数改为 `reasoning_effort:none`，E/F 均最多 16,384；[DeepSeek 官方接口](https://api-docs.deepseek.com/api/create-chat-completion/)说明 none 关闭思考。网关公开文档未说明该参数细节，是否生效及冷审质量须真实评测，不将旧“接受 low”记为已验证 none。次数、阶段金额、完整校验和质量标准不变。
 - A/B/E/F 的完整 JSON/工具/契约错误在实际 usage 已结算时可反馈一次纠正，使用新 callId 并保留原始响应/usage；不能丢弃多余字段或补造工具参数后冒充通过。A 的总调用限额包含这次纠正，B/E/F 沿用原总调用上限，全部阶段金额不提高；F 总调用已用尽时不再花 C 的费用尝试无法复审的修复。未知消费、终态截断与传输错误不重发。
 - A 的事实/素材 JSON 输出空间为 4,096；响应 Schema 与纠正所需的完整契约同时出现在用户消息，不仅依赖 system 提示。该调整针对 MiniMax 的实际散文回答及 1,024-token 纠正截断，不提高原 $0.01/$0.04 阶段金额。

@@ -678,3 +678,17 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 反复修改 DeepSeek 的额度/工具提示没有得到稳定完整模块。下一候选明确换为现有已授权网关 Opus/high 的文本代码阶段：D 读取经过 Schema/sha256 核对、逐资源绑定的 A 真实看图观察，不附图片、不假称其具备 vision；A/E/F 的实际图像路径保持 DeepSeek。`images` 默认模式的 vision 前置不变，只有显式 `asset-insights` 采用文本合同，未知模式提前拒绝；模型费按真实 Opus 目录/隐藏输入风险预留，原每镜头 12 次/$0.35、整次 $3 与共享 $10 不提高。Claude 不强制命名工具，不启用官方未绑定线路。该输入能力规则变更进入共享模型配置校验，因此按 Actions 重建配套镜像，不绕过原镜像复用守卫。六项模型配置/计价检查（含旧 images 前置、新模式及未授权模型阻断）、图片/文本两种 D 输入的定点 D/E 回放、cloud TypeScript 检查通过；未跑全量测试或渲染矩阵。
 
 [费用与回收](custom-tenth-attempt/report.json)：三笔已结模型 **12,446 usd_micros**，一笔未知预留 **41,597**；四次计算全部停止/结算，保守上界 **2,573**，实际/预留合计 **56,616**。容量为空、Workflow 已对账、临时密钥回收。共享新增模型已结 **779,754**，五笔未知 **121,226**，合计占用 **900,980 usd_micros**。累计七次已用六次、剩余一次；仍无新影片，S1 通过数不变。
+
+### 第十一次自写评测：Opus 生成两份模块，实际帧检查未通过
+
+这是累计七次授权中的最后一次，操作 `eval-minimax-15-1793061618322`。[40427176639](https://github.com/ten2ten2/promobento/actions/runs/40427176639) 在 `2ba931ecf31641c6670e6d6086fac8c5aeb0119e` 由 Actions 构建新镜像并部署；[健康正常、空容量、零模型/渲染调用](custom-eleventh-attempt/deployment-health-40427176639.json)，[冻结 renderer](custom-eleventh-attempt/renderer-release.json) 为 `renderer-2ba931ecf316`、镜像 `sha256:14f86e62b53732c438225d6fe60064e4d842435b4db28c0856fe67ed50bdc50c`。没有修改旧 release 或从 Mac 构建推送。
+
+新 renderer 进入 context 后，B/C 重新生成。已看三张实际 PNG 及[完整方向](custom-eleventh-attempt/directions.json)，[选择 unexpected / pocket-theatre](custom-eleventh-attempt/choice.json)：请求→暂停→完成由皇家蓝舞台和真实宠物状态承载，不采用通用显示器堆叠。C 自行给出 0–90 帧开场、90–360 帧连续剧场及 CTA；两个 custom 先做 hardest stage。D 明确只收到 A 的逐资源真实素材观察，没有图片。[六次实际 Opus/high 原生 edit_file](custom-eleventh-attempt/d-responses.json)均返回有效工具和 usage，无 Q0 纠正；两份最终模块通过 Q0，已在正式 Chromium studio 执行。结构完整不代表实现了全部 brief。
+
+实际检查停止为 **CUSTOM_SEEK_MISMATCH**，尚无 review、E/F 或新影片。[离线同源诊断](custom-eleventh-attempt/seek-diagnosis.json)使用已有 Actions 镜像及当前运行时覆盖，严格保留 Chromium 沙箱和原比较门槛：开场竖屏五张前向图与云端逐像素相同；逆序 62/36 帧分别有 **0.120274% / 0.310523%** 像素变化，最大通道差均为 **1**，超过原 0.1% 范围。DOM/样式/布局完全相同，差异集中在裁切宠物图的光栅区域。只将 will-change 改为固定 transform 的手工派生仍失败，没有把它记作修复或放宽容差；冷 seek、完整新片与正常速度视听未通过。
+
+已看云端第 314 帧的横竖实际 PNG：宠物图到了庆祝状态，但旁边仍是最初的 Request / Add a Pomodoro timer，必需署名没有出现。原源码始终选中 face 0、credit opacity 为 0；因此即使像素问题解决也不能交付。当前修正 D 的原子编辑指引，要求一份补丁覆盖该窗口的所有内容/可见性/镜头分支，最后窗口核对全部事件与阅读点。另补局部检查失败证据留存：阻断观测、失败比较值、前向/实际逆序或冷 seek PNG 及冻结模块引用在失败前保存，不再只有一条错误码。实际源码与私有帧保存在 `artifacts/s1-minimax-custom-opus-7-2026-10-27/`，不公开媒体；上述修正的真实云验仍待。
+
+Node **26.12.0** 的相关 D/E 回放与新增失败留证回放两项通过，分别覆盖原图片/新文本输入、原子编辑要求，以及逆序/冷 seek 失败图和 Q1 阻断观测；cloud TypeScript **7.0.2** 通过。未跑全量测试、完整 CI 或重复原安全/媒体矩阵。
+
+[费用与回收](custom-eleventh-attempt/report.json)：8 次模型 **112,451 usd_micros**，12 次计算均停止/结算 **21,113**，本轮合计 **133,564**（约 $0.134），无本轮未知，容量为空、Workflow 已对账、临时密钥已回收。共享新增模型已结 **892,205**，旧五笔未知 **121,226** 保留，合计占用 **1,013,431 usd_micros**。累计七次已全部使用，不再启动新付费评测；S1、1/12 输入及 2/24 最终片通过数不变。
