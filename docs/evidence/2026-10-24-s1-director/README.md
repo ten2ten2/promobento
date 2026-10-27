@@ -691,4 +691,6 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 Node **26.12.0** 的相关 D/E 回放与新增失败留证回放两项通过，分别覆盖原图片/新文本输入、原子编辑要求，以及逆序/冷 seek 失败图和 Q1 阻断观测；cloud TypeScript **7.0.2** 通过。未跑全量测试、完整 CI 或重复原安全/媒体矩阵。
 
+定点修正已由 [40431456600](https://github.com/ten2ten2/promobento/actions/runs/40431456600) 在 `ec4e895949181fbb8b6d2aceddb5d6f3ef654cfe` Worker-only 部署，[复用未变的 2ba931e 镜像](custom-eleventh-attempt/renderer-reuse-40431456600.json)；[健康正常、空容量、零模型/渲染调用](custom-eleventh-attempt/deployment-health-40431456600.json)，运行临时密钥已撤销。部署没有重开第八次评测，实际模型纠正效果与像素故障仍未验收。
+
 [费用与回收](custom-eleventh-attempt/report.json)：8 次模型 **112,451 usd_micros**，12 次计算均停止/结算 **21,113**，本轮合计 **133,564**（约 $0.134），无本轮未知，容量为空、Workflow 已对账、临时密钥已回收。共享新增模型已结 **892,205**，旧五笔未知 **121,226** 保留，合计占用 **1,013,431 usd_micros**。累计七次已全部使用，不再启动新付费评测；S1、1/12 输入及 2/24 最终片通过数不变。
