@@ -52,7 +52,7 @@
 
 新建 CompositionManifest 使用 `identityVersion:2`、`capabilityProfile:"film-v1"`，固定 project/revision、15/30 秒、30 fps、450/900 帧、seed，以及源码、依赖、资源、布局、事实内容、runtime/renderer、平台规则和 `renderProfile`。所有业务 variant 的入口为同一个 `film.json`，`sourceHash` 与 `sourceArchiveHash` 绑定同一份规范源包；`targetOverrideHash:null`，画幅差异由固定运行时与布局处理。事实只引用 `factContentHash`；确认与证据不写入 Composition，完整 `factManifestHash` 在冻结快照固定。`styleLabel` 和内容语言元数据可省略；网站 Cookie/语言/主题不进入创作身份。
 
-`createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。负责人已批准 DOM/SVG/Canvas2D 自写镜头提前进入内部 S1，源码准入、隔离和实际帧要求见[实施范围](../plans/cloud-motion-v3.md#s1-一条龙真实题目从需求到成片)。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
+`createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。负责人已批准 DOM/SVG/Canvas2D 自写镜头提前进入内部 S1，源码准入、隔离和实际帧要求见[实施范围](08-codex-execution.md#2-里程碑与退出关口)。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
 
 内部导演方法 `product-directing` 1.2.0 及后续版本的自写镜头，在每个 `readingHolds` 区间声明 `visibleTextSlots`：必须是本镜头已声明槽位的无重复数组，特意无字可用空数组；区间中点的可信 CDP 观测按实际镜头归属核对。不存在或裁切的指定槽位阻断；遮挡仍按原 REVIEW 规则处理，不能借此改写原 QA 等级。可信文字观测可携带所属 custom `sceneId`，旧观测仍有效。旧冻结方法及旧 `customScenePlan` 入口不增加这个前置，旧参数与源码身份不改写。
 
@@ -74,7 +74,7 @@ film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` �
 
 film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落点、请求时长和实际源长度；它是制作过程字段，不直接充当 `frozenAudioEvent`。资源冻结仍绑定实际音源与混音字节，不能把非整数帧的前导偏移舍入成 `sourceOffsetFrames`。
 
-`audioHash = digest(audioIdentity(resourceManifest))`：保留事件顺序及音源、帧区间、偏移、增益、淡入淡出和自动化曲线，以及实际混音的路径、字节 hash、采样率、声道；排除 licenseRef、描述性 mark 和单纯 mixerVersion 元信息。静音只允许空事件表和 `mixedAudio:null`。预览与导出读取同一混音字节，可信观察记录须证明实际取用；编码阶段不临时改音量、重新 ducking 或重新混音。完整资源清单仍固定 mixerVersion，声音来源的授权链逐项保留。参考验证器核对可信解码/执行记录，实际解码、混音与试听仍按06验收。
+`audioHash = digest(audioIdentity(resourceManifest))`：保留事件顺序及音源、帧区间、偏移、增益、淡入淡出和自动化曲线，以及实际混音的路径、字节 hash、采样率、声道；排除 licenseRef、描述性 mark 和单纯 mixerVersion 元信息。静音只允许空事件表和 `mixedAudio:null`。预览与导出读取同一混音字节，可信观察记录须证明实际取用；编码阶段不做创作性音量调整、重新 ducking 或重新混音。最终AAC须实测；仅为纠正编码引入的响度／真峰越界，可按固定renderer从同一冻结WAV做一次确定性补偿／限幅并重编码AAC，视频复制，冻结WAV及其身份不改。纠正前后数值和实际输出字节绑定Q2，复测仍越界阻断，不能覆盖母带或借纠正更换声音内容。完整资源清单仍固定 mixerVersion，声音来源的授权链逐项保留。参考验证器核对可信解码/执行记录，实际解码、混音与试听仍按06验收。
 
 `licenseRef` 指向服务端保存的不可变权利记录，不能填写“OFL”或“已获授权”代替。`resourceRightsErrors` 检查 workspace/project、实际素材字节、用途和证据；首次预览与商业冻结/编码/发布分别检查对应权限，缺失或范围不符就阻止输出。登记依据、客户声明和内置素材要求统一见[09](09-sources-and-licensing.md)。
 
@@ -177,13 +177,13 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 
 历史创作模块静态声明 editables、markers、regions、videoUses 和 fonts；可信构建检查唯一 ID、区间和安全资源路径。`RuntimeContext.surface` 提供 host 创建的 root/canvas，width/height 始终是平台逻辑尺寸，DOM root 保持目标 CSS 逻辑尺寸，由外层 transform 缩放显示，指针坐标按相反变换映射回逻辑坐标；Canvas 缓冲尺寸显式乘以 pixelScale。本地预览不依赖设备 DPR，可信 Chromium 固定 DPR=1。`prepare` 固定输入和 tween 端点，`draw(time)` 完整重建该时间的像素/区域，不累积播放状态。禁止墙钟、未受控随机数、隐藏 CSS 时间、出网及采样时音效副作用；仿真可固定初态重放或预烘焙。画面采样不推进音频；冷/顺/逆序一致性与 WebGL 能力仍需真实验证。
 
-录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结，同一fontId的多个字重注册为同一个CSS family，family身份绑定全部冻结face。`fonts.ready`只证明加载完成；`fonts.assertText(fontId,text,weight)`要求显式已登记的主字体字重，回退字体按CSS字重匹配选定face后检查cmap，不能合并不同字重的覆盖来放行。cmap检查不能证明复杂塑形或布局。当前仅有08的固定工程字库和PTS提帧实现，完整平台字体登记及上传处理仍待实施，P0不开放任意上传字体。
+录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结，同一fontId的多个字重注册为同一个CSS family，family身份绑定全部冻结face。`fonts.ready`只证明加载完成；`fonts.assertText(fontId,text,weight)`要求显式已登记的主字体字重，回退字体按CSS字重匹配选定face后检查cmap，不能合并不同字重的覆盖来放行。cmap检查不能证明复杂塑形或布局。当前镜像已将固定字库转换WOFF2并生成cmap／字节身份目录，PTS帧图路径已实现；完整客户素材处理、字体准入服务及更广字形覆盖仍待实施，P0不开放任意上传字体。
 
 预览策略以 [preview.json](../../config/preview.json) 为准。`preview-sessions` 只分配本地会话，不自动启动云 QA。可信捕获在预留前检查路径项目、当前有效创作权益、费用预算、实际构建记录、事实确认和该目标有效 QA；调用方不能只传一个“已检查”布尔值。截图必须是单帧；clip 必须给出非空半开区间，且不超过当前片长、单次片段上限、项目窗口和原试用 claim 的累计请求/帧数。当前准入只接受 standard；motion4/8 须另行标定采样成本与上限。计数包含进行中的预留，费用和次数须同事务检查、预留并幂等提交。`trustedPreviewErrors` 与生产契约共同提供准入校验，不是实际调度器或额度数据库；上限未标定时保持 null 和关闭。
 
 品牌水印位于内容外的 footer band：本地由 Studio 父页面在作品 iframe 之外绘制，编码预览由可信捕获合成器写入实际文件并检查可读性。干净内容 QA 和付费输出不带品牌水印；AI 标记另按 §4。低清和水印不保证防复制。
 
-独立预览 origin 按任务隔离，不带主站 Cookie；精确校验 origin/source window/不可预测 nonce/消息 Schema。CSP 从 `default-src 'none'` 开始，仅给冻结 bundle 与任务 broker 开放实际必需的 script、style、connect、image/media/font 来源，禁止 object、base、form 和任意导航；不能以宽泛公网白名单代替资源代理。iframe 不授予 top-navigation、popup、download 等无关能力。CSP 不能单独证明所有出网路径已关闭；WebRTC 等通道及可信 Renderer 的网络隔离须在 M0b 实测。当前 previewOrigin:null 不表示接受 origin=null。只读审阅只给媒体投影，broker 权限可撤销。
+独立预览 origin 按任务隔离，不带主站 Cookie；精确校验 origin/source window/不可预测 nonce/消息 Schema。CSP 从 `default-src 'none'` 开始，仅给冻结 bundle 与任务 broker 开放实际必需的 script、style、connect、image/media/font 来源，禁止 object、base、form 和任意导航；不能以宽泛公网白名单代替资源代理。iframe 不授予 top-navigation、popup、download 等无关能力。CSP 不能单独证明所有出网路径已关闭；WebRTC 等通道及可信 Renderer 的网络隔离在S2客户预览及正式Renderer隔离验收中分别实测。配置已有独立previewOrigin，但服务仍未部署；不接受origin=null或以缺部署跳过来源校验。只读审阅只给媒体投影，broker 权限可撤销。
 
 ## 6 AI操作、费用与成功次数
 

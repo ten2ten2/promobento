@@ -1,6 +1,6 @@
 # S1 评测输入
 
-负责人在部分验收后要求[继续 S1，先修正成片质量](../../docs/implementation-status.md#s1-恢复先修正成片质量)。保留既有输入与成片，沿用原内部评测、模型预算和生产关闭边界。
+六题仅用于获准的内部S1评测，不公开素材／成片，也不作为营销样片。当前完成度、有效预算和继续条件统一见[实施状态](../../docs/implementation-status.md)。
 
 题目与使用范围以 [`topics.json`](topics.json) 为准。六张卡的既有功能/课程事实与确认文案保留；2026-10-25 再次核对 Duolingo、IELTS Ready、Marugoto 和 Hugging Face 的原官方页面，原功能、课程及学习基础陈述仍有依据。IELTS 本次可读到公开页面文字，但原浏览器采集的 403 记录及第三方截图许可限制不因此改变。三家产品的入口为：
 
@@ -10,7 +10,7 @@
 
 负责人已确认六张卡中的官网功能/课程内容陈述用于 **S1 首次内部评测**，2026-10-26 又批准 MiniMax 官方演示画面及对应案例事实；当前确认范围与事实 ID 保存在卡片中，不含虚构业绩，也不授权公开成片。现有 **13 张**已查看素材在私有 staging R2，含原十项及三张 pocket-pet 官方演示裁帧。源 URL、实际字节身份、尺寸和 D1 权利证据引用见 [`materials.json`](materials.json)；图片不进 Git，不对外发布。每次真实评测前仍核对事实和权利记录，品牌页面发生变化时复核。
 
-负责人于 2026-10-23 确认将三门虚构课程替换为真实公开课程，仅限内部评测：
+三门课程仅限获准的内部评测：
 
 - [IELTS Ready](fact-cards/ielts-ready.json)：British Council 的练习、短课与专家 webinar；不承诺提分，不把 Premium 条件省掉。
 - [Marugoto](fact-cards/marugoto.json)：日本国际交流基金的日语沟通课程；不是 JLPT N2 冲刺班，不使用合格率。
@@ -64,11 +64,11 @@ mise exec -- node research/evals/run-case.mjs \
 
 自动审片耗尽修改额度时，脚本按[内部审片退出规则](../../docs/plans/cloud-motion-v3.md#66-阶段-e整片-review)下载 `review-draft.json` 与其绑定的现有影片，生成标明「待人工审片／自动质量审查未通过」的私有 `index.html`，提供从头有声 1× 播放。报告状态为 `review_draft_delivered_pending_owner_review`，`countsTowardAcceptance:false`；云端操作仍为 `failed`，原失败码和未解决的冷审保留。E 停止时可能只有横屏低清片，不补造竖屏或最终片；新的修改建议尚未应用，不重新付费渲染。本地正常交接不代表作品通过。
 
-结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。首次仅运行一题，确认真实模型/媒体结果后再推进其余输入。
+结束时核对物理计算停止、容量和费用，并删除本次临时内部密钥；已成功候选保持 succeeded 和原 generation。失败/中断才取消未结束操作并对账，不删除素材、成片或账本。每次仅运行获具体授权的一题，已有未知消费先保留／核对，不因准备好输入自动批量派发。
 
 与 Actions harness 一样，密钥更新后的相邻请求可能仍看到旧绑定；仅对路由/调度前确切 `404 Not found` 等待最多 30 秒，并记录 `authPropagationRetries`。资源本身不存在、模型/媒体错误及未知超时不重发；一次 capacity 鉴权成功也不假定后续请求已全部传播。
 
-真实客户端曾在读取操作状态时遇到 `UND_ERR_SOCKET`（HTTP/2 对端关闭）。现在只对主循环的只读操作快照 GET 最多额外尝试两次，并记录 `operationReadTransportRetries`；不会重发 POST、模型/渲染请求、HTTP 错误或超时。超过上限仍走原取消、停止/结算和密钥回收，不能把断连当成创作失败或未知调用可重发的依据。
+客户端只对主循环的只读操作快照 GET 最多额外尝试两次，并记录 `operationReadTransportRetries`；不会重发 POST、模型/渲染请求、HTTP 错误或超时。超过上限仍走原取消、停止/结算和密钥回收，不能把断连当成创作失败或未知调用可重发的依据。
 
 若原操作已失败/取消，但客户端清理超时导致 `report.json` 缺物理停止/费用回执，先读错误，再只恢复该已结束操作的清理：
 
@@ -129,7 +129,7 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-2
 
 后来单独批准的素材可在事实卡 `materialApprovals[素材 ID]` 记录负责人批准日期、内部使用和 staging R2 范围，在 `selected.json` 用 `approvalRef` 指向该条。入库证据沿用这次具体批准，不把新素材回填成旧的通用批准日期；没有单项记录的既有素材继续原用法，IELTS 的第三方截图限制也不改变。
 
-旧虚构课程卡及其编造的价格、提分率和学员结果已退出评测集。六题实际模型成片与负责人视听验收仍未完成。代码回归另用 [`filmFixture`](../../packages/film-runtime/test/fixture.mjs) 和原创无字界面。
+当前完整覆盖及负责人视听只见[实施状态](../../docs/implementation-status.md)，prepared_not_executed不算执行。代码回归另用 [`filmFixture`](../../packages/film-runtime/test/fixture.mjs) 和原创无字界面。
 
 ## 先试听已经生成的 13 种配乐
 
@@ -141,7 +141,7 @@ open artifacts/s1-audio-review-2026-10-24/index.html
 
 试听页可离线播放，保留每段原字节、风格、30 秒时长、响度和来源回执；目标目录存在时拒绝覆盖。已实际生成并查看播放器，Chrome 155.0.8059.85 读到 13 段均为 30 秒、默认 1×，首段播放前进且无解码错误。负责人在正常速度试听请求下回复「保留」，[现有 13 种全部保留](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)。重新打包时仅对来源 run 和对应样本计划都匹配的材料沿用该决定，其他材料仍待试听。六题实际成片的视听与 4/6 评判另行进行。
 
-另有[原创 ABC 与派生 WAV 的 15/30 秒内部测试批准及源母带身份](../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。原谱和 WAV 保持私有，不沿用上述 13 风格的保留结论；首次导演请求及超尺寸素材阻断见[实际记录](../../docs/evidence/2026-10-24-s1-director/README.md#原创音乐首轮abc-准入通过超尺寸素材阻断方向预览)。恢复后仅复用已批准的原谱和母带，不重新合成源母带：
+另有[原创 ABC 与派生 WAV 的 15/30 秒内部测试批准及源母带身份](../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。原谱和WAV保持私有，不沿用13风格保留结论；ABC已有一次15秒实际review，完整路径的范围见[音乐证据](../../docs/evidence/2026-10-24-s1-director/README.md#abc-15-秒实际-review-已通过音乐全链路未完成)。有对应有效授权时复用已批准原谱和母带，不重新合成源母带；以下仅为命令用法：
 
 ```sh
 mise exec -- node research/evals/run-case.mjs \

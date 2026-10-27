@@ -30,7 +30,7 @@
 
 `icon.svg` 与 `brand/mark.svg` 保持一致。Maskable 图标保留安全区，不用普通安装图标替代。
 
-分享图的字标和口号分别采用 Schibsted Grotesk Bold、Geist Sans Regular，已转为 SVG 路径，无需下载字体。两种字体采用 SIL OFL 1.1；后续引入字体文件时保留包内版权与许可文件。网站字体配置见 [UI tokens](../../config/ui-tokens.json)，当前仓库不含字体文件。
+分享图的字标和口号分别采用 Schibsted Grotesk Bold、Geist Sans Regular，已转为 SVG 路径，无需下载字体。两种字体采用 SIL OFL 1.1；后续引入字体文件时保留包内版权与许可文件。网站字体配置见 [UI tokens](../../config/ui-tokens.json)，视频渲染的固定字体及OFL文件另在 [packages/fonts](../../packages/fonts/huashu/LICENSES.md)维护；网站自托管接入仍待实现。
 
 ## 网站接入
 

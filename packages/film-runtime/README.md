@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四种画幅，以及 cut、crossfade、push、whip 转场。积木按镜头时间确定性绘制。已接入固定版本的 OM/clip 通用辅助函数；界面旅程与 showcase 保留 DOM 文字及点选，图片、showcase 边框/阴影和 ROI 以 CPU 逆透视取样后单次写入固定画布，避免 CSS 3D 图片栅格随 seek 历史变化。不包含上游作者形象。实际通过范围见[实施状态](../../docs/implementation-status.md)。
+当前支持九个核心积木、额外device-3d、四画幅和cut／crossfade／push／whip。页面由可信生成器组装，绘制按镜头时间确定；实际验收和未实现能力见[实施状态](../../docs/implementation-status.md)。积木／自写API以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准，不包含上游作者形象。
 
 ## 构建和调用
 
@@ -8,54 +8,52 @@ S1 运行时已有九个核心积木、额外的真实 WebGL `device-3d`、四�
 mise run build:film-runtime
 ```
 
-这是构建入口；开发期间不默认跑测试或 CI，确有必要时只运行一次最小检查，规则见 [AGENTS](../../AGENTS.md)。
+Node调用 `generateFilmPage(rawJson,options)`（[src/page.ts](src/page.ts)），经共享严格解析、完整Ajv／FilmSpec语义和实际能力准入后输出HTML、CSP和PagePlan。options由可信宿主提供画幅／seed／确认事实／清权素材／精确字体／期限，不信客户自报权利。输出在忽略的dist，控制器提供固定runtime、`/r/<resourceId>`、`/frames/<resourceId>/<index>.webp` 和 `/f/<fontId>/<weight>-<style>.woff2`；视频PTS索引／缓存有界，缺帧失败。
 
-Node 构建端调用 `generateFilmPage(rawJson, options)`（[`src/page.ts`](src/page.ts)）：先经共享解析器、完整 Ajv 和 FilmSpec 跨字段校验，再生成 HTML、CSP 和 PagePlan。`options` 由可信宿主提供画幅、seed、事实确认集合、已清权素材/字体及期限，不接受客户自报清权状态。页内只加载固定 `/runtime/` 脚本、`/r/<resourceId>` 图片、`/frames/<resourceId>/<index>.webp` 视频帧和 `/f/<fontId>/<weight>-<style>.woff2`。视频按 PTS 取帧，有有界位图缓存；缺帧明确失败。
+PagePlan.manifestHash是规范FilmSpec握手摘要；filmSourceHash另固定规范film.json与原始模块字节，并与seed／资源／字体／环境绑定。产品Composition身份和真实冻结另按 [14](../../docs/prd/14-production-contracts.md)，不能以页面摘要代替完整身份。
 
-输出文件在被忽略的 `dist/`，HTML 由后续控制器提供。`PagePlan.manifestHash` 当前仅为规范 FilmSpec 的摘要，供页面握手校对；内部渲染另用共享 `filmSourceHash` 固定规范 `film.json` 文件身份，并绑定 seed、资源、字体和运行环境。产品 Composition 已有 film-v1 构造器和冻结参考校验；真实客户冻结与计费服务仍未实现，不能拿 PagePlan 摘要替代完整 Composition 身份。
+CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](../../contracts/render-protocol.d.ts) 串行init／seek／sample／inspect／dispose。当前只接受trusted_render、standard单采样。私有真实时钟只交引擎一次，作品使用虚拟时间、每次seek重置的random-seq-v1；镜头timeline以局部秒数、事件以局部帧表示。
 
-控制器先用 CDP `Page.addScriptToEvaluateOnNewDocument` 注入构建后的 `shim.js`，再导航到页面；页面就绪后按 [RenderProtocol](../../contracts/render-protocol.d.ts) 发送 `init`、串行 `seek`/`sample`、`inspect`、`dispose`。当前只接受 `trusted_render`、standard 单采样。Shim 的真实绘制时钟只向引擎交接一次，页面使用虚拟时间和每次 seek 重置的 `random-seq-v1`。镜头时间为本镜头起点后的秒数，积木事件与区域函数使用镜头内帧号。
+## 当前积木行为
 
-## 浏览器检查只在 CI 容器中运行
+九项为hook-title、ui-showcase、cta-endcard、feature-grid、curriculum、ui-journey、metric、captions、talking-head。字幕／口播消费已清权且确认的内容，数字／CTA绑定事实；精确参数和实现版本见[积木目录](../../contracts/block.schema.json)。
 
-`mise run test:browser` 是容器内入口，本机直接运行会明确失败。CI 的 `browser` job 构建 [`Dockerfile`](../../apps/render-container/Dockerfile) 的 `browser-test` target，不推送镜像、不部署服务；检查包含真实 JPEG→H.264 分段→接缝→混音→MP4、九积木四画幅帧集，以及既有顺序/逆序/冷 seek、文字安全区与字体、桥接、时钟、API 禁用和超长文本失败。另生成 13 种程序风格各 30 秒的试听 WAV。截图与报告随 `film-runtime-browser` artifact 提供。
+- 文字槽可用maxFontSize保持层级，但不低于角色下限，不拆词／截原文冒充适配。字体登记带cmap，静态缺字和CDP实际回退分别检查。
+- hook-title、纯文字feature-grid／curriculum按实际文字高度成组居中，去掉空图片外框；带图卡的下方文案区分标题／间隔／副标题，避免盒子重叠。
+- cta-endcard将CTA／URL与可选Logo成组居中，保留点选。ui-showcase的focus仅高亮ROI，不放大／裁剪；密集界面可省textSlot扩大真实图，必要文案仍走可读槽位。
+- ui-showcase／ui-journey用固定Canvas的CPU逆透视取样，保留DOM文字／点选。showcase端点纹理预合成、只融合差异像素；停稳图片／ROI复用像素，回跳运动重新采样，视频仍逐帧。避免CSS3D图片栅格受seek历史影响。
+- feature-grid可选beatFrames（6–60源帧），首项局部15帧停稳、末项在镜头内；音效跟随落点。可选清权logoKey按项移动，此时只配文字项，不混重复截图。不传新参数保留原行为。
+- ui-journey可选beatFrames：首落点一拍，后每三拍交接，一拍移动／两拍阅读，过程中只显示一个真实状态、标题先退后进，阅读缓慢推近；横屏交替左右，其他上文下图，无装饰ROI。末落点后至少一拍，不传仍用原连续横移。声音事件product-step-1…3／末次product-land，观测覆盖各阅读点，动作另取交接中点／落点。
+- device-3d用Three.js0.186.1将清权静态图贴原创设备几何，不接视频纹理；仅3D页加载bundle。姿态是时间纯函数，无自主循环；ready等纹理／首帧，dispose释放资源和context。BlockInstance.ready/dispose可选，旧积木不需新增前置。[许可](../blocks/NOTICE.md)。
 
-只修复逐帧运行时时，使用 `gh workflow run checks.yml --ref main -f suite=runtime`：在同一个隔离镜像中执行四画幅 seek/布局/桥接检查，含界面旅程及两个 showcase 推入转场在移动中的顺序/逆序/冷 seek、最终片与 review 两种捕获比例；不重新出片或合成配乐。报告中媒体与试听项为 `not_run`，不会冒充通过；默认完整入口不变。
-
-启动器使用方案规定的固定栅格化参数；日志管道使用带 `pipefail` 的 Bash，容器失败会使 job 失败。比较失败时保留具体画幅、帧号及对比 PNG，报告记录已完成的比较和失败状态；容差仍为最大通道差 ≤2、差异像素 ≤0.1%。当前实际通过范围和待验证问题见[实施状态](../../docs/implementation-status.md)。
-
-仅复验旅程转场和 3D 面板的栅格历史差异时，使用 `suite=journey`。它只比较四画幅在最终片/review 比例下的顺序、逆序与冷 seek，不重跑已通过的普通布局/桥接、出片或试听。review 使用完整逻辑尺寸截图再由可信宿主缩小，页面和原观测坐标不变。
-
-只复验更改后的四画幅 review 取图路径，可在 `suite=runtime` 加 `-f runtime_case=review`；普通 72 项与最终尺寸路径不重跑。
-
-只改 showcase 时，用 `runtime_case=showcase` 检查四画幅最终片/review 的 48 次顺序、逆序与冷 seek 比较，复用其他积木未受影响的结果。静态图片和 ROI 停稳后复用固定像素，但每帧仍写回画布；运动中和视频逐帧取样不变。
-
-只改普通文字/片尾布局时，用 `runtime_case=layout` 检查原 72 项及四画幅带 Logo 的片尾布局，不重做旅程/showcase 专项、媒体或配乐。
-
-测试容器 `--network none`，控制器 uid 10001、Chromium uid 10002。CI 启动器短暂使用 root 分离 uid；Docker 外层放开 seccomp，并加载仅用于该测试容器的命名 AppArmor profile 来允许嵌套用户命名空间（[Chromium 说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)）。子进程丢弃 capability，断言 renderer 的 seccomp、NoNewPrivs 和嵌套 PID namespace。CI 分别执行可信积木和原创自写镜头/攻击夹具；Cloudflare 正式隔离与当前已验证范围见[实施状态](../../docs/implementation-status.md)。
-
-九积木为 `hook-title`、`ui-showcase`、`cta-endcard`、`feature-grid`、`curriculum`、`ui-journey`、`metric`、`captions`、`talking-head`。后两者消费已清权、已确认的素材/字幕；数值和 CTA 必须绑定事实。字体由镜像转换并登记 cmap，宿主补齐覆盖范围；缺字和实际字体回退分别由静态检查与 CDP 检查。
-
-`cta-endcard@1` 的 1.0.1 将 CTA 与网址按实际文字高度组成一个居中组，不再将网址固定到画面底部。提供 Logo 时作为组内锚点；否则用短横线而非远离文字的方块。文字、字号下限和 CTA/URL 点选保留。`ui-showcase` 的 `focus` 只高亮 ROI，不放大或裁剪；密集课程图可不传 `textSlot` 以获得更多面积，必要宣传文字仍用可读槽位呈现。
-
-`ui-journey@1` 的 1.1.0 可选 `beatFrames`，将不同真实状态串成按拍接力：首落点为一拍，后续每三拍到达（交接一拍、短标题阅读两拍），阅读时产品缓慢推近；交接只显示一个真实状态，途中匹配切换，标题先退后进。横屏交替左右构图，其他画幅保持上文下图。没有装饰边框或 ROI。最后落点后至少留一拍；不传参数仍使用原连续横移。声音事件为 `product-step-1…3` 和末次 `product-land`。可信观测分别覆盖每个状态的阅读位置，动态帧另取每次交接中点与落点。仅复验此分支用 `suite=runtime -f runtime_case=journey-beats`，检查四画幅、三次阅读、连续播放后的逆序／冷 seek；不替代实际产品动效视听。
-
-`device-3d@1` 用 Three.js 0.186.1 将已清权静态截图/SVG 贴到原创设备几何，正文仍经 `ctx.text` 呈现；不接受视频纹理。仅含该积木的页面加载 `blocks-3d.js`，纯 2D 不加载 Three.js。相机/模型姿态只由镜头时间决定，不创建动画循环；初始化等待图片、纹理和首帧，销毁时释放几何、材质、纹理与 WebGL context。`BlockInstance.ready`/`dispose` 为可选资源生命周期，旧积木不需改写。来源与 MIT 通知见[积木许可](../blocks/NOTICE.md)。
-
-全局纹理效果、布局覆盖和本地改值预览仍明确拒绝。当前阅读停留观测不等于 S2 的完整动态 Q1/Q2，也不能替代负责人正常速度试听及审美签字；页面本身不播放音轨。
-
-卡片与名牌可通过 text-slot mount 的 `maxFontSize` 保持层级；自动适配仍受角色最小字号约束，不拆开单词或截断原文来伪装适配成功。退场界面在整段旅程结束时真正隐藏，可信点选只查询画面内的交集；越界文字仍会记录 BLOCK。
+全局纹理、布局覆盖、客户本地值覆盖预览、自写WebGL尚未开放，不能因Schema保留字段就执行。页面不播音轨；可信阅读／动作采样不是完整动态Q1/Q2或负责人视听。
 
 ## 自写镜头：源码与规格分开
 
-`FilmSpec.scenes[]` 的 `custom` 使用 `module: scenes/<id>/index.js` 和创作 `brief`。当前首轮支持 DOM、SVG 图形、Canvas2D 与暂停 GSAP 时间线；自写 WebGL/Three.js、任意依赖和导入未开放。每个模块是单个 `PB.scene(id, ctx => ({timeline}))` 注册，作品只在独立 uid 的 Chromium 沙箱中执行，不在页面生成器、Worker 或控制器求值。
+custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(id,ctx=>({timeline}))`，支持DOM、SVG图形、Canvas2D、暂停GSAP／OM.clock，不允许任意依赖／导入。只在独立uid的容器Chromium沙箱求值，页面生成器／Worker／控制器不执行它。
 
-`params` 声明 `textSlots`、`assetKeys`、局部整数帧 `events: [{name,frame}]`、`readingHolds: [{start,end}]`，可用 `hardest:true` 指定先验证的镜头。源码用 `ctx.text('id').mount(...)` 与 `ctx.asset('id')` 的字面量引用，不能自行写可见文案；时间线完整覆盖本镜头，`ctx.OM.clock` 提供冷/逆向 seek 的纯函数绘制。具体 API 见 [film-runtime.d.ts](../../contracts/film-runtime.d.ts)。
+params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。
 
-当前 Q0 要求 createElement/createElementNS/getContext 的 tag、namespace、context 为字面量，不接受把变量 tag 传入通用建元素工厂；布局辅助函数可接收已创建的元素。`ctx.style.palette` 是直接的 bg/ink/accent 等角色值，不是 FilmSpec 中的 palette.roles 包装。
+可信宿主以PageOptions.customSources提供原始路径→字节；每份≤64KiB、合计≤512KiB，只接FilmSpec列明路径，每镜头声明的首尾／事件／阅读去重最多24帧。Acorn只静态解析；动态构造器在源码前封闭，宿主用直接CDP桥。源码／Q0／完整身份核对后才启动浏览器，源文件只在任务本地同源路径提供。
 
-可信调用者给 `generateFilmPage` 的 `PageOptions.customSources` 提供路径到原始源码的映射。静态 Q0 使用锁定 Acorn，仅解析语法和明确禁用项；动态求值的全局及普通/async/generator 构造器在加载源码前封锁；可信宿主通过直接 CDP 函数桥接，不借页面 eval。实际隔离仍依靠 shim/CSP、容器出网与分离 uid、宿主期限和停止回收。模块每份最多 64 KiB、合计 512 KiB；只允许当前 FilmSpec 列明的路径；每镜头声明的事件/首尾/阅读取帧去重后最多 24 个。控制器从已授权的不可变 `inputs` 读同名模块，完成 Q0 和完整 sourceHash 核对后才启动浏览器，并仅在本地同源路径提供源码。
+filmSourceHash、构建回执及分段身份包含全部模块原始字节；纯积木省略customSources保持原摘要。CDP拒绝未绑定／改写文字，阅读窗口按冻结方法核对实际sceneId／必显槽。运行时攻击／资源故障的实际证据范围见实施状态。
 
-`filmSourceHash(raw, customSources)`、构建回执与分段身份包含全部模块原始字节。纯积木省略该参数，原摘要不变。实际 CDP 观测拒绝自写 DOM 中的未绑定文字和被改写的文字；Canvas/SVG 文字绘制在当前准入中禁用。四画幅、重复/逆向/冷 seek、运行时攻击及资源耗尽的实际范围见[实施状态](../../docs/implementation-status.md)。
+## 选择相关浏览器检查
 
-定点 CI：`suite=runtime / runtime_case=custom`；它不重做配乐、工程片或完整 G1。
+`mise run test:browser` 是CI隔离容器内入口，本机直接调用明确失败。完整browser job构建browser-test，不推送／部署；含九积木帧集、桥接／字体／布局／seek、JPEG→H.264／接缝／混音／MP4和13种30秒样曲，产物film-runtime-browser。开发不默认运行；只对受影响风险选专项，未运行项记not_run。
+
+| Actions选择 | 范围 |
+| --- | --- |
+| `suite=runtime` | 四画幅seek／布局／桥接，不重做媒体／配乐 |
+| `suite=journey` | 旅程／透视面板四画幅final／review的顺逆冷seek |
+| `suite=runtime -f runtime_case=review` | 改变的review取图路径 |
+| `runtime_case=showcase` | 四画幅／双比例showcase运动／停稳／回跳／冷seek |
+| `runtime_case=layout` | 普通72项与四画幅带Logo片尾 |
+| `runtime_case=typography` | 开场和纯文字网格布局 |
+| `runtime_case=relay` | feature-grid Logo按拍落点／布局／seek |
+| `runtime_case=journey-beats` | ui-journey四画幅三状态阅读和连续后逆／冷seek |
+| `runtime_case=custom` | 原创自写镜头、真实帧／CDP和定点故障，不重做媒体／配乐／G1 |
+
+runtime_case均与suite=runtime一起使用。失败保留画幅／帧号／实际PNG和已完成项，容差仍最大通道差≤2且差异像素≤0.1%，不按测试结果放宽。
+
+CI容器network none，启动器短暂root分离uid后丢capability，外层测试seccomp/AppArmor只放行嵌套namespace，断言renderer seccomp／NoNewPrivs／PID隔离；不能以本机无沙箱替代。[正式云隔离](../../docs/evidence/2026-10-24-s1-performance/README.md#正式镜像隔离通过)和完整S2攻击分别验收。

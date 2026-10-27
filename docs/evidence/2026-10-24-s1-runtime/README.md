@@ -1,4 +1,4 @@
-# 2D 四画幅 seek 与干净环境入口修复
+# 运行时与自写镜头验收证据
 
 最终 [40061965273](https://github.com/ten2ten2/promobento/actions/runs/40061965273) 在 `38e6b25d8ae9db6893c83962ac09fb0fafc20ef3` 通过，只运行 `suite=runtime`，没有重做媒体、13 风格或导演。
 
@@ -16,11 +16,6 @@
 
 已查看横屏 120、竖屏 45、feed 165、square 375 的实际 PNG，标题、产品与 CTA 可读。截图与环境包在该轮 `film-runtime-browser`（artifact `12547303453`）；报告保留在本目录。这是可信积木运行时检查，G1 云端性能另行采样。
 
-## 干净环境的原入口恢复可用
-
-原合并 CI 的 `contracts` 在生成验证器前就导入共享 film-v1 契约，报 `ERR_MODULE_NOT_FOUND`；不是 Schema 本身失败。`check:repo`、`check:contracts` 和离线 Studio 生成/核对现在自动预编译，不新增手工前置步骤。Node 26.12.0 下当前仓库、契约样例和 Studio 同步检查通过；未重跑全量 Node、类型或完整 CI。合并 CI 中已通过的离线导演及媒体子项继续按其原提交范围复用。
-
-
 ## DOM/SVG/Canvas2D 自写镜头通过正式镜像定点验证
 
 [40327334464](https://github.com/ten2ten2/promobento/actions/runs/40327334464) 在 `9562707e2875289dc65be4ec3d3ccb25cd6336a7` 通过 `suite=runtime,runtime_case=custom`。[原始报告](custom-report-40327334464.json)覆盖原创自写 DOM/SVG/Canvas2D、暂停 GSAP/OM.clock 的四画幅 72 次逆序/独立冷 seek 比较、阅读停留 CDP 检查，以及旧可信积木经新宿主调用桥的实际取帧。实际 PNG 已下载并查看竖屏 180 帧；这是工程夹具，不是 MiniMax 成片或负责人质量验收。
@@ -32,7 +27,7 @@
 
 ### 云端源码传输与四画幅 studio 已通过
 
-[40328040010](https://github.com/ten2ten2/promobento/actions/runs/40328040010) 在 `3aaa64692f11b1c6a004f77bee2ea360f4cba6dd` 由 Actions 构建/推送镜像 `sha256:5d32d143cb98ab946bde9f0bdaf3724df68536d83739e6bcab791ff5d6d7f28c` 并部署 staging。运行时输入沿用上一节的已验证实现；本提交另外修复新导演系统提示与自写代码禁令的冲突，并让 D 接收本镜头实际使用的已清权图片，相关 D/E 回放与 cloud 类型检查通过。
+[40328040010](https://github.com/ten2ten2/promobento/actions/runs/40328040010) 在 `3aaa64692f11b1c6a004f77bee2ea360f4cba6dd` 由 Actions 构建/推送镜像 `sha256:5d32d143cb98ab946bde9f0bdaf3724df68536d83739e6bcab791ff5d6d7f28c` 并部署 staging。运行时输入沿用上一节的已验证实现；本轮D按图片模式输入；当前文本asset-insights合同及模型绑定见[cloud README](../../../apps/cloud/README.md#导演选择结构d-实现自写镜头)，不将旧输入模式写成当前默认。
 
 [原始云端报告](cloud-custom-report-40328040010.json)：八个独立 studio 实例，四画幅的 0/36/180/330/449 帧逆序及新实例冷 180 帧共 24 次比较全零差异，原始模块经私有 R2/broker 传输并核对源码身份。实际阅读停留没有 BLOCK；四画幅各保留一条 text-covered REVIEW，实际 PNG 中可见文字未被遮住，未将该观察删除或改为零发现。已看真实竖屏 180 帧。
 

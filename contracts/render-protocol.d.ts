@@ -1,7 +1,7 @@
 /** Contract only; these types are not a browser or sandbox implementation. film-v1 pages: see film-runtime.d.ts. */
 export type DurationSeconds = 15 | 30;
 export type FrameCount = 450 | 900;
-/** New renders are per aspect (D9). Historical targetId envelopes remain read-compatible, never mixed with aspectId. */
+/** New renders are per aspect. Historical targetId envelopes remain read-compatible, never mixed with aspectId. */
 export type AspectId = 'landscape' | 'portrait' | 'feed' | 'square';
 export type Sha256 = string;
 export type RenderProfile = ({

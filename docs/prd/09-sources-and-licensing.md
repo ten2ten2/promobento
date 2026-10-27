@@ -27,13 +27,13 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 渲染与预览共用 [packages/fonts](../../packages/fonts/huashu/LICENSES.md) 的字体：huashu-motion 登记的 OFL WOFF，以及 `@fontsource` 固定 `5.0.3` 归档的 Geist Sans/Mono（未修改字节，保留 OFL 原文）。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
 
-S1 首批浏览器回归在 CI 镜像中将 Geist Sans 600 原件转成 WOFF2，保留 OFL；生成字节不写回 Git。转换器与系统包版本随测试环境清单记录。这只是测试字体，完整平台字库、双格式摘要和回退登记尚未完成。
+正式与CI镜像均由[build-render-fonts.mjs](../../scripts/build-render-fonts.mjs)核对现有登记的源／许可字节，转换WOFF2、记录输出摘要和cmap，并复制许可。生成字节不写回Git；工具版本随环境锁／构建清单固定。现有字库不保证任意语种无缺字，更广CJK／Emoji覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
 客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）可经负责人决定使用第三方品牌的公开截图、录屏和 Logo，但只限内部评测：素材存放在预发布 R2、不进 Git，成片不发布或对外展示，也不作营销样片。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
 
 ## 2 视频创作上游
 
-上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明（根目录 `LICENSE`、`THIRD_PARTY.md`、`runtime/clip/NOTICE.md` 等），不整包并入，也不追随后续版本。Three.js r186 为 MIT。成片不加片尾署名；上游作者形象不采用，用原创角色替代。
+上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明（本仓库对应模块的 `LICENSE.huashu`／`NOTICE.md`），不整包并入或追随浮动版本。各模块实际采用的固定来源以其NOTICE为准，[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
 
 | 来源范围 | 用途 |
 | --- | --- |
@@ -46,7 +46,7 @@ S1 首批浏览器回归在 CI 镜像中将 Geist Sans 600 原件转成 WOFF2，
 
 [上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
 
-**积木和自写镜头都可以使用 GSAP。** 负责人 tianyu 于 2026-10-22 决定本产品使用 GSAP，并于 2026-10-23 再次确认；这一决定即本章要求的许可结论。GSAP 3.14.2 的 `dist/gsap.min.js` 随渲染镜像分发、不进 Git，版本与 SHA-256 记在[渲染环境锁](../../apps/render-container/environment.lock.json)。确定性靠静默 seek 与黄金帧检查保证，见[改造方案](../plans/cloud-motion-v3.md)第 4.3、5.6 节。
+**积木和自写镜头都可以使用 GSAP。** 本产品已按负责人许可结论采用GSAP；具体分发文件以环境锁为准。GSAP 3.14.2 的 `dist/gsap.min.js` 随渲染镜像分发、不进 Git，版本与 SHA-256 记在[渲染环境锁](../../apps/render-container/environment.lock.json)。确定性靠静默 seek 与黄金帧检查保证，见[技术设计](../plans/cloud-motion-v3.md)第 4.3、5.6 节。
 
 ## 3 适用规则与产品边界
 

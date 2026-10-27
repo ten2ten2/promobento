@@ -7,7 +7,7 @@ export interface FilmRuntimeInfo { apiVersion: '3.0.0'; specVersion: 'film-v1' }
 
 export type AspectId = 'landscape' | 'portrait' | 'feed' | 'square';
 export interface SafeInsets { top: number; right: number; bottom: number; left: number }
-/** Aspect-level only: there is no targetId, so targets sharing an aspect share one render (plan D9). */
+/** Aspect-level only: there is no targetId, so targets sharing an aspect share one render. */
 export interface Target {
   aspect: AspectId; width: number; height: number; safeInsets: SafeInsets;
   fps: 30; totalFrames: 450 | 900;

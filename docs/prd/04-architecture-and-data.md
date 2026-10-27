@@ -10,7 +10,7 @@
 | UI | Tailwind、shadcn/ui Base UI、Lucide；视觉与交互按 02，语言与主题行为按 10 |
 | 状态/文件 | D1 保存业务记录；私有 R2 保存不可变的素材、源码、音轨、帧、输出和必要证据 |
 | 调度 | Workflows 持久编排，Queues 分发 outbox，DO 协调实例与并发；generation 拒绝过期提交 |
-| AI | 一个可信 Orchestrator + 工具 + Model Router；Workers AI 可处理轻量任务，编码模型经真实基准配置 |
+| AI | 可信 Orchestrator 编排独立上下文的导演阶段、工具与 Model Router；Workers AI 按获准用途接入，模型经真实基准配置 |
 | 计算 | 按任务隔离的渲染容器；可信 Node 控制器、Chromium 沙箱、FFmpeg/ffprobe；创作代码只在 Chromium 内执行 |
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
@@ -19,18 +19,21 @@
 
 ```mermaid
 flowchart TD
-  UI[Studio 与独立来源预览] --> API[可信 Workers API]
-  API --> DATA[D1 与私有 R2]
-  API --> AGENT[可信 Orchestrator 与 Model Router]
-  AGENT --> BOX[任务隔离 Composer]
-  BOX --> CHECK[可信控制器核查产物]
+  UI[Studio与独立域名预览] --> API[可信Workers API]
+  API --> DIRECTOR[OperationWorkflow / 分阶段导演]
+  API --> DATA[D1与私有R2]
+  DIRECTOR --> SOURCE[候选规格与源码数据]
+  SOURCE --> RENDER[RenderWorkflow / ShardDO]
+  RENDER --> BOX[独立容器 / Chromium沙箱执行]
+  BOX --> CHECK[可信观测 / 媒体检查]
   CHECK --> DATA
-  DATA --> QUEUE[Outbox / Queues / 准入 DO]
-  QUEUE --> RENDER[任务隔离 Renderer]
-  RENDER --> DATA
+  DATA --> QUEUE[事务Outbox / Queues]
+  QUEUE --> RENDER
   API --> PAY[Waffo / Billing DO]
   PAY --> DATA
 ```
+
+上图包含产品目标模块，不表示客户网站／支付已实现；内部S1与产品表／API的边界见本章§4和实施状态。
 
 ## 2 素材、源码和数据发送
 
