@@ -54,6 +54,8 @@
 
 `createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。负责人已批准 DOM/SVG/Canvas2D 自写镜头提前进入内部 S1，源码准入、隔离和实际帧要求见[实施范围](../plans/cloud-motion-v3.md#s1-一条龙真实题目从需求到成片)。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
 
+内部新导演方法 `product-directing` 1.2.0 的自写镜头，在每个 `readingHolds` 区间声明 `visibleTextSlots`：必须是本镜头已声明槽位的无重复数组，特意无字可用空数组；区间中点的可信 CDP 观测按实际镜头归属核对。不存在或裁切的指定槽位阻断；遮挡仍按原 REVIEW 规则处理，不能借此改写原 QA 等级。可信文字观测可携带所属 custom `sceneId`，旧观测仍有效。旧冻结方法及旧 `customScenePlan` 入口不增加这个前置，旧参数与源码身份不改写。
+
 `resource_manifest` 保存实际素材的 path、sha256、byteLength、mediaType 和稳定 licenseRef。Asset broker 按 hash 解析不可变存储；可信构建/渲染记录实际访问的资源、音源和混音，与清单核对，不能只信 Agent 自报。源码包保存代码和静态创作声明，素材单独按资源 hash 引用；不包含自身 manifest、QA 输出、临时 URL 或日志。字体子集、塑形和回退配置一同冻结；按实际文字检查字素簇、塑形和回退，不能用 `document.fonts.ready` 证明无缺字。
 
 film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` 一份来源，不要求第二份 `values.json` 或目标专有 `.mjs`。保存规范 JCS UTF-8 字节，不因请求 API 升级改写旧源文件，不归一化客户原文。内部 D/E 已接入自写模块编辑；客户直接改值及完整编辑器仍按 S2 接入。

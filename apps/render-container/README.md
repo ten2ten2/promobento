@@ -19,7 +19,7 @@ assemble 对实际 MP4 的 AAC 解码信号测响度／真峰。新云端任务�
 
 FFmpeg 线程按实例的整数 CPU 配额设置：standard-2 为 1、standard-3 为 2、standard-4 为 4；音频固定为 1。拼接实际使用 standard-2，不再沿用分段的双线程默认值。
 
-studio 的 `check` 对同一授权帧重新取 PNG 后读真实 CDP 文字/字体/布局；`benchmark` 只在校准操作中测 PNG、JPEG90/92/95 和解码后 RGB SSIM。seek、截图、观测的整个工具调用互斥，不允许并发请求把不同帧混在一份回执里。所有临时诊断文件在当前任务工作区内，结束即清理。成片仍固定 JPEG92；新增质量选项没有进入客户 FilmSpec 或渲染任务输入。
+studio 的 `check` 对同一授权帧重新取 PNG 后读真实 CDP 文字/字体/布局；活动 custom 镜头的文字观测附带所属 `sceneId`，用于按[阅读窗口契约](../../docs/prd/14-production-contracts.md#2-manifest目标与冻结准备)区分同槽位的重叠镜头，旧观测仍有效。`benchmark` 只在校准操作中测 PNG、JPEG90/92/95 和解码后 RGB SSIM。seek、截图、观测的整个工具调用互斥，不允许并发请求把不同帧混在一份回执里。所有临时诊断文件在当前任务工作区内，结束即清理。成片仍固定 JPEG92；新增质量选项没有进入客户 FilmSpec 或渲染任务输入。
 
 校准专用 `isolation` 使用[固定攻击项](../../tests/attacks/film-v1/isolation.json)，不接受调用者代码、命令、路径或主机。CSP 动态代码检查由普通同源脚本执行，不借 CDP 的字符串编译权限；仅在本次探针期间开放固定脚本路径，执行后移除脚本/临时结果。实际页面仍检查网络/存储/iframe/Worker、动态代码及引擎锁定，并检查外部、本地端口与文件图片均不可加载，保留实际 CSP 事件。
 

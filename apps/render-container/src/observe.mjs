@@ -17,12 +17,15 @@ export async function observe(cdp, plan, renderId, frame) {
     .reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
   const contrast = (a, b) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
   const texts = [], regions = [], findings = [];
+  const customIds=new Set(plan.spec.scenes.filter(scene=>scene.kind==='custom'&&scene.start<=frame&&frame<scene.end).map(scene=>scene.id));
   await cdp.send('DOM.enable'); await cdp.send('CSS.enable'); await cdp.send('DOM.getDocument');
   for (const [node, row] of rowFor) {
     const slotId = attributes(node).get('data-pb-slot'); if (!slotId) continue;
-    let visible = true;
-    for (let current = node; current >= 0; current = parent(current))
+    let visible = true,sceneId;
+    for (let current = node; current >= 0; current = parent(current)) {
       if (style(current, 'visibility') === 'hidden' || style(current, 'display') === 'none' || style(current, 'opacity') === '0') visible = false;
+      const candidate=attributes(current).get('data-scene');if(customIds.has(candidate))sceneId=candidate;
+    }
     if (!visible) continue;
     const [x, y, width, height] = layout.bounds[row], box = {x, y, width, height};
     if (!width || !height) continue;
@@ -68,7 +71,7 @@ export async function observe(cdp, plan, renderId, frame) {
     // WCAG 1.4.3: 18pt regular / 14pt bold. Use actual CDP font metrics, not the text role or author flags.
     const size=Number.parseFloat(style(node,'font-size')),weight=Number.parseFloat(style(node,'font-weight'));
     const largeText=size>=24||size>=14*4/3&&weight>=700;
-    texts.push({slotId, text: descendants, box, fonts: fonts.map(font => ({family: font.familyName, glyphCount: font.glyphCount})),
+    texts.push({slotId, ...(sceneId?{sceneId}:{}), text: descendants, box, fonts: fonts.map(font => ({family: font.familyName, glyphCount: font.glyphCount})),
       fallbackUsed, missingGlyphs, contrastRatio: Math.max(1, Math.min(21, ratio)), largeText,
       insideSafeArea, clipped, covered});
     regions.push({regionId: slotId, box});
@@ -76,7 +79,6 @@ export async function observe(cdp, plan, renderId, frame) {
       [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < (largeText?3:4.5), 'low-contrast']])
       if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId});
   }
-  const customIds=new Set(plan.spec.scenes.filter(scene=>scene.kind==='custom'&&scene.start<=frame&&frame<scene.end).map(scene=>scene.id));
   if(customIds.size)for(const [node,row]of rowFor){
     if(nodes.nodeType[node]!==3||!strings[nodes.nodeValue[node]]?.trim())continue;
     let active=true,custom=false,slot;

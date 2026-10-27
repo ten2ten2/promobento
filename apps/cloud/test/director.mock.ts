@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customQaFailure=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -39,7 +39,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,body:Uint8Array.from(value.bytes),customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
   async put(key:string,input:any,options:any){if(objects.has(key)&&options?.onlyIf?.get('If-None-Match')==='*')return null;
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
- let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[];
+ let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[],frameRepairs=0;
  const healthCache=new Map<string,string>();
  const studioFrames=new Map<number,number>();
  const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec,originalScenes=providers.steps.scenes,originalSceneMode=policy.director.steps.scenes.inputMode,originalSceneEffort=policy.director.steps.scenes.effort;
@@ -53,7 +53,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
-  params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200}]}};
+  params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200,...(!legacyCustomMethod?{visibleTextSlots:['product']}:legacyHoldMetadata?{visibleTextSlots:'legacy-unused-metadata'}:{})}]}};
  const fixtureSource='PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);const timeline=gsap.timeline({paused:true});timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});';
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
  const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
@@ -68,11 +68,13 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    async studio(_id:string,text:string){const task=parseCanonicalJson(text),{generation,imageDigest,deadlineAt,...input}=task;
     if(healthFailure&&task.taskId.startsWith('health-'))throw Error('MOCK_RENDER_UNAVAILABLE');
     assertRenderTask({...input,brokerToken:'fixture-non-secret-token'});activeStudio=task;studioFrames.clear();studioCount++;return canonical({status:'ready'});},
-   async checkFrame(_id:string,frame:number){return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts:[],regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[]}});},
+   async checkFrame(_id:string,frame:number){const health=activeStudio.taskId.startsWith('health-'),visible=health||activeStudio.taskId.startsWith('custom-')&&(!customTextMissing||fixableFrameFailure&&frameRepairs>0);
+    const texts=visible?[{slotId:health?'headline':'product',...(!(health&&oldScopedObservation)?{sceneId:health?'health':customTextWrongScene?'other':'product'}:{}),text:health?'Render health check':spec.texts.product.text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:5}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:false,covered:false}]:[];
+    return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts,regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[]}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));const visits=(studioFrames.get(frame)??0)+1;studioFrames.set(frame,visits);
-    const mismatch=activeStudio.taskId.startsWith('custom-')&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='reverse'&&visits>1);
+    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
     return new Response(mismatch?pngRgba(1,1,Uint8Array.from([200,0,0,255])):png);},
-   async closeStudio(){if(cleanupFailure)throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
+   async closeStudio(){if(cleanupFailure||failCustomClose&&activeStudio?.taskId.startsWith('custom-'))throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
   };}},
   OUTBOX:{async send(item:any){if(item.kind!=='render')throw Error('MOCK_UNEXPECTED_OUTBOX');
    const input=await(await MEDIA.get(db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(item.payloadJson?parseCanonicalJson(item.payloadJson).renderId:item.id.slice(7)).job_key))!.arrayBuffer();
@@ -107,7 +109,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    ...(!missingApproval?{scoreApprovals:[{totalFrames:450,requestHash:digest({text,totalFrames:450})}]}:{})});
   db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation','res_original_score',sha256,'LicenseRef-Original-Fixture','evals/mock/audio-rights.json','internal_eval_only',null);
  }
- const method=customScene?await immutableJson(env,'operations/mock-operation/directing-method.json',directingMethodPack):null;
+ const method=customScene||methodWithoutCustom?await immutableJson(env,'operations/mock-operation/directing-method.json',legacyCustomMethod?{...directingMethodPack,version:'1.1.0'}:directingMethodPack):null;
  await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').run('mock-operation','evals/mock/context.json',method?.key??null);
  let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
@@ -127,7 +129,15 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
    if(input.coldReviewFeedback)assert.equal(input.coldReviewFeedback.review.verdict,'block');
-   value=clone(input.coldReviewFeedback?coldFixed:spec);if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
+   value=clone(input.coldReviewFeedback?coldFixed:spec);if(omitHoldPlanFirst&&specRequests===1)delete value.scenes[1].params.readingHolds[0].visibleTextSlots;if(badSpec||fixableSpec&&specRequests===1)value.scenes[1].start=200;if(unsupportedSpec&&specRequests===1)value.style.texture={kind:'grain',amount:0.2};}
+  else if(input.task.startsWith('Repair this custom')){stage='scenes';assert.equal(activeStudio,null,'the failed studio must close before another model call');frameRepairs++;
+   assert.equal(input.scene.id,'product');assert.ok(['CUSTOM_HOLD_TEXT_MISSING','CUSTOM_SEEK_MISMATCH','CUSTOM_QA_BLOCK'].includes(input.validationFeedback.code));assert.ok(input.validationFeedback.frame>=120);
+   assert.deepEqual(input.targetAspects.map((target:any)=>target.aspect),['landscape','portrait']);assert.equal(input.resources[0].resourceId,context.resources[0].resourceId);assert.equal(input.resources[0].sha256,resource.sha256);
+   if(customTextMissing)assert.deepEqual(input.validationFeedback.expectation.missingTextSlots,['product']);
+   if(textOnlyScenes){assert.equal(typeof body.messages[1].content,'string');assert.match(input.validationFeedback.frameImages,/No images attached/);assert.equal(input.assetObservations[0].sha256,resource.sha256);}
+   else{assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1);assert.match(input.validationFeedback.frameImages,/contact sheet/);}
+   if(repairTransportFailure)throw Error('MOCK_REPAIR_TRANSPORT_FAILURE');
+   value={toolCalls:[{id:'mock-frame-repair',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:'/* tail authored */',newStr:unchangedFrameRepair?'/* tail authored */':'/* runtime repaired */'}}]};}
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
    assert.equal(body.reasoning_effort,textOnlyScenes?'high':'none');if(textOnlyScenes)assert.equal(body.tool_choice,undefined);else assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
@@ -198,7 +208,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(name==='preflight')assert.equal(optionsOrFn.retries.limit,0,'missing keys/rights/verification are deterministic admission failures');
    if(cancel&&name==='spec'){db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1").run();}
    if(cancelHandoff&&name==='handoff-review-draft'){db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1").run();}
-   return fn();},async waitForEvent(){choiceCount++;assert.equal(activeStudio,null);
+   const result=await fn();if(legacyCustomMethod&&name.startsWith('check-custom-scenes-')){const value=parseCanonicalJson(result);assert.ok(value.sourceHash&&value.modules&&value.evidenceKey);assert.equal(value.checked,undefined,'preserve the existing durable payload shape');}return result;},async waitForEvent(){choiceCount++;assert.equal(activeStudio,null);
     const row=db.prepare('SELECT directions_hash,previews_key FROM pipeline_contexts').get();assert.equal((parseCanonicalJson(new Uint8Array(await(await MEDIA.get(row.previews_key))!.arrayBuffer())) as any[]).length,3);
     clock+=12*3600000;return{payload:{key:'fit',directionsHash:row.directions_hash}};}};
  try{
@@ -221,7 +231,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,404);
    draftApi='private_draft_only_rights_and_generation_checked';
   }
-  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,
+  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,frameRepairs,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
@@ -351,7 +361,7 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
  assert.equal(r.models.filter(stage=>stage==='scenes').length,3);assert.ok(r.modelStages.includes('scenes:product'));
  assert.ok(r.modelReceipts.filter((receipt:any)=>receipt.callId.includes('-scene-')).every((receipt:any)=>receipt.requestSettings.effort==='none'&&receipt.requestSettings.toolChoice==='edit_file'));
- assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.1.0');
+ assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.2.0');
  assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
  const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,4);assert.equal(corrected.reservations,corrected.settlements);
@@ -362,14 +372,36 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  const vision=await fixture({customScene:true,textOnlyScenes:true,sceneInputMode:'images'});assert.equal(vision.error.message,'MODEL_VISION_UNAVAILABLE');assert.equal(vision.networkCalls,0);
  const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
  const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
+ const legacy=await fixture({customScene:true,legacyCustomMethod:true,legacyHoldMetadata:true});assert.ifError(legacy.error);assert.equal(legacy.result.directingMethod.version,'1.1.0');
 });
 
 test('custom preflight retains failed seek pixels and blocking observations before stopping review',async()=>{
  for(const mode of ['reverse','cold']){
-  const r=await fixture({customScene:true,customSeekFailure:mode});assert.equal(r.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(r.state.status,'failed');assert.equal(r.activeStudio,null);assert.equal(r.renders.length,0);assert.ok(!r.models.includes('review'));
+  const r=await fixture({customScene:true,legacyCustomMethod:true,customSeekFailure:mode});assert.equal(r.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(r.state.status,'failed');assert.equal(r.activeStudio,null);assert.equal(r.renders.length,0);assert.ok(!r.models.includes('review'));
   assert.equal(r.customFailures.length,1);const failure=r.customFailures[0];assert.equal(failure.phase,mode);assert.equal(failure.sceneId,'product');assert.equal(failure.aspect,'landscape');assert.equal(failure.modules.length,1);assert.ok(failure.observations.length);
   const mismatch=failure.comparisons.at(-1);assert.equal(mismatch.mode,mode);assert.equal(mismatch.verdict,'RENDER_SEAM_BLOCK');assert.equal(failure.frame,mismatch.frame);assert.equal(mismatch.maxChannelDiff,160);assert.ok(r.customFailureImages.includes(mismatch.actual.key));assert.ok(failure.images.some((image:any)=>image.frame===mismatch.frame));
  }
- const blocked=await fixture({customScene:true,customQaFailure:true});assert.equal(blocked.error.message,'CUSTOM_QA_BLOCK');assert.equal(blocked.activeStudio,null);assert.equal(blocked.renders.length,0);
+ const blocked=await fixture({customScene:true,legacyCustomMethod:true,customQaFailure:true});assert.equal(blocked.error.message,'CUSTOM_QA_BLOCK');assert.equal(blocked.activeStudio,null);assert.equal(blocked.renders.length,0);
  assert.equal(blocked.customFailures[0].phase,'forward');assert.equal(blocked.customFailures[0].observations[0].findings[0].code,'text-clipped');assert.equal(blocked.customFailureImages.length,0);
+ assert.ok(!blocked.customFailures[0].images.some((image:any)=>image.frame===blocked.customFailures[0].frame),'legacy Q1 stop does not request another frame');
+});
+
+test('new custom method repairs one observed scene failure within the original budget',async()=>{
+ for(const textOnlyScenes of [false,true]){
+  const r=await fixture({customScene:true,textOnlyScenes,customTextMissing:true,fixableFrameFailure:true});assert.ifError(r.error);assert.equal(r.frameRepairs,1);assert.equal(r.state.status,'succeeded');assert.ok(r.models.includes('review'));assert.equal(r.reservations,r.settlements);
+  assert.equal(r.customFailures[0].code,'CUSTOM_HOLD_TEXT_MISSING');assert.deepEqual(r.customFailures[0].expectation.missingTextSlots,['product']);assert.ok(r.moduleSources.some((source:string)=>source.includes('runtime repaired')));
+ }
+ for(const mode of ['reverse','cold']){
+  const r=await fixture({customScene:true,customSeekFailure:mode,fixableFrameFailure:true});assert.ifError(r.error);assert.equal(r.frameRepairs,1);assert.equal(r.customFailures[0].code,'CUSTOM_SEEK_MISMATCH');assert.equal(r.customFailures[0].phase,mode);assert.equal(r.activeStudio,null);
+ }
+ const qa=await fixture({customScene:true,customQaFailure:true,fixableFrameFailure:true});assert.ifError(qa.error);assert.equal(qa.frameRepairs,1);assert.equal(qa.customFailures[0].code,'CUSTOM_QA_BLOCK');
+ const persistent=await fixture({customScene:true,customTextMissing:true});assert.equal(persistent.error.message,'CUSTOM_HOLD_TEXT_MISSING');assert.equal(persistent.frameRepairs,1);assert.equal(persistent.renders.length,0);assert.ok(!persistent.models.includes('review'));
+ const unchanged=await fixture({customScene:true,customTextMissing:true,unchangedFrameRepair:true});assert.equal(unchanged.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(unchanged.frameRepairs,1);assert.equal(unchanged.renders.length,0);
+ const transport=await fixture({customScene:true,customTextMissing:true,repairTransportFailure:true});assert.equal(transport.error.message,'MOCK_REPAIR_TRANSPORT_FAILURE');assert.equal(transport.frameRepairs,1);assert.equal(transport.renders.length,0);assert.ok(transport.reservations>transport.settlements);
+ const wrongScene=await fixture({customScene:true,customTextWrongScene:true});assert.equal(wrongScene.error.message,'CUSTOM_HOLD_TEXT_MISSING');assert.equal(wrongScene.frameRepairs,1);assert.equal(wrongScene.renders.length,0);
+ const noClose=await fixture({customScene:true,customTextMissing:true,failCustomClose:true});assert.equal(noClose.error.message,'CUSTOM_HOLD_TEXT_MISSING');assert.equal(noClose.error.cause.message,'MOCK_CLEANUP_FAILURE');assert.equal(noClose.frameRepairs,0);assert.equal(noClose.renders.length,0);
+ const incompletePlan=await fixture({customScene:true,omitHoldPlanFirst:true});assert.ifError(incompletePlan.error);assert.equal(incompletePlan.specRequests,2);assert.equal(incompletePlan.validationFeedback[0].issues[0].code,'CUSTOM_HOLD_TEXT_REQUIRED');
+ const oldRenderer=await fixture({customScene:true,oldScopedObservation:true});assert.equal(oldRenderer.error.message,'RENDER_OBSERVATION_SCOPE_UNAVAILABLE');assert.deepEqual(oldRenderer.models,['facts','assets','directions','spec']);assert.equal(oldRenderer.reservations,4);assert.equal(oldRenderer.settlements,4);assert.equal(oldRenderer.activeStudio,null);
+ const blocksOnly=await fixture({methodWithoutCustom:true,oldScopedObservation:true});assert.ifError(blocksOnly.error);assert.equal(blocksOnly.state.status,'succeeded');assert.ok(!blocksOnly.models.includes('scenes'));
+ const overlap=await fixture({customScene:true,customSeekFailure:'reverse',customSeekOverlap:true,fixableFrameFailure:true});assert.equal(overlap.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(overlap.frameRepairs,0);assert.equal(overlap.renders.length,0);
 });

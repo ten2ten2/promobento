@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonical} from '../src/canonical.mjs';
-import {customSourceErrors,assertCustomSources,applyCustomEdit} from '../src/custom-source.mjs';
+import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit} from '../src/custom-source.mjs';
 import {filmSourceHash,filmSourceIdentity} from '../src/film-source.mjs';
 import {filmBuildReceipt} from '../src/film-composition.mjs';
 import {filmFixture} from '../../film-runtime/test/fixture.mjs';
@@ -32,4 +32,12 @@ test('Q0 rejects global evaluation, foreign scope, raw text, imports and unsuppo
  assert.throws(()=>applyCustomEdit(source,{command:'insert',path:'scenes/other/index.js',insertLine:0,newStr:'x'},scene.module),/SCOPE/);
  assert.throws(()=>applyCustomEdit(source,{command:'str_replace',path:scene.module,oldStr:'One absent string',newStr:''},scene.module),/AMBIGUOUS/);
  assert.match(applyCustomEdit(source,{command:'str_replace',path:scene.module,oldStr:'const timeline=',newStr:'const changedTimeline='},scene.module),/changedTimeline/);
+});
+
+test('reading holds may declare visible scene text without changing legacy plans',()=>{
+ const {film}=customFixture(),scene=structuredClone(film.scenes[0]);
+ assert.equal(customScenePlan(scene).readingHolds[0].visibleTextSlots,undefined);
+ scene.params.readingHolds[0].visibleTextSlots=['headline'];assert.deepEqual(customScenePlan(scene,{validateVisibleTextSlots:true}).readingHolds[0].visibleTextSlots,['headline']);
+ scene.params.readingHolds[1].visibleTextSlots=[];assert.doesNotThrow(()=>customScenePlan(scene,{validateVisibleTextSlots:true}));
+ for(const bad of [['absent'],['headline','headline'],null,'headline']){scene.params.readingHolds[0].visibleTextSlots=bad;assert.doesNotThrow(()=>customScenePlan(scene));assert.throws(()=>customScenePlan(scene,{validateVisibleTextSlots:true}),/CUSTOM_HOLD_TEXT_INVALID/);}
 });

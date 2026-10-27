@@ -20,6 +20,7 @@
         "required": ["slotId", "text", "box", "fonts", "fallbackUsed", "missingGlyphs", "contrastRatio", "insideSafeArea", "clipped", "covered"],
         "properties": {
           "slotId": {"description": "null for text drawn outside a slot (unbound-text).", "oneOf": [{"type": "string", "maxLength": 48}, {"type": "null"}]},
+          "sceneId": {"description": "Active custom scene containing this slot, when applicable.", "type": "string", "maxLength": 48},
           "text": {"type": "string", "maxLength": 2000},
           "box": {"$ref": "#/$defs/box"},
           "fonts": {

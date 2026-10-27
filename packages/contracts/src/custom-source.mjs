@@ -3,13 +3,14 @@ import {parse} from 'acorn';
 export const CUSTOM_SOURCE_MAX_BYTES = 65536;
 const id = /^[a-z][a-z0-9-]{0,47}$/;
 /** Declarative timing/slot contracts, independent of executing the scene factory. */
-export function customScenePlan(scene) {
+export function customScenePlan(scene,{validateVisibleTextSlots=false}={}) {
   const p=scene.params, duration=scene.end-scene.start;
   if(!p||!Array.isArray(p.textSlots)||!Array.isArray(p.assetKeys)||!Array.isArray(p.events)||!Array.isArray(p.readingHolds)||!p.readingHolds.length)
     throw Error('CUSTOM_PLAN_REQUIRED');
   for(const keys of [p.textSlots,p.assetKeys])if(keys.length>100||new Set(keys).size!==keys.length||keys.some(key=>typeof key!=='string'||!id.test(key)))throw Error('CUSTOM_PLAN_INVALID');
   if(p.events.length>100||p.events.some(e=>!e||typeof e.name!=='string'||!id.test(e.name)||!Number.isInteger(e.frame)||e.frame<0||e.frame>=duration)||new Set(p.events.map(e=>e.name)).size!==p.events.length)throw Error('CUSTOM_EVENT_INVALID');
   if(p.readingHolds.length>60||p.readingHolds.some(h=>!h||!Number.isInteger(h.start)||!Number.isInteger(h.end)||h.start<0||h.end<=h.start||h.end>duration))throw Error('CUSTOM_READING_HOLD_INVALID');
+  if(validateVisibleTextSlots&&p.readingHolds.some(h=>h.visibleTextSlots!==undefined&&(!Array.isArray(h.visibleTextSlots)||h.visibleTextSlots.length>p.textSlots.length||new Set(h.visibleTextSlots).size!==h.visibleTextSlots.length||h.visibleTextSlots.some(key=>typeof key!=='string'||!p.textSlots.includes(key)))))throw Error('CUSTOM_HOLD_TEXT_INVALID');
   if(new Set([0,duration-1,...p.events.map(e=>e.frame),...p.readingHolds.map(h=>Math.floor((h.start+h.end-1)/2))]).size>24)throw Error('CUSTOM_FRAME_PLAN_BUDGET');
   return p;
 }
