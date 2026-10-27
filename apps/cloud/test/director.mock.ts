@@ -23,7 +23,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -129,9 +129,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.doesNotMatch(canonical(params),/\$ref/);
    if(input.phase==='layout'){
     assert.equal(body.max_tokens,16384);
+    assert.equal(input.textLayoutRequirements.minimumFontSizeBySlot.product,36);assert.equal(input.textLayoutRequirements.initiallyHiddenSlotsAreFitted,true);assert.match(input.textLayoutRequirements.parentBox,/width AND height/);
     assert.match(input.literalAccessGuidance,/pic\(ctx.asset\("dashboard"\),parent\)/);
     assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);
-    assert.equal(input.scene.brief,'Static base only; full choreography is supplied in the next motion edit.');
+    assert.equal(input.scene.brief,spec.scenes[1].brief);assert.match(input.phaseTask,/complete original brief/);assert.match(input.phaseTask,/Do not implement choreography/);
     if(fixableCustomPath&&models.includes(stage))assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));
     if(fixableCustomAsset&&models.includes(stage)){const issue=input.validationFeedback.issues.find((issue:any)=>issue.code==='CUSTOM_SLOT_UNDECLARED');assert.match(issue.sourceLine,/ctx.asset\(key\)/);assert.match(issue.hint,/pic\(ctx.asset\("dashboard"\),parent\)/);}
     value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:(badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource).replace('power2.out','power1.out')}}]};
@@ -140,12 +141,14 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     assert.equal(body.max_tokens,32768);
     assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,spec.scenes[1].brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);assert.match(input.apiNotes,/inside safeInsets after transforms/);
     assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);
+    assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);assert.equal(params.properties.oldStr.type,'string');assert.equal(params.properties.insertLine.type,'integer');assert.equal(params.additionalProperties,false);
     const first=input.phase==='motion-0';assert.match(input.currentSource,first?/power1.out/:/power2.out/);
     if(first)assert.equal(input.phaseWindow.start,0);else assert.equal(input.phaseWindow.end,spec.scenes[1].end-spec.scenes[1].start);
     value={toolCalls:[{id:'mock-motion',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:first?'power1.out':'return {timeline}',newStr:first?'power2.out':'/* tail authored */ return {timeline}'}}]};
+    if(emptyCustomMotion&&input.phase==='motion-1'){if(!input.validationFeedback)value.toolCalls[0].input={};else assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'));}
    }}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
-   if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);}
+   if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);}
    assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
@@ -343,6 +346,7 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
  const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,4);assert.equal(corrected.reservations,corrected.settlements);
  const literal=await fixture({customScene:true,fixableCustomAsset:true});assert.ifError(literal.error);assert.equal(literal.models.filter(stage=>stage==='scenes').length,4);assert.equal(literal.reservations,literal.settlements);
+ const empty=await fixture({customScene:true,emptyCustomMotion:true});assert.ifError(empty.error);assert.equal(empty.models.filter(stage=>stage==='scenes').length,4);assert.equal(empty.reservations,empty.settlements);
  const bad=await fixture({customScene:true,badCustom:true});assert.equal(bad.error.message,'CUSTOM_SOURCE_INVALID');assert.equal(bad.renders.length,0);assert.equal(bad.reservations,bad.settlements);
  const unhealthy=await fixture({customScene:true,healthFailure:true});assert.equal(unhealthy.networkCalls,0);assert.equal(unhealthy.reservations,0);
 });

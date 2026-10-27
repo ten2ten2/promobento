@@ -597,9 +597,9 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 最初较短的 hold-release 曾返回真实模块，而当前一次性实现整段 9.6 秒复杂动作连续只返回分析。下一步保留 C 原 brief 与逐帧门槛，将 D 拆成可运行静态构图 create → 原文件内补完整动作 str_replace/insert。两步共用原每镜头次数、金额和期限，静态底稿不交付；每步允许一次完整结构纠正，截断仍停止、不自动重试。新回执另外记录选择的 effort/工具/输出上限，供后续区分调用设置与供应商实际行为。旧链路和两步 D/E 定点回放、cloud 类型检查通过；真实效果仍待验。
 
-### 后续仅限这一题，最多五次新评测
+### 后续仅限这一题，累计最多七次新评测
 
-负责人于 2026-10-27 选择[保持 $10、允许再五次](custom-fourth-attempt/owner-authorization.json)，不包含上面的第四次评测。每次操作最多 $3，新增模型实际与未知预留继续累计入原共享 $10；只允许同一 MiniMax 15 秒、已批准素材/事实/提示/源码、既有 modelswitch DeepSeek/Claude 与私有成片。仅在查明并修复新失败后进入下一次，有候选即停，不跑其他题、不重发未知调用；原授权到期与历史未知项不变。后续原始报告的 operationId 是这五次额度的消费依据。
+负责人于 2026-10-27 选择[保持 $10、允许再五次](custom-fourth-attempt/owner-authorization.json)，不包含上面的第四次评测。每次操作最多 $3，新增模型实际与未知预留继续累计入原共享 $10；只允许同一 MiniMax 15 秒、已批准素材/事实/提示/源码、既有 modelswitch DeepSeek/Claude 与私有成片。仅在查明并修复新失败后进入下一次，有候选即停，不跑其他题、不重发未知调用；原授权到期与历史未知项不变。负责人在第 5 次运行期间另说「再多给两次机会」，[扩展为累计最多七次](custom-eighth-attempt/owner-extension.json)，不重置前四次与当前运行的消费；其余条件不变。后续原始报告的 operationId 是次数消费依据。
 
 
 ### 第五次自写评测：布局返回真实模块，整段动作仍截断
@@ -648,4 +648,22 @@ A/素材理解、B 的三张实际方向图和 C 完整规格均已生成。已�
 
 问题是具体纠正信息不足，不放宽原字面量门槛。D 初次请求现给出本镜头的 handle 示例；D/E 的 Q0 反馈共用实际出错行和针对性 hint：`pic(ctx.asset("mark"), parent)`，helper 只读已解析 handle 的 url，不再调用 ctx.asset(key)。对原第二份模块作这个手工文本修复后，共享 Q0 返回零错误；这只证明修复写法，不是模型已纠正或运行时通过。调用/金额、每阶段一次结构纠正及实际帧门槛不变。新增动态 helper 拒绝/带 hint 纠正分支及既有 D/E 定点回放、cloud TypeScript 检查通过，未重跑全量测试或媒体矩阵。
 
-[费用与回收](custom-eighth-attempt/report.json)：两笔模型合计 **4,909 usd_micros**；四次计算全部停止/结算，保守上界 **3,270**，本轮合计 **8,179**。无本轮未知、容量为空、Workflow 已对账、临时密钥已回收。共享新增模型已结 **756,067**，原四笔未知 **79,629**，合计占用 **835,696 usd_micros**。新增五次已用四次、剩余一次；仍无新影片，不增加 S1 通过数。
+[费用与回收](custom-eighth-attempt/report.json)：两笔模型合计 **4,909 usd_micros**；四次计算全部停止/结算，保守上界 **3,270**，本轮合计 **8,179**。无本轮未知、容量为空、Workflow 已对账、临时密钥已回收。共享新增模型已结 **756,067**，原四笔未知 **79,629**，合计占用 **835,696 usd_micros**。本次为原五次中的第 4 次；后续额度按上述现行授权累计，仍无新影片，不增加 S1 通过数。
+
+
+字面量反馈修复已由 [40420116606](https://github.com/ten2ten2/promobento/actions/runs/40420116606) 将 `e7ee289f4bf8e9648cadaf110ec15750f7fb46c8` Worker-only 部署。[健康回执](custom-eighth-attempt/deployment-health-40420116606.json)为 ok、空容量、零模型/渲染调用；[a022de4 镜像保持不变](custom-eighth-attempt/renderer-reuse-40420116606.json)，临时密钥已回收。
+
+
+### 第九次自写评测：前两段动作完成，最后一段返回空工具参数
+
+这是现行累计七次授权中的第 5 次，操作 `eval-minimax-15-1793057458712`，使用已部署 `e7ee289`／原 a022de4 renderer。A–C 与冻结 amplify 方向沿用成功缓存。负责人在这次运行期间另批的两次扩展见上方授权段落，不重置已用次数或共享 $10。
+
+[原始 D 回执元数据](custom-ninth-attempt/d-responses.json)确认字面量修复生效：布局首次返回合法模块，0–90 帧补丁通过；90–180 帧先返回四个空调用，在一次纠正后返回合法 str_replace 并通过 Q0。180–288 帧两次均只返回 `edit_file({})`，停止为 `CUSTOM_TOOL_INVALID`。六次请求都完整报告用量，没有截断或新增未知；没有完整镜头、源码云验、review/E/F 或影片。原始 arguments 确为 `{}`，不是客户端从散文漏提取了代码。
+
+这次多命令工具 Schema 顶层只有 type/oneOf，没有显式 properties/required；无法从回执确认网关怎样处理它。当前把命令字段、共同必填项与 command 枚举也显式放到根部，保留原分支与共享严格校验，排除这处传输歧义。空参数仍拒绝，不补造工具参数或增加纠正次数。
+
+为避免再付费写完后才发现底稿不能运行，另将真实 0–180 帧部分模块在既有禁网、独立 UID Chromium 中试运行。[原模块](custom-ninth-attempt/partial-original-init.json)横屏报 TEXT_FIT_FAILED:spec-timer，竖屏先报 TEXT_SIZE_INVALID：文字父框缺高度、credit 上限 32 低于竖屏原下限。[手工补父框/字号](custom-ninth-attempt/partial-box-font-fix.json)后横屏 63/143 帧无 finding，竖屏仍不适配；[竖屏重排](custom-ninth-attempt/partial-portrait-reflow.json)后 63 帧通过，但 143 帧沿用横屏上移量而越界；只改竖屏这个落点后，[143 帧无 finding](custom-ninth-attempt/partial-portrait-chip-fix.json)，未重复已通过且未受影响的横屏/早期帧。已看真实横竖 PNG；这些是手工诊断派生版本，不是模型已修复或完整运动质量通过。输入、原源、派生源码和 PNG 私有保存在 `artifacts/s1-minimax-custom-midpoint-check-2026-10-27/`。
+
+源码还把矩形 inset 擦除注释为字形遮罩，没有实现 brief 中的实际字形关系。编排核对又发现布局阶段原本隐藏完整 brief，动作阶段却要求沿用底稿几何；它因此拿不到 C 的画幅图像比例/落点等构图要求。当前布局阶段保留完整原 brief，只限制本步实现静态姿势；动作可纠正不满足原构图的几何。D 另收到逐槽位最小字号、父框正宽高、隐藏文字仍拟合、竖屏重排及变换后安全区的明确要求；未放宽字号、行数、真实素材或原视觉机制。工具根字段/空参数纠正及既有 D/E 定点回放、cloud TypeScript 检查通过；未跑全量测试或重复媒体矩阵。
+
+[费用与回收](custom-ninth-attempt/report.json)：六笔模型共 **11,241 usd_micros**；五次计算全部停止/结算，保守上界 **2,197**，本轮合计 **13,438**。容量为空、无本轮未知、Workflow 已对账、临时密钥回收。共享新增模型已结 **767,308**，原四笔未知 **79,629**，合计占用 **846,937 usd_micros**。累计七次已用五次、剩余两次；仍无新影片，不增加 S1 通过数。
