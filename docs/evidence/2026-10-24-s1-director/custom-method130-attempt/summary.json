@@ -1,0 +1,63 @@
+{
+  "scope": "internal_eval_only_no_film",
+  "operationId": "eval-minimax-15-1793088833772",
+  "rendererRelease": "renderer-a849e1c303f6",
+  "rendererSourceSha": "a849e1c303f603f85f0f910e118227ff7ef3e262",
+  "methodVersion": "1.3.0",
+  "choice": {
+    "directionsHash": "6e4186c6ee5b635fd9abc54d7e37ba798eb8be0f6cd232b0660a47e0f6511c51",
+    "key": "unexpected",
+    "reason": "The blue preview gives the real pet and product name strong contrast at readable scale. Its pet-led continuous story connects the two requests and documented states rather than stacking static slides; retain the required provenance and avoid invented interaction. Fit is legible but less distinctive, while amplify has visibly cropped, overlong copy in the preview."
+  },
+  "failures": [
+    {
+      "stage": "before",
+      "code": "CUSTOM_QA_BLOCK",
+      "aspect": "landscape",
+      "frame": 83,
+      "findings": [
+        {
+          "code": "text-covered",
+          "severity": "REVIEW",
+          "slotId": "req1"
+        },
+        {
+          "code": "low-contrast",
+          "severity": "BLOCK",
+          "slotId": "req1"
+        }
+      ],
+      "contrastRatio": 1.925250268557663,
+      "missingTextSlots": []
+    },
+    {
+      "stage": "after",
+      "code": "CUSTOM_QA_BLOCK",
+      "aspect": "landscape",
+      "frame": 83,
+      "findings": [
+        {
+          "code": "text-covered",
+          "severity": "REVIEW",
+          "slotId": "req1"
+        },
+        {
+          "code": "low-contrast",
+          "severity": "BLOCK",
+          "slotId": "req1"
+        }
+      ],
+      "contrastRatio": 1.925250268557663,
+      "missingTextSlots": []
+    }
+  ],
+  "modelCalls": 7,
+  "modelMicros": 149598,
+  "computeCount": 7,
+  "computeMicros": 6818,
+  "allComputeStopped": true,
+  "unresolved": [],
+  "capacity": [],
+  "internalKeyRevoked": true,
+  "sharedBudgetMicros": 1163029
+}

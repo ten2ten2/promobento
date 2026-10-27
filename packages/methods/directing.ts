@@ -1,6 +1,6 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.3.0',
+  id: 'product-directing', version: '1.4.0',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -35,6 +35,7 @@ export const directingMethodPack = {
     scenes: [
       'Build the hardest product-specific shot first using the actual material and fonts. Establish start/end composition, identity anchors, content actions versus camera actions, landing frames and reading windows before filling the rest. Each reading hold declares exactly which of the scene text slots must be visible there; an intentionally text-free hold declares an empty list.',
       'Use one paused GSAP timeline or ctx.OM.clock with a pure draw(t). Work in the scene root with relative target dimensions. Text comes only from ctx.text slots; images come only from ctx.asset. DOM, SVG shapes and Canvas2D are supported; imports, custom WebGL, network, timers, dynamic evaluation and raw text drawing are not.',
+      'ctx.text(slot).mount(parent, options) returns the actual text element with its own inline ink color. A color set only on the parent does not override it. If a contrasting surface needs a different text color, set the returned element’s style.color, and check the real rendered contrast in each reading hold.',
       'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.',
       'Give objects that move together one shared geometry and state. Derive a pointer destination from its target and carry the same object through contact, movement and result when the brief calls for it. Keep independent captions and sound separate; do not expose incidental geometry as controls.'
     ],
