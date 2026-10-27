@@ -47,7 +47,7 @@ function copyReduced(source,pixels,width,left,top,tileWidth,tileHeight){
 }
 
 export async function reviewContactSheet({aspect,frames,load,sampleKind='reading_holds'}){
- if(!['reading_holds','brand_relay_keyposes','beat_choreography_keyposes'].includes(sampleKind))throw Error('REVIEW_SAMPLE_KIND_INVALID');
+ if(!['reading_holds','brand_relay_keyposes','beat_choreography_keyposes','motion_keyposes','custom_event_keyposes'].includes(sampleKind))throw Error('REVIEW_SAMPLE_KIND_INVALID');
  if(!['landscape','portrait','feed','square'].includes(aspect)||!Array.isArray(frames)||!frames.length||frames.length>120)throw Error('REVIEW_FRAME_COVERAGE_MISSING');
  const sequence=frames.map(blob=>{
   const match=(sampleKind==='reading_holds'?/\/observation-frames\/(\d+)\.png$/:/\/motion-frames\/(\d+)\.png$/).exec(blob.key);if(!match)throw Error('REVIEW_FRAME_REFERENCE_INVALID');
@@ -79,5 +79,22 @@ export async function reviewContactSheet({aspect,frames,load,sampleKind='reading
  }
  const bytes=pngRgba(width,height,pixels);
  if(bytes.length>1<<20)throw Error('MODEL_IMAGE_TOO_LARGE');
- return{bytes,width,height,tiles,columns,rows,padding:'frame_labels_gutters_and_unlisted_cells_are_review_chrome_not_film_pixels',scope:sampleKind==='reading_holds'?'all_actual_reading_hold_frames_not_per_second_or_full_Q2':sampleKind==='brand_relay_keyposes'?'actual_brand_relay_landings_and_mid_hops_not_full_motion_or_audio_review':'actual_beat_choreography_arrivals_and_transitions_not_full_motion_or_audio_review'};
+ return{bytes,width,height,tiles,columns,rows,padding:'frame_labels_gutters_and_unlisted_cells_are_review_chrome_not_film_pixels',scope:sampleKind==='reading_holds'?'all_actual_reading_hold_frames_not_per_second_or_full_Q2':sampleKind==='brand_relay_keyposes'?'actual_brand_relay_landings_and_mid_hops_not_full_motion_or_audio_review':sampleKind==='custom_event_keyposes'?'selected_custom_events_and_handoffs_not_full_motion_or_audio_review':sampleKind==='motion_keyposes'?'existing_motion_keyposes_not_full_motion_or_audio_review':'actual_beat_choreography_arrivals_and_transitions_not_full_motion_or_audio_review'};
+}
+
+/** Keep the most useful actual frames of the hardest custom scene readable in one model image.
+ * Missing requested frames stay visible in the selection record; never invent image evidence. */
+export function selectCustomMotionFrames(frames,film,quality){
+ const custom=film.scenes.filter(scene=>scene.kind==='custom').sort((a,b)=>Number(b.params.hardest===true)-Number(a.params.hardest===true));
+ if(!custom.length)return null;
+ const scene=custom[0],stride=quality==='review'?2:1,align=frame=>Math.floor(frame/stride)*stride;
+ const valid=frame=>frame>=0&&frame<film.totalFrames;
+ const events=[...scene.params.events].sort((a,b)=>a.frame-b.frame);
+ const anchors=[scene.start-2,scene.start,scene.start+6,...events.slice(0,2).flatMap(event=>[-6,0,6].map(offset=>Math.max(scene.start,Math.min(scene.end-1,scene.start+event.frame+offset)))),scene.end-6,scene.end-1,scene.end].filter(valid).map(align);
+ const byFrame=new Map();for(const blob of frames){const match=/\/motion-frames\/(\d+)\.png$/.exec(blob.key);if(!match||byFrame.has(Number(match[1])))throw Error('REVIEW_FRAME_REFERENCE_INVALID');byFrame.set(Number(match[1]),blob);}
+ const requested=[...new Set(anchors)],selected=requested.filter(frame=>byFrame.has(frame));
+ const remaining=[...byFrame.keys()].filter(frame=>frame>=scene.start&&frame<scene.end&&!selected.includes(frame)).sort((a,b)=>a-b);
+ while(selected.length<12&&remaining.length){const index=Math.floor(remaining.length/2);selected.push(remaining.splice(index,1)[0]);}
+ selected.sort((a,b)=>a-b);
+ return {sceneId:scene.id,frames:selected.map(frame=>byFrame.get(frame)),requested,missing:requested.filter(frame=>!byFrame.has(frame)),scope:'first_two_events_and_scene_handoffs_actual_frames_only'};
 }

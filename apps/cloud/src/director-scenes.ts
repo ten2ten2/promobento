@@ -16,22 +16,39 @@ export class CustomSceneCheckError extends Error {
   constructor(code:string,readonly failure:Json){super(code);}
 }
 
+/** Inert placeholders allow one completed scene to be checked before other modules are authored.
+ * They are executed only by the renderer, never used for a candidate or a final proof. */
+export function probeCustomSources(film:Json,sceneId:string,sources:Record<string,string>){
+  const result={...sources};
+  for(const scene of film.scenes.filter((item:Json)=>item.kind==='custom'&&item.id!==sceneId)){
+    const plan=customScenePlan(scene);
+    const reads=[...plan.textSlots.map(id=>`ctx.text(${canonical(id)});`),...plan.assetKeys.map(id=>`ctx.asset(${canonical(id)});`)].join('');
+    result[scene.module]=`PB.scene(${canonical(scene.id)},ctx=>{${reads}const timeline=gsap.timeline({paused:true});timeline.to({},{duration:${(scene.end-scene.start)/30}});return {timeline};});`;
+  }
+  return result;
+}
+
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false){
-  const sourceHash=filmSourceHash(canonical(film),sources),prefix=`operations/${op.id}/custom-check/${sourceHash}`;
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string){
+  const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
+    ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
   for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,prefix+'/'+path,new TextEncoder().encode(text),'text/javascript'),name:path});
   const resourceRefs=[...context.resources,...(context.audioSources??[])];
   const release=await env.DB.prepare("SELECT image_digest FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>();
   if(!release)throw Error('RENDER_ENVIRONMENT_MISMATCH');
   const evidence:Json[]=[];
-  for(const scene of film.scenes.filter((scene:Json)=>scene.kind==='custom').sort((a:Json,b:Json)=>Number(b.params.hardest===true)-Number(a.params.hardest===true))){
-    const p=customScenePlan(scene,{validateVisibleTextSlots:repairFailures}),reading=p.readingHolds.map(hold=>scene.start+Math.floor((hold.start+hold.end-1)/2));
-    const frames=[...new Set([scene.start,scene.end-1,...reading,...p.events.map(event=>scene.start+event.frame)])].sort((a,b)=>a-b);
+  for(const scene of film.scenes.filter((scene:Json)=>scene.kind==='custom'&&(!probeSceneId||scene.id===probeSceneId)).sort((a:Json,b:Json)=>Number(b.params.hardest===true)-Number(a.params.hardest===true))){
+    const p=customScenePlan(scene,{validateVisibleTextSlots:repairFailures});
+    // A placeholder cannot establish behavior in a shared frame; defer those frames to the full check.
+    const eligible=(frame:number)=>!probeSceneId||film.scenes.filter((item:Json)=>item.start<=frame&&frame<item.end).length===1;
+    const reading=p.readingHolds.map(hold=>scene.start+Math.floor((hold.start+hold.end-1)/2)).filter(eligible);
+    const frames=[...new Set([scene.start,scene.end-1,...reading,...p.events.map(event=>scene.start+event.frame)])].filter(eligible).sort((a,b)=>a-b);
+    if(!frames.length){evidence.push({sceneId:scene.id,scope:'probe_no_unshared_frames',images:[],observations:[],comparisons:[]});continue;}
     for(const aspect of context.aspects){
       if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
       await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
-      const layout=(platform.aspectLayouts as Json)[aspect],taskId='custom-'+digest({operationId:op.id,sourceHash,scene:scene.id,aspect}).slice(0,48);
+      const layout=(platform.aspectLayouts as Json)[aspect],taskId='custom-'+digest({operationId:op.id,sourceHash,scene:scene.id,aspect,...(probeSceneId?{probeSceneId}:{})}).slice(0,48);
       const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:'standard-3',taskId,generation:op.generation,deadlineAt,imageDigest:release.image_digest,
         job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash,runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,
           aspectId:aspect,durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality:'still',frames,
@@ -94,7 +111,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
         }
       }catch(error){failed=true;try{await recordFailure(error);}catch(recordError){if(recordError instanceof CustomSceneCheckError)repairable=recordError;throw recordError;}throw error;}
       finally{await closeStudio();}
-      const coldFrame=reading[Math.floor(reading.length/2)]!,coldTask={...task,taskId:taskId+'-cold'};
+      const coldFrame=reading.length?reading[Math.floor(reading.length/2)]!:frames[Math.floor(frames.length/2)]!,coldTask={...task,taskId:taskId+'-cold'};
       failed=false;repairable=undefined;
       try{
         phase='cold';currentFrame=coldFrame;
@@ -105,6 +122,6 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
       evidence.push({sceneId:scene.id,aspect,images,observations,comparisons});
     }
   }
-  const proof=await immutableJson(env,prefix+'/proof.json',{kind:'custom_scene_preflight',sourceHash,modules,evidence});
+  const proof=await immutableJson(env,prefix+'/proof.json',{kind:probeSceneId?'custom_scene_probe':'custom_scene_preflight',sourceHash,modules,evidence,...(probeSceneId?{sceneId:probeSceneId,scope:'unshared_frames_only_placeholders_not_candidate'}:{})});
   return {sourceHash,modules,evidenceKey:proof.key};
 }

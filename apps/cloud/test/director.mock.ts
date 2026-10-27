@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -39,7 +39,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   async get(key:string){const value=objects.get(key);return value?{size:value.bytes.length,body:Uint8Array.from(value.bytes),customMetadata:value.customMetadata,arrayBuffer:async()=>Uint8Array.from(value.bytes).buffer}:null;},
   async put(key:string,input:any,options:any){if(objects.has(key)&&options?.onlyIf?.get('If-None-Match')==='*')return null;
    const bytes=typeof input==='string'?new TextEncoder().encode(input):new Uint8Array(input);objects.set(key,{bytes,customMetadata:options?.customMetadata,httpMetadata:options?.httpMetadata});return{};}};
- let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[],frameRepairs=0;
+ let clock=Date.parse('2026-10-24T00:00:00Z'),activeStudio:any=null,studioCount=0,closedCount=0,choiceCount=0,networkCalls=0,models:string[]=[],progress:string[]=[],reviewRequests:any[]=[],frameRepairs=0;const trace:string[]=[];
  const healthCache=new Map<string,string>();
  const studioFrames=new Map<number,number>();
  const originalDate=Date.now,originalFetch=globalThis.fetch,originalSpec=providers.steps.spec,originalScenes=providers.steps.scenes,originalSceneMode=policy.director.steps.scenes.inputMode,originalSceneEffort=policy.director.steps.scenes.effort;
@@ -54,6 +54,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
   params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200,...(!legacyCustomMethod?{visibleTextSlots:['product']}:legacyHoldMetadata?{visibleTextSlots:'legacy-unused-metadata'}:{})}]}};
+ if(twoCustom)spec.scenes[2]={id:'cta',kind:'custom',module:'scenes/cta/index.js',start:330,end:450,purpose:'Hold the call to action.',brief:'A readable fictional closing.',transitionIn:{type:'crossfade',frames:6},
+  params:{textSlots:['cta'],assetKeys:[],events:[{name:'cta-land',frame:20}],readingHolds:[{start:30,end:110,visibleTextSlots:['cta']}]}};
  const fixtureSource='PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);const timeline=gsap.timeline({paused:true});timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});';
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
  const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
@@ -67,9 +69,11 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    async progress(text:string){if(noticeFailure)throw Error('MOCK_NOTICE_FAILURE');progress.push(parseCanonicalJson(text).status);},
    async studio(_id:string,text:string){const task=parseCanonicalJson(text),{generation,imageDigest,deadlineAt,...input}=task;
     if(healthFailure&&task.taskId.startsWith('health-'))throw Error('MOCK_RENDER_UNAVAILABLE');
+    if(task.inputs?.some((blob:any)=>blob.key.includes('/custom-probe/')))trace.push('probe-studio');
     assertRenderTask({...input,brokerToken:'fixture-non-secret-token'});activeStudio=task;studioFrames.clear();studioCount++;return canonical({status:'ready'});},
    async checkFrame(_id:string,frame:number){const health=activeStudio.taskId.startsWith('health-'),visible=health||activeStudio.taskId.startsWith('custom-')&&(!customTextMissing||fixableFrameFailure&&frameRepairs>0);
-    const texts=visible?[{slotId:health?'headline':'product',...(!(health&&oldScopedObservation)?{sceneId:health?'health':customTextWrongScene?'other':'product'}:{}),text:health?'Render health check':spec.texts.product.text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:5}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:false,covered:false}]:[];
+    const sceneId=health?'health':twoCustom&&frame>=336?'cta':'product',slotId=health?'headline':sceneId;
+    const texts=visible?[{slotId,...(!(health&&oldScopedObservation)?{sceneId:health?'health':customTextWrongScene?'other':sceneId}:{}),text:health?'Render health check':spec.texts[slotId].text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:5}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:false,covered:false}]:[];
     return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts,regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[]}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));const visits=(studioFrames.get(frame)??0)+1;studioFrames.set(frame,visits);
     const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
@@ -85,7 +89,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     assert.equal(request.audioInputsBlobs[1].name,'audio:music');assert.ok(request.job.resources.some((r:any)=>r.kind==='audio'));}
    // Real PNG bytes only for SSE image transport; this render is explicitly simulated.
    objects.set(frame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});frame.sha256=sha256Bytes(png);frame.byteLength=png.length;frame.mediaType='image/png';
-   const motionFrame={...frame,key:frame.key.replace('/observation-frames/45.png','/motion-frames/90.png')};
+   const motionFrame={...frame,key:frame.key.replace('/observation-frames/45.png',`/motion-frames/${customScene?150:90}.png`)};
    if(motionSamples)objects.set(motionFrame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});
    const fakeMovie=await immutableJson(env,`renders/${request.job.renderId}/mock/film.mp4`,{scope:'simulated_not_media_evidence'});
    const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence'}};
@@ -109,7 +113,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    ...(!missingApproval?{scoreApprovals:[{totalFrames:450,requestHash:digest({text,totalFrames:450})}]}:{})});
   db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation','res_original_score',sha256,'LicenseRef-Original-Fixture','evals/mock/audio-rights.json','internal_eval_only',null);
  }
- const method=customScene||methodWithoutCustom?await immutableJson(env,'operations/mock-operation/directing-method.json',legacyCustomMethod?{...directingMethodPack,version:'1.1.0'}:directingMethodPack):null;
+ const method=customScene||methodWithoutCustom?await immutableJson(env,'operations/mock-operation/directing-method.json',legacyCustomMethod?{...directingMethodPack,version:'1.1.0'}:frozenMethodVersion?{...directingMethodPack,version:frozenMethodVersion}:directingMethodPack):null;
  await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').run('mock-operation','evals/mock/context.json',method?.key??null);
  let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
@@ -139,6 +143,11 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    if(repairTransportFailure)throw Error('MOCK_REPAIR_TRANSPORT_FAILURE');
    value={toolCalls:[{id:'mock-frame-repair',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:'/* tail authored */',newStr:unchangedFrameRepair?'/* tail authored */':'/* runtime repaired */'}}]};}
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
+   if(input.scene.id==='cta'){
+    trace.push('author-cta');
+    const source='PB.scene("cta",ctx=>{ctx.text("cta");const timeline=gsap.timeline({paused:true});timeline.to({},{duration:4});return {timeline};});';
+    value={toolCalls:[{id:'mock-cta',name:'edit_file',arguments:'',input:input.phase==='layout'?{command:'create',path:'scenes/cta/index.js',fileText:source}:{command:'str_replace',path:'scenes/cta/index.js',oldStr:'return {timeline}',newStr:'/* '+input.phase+' */ return {timeline}'}}]};
+   }else{
    assert.equal(body.reasoning_effort,textOnlyScenes?'high':'none');if(textOnlyScenes)assert.equal(body.tool_choice,undefined);else assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
    if(textOnlyScenes){assert.equal(typeof body.messages[1].content,'string');assert.equal(body.model,'claude-opus-5-5');assert.equal(input.assetObservations.length,input.resources.length);assert.equal(input.assetObservations[0].sha256,input.resources[0].sha256);assert.equal(input.assetObservations[0].resourceId,input.resources[0].resourceId);assert.equal(input.assetObservations[0].insight.description,'Original fixture.');assert.match(input.sourceImages,/no images are attached/i);}
@@ -164,18 +173,22 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     if(first)assert.equal(input.phaseWindow.start,0);else assert.equal(input.phaseWindow.end,spec.scenes[1].end-spec.scenes[1].start);
     value={toolCalls:[{id:'mock-motion',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:first?'power1.out':'return {timeline}',newStr:first?'power2.out':'/* tail authored */ return {timeline}'}}]};
     if(emptyCustomMotion&&input.phase==='motion-1'){if(!input.validationFeedback)value.toolCalls[0].input={};else assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'));}
-   }}
+   }}}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);}
-   assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?2:1);
+   const motionCount=motionSamples?(customScene&&!legacyCustomMethod?2:1):0;
+   assert.equal(input.motionFrames.length,motionCount);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1+motionCount);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
    const suggestion=clone(fixed);if(alwaysRepair&&reviewRound===3)suggestion.texts.headline.text='An unapplied third suggestion.';
    value=customSourceRepair&&reviewRound===1?{toolCalls:[{id:'mock-source-edit',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:'power2.out',newStr:'power3.out'}}]}:change?{toolCalls:[{id:'mock-fix',name:'write_spec',arguments:'',input:{film:suggestion}}]}:submitted;}
   else if(input.task.startsWith('Independently')){stage='coldReview';coldRequests++;assert.equal(body.max_tokens,16384);assert.deepEqual(body.tools.map((entry:any)=>entry.function.name),['submit_cold_review']);assert.deepEqual(body.tools[0].function.parameters,input.responseSchema);assert.deepEqual(input.frames.map((sheet:any)=>sheet.aspect),context.aspects);assert.ok(input.frames.every((sheet:any)=>sheet.tiles.length===1));
-   assert.match(body.tools[0].function.description,/complete cold_review/);assert.equal(input.motionFrames.length,motionSamples?1:0);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,motionSamples?3:2);
-   if(motionSamples){assert.deepEqual(input.motionFrames[0].tiles.map((tile:any)=>tile.frame),[90]);assert.equal(input.motionFrames[0].aspect,context.aspects[0]);assert.match(input.motionFrames[0].scope,/mid_hops_not_full_motion_or_audio/);}
+   const motionCount=motionSamples?(customScene&&!legacyCustomMethod?2:1):0;
+   assert.match(body.tools[0].function.description,/complete cold_review/);assert.equal(input.motionFrames.length,motionCount);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,2+motionCount);
+   if(motionSamples){assert.deepEqual(input.motionFrames[0].tiles.map((tile:any)=>tile.frame),[customScene?150:90]);assert.equal(input.motionFrames[0].aspect,context.aspects[0]);
+    assert.match(input.motionFrames[0].scope,customScene&&!legacyCustomMethod?/existing_motion_keyposes_not_full_motion_or_audio/:/choreography_arrivals_and_transitions_not_full_motion_or_audio/);
+    if(customScene&&!legacyCustomMethod){assert.match(input.motionFrames[1].scope,/selected_custom_events_and_handoffs_not_full_motion_or_audio/);assert.ok(input.motionFrames[1].selection.missing.length);}}
    assert.equal(input.repairContext,undefined,'cold review stays independent of E repair history');
    const blocked=coldBlock||fixableCold&&coldRequests===1;value={schemaVersion:'3.0.0',kind:'cold_review',verdict:blocked?'block':'pass',issues:blocked?[{detail:'Synthetic cold-review rejection.',frames:[45]}]:[]};}
   else throw Error('MOCK_UNKNOWN_STAGE');
@@ -231,7 +244,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,404);
    draftApi='private_draft_only_rights_and_generation_checked';
   }
-  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,frameRepairs,
+  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,frameRepairs,trace,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
@@ -361,7 +374,7 @@ test('custom D source is scoped and metered, checked in both aspects before revi
  const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
  assert.equal(r.models.filter(stage=>stage==='scenes').length,3);assert.ok(r.modelStages.includes('scenes:product'));
  assert.ok(r.modelReceipts.filter((receipt:any)=>receipt.callId.includes('-scene-')).every((receipt:any)=>receipt.requestSettings.effort==='none'&&receipt.requestSettings.toolChoice==='edit_file'));
- assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.2.0');
+ assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.3.0');
  assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
  const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,4);assert.equal(corrected.reservations,corrected.settlements);
@@ -404,4 +417,20 @@ test('new custom method repairs one observed scene failure within the original b
  const oldRenderer=await fixture({customScene:true,oldScopedObservation:true});assert.equal(oldRenderer.error.message,'RENDER_OBSERVATION_SCOPE_UNAVAILABLE');assert.deepEqual(oldRenderer.models,['facts','assets','directions','spec']);assert.equal(oldRenderer.reservations,4);assert.equal(oldRenderer.settlements,4);assert.equal(oldRenderer.activeStudio,null);
  const blocksOnly=await fixture({methodWithoutCustom:true,oldScopedObservation:true});assert.ifError(blocksOnly.error);assert.equal(blocksOnly.state.status,'succeeded');assert.ok(!blocksOnly.models.includes('scenes'));
  const overlap=await fixture({customScene:true,customSeekFailure:'reverse',customSeekOverlap:true,fixableFrameFailure:true});assert.equal(overlap.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(overlap.frameRepairs,0);assert.equal(overlap.renders.length,0);
+});
+
+test('hardest custom scene is checked before the second is authored, without replacing the final full proof',async()=>{
+ const r=await fixture({customScene:true,twoCustom:true});assert.ifError(r.error);
+ assert.ok(r.trace.indexOf('probe-studio')>=0&&r.trace.indexOf('probe-studio')<r.trace.indexOf('author-cta'));
+ assert.equal(r.result.sceneModules.length,2);assert.match(r.result.sceneProofKey,/custom-check/);assert.doesNotMatch(r.result.sceneProofKey,/custom-probe/);
+ const stopped=await fixture({customScene:true,twoCustom:true,customTextMissing:true});
+ assert.equal(stopped.error.message,'CUSTOM_HOLD_TEXT_MISSING');assert.ok(stopped.trace.includes('probe-studio'));assert.ok(!stopped.trace.includes('author-cta'));
+ assert.equal(stopped.frameRepairs,1);assert.equal(stopped.renders.length,0);assert.equal(stopped.activeStudio,null);
+ const frozen=await fixture({customScene:true,twoCustom:true,frozenMethodVersion:'1.2.0'});assert.ifError(frozen.error);
+ assert.ok(frozen.trace.includes('author-cta'));assert.ok(!frozen.trace.includes('probe-studio'));assert.equal(frozen.result.directingMethod.version,'1.2.0');
+});
+
+test('custom event review identifies its sampled scene and missing frames without claiming full motion',async()=>{
+ const r=await fixture({customScene:true,motionSamples:true});assert.ifError(r.error);assert.equal(r.result.cold.verdict,'pass');
+ assert.equal(r.reviewRequests[0].motionFrames[1].selection.sceneId,'product');
 });

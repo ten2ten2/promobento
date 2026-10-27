@@ -43,12 +43,18 @@ export function filmObservationFrames(spec,quality){
  }))].sort((a,b)=>a-b);
 }
 
-/** Beat choreography keyposes for visual review, separate from settled text QA. */
-export function filmMotionFrames(spec,quality){
+/** Actual choreography poses for visual review, separate from settled text QA. */
+export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
-  if(scene.kind==='custom')return [...new Set([scene.start,scene.end-1,...customScenePlan(scene).events.map(event=>scene.start+event.frame),
-    ...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])].map(frame=>Math.floor(frame/stride)*stride);
+  if(scene.kind==='custom'){
+   const events=[...customScenePlan(scene).events].sort((a,b)=>a.frame-b.frame),around=[...events.map(event=>scene.start+event.frame),
+    ...(eventNeighborhoods?events.slice(0,2).flatMap(event=>[-6,6].map(offset=>Math.max(scene.start,Math.min(scene.end-1,scene.start+event.frame+offset)))):[])];
+   const handoff=(eventNeighborhoods?[scene.start-2,scene.start,scene.start+6,scene.end-6,scene.end-1,scene.end]:[scene.start,scene.end-1])
+    .filter(frame=>frame>=0&&(spec.totalFrames===undefined||frame<spec.totalFrames));
+   return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
+    .map(frame=>Math.floor(frame/stride)*stride);
+  }
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
    return blockEvents('ui-journey',scene,scene.params).flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
     .map(frame=>Math.floor((scene.start+frame)/stride)*stride);

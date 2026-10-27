@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pngPixels} from '@promobento/contracts/seams';
-import {pngRgba,reviewContactSheet} from '../src/director-sheets.mjs';
+import {pngRgba,reviewContactSheet,selectCustomMotionFrames} from '../src/director-sheets.mjs';
 
 test('review sheets retain every actual frame in time order with undistorted pixels and exact source metadata',async()=>{
  const frames=Array.from({length:20},(_,index)=>({key:'renders/fixture/observation-frames/'+(index*30)+'.png',sha256:'a'.repeat(64),byteLength:74}));
@@ -42,4 +42,17 @@ test('relay keypose sheets preserve their own source scope without relabelling t
  const journey=await reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes,sampleKind:'beat_choreography_keyposes'});
  assert.deepEqual(journey.tiles,sheet.tiles);assert.match(journey.scope,/choreography_arrivals_and_transitions_not_full_motion_or_audio/);
  await assert.rejects(reviewContactSheet({aspect:'landscape',frames,load:async()=>bytes}),/REVIEW_FRAME_REFERENCE_INVALID/);
+});
+
+test('focused custom sheet selects actual event and handoff frames and reports missing frames',async()=>{
+ const film={totalFrames:450,scenes:[{id:'other',kind:'custom',start:0,end:100,params:{events:[]}},{id:'hard',kind:'custom',start:100,end:200,params:{hardest:true,events:[{frame:80},{frame:60},{frame:30}]}}]};
+ const frames=[98,100,106,124,130,136,154,160,166,194,198,200,170].map(frame=>({key:`renders/fixture/motion-frames/${frame}.png`}));
+ const selected=selectCustomMotionFrames(frames,film,'review');assert.equal(selected.sceneId,'hard');assert.deepEqual(selected.missing,[]);
+ assert.deepEqual(selected.frames.map(blob=>Number(/(\d+)\.png$/.exec(blob.key)[1])),[98,100,106,124,130,136,154,160,166,194,198,200]);
+ const missing=selectCustomMotionFrames(frames.filter(blob=>!blob.key.endsWith('/130.png')),film,'review');assert.deepEqual(missing.missing,[130]);
+ assert.throws(()=>selectCustomMotionFrames([...frames,frames[0]],film,'review'),/REVIEW_FRAME_REFERENCE_INVALID/);
+ assert.equal(selectCustomMotionFrames(frames,{scenes:[]},'final'),null);
+ const bytes=pngRgba(1,1,Uint8Array.from([0,180,255,255]));
+ const sheet=await reviewContactSheet({aspect:'landscape',frames:selected.frames,load:async()=>bytes,sampleKind:'custom_event_keyposes'});
+ assert.equal(sheet.tiles.length,12);assert.match(sheet.scope,/selected_custom_events_and_handoffs_not_full_motion_or_audio/);
 });

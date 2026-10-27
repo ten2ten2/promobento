@@ -1,13 +1,14 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.2.0',
+  id: 'product-directing', version: '1.3.0',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/product-demo-continuity.md',scope:'Identity anchors, content versus framing, landing and reading windows; no imported product imagery.'},
     {ref: 'huashu-motion@4236053', scope: 'Existing directing-method baseline; no upstream executable code imported.'},
     {ref: 'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/README.md',
-      scope: 'Owner-selected visual and prompt study: Claude Duet, Grok Bot and DeepSeek samples. Additional visual reference, not a dependency upgrade.'}
+      scope: 'Owner-selected visual and prompt study: Claude Duet, Grok Bot and DeepSeek samples. Additional visual reference, not a dependency upgrade.'},
+    {ref:'https://github.com/hypit-ai/hypit/blob/e26d9142fd8a6f78bf4f3cdb800d6205f4ecca16/skills/hypit/references/production/component-design.md',scope:'Coordinated visual relationships and shared geometry; independently implemented, no executable code imported.'}
   ],
   common: [
     'Read the product and real material, then select the message shape: workflow, mechanism, evidence, transformation, character story or showcase. Choose motion that expresses that shape; do not force every product into a causal story, a screenshot tour or a fast-cut reel.',
@@ -34,7 +35,8 @@ export const directingMethodPack = {
     scenes: [
       'Build the hardest product-specific shot first using the actual material and fonts. Establish start/end composition, identity anchors, content actions versus camera actions, landing frames and reading windows before filling the rest. Each reading hold declares exactly which of the scene text slots must be visible there; an intentionally text-free hold declares an empty list.',
       'Use one paused GSAP timeline or ctx.OM.clock with a pure draw(t). Work in the scene root with relative target dimensions. Text comes only from ctx.text slots; images come only from ctx.asset. DOM, SVG shapes and Canvas2D are supported; imports, custom WebGL, network, timers, dynamic evaluation and raw text drawing are not.',
-      'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.'
+      'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.',
+      'Give objects that move together one shared geometry and state. Derive a pointer destination from its target and carry the same object through contact, movement and result when the brief calls for it. Keep independent captions and sound separate; do not expose incidental geometry as controls.'
     ],
     review: [
       'Judge the rendered causal sequence, not just text fit. Does the opening earn attention? Does a shared visual element actually change role or reveal a consequence? Is there a clear payoff, a rhythm contrast and a concise brand ending?',

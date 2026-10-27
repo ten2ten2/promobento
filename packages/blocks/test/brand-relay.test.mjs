@@ -48,3 +48,12 @@ test('review captures the actual relay landings and mid-hops without treating mo
  assert.deepEqual(filmMotionFrames(legacy,'final'),[]);
  assert.deepEqual(filmMotionFrames({scenes:[{...spec.scenes[0],params:{...params,logoKey:undefined}}]},'final'),[]);
 });
+
+test('custom motion evidence captures event neighborhoods and adjacent handoffs on the actual frame clock',()=>{
+ const spec={totalFrames:450,scenes:[{id:'shot',kind:'custom',start:101,end:190,params:{textSlots:[],assetKeys:[],events:[{name:'action',frame:31}],readingHolds:[{start:30,end:80}]}}]};
+ const final=filmMotionFrames(spec,'final'),review=filmMotionFrames(spec,'review');
+ for(const frame of [99,101,107,126,132,138,184,189,190])assert.ok(final.includes(frame),String(frame));
+ for(const frame of [98,100,106,126,132,138,184,188,190])assert.ok(review.includes(frame),String(frame));
+ assert.ok(review.every(frame=>frame%2===0));
+ assert.deepEqual(filmMotionFrames(spec,'final',{eventNeighborhoods:false}),[101,131,132,161,189]);
+});
