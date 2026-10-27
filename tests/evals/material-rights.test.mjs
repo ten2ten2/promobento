@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdirSync,mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
@@ -8,6 +8,7 @@ import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {materialApproval} from '../../research/evals/material-approval.mjs';
 
 test('known IELTS permission gap blocks before reading image bytes, invoking Wrangler or admitting a rights row',()=>{
+ mkdirSync('artifacts',{recursive:true});
  const directory=mkdtempSync(resolve('artifacts/ielts-rights-fixture-'));
  try{
   writeFileSync(join(directory,'selected.json'),JSON.stringify({scope:'internal_eval_only',publicUseCleared:false,assets:[{

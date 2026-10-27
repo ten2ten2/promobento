@@ -20,7 +20,7 @@ function observation(size,weight,background){
     return{};
   }};
   const face={fontId:'test',weight:600,style:'normal'},plan={target:{aspect:'landscape',width:1920,height:1080,safeInsets:{top:0,bottom:0,left:0,right:0}},
-    fonts:[{...face,codePoints:[...'Text'].map(c=>c.codePointAt(0))}],spec:{texts:{label:{role:'body'}},style:{type:{text:face}}}};
+    fonts:[{...face,codePoints:[...'Text'].map(c=>c.codePointAt(0))}],spec:{scenes:[],texts:{label:{role:'body'}},style:{type:{text:face}}}};
   return observe(cdp,plan,'render-test',45);
 }
 

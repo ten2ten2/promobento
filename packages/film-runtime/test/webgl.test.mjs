@@ -42,5 +42,5 @@ test('WebGL block loads only when used, preserves facts/assets and uses shared c
  }
  const review=planShards({...job,quality:'review'},mixed,{seed:'seed'});assert.equal(review.shards.length,12);
  assert.ok(review.shards.every(shard=>shard.start%30===0&&shard.end%30===0));
- assert.deepEqual(planShards(job,filmFixture(),{seed:'seed'}).shards.map(shard=>[shard.start,shard.end]),[[0,150],[150,300],[300,450]]);
+ assert.deepEqual(planShards(job,filmFixture(),{seed:'seed'}).shards.map(shard=>[shard.start,shard.end]),[[0,75],[75,150],[150,225],[225,300],[300,375],[375,450]]);
 });
