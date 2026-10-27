@@ -1,0 +1,284 @@
+{
+  "scope": "internal_eval_only_no_film",
+  "operationId": "eval-minimax-15-1793091792642",
+  "methodVersion": "1.4.0",
+  "renderer": {
+    "currentImageDigest": "sha256:8fd652dfbccdde632aa8220f28fcea0c091baa03ba5cb445e227781324164378",
+    "environment_key": "evals/eval-minimax-15-1793091792642/environment.json",
+    "id": "renderer-4162c6a0a193",
+    "image_digest": "sha256:8fd652dfbccdde632aa8220f28fcea0c091baa03ba5cb445e227781324164378",
+    "runtime_version": "film-runtime-v1",
+    "status": "active"
+  },
+  "sourceSha": "4162c6a0a1930b2334a2cc11ee00b75e0e8691c4",
+  "choice": {
+    "directionsHash": "c9585ac44e65063514b7d0bf294192109ad65de425bc8c5ead8e726b02a96719",
+    "key": "fit",
+    "reason": "The fit preview keeps the authentic pet state large and legible with clean product naming. Its evidence-relay plan names both documented requests and the actual ready/paused/celebration states, with no long generic opener. Amplify visibly crops the long copy; unexpected renders only a generic CTA hero and does not show the product evidence. Build the chosen relay as motivated state-to-state handoffs, not repeated slide entrances, and keep provenance readable."
+  },
+  "probe": {
+    "sceneId": "followup",
+    "scope": "unshared_frames_only_placeholders_not_candidate",
+    "sourceHash": "e928be15b645efd4ce0a5fe42b64225dfc849803f60fb2d21e729f17e9601f8b",
+    "aspects": [
+      {
+        "aspect": "landscape",
+        "frames": [
+          180,
+          204,
+          218,
+          234,
+          258,
+          300,
+          306,
+          326
+        ],
+        "comparisons": [
+          {
+            "diffPixelPct": 0,
+            "frame": 326,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 306,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 300,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 258,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 234,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 218,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 204,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 180,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 258,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "cold",
+            "verdict": "pass"
+          }
+        ],
+        "findings": [
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          }
+        ]
+      },
+      {
+        "aspect": "portrait",
+        "frames": [
+          180,
+          204,
+          218,
+          234,
+          258,
+          300,
+          306,
+          326
+        ],
+        "comparisons": [
+          {
+            "diffPixelPct": 0,
+            "frame": 326,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 306,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 300,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 258,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 234,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 218,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 204,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 180,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "reverse",
+            "verdict": "pass"
+          },
+          {
+            "diffPixelPct": 0,
+            "frame": 258,
+            "identical": true,
+            "maxChannelDiff": 0,
+            "mode": "cold",
+            "verdict": "pass"
+          }
+        ],
+        "findings": [
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req1"
+          },
+          {
+            "code": "text-covered",
+            "severity": "REVIEW",
+            "slotId": "req2"
+          }
+        ]
+      }
+    ]
+  },
+  "failure": {
+    "code": "RENDER_DEADLINE",
+    "step": "check-custom-scenes-9f655bc7e206fe831a94702f19b6fe6e-1",
+    "stepStart": "2026-10-27T09:23:24.655Z",
+    "stepEnd": "2026-10-27T09:24:23.608Z",
+    "activeStart": 1793091815413,
+    "choicePauseMs": 46023,
+    "activeLimitMs": 1200000,
+    "deadlineAt": 1793093061436,
+    "renderRows": 0
+  },
+  "modelCalls": 11,
+  "modelMicros": 199705,
+  "computeCount": 11,
+  "computeMicros": 12624,
+  "allComputeStopped": true,
+  "unresolved": [],
+  "capacity": [],
+  "internalKeyRevoked": true,
+  "sharedBudgetMicros": 1362734
+}
