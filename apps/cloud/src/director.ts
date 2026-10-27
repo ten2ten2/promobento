@@ -89,6 +89,13 @@ class DirectorValidationError extends Error {
   constructor(code:string,readonly issues:Array<{code:string;path:string;sourceLine?:string;hint?:string}>,readonly candidate:Json){super(code);}
 }
 
+export function directorActiveLimitMs(input:{environment:string;purpose:string;scope?:string;method:DirectingMethodPack|null;hasCustom:boolean}){
+  const [major=0,minor=0]=(input.method?.version??'').split('.').map(Number);
+  const extendedMethod=input.method?.id==='product-directing'&&(major>1||major===1&&minor>=5);
+  return input.environment==='staging'&&input.purpose==='evaluation'&&input.scope==='internal_eval_only'&&input.hasCustom&&extendedMethod
+    ?policy.director.activeTimeoutMs.internalCustomEvaluation:policy.director.activeTimeoutMs.creative;
+}
+
 export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operationId:string}> {
   async run(event:WorkflowEvent<{operationId:string}>,step:WorkflowStep){
     const existing=await this.env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(event.payload.operationId).first<Operation>();
@@ -101,8 +108,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const row=await this.env.DB.prepare('SELECT * FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
     if(!row)throw Error('DIRECTOR_CONTEXT_MISSING');
     const context=await getJson(this.env,row.request_key);
-    const startedAt=await step.do('active-start',async()=>Date.now());let pausedMs=0;
-    const deadline=()=>startedAt+20*60000+pausedMs;
+    const startedAt=await step.do('active-start',async()=>Date.now());let pausedMs=0,activeLimitMs=policy.director.activeTimeoutMs.creative;
+    const deadline=()=>startedAt+activeLimitMs+pausedMs;
     const checkDeadline=()=>{if(Date.now()>=deadline())throw Error('OPERATION_DEADLINE');};
     const sourceResources=[...context.resources.map((asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind})),
       ...(context.audioSources??[]).map((asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:'audio'}))];
@@ -247,6 +254,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     };
     const prepareScenes=async(film:Json)=>{
       const custom=film.scenes.filter((scene:Json)=>scene.kind==='custom').sort((a:Json,b:Json)=>Number(b.params.hardest===true)-Number(a.params.hardest===true));
+      // Extend the original absolute window only for newly frozen internal custom evaluations.
+      // Repairs and later specifications never restart it or reduce time already granted.
+      activeLimitMs=Math.max(activeLimitMs,directorActiveLimitMs({environment:this.env.PIPELINE_ENVIRONMENT,purpose:op.purpose,scope:context.scope,method:methods,hasCustom:custom.length>0}));
       sceneObservationRequired=Boolean(checkedHoldMethod&&custom.length);
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
       if(!custom.length)return;

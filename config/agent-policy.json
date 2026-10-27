@@ -247,6 +247,10 @@
   },
   "director": {
     "source": "docs/plans/cloud-motion-v3.md#611-预算限制与-effort",
+    "activeTimeoutMs": {
+      "creative": 1200000,
+      "internalCustomEvaluation": 1800000
+    },
     "steps": {
       "facts": {
         "maxCalls": 2,

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
-import {OperationWorkflow} from '../src/director.ts';
+import {OperationWorkflow,directorActiveLimitMs} from '../src/director.ts';
 import worker from '../src/index.ts';
 import {ShardDO} from '../src/compute.ts';
 import {AUDIO_INSTANCE} from '../src/render-task.ts';
@@ -369,12 +369,19 @@ test('concurrent stop and timeout settle one persisted compute usage and reject 
  }finally{db.close();}
 });
 
+test('30-minute active limit is restricted to newly frozen internal custom evaluations',()=>{
+ const input={environment:'staging',purpose:'evaluation',scope:'internal_eval_only',method:directingMethodPack,hasCustom:true};
+ assert.equal(directorActiveLimitMs(input),1800000);
+ for(const patch of [{environment:'production'},{purpose:'calibration'},{scope:'customer'},{hasCustom:false},{method:null},
+  {method:{...directingMethodPack,version:'1.4.0'}}])assert.equal(directorActiveLimitMs({...input,...patch}),1200000);
+});
+
 // These are transport/control-flow checks; pixel quality and isolation are exercised in the container.
 test('custom D source is scoped and metered, checked in both aspects before review, and E edits rerender without another D call',async()=>{
  const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
  assert.equal(r.models.filter(stage=>stage==='scenes').length,3);assert.ok(r.modelStages.includes('scenes:product'));
  assert.ok(r.modelReceipts.filter((receipt:any)=>receipt.callId.includes('-scene-')).every((receipt:any)=>receipt.requestSettings.effort==='none'&&receipt.requestSettings.toolChoice==='edit_file'));
- assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.4.0');
+ assert.equal(r.result.sceneModules.length,1);assert.match(r.result.sceneProofKey,/custom-check/);assert.equal(r.result.directingMethod.version,'1.5.0');
  assert.equal(r.result.internalRepairs,1);assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.ok(r.moduleSources.some(source=>source.includes('power3.out')));
  assert.equal(r.reservations,r.settlements);assert.equal(r.activeStudio,null);
  const corrected=await fixture({customScene:true,fixableCustomPath:true});assert.ifError(corrected.error);assert.equal(corrected.models.filter(stage=>stage==='scenes').length,4);assert.equal(corrected.reservations,corrected.settlements);
