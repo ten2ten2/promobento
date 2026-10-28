@@ -1,0 +1,5 @@
+# The existing renderer image is Linux x64; its native media dependencies must
+# be installed even when preparing the internal tool from macOS.
+supportedArchitectures:
+  - linux-x64
+ignoreScripts: true

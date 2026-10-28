@@ -33,7 +33,9 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 ## 2 视频创作上游
 
-上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明（本仓库对应模块的 `LICENSE.huashu`／`NOTICE.md`），不整包并入或追随浮动版本。各模块实际采用的固定来源以其NOTICE为准，[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
+上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明，不整包并入或追随浮动版本。各模块实际采用的固定来源见其 NOTICE 或[渲染服务说明](../../apps/render-container/README.md#四种模式)；[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
+
+Hypit 的[内部媒体检查入口](../../research/evals/README.md#用-hypit-逐帧审看片子)固定使用 `@hypit/hypit@0.3.1`，不随渲染镜像安装，不在 Worker 或可信宿主执行作品代码。负责人表示已有授权，证明尚待提供；覆盖主体、有效期和托管／多租户范围核验前，仅用于单机构内部评测，不用于对客户提供 Hypit 的托管或多租户功能。上游软件许可不代替素材、音乐或第三方服务的许可。
 
 | 来源范围 | 用途 |
 | --- | --- |

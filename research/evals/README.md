@@ -26,6 +26,27 @@
 
 临时下载与诊断用完即删；不要把同一轮完整 CI 产物和已整理的试听／成片各留一份。依赖及编译缓存继续使用既有目录，不纳入媒体清理。
 
+### 用 Hypit 逐帧审看片子
+
+内部评测可用固定 `@hypit/hypit@0.3.1` 的原生 `media` 命令查看获准影片。先在项目根目录准备独立、冻结的依赖（不执行安装脚本）：
+
+```sh
+pnpm --dir research/evals/hypit install --frozen-lockfile --ignore-scripts
+```
+
+启动 Docker 后，选用**已有的** Linux x64 渲染镜像；下例针对本机暂可通过的竖屏片，每秒生成一张带时间的拼图。结果只放私有 `artifacts/`，不会覆盖原片；Hypit 拒绝覆盖已有输出。
+
+```sh
+IMAGE=cloudflare-dev/sharddo-render-be8778cc0e8c:9d72cd91
+VIDEO="$PWD/artifacts/s1-minimax-method150-2026-10-27/manual-revision-agent-portrait-smooth/review-film.mp4"
+OUT="$PWD/artifacts/s1-minimax-method150-2026-10-27/hypit-review"
+mkdir -p "$OUT"
+bash research/evals/hypit/media.sh "$IMAGE" "$VIDEO" "$OUT" tile \
+  --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/portrait-overview.jpg --json
+```
+
+需要检查鼠标交接时，可用 `tiles --start 5.4 --end 6.2 --every-frame --columns 4 --rows 3 --cell 360 --to /out/portrait-action --json`，而不是从一秒一张的概览推断连续动作。容器只读挂载指定影片和工具，仅输出目录可写、不联网、不带凭据；不运行作品组件或 Hypit 创作构建。查看生成图及正常速度有声播放，单凭帧图不判听感或作品通过。Hypit 当前只用于内部评测；对外托管／多租户使用待核验负责人之后提供的授权证明。
+
 ## 用私有素材清单准备评测
 
 `materials.json` 的每项提供 `resourceId`、`key`、`sha256`、`byteLength`、尺寸、`licenseRef` 与 `evidenceKey`；字节只在 staging R2。新评测操作先按 cloud 内部 `rights` 入口为自己的 operationId 重新登记同一证据，再将素材加入 `context.resources`。题目用 `materialIds` 选择素材，不能因为同一目录有其他品牌的图就串用。Hugging Face 图附原课程仓库 Apache-2.0 通知及署名；这批素材整体仍限内部评测，不作为免署名商用素材包。

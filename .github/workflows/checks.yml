@@ -113,6 +113,12 @@ jobs:
         run: |
           docker run --rm --network none --entrypoint node promobento-film-runtime-tests:ci --test \
             packages/contracts/test/render-pipeline.test.mjs packages/models/test/adapters.test.mjs tests/evals/input-cards.test.mjs
+      - name: Exercise encoded-media motion cues and diagnostic failure handling
+        if: inputs.suite != 'runtime' && inputs.suite != 'journey' && inputs.suite != 'audio'
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user 10001:10001 \
+            --cpus 2 --memory 2g --pids-limit 128 -e PROMOBENTO_MEDIA_TEST_CONTAINER=1 --entrypoint node \
+            promobento-film-runtime-tests:ci --test apps/render-container/tests/motion-audit.render.test.mjs
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
         shell: bash

@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -92,7 +92,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const motionFrame={...frame,key:frame.key.replace('/observation-frames/45.png',`/motion-frames/${customScene?150:90}.png`)};
    if(motionSamples)objects.set(motionFrame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});
    const fakeMovie=await immutableJson(env,`renders/${request.job.renderId}/mock/film.mp4`,{scope:'simulated_not_media_evidence'});
-   const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence'}};
+   const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence',...(motionAudit&&request.job.quality==='review'?{motionAudit:{status:'measured',dead:[{from:1,to:3,seconds:2}]}}:{})}};
    db.prepare("UPDATE pipeline_renders SET status='passed',result_json=? WHERE id=?").run(canonical(result),request.job.renderId);
   }}};
  const opening=await importModelOpening(env,{kind:'historical_model_spend',authorizationId:modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline synthetic fixture; no provider spend'],entries:[]});
@@ -290,6 +290,13 @@ test('review repairs the spec once and regenerates review before final/cold revi
 test('cold-review rejection retains a private unapproved draft, never a passed candidate',async()=>{const r=await fixture({coldBlock:true});assert.ifError(r.error);assert.equal(r.result.reason,'COLD_REVIEW_BLOCK');assert.equal(r.state.status,'failed');assert.match(r.state.result_key,/review-draft.json$/);assert.equal(r.result.coldReviewStatus,'blocked');assert.equal(r.result.cold.verdict,'block');assert.equal(r.result.acceptanceStatus,'unapproved');assert.equal(r.result.movies.length,2);assert.equal(r.activeStudio,null);});
 test('relay evidence travels separately to E and F without shrinking all-aspect reading sheets or increasing stage budgets',async()=>{
  const r=await fixture({motionSamples:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.cold.verdict,'pass');
+});
+test('low-resolution motion cues reach E with their limits, while older render reports remain usable',async()=>{
+ const measured=await fixture({motionAudit:true});assert.ifError(measured.error);
+ assert.deepEqual(measured.reviewRequests[0].media.motionAudit.dead,[{from:1,to:3,seconds:2}]);
+ assert.match(measured.reviewRequests[0].motionAuditGuidance,/Small UI or pointer motion may be missed/);
+ assert.match(measured.reviewRequests[0].motionAuditGuidance,/not an observed defect/);
+ const old=await fixture();assert.ifError(old.error);assert.equal(old.reviewRequests[0].motionAuditGuidance,undefined);
 });
 test('cold-review correction rerenders every aspect, re-reviews and shares the two internal repairs with E',async()=>{
  const good=await fixture({fixableCold:true,repair:true});assert.ifError(good.error);assert.equal(good.result.internalRepairs,2);assert.equal(good.specRequests,2);

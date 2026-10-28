@@ -3,6 +3,7 @@ import {createReadStream} from 'node:fs';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {childProcess, deadline, run, write} from './process.mjs';
 import {finalizeEncodedAudio} from './encoded-audio.mjs';
+import {motionAuditReport} from './motion-audit.mjs';
 
 export function videoArgs({width, height, encoding, threads, strictWindow = false}) {
   if (![width, height].every(n => Number.isInteger(n) && n > 0 && n % 2 === 0)
@@ -79,7 +80,7 @@ export async function validateVideo(path, {width, height, totalFrames, encoding,
 }
 
 /** Annex B shards use identical closed GOPs and no B frames; timestamps are assigned only here. */
-export async function assemble({shards, audioPath, audioLimits, outputPath, posterPath, coverFrame, config, totalFrames, maxBytes, signal}) {
+export async function assemble({shards, audioPath, audioLimits, outputPath, posterPath, coverFrame, config, totalFrames, maxBytes, signal, motionAudit = false}) {
   if (!shards.length || !Number.isInteger(coverFrame) || coverFrame < 0 || coverFrame >= totalFrames) throw Error('ASSEMBLE_INPUT_INVALID');
   const args = ['-hide_banner', '-loglevel', 'error', '-y', '-r', String(config.encoding.fps), '-f', 'h264', '-i', 'pipe:0'];
   if (audioPath) args.push('-i', audioPath);
@@ -111,5 +112,6 @@ export async function assemble({shards, audioPath, audioLimits, outputPath, post
   }
   await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', outputPath, '-vf', `select=eq(n\\,${coverFrame})`,
     '-frames:v', '1', posterPath], {signal});
-  return {...report, reencoded,...(audio?{audio}:{}),...(bitrateCorrection?{bitrateCorrection}:{})};
+  const audit = motionAudit ? await motionAuditReport(outputPath, {fps: config.encoding.fps, totalFrames, signal}) : null;
+  return {...report, reencoded,...(audio?{audio}:{}),...(bitrateCorrection?{bitrateCorrection}:{}),...(audit?{motionAudit:audit}:{})};
 }

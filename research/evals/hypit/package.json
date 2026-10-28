@@ -1,0 +1,9 @@
+{
+  "name": "promobento-internal-hypit-media",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "dependencies": {
+    "@hypit/hypit": "0.3.1"
+  }
+}

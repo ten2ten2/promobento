@@ -100,7 +100,8 @@ async function execute(input) {
     report = await inRenderPhase({phase:'media_assemble'},()=>assemble({shards, audioPath, audioLimits, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
       coverFrame: input.job.quality === 'review' ? Math.floor(input.coverFrame / 2) : input.coverFrame,
       config: input.job.quality === 'review' ? {...config, width: config.width / 2, height: config.height / 2} : config,
-      totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes, signal: abort.signal}));
+      totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes,
+      signal: abort.signal, motionAudit: input.job.quality === 'review'}));
   } else {
     const plan = parseCanonicalJson(await bytes('audio-plan', 4 << 20));
     const {audioPlanHash} = await import('../../../packages/audio/src/plan.mjs');
