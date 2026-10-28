@@ -27,6 +27,9 @@ test('assembly preserves the old default, returns review cues, and exposes diagn
     assert.equal(measured.motionAudit.frames, 30);
     assert.equal(measured.motionAudit.firstFrame.empty, true);
     assert.ok(measured.motionAudit.dead.length);
+    assert.equal(measured.motionAudit.inspection.status,'available');
+    assert.deepEqual(measured.motionAudit.inspection.sheets[0].frames,[0,2,4,6,8,10]);
+    assert.equal(readFileSync(join(directory,measured.motionAudit.inspection.sheets[0].path)).subarray(0,2).toString('hex'),'ffd8');
 
     const unavailable = await motionAuditReport(join(directory, 'missing.mp4'), {fps: 15, totalFrames: 30});
     assert.deepEqual(unavailable, {status: 'unavailable', source: 'huashu-motion@52467f9/cli/lib/qa', reason: 'MEDIA_PROCESS_FAILED'});

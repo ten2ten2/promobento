@@ -21,7 +21,9 @@ PID1只分离uid后降为10003，控制器10001、Chromium启动器／浏览器1
 
 assemble对**最终MP4的AAC解码信号**测响度／真峰／静音：任务从同一audio结果的受校验audio-report取得目标，历史直接assemble保持−14LUFS／−1dBTP默认。目标±0.5LU、真峰不高于上限；越界只从原WAV作一次补偿、4×过采样／延迟补偿限幅，再编码AAC、视频复制。余量按该次AAC相对WAV的峰值增量＋0.4dB，仍失败报OUTPUT_AUDIO_OUT_OF_RANGE。冻结母带不覆盖；media.audio保存最终与纠正前实测，reencoded仅指视频重编码。[实际超峰／云验](../../docs/evidence/2026-10-24-s1-director/README.md#当前修复所依据的反例)。
 
-review 组装后另以 [huashu-motion@52467f99c602b76ba86d511d37acdfe93fa1e16e 的 `cli/lib/qa.js`](https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/cli/lib/qa.js) 扫描实际 MP4 全部帧；Copyright (c) 2026 Huashu，[MIT 许可](../../packages/film-runtime/src/LICENSE.huashu)。解码适配为本服务有界、可取消的 FFmpeg 进程，输出 `media.motionAudit`。它按 96×54 灰度全画面报告近静止区间、单帧闪变、切点、每秒变化与开场线索，供 E 结合实际画面判断，不自动决定通过或阻断。小鼠标／局部 UI 动作可能漏检，阅读停留与片尾也可能有意静止；这不是音频或完整动态审核。诊断本身的解码／超时失败写 `unavailable`，不把诊断缺失当通过或改变原组装结果。旧的直接 `assemble()` 调用默认不执行此诊断，final 不增加该处理。
+review 组装后另以 [huashu-motion@52467f99c602b76ba86d511d37acdfe93fa1e16e 的 `cli/lib/qa.js`](https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/cli/lib/qa.js) 扫描实际 MP4 全部帧；Copyright (c) 2026 Huashu，[MIT 许可](../../packages/film-runtime/src/LICENSE.huashu)。解码适配为本服务有界、可取消的 FFmpeg 进程，输出 `media.motionAudit`。它按 96×54 灰度全画面报告近静止区间、单帧闪变、切点、每秒变化与开场线索，不自动决定通过或阻断。
+
+review 会按空开场、闪变、低运动区间的优先级，最多取两个可疑区间，优先检查内容段而非最后三秒片尾，各从实际编码影片取六个连续预览帧，向 E 附 3×2 时序图及 30 fps 源帧编号；其他未选线索数量保留在 `inspection.omitted`。320×180 差分有变化时另附最大变化区域的局部图，标明源画面归一化近似坐标，不声称追踪到了鼠标。取帧失败或超时单独记 `unavailable`，不改影片组装结果；采样可能漏掉鼠标或其他局部动作，也不代替正常速度视听。final／F 尚未增加这些区间图；旧直接 `assemble()` 调用默认不执行诊断。
 
 `tests/encoded-audio.render.test.mjs` 可在已有隔离镜像内单独运行实际AAC纠正专项；`tests/motion-audit.render.test.mjs` 检查实编码、旧组装接口和诊断失败／取消，随 browser/media CI 运行。它们不是普通文档修改的默认验证。完整音源／样本权利见 [audio NOTICE](../../packages/audio/src/NOTICE.md)。
 
@@ -31,7 +33,7 @@ review保持30fps源时间轴，隔帧捕获完整逻辑尺寸JPEG92后由FFmpeg
 
 filmObservationFrames生成全片阅读计划，再落各分段；没有计划点的短段保存空数组。Worker核对精确帧、身份和BLOCK，不以“数组非空”代替覆盖。custom文字观测附sceneId，方法据此核对阅读窗口visibleTextSlots；旧观测合同保留。
 
-filmMotionFrames保存接力落点／中途姿势、自写每秒／事件／交接，前两个自写事件加前后六源帧，review按15fps对齐。E/F另看第一画幅动作拼图，不减少各画幅阅读图。有限采样不是完整动态Q1/Q2或正常速度听感。
+filmMotionFrames保存接力落点／中途姿势、新镜头的时间采样、自写每秒／事件／交接，前两个自写事件加前后六源帧，review按15fps对齐。E/F另看第一画幅动作拼图，不减少各画幅阅读图。有限采样不是完整动态Q1/Q2或正常速度听感。
 
 对比度普通字4.5:1、大字3:1，不四舍五入；大字按CDP实际≥24px，或≥18⅔px且字重≥700识别，不信作者role豁免。字体、裁切、安全区／遮挡分别保留发现。
 

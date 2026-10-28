@@ -5,3 +5,4 @@ export function reviewContactSheet(input:{aspect:string;frames:BlobRef[];load:(b
  tiles:Array<{frame:number;source:BlobRef;left:number;top:number;width:number;height:number}>;
 }>;
 export function selectCustomMotionFrames(frames:BlobRef[],film:any,quality:string):null|{sceneId:string;frames:BlobRef[];requested:number[];missing:number[];scope:string};
+export function auditSheetReferences(movie:any,aspect:string):any[];

@@ -5,11 +5,11 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','ui-journey','feature-grid','curriculum','hook-title','cta-endcard','captions'];
+ const supported=['ui-showcase','device-3d','ui-journey','continuous-focus','feature-grid','curriculum','drawn-steps','hook-title','kinetic-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('device-3d')?'device-3d':'ui-journey'):
-  proposals.find((id:string)=>['ui-showcase','ui-journey'].includes(id))??
-  proposals.find((id:string)=>supported.includes(id)&&!['hook-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id))??(proposals.includes('custom')?'ui-showcase':undefined);
+  proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus'].includes(id))??
+  proposals.find((id:string)=>supported.includes(id)&&!['hook-title','kinetic-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id))??(proposals.includes('custom')?'ui-showcase':undefined);
  if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
  // Compare palette/depth on the same primary cleared image, not an auxiliary logo or a random catalog item.
  const asset=context.resources[0],facts=context.facts,first=facts[0];
@@ -17,9 +17,9 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  const texts:Json={},assets:Json={},text=(id:string,fact:Json,role='headline')=>{texts[id]={text:fact.text,role,factIds:[fact.id]};return id;};
  const image=()=>{assets.hero={resourceId:asset.resourceId};return'hero';};
  let params:Json;
- if(['ui-showcase','device-3d'].includes(block))params={assetKey:image(),textSlot:text('headline',caption)};
+ if(['ui-showcase','device-3d','continuous-focus'].includes(block))params={assetKey:image(),textSlot:text('headline',caption)};
  else if(block==='ui-journey')params={items:[0,1].map(i=>({assetKey:image(),textSlot:text('fact-'+i,facts[i%facts.length])}))};
- else if(['feature-grid','curriculum'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
+ else if(['feature-grid','curriculum','drawn-steps'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
  else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
  else if(block==='cta-endcard'){
   texts.cta={text:context.cta?.text??first.text,role:'cta',factIds:[first.id]};params={textSlot:'cta'};

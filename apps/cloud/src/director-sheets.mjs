@@ -3,6 +3,20 @@ import {pngPixels,pngRgba} from '@promobento/contracts/seams';
 
 export {pngRgba} from '@promobento/contracts/seams';
 
+/** Bind only the committed encoded-frame images described by the measured inspection. */
+export function auditSheetReferences(movie,aspect){
+ const inspection=movie.media?.motionAudit?.inspection;
+ if(inspection?.status!=='available')return [];
+ return inspection.sheets.map(sample=>{
+  if(!/^audit-frames\/[01]-(overview|detail)\.jpg$/.test(sample.path)||!Array.isArray(sample.frames)||
+    sample.frames.length!==6||sample.frames.some(frame=>!Number.isInteger(frame)||frame<0||frame>899))throw Error('AUDIT_IMAGE_REFERENCE_INVALID');
+  const object=movie.outputs.find(blob=>blob.key.endsWith('/out/'+sample.path));
+  if(!object)throw Error('RENDER_OUTPUT_MISSING');
+  return {...sample,aspect,renderId:movie.renderId,image:object,
+    layout:'3x2_row_major_4px_gutters',scope:'actual_encoded_preview_frames_not_full_motion_or_audio_review'};
+ });
+}
+
 // Review chrome stays outside the source rectangles. A tiny fixed font avoids
 // browser/font dependencies in this trusted Worker-side packaging step.
 const glyphs={

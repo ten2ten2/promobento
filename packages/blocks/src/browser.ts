@@ -5,6 +5,7 @@ import {blockEvents} from './events.mjs';
 import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
 import {brandRelayPose} from './brand-relay.ts';
 import {journeyPose} from './journey-motion.ts';
+import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -176,7 +177,7 @@ window.PB.defineBlock<Record<string, unknown>>({id: 'cta-endcard', version: '1.0
   };
 }});
 
-type Item = {textSlot: string; subtitleSlot?: string; assetKey?: string};
+type Item = {textSlot: string; subtitleSlot?: string; assetKey?: string; icon?:string};
 function picture(ctx: SceneContext, key: string, parent: HTMLElement): (time: number) => Promise<void> {
   const asset = ctx.asset(key);
   if (asset.kind === 'video') {
@@ -189,6 +190,96 @@ function picture(ctx: SceneContext, key: string, parent: HTMLElement): (time: nu
   Object.assign(image.style, {display: 'block', width: '100%', height: '100%', objectFit: 'contain'}); parent.append(image);
   return async () => {};
 }
+
+window.PB.defineBlock<Record<string, unknown>>({id:'continuous-focus',version:'1.0.0',build(ctx,params){
+  const safe=inSafe(ctx),wide=ctx.target.aspect==='landscape',hasText=typeof params.textSlot==='string';
+  if(hasText)text(ctx,params.textSlot,node(safe,{position:'absolute',left:'0',top:wide?'22%':'0',
+    width:wide?'33%':'100%',height:wide?'56%':'21%'}),3);
+  const panel=node(safe,{position:'absolute',left:wide&&hasText?'37%':'0',top:wide?'3%':hasText?'25%':'3%',
+    width:wide&&hasText?'63%':'100%',height:wide?'94%':hasText?'72%':'94%',overflow:'hidden',borderRadius:'18px'});
+  const asset=ctx.asset(String(params.assetKey)),sourceStart=Number(params.sourceStartFrame??0);
+  if(asset.kind!=='video'&&sourceStart)throw Error('FOCUS_SOURCE_OFFSET_REQUIRES_VIDEO');
+  const track=((params.aspectTracks as Partial<Record<string,FocusPoint[]>>|undefined)?.[ctx.target.aspect]
+    ??params.focusTrack??[]) as FocusPoint[];
+  let element:HTMLImageElement|HTMLCanvasElement,ready=Promise.resolve(),draw:((time:number)=>Promise<void>)|undefined;
+  if(asset.kind==='video'){
+    if(!asset.frameAt)throw Error('VIDEO_FRAME_UNAVAILABLE');
+    const canvas=document.createElement('canvas');canvas.width=asset.width;canvas.height=asset.height;
+    const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+    draw=async time=>{const frame=await asset.frameAt!(time+sourceStart/30);paint.clearRect(0,0,canvas.width,canvas.height);paint.drawImage(frame,0,0,canvas.width,canvas.height);};
+    element=canvas;
+  }else{
+    const image=new Image();image.src=asset.url;image.alt='';image.draggable=false;ready=image.decode();element=image;
+  }
+  Object.assign(element.style,{position:'absolute',maxWidth:'none',pointerEvents:'none'});panel.append(element);
+  return {ready,async render(time){
+    const pose=focusPose(time*30,track),box=focusViewport(asset,{width:panel.clientWidth,height:panel.clientHeight},pose);
+    Object.assign(element.style,{left:box.left+'px',top:box.top+'px',width:box.width+'px',height:box.height+'px'});
+    if(draw)await draw(time);
+  },events:blockEvents('continuous-focus',ctx.frames,params),regions:[region('product',panel,ctx.root)]};
+}});
+
+// Adapted from huashu-motion@52467f99c602b76ba86d511d37acdfe93fa1e16e
+// runtime/clip/grammars/y5_kinetic_type.js and y3_whiteboard.js, Copyright (c) 2026 Huashu, MIT.
+// See ../../film-runtime/src/LICENSE.huashu. Text stays in fact-bound slots instead of canvas.
+window.PB.defineBlock<Record<string,unknown>>({id:'kinetic-title',version:'1.0.0',build(ctx,params){
+  const safe=inSafe(ctx),box=safeBox(ctx),group=node(safe,{position:'absolute',left:'0',width:'100%',top:'22%',height:'56%'});
+  const title=node(group,{position:'absolute',width:'100%',top:'4%',height:params.subtitleSlot?'62%':'92%'});
+  const titleText=text(ctx,params.textSlot,title,3);
+  const sub=params.subtitleSlot?node(group,{position:'absolute',width:'100%',top:'72%',height:'25%',overflow:'hidden'}):undefined;
+  if(sub)text(ctx,params.subtitleSlot,sub,2);
+  const underline=node(safe,{position:'absolute',left:'0',top:'81%',height:'8px',width:'28%',background:ctx.style.palette.accent??'',transformOrigin:'left'});
+  let fittedSize:number|undefined;
+  return {render(time){
+    const k=ctx.CLIP.MO.springHz!(time,2,8),rise=easeOut((time-.22)/.35);
+    fittedSize??=parseFloat(titleText.style.fontSize);
+    titleText.style.fontSize=Math.round(fittedSize*(.88+.12*clamp01(k)))+'px';
+    title.style.top=`calc(4% + ${Math.round((1-clamp01(k))*Math.min(50,box.height*.05))}px)`;
+    if(sub){sub.style.visibility=rise===0?'hidden':'visible';sub.style.top=`calc(72% + ${Math.round((1-rise)*20)}px)`;sub.style.clipPath=`inset(0 ${Math.round((1-rise)*100)}% 0 0)`;}
+    underline.style.transform=`scaleX(${easeOut(time/.45)})`;
+  },events:blockEvents('kinetic-title',ctx.frames,params),regions:[region('headline',titleText,ctx.root)]};
+}});
+
+window.PB.defineBlock<Record<string,unknown>>({id:'drawn-steps',version:'1.0.0',build(ctx,params){
+  const safe=inSafe(ctx),wide=ctx.target.aspect==='landscape',items=params.items as Item[];
+  const heading=params.textSlot?node(safe,{position:'absolute',left:'0',top:'0',width:'100%',height:'19%'}):undefined;
+  if(heading)text(ctx,params.textSlot,heading,2);
+  const board=node(safe,{position:'absolute',left:'0',top:heading?'25%':'10%',width:'100%',height:heading?'70%':'80%',
+    display:'grid',gridTemplateColumns:wide?`repeat(${items.length},minmax(0,1fr))`:'1fr',
+    gridTemplateRows:wide?'1fr':`repeat(${items.length},minmax(0,1fr))`,gap:wide?'28px':'16px'});
+  const pieces=items.map((item,index)=>{
+    const cell=node(board,{position:'relative',minWidth:'0',minHeight:'0'});
+    // The paths adapt the upstream whiteboard's unit-box icon strokes; all labels remain real text slots.
+    const paths:Record<string,string>={circle:'M 0 -35 A 35 35 0 1 1 -1 -35',
+      document:'M 14 -42 L -30 -42 L -30 42 L 30 42 L 30 -26 L 14 -42 L 14 -26 L 30 -26 M -18 -12 L 18 -12 M -18 4 L 18 4 M -18 20 L 6 20',
+      screen:'M -44 -36 L 44 -36 L 44 20 L -44 20 Z M 0 20 L 0 34 M -20 36 L 20 36 M -32 -22 L 6 -22 M -24 -10 L 24 -10 M -24 2 L 12 2',
+      chat:'M -30 -36 L 30 -36 L 42 -24 L 42 10 L 30 22 L -6 22 L -24 40 L -20 22 L -30 22 L -42 10 L -42 -24 Z M -18 -7 L -17 -7 M 0 -7 L 1 -7 M 18 -7 L 19 -7',
+      check:'M -32 0 L -8 26 L 36 -32',target:'M 0 -36 A 40 40 0 1 1 -1 -36 M 0 -21 A 25 25 0 1 1 -1 -21 M 0 -5 A 9 9 0 1 1 -1 -5 M 46 -42 L 2 2 M 30 -42 L 46 -42 L 46 -26'};
+    const mark=document.createElementNS('http://www.w3.org/2000/svg','svg');mark.setAttribute('viewBox','-50 -50 100 100');
+    Object.assign(mark.style,{position:'absolute',left:'0',top:wide?'12%':'32%',width:wide?'120px':'64px',height:wide?'120px':'64px',overflow:'visible'});
+    const stroke=document.createElementNS('http://www.w3.org/2000/svg','path');stroke.setAttribute('d',paths[item.icon??'circle']!);
+    stroke.setAttribute('fill','none');stroke.setAttribute('stroke',ctx.style.palette.accent??'');stroke.setAttribute('stroke-width','3.5');
+    stroke.setAttribute('stroke-linecap','round');stroke.setAttribute('stroke-linejoin','round');stroke.setAttribute('pathLength','1');
+    stroke.style.strokeDasharray='1';mark.append(stroke);cell.append(mark);
+    const line=index<items.length-1?node(cell,{position:'absolute',left:wide?'140px':'30px',top:wide?'calc(12% + 58px)':'calc(32% + 80px)',
+      width:wide?'calc(100% - 110px)':'4px',height:wide?'4px':'calc(100% - 60px)',
+      background:ctx.style.palette.accent??'',transformOrigin:wide?'left center':'center top'}):undefined;
+    if(line)node(line,{position:'absolute',right:wide?'0':'-5px',bottom:wide?'-5px':'0',width:'14px',height:'14px',
+      borderTop:`3px solid ${ctx.style.palette.accent}`,borderRight:`3px solid ${ctx.style.palette.accent}`,transform:wide?'rotate(45deg)':'rotate(135deg)'});
+    const copy=node(cell,{position:'absolute',left:wide?'0':'88px',top:wide?'46%':'28%',width:wide?'94%':'calc(100% - 88px)',height:wide?'50%':'65%'});
+    const title=node(copy,{position:'absolute',width:'100%',top:'0',height:item.subtitleSlot?'56%':'90%'});
+    text(ctx,item.textSlot,title,3,wide?84:68);
+    if(item.subtitleSlot)text(ctx,item.subtitleSlot,node(copy,{position:'absolute',width:'100%',top:'62%',height:'34%'}),2);
+    return {stroke,line,copy};
+  });
+  return {render(time){pieces.forEach((piece,index)=>{
+    const p=easeOut((time-index*.55)/.4),stroke=easeOut((time-index*.55-.18)/.4);
+    piece.stroke.style.strokeDashoffset=String(1-p);piece.copy.style.visibility=p===0?'hidden':'visible';
+    piece.copy.style.top=`calc(${wide?'46%':'28%'} + ${Math.round((1-p)*16)}px)`;
+    piece.copy.style.clipPath=`inset(0 ${Math.round((1-p)*100)}% 0 0)`;
+    if(piece.line)piece.line.style.transform=stroke===1?'none':wide?`scaleX(${stroke})`:`scaleY(${stroke})`;
+  });},events:blockEvents('drawn-steps',ctx.frames,params),regions:[region('steps',board,ctx.root)]};
+}});
 
 for (const id of ['feature-grid', 'curriculum'] as const) window.PB.defineBlock<Record<string, unknown>>({id, version: id === 'feature-grid' ? '1.1.0' : '1.0.1', build(ctx, params) {
   const safe = inSafe(ctx), box = safeBox(ctx), wide = ctx.target.aspect === 'landscape', items = params.items as Item[], compact = items.every(item=>!item.assetKey);

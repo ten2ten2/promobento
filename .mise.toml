@@ -26,7 +26,7 @@ dir = "{{config_root}}"
 run = "pnpm run build:validators && node scripts/run-tests.mjs"
 
 [tasks."build:film-runtime"]
-description = "Build the trusted film page generator, clock shim, OM/clip helpers and nine trusted blocks"
+description = "Build the trusted film page generator, clock shim, OM/clip helpers and trusted blocks"
 dir = "{{config_root}}"
 run = "node scripts/build-film-runtime.mjs"
 

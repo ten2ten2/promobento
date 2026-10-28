@@ -1,7 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pngPixels} from '@promobento/contracts/seams';
-import {pngRgba,reviewContactSheet,selectCustomMotionFrames} from '../src/director-sheets.mjs';
+import {pngRgba,reviewContactSheet,selectCustomMotionFrames,auditSheetReferences} from '../src/director-sheets.mjs';
+
+test('review binds only actual encoded audit sheets and preserves timing and omitted diagnostics',()=>{
+ const sample={path:'audit-frames/0-detail.jpg',kind:'low_motion',view:'detail',frames:[162,164,166,168,170,172],crop:{x:.25,y:.25,width:.5,height:.5}};
+ const image={key:'renders/r/attempts/a/out/'+sample.path,mediaType:'image/jpeg',byteLength:100,sha256:'a'.repeat(64)};
+ const movie={renderId:'r',media:{motionAudit:{inspection:{status:'available',omitted:3,sheets:[sample]}}},outputs:[image]};
+ const sheets=auditSheetReferences(movie,'portrait');assert.equal(sheets.length,1);assert.deepEqual(sheets[0].frames,sample.frames);assert.equal(sheets[0].image,image);
+ assert.match(sheets[0].layout,/row_major/);assert.equal(movie.media.motionAudit.inspection.omitted,3);
+ assert.throws(()=>auditSheetReferences({...movie,outputs:[]},'portrait'),/RENDER_OUTPUT_MISSING/);
+ assert.deepEqual(auditSheetReferences({media:{motionAudit:{inspection:{status:'unavailable'}}}},'portrait'),[]);
+ assert.throws(()=>auditSheetReferences({...movie,media:{motionAudit:{inspection:{status:'available',sheets:[{...sample,path:'../other.jpg'}]}}}},'portrait'),/AUDIT_IMAGE_REFERENCE_INVALID/);
+});
 
 test('review sheets retain every actual frame in time order with undistorted pixels and exact source metadata',async()=>{
  const frames=Array.from({length:20},(_,index)=>({key:'renders/fixture/observation-frames/'+(index*30)+'.png',sha256:'a'.repeat(64),byteLength:74}));

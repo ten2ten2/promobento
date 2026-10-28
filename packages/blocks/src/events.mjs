@@ -4,6 +4,13 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='continuous-focus'){
+    for(const track of [params.focusTrack,...Object.values(params.aspectTracks??{})].filter(Boolean)){
+      if(track[0].frame!==0||track.some((point,index)=>point.frame>=duration||index&&point.frame<=track[index-1].frame))throw Error('FOCUS_TRACK_TIMING_INVALID');
+    }
+    return [{name:'product-land',frame:0}];
+  }
+  if(id==='drawn-steps')return [{name:'step-land',frame:Math.min(duration-1,Math.round((params.items.length-1)*.55*30+18))}];
   if(id==='ui-journey'&&params.beatFrames!==undefined){
     const landings=journeyLandings(params.items.length,params.beatFrames);
     if(landings.at(-1)+params.beatFrames>duration)throw Error('JOURNEY_READING_HOLD_MISSING');
@@ -14,7 +21,7 @@ export function blockEvents(id, frames, params) {
     if(landings.at(-1)>=duration)throw Error('FEATURE_BEAT_AFTER_SCENE');
     return landings.map((frame,index)=>({name:index===params.items.length-1?'feature-land':'feature-step-'+(index+1),frame}));
   }
-  const fixed = {'hook-title': ['title-land', 18], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
+  const fixed = {'hook-title': ['title-land', 18], 'kinetic-title':['title-land',15], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
     metric: ['metric-land', 36], 'talking-head': ['speaker-land', 15], 'device-3d':['product-land',24]};
   let event = fixed[id];
   if (id === 'feature-grid' || id === 'curriculum') event = [id === 'curriculum' ? 'module-land' : 'feature-land', Math.round(((params.items.length - 1) * .12 + .5) * 30)];
@@ -54,6 +61,11 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
     .filter(frame=>frame>=0&&(spec.totalFrames===undefined||frame<spec.totalFrames));
    return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
     .map(frame=>Math.floor(frame/stride)*stride);
+  }
+  if(['continuous-focus@1','kinetic-title@1','drawn-steps@1'].includes(scene.block)){
+   const span=scene.end-scene.start;
+   return [0,6,Math.floor(span/4),Math.floor(span/2),Math.floor(span*3/4),span-1]
+    .map(frame=>Math.floor((scene.start+Math.min(span-1,frame))/stride)*stride);
   }
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
    return blockEvents('ui-journey',scene,scene.params).flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])

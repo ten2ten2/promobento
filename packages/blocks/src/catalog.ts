@@ -1,4 +1,7 @@
 const slot = { type: 'string', pattern: '^[a-z][a-z0-9-]{0,47}$' };
+const focusTrack = {type:'array',minItems:1,maxItems:8,items:{type:'object',additionalProperties:false,
+  required:['frame','x','y','zoom'],properties:{frame:{type:'integer',minimum:0,maximum:899},
+    x:{type:'number',minimum:0,maximum:1},y:{type:'number',minimum:0,maximum:1},zoom:{type:'number',minimum:1,maximum:3}}}};
 const common = {
   schemaVersion: '3.0.0', version: '1.0.0', kind: 'block_manifest',
   aspects: ['landscape', 'portrait', 'feed', 'square'], cost: 'low', usesGsap: false, usesWebgl: false,
@@ -40,6 +43,22 @@ export const blockCatalog = [
       beatFrames:{type:'integer',minimum:6,maximum:60,description:'Optional beat-choreographed handoffs with no decorative frame or ROI. At 30 fps, first arrival is beatFrames, subsequent arrivals every 3 beats: one beat for handoff, two for short-copy reading with a slow dolly. Use distinct real states and short headlines. Leave at least one beat after the final arrival. Omit to preserve the original continuous horizontal journey.'},
       items: {type: 'array', minItems: 2, maxItems: 4, items: {type: 'object', additionalProperties: false,
         required: ['assetKey', 'textSlot'], properties: {textSlot: slot, assetKey: slot}}}}}},
+  { ...common, id:'continuous-focus', category:'software', regions:['product'],
+    events:[{name:'product-land',description:'The first real source frame is shown.'}],
+    params:{type:'object',additionalProperties:false,required:['assetKey'],properties:{
+      assetKey:{...slot,description:'One cleared real recording or image; never replace or invent its interaction.'},
+      textSlot:slot,sourceStartFrame:{type:'integer',minimum:0,maximum:1799,description:'Source offset at 30 fps, added to the resource start; playback remains real-time.'},
+      focusTrack:{...focusTrack,description:'Normalized source-space centre and zoom, at increasing scene-local frames starting at zero; interpolated smoothly.'},
+      aspectTracks:{type:'object',additionalProperties:false,properties:{landscape:focusTrack,portrait:focusTrack,feed:focusTrack,square:focusTrack},
+        description:'Optional aspect-specific framing; missing aspects use focusTrack or the centred default.'}}}},
+  { ...common, id:'kinetic-title', category:'opening', regions:['headline'],
+    events:[{name:'title-land',description:'The headline slams into its readable position.'}],
+    params:{type:'object',additionalProperties:false,required:['textSlot'],properties:{textSlot:slot,subtitleSlot:slot}}},
+  { ...common, id:'drawn-steps', category:'course', regions:['steps'],
+    events:[{name:'step-land',description:'The final step and connecting stroke are revealed.'}],
+    params:{type:'object',additionalProperties:false,required:['items'],properties:{textSlot:slot,
+      items:{type:'array',minItems:2,maxItems:3,items:{type:'object',additionalProperties:false,required:['textSlot'],properties:{textSlot:slot,subtitleSlot:slot,
+        icon:{type:'string',enum:['circle','document','screen','chat','check','target'],description:'Optional hand-drawn icon relevant to this real step; omit for a neutral mark.'}}}}}}},
   { ...common, id: 'metric', category: 'data', regions: ['metric'],
     events: [{name: 'metric-land', description: 'The fact-bound number reaches its final value.'}],
     params: {type: 'object', additionalProperties: false, required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}},

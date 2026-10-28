@@ -115,9 +115,10 @@ async function execute(input) {
   writeFileSync(join(workDirectory, 'report.json'), canonical(report));
   // Temporary sources and intermediate pre-master PCM are never uploaded as deliverables.
   const allowed = input.mode === 'assemble' ? ['film.mp4', 'poster.png', 'report.json'] : input.mode === 'audio' ? ['mixed.wav', 'report.json'] : null;
-  const outputs=await inRenderPhase({phase:'output_upload'},()=>mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))),async path=>{
+  const outputs=await inRenderPhase({phase:'output_upload'},()=>mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))||
+    (input.mode==='assemble'&&/^audit-frames\/[01]-(overview|detail)\.jpg$/.test(relative(workDirectory,path)))),async path=>{
     const name = relative(workDirectory, path);
-    const mediaType = name.endsWith('.png') ? 'image/png' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.h264') ? 'video/h264'
+    const mediaType = name.endsWith('.png') ? 'image/png' : name.endsWith('.jpg') ? 'image/jpeg' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.h264') ? 'video/h264'
       : name.endsWith('.wav') ? 'audio/wav' : 'application/json';
     return broker.write(prefix + '/' + name, readFileSync(path), mediaType);
   }));

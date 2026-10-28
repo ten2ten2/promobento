@@ -92,7 +92,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const motionFrame={...frame,key:frame.key.replace('/observation-frames/45.png',`/motion-frames/${customScene?150:90}.png`)};
    if(motionSamples)objects.set(motionFrame.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});
    const fakeMovie=await immutableJson(env,`renders/${request.job.renderId}/mock/film.mp4`,{scope:'simulated_not_media_evidence'});
-   const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence',...(motionAudit&&request.job.quality==='review'?{motionAudit:{status:'measured',dead:[{from:1,to:3,seconds:2}]}}:{})}};
+   const auditImage={...frame,key:`renders/${request.job.renderId}/mock/out/audit-frames/0-overview.jpg`};
+   if(motionAudit&&request.job.quality==='review')objects.set(auditImage.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});
+   const inspection={status:'available',fps:15,frameTimelineFps:30,omitted:1,sheets:[{path:'audit-frames/0-overview.jpg',kind:'low_motion',view:'overview',frames:[30,32,34,36,38,40]}]};
+   const result={renderId:request.job.renderId,status:'passed',outputs:[fakeMovie,...(motionAudit&&request.job.quality==='review'?[auditImage]:[])],observationFrames:[frame],...(motionSamples?{motionFrames:[motionFrame]}:{}),media:{scope:'simulated_not_media_evidence',...(motionAudit&&request.job.quality==='review'?{motionAudit:{status:'measured',dead:[{from:1,to:3,seconds:2}],inspection}}:{})}};
    db.prepare("UPDATE pipeline_renders SET status='passed',result_json=? WHERE id=?").run(canonical(result),request.job.renderId);
   }}};
  const opening=await importModelOpening(env,{kind:'historical_model_spend',authorizationId:modelAuthorizationId,scope:'all_model_spend_before_shared_ledger',sources:['offline synthetic fixture; no provider spend'],entries:[]});
@@ -177,7 +180,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
    if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);}
    const motionCount=motionSamples?(customScene&&!legacyCustomMethod?2:1):0;
-   assert.equal(input.motionFrames.length,motionCount);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1+motionCount);
+   assert.equal(input.motionFrames.length,motionCount);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1+motionCount+(motionAudit?1:0));
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
    reviewRequests.push(input);
    const change=alwaysRepair||repair&&reviewRound===0||twoReviewRepairs&&reviewRound<2;reviewRound++;
@@ -294,6 +297,7 @@ test('relay evidence travels separately to E and F without shrinking all-aspect 
 test('low-resolution motion cues reach E with their limits, while older render reports remain usable',async()=>{
  const measured=await fixture({motionAudit:true});assert.ifError(measured.error);
  assert.deepEqual(measured.reviewRequests[0].media.motionAudit.dead,[{from:1,to:3,seconds:2}]);
+ assert.deepEqual(measured.reviewRequests[0].auditFrames[0].frames,[30,32,34,36,38,40]);assert.equal(measured.reviewRequests[0].media.motionAudit.inspection.omitted,1);
  assert.match(measured.reviewRequests[0].motionAuditGuidance,/Small UI or pointer motion may be missed/);
  assert.match(measured.reviewRequests[0].motionAuditGuidance,/not an observed defect/);
  const old=await fixture();assert.ifError(old.error);assert.equal(old.reviewRequests[0].motionAuditGuidance,undefined);

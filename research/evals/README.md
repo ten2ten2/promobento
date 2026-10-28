@@ -47,6 +47,14 @@ bash research/evals/hypit/media.sh "$IMAGE" "$VIDEO" "$OUT" tile \
 
 需要检查鼠标交接时，可用 `tiles --start 5.4 --end 6.2 --every-frame --columns 4 --rows 3 --cell 360 --to /out/portrait-action --json`，而不是从一秒一张的概览推断连续动作。容器只读挂载指定影片和工具，仅输出目录可写、不联网、不带凭据；不运行作品组件或 Hypit 创作构建。查看生成图及正常速度有声播放，单凭帧图不判听感或作品通过。Hypit 当前只用于内部评测；对外托管／多租户使用待核验负责人之后提供的授权证明。
 
+内部取景规划可使用同一固定安装的 `@hypit/visual-track@0.2.0`：`focus.sh "$IMAGE" < focus-input.json` 输出 `continuous-focus` 的参数 JSON。输入为纯数据，`clipFrames` 是镜头长度，`sourceFrameCount` 是已规范为 30 fps 的源帧数；`sourceTime` 可使用 Hypit 的 source-time relation，`focusTrack`／`aspectTracks` 中每点使用 Hypit 的 `at` 位置以及源画面的 `x`、`y`、`zoom`。例如：
+
+```json
+{"assetKey":"screen","clipFrames":120,"sourceFrameCount":300,"focusTrack":[{"at":{"kind":"start","offsetFrames":0},"x":0.25,"y":0.5,"zoom":1},{"at":{"kind":"end","offsetFrames":-1},"x":0.5,"y":0.5,"zoom":1}]}
+```
+
+只接受完整覆盖镜头的单段原速 source-time；冻结、变速、循环和越界会报错。取景点仍需根据真实录屏确定，它不识别或制造鼠标动作，也不导入录屏；消费参数的影片仍须提供已清权的 PTS 帧图。桥接器不执行 Hypit 项目组件，不能当作托管服务。
+
 ## 用私有素材清单准备评测
 
 `materials.json` 的每项提供 `resourceId`、`key`、`sha256`、`byteLength`、尺寸、`licenseRef` 与 `evidenceKey`；字节只在 staging R2。新评测操作先按 cloud 内部 `rights` 入口为自己的 operationId 重新登记同一证据，再将素材加入 `context.resources`。题目用 `materialIds` 选择素材，不能因为同一目录有其他品牌的图就串用。Hugging Face 图附原课程仓库 Apache-2.0 通知及署名；这批素材整体仍限内部评测，不作为免署名商用素材包。
