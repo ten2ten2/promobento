@@ -26,7 +26,12 @@ test('eval input preparation rejects an oversized source before writing any case
   const context=parseCanonicalJson(readFileSync(join(temp,'artifacts/prepared',item.contextFile)));
   assert.ok(context.resources.every(asset=>asset.topicId===item.topicId));
   assert.equal(context.creativeBriefVersion,'director-led-v1');
-  if(item.topicId==='minimax'){assert.match(context.brief,/director chooses/i);assert.doesNotMatch(context.notes,/Suggested 30-fps schedule|then three concise|Use cta-endcard/);}
+  if(item.topicId==='minimax'){
+   assert.match(context.brief,/real MiniMax Agent interface session/i);
+   assert.match(context.brief,/a concrete request, the agent working, and the corresponding result/i);
+   assert.match(context.brief,/Choose the example from confirmed facts and authorized material/i);
+   assert.doesNotMatch(context.notes,/Suggested 30-fps schedule|then three concise|Use cta-endcard/);
+  }
   assert.equal(context.rendererRelease,'renderer-fbf1a740f146');assert.equal(context.publicUseCleared,false);
  }
  assert.equal(manifest.cases.filter(item=>item.topicId==='ielts-ready').length,2);
