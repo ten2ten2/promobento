@@ -20,6 +20,12 @@
 
 `84b1faa539c34d5648d1e659c7f9f8f46d70a3d0` 的[自动检查](https://github.com/ten2ten2/promobento/actions/runs/40926693641)和 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40929361435)通过；离线模拟覆盖 502 切换、未知预留、恢复及跨操作并发防重发。部署只读健康、容量与预算，没有发起模型或渲染；真实 502 切换与成片质量仍未验证。
 
+负责人授权验证新样片。源码 `e4d8f137bb4b986fa35ec87a6969d4970768356b` 的[自动检查](https://github.com/ten2ten2/promobento/actions/runs/40930837141)与 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40933380521)通过；该源码允许同范围、同请求且已终止的历史明确 502 回执触发新的备用调用，不重启旧操作或重发原请求。操作 `eval-duolingo-15-1793299426932` 查看三张方向图后选 Amplify，复用原已结规格和布局；新回执明确指向上次原始 502，DeepSeek 独立完成首个动作，未派发相同 Claude 请求。后续另一 Claude 动作再报 502，DeepSeek 接手但提交两次工具调用而未通过校验，Claude 对其反馈生成了单次修订；第三个动作由 Claude 完成。
+
+真实自写镜头的横屏检查在 **第 40 帧**以 `CUSTOM_REQUIRED_ASSET_NOT_VISIBLE` 停止，四张素材观察均为 `unverified`；实际 PNG 中翻译、口语、路径和听力页面四张都可见，鱼卡位于翻译页，四画面呈透视纵深。此帧证明该观察结果不能等同于素材缺失，尚不能确定观察器为何无法确认；须排查可信观测，不将 unverified 直接改为通过。此前帧 15／37／40 的实际 PNG 与私有故障回执在 `artifacts/s1-duolingo-fallback-eval-2026-10-30/` 和私有 R2；只有 15、40 已取回本机并查看。未运行横屏 review、竖屏检查、E/F 或最终片，不能判断后续页面交接、鱼卡是否跨页或整片质量；作品覆盖不变。
+
+本轮模型已结 **81,464**、另有 Claude 502 未知预留 **133,807**，计算保守上界 **7,347 usd_micros**；本轮占用 **222,618 usd_micros**。计算已停止／结算、容量为空、临时密钥回收。历史两次未知预留继续保留，未重发对应原请求。
+
 ## 方法 1.8.0：按反馈重新自动编排
 
 负责人指出鱼卡与后续练习没有关系。基于前一自动规格的**手动修订**将鱼卡先返回翻译页，再交接不同练习；本机播放器 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`。这不是自动发现或自动改稿。
