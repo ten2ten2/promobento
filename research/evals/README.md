@@ -69,10 +69,10 @@ DeepSeek 只留首页的交互/产品入口区域，排除未确认成本/速度
 
 ```sh
 mise exec -- node research/evals/prepare-inputs.mjs \
-  artifacts/s1-eval-inputs-current renderer-6204a149bc68
+  artifacts/s1-eval-inputs-current renderer-fdb8e4e447d5
 ```
 
-第二个参数必须固定为将要执行的 renderer release；上例对应已部署的 `6204a14` 镜像，不自动追随新部署。镜像更新后须用新发布 SHA 前 12 位（`renderer-<12位SHA>`）重新准备输入，不能把旧 release 改绑新镜像。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
+第二个参数必须固定为将要执行的 renderer release；上例固定 `fdb8e4e` 镜像，不自动追随新部署，当前版本见[实施状态](../../docs/implementation-status.md)。镜像更新后须用新发布 SHA 前 12 位（`renderer-<12位SHA>`）重新准备输入，不能把旧 release 改绑新镜像。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
 
 输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
 

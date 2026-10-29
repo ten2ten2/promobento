@@ -44,6 +44,12 @@ E 请求于上海时间 **2026-10-27 18:05:30.906** 派发，模型 `modelswitch
 
 私有播放器 `artifacts/s1-duolingo-15-score-complete-2026-10-26/index.html` 有声 1× 完整解码零掉帧／错误。只证明一次 ABC review 渲染；E/F、最终横竖、WAV 上传和 30 秒仍未验收。原 90 秒超时见 [shm-fixed-metrics](duolingo-score-render/shm-fixed-metrics.json)，不改记通过。[13 种程序风格保留决定](../2026-10-24-s1-audio-review/owner-decision.json)不适用于新谱或成片质量。
 
+## Duolingo 15 秒新评测在 D 阶段中断
+
+负责人单独批准一轮、操作上限 $3；操作 `eval-duolingo-15-1793239475262` 使用 staging 源码 `fdb8e4e447d52336a36d58534a83056700968cc9`。A 的事实／四张素材观察、B 的三张实际方向预览与 C 规格均完成；查看预览后选 Fit，D 完成首个自写镜头静态布局。首次动作请求于上海时间 **2026-10-29 10:16:19.135** 派发，模型 `modelswitch/claude-opus-5-5`；Workflow 记载 `Network connection lost.`，请求诊断为 `MODEL_TRANSPORT_FAILED`、`httpStatus:null`、用量未知。无法判断断连发生在哪一侧或供应商是否计费。
+
+原请求保留 **126,990 usd_micros** 未知预留，不重发；本轮模型已结 **56,344**，计算资源保守上界 **3,735**，实际／预留合计 **187,069 usd_micros**，不是供应商账单。账户负责人可凭时间、模型和账户记录核对，项目内 callId 见私有回执。E/F 未运行，未生成本轮 review 或横竖最终片，也无法用 Hypit 检查本轮影片；不增加作品覆盖。Workflow 已对账，计算停止／结算、容量为空、临时密钥撤销。方向图、请求与清理回执在本机私有 `artifacts/s1-duolingo-15-method150-fdb8e4e-2026-10-29/`，原失败和请求诊断保留于对应操作的私有 R2。
+
 ## 当前修复所依据的反例
 
 | 影响当前判断的证据 | 结果与适用范围 |
