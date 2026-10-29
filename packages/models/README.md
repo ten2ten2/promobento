@@ -12,7 +12,7 @@
 
 ## 先保留用量，再返回失败
 
-终态截断／拒绝抛 `ModelOutputError`，result保留partial text、失败码、流结束状态和后到usage，供持久层先保存／计费再落失败。工具参数非法也保留原arguments、usage及MODEL_TOOL_JSON_INVALID。完成的空输出记为 `MODEL_OUTPUT_EMPTY`，兼容接口的流内 error 记为 `MODEL_STREAM_FAILED`；两者均不自动重发。已解析到终态的原始 SSE 单独存入操作私有存储并由回执引用；流解析失败、断线或超限的原始字节目前仍不保留。
+终态截断／拒绝抛 `ModelOutputError`，result保留partial text、失败码、流结束状态和后到usage，供持久层先保存／计费再落失败。工具参数非法也保留原arguments、usage及MODEL_TOOL_JSON_INVALID。完成的空输出记为 `MODEL_OUTPUT_EMPTY`，兼容接口的流内 error 记为 `MODEL_STREAM_FAILED`，数值状态码保留为 `upstreamStatus`；适配器不自动重发。已解析到终态的原始 SSE 单独存入操作私有存储并由回执引用；流解析失败、断线或超限的原始字节目前仍不保留。自写镜头的限定备用路由见 [cloud README](../../apps/cloud/README.md#研究模型共用一份预算)。
 
 完整usage按冻结目录结算；无usage的HTTP／传输失败保留未知预留。完整但不合法的结果只可在原次数／金额内结构纠正；无usage则要求对账，不自动重发。持久层按原callId／价格补账，不用输出上限伪造实收。
 

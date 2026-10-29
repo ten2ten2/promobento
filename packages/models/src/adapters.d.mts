@@ -8,7 +8,7 @@ export interface ModelRequest {
 }
 export function providerRequest(input: ModelRequest): {path: string; body: Record<string, unknown>};
 export function parseModelJson(text: string): unknown;
-export interface ModelResult {text: string; toolCalls: Array<{id: string; name: string; arguments: string; input: unknown}>; usage: Record<string, any> | null; firstTokenMs: number | null; totalMs: number; rawStream: Uint8Array; failure?: string; streamComplete?: boolean}
+export interface ModelResult {text: string; toolCalls: Array<{id: string; name: string; arguments: string; input: unknown}>; usage: Record<string, any> | null; firstTokenMs: number | null; totalMs: number; rawStream: Uint8Array; failure?: string; streamComplete?: boolean; upstreamStatus?: number}
 export class ModelOutputError extends Error {constructor(code: string,result: ModelResult); readonly result: ModelResult}
 export function streamModel(input: ModelRequest & {secret: string}, options?: {fetchImpl?: typeof fetch; timeoutMs?: number; onText?: (delta: string) => void}):
   Promise<ModelResult>;

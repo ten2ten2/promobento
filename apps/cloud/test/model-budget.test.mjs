@@ -95,6 +95,62 @@ test('an empty completed stream retains private raw events and an unknown reserv
  assert.equal(receipt.result.failure,'MODEL_OUTPUT_EMPTY');assert.equal(receipt.quote,null);
  assert.equal(new TextDecoder().decode(objects.get(receipt.rawStreamRef.key).bytes),raw);
 });
+for(const mode of ['stream','http'])test(`scene ${mode} 502 falls back once to DeepSeek under the same budgets and replays without dispatch`,async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;const requests=[];
+ globalThis.fetch=async(_url,init)=>{const body=JSON.parse(init.body);requests.push(body);
+  if(body.model==='claude-opus-5-5'){
+   if(mode==='http')return new Response('bad gateway',{status:502});
+   return new Response('data: '+canonical({choices:[{delta:{reasoning_content:'fixture'}}]})+'\n\ndata: '+canonical({error:{type:'service_error',code:502}})+'\n\ndata: [DONE]\n\n');
+  }
+  return new Response('data: '+canonical({choices:[{delta:{tool_calls:[{index:0,id:'edit',function:{name:'edit_file',arguments:'{"command":"create"}'}}]},finish_reason:'tool_calls'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');
+ };t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Scene fixture.',messages:[{role:'user',text:'Edit scene.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]};
+ const call=()=>modelStep(env,'model-operation',0,'scenes','scene-502',request,value=>assert.equal(value.toolCalls[0].input.command,'create'),Date.now()+60000,{sceneId:'product'});
+ assert.equal((await call()).value.toolCalls[0].name,'edit_file');assert.equal((await call()).value.toolCalls[0].name,'edit_file');
+ assert.deepEqual(requests.map(x=>x.model),['claude-opus-5-5','deepseek-v4.1-flash-1017']);
+ assert.equal(requests[1].reasoning_effort,'none');assert.equal(requests[1].tool_choice.function.name,'edit_file');
+ const status=await budget.modelBudgetStatus(env);assert.equal(status.pending.length,1);assert.ok(status.pending[0].reserved_micros>0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations WHERE stage=?').get('scenes:product').n,2);
+ const primary=[...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith(mode==='http'?'-request-failure.json':'.json'));
+ const receipt=parseCanonicalJson(primary[1].bytes);assert.equal(mode==='http'?receipt.httpStatus:receipt.result.upstreamStatus,502);
+});
+test('a different scene operation cannot resend an identical unresolved Claude request',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('Network connection lost.');};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Scene fixture.',messages:[{role:'user',text:'Edit scene.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]};
+ await assert.rejects(modelStep(env,'model-operation',0,'scenes','old-scene',request,()=>{},Date.now()+60000,{sceneId:'product'}),/MODEL_TRANSPORT_FAILED/);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'new-operation',0,'scenes','new-scene',request,()=>{},Date.now()+60000,{sceneId:'product'}),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+});
+test('scene non-502 failures do not dispatch a fallback',async t=>{
+ const{env}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({error:{code:503}})+'\n\ndata: [DONE]\n\n');};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Scene fixture.',messages:[{role:'user',text:'Edit scene.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]};
+ await assert.rejects(modelStep(env,'model-operation',0,'scenes','scene-503',request,()=>{},Date.now()+60000,{sceneId:'product'}),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+});
+test('an unknown DeepSeek fallback cannot be redispatched by another operation',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;const requests=[];
+ globalThis.fetch=async(_url,init)=>{const body=JSON.parse(init.body);requests.push(body.model);
+  if(body.model==='claude-opus-5-5')return new Response('data: '+canonical({error:{code:502},usage:{prompt_tokens:100,completion_tokens:1}})+'\n\ndata: [DONE]\n\n');
+  return new Response('data: [DONE]\n\n');};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Scene fixture.',messages:[{role:'user',text:'Edit scene.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]};
+ await assert.rejects(modelStep(env,'model-operation',0,'scenes','first-scene',request,()=>{},Date.now()+60000,{sceneId:'product'}),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'new-operation',0,'scenes','second-scene',request,()=>{},Date.now()+60000,{sceneId:'product'}),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.deepEqual(requests,['claude-opus-5-5','deepseek-v4.1-flash-1017','claude-opus-5-5']);assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+});
+test('concurrent identical scene requests are admitted at most once',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('Network connection lost.');};t.after(()=>{globalThis.fetch=originalFetch;});
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ const request={system:'Scene fixture.',messages:[{role:'user',text:'Edit scene.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit',parameters:{type:'object'}}]};
+ const calls=await Promise.allSettled([modelStep(env,'model-operation',0,'scenes','parallel-a',request,()=>{},Date.now()+60000,{sceneId:'product'}),
+  modelStep(env,'new-operation',0,'scenes','parallel-b',request,()=>{},Date.now()+60000,{sceneId:'product'})]);
+ assert.ok(calls.every(call=>call.status==='rejected'));assert.ok(calls.some(call=>call.status==='rejected'&&call.reason.message==='MODEL_CALL_RECONCILIATION_REQUIRED'));
+ assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+});
 test('gateway Opus reserves the observed hidden-input risk before dispatch without raising the spec stage cap',async t=>{
  const{env}=await fixture(t),originalFetch=globalThis.fetch;let reserved=0;
  globalThis.fetch=async()=>{reserved=(await budget.modelBudgetStatus(env)).pending[0].reserved_micros;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};

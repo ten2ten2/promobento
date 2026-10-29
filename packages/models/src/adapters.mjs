@@ -48,14 +48,14 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
   let response;
   try { response = await fetchImpl(url, options); } catch (error) { throw transportError(error); }
   if (!response.ok || !response.body) throw Object.assign(Error('MODEL_REQUEST_FAILED'), {status: response.status});
-  let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false, failure = null;
+  let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false, failure = null, upstreamStatus = null;
   const toolCalls = new Map(), decoder = new TextDecoder('utf-8', {fatal: true}), rawChunks = [];
   const emit = delta => { if (!delta) return; firstTokenMs ??= Math.round(performance.now() - started); text += delta; onText(delta); };
   const event = raw => {
     if (raw === '[DONE]') { finished = true; return; }
     const data = parseCanonicalJson(raw);
     if (provider.kind === 'openai-compatible') {
-      if (data.error) failure='MODEL_STREAM_FAILED';
+      if (data.error) {failure='MODEL_STREAM_FAILED'; if(Number.isInteger(data.error.code)&&data.error.code>=100&&data.error.code<=599)upstreamStatus=data.error.code;}
       if (data.usage) usage = data.usage;
       for (const choice of data.choices ?? []) {
         if (choice.finish_reason === 'length') failure='MODEL_OUTPUT_TRUNCATED';
@@ -112,7 +112,7 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     const rawStream=new Uint8Array(received);let offset=0;
     for(const chunk of rawChunks){rawStream.set(chunk,offset);offset+=chunk.byteLength;}
     const result={text, toolCalls: calls,
-      usage, firstTokenMs, totalMs: Math.round(performance.now() - started),rawStream,...(failure?{failure,streamComplete:finished}:{})};
+      usage, firstTokenMs, totalMs: Math.round(performance.now() - started),rawStream,...(failure?{failure,streamComplete:finished,...(upstreamStatus!==null?{upstreamStatus}:{})}:{})};
     if(failure)throw new ModelOutputError(failure,result);
     return result;
   } finally {

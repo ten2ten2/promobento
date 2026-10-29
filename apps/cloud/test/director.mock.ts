@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -144,6 +144,9 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   if(networkStreamFailure)return new Response(new ReadableStream({pull(controller){controller.error(Error('Network connection lost.'));}}));
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
+  if(scene502&&input.task.startsWith('Implement')&&input.phase==='motion-0'&&body.model==='claude-opus-5-5'){
+   trace.push('claude-scene-502');return new Response('data: '+canonical({error:{code:502,type:'service_error'}})+'\n\ndata: [DONE]\n\n');
+  }
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
   else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
@@ -170,9 +173,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const source='PB.scene("cta",ctx=>{ctx.text("cta");const timeline=gsap.timeline({paused:true});timeline.to({},{duration:4});return {timeline};});';
     value={toolCalls:[{id:'mock-cta',name:'edit_file',arguments:'',input:input.phase==='layout'?{command:'create',path:'scenes/cta/index.js',fileText:source}:{command:'str_replace',path:'scenes/cta/index.js',oldStr:'return {timeline}',newStr:'/* '+input.phase+' */ return {timeline}'}}]};
    }else{
-   assert.equal(body.reasoning_effort,textOnlyScenes?'high':'none');if(textOnlyScenes)assert.equal(body.tool_choice,undefined);else assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
+   const isFallback=scene502&&body.model==='deepseek-v4.1-flash-1017';if(isFallback)trace.push('deepseek-scene-fallback');
+   assert.equal(body.reasoning_effort,textOnlyScenes&&!isFallback?'high':'none');if(textOnlyScenes&&!isFallback)assert.equal(body.tool_choice,undefined);else assert.deepEqual(body.tool_choice,{type:'function',function:{name:'edit_file'}});
    assert.doesNotMatch(prompt,/No custom JS/);assert.match(prompt,/sandboxed DOM\/SVG\/Canvas2D/);
-   if(textOnlyScenes){assert.equal(typeof body.messages[1].content,'string');assert.equal(body.model,'claude-opus-5-5');assert.equal(input.assetObservations.length,input.resources.length);assert.equal(input.assetObservations[0].sha256,input.resources[0].sha256);assert.equal(input.assetObservations[0].resourceId,input.resources[0].resourceId);assert.equal(input.assetObservations[0].insight.description,'Original fixture.');assert.match(input.sourceImages,/no images are attached/i);}
+   if(textOnlyScenes){assert.equal(typeof body.messages[1].content,'string');assert.equal(body.model,isFallback?'deepseek-v4.1-flash-1017':'claude-opus-5-5');assert.equal(input.assetObservations.length,input.resources.length);assert.equal(input.assetObservations[0].sha256,input.resources[0].sha256);assert.equal(input.assetObservations[0].resourceId,input.resources[0].resourceId);assert.equal(input.assetObservations[0].insight.description,'Original fixture.');assert.match(input.sourceImages,/no images are attached/i);}
    else assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,input.resources.length);assert.equal(input.resources.length,1);
    const params=body.tools[0].function.parameters;assert.equal(params.type,'object');assert.doesNotMatch(canonical(params),/\$ref/);
    if(input.phase==='layout'){
@@ -445,6 +449,14 @@ test('30-minute active limit is restricted to newly frozen internal custom evalu
 });
 
 // These are transport/control-flow checks; pixel quality and isolation are exercised in the container.
+test('scene 502 fallback continues the real director workflow with the original unknown reservation',async()=>{
+ const r=await fixture({customScene:true,textOnlyScenes:true,scene502:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
+ assert.ok(r.trace.includes('claude-scene-502'));assert.ok(r.trace.includes('deepseek-scene-fallback'));
+ assert.equal(r.modelBudget.pending.length,1);assert.equal(r.reservations,r.settlements+1);
+ assert.ok(r.modelReceipts.some((receipt:any)=>receipt.model==='modelswitch/claude-opus-5-5'&&receipt.result.upstreamStatus===502));
+ assert.ok(r.modelReceipts.some((receipt:any)=>receipt.model==='modelswitch/deepseek-v4.1-flash-1017'&&receipt.callId.endsWith('-deepseek-502')));
+ assert.match(r.result.sceneProofKey,/custom-check/);assert.ok(r.models.includes('review'));assert.ok(r.models.includes('coldReview'));
+});
 test('custom D source is scoped and metered, checked in both aspects before review, and E edits rerender without another D call',async()=>{
  const r=await fixture({customScene:true,customSourceRepair:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
  assert.equal(r.models.filter(stage=>stage==='scenes').length,3);assert.ok(r.modelStages.includes('scenes:product'));

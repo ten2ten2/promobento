@@ -43,7 +43,7 @@ export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
 }
 /** Local operation/stage admission, including unresolved costs. MODEL_LEDGER owns the cross-environment model grant. */
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,
-  max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER) {
+  max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER, preventPendingReplay = false) {
   if (!Number.isSafeInteger(max) || max < 0) throw Error('COST_RESERVATION_INVALID');
   const hash = digest(request), existing = await env.DB.prepare('SELECT request_hash FROM cost_reservations WHERE id=?').bind(id).first<{request_hash: string}>();
   if (existing) { if (existing.request_hash !== hash) throw Error('IDEMPOTENCY_CONFLICT'); return; }
@@ -52,10 +52,20 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
     SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')
     AND (${sum} WHERE r.operation_id=?) + ? <= ? AND (${sum} WHERE r.kind=?) + ? <= ?
     AND (${sum} WHERE r.operation_id=? AND r.kind=? AND r.stage=?) + ? <= ?
-    AND (SELECT COUNT(*) FROM cost_reservations WHERE operation_id=? AND kind=? AND stage=?) < ?`)
+    AND (SELECT COUNT(*) FROM cost_reservations WHERE operation_id=? AND kind=? AND stage=?) < ?
+    AND (?=0 OR NOT EXISTS(SELECT 1 FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+      LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
+      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL))`)
     .bind(id, op.id, hash, kind, stage, max, catalogVersion, Date.now(), op.id, op.generation,
-      op.id, max, op.max_micros, kind, max, globalLimit, op.id, kind, stage, max, stageLimit, op.id, kind, stage, maxCalls).run();
-  if (result.meta.changes !== 1) throw Error('COST_BUDGET_EXHAUSTED');
+      op.id, max, op.max_micros, kind, max, globalLimit, op.id, kind, stage, max, stageLimit, op.id, kind, stage, maxCalls,
+      preventPendingReplay?1:0,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).run();
+  if (result.meta.changes !== 1) {
+    if(preventPendingReplay&&await env.DB.prepare(`SELECT r.id FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+      LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
+      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
+      .bind(hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).first())throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    throw Error('COST_BUDGET_EXHAUSTED');
+  }
 }
 export async function settle(env: PipelineEnv, id: string, actualMicros: number, usage: unknown) {
   if (!Number.isSafeInteger(actualMicros) || actualMicros < 0) throw Error('COST_SETTLEMENT_INVALID');
