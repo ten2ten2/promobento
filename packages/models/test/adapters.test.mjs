@@ -43,6 +43,10 @@ test('truncated streams fail instead of returning a successful partial response'
   await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
     {fetchImpl:async()=>events([{choices:[{delta:{content:'{'},finish_reason:'length'}]}])}),/MODEL_OUTPUT_TRUNCATED/);
 });
+test('invalid SSE JSON remains a parser error, not a network error',async()=>{
+ await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
+  {fetchImpl:async()=>events(['{'])}),error=>{assert.ok(error instanceof SyntaxError);assert.notEqual(error.message,'MODEL_TRANSPORT_FAILED');return true;});
+});
 test('terminal truncation preserves late usage and partial bytes while still rejecting, in both protocols',async()=>{
  for(const [kind,values]of [
   ['openai-compatible',[{choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]},{choices:[],usage:{prompt_tokens:12,completion_tokens:64}},'[DONE]']],

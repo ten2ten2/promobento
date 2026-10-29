@@ -23,7 +23,7 @@ import {importModelOpening,confirmModelOpening,modelAuthorizationId,modelBudgetS
 const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
- audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,
+ audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
  nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
@@ -126,6 +126,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   if(target.endsWith('/count_tokens'))return Response.json({input_tokens:100});
   if(transportFailure)throw Error('MOCK_TRANSPORT_FAILURE');
   if(httpFailure)return new Response('sensitive provider body must not be stored',{status:503});
+  if(networkStreamFailure)return new Response(new ReadableStream({pull(controller){controller.error(Error('Network connection lost.'));}}));
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
@@ -314,6 +315,12 @@ test('missing later key, unverified integration and missing rights stop before a
   const r=await fixture(options);assert.equal(r.error.message,code);assert.equal(r.networkCalls,0);assert.equal(r.reservations,0);assert.equal(r.state.status,'failed');}
 });
 test('unknown transport spend remains reserved and is not silently retried or settled as zero',async()=>{const r=await fixture({transportFailure:true});assert.equal(r.error.message,'MOCK_TRANSPORT_FAILURE');assert.equal(r.networkCalls,1);assert.equal(r.reservations,1);assert.equal(r.settlements,0);});
+test('network stream loss reports its transport cause and retains the unknown reservation',async()=>{
+ const r=await fixture({networkStreamFailure:true});assert.equal(r.error.message,'MODEL_TRANSPORT_FAILED');assert.equal(r.state.status,'failed');
+ assert.equal(parseCanonicalJson(r.outbox.find((row:any)=>row.kind==='operation_failure').payload_json).code,'MODEL_TRANSPORT_FAILED');
+ assert.equal(r.networkCalls,1);assert.equal(r.reservations,1);assert.equal(r.settlements,0);assert.equal(r.modelBudget.pending.length,1);
+ assert.equal(r.requestFailures[0].code,'MODEL_TRANSPORT_FAILED');assert.equal(r.requestFailures[0].usageStatus,'unknown');
+});
 test('spec validation repairs completed output only, preserves charges and stops after two corrections',async()=>{
  const fixed=await fixture({fixableSpec:true});assert.ifError(fixed.error);assert.equal(fixed.specRequests,2);assert.equal(fixed.settlements,7);assert.equal(fixed.renders.length,3);
  assert.equal(fixed.validationFeedback[0].code,'FILM_SEMANTICS_INVALID');assert.ok(fixed.validationFeedback[0].issues.some((issue:any)=>issue.path==='/scenes/1/start'));

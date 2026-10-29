@@ -16,4 +16,6 @@
 
 完整usage按冻结目录结算；无usage的HTTP／传输失败保留未知预留。完整但不合法的结果只可在原次数／金额内结构纠正；无usage则要求对账，不自动重发。持久层按原callId／价格补账，不用输出上限伪造实收。
 
+发送请求或读取响应流时的网络连接错误以 `MODEL_TRANSPORT_FAILED` 返回；已有明确错误码和 HTTP 状态保持原样，响应解析错误不冒充断线。读取失败后的流清理不覆盖首因。
+
 实际模型能力和反例见[模型证据](../../docs/evidence/2026-10-23-model-probe/README.md)，当前作品验收只见[实施状态](../../docs/implementation-status.md)。

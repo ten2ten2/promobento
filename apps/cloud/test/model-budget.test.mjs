@@ -103,6 +103,129 @@ test('a parser fix reuses the settled exact response for the same project, prese
  assert.equal(requests,1);assert.equal(value.cached,true);assert.match(value.reusedReceiptKey,/operations\/model-operation\/model-calls/);
  assert.equal((await budget.modelBudgetStatus(env)).currentChargedMicros,before.currentChargedMicros);assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
 });
+test('validated cache reuse stays within the original workspace, project and purpose',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:canonical({run:requests})},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},validate=value=>assert.ok(Number.isInteger(value.run));
+ await modelStep(env,'model-operation',0,'facts','original-call',request,validate);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('same-project','workspace','project',0,'calibration','active','same',10000000,Date.now(),null,null);
+ const same=await modelStep(env,'same-project',0,'facts','same-call',request,validate);assert.equal(same.cached,true);assert.equal(requests,1);
+ for(const[id,workspace,project,purpose]of [['other-project','workspace','other','calibration'],['other-workspace','other','project','calibration'],['other-purpose','workspace','project','evaluation']]){
+  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id,workspace,project,0,purpose,'active',id,10000000,Date.now(),null,null);
+  const next=await modelStep(env,id,0,'facts',id+'-call',request,validate);assert.equal(next.cached,false);assert.equal(next.value.run,requests);
+ }
+ assert.equal(requests,4);
+});
+test('a valid response without usage cannot be reused by another operation',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:canonical({run:requests})},finish_reason:'stop'}],...(requests===1?{}:{usage:{prompt_tokens:100,completion_tokens:10}})})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},validate=value=>assert.ok(Number.isInteger(value.run));
+ await modelStep(env,'model-operation',0,'facts','unknown-call',request,validate);
+ const before=await budget.modelBudgetStatus(env);assert.equal(before.pending.length,1);
+ const replay=await modelStep(env,'model-operation',0,'facts','unknown-call',request,validate);assert.equal(replay.value.run,1);assert.equal(requests,1);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ const next=await modelStep(env,'new-operation',0,'facts','new-call',request,validate);assert.equal(next.cached,false);assert.equal(next.value.run,2);assert.equal(requests,2);
+ const after=await budget.modelBudgetStatus(env);assert.deepEqual(after.pending,before.pending);
+});
+test('legacy cache re-admits a settled receipt in the same scope without a new request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},validate=value=>assert.equal(value.ok,true);
+ await modelStep(env,'model-operation',0,'facts','legacy-call',request,validate);
+ const hash=local.db.prepare('SELECT request_hash FROM cost_reservations WHERE id=?').get('legacy-call').request_hash;
+ local.db.prepare('UPDATE model_responses SET cache_key=?').run(hash);
+ shared.db.prepare('UPDATE model_budget_openings SET total_micros=NULL,confirmation_json=NULL').run();
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ const reused=await modelStep(env,'new-operation',0,'facts','new-call',request,validate);
+ assert.equal(reused.cached,true);assert.match(reused.reusedReceiptKey,/operations\/model-operation\/model-calls/);assert.equal(requests,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+});
+test('settled spec and scene-layout tool responses can be reused in the same scope',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async(_url,init)=>{requests++;const body=JSON.parse(init.body),delta=body.tools
+  ?{tool_calls:[{index:0,id:'edit',function:{name:'edit_file',arguments:canonical({command:'create',path:'scenes/product/index.js',content:'layout fixture'})}}]}
+  :{content:canonical({film:{title:'spec fixture'}})};
+  return new Response('data: '+canonical({choices:[{delta,finish_reason:body.tools?'tool_calls':'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const spec={system:'Offline spec.',messages:[{role:'user',text:'Write a spec.'}],maxOutputTokens:64};
+ const layout={system:'Offline layout.',messages:[{role:'user',text:'Create the layout.'}],maxOutputTokens:64,tools:[{name:'edit_file',description:'Edit a scene.',parameters:{type:'object'}}]};
+ const checkSpec=value=>assert.equal(value.film.title,'spec fixture'),checkLayout=value=>assert.equal(value.toolCalls[0].input.path,'scenes/product/index.js');
+ await modelStep(env,'model-operation',0,'spec','spec-call',spec,checkSpec);
+ await modelStep(env,'model-operation',0,'scenes','layout-call',layout,checkLayout,Date.now()+60000,{sceneId:'product'});
+ const before=await budget.modelBudgetStatus(env);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ assert.equal((await modelStep(env,'new-operation',0,'spec','new-spec',spec,checkSpec)).cached,true);
+ assert.equal((await modelStep(env,'new-operation',0,'scenes','new-layout',layout,checkLayout,Date.now()+60000,{sceneId:'product'})).cached,true);
+ assert.equal(requests,2);assert.equal((await budget.modelBudgetStatus(env)).currentChargedMicros,before.currentChargedMicros);
+});
+test('missing settled receipt stops reuse without silently buying the response again',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await modelStep(env,'model-operation',0,'facts','old-call',request,value=>assert.equal(value.ok,true));
+ local.db.prepare('DELETE FROM model_responses').run();for(const key of objects.keys())if(key.includes('/model-calls/'))objects.delete(key);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'new-operation',0,'facts','new-call',request,()=>{}),/MODEL_RECEIPT_UNAVAILABLE/);
+ assert.equal(requests,1);assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+});
+test('receipt recovery finds a later usable response after a failed or unavailable older one',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:requests===1?'{':'{"ok":true}'},finish_reason:requests===1?'length':'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},validate=value=>assert.equal(value.ok,true);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','a-truncated',request,validate),/MODEL_OUTPUT_TRUNCATED/);
+ const firstReceipt=[...objects.keys()].find(key=>key.includes('/model-calls/'));
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('second','workspace','project',0,'calibration','active','second',10000000,Date.now(),null,null);
+ await modelStep(env,'second',0,'facts','b-valid',request,validate);assert.equal(requests,2);
+ for(const[id,removeFirst]of [['third',false],['fourth',true]]){
+  local.db.prepare('DELETE FROM model_responses').run();if(removeFirst)objects.delete(firstReceipt);
+  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'calibration','active',id,10000000,Date.now(),null,null);
+  const reused=await modelStep(env,id,0,'facts',id+'-call',request,validate);
+  assert.equal(reused.cached,true);assert.match(reused.reusedReceiptKey,/operations\/second\/model-calls/);assert.equal(requests,2);
+ }
+});
+test('a later cached response cannot replace an earlier call whose outcome is unknown',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;if(requests===1)throw Error('Network connection lost.');
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},validate=value=>assert.equal(value.ok,true);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','unknown-call',request,validate),/MODEL_TRANSPORT_FAILED/);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-operation','workspace','project',0,'calibration','active','new',10000000,Date.now(),null,null);
+ await modelStep(env,'new-operation',0,'facts','new-call',request,validate);assert.equal(requests,2);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','unknown-call',request,validate),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,2);const status=await budget.modelBudgetStatus(env);assert.equal(status.pending.length,1);assert.ok(status.pending[0].reserved_micros>0);
+});
+for(const phase of ['fetch','fetch-status','stream'])test(`network connection loss during ${phase} preserves the reservation and never resends the call`,async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;if(phase.startsWith('fetch'))throw Object.assign(Error('Network connection lost.'),phase==='fetch-status'?{status:503}:{});
+  return new Response(new ReadableStream({pull(controller){controller.error(Error('Network connection lost.'));}}));};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const callId='network-'+phase,request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts',callId,request,()=>assert.fail('no response to validate')),/MODEL_TRANSPORT_FAILED/);
+ const before=await budget.modelBudgetStatus(env);assert.equal(before.pending.length,1);assert.ok(before.pending[0].reserved_micros>0);assert.ok(before.pending[0].dispatched_at);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts',callId,request,()=>assert.fail('no response to validate')),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1);const after=await budget.modelBudgetStatus(env);assert.deepEqual(after.pending,before.pending);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM model_responses').get().n,0);
+ const diagnostics=[...objects.entries()].filter(([key])=>key.endsWith('-request-failure.json'));
+ assert.equal(diagnostics.length,1);const failure=parseCanonicalJson(diagnostics[0][1].bytes);
+ assert.equal(failure.callId,callId);assert.equal(failure.code,'MODEL_TRANSPORT_FAILED');assert.equal(failure.httpStatus,phase==='fetch-status'?503:null);assert.equal(failure.usageStatus,'unknown');
+ assert.doesNotMatch(canonical(failure),/synthetic-not-a-secret|Network connection lost/);
+});
+test('SSE parser failure is not recorded as a network failure',async t=>{
+ const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: {\n\n');};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','invalid-sse',request,()=>{}),error=>{assert.ok(error instanceof SyntaxError);return true;});
+ const diagnostic=[...objects.entries()].find(([key])=>key.endsWith('-request-failure.json'));
+ const failure=parseCanonicalJson(diagnostic[1].bytes);assert.equal(failure.code,'MODEL_ADAPTER_FAILED');assert.equal(failure.usageStatus,'unknown');
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);assert.equal(requests,1);
+});
 test('complete malformed tool output is persisted and settled before correction; unknown usage stays held',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{tool_calls:[{index:0,id:'bad',function:{name:'submit_candidate',arguments:'{"note":"unfinished'}}]},finish_reason:'tool_calls'}]})+'\n\n'+(requests===1?'data: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\n':'')+'data: [DONE]\n\n');};

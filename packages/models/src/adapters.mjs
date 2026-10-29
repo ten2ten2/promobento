@@ -3,6 +3,13 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 /** A terminal provider response still fails, but its bytes/usage can be recorded and settled. */
 export class ModelOutputError extends Error {constructor(code,result){super(code);this.result=result;}}
 
+// Keep existing machine-readable failures and status; normalize only errors from network I/O.
+const transportError = error => {
+  if (error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message)) return error;
+  const status = error && typeof error === 'object' ? error.status : undefined;
+  return Object.assign(Error('MODEL_TRANSPORT_FAILED'), Number.isInteger(status) && status >= 100 && status <= 599 ? {status} : {});
+};
+
 /** Remove only a whole Markdown transport envelope; JSON itself always uses the shared strict parser. */
 export function parseModelJson(text){
   try{return parseCanonicalJson(text);}catch(error){
@@ -35,9 +42,11 @@ export function providerRequest({provider, model, system, messages, schema, tool
 export async function streamModel({provider, secret, ...input}, {fetchImpl = fetch, timeoutMs = 600000, onText = () => {}} = {}) {
   if (!secret) throw Error('MODEL_SECRET_MISSING');
   const request = providerRequest({provider, ...input}), started = performance.now();
-  const response = await fetchImpl(provider.baseUrl.replace(/\/$/, '') + request.path, {method: 'POST', signal: AbortSignal.timeout(timeoutMs),
+  const url = provider.baseUrl.replace(/\/$/, '') + request.path, options = {method: 'POST', signal: AbortSignal.timeout(timeoutMs),
     headers: {'content-type': 'application/json', ...(provider.kind === 'anthropic'
-      ? {'x-api-key': secret, 'anthropic-version': '2023-06-01'} : {authorization: 'Bearer ' + secret})}, body: canonical(request.body)});
+      ? {'x-api-key': secret, 'anthropic-version': '2023-06-01'} : {authorization: 'Bearer ' + secret})}, body: canonical(request.body)};
+  let response;
+  try { response = await fetchImpl(url, options); } catch (error) { throw transportError(error); }
   if (!response.ok || !response.body) throw Object.assign(Error('MODEL_REQUEST_FAILED'), {status: response.status});
   let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false, failure = null;
   const toolCalls = new Map(), decoder = new TextDecoder('utf-8', {fatal: true});
@@ -76,10 +85,12 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
       if (data.type === 'message_stop') finished = true;
     }
   };
-  const reader = response.body.getReader();
+  const reader = response.body.getReader(); let readFailed = false;
   try {
     for (;;) {
-      const {done, value} = await reader.read();
+      let chunk;
+      try { chunk = await reader.read(); } catch (error) { readFailed = true; throw transportError(error); }
+      const {done, value} = chunk;
       if (done) break;
       received += value.byteLength; if (received > 16 << 20) throw Error('MODEL_RESPONSE_TOO_LARGE');
       buffer += decoder.decode(value, {stream: true});
@@ -100,5 +111,7 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
       usage, firstTokenMs, totalMs: Math.round(performance.now() - started),...(failure?{failure,streamComplete:finished}:{})};
     if(failure)throw new ModelOutputError(failure,result);
     return result;
-  } finally { await reader.cancel(); }
+  } finally {
+    try { await reader.cancel(); } catch (error) { if (!readFailed) throw error; }
+  }
 }
