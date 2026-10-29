@@ -177,6 +177,28 @@ test('controller startup must pass health before task dispatch; physical headroo
  }
 });
 
+test('studio startup failures retain diagnostics even without a render attempt row',async t=>{
+ for(const unavailable of [false,true]){
+  const{env,shard,task,ctx,counts}=await computeFixture(t,{stopBeforeStart:false});
+  const objects=new Map();
+  env.MEDIA={async head(key){return objects.get(key)??null;},async put(key,bytes,options){
+   if(unavailable)throw Error('STORAGE_OFFLINE');
+   objects.set(key,{size:bytes.length,customMetadata:options.customMetadata,bytes});return{};
+  }};
+  task.mode='studio';delete task.shard;task.job.quality='still';task.job.frames=[45];
+  t.mock.timers.enable({apis:['Date']});task.deadlineAt=Date.now()+60000;
+  ctx.container.interceptOutboundHttp=async()=>{};ctx.container.monitor=()=>new Promise(()=>{});
+  ctx.container.getTcpPort=()=>({async fetch(url){assert.ok(url.endsWith('/healthz'));t.mock.timers.tick(45001);return new Response(null,{status:503});}});
+  try{
+   await assert.rejects(shard.execute(canonical(task)),/RENDER_STARTUP_TIMEOUT/);
+   if(!unavailable){const saved=objects.get(`operations/${task.job.operationId}/studio-diagnostics/${task.taskId}.json`);
+    assert.ok(saved);const diagnostic=parseCanonicalJson(saved.bytes);assert.equal(diagnostic.code,'RENDER_STARTUP_TIMEOUT');assert.equal(diagnostic.startup.lastProbe.httpStatus,503);}
+   else assert.equal(objects.size,0);
+   assert.equal(ctx.container.running,false);assert.equal(counts().leases,0);
+  }finally{t.mock.timers.reset();}
+ }
+});
+
 test('broker registration precedes allocation, is bounded and cannot start after cancellation',async t=>{
  for(const scenario of ['slow','cancelled','hung']){
   const{db,shard,task,ctx,counts,values}=await computeFixture(t,{stopBeforeStart:false});

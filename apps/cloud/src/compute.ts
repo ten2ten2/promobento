@@ -2,7 +2,7 @@ import {DurableObject, WorkerEntrypoint} from 'cloudflare:workers';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
-import {operation, rights, reserve, settle} from './store.ts';
+import {operation, rights, reserve, settle, immutableJson} from './store.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 import policy from '../../../config/agent-policy.json';
 
@@ -192,8 +192,11 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       }
       if(environmentHealth===null||monitor.state!=='pending'){
         const code=monitor.state==='pending'?'RENDER_STARTUP_TIMEOUT':'RENDER_STARTUP_EXITED';
-        await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical({status:'failed',code,
-          startup:{elapsedMs:Date.now()-bootAt,budgetMs:startupDeadline-bootAt,brokerRegistrationMs,monitorState:monitor.state,probeCount,lastProbe}}),task.taskId).run();
+        const diagnostic={status:'failed',code,startup:{elapsedMs:Date.now()-bootAt,budgetMs:startupDeadline-bootAt,brokerRegistrationMs,monitorState:monitor.state,probeCount,lastProbe}};
+        await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=? WHERE id=?').bind(canonical(diagnostic),task.taskId).run();
+        // Studios have no pipeline_attempts row: retain their actual startup evidence separately.
+        // Diagnostic storage is best effort and must never replace the startup failure.
+        if(task.mode==='studio')try{await immutableJson(this.env,`operations/${op.id}/studio-diagnostics/${task.taskId}.json`,diagnostic);}catch{/* Preserve the actual startup error. */}
         throw Error(code);
       }
       const containerReadyMs=Date.now()-bootAt;

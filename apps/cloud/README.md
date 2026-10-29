@@ -82,6 +82,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 
 方法1.9强调基于产品设计构图、主体比例和镜头接力：当积木不能表达所选编排，C 可指定自写镜头，E 也可在具体视觉缺陷需要时把受影响积木换成自写镜头，由 D 编写并经既有沙箱检查后重渲。旧方法的请求与执行路径不变。方向图仍是可信积木生成的静态近似，不是已实现的自写镜头；是否真正改善画质须以实际作品和正常速度视听判定。
 
+Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有的 `studio-diagnostics/<taskId>.json`，因为 Studio 没有渲染分片的 attempt 行；诊断写入失败不覆盖原始启动错误，也不重试模型。
+
 当前 E 的规格改写是创作过程内的自动审片修复；用户对已生成影片提交批注并创建新候选的改稿入口尚未实现。具体产品改稿和版本规则见[13](../../docs/prd/13-agent-native-production.md#7-定点编辑和协作)与[14](../../docs/prd/14-production-contracts.md)。
 
 失败证据绑定sourceHash／scene／aspect，保留阶段／帧／CDP／像素比较及实际PNG。studio关闭确认且错误为可归因CUSTOM_QA_BLOCK／CUSTOM_HOLD_TEXT_MISSING／CUSTOM_SEEK_MISMATCH时，每镜头最多一次D定点修复，共用原次数／金额／期限；重叠无法归因、未知消费、Q0／权限／平台或停止未确认直接失败。看图模式给真实失败图，文本模式只给实际观测／比较，不冒称看过帧。
