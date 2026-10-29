@@ -4,6 +4,14 @@
 
 模型金额按实际 usage 和调用时冻结目录／汇率结算，不是已对账的供应商账单；无 usage 保留未知预留。计算金额是分配资源保守上界，和模型分开。
 
+## 方法 1.8.0：按反馈重新自动编排
+
+负责人指出鱼卡与后续练习没有关系。基于前一自动规格的**手动修订**将鱼卡先返回翻译页，再交接不同练习；本机播放器 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`。这不是自动发现或自动改稿。
+
+随后使用已部署的 `750264c9238afdced5fbbe7911f314ecdf30f1ae`／方法 1.8.0 新建操作 `eval-duolingo-15-1793276133753`，把上述反馈明确写进新 brief，人工从三个方向选择 Amplify。C 自动选择 `component-relay` 的 `return-to-source`；E 首次提交候选，未触发修改。横屏 review 和 1080p 横竖渲染均完成；实际帧中鱼卡只在翻译页，听力／口语页未带鱼卡，但产品画面小、整体偏静态，仍不等于参考片质量。横竖渲染可在本机私有 `artifacts/s1-duolingo-context-auto-2026-10-29/index.html` 查看。素材仅限内部评测，声音未试听。
+
+F 独立终审请求用量未知，以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停止；没有终审结论，不重发原请求。该轮模型与计算已结／保守资源上界 **114,652**，F 未知预留 **37,484 usd_micros**；全部计算尝试停止、容量为空、临时密钥撤销。这次证明根据明确新 brief 选择了归位模式，不证明模型自行发现问题，也不证明用户批注到既有候选的新版本改稿入口已经实现。
+
 ## 方法 1.7.0：组件接力自动低清片，E 未完成
 
 负责人授权一轮 Duolingo 自动试跑。操作 `eval-duolingo-15-1793272642867` 使用 `renderer-c1551095c2a9`、方法 1.7.0；三张方向预览中选择 Fit，C 以 A 阶段观察的区域生成 `component-relay`，没有人工编写镜头 JS。实际横屏低清片为 **15 秒、960×540／15 fps／225 帧**，AAC **−14.03 LUFS／−1.98 dBTP**。E 的原始流仅含未完成的文字、没有工具调用和 usage，以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停止；F 未运行，无高清横竖最终片。原请求不重发。内部播放器 `artifacts/s1-duolingo-relay-method170-2026-10-29/index.html` 明示未完成审核；素材仅限内部评测。
