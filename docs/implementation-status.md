@@ -4,11 +4,13 @@
 
 ## 当前检查点
 
-最近已留证的内部 staging Worker 源码为 `1a5500bab98bfccb498c88f0620615e383bf3d74`，导演方法 **1.5.0**；[CI](https://github.com/ten2ten2/promobento/actions/runs/40812756409)与 [deploy-only 部署](https://github.com/ten2ten2/promobento/actions/runs/40814792555)通过。部署复用已登记的 `renderer-fdb8e4e447d5`，镜像摘要为 `sha256:f04332da47005285f1ebb00b90cf1eb92072a56909c28bed2af26c16433714ee`；健康、空容量及模型预算只读检查通过，未调用模型或渲染，临时密钥已回收。
+最近已留证的内部 staging Worker 源码为 `1a5500bab98bfccb498c88f0620615e383bf3d74`，导演方法 **1.5.0**；[CI](https://github.com/ten2ten2/promobento/actions/runs/40812756409)与 [deploy-only 部署](https://github.com/ten2ten2/promobento/actions/runs/40814792555)通过。部署复用已登记的 `renderer-fdb8e4e447d5`，镜像摘要为 `sha256:f04332da47005285f1ebb00b90cf1eb92072a56909c28bed2af26c16433714ee`；部署时健康、空容量及模型预算只读检查通过，该部署检查未调用模型或渲染，临时密钥已回收。
 
-负责人批准的 Duolingo 15 秒内部评测已运行一次：A–C 和 D 静态布局完成，D 的首次动作请求发生网络连接中断且用量未知，E/F 未运行，未生成新影片。该请求保留 **126,990 usd_micros** 未知预留，不重发；已结模型费用 **56,344**，计算资源保守上界 **3,735**。作品覆盖仍为 **1/12 创作输入、2/24 最终片**。[回执与范围](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒新评测在-d-阶段中断)。
+负责人另行批准的 Duolingo 15 秒评测已生成横屏低清审片；E 模型请求返回 HTTP 502 且用量未知，F 未运行，也没有竖屏或高清最终片。实际帧与绑定源码表明首个镜头未测出按钮坐标，却静默停在路径图，未实现规格中的练习画面交接；片尾正文与 CTA 叠字。此片不作为质量通过，负责人试听待确认。作品覆盖仍为 **1/12 创作输入、2/24 最终片**。[审片、失败原因与回执](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
 
-连接中断现报为 `MODEL_TRANSPORT_FAILED`，保留未知预留及不重发语义。结果缓存按工作区／项目／用途隔离，只收已结响应；旧缓存经已结原回执重新准入，回执缺失不自动重购。此前 D1 读取返回 `7403`，本次同账户已可读取，原因未确定；已核对 Duolingo C 和 D 布局的原回执、结算及旧缓存。完全相同的请求和作用域可按现有准入条件尝试复用，但本次未运行新创作，尚未验证实际命中；原失败操作不恢复。[具体证据](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒新评测在-d-阶段中断)。
+连接中断现报为 `MODEL_TRANSPORT_FAILED`，保留未知预留及不重发语义。结果缓存按工作区／项目／用途隔离，只收已结响应；旧缓存经已结原回执重新准入，回执缺失不自动重购。Duolingo 前次 D 动作请求仍未知、不恢复；新轮未产生 A–C 和首个布局的模型预留，后续 D 动作另行结算。[具体证据](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
+
+2026-10-29 13:29（上海时间），staging D1 远程查询再次返回 HTTP 403／`7403`。当前 Wrangler 账号可列出目标数据库且显示 `d1 (write)`，但查询未获准，原因未确定；当前权利和账本状态无法重新核对。下面金额为本轮结束时的回执快照；恢复查询后再复核，不通过其他通道绕过该拒绝。
 
 最新 MiniMax 15 秒自写评测已通过横竖完整帧检查：24 次逆序／冷 seek 比较全零差异，阅读无 BLOCK；横屏低清 review 在 **83.442 秒**交付，AAC **−14.15 LUFS／−1.46 dBTP**、五处接缝零差异，实际有声 1× 播放零掉帧／解码错误。**E 工具参数不完整且无 usage，操作失败，F 未运行，未生成高清横竖最终片。** 负责人已明确判定原稿画面质量不通过：空开场、长冻结、三态取景跳动和正文／CTA 叠字。[原始范围与回执](evidence/2026-10-24-s1-director/README.md#方法-150横屏低清审片已生成e-参数不完整且无用量)。
 
@@ -43,15 +45,15 @@
 
 ## 有效授权与费用
 
-原模型授权总额 $300；历史费用未确认，以 $5 风险预留有限放行 staging，新模型实际／未知预留累计最多 $10，至 **2026-10-31 上海时间结束**。历史 128 次请求中 14 次未知，`openingMicros:null`、`openingConfirmed:false` 不变。共享新增模型已结 **1,390,628**，七笔未知 **288,721**，合计占用 **1,679,349 usd_micros**；这不是供应商账单总额。
+原模型授权总额 $300；历史费用未确认，以 $5 风险预留有限放行 staging，新模型实际／未知预留累计最多 $10，至 **2026-10-31 上海时间结束**。历史 128 次请求中 14 次未知，`openingMicros:null`、`openingConfirmed:false` 不变。本轮结束时的共享模型预算快照为已结 **1,484,400**、八笔未知 **360,278**，合计占用 **1,844,678 usd_micros**；这不是供应商账单总额，D1 当前查询受阻，未刷新。
 
 仅 staging / evaluation / internal_eval_only、冻结方法 ≥1.5.0 且实际选择自写镜头的操作可用 **30 分钟**活动上限；旧方法、纯积木与其他操作仍为 20 分钟。原活动起点不变，只扣除方向等待，修复／重试不重置。review 止损为 180 秒；金额、质量与性能目标均不因此放宽。
 
-此前累计七次及后来单独批准的方法 1.3／1.4／1.5 各一轮，以及 2026-10-29 单独批准的 Duolingo 一轮均已使用。MiniMax E 的 **40,505** 和 Duolingo D 的 **126,990 usd_micros** 未知预留仍占用；Duolingo 计算已停止／结算、容量为空、临时密钥回收。每轮内部评测仍受原 $3 操作上限，剩余共享金额不自动产生新轮次授权。具体请求与核对入口见[导演证据](evidence/2026-10-24-s1-director/README.md)。
+此前累计七次及后来单独批准的方法 1.3／1.4／1.5 各一轮，以及 2026-10-29 单独批准的 Duolingo 两轮均已使用。MiniMax E 的 **40,505**、Duolingo D 的 **126,990** 和新轮 E 的 **71,557 usd_micros** 未知预留在结束快照中仍占用；新轮计算已停止／结算、容量为空、临时密钥回收。每轮内部评测仍受原 $3 操作上限，剩余共享金额不自动产生新轮次授权。具体请求与核对入口见[导演证据](evidence/2026-10-24-s1-director/README.md)。
 
 ## 继续工作所需入口
 
-- [评测输入、私有素材、当前审片与试听用法](../research/evals/README.md)；当前审片为本机 `artifacts/s1-minimax-method150-2026-10-27/index.html`。
+- [评测输入、私有素材、当前审片与试听用法](../research/evals/README.md)；本机 MiniMax 人工稿为 `artifacts/s1-minimax-method150-2026-10-27/index.html`，Duolingo E 前低清审片为 `artifacts/s1-duolingo-15-reuse-2026-10-29/index.html`。
 - [导演／作品证据](evidence/2026-10-24-s1-director/README.md)、[当前性能／隔离／内存](evidence/2026-10-24-s1-performance/README.md)、[运行时与自写镜头](evidence/2026-10-24-s1-runtime/README.md)、[云端媒体与恢复](evidence/2026-10-24-s1-staging/README.md)、[模型能力与历史费用](evidence/2026-10-23-model-probe/README.md)。
 - 本地原生联调／新构建部署封装仍未合入主线，review出片曾失败、封装未在Actions实跑，不作为当前可用入口；沿用主线README的命令。
 - 私有暂停检查点 `s1-paused-private-20261025`（`31cb416`）只按需要逐项取用，不整支合并或推公开仓库。既有源素材、许可、音源、作品和费用回执继续保留；本机旧轮次原始数据在 `artifacts/history/`，不是完整历史媒体包。
