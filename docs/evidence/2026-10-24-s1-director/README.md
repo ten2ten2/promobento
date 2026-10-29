@@ -4,7 +4,7 @@
 
 模型金额按实际 usage 和调用时冻结目录／汇率结算，不是已对账的供应商账单；无 usage 保留未知预留。计算金额是分配资源保守上界，和模型分开。
 
-## 方法 1.5.0：横屏低清审片已生成，E 无用量截断
+## 方法 1.5.0：横屏低清审片已生成，E 参数不完整且无用量
 
 源码 `6204a149bc68b9c55ec806f971e6cb1544944be3` 的 [CI](https://github.com/ten2ten2/promobento/actions/runs/40481688976)及 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40483086885)通过；renderer 为 `renderer-6204a149bc68`，实际镜像和完整回执见 [summary.json](custom-method150-attempt/summary.json)。方法 1.5.0 使用负责人批准的内部自写评测 30 分钟活动上限，适用范围见[期限契约](../../plans/cloud-motion-v3.md#611-预算限制与-effort)；本轮未触及新上限。
 
@@ -12,7 +12,7 @@
 
 横屏 review 为 **15 秒、960×540、15 fps、225 帧、AAC**，耗时 **83.442 秒**，五处接缝零差异，实际 AAC **−14.15 LUFS／−1.46 dBTP**。renderId 为 `render-b5738fef9de01f95e229a7639029cc28de37807ffaf910a5`。Chrome **156.0.8078.48** 完整有声 1× 播放零掉帧／解码错误，从头重播有效。正常播放的帧回调取出八张实际解码帧，暂停／庆祝、署名与 CTA 可见；seeked 后立即 canvas 抽帧曾停留旧表面，该批截图已丢弃。
 
-E 请求于上海时间 **2026-10-27 18:05:30.906** 派发，模型 `modelswitch/deepseek-v4.1-flash-1017`，callId **`eval-minimax-15-1793094623437-review-0`**。一个 write_spec 的参数在第 **5,225** 字符处字符串未结束，`usage:null`、`quote:null`，原响应私有保存。操作以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停止，**40,505 usd_micros** 继续预留；账户负责人／供应商须按原 callId 核对，不重发或补造建议。
+E 请求于上海时间 **2026-10-27 18:05:30.906** 派发，模型 `modelswitch/deepseek-v4.1-flash-1017`，callId **`eval-minimax-15-1793094623437-review-0`**。回执为 `MODEL_TOOL_JSON_INVALID`：`write_spec` 参数共 **5,225** 字符，结束时字符串未闭合；`streamComplete:true`、`usage:null`、`quote:null`。未留存原始 SSE 和 `finish_reason`，无法判断是输出上限、模型或网关问题，还是流解析环节的问题。操作以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停止，**40,505 usd_micros** 继续预留；原响应私有保存。账户负责人需凭请求时间、模型及账户记录与供应商核对实际用量后补账；项目内 callId 用于关联原回执，不重发或补造建议。
 
 本轮 6 笔模型已结 **92,776**，1 笔未知 **40,505**；18 次计算均停止／结算 **32,531**，实际／预留合计 **165,812 usd_micros**。容量为空、临时密钥撤销。原片已按通过的渲染回执取回，本机私有审片页 `artifacts/s1-minimax-method150-2026-10-27/index.html`。负责人依据抽样实际帧判定画面质量不通过：空开场、长冻结、截图／指针跳动和正文／CTA 叠字，声音未试听；具体反馈已写入同一 summary。E 未完成、F 未运行、无高清横竖最终片。这个本机提取稿不等于自动 review-draft 分支云验或成功候选。
 
