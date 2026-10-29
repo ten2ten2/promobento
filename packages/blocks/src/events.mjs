@@ -1,9 +1,15 @@
 import {featureLandings} from './brand-relay.ts';
 import {journeyLandings} from './journey-motion.ts';
+import {relayLandings} from './component-relay.ts';
 import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='component-relay'){
+    const landings=relayLandings(params.items.length,params.beatFrames);
+    if(landings.at(-1)+params.beatFrames>duration)throw Error('RELAY_READING_HOLD_MISSING');
+    return [{name:'component-land',frame:2*params.beatFrames},...landings.map((frame,index)=>({name:'product-step-'+(index+1),frame}))];
+  }
   if(id==='continuous-focus'){
     for(const track of [params.focusTrack,...Object.values(params.aspectTracks??{})].filter(Boolean)){
       if(track[0].frame!==0||track.some((point,index)=>point.frame>=duration||index&&point.frame<=track[index-1].frame))throw Error('FOCUS_TRACK_TIMING_INVALID');
@@ -42,6 +48,8 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
+  if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
+   .map(event=>Math.floor((scene.start+event.frame+Math.floor(scene.params.beatFrames/2))/stride)*stride);
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
    return blockEvents('ui-journey',scene,scene.params).map(event=>Math.floor((scene.start+event.frame+Math.floor(scene.params.beatFrames/2))/stride)*stride);
   const settled=scene.start+Math.max(45,...blockEvents(scene.block.split('@')[0],{start:scene.start,end:scene.end},scene.params).map(event=>event.frame+6));
@@ -62,6 +70,9 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
     .map(frame=>Math.floor(frame/stride)*stride);
   }
+  if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
+   .flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(['continuous-focus@1','kinetic-title@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;
    return [0,6,Math.floor(span/4),Math.floor(span/2),Math.floor(span*3/4),span-1]

@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,oldRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -51,6 +51,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  Date.now=()=>clock;
  if(unverified)specModel.capabilities.verified=false;
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
+ if(relaySpec)spec.scenes[1]={...spec.scenes[1],block:'component-relay@1',params:{textSlot:'product',focus:'roi:0',beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]}};
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
   params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200,...(!legacyCustomMethod?{visibleTextSlots:['product']}:legacyHoldMetadata?{visibleTextSlots:'legacy-unused-metadata'}:{})}]}};
@@ -71,6 +72,11 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    async progress(text:string){if(noticeFailure)throw Error('MOCK_NOTICE_FAILURE');progress.push(parseCanonicalJson(text).status);},
    async studio(_id:string,text:string){const task=parseCanonicalJson(text),{generation,imageDigest,deadlineAt,...input}=task;
     if(healthFailure&&task.taskId.startsWith('health-'))throw Error('MOCK_RENDER_UNAVAILABLE');
+    const filmBlob=task.inputs?.find((blob:any)=>blob.name==='film');
+    if(filmBlob&&task.taskId.startsWith('health-')){
+      const film=parseCanonicalJson(objects.get(filmBlob.key).bytes);
+      if(film.scenes.some((scene:any)=>scene.block==='component-relay@1')){trace.push('relay-preflight');if(oldRelayRenderer)throw Error('MOCK_RELAY_UNAVAILABLE');}
+    }
     if(task.inputs?.some((blob:any)=>blob.key.includes('/custom-probe/')))trace.push('probe-studio');
     assertRenderTask({...input,brokerToken:'fixture-non-secret-token'});activeStudio=task;studioFrames.clear();studioCount++;return canonical({status:'ready'});},
    async checkFrame(_id:string,frame:number){const health=activeStudio.taskId.startsWith('health-'),visible=health||activeStudio.taskId.startsWith('custom-')&&(!customTextMissing||fixableFrameFailure&&frameRepairs>0);
@@ -134,7 +140,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
-  else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
+  else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
   else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
@@ -285,6 +291,14 @@ test('completed structured output with an extra null field gets one charged corr
 test('actual page generator gates all direction films and spec before studio/render, preserving the supported S1 subset',async()=>{
  const directions=await fixture({unsupportedDirections:true});assert.ifError(directions.error);assert.equal(directions.models.filter(stage=>stage==='directions').length,2);assert.equal(directions.studioCount,5);
  const spec=await fixture({unsupportedSpec:true});assert.ifError(spec.error);assert.equal(spec.specRequests,2);assert.equal(spec.validationFeedback[0].code,'FILM_RUNTIME_UNSUPPORTED');assert.equal(spec.validationFeedback[0].issues[0].code,'TEXTURE_NOT_IMPLEMENTED');assert.equal(spec.renders.length,3);
+});
+test('component relay reaches review only with observed geometry and a renderer capability probe',async()=>{
+ const ready=await fixture({methodWithoutCustom:true,relaySpec:true});assert.ifError(ready.error);
+ assert.equal(ready.state.status,'succeeded');assert.ok(ready.trace.includes('relay-preflight'));assert.equal(ready.activeStudio,null);
+ const oldRenderer=await fixture({methodWithoutCustom:true,relaySpec:true,oldRelayRenderer:true});
+ assert.equal(oldRenderer.error.message,'MOCK_RELAY_UNAVAILABLE');assert.equal(oldRenderer.renders.length,0);assert.ok(!oldRenderer.models.includes('review'));
+ const oldMethod=await fixture({methodWithoutCustom:true,relaySpec:true,frozenMethodVersion:'1.6.0'});
+ assert.equal(oldMethod.error.message,'FILM_SCHEMA_INVALID');assert.ok(!oldMethod.trace.includes('relay-preflight'));assert.equal(oldMethod.renders.length,0);
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){

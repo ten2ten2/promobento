@@ -6,6 +6,7 @@ import { filmSpecErrors } from '@promobento/contracts/film';
 import { validate as validateBlockParams } from '@promobento/contracts/validators/block-params';
 import { validate } from '@promobento/contracts/validators/film';
 import { blockCatalog, blockReferences } from '../../blocks/src/catalog.ts';
+import {blockEvents} from '../../blocks/src/events.mjs';
 import type { FilmSpec } from '../../../contracts/film-runtime.d.ts';
 import type { PageOptions, PagePlan } from './types.ts';
 
@@ -60,9 +61,19 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
     if(scene.block==='device-3d@1'&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
-    if (typeof scene.params.focus === 'string') {
+    if (scene.block === 'ui-showcase@1' && typeof scene.params.focus === 'string') {
       const asset = spec.assets[String(scene.params.assetKey)];
       if (!asset?.roi?.[Number(scene.params.focus.slice(4))]) throw Error('ASSET_ROI_UNKNOWN');
+    }
+    if (scene.block === 'component-relay@1') {
+      const items=scene.params.items as Array<{assetKey:string}>;
+      for(const item of items){
+        const asset=spec.assets[item.assetKey];
+        if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind ?? ''))throw Error('RELAY_IMAGE_REQUIRED');
+      }
+      const first=spec.assets[items[0]!.assetKey]!,roi=first.roi?.[Number(String(scene.params.focus).slice(4))];
+      if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('RELAY_ROI_INVALID');
+      blockEvents('component-relay',scene,scene.params);
     }
   }
   const fonts = Object.values(spec.style.type).filter((value): value is NonNullable<typeof spec.style.type.mono> => typeof value === 'object')

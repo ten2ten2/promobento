@@ -5,6 +5,7 @@ import {SFX_IDS,AUDIO_STYLES,SFX_LEAD_TIMING} from './catalog.mjs';
 export const AUDIO_VERSION = 'film-audio-v1';
 export const GENERATED_LICENSE = 'LicenseRef-PromoBento-Generated-Audio';
 const autoSound = {'title-land': 'thud', 'product-land': 'tick', 'step-land':'tick', 'cta-land': 'chime', 'module-land': 'tick', 'feature-land': 'pop',
+ 'component-land':'pop',
  'feature-step-1':'pop','feature-step-2':'pop','feature-step-3':'pop',
  'product-step-1':'tick','product-step-2':'tick','product-step-3':'tick'};
 

@@ -27,7 +27,8 @@ const openingOnly=process.env.PROMOBENTO_RUNTIME_CASE==='opening';
 const relayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='relay';
 const journeyBeatsOnly=process.env.PROMOBENTO_RUNTIME_CASE==='journey-beats';
 const focusPortOnly=process.env.PROMOBENTO_RUNTIME_CASE==='focus-port';
-const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly;
+const componentRelayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='component-relay';
+const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly;
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
@@ -37,6 +38,7 @@ if(openingOnly)report.scope='four_aspect_grouped_opening_motion_only';
 if(relayOnly)report.scope='four_aspect_brand_relay_motion_and_beat_landings_only';
 if(journeyBeatsOnly)report.scope='four_aspect_beat_journey_handoffs_and_reading_only';
 if(focusPortOnly)report.scope='four_aspect_ported_blocks_and_real_frame_timing_only';
+if(componentRelayOnly)report.scope='four_aspect_component_relay_seek_and_layout_only';
 const pages=new Map();
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
@@ -75,6 +77,16 @@ journeyBeats.scenes=[{id:'journey',kind:'block',block:'ui-journey@1',start:0,end
   items:['first','second','third'].map(textSlot=>({textSlot,assetKey:'dashboard'}))},purpose:'Exercise beat-timed image handoffs.'}];
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))
   pages.set('/journey-beats-'+aspect+'.html',generateFilmPage(JSON.stringify(journeyBeats),pageOptions(aspect,layout)));
+const componentRelay=filmFixture();
+componentRelay.assets.dashboard.roi=[{x:.18,y:.18,width:.45,height:.34}];
+componentRelay.assets.mark={resourceId:'res_fixture_mark'};
+componentRelay.scenes=[{id:'component',kind:'block',block:'component-relay@1',start:0,end:450,
+  params:{textSlot:'product',focus:'roi:0',beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'mark'}]},purpose:'Lift a real detail and relay between pages.'}];
+for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const options=pageOptions(aspect,layout);
+  options.resources.push({resourceId:'res_fixture_mark',kind:'image',width:168,height:168,licenseRef:'fixture-original-mark',rightsCleared:true});
+  pages.set('/component-relay-'+aspect+'.html',generateFilmPage(JSON.stringify(componentRelay),options));
+}
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
 // Match the real failure's raster format/resolution, not just an SVG with broad flat shapes.
@@ -266,7 +278,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly&&!journeyBeatsOnly&&!focusPortOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly&&!journeyBeatsOnly&&!focusPortOnly&&!componentRelayOnly){
     report.typography=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=openingOnly?[0,12]:[0,12,45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
@@ -385,7 +397,25 @@ try{
       report.focusPort.push({aspect,comparisons,realPtsAndSourceOffset:true,textSafeAreaAndCustomFont:true});
     }
   }
-  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  if(componentRelayOnly||!focusedRuntime){
+    report.componentRelay=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const path='/component-relay-'+aspect+'.html',handle=await open(aspect,path),frames=[0,18,27,36,72,81,90,99],baseline=new Map(),states=new Map(),comparisons=[];
+      for(const frame of frames){
+        await handle.seek(frame);if([36,99].includes(frame))await checkLayout(handle,aspect);
+        const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
+        writeFileSync(`${output}/component-relay-${aspect}-${frame}.png`,png);
+      }
+      assert.ok(!baseline.get(18).equals(baseline.get(36)),'component must visibly move');
+      assert.ok(!baseline.get(72).equals(baseline.get(90)),'page handoff must visibly change the image');
+      for(const frame of [...frames].reverse()){await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`component-relay-${aspect}-${frame}-reverse`)});}
+      await handle.page.close();
+      for(const frame of [18,27,36,81,90]){const cold=await open(aspect,path);await cold.seek(frame);
+        comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`component-relay-${aspect}-${frame}-cold`)});await cold.page.close();}
+      report.componentRelay.push({aspect,comparisons,visibleComponentAndPageMotion:true,textSafeAreaAndCustomFont:true});
+    }
+  }
+  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -445,6 +475,7 @@ try{
   if(report.typography)report.checks.push(openingOnly?'four-aspect grouped opening frame 0/12 forward/reverse/cold seeks':'four-aspect grouped opening, text-only features and curriculum forward/reverse/cold seeks');
   if(report.relay)report.checks.push('four-aspect brand relay forward/reverse/cold seeks and exact beat landings');
   if(report.journeyBeats)report.checks.push('four-aspect beat journey continuous/reverse/cold seeks and all reading states');
+  if(report.componentRelay)report.checks.push('four-aspect component lift and page relay reverse/cold seeks');
   if(!focusedRuntime)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');
