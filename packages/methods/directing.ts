@@ -1,6 +1,6 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.8.0',
+  id: 'product-directing', version: '1.9.0',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -23,6 +23,7 @@ export const directingMethodPack = {
   stages: {
     directions: [
       'Offer different story mechanisms, not three palettes of the same slide sequence. In the existing logline/skeleton fields name what carries the eye between moments and how its role changes.',
+      'Propose distinct product-specific compositions and visible actions, not only different copy or palettes. A silent trusted hero is an approximation, not evidence that the proposed choreography has been built.',
       'Prefer one strong opening action over a long title screen. Place the most distinctive product moment early enough to earn attention. Use trusted blocks where they fit and custom scenes for choreography they cannot express.'
     ],
     spec: [
@@ -32,6 +33,7 @@ export const directingMethodPack = {
       'For each boundary, the outgoing subject, location or shape must motivate the next view. Use a continuous trusted story block when it expresses this better than independent entrances and exits.',
       'For component-relay, copy an observed first-image region exactly into that asset roi and select componentBehavior explicitly. Use return-to-source for a detail belonging to that page, so it returns before other examples appear. Use carry only when the same identifiable detail is observed with the same region label on every later image and has a meaningful connection to each, not merely to maintain motion. Different exercises, languages or screenshots do not by themselves establish one continuous lesson. Image observations and matching labels are model observations, not independent proof; inspect the rendered result.',
       'Shorten generic copy before shrinking product evidence. Do not replace a missing visual idea with extra captions, numbered navigation, decorative ROI boxes or empty panels. If the catalog cannot express the chosen mechanism, specify a custom scene brief and its concrete actions; do not invent block parameters.',
+      'For a custom scene, describe how the real subject is framed, moves, hands off to the next view and lands for reading in each target aspect. Treat changes of scale, layering, camera and timing as choices that serve the product, not decoration. Keep separate examples separate; use only observed geometry, not simulated product actions.',
       'Use only geometry actually supplied by verified asset observations. If a particular product control cannot be located from that evidence, choose a visual handoff that does not require its coordinates; never ask D to guess or silently leave that shot incomplete. For a CTA transition, use a cut or fade-through so outgoing copy clears before the CTA appears.'
     ],
     scenes: [
@@ -45,6 +47,7 @@ export const directingMethodPack = {
     review: [
       'Judge the rendered causal sequence, not just text fit. Does the opening earn attention? Does a shared visual element actually change role or reveal a consequence? Is there a clear payoff, a rhythm contrast and a concise brand ending?',
       'A sequence of correct screenshots with similar entrances may still be boring. Diagnose the missing visual connection and repair that relationship, rather than repeatedly adding/removing the same caption.',
+      'A repeated split layout or a product too small to understand is a concrete visual defect when it undermines the chosen direction. If a fixed block cannot express the needed composition, replace the affected scene with a custom scene and a precise brief; do not merely restate the direction in notes.',
       'Use ordered transition and landing frames to check the handoff. Reading-hold images and audio numbers cannot establish full-motion quality or listening quality.',
       'Check whether a detail carried across pages still belongs in each context; remove or return an unrelated detail instead of keeping it as decoration.'
     ],

@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -60,7 +60,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  const modern=(customScene||methodWithoutCustom)&&!legacyCustomMethod&&(!frozenMethodVersion||Number(frozenMethodVersion.split('.')[0])>1||Number(frozenMethodVersion.split('.')[1])>=6);
  if(modern){spec.scenes[2].transitionIn.type='fade-through';if(customScene&&!noAssetPlan)spec.scenes[1].params.assetChecks=[{frame:70,assetKeys:['dashboard']}];}
  const fixtureSource='PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);const timeline=gsap.timeline({paused:true});timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});';
+ const authoredScene=reviewToCustom?clone(spec.scenes[1]):null;
+ if(reviewToCustom)spec.scenes[1]=filmFixture().scenes[1];
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
+ if(authoredScene)fixed.scenes[1]=authoredScene;
  if(returnRelayRepair)fixed.scenes[1].params.componentBehavior='return-to-source';
  const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
  const submitted={toolCalls:[{id:'mock-submit',name:'submit_candidate',arguments:'',input:{note:'Synthetic fixture accepted.'}}]};
@@ -130,7 +133,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  }
  const method=customScene||methodWithoutCustom?await immutableJson(env,'operations/mock-operation/directing-method.json',legacyCustomMethod?{...directingMethodPack,version:'1.1.0'}:frozenMethodVersion?{...directingMethodPack,version:frozenMethodVersion}:directingMethodPack):null;
  await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').run('mock-operation','evals/mock/context.json',method?.key??null);
- let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[];
+ let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[],specInputs:any[]=[],directionInputs:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
   // No native fetch fallback: any unexpected URL fails before network access.
   const target=String(url),body=parseCanonicalJson(init.body);networkCalls++;
@@ -143,8 +146,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   const input=parseCanonicalJson(user);let stage:string,value:any;
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
-  else if(input.task.startsWith('Propose')){stage='directions';value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
-  else if(input.task.startsWith('Write')){stage='spec';specRequests++;assert.deepEqual(input.context,context);
+  else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
+  else if(input.task.startsWith('Write')){stage='spec';specRequests++;specInputs.push(input);assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
@@ -177,14 +180,14 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     assert.equal(input.textLayoutRequirements.minimumFontSizeBySlot.product,36);assert.equal(input.textLayoutRequirements.initiallyHiddenSlotsAreFitted,true);assert.match(input.textLayoutRequirements.parentBox,/width AND height/);
     assert.match(input.literalAccessGuidance,/pic\(ctx.asset\("dashboard"\),parent\)/);
     assert.equal(params.properties.path.type,'string');assert.deepEqual(params.properties.path.enum,['scenes/product/index.js']);
-    assert.equal(input.scene.brief,spec.scenes[1].brief);assert.match(input.phaseTask,/complete original brief/);assert.match(input.phaseTask,/Do not implement choreography/);
+    assert.equal(input.scene.brief,(authoredScene??spec.scenes[1]).brief);assert.match(input.phaseTask,/complete original brief/);assert.match(input.phaseTask,/Do not implement choreography/);
     if(fixableCustomPath&&models.includes(stage))assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'&&issue.path==='/toolCalls/0/input/path'));
     if(fixableCustomAsset&&models.includes(stage)){const issue=input.validationFeedback.issues.find((issue:any)=>issue.code==='CUSTOM_SLOT_UNDECLARED');assert.match(issue.sourceLine,/ctx.asset\(key\)/);assert.match(issue.hint,/pic\(ctx.asset\("dashboard"\),parent\)/);}
     value={toolCalls:[{id:'mock-source',name:'edit_file',arguments:'',input:{command:'create',path:fixableCustomPath&&!models.includes(stage)?{module:'scenes/product/index.js'}:'scenes/product/index.js',fileText:(badCustom?fixtureSource.replace('const panel=', 'fetch(\"https://example.com\");const panel='):fixtureSource).replace('power2.out','power1.out')}}]};
     if(fixableCustomAsset&&!models.includes(stage))value.toolCalls[0].input.fileText=value.toolCalls[0].input.fileText.replace('image.src=ctx.asset("dashboard").url;','function load(key){return ctx.asset(key);}image.src=load("dashboard").url;');
    }else{
     assert.equal(body.max_tokens,32768);
-    assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,spec.scenes[1].brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);assert.match(input.apiNotes,/inside safeInsets after transforms/);
+    assert.match(input.phase,/^motion-\d+$/);assert.equal(input.scene.brief,(authoredScene??spec.scenes[1]).brief);assert.ok(input.phaseWindow.end>input.phaseWindow.start);assert.match(input.apiNotes,/never override/);assert.match(input.apiNotes,/inside safeInsets after transforms/);
     assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);
     assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);assert.equal(params.properties.oldStr.type,'string');assert.equal(params.properties.insertLine.type,'integer');assert.equal(params.additionalProperties,false);
     const first=input.phase==='motion-0';assert.match(input.currentSource,first?/power1.out/:/power2.out/);
@@ -194,7 +197,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     if(emptyCustomMotion&&input.phase==='motion-1'){if(!input.validationFeedback)value.toolCalls[0].input={};else assert.ok(input.validationFeedback.issues.some((issue:any)=>issue.code==='CUSTOM_EDIT_PATH_STRING_REQUIRED'));}
    }}}
   else if(input.task.startsWith('Review')){stage='review';assert.equal(input.frames.length,1);assert.equal(input.frames[0].tiles.length,1);
-   if(customScene){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);}
+   if(customScene&&(!reviewToCustom||reviewRound>0)){const params=body.tools.find((entry:any)=>entry.function.name==='edit_file').function.parameters;assert.doesNotMatch(canonical(params),/\$ref/);assert.deepEqual(params.oneOf.map((variant:any)=>variant.properties.command.const),['str_replace','insert']);assert.deepEqual(params.required,['command','path','newStr']);assert.deepEqual(params.properties.command.enum,['str_replace','insert']);}
    const motionCount=motionSamples?(customScene&&!legacyCustomMethod?2:1):0;
    assert.equal(input.motionFrames.length,motionCount);assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1+motionCount+(motionAudit?1:0));
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);
@@ -263,7 +266,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,404);
    draftApi='private_draft_only_rights_and_generation_checked';
   }
-  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,validationFeedback,reviewRequests,frameRepairs,trace,
+  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,specInputs,directionInputs,validationFeedback,reviewRequests,frameRepairs,trace,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
@@ -312,6 +315,17 @@ test('review can switch an unnecessary carried component back to its source and 
  assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.internalRepairs,1);
  assert.equal(r.result.film.scenes[1].params.componentBehavior,'return-to-source');
  assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);
+});
+test('authored directions permit custom shots and review can replace a fixed block with one',async()=>{
+ const r=await fixture({customScene:true,reviewToCustom:true,repair:true});assert.ifError(r.error);
+ assert.match(r.directionInputs[0].task,/skeleton may propose a custom scene/);
+ assert.match(r.specInputs[0].task,/use custom scenes when/);assert.doesNotMatch(r.specInputs[0].task,/no custom scenes/i);
+ assert.match(r.reviewRequests[0].customSceneRepair,/replace the affected scene with custom/);
+ assert.equal(r.result.film.scenes[1].kind,'custom');assert.equal(r.result.internalRepairs,1);
+ assert.ok(r.models.includes('scenes'));assert.equal(r.models.filter(stage=>stage==='review').length,2);
+ assert.equal(r.renders.length,4);assert.equal(r.result.sceneModules.length,1);assert.equal(r.activeStudio,null);
+ const legacy=await fixture({methodWithoutCustom:true,frozenMethodVersion:'1.8.0'});assert.ifError(legacy.error);
+ assert.match(legacy.specInputs[0].task,/choose blocks or sandboxed custom scenes/);assert.equal(legacy.reviewRequests[0].customSceneRepair,undefined);
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){
