@@ -81,8 +81,19 @@ test('a completed truncated response is metered and retained, never cached or re
  const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
  for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','truncated-call',request,()=>assert.fail('truncated output must not be validated as usable')),/MODEL_OUTPUT_TRUNCATED/);
  assert.equal(requests,1);const status=await budget.modelBudgetStatus(env);assert.ok(status.currentChargedMicros>0);assert.equal(status.pending.length,0);
- const receipt=parseCanonicalJson([...objects.values()].find(object=>parseCanonicalJson(object.bytes).kind==='metered_model_response').bytes);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
  assert.equal(receipt.result.failure,'MODEL_OUTPUT_TRUNCATED');assert.equal(receipt.result.text,'{"partial":');
+});
+test('an empty completed stream retains private raw events and an unknown reservation without resending',async t=>{
+ const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ const raw='data: '+canonical({choices:[{delta:{reasoning_content:'fixture'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n';
+ globalThis.fetch=async()=>{requests++;return new Response(raw);};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','empty-call',request,()=>assert.fail('empty output')),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
+ assert.equal(receipt.result.failure,'MODEL_OUTPUT_EMPTY');assert.equal(receipt.quote,null);
+ assert.equal(new TextDecoder().decode(objects.get(receipt.rawStreamRef.key).bytes),raw);
 });
 test('gateway Opus reserves the observed hidden-input risk before dispatch without raising the spec stage cap',async t=>{
  const{env}=await fixture(t),originalFetch=globalThis.fetch;let reserved=0;
@@ -235,7 +246,7 @@ test('complete malformed tool output is persisted and settled before correction;
   assert.equal(error.message,'MODEL_TOOL_JSON_INVALID');assert.equal(error.completedOutput.toolCalls[0].arguments,'{"note":"unfinished');return true;
  });
  assert.equal(requests,1);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
- const receipt=parseCanonicalJson([...objects.values()].find(object=>parseCanonicalJson(object.bytes).kind==='metered_model_response').bytes);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
  assert.equal(receipt.result.failure,'MODEL_TOOL_JSON_INVALID');assert.equal(receipt.result.toolCalls[0].arguments,'{"note":"unfinished');assert.ok(receipt.quote.usdMicros>0);
  await assert.rejects(modelStep(env,'model-operation',0,'facts','malformed-unknown',{...request,messages:[{role:'user',text:'Unknown complete tool fixture.'}]},()=>assert.fail('invalid tool cannot reach validator')),/MODEL_CALL_RECONCILIATION_REQUIRED/);
  assert.equal(requests,2);const after=await budget.modelBudgetStatus(env);assert.equal(after.pending.length,1);assert.ok(after.pending[0].reserved_micros>0);

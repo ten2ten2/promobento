@@ -5,7 +5,7 @@ import {providerRequest, streamModel, ModelOutputError, parseModelJson, type Mod
 import providersInput from '../../../config/model-providers.json';
 import authorization from '../../../config/model-authorization.json';
 import policyInput from '../../../config/agent-policy.json';
-import {operation, reserve, settle, getJson, immutableJson} from './store.ts';
+import {operation, reserve, settle, getJson, immutableJson, immutableBytes} from './store.ts';
 import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,settleModelBudget,modelBudgetId} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
@@ -124,6 +124,9 @@ export async function modelStep(env: PipelineEnv, operationId: string, generatio
     }
     result=error.result;
   }
-  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,quote:modelUsageQuote(ref,result.usage,providers),result};
+  // Keep the original complete stream separately: receipts remain within getJson's size limit.
+  const {rawStream,...parsedResult}=result;
+  const rawStreamRef=await immutableBytes(env,`operations/${op.id}/model-streams/${digest({callId})}.sse`,rawStream,'text/event-stream');
+  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,rawStreamRef,quote:modelUsageQuote(ref,result.usage,providers),result:parsedResult};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

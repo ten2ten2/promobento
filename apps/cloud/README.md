@@ -40,7 +40,7 @@ MODEL_LEDGER独立D1由staging／production共享；各环境DB保留自己的�
 - `GET model-budget` 返回历史确认／未知和新调用已结／预留；`POST model-budget/import` 只接纳 [model-spend](../../contracts/model-spend.schema.json) 不可变清单。
 - 历史128次／14次未知保持openingMicros:null、openingConfirmed:false；默认未对账不派付费请求。当前临时历史风险放行的范围／有效期／占用只见[实施状态](../../docs/implementation-status.md#有效授权与费用)和model-authorization，不能另开预算。
 - 取得完整历史账单后，上传 `kind:model_spend_confirmation` 证据到objects/evals，再 `POST model-budget/confirm` 传 `{evidenceKey}`。必须绑定当前授权／清单摘要和授权以来全部历史totalUsdMicros、实际来源；不只填114笔目录估算。确认只能幂等重放，不能覆盖金额。
-- 每次先共享D1原子预留，再过本地操作／阶段／次数门槛。只在能证明未派发时释放零；已派发而usage未知继续预留。原响应、usage、价格／汇率先存不可变私有R2，再解析／结算，补账按原callId，不重发／重计新价。
+- 每次先共享D1原子预留，再过本地操作／阶段／次数门槛。只在能证明未派发时释放零；已派发而usage未知继续预留。已解析到终态的原始SSE与回执、usage、价格／汇率先存不可变私有R2，再解析结果／结算，补账按原callId，不重发／重计新价。流解析失败、断线或超限的原始字节目前不保留；旧回执也不能补出原始SSE。
 - HTTP／传输失败仅存去敏request-failure诊断，无usage不是免费。length／refusal保留partial和后到usage但不缓存；坏工具参数保存原arguments及MODEL_TOOL_JSON_INVALID，完整用量已结后才允许一次结构纠正。反馈含有界previousOutput，作为数据而非指令。
 - 网关隐藏输入按配置额外预留128k token风险空间；旧独立付费探针归档不可继续运行，后续探针必须进共享账本。模型接口语义见 [models](../../packages/models/README.md)。
 

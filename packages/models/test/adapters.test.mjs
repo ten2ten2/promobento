@@ -47,6 +47,18 @@ test('invalid SSE JSON remains a parser error, not a network error',async()=>{
  await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
   {fetchImpl:async()=>events(['{'])}),error=>{assert.ok(error instanceof SyntaxError);assert.notEqual(error.message,'MODEL_TRANSPORT_FAILED');return true;});
 });
+test('empty or gateway-error streams retain their original events and never become successful output',async()=>{
+ for(const [values,code] of [
+  [[{choices:[{delta:{reasoning_content:'thinking'},finish_reason:'stop'}]},'[DONE]'],'MODEL_OUTPUT_EMPTY'],
+  [[{error:{message:'gateway failure'}},{choices:[],usage:{prompt_tokens:12,completion_tokens:1}},'[DONE]'],'MODEL_STREAM_FAILED']]){
+  const body=values.map(value=>'data: '+(typeof value==='string'?value:JSON.stringify(value))+'\n\n').join('');let calls=0;
+  await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
+   {fetchImpl:async()=>{calls++;return new Response(body);}}),error=>{
+    assert.ok(error instanceof ModelOutputError);assert.equal(error.message,code);assert.equal(new TextDecoder().decode(error.result.rawStream),body);
+    assert.equal(error.result.usage?.completion_tokens??null,code==='MODEL_STREAM_FAILED'?1:null);return true;
+   });assert.equal(calls,1);
+ }
+});
 test('terminal truncation preserves late usage and partial bytes while still rejecting, in both protocols',async()=>{
  for(const [kind,values]of [
   ['openai-compatible',[{choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]},{choices:[],usage:{prompt_tokens:12,completion_tokens:64}},'[DONE]']],

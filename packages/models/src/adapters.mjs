@@ -49,12 +49,13 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
   try { response = await fetchImpl(url, options); } catch (error) { throw transportError(error); }
   if (!response.ok || !response.body) throw Object.assign(Error('MODEL_REQUEST_FAILED'), {status: response.status});
   let buffer = '', received = 0, text = '', usage = null, firstTokenMs = null, finished = false, failure = null;
-  const toolCalls = new Map(), decoder = new TextDecoder('utf-8', {fatal: true});
+  const toolCalls = new Map(), decoder = new TextDecoder('utf-8', {fatal: true}), rawChunks = [];
   const emit = delta => { if (!delta) return; firstTokenMs ??= Math.round(performance.now() - started); text += delta; onText(delta); };
   const event = raw => {
     if (raw === '[DONE]') { finished = true; return; }
     const data = parseCanonicalJson(raw);
     if (provider.kind === 'openai-compatible') {
+      if (data.error) failure='MODEL_STREAM_FAILED';
       if (data.usage) usage = data.usage;
       for (const choice of data.choices ?? []) {
         if (choice.finish_reason === 'length') failure='MODEL_OUTPUT_TRUNCATED';
@@ -93,7 +94,7 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
       const {done, value} = chunk;
       if (done) break;
       received += value.byteLength; if (received > 16 << 20) throw Error('MODEL_RESPONSE_TOO_LARGE');
-      buffer += decoder.decode(value, {stream: true});
+      rawChunks.push(value.slice()); buffer += decoder.decode(value, {stream: true});
       for (;;) { const lineEnd = buffer.indexOf('\n'); if (lineEnd < 0) break;
         const line = buffer.slice(0, lineEnd).replace(/\r$/, ''); buffer = buffer.slice(lineEnd + 1);
         // These provider protocols emit one JSON data line per SSE event; other SSE fields are metadata.
@@ -104,11 +105,14 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     if (buffer.startsWith('data:')) event(buffer.slice(5).trim());
     if (!finished&&!failure) throw Error('MODEL_STREAM_INCOMPLETE');
     const calls=[...toolCalls.values()].map(tool=>({...tool,input:null}));
+    if(!failure&&!text&&!calls.length)failure='MODEL_OUTPUT_EMPTY';
     if(!failure)for(const tool of calls){
       try{tool.input=parseCanonicalJson(tool.arguments||'{}');}catch{failure='MODEL_TOOL_JSON_INVALID';}
     }
+    const rawStream=new Uint8Array(received);let offset=0;
+    for(const chunk of rawChunks){rawStream.set(chunk,offset);offset+=chunk.byteLength;}
     const result={text, toolCalls: calls,
-      usage, firstTokenMs, totalMs: Math.round(performance.now() - started),...(failure?{failure,streamComplete:finished}:{})};
+      usage, firstTokenMs, totalMs: Math.round(performance.now() - started),rawStream,...(failure?{failure,streamComplete:finished}:{})};
     if(failure)throw new ModelOutputError(failure,result);
     return result;
   } finally {
