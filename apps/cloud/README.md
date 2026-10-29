@@ -62,7 +62,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.7.1，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.8.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -77,6 +77,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 方法1.6的CTA入场使用cut或 `fade-through`：先淡出上一镜头，再淡入CTA，不改变旧 `crossfade` 的叠化语义；使用新转场时先探测实际renderer是否支持。自写镜头内自行绘制的文字交接仍需实际审片。
 
 方法1.7可选择可信 `component-relay`，将第一张静态素材的已观察矩形区域作为副本抬起，再接力到其他真实页面。C 必须把该素材按字节身份绑定的 A 阶段 `regions[].box` 原样放入对应资产 `roi`；缺少匹配观察或区域越界即拒绝，不猜坐标。A 的区域是模型观察，不是人工测量或质量证明；E/F 和负责人仍需检查实际动作与内容。选用该镜头时先以当前清权素材探测实际 renderer 支持；旧冻结方法不提供该积木。镜头不处理录屏，不代替自写镜头，也不保证特定视觉风格。
+
+方法1.8要求 C 显式选择 `componentBehavior`：仅属于源页面的对象选择 `return-to-source`，页面切换前归位；`carry` 要求对后续每个页面都有实际叙事关系，宿主还核对该区域标签是否出现在每张素材各自的 A 阶段观察中。标签匹配只是模型观察，不证明实际语义关系；E/F 仍须检查。使用该字段时预检实际 renderer 是否支持；旧冻结方法和未带字段的既有影片保留原 `carry` 行为及原预检。
 
 失败证据绑定sourceHash／scene／aspect，保留阶段／帧／CDP／像素比较及实际PNG。studio关闭确认且错误为可归因CUSTOM_QA_BLOCK／CUSTOM_HOLD_TEXT_MISSING／CUSTOM_SEEK_MISMATCH时，每镜头最多一次D定点修复，共用原次数／金额／期限；重叠无法归因、未知消费、Q0／权限／平台或停止未确认直接失败。看图模式给真实失败图，文本模式只给实际观测／比较，不冒称看过帧。
 

@@ -35,12 +35,35 @@ export function carriedPose(frame:number,beat:number,component:Box,bounds:Box):B
   return blend(component,{x:bounds.x+bounds.width-width,y:bounds.y+bounds.height*.08,width,height},ease((frame-4*beat)/beat));
 }
 
+/** A source-specific detail returns to its original page before an unrelated page arrives. */
+export function returnPose(frame:number,beat:number,parent:Box,roi:Box,bounds:Box){
+  const pose=componentPose(frame,beat,parent,roi,bounds),back=ease((frame-3*beat)/beat);
+  const origin={x:parent.x+roi.x*parent.width,y:parent.y+roi.y*parent.height,width:roi.width*parent.width,height:roi.height*parent.height};
+  return {page:blend(pose.page,parent,back),component:blend(pose.component,origin,back),
+    opacity:pose.lift*(1-ease((frame-3.75*beat)/(.25*beat)))};
+}
+
+/** A quiet camera push during reading, without changing captured product content. */
+export function readingPose(frame:number,index:number,count:number,beat:number,box:Box):Box{
+  const land=index===0?0:relayLandings(count,beat)[index-1]!;
+  const scale=.97+.03*ease((frame-land)/(2*beat)),width=box.width*scale,height=box.height*scale;
+  return{x:box.x+(box.width-width)/2,y:box.y+(box.height-height)/2,width,height};
+}
+
 /** Continuous page travel; the outgoing and incoming images never morph or crossfade. */
 export function relayPageOffset(frame:number,index:number,count:number,beat:number,travel:number){
   const landings=relayLandings(count,beat);
   if(index>0){const entry=ease((frame-(landings[index-1]!-beat))/beat);if(entry<1)return (1-entry)*travel;}
   if(index<count-1){const exit=ease((frame-(landings[index]!-beat))/beat);if(exit>0)return -exit*travel;}
   return 0;
+}
+
+/** Fade at the edge of a short lateral handoff, preventing a cropped page from popping in. */
+export function relayPageOpacity(frame:number,index:number,count:number,beat:number){
+  const landings=relayLandings(count,beat);
+  const entry=index===0?1:ease((frame-(landings[index-1]!-beat))/(beat*.2));
+  const exit=index===count-1?1:1-ease((frame-(landings[index]!-beat*.2))/(beat*.2));
+  return entry*exit;
 }
 
 export function relayVisible(frame:number,index:number,count:number,beat:number){

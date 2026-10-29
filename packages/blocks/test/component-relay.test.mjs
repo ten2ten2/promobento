@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {componentPose,relayFit,relayLandings,relayPageOffset,relayVisible} from '../src/component-relay.ts';
+import {componentPose,readingPose,relayFit,relayLandings,relayPageOffset,relayPageOpacity,relayVisible,returnPose} from '../src/component-relay.ts';
 import {blockEvents,filmObservationFrames,filmMotionFrames} from '../src/events.mjs';
 import {deriveAudioPlan} from '../../audio/src/plan.mjs';
 import {validate} from '../../contracts/generated/block-params.mjs';
@@ -12,12 +12,26 @@ const roi={x:.2,y:.25,width:.3,height:.2};
 
 test('component relay admits bounded inputs and reserves a hold for the final page',()=>{
   assert.equal(validate({block:scene.block,params}),true);
+  assert.equal(validate({block:scene.block,params:{...params,componentBehavior:'return-to-source'}}),true);
+  assert.equal(validate({block:scene.block,params:{...params,componentBehavior:'carry'}}),true);
+  assert.equal(validate({block:scene.block,params:{...params,componentBehavior:'random'}}),false);
   assert.equal(validate({block:scene.block,params:{...params,focus:'roi:8'}}),false);
   assert.equal(validate({block:scene.block,params:{...params,beatFrames:5}}),false);
   assert.deepEqual(relayLandings(3,18),[90,144]);
   assert.throws(()=>blockEvents('component-relay',{start:0,end:161},params),/RELAY_READING_HOLD_MISSING/);
   assert.deepEqual(blockEvents('component-relay',scene,params),[
     {name:'component-land',frame:36},{name:'product-step-1',frame:90},{name:'product-step-2',frame:144}]);
+});
+
+test('a source-specific detail returns before the next page, while the next page gently moves',()=>{
+  const bounds={x:100,y:100,width:700,height:1000},parent=relayFit(bounds,750,1600),beat=18;
+  const held=returnPose(3*beat,beat,parent,roi,bounds),returning=returnPose(3.5*beat,beat,parent,roi,bounds),done=returnPose(4*beat,beat,parent,roi,bounds);
+  assert.equal(held.opacity,1);assert.ok(returning.component.y>held.component.y);assert.equal(done.opacity,0);assert.deepEqual(done.page,parent);
+  const next=relayFit(bounds,750,1600);assert.notDeepEqual(readingPose(5*beat,1,3,beat,next),readingPose(6*beat,1,3,beat,next));
+  assert.deepEqual(readingPose(7*beat,1,3,beat,next),next);
+  assert.equal(relayPageOpacity(4*beat,1,3,beat),0);
+  assert.equal(relayPageOpacity(5*beat,0,3,beat),0);
+  assert.equal(relayPageOpacity(5*beat,1,3,beat),1);
 });
 
 test('crop begins at its parent, pages travel continuously and frozen events drive review and audio',()=>{
@@ -42,8 +56,17 @@ test('crop begins at its parent, pages travel continuously and frozen events dri
 
 test('director accepts only a component region from the bound source observation',()=>{
   const film={scenes:[scene],assets:{first:{resourceId:'res_one',roi:[roi]},second:{resourceId:'res_two'},third:{resourceId:'res_three'}}};
-  const resources=[{resourceId:'res_one',sha256:'source-one'}],insights=[{sha256:'source-one',regions:[{box:roi,label:'detail'}]}];
+  const resources=[{resourceId:'res_one',sha256:'source-one'}],insights=[{sha256:'source-one',regions:[{box:roi,label:'fixture detail'}]}];
   assert.deepEqual(relayObservationIssues(film,insights,resources),[]);
+  assert.equal(relayObservationIssues(film,insights,resources,{requireBehavior:true})[0].code,'RELAY_COMPONENT_BEHAVIOR_REQUIRED');
+  const scoped={...film,scenes:[{...scene,params:{...params,componentBehavior:'return-to-source'}}]};
+  assert.deepEqual(relayObservationIssues(scoped,insights,resources,{requireBehavior:true}),[]);
+  const carry={...film,scenes:[{...scene,params:{...params,componentBehavior:'carry'}}]};
+  assert.equal(relayObservationIssues(carry,insights,resources,{requireBehavior:true})[0].code,'RELAY_CARRY_RELATION_UNOBSERVED');
+  const allResources=[...resources,{resourceId:'res_two',sha256:'source-two'},{resourceId:'res_three',sha256:'source-three'}];
+  const allInsights=[...insights,{sha256:'source-two',regions:[{label:' Fixture  detail '}]},{sha256:'source-three',regions:[{label:'fixture detail'}]}];
+  assert.deepEqual(relayObservationIssues(carry,allInsights,allResources,{requireBehavior:true}),[]);
+  assert.deepEqual(relayObservationIssues(carry,insights,resources),[],'old method has no new carry precondition');
   assert.equal(relayObservationIssues(film,[{sha256:'other',regions:[{box:roi}]}],resources)[0].code,'RELAY_ROI_NOT_OBSERVED');
   assert.equal(relayObservationIssues({...film,assets:{...film.assets,first:{...film.assets.first,roi:[{...roi,x:.21}]}}},insights,resources)[0].code,'RELAY_ROI_NOT_OBSERVED');
 });

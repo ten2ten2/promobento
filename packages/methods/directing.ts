@@ -1,6 +1,6 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.7.1',
+  id: 'product-directing', version: '1.8.0',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -30,7 +30,7 @@ export const directingMethodPack = {
       'Before assigning blocks, resolve the causal sequence and its visual carrier. Put the visible handoff in treatment.continuity and scene focusFrom/focusTo; notes alone do not implement it.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',
       'For each boundary, the outgoing subject, location or shape must motivate the next view. Use a continuous trusted story block when it expresses this better than independent entrances and exits.',
-      'For a real image detail that can carry the story into other pages, component-relay can lift a copy from its first image and keep it beside later cleared pages. Copy the exact normalized observed region into the first asset roi and refer to it as focus; if no suitable observed region exists, choose a different approach. The image observation is a model observation, so inspect the rendered result; do not claim the underlying product moved.',
+      'For component-relay, copy an observed first-image region exactly into that asset roi and select componentBehavior explicitly. Use return-to-source for a detail belonging to that page, so it returns before other examples appear. Use carry only when the same identifiable detail is observed with the same region label on every later image and has a meaningful connection to each, not merely to maintain motion. Different exercises, languages or screenshots do not by themselves establish one continuous lesson. Image observations and matching labels are model observations, not independent proof; inspect the rendered result.',
       'Shorten generic copy before shrinking product evidence. Do not replace a missing visual idea with extra captions, numbered navigation, decorative ROI boxes or empty panels. If the catalog cannot express the chosen mechanism, specify a custom scene brief and its concrete actions; do not invent block parameters.',
       'Use only geometry actually supplied by verified asset observations. If a particular product control cannot be located from that evidence, choose a visual handoff that does not require its coordinates; never ask D to guess or silently leave that shot incomplete. For a CTA transition, use a cut or fade-through so outgoing copy clears before the CTA appears.'
     ],
@@ -45,11 +45,12 @@ export const directingMethodPack = {
     review: [
       'Judge the rendered causal sequence, not just text fit. Does the opening earn attention? Does a shared visual element actually change role or reveal a consequence? Is there a clear payoff, a rhythm contrast and a concise brand ending?',
       'A sequence of correct screenshots with similar entrances may still be boring. Diagnose the missing visual connection and repair that relationship, rather than repeatedly adding/removing the same caption.',
-      'Use ordered transition and landing frames to check the handoff. Reading-hold images and audio numbers cannot establish full-motion quality or listening quality.'
+      'Use ordered transition and landing frames to check the handoff. Reading-hold images and audio numbers cannot establish full-motion quality or listening quality.',
+      'Check whether a detail carried across pages still belongs in each context; remove or return an unrelated detail instead of keeping it as decoration.'
     ],
     coldReview: [
       'Independently inspect the actual visible story, including the supplied motion poses. Correct claims and legible typography are necessary but do not establish an engaging film.',
-      'Give concrete source frames and a visible defect: unmotivated handoff, repetitive composition, buried payoff, false product behavior, or unreadable evidence. Distinguish these from a preference for another style; do not demand constant motion during an intentional reading hold.'
+      'Give concrete source frames and a visible defect: unmotivated handoff, unrelated detail carried into another page, repetitive composition, buried payoff, false product behavior, or unreadable evidence. Distinguish these from a preference for another style; do not demand constant motion during an intentional reading hold.'
     ]
   }
 } as const;

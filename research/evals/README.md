@@ -24,7 +24,7 @@
 
 Duolingo 新轮 E 失败前已渲染的横屏低清片可从 `artifacts/s1-duolingo-15-reuse-2026-10-29/index.html` 观看；它是未完成自动审片的内部参考，不是通过的候选或正式 review-draft 分支交付。画面问题、失败及费用范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
 
-组件接力的新自动低清稿及复用原规格的修复版在 `artifacts/s1-duolingo-relay-repaired-review-2026-10-29/index.html`；自动审片未完成，质量和费用范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md#方法-170组件接力自动低清片e-未完成)。
+组件接力的自动低清稿经负责人反馈后的语义修订版在 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`；它是人工改规格后的渲染，自动审片未完成，质量和费用范围见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md#方法-170组件接力自动低清片e-未完成)。
 
 旧轮次的原始 JSON 回执、冻结输入与源码集中在 `artifacts/history/<原目录名>/`。这里不是完整下载包，不保留历史播放器、逐帧截图、H.264 分段或重复 WAV；历史媒体和图片按各轮回执中的 R2／Actions 引用查找。费用未知项和许可记录不能作为临时输出删除。
 

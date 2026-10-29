@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,oldRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,twoCustom=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -51,7 +51,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  Date.now=()=>clock;
  if(unverified)specModel.capabilities.verified=false;
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
- if(relaySpec)spec.scenes[1]={...spec.scenes[1],block:'component-relay@1',params:{textSlot:'product',focus:'roi:0',beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]}};
+ if(relaySpec)spec.scenes[1]={...spec.scenes[1],block:'component-relay@1',params:{textSlot:'product',focus:'roi:0',...(!omitRelayBehavior?{componentBehavior:relayBehavior}:{}),beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]}};
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
   params:{hardest:true,textSlots:['product'],assetKeys:['dashboard'],events:[{name:'product-land',frame:21}],readingHolds:[{start:45,end:200,...(!legacyCustomMethod?{visibleTextSlots:['product']}:legacyHoldMetadata?{visibleTextSlots:'legacy-unused-metadata'}:{})}]}};
@@ -61,6 +61,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  if(modern){spec.scenes[2].transitionIn.type='fade-through';if(customScene&&!noAssetPlan)spec.scenes[1].params.assetChecks=[{frame:70,assetKeys:['dashboard']}];}
  const fixtureSource='PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);const timeline=gsap.timeline({paused:true});timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});';
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
+ if(returnRelayRepair)fixed.scenes[1].params.componentBehavior='return-to-source';
  const coldFixed=clone(fixed);coldFixed.texts.headline.text='Make your next launch\nworth watching again.';
  const submitted={toolCalls:[{id:'mock-submit',name:'submit_candidate',arguments:'',input:{note:'Synthetic fixture accepted.'}}]};
  const context={audience:'software',durationSeconds:15,aspects:['landscape','portrait'],seed:options.seed,brief:'Original fictional engineering fixture, internal mock only.',
@@ -75,7 +76,8 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const filmBlob=task.inputs?.find((blob:any)=>blob.name==='film');
     if(filmBlob&&task.taskId.startsWith('health-')){
       const film=parseCanonicalJson(objects.get(filmBlob.key).bytes);
-      if(film.scenes.some((scene:any)=>scene.block==='component-relay@1')){trace.push('relay-preflight');if(oldRelayRenderer)throw Error('MOCK_RELAY_UNAVAILABLE');}
+      if(film.scenes.some((scene:any)=>scene.block==='component-relay@1')){trace.push('relay-preflight');if(oldRelayRenderer)throw Error('MOCK_RELAY_UNAVAILABLE');
+       if(oldScopedRelayRenderer&&film.scenes.some((scene:any)=>scene.params?.componentBehavior))throw Error('MOCK_SCOPED_RELAY_UNAVAILABLE');}
     }
     if(task.inputs?.some((blob:any)=>blob.key.includes('/custom-probe/')))trace.push('probe-studio');
     assertRenderTask({...input,brokerToken:'fixture-non-secret-token'});activeStudio=task;studioFrames.clear();studioCount++;return canonical({status:'ready'});},
@@ -297,8 +299,19 @@ test('component relay reaches review only with observed geometry and a renderer 
  assert.equal(ready.state.status,'succeeded');assert.ok(ready.trace.includes('relay-preflight'));assert.equal(ready.activeStudio,null);
  const oldRenderer=await fixture({methodWithoutCustom:true,relaySpec:true,oldRelayRenderer:true});
  assert.equal(oldRenderer.error.message,'MOCK_RELAY_UNAVAILABLE');assert.equal(oldRenderer.renders.length,0);assert.ok(!oldRenderer.models.includes('review'));
+ const oldScoped=await fixture({methodWithoutCustom:true,relaySpec:true,oldScopedRelayRenderer:true});
+ assert.equal(oldScoped.error.message,'MOCK_SCOPED_RELAY_UNAVAILABLE');assert.equal(oldScoped.renders.length,0);assert.ok(!oldScoped.models.includes('review'));
  const oldMethod=await fixture({methodWithoutCustom:true,relaySpec:true,frozenMethodVersion:'1.6.0'});
  assert.equal(oldMethod.error.message,'FILM_SCHEMA_INVALID');assert.ok(!oldMethod.trace.includes('relay-preflight'));assert.equal(oldMethod.renders.length,0);
+ const missing=await fixture({methodWithoutCustom:true,relaySpec:true,omitRelayBehavior:true});
+ assert.equal(missing.error.message,'FILM_SEMANTICS_INVALID');assert.equal(missing.validationFeedback[0].issues[0].code,'RELAY_COMPONENT_BEHAVIOR_REQUIRED');assert.equal(missing.renders.length,0);
+ const old=await fixture({methodWithoutCustom:true,relaySpec:true,omitRelayBehavior:true,frozenMethodVersion:'1.7.1',oldScopedRelayRenderer:true});assert.ifError(old.error);assert.equal(old.state.status,'succeeded');
+});
+test('review can switch an unnecessary carried component back to its source and rerender',async()=>{
+ const r=await fixture({methodWithoutCustom:true,relaySpec:true,relayBehavior:'carry',returnRelayRepair:true,repair:true});
+ assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.internalRepairs,1);
+ assert.equal(r.result.film.scenes[1].params.componentBehavior,'return-to-source');
+ assert.equal(r.models.filter(stage=>stage==='review').length,2);assert.equal(r.renders.length,4);
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){

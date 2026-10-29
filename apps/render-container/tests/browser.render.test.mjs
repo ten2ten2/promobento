@@ -84,11 +84,19 @@ componentRelay.assets.dashboard.roi=[{x:.18,y:.18,width:.45,height:.34}];
 componentRelay.assets.mark={resourceId:'res_fixture_mark'};
 componentRelay.scenes=[{id:'component',kind:'block',block:'component-relay@1',start:0,end:450,
   params:{textSlot:'product',focus:'roi:0',beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'mark'}]},purpose:'Lift a real detail and relay between pages.'}];
+const componentReturn=structuredClone(componentRelay);componentReturn.scenes[0].params.componentBehavior='return-to-source';
+const componentCarry=structuredClone(componentRelay);componentCarry.scenes[0].params.componentBehavior='carry';
+const componentReturnReference=structuredClone(componentReturn);
+componentReturnReference.assets.mark.roi=[{x:.18,y:.18,width:.45,height:.34}];
+componentReturnReference.scenes[0].params.items[0].assetKey='mark';
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   const options=pageOptions(aspect,layout);
   options.resources[0]={...options.resources[0],resourceId:'res_fixture_journey',width:2200,height:1400};
   options.resources.push({resourceId:'res_fixture_mark',kind:'image',width:168,height:168,licenseRef:'fixture-original-mark',rightsCleared:true});
   pages.set('/component-relay-'+aspect+'.html',generateFilmPage(JSON.stringify(componentRelay),options));
+  pages.set('/component-carry-'+aspect+'.html',generateFilmPage(JSON.stringify(componentCarry),options));
+  pages.set('/component-return-'+aspect+'.html',generateFilmPage(JSON.stringify(componentReturn),options));
+  pages.set('/component-return-reference-'+aspect+'.html',generateFilmPage(JSON.stringify(componentReturnReference),options));
 }
 // Keep those timings with original engineering material, not the private product screenshot.
 const journey=filmFixture();
@@ -426,9 +434,26 @@ try{
       assert.ok(!baseline.get(72).equals(baseline.get(90)),'page handoff must visibly change the image');
       for(const frame of [...frames].reverse()){await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`component-relay-${aspect}-${frame}-reverse`)});}
       await handle.page.close();
+      const explicitCarry=await open(aspect,'/component-carry-'+aspect+'.html');
+      for(const frame of [36,81,90]){await explicitCarry.seek(frame);compare(baseline.get(frame),await explicitCarry.capture(),`component-carry-${aspect}-${frame}-legacy`);}
+      await explicitCarry.page.close();
       for(const frame of [18,27,36,81,90]){const cold=await open(aspect,path);await cold.seek(frame);
         comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`component-relay-${aspect}-${frame}-cold`)});await cold.page.close();}
       report.componentRelay.push({aspect,comparisons,visibleComponentAndPageMotion:true,textSafeAreaAndCustomFont:true});
+      const returned=await open(aspect,'/component-return-'+aspect+'.html'),reference=await open(aspect,'/component-return-reference-'+aspect+'.html');
+      const returnedFrames=[18,36,63,72,81,90,99],returnedBaseline=new Map(),returnedStates=new Map(),returnedComparisons=[];
+      for(const frame of returnedFrames){
+        await returned.seek(frame);const png=await returned.capture();returnedBaseline.set(frame,png);returnedStates.set(frame,await textPaintState(returned));
+        writeFileSync(`${output}/component-return-${aspect}-${frame}.png`,png);
+        if([90,99].includes(frame)){await reference.seek(frame);compare(png,await reference.capture(),`component-return-${aspect}-${frame}-no-foreign-detail`);}
+      }
+      for(const frame of [...returnedFrames].reverse()){
+        await returned.seek(frame);returnedComparisons.push({frame,mode:'reverse',...await compareFrame(returned,returnedBaseline,returnedStates,frame,`component-return-${aspect}-${frame}-reverse`)});
+      }
+      await returned.page.close();await reference.page.close();
+      for(const frame of [63,72,90]){const cold=await open(aspect,'/component-return-'+aspect+'.html');await cold.seek(frame);
+        returnedComparisons.push({frame,mode:'cold',...await compareFrame(cold,returnedBaseline,returnedStates,frame,`component-return-${aspect}-${frame}-cold`)});await cold.page.close();}
+      report.componentRelay.at(-1).returned={comparisons:returnedComparisons,unrelatedDetailAbsent:true};
     }
   }
   for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){

@@ -6,7 +6,7 @@ import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from '
 import {brandRelayPose} from './brand-relay.ts';
 import {journeyPose} from './journey-motion.ts';
 import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
-import {carriedPose,componentPose,relayFit,relayPageOffset,relayVisible} from './component-relay.ts';
+import {carriedPose,componentPose,readingPose,relayFit,relayPageOffset,relayPageOpacity,relayVisible,returnPose} from './component-relay.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -417,7 +417,7 @@ function beatJourney(ctx:SceneContext,params:{beatFrames:number;items:Item[]}) {
   },events,regions:[region('journey',safe,ctx.root)]};
 }
 
-window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.0.2',build(ctx,params){
+window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.1.0',build(ctx,params){
   const safe=inSafe(ctx),box=safeBox(ctx),wide=ctx.target.aspect==='landscape',hasText=typeof params.textSlot==='string';
   safe.style.zIndex='1';
   if(hasText)text(ctx,params.textSlot,node(safe,{position:'absolute',left:'0',top:wide?'29%':'1%',
@@ -425,9 +425,10 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
   const bounds:Box={x:box.x+box.width*(wide&&hasText?.40:.02),y:box.y+box.height*(wide?.04:hasText?.25:.03),
     width:box.width*(wide&&hasText?.58:.96),height:box.height*(wide?.92:hasText?.72:.94)};
   const surface=cpuSurface(ctx),stage={x:0,y:0,width:ctx.target.width,height:ctx.target.height};
+  const returning=params.componentBehavior==='return-to-source';
   const items=(params.items as Array<{assetKey:string}>).map((item,index)=>{
     const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('RELAY_IMAGE_REQUIRED');
-    const pageBounds=index===0?bounds:{...bounds,width:bounds.width*.62};
+    const pageBounds=index===0||returning?bounds:{...bounds,width:bounds.width*.62};
     return{asset,source:projectedAsset(ctx,item.assetKey),box:relayFit(pageBounds,asset.width,asset.height)};
   });
   const first=items[0]!,roi=first.asset.roi[Number(String(params.focus).slice(4))];
@@ -455,22 +456,29 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
       data[i+3]=alpha*255;
     }
   };
-  const draw=(levels:ReturnType<typeof mediaPyramid>,rect:Box,opacity:number)=>{
-    shadow(rect,opacity);paintProjectedMedia(surface.pixels,levels,rect,stage,0,0,0,1,{clip:bounds,radius:0});
+  const draw=(levels:ReturnType<typeof mediaPyramid>,rect:Box,opacity:number,imageOpacity=1)=>{
+    if(imageOpacity<=0)return;
+    shadow(rect,opacity);paintProjectedMedia(surface.pixels,levels,rect,stage,0,0,0,imageOpacity,{clip:bounds,radius:0});
   };
   return {ready,render(time){
     const frame=time*30;surface.pixels.data.fill(0);
     for(const [index,item]of items.entries()){
       if(!relayVisible(frame,index,items.length,beat))continue;
-      const x=relayPageOffset(frame,index,items.length,beat,bounds.width*1.2);
+      const x=relayPageOffset(frame,index,items.length,beat,returning?item.box.width*1.12:bounds.width*1.2);
+      const opacity=returning?relayPageOpacity(frame,index,items.length,beat):1;
       if(index===0){
-        const pose=componentPose(frame,beat,item.box,exactRoi,bounds),page={...pose.page,x:pose.page.x+x};
-        draw(images[index]!,page,.12);
-      }else draw(images[index]!,{...item.box,x:item.box.x+x},.12);
+        const pose=returning?returnPose(frame,beat,item.box,exactRoi,bounds):componentPose(frame,beat,item.box,exactRoi,bounds),page={...pose.page,x:pose.page.x+x};
+        draw(images[index]!,page,.12*opacity,opacity);
+      }else{
+        const page=returning?readingPose(frame,index,items.length,beat,item.box):item.box;
+        draw(images[index]!,{...page,x:page.x+x},.12*opacity,opacity);
+      }
     }
     // The same detail remains the visual carrier across every page handoff.
-    const pose=componentPose(frame,beat,first.box,exactRoi,bounds);
-    if(pose.lift>0)draw(detail,carriedPose(frame,beat,pose.component,bounds),.22*pose.lift);
+    if(returning){const pose=returnPose(frame,beat,first.box,exactRoi,bounds);
+      if(pose.opacity>0)draw(detail,pose.component,.22*pose.opacity,pose.opacity);
+    }else{const pose=componentPose(frame,beat,first.box,exactRoi,bounds);
+      if(pose.lift>0)draw(detail,carriedPose(frame,beat,pose.component,bounds),.22*pose.lift);}
     surface.write();
   },events,regions:[region('journey',safe,ctx.root)]};
 }});

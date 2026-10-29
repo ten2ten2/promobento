@@ -124,6 +124,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const earlySceneProbe=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=3);
     const checkedAssetsMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=6);
     const relayMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=7);
+    const scopedRelayMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=8);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[];
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -172,7 +173,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const result=filmSpecErrors(value as FilmSpec,{blocks,resources:new Map(context.resources.map((asset:Json)=>[asset.resourceId,{...asset,rightsCleared:true}])),
         fontIds:new Set<string>(context.fonts.map((font:Json)=>font.fontId)),confirmedFactIds:new Set<string>(context.confirmedFactIds)});
       if(result.errors.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',result.errors.slice(0,24),value);
-      const relayIssues=relayObservationIssues(value,relayInsights,context.resources);
+      const relayIssues=relayObservationIssues(value,relayInsights,context.resources,{requireBehavior:Boolean(scopedRelayMethod)});
       if(relayIssues.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',relayIssues,value);
       try{
         // Pure data-to-page generation catches the SAME supported-feature/font/asset rules as the renderer.
@@ -281,8 +282,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       assetObservationRequired=Boolean(checkedAssetsMethod&&custom.some((scene:Json)=>(scene.params.assetChecks??[]).length));
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
-      if(film.scenes.some((scene:Json)=>scene.block==='component-relay@1'))
-        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true);
+      const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
+      if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
+        relayScenes.some((scene:Json)=>Object.hasOwn(scene.params,'componentBehavior')));
       if(assetObservationRequired||fadeThroughRequired)await directorEnvironment(this.env,op,context,sourceResources,deadline(),methods!==null,sceneObservationRequired,assetObservationRequired,fadeThroughRequired);
       if(!custom.length)return;
       await progress('scenes');
