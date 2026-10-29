@@ -1,6 +1,6 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.7.0',
+  id: 'product-directing', version: '1.7.1',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -30,7 +30,7 @@ export const directingMethodPack = {
       'Before assigning blocks, resolve the causal sequence and its visual carrier. Put the visible handoff in treatment.continuity and scene focusFrom/focusTo; notes alone do not implement it.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',
       'For each boundary, the outgoing subject, location or shape must motivate the next view. Use a continuous trusted story block when it expresses this better than independent entrances and exits.',
-      'For a real image detail that can carry the story into other pages, component-relay can lift a copy from its first image and move between cleared pages. Copy the exact normalized observed region into the first asset roi and refer to it as focus; if no suitable observed region exists, choose a different approach. The image observation is a model observation, so inspect the rendered result; do not claim the underlying product moved.',
+      'For a real image detail that can carry the story into other pages, component-relay can lift a copy from its first image and keep it beside later cleared pages. Copy the exact normalized observed region into the first asset roi and refer to it as focus; if no suitable observed region exists, choose a different approach. The image observation is a model observation, so inspect the rendered result; do not claim the underlying product moved.',
       'Shorten generic copy before shrinking product evidence. Do not replace a missing visual idea with extra captions, numbered navigation, decorative ROI boxes or empty panels. If the catalog cannot express the chosen mechanism, specify a custom scene brief and its concrete actions; do not invent block parameters.',
       'Use only geometry actually supplied by verified asset observations. If a particular product control cannot be located from that evidence, choose a visual handoff that does not require its coordinates; never ask D to guess or silently leave that shot incomplete. For a CTA transition, use a cut or fade-through so outgoing copy clears before the CTA appears.'
     ],

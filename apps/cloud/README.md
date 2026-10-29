@@ -62,7 +62,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.7.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.7.1，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 

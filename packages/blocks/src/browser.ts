@@ -6,7 +6,7 @@ import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from '
 import {brandRelayPose} from './brand-relay.ts';
 import {journeyPose} from './journey-motion.ts';
 import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
-import {componentPose,relayFit,relayPageOffset,relayVisible} from './component-relay.ts';
+import {carriedPose,componentPose,relayFit,relayPageOffset,relayVisible} from './component-relay.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -417,7 +417,7 @@ function beatJourney(ctx:SceneContext,params:{beatFrames:number;items:Item[]}) {
   },events,regions:[region('journey',safe,ctx.root)]};
 }
 
-window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.0.1',build(ctx,params){
+window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.0.2',build(ctx,params){
   const safe=inSafe(ctx),box=safeBox(ctx),wide=ctx.target.aspect==='landscape',hasText=typeof params.textSlot==='string';
   safe.style.zIndex='1';
   if(hasText)text(ctx,params.textSlot,node(safe,{position:'absolute',left:'0',top:wide?'29%':'1%',
@@ -425,9 +425,10 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
   const bounds:Box={x:box.x+box.width*(wide&&hasText?.40:.02),y:box.y+box.height*(wide?.04:hasText?.25:.03),
     width:box.width*(wide&&hasText?.58:.96),height:box.height*(wide?.92:hasText?.72:.94)};
   const surface=cpuSurface(ctx),stage={x:0,y:0,width:ctx.target.width,height:ctx.target.height};
-  const items=(params.items as Array<{assetKey:string}>).map(item=>{
+  const items=(params.items as Array<{assetKey:string}>).map((item,index)=>{
     const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('RELAY_IMAGE_REQUIRED');
-    return{asset,source:projectedAsset(ctx,item.assetKey),box:relayFit(bounds,asset.width,asset.height)};
+    const pageBounds=index===0?bounds:{...bounds,width:bounds.width*.62};
+    return{asset,source:projectedAsset(ctx,item.assetKey),box:relayFit(pageBounds,asset.width,asset.height)};
   });
   const first=items[0]!,roi=first.asset.roi[Number(String(params.focus).slice(4))];
   if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('RELAY_ROI_INVALID');
@@ -463,11 +464,13 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
       if(!relayVisible(frame,index,items.length,beat))continue;
       const x=relayPageOffset(frame,index,items.length,beat,bounds.width*1.2);
       if(index===0){
-        const pose=componentPose(frame,beat,item.box,exactRoi,bounds),page={...pose.page,x:pose.page.x+x},component={...pose.component,x:pose.component.x+x};
+        const pose=componentPose(frame,beat,item.box,exactRoi,bounds),page={...pose.page,x:pose.page.x+x};
         draw(images[index]!,page,.12);
-        if(pose.lift>0)draw(detail,component,.22*pose.lift);
       }else draw(images[index]!,{...item.box,x:item.box.x+x},.12);
     }
+    // The same detail remains the visual carrier across every page handoff.
+    const pose=componentPose(frame,beat,first.box,exactRoi,bounds);
+    if(pose.lift>0)draw(detail,carriedPose(frame,beat,pose.component,bounds),.22*pose.lift);
     surface.write();
   },events,regions:[region('journey',safe,ctx.root)]};
 }});

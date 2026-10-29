@@ -28,6 +28,13 @@ export function componentPose(frame:number,beat:number,parent:Box,roi:Box,bounds
   return {page,component:blend(origin,destination,lift),lift};
 }
 
+/** Move the carrier beside later pages, rather than hiding their actual UI. */
+export function carriedPose(frame:number,beat:number,component:Box,bounds:Box):Box{
+  const width=Math.min(component.width,bounds.width*.34,bounds.height*.30*component.width/component.height);
+  const height=width*component.height/component.width;
+  return blend(component,{x:bounds.x+bounds.width-width,y:bounds.y+bounds.height*.08,width,height},ease((frame-4*beat)/beat));
+}
+
 /** Continuous page travel; the outgoing and incoming images never morph or crossfade. */
 export function relayPageOffset(frame:number,index:number,count:number,beat:number,travel:number){
   const landings=relayLandings(count,beat);

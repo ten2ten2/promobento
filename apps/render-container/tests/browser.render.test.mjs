@@ -11,6 +11,7 @@ import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixtu
 import {pageCaller} from '../src/page-call.mjs';
 import {waitForRuntimeReady} from '../src/readiness.mjs';
 import {reviewPng} from '../src/review-pixels.mjs';
+import {carriedPose,componentPose,relayFit} from '../../../packages/blocks/src/component-relay.ts';
 
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')
   throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
@@ -403,8 +404,21 @@ try{
     report.componentRelay=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const path='/component-relay-'+aspect+'.html',handle=await open(aspect,path),frames=[0,18,27,36,72,81,90,99],baseline=new Map(),states=new Map(),comparisons=[];
+      const layout=rules.aspectLayouts[aspect],safe={x:layout.width*layout.safeInsets.left,y:layout.height*layout.safeInsets.top,
+        width:layout.width*(1-layout.safeInsets.left-layout.safeInsets.right),height:layout.height*(1-layout.safeInsets.top-layout.safeInsets.bottom)},wide=aspect==='landscape';
+      const bounds={x:safe.x+safe.width*(wide?.40:.02),y:safe.y+safe.height*(wide?.04:.25),width:safe.width*(wide?.58:.96),height:safe.height*(wide?.92:.72)};
+      const x0=Math.floor(.18*2200),y0=Math.floor(.18*1400),x1=Math.ceil((.18+.45)*2200),y1=Math.ceil((.18+.34)*1400);
+      const crop={x:x0/2200,y:y0/1400,width:(x1-x0)/2200,height:(y1-y0)/1400};
+      const detail=componentPose(36,18,relayFit(bounds,2200,1400),crop,bounds).component,carried=carriedPose(90,18,detail,bounds);
+      const nextPage=relayFit({...bounds,width:bounds.width*.62},168,168);
+      assert.ok(carried.x>=nextPage.x+nextPage.width,'the carrier does not obscure the next page');
       for(const frame of frames){
         await handle.seek(frame);if([36,99].includes(frame))await checkLayout(handle,aspect);
+        if([36,90].includes(frame)){
+          const target=frame===36?detail:carried,point={x:Math.floor(target.x+target.width*.5),y:Math.floor(target.y+target.height*.5)};
+          const pixel=await handle.page.evaluate(({x,y})=>Array.from(document.querySelector('section[data-scene="component"] canvas').getContext('2d').getImageData(x,y,1,1).data),point);
+          assert.ok(pixel[3]>0,'the extracted component remains visible beside the next page');
+        }
         const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
         writeFileSync(`${output}/component-relay-${aspect}-${frame}.png`,png);
       }
