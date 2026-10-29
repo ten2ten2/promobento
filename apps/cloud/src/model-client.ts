@@ -1,5 +1,5 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest} from '@promobento/contracts/digest';
+import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
 import {providerRequest, streamModel, ModelOutputError, parseModelJson, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
 import providersInput from '../../../config/model-providers.json';
@@ -50,6 +50,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
   const cacheKey=digest({kind:'model-response-cache-v2',requestHash:key,workspaceId:op.workspace_id,projectId:op.project_id,purpose:op.purpose});
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
+  const fallbackKey=`operations/${op.id}/model-fallbacks/${digest({callId})}.json`;
   const decode=(result:Json)=>{
     if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure,{text:result.text,toolCalls:result.toolCalls});
     if(result.failure)throw Error(result.failure);
@@ -84,6 +85,11 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
       throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
     }return finish(await getJson(env,receiptKey),true);
   }
+  if(allow502Fallback&&await env.MEDIA.head(fallbackKey)){
+    const trigger=await getJson(env,fallbackKey);
+    if(trigger.kind!=='prior_scene_502_fallback'||trigger.callId!==callId||trigger.requestHash!==key||trigger.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
+    throw new SceneUpstream502();
+  }
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(cacheKey).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
   // A parser/validator repair must not pay for the same completed answer again. Scope reuse to
@@ -109,11 +115,43 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   }
   if(missingReceipt)throw Error('MODEL_RECEIPT_UNAVAILABLE');
   if(preventPendingReplay){
-    const pending=await env.DB.prepare(`SELECT r.id FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+    const pending=await env.DB.prepare(`SELECT r.id,r.operation_id,p.status FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
-      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
-      .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first();
-    if(pending)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL ORDER BY r.created_at,r.id`)
+      .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).all<Json>();
+    if(pending.results.length){
+      // Only a terminal same-scope exact-request receipt can authorize a new fallback.
+      // An active competing operation or an unknown failure must not trigger another call.
+      if(allow502Fallback&&pending.results.every(row=>['failed','cancelled'].includes(row.status))){
+        for(const previous of pending.results){
+          const originalKey=`operations/${previous.operation_id}/model-calls/${digest({callId:previous.id})}.json`;
+          if(!await env.MEDIA.head(originalKey))continue;
+          const receipt=await getJson(env,originalKey);
+          if(receipt.kind!=='metered_model_response'||receipt.callId!==previous.id||receipt.requestHash!==key||receipt.model!==ref
+            ||receipt.budgetId!==modelBudgetId(env.PIPELINE_ENVIRONMENT,previous.id))throw Error('MODEL_RECEIPT_CONFLICT');
+          if(receipt.result?.failure!=='MODEL_STREAM_FAILED')continue;
+          let confirmed=receipt.result.upstreamStatus===502;
+          // Older 502 receipts predate upstreamStatus; inspect their original immutable stream.
+          const raw=receipt.rawStreamRef;
+          if(!confirmed&&receipt.result.upstreamStatus===undefined&&raw?.key===`operations/${previous.operation_id}/model-streams/${digest({callId:previous.id})}.sse`
+            &&Number.isSafeInteger(raw.byteLength)&&raw.byteLength>=0&&raw.byteLength<=(16<<20)&&/^[a-f0-9]{64}$/.test(raw.sha256??'')){
+            const object=await env.MEDIA.get(raw.key);
+            if(!object||object.size!==raw.byteLength)throw Error('MODEL_RECEIPT_UNAVAILABLE');
+            const bytes=new Uint8Array(await object.arrayBuffer());if(sha256Bytes(bytes)!==raw.sha256)throw Error('MODEL_RECEIPT_CONFLICT');
+            const stream=new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes);
+            for(const line of stream.split('\n'))if(line.startsWith('data:')){
+              const payload=line.slice(5).trim();if(payload==='[DONE]')continue;
+              const data=parseCanonicalJson(payload) as Json;if(data.error?.code===502)confirmed=true;
+            }
+          }
+          if(confirmed){
+            await immutableJson(env,fallbackKey,{kind:'prior_scene_502_fallback',callId,requestHash:key,model:ref,sourceReceiptKey:originalKey,sourceCallId:previous.id});
+            throw new SceneUpstream502();
+          }
+        }
+      }
+      throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    }
   }
   await assertModelBudgetReady(env);
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
