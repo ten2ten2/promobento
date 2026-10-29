@@ -3,7 +3,7 @@ import {parse} from 'acorn';
 export const CUSTOM_SOURCE_MAX_BYTES = 65536;
 const id = /^[a-z][a-z0-9-]{0,47}$/;
 /** Declarative timing/slot contracts, independent of executing the scene factory. */
-export function customScenePlan(scene,{validateVisibleTextSlots=false}={}) {
+export function customScenePlan(scene,{validateVisibleTextSlots=false,validateAssetChecks=false}={}) {
   const p=scene.params, duration=scene.end-scene.start;
   if(!p||!Array.isArray(p.textSlots)||!Array.isArray(p.assetKeys)||!Array.isArray(p.events)||!Array.isArray(p.readingHolds)||!p.readingHolds.length)
     throw Error('CUSTOM_PLAN_REQUIRED');
@@ -11,7 +11,14 @@ export function customScenePlan(scene,{validateVisibleTextSlots=false}={}) {
   if(p.events.length>100||p.events.some(e=>!e||typeof e.name!=='string'||!id.test(e.name)||!Number.isInteger(e.frame)||e.frame<0||e.frame>=duration)||new Set(p.events.map(e=>e.name)).size!==p.events.length)throw Error('CUSTOM_EVENT_INVALID');
   if(p.readingHolds.length>60||p.readingHolds.some(h=>!h||!Number.isInteger(h.start)||!Number.isInteger(h.end)||h.start<0||h.end<=h.start||h.end>duration))throw Error('CUSTOM_READING_HOLD_INVALID');
   if(validateVisibleTextSlots&&p.readingHolds.some(h=>h.visibleTextSlots!==undefined&&(!Array.isArray(h.visibleTextSlots)||h.visibleTextSlots.length>p.textSlots.length||new Set(h.visibleTextSlots).size!==h.visibleTextSlots.length||h.visibleTextSlots.some(key=>typeof key!=='string'||!p.textSlots.includes(key)))))throw Error('CUSTOM_HOLD_TEXT_INVALID');
-  if(new Set([0,duration-1,...p.events.map(e=>e.frame),...p.readingHolds.map(h=>Math.floor((h.start+h.end-1)/2))]).size>24)throw Error('CUSTOM_FRAME_PLAN_BUDGET');
+  if(validateAssetChecks){
+    const checks=p.assetChecks??[];
+    if(!Array.isArray(checks)||checks.length>24||checks.some(check=>!check||!Number.isInteger(check.frame)||check.frame<0||check.frame>=duration||
+      !Array.isArray(check.assetKeys)||!check.assetKeys.length||new Set(check.assetKeys).size!==check.assetKeys.length||check.assetKeys.some(key=>typeof key!=='string'||!p.assetKeys.includes(key)))||
+      new Set(checks.map(check=>check.frame)).size!==checks.length)throw Error('CUSTOM_ASSET_CHECK_INVALID');
+  }
+  if(new Set([0,duration-1,...p.events.map(e=>e.frame),...p.readingHolds.map(h=>Math.floor((h.start+h.end-1)/2)),
+    ...(validateAssetChecks?(p.assetChecks??[]).map(check=>check.frame):[])]).size>24)throw Error('CUSTOM_FRAME_PLAN_BUDGET');
   return p;
 }
 

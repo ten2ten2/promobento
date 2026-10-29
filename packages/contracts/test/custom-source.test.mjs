@@ -41,3 +41,23 @@ test('reading holds may declare visible scene text without changing legacy plans
  scene.params.readingHolds[1].visibleTextSlots=[];assert.doesNotThrow(()=>customScenePlan(scene,{validateVisibleTextSlots:true}));
  for(const bad of [['absent'],['headline','headline'],null,'headline']){scene.params.readingHolds[0].visibleTextSlots=bad;assert.doesNotThrow(()=>customScenePlan(scene));assert.throws(()=>customScenePlan(scene,{validateVisibleTextSlots:true}),/CUSTOM_HOLD_TEXT_INVALID/);}
 });
+
+test('optional asset checks validate their targets and frames without restricting legacy or Canvas scenes',()=>{
+ const {film}=customFixture(),scene=structuredClone(film.scenes[0]);scene.params.assetKeys=['path','exercise'];
+ assert.doesNotThrow(()=>customScenePlan(scene));
+ assert.doesNotThrow(()=>customScenePlan(scene,{validateAssetChecks:true}));
+ scene.params.assetChecks=[{frame:30,assetKeys:['path']},{frame:150,assetKeys:['exercise']}];
+ assert.deepEqual(customScenePlan(scene,{validateAssetChecks:true}).assetChecks,scene.params.assetChecks);
+ scene.params.assetChecks=[{frame:30,assetKeys:['path']}];assert.doesNotThrow(()=>customScenePlan(scene,{validateAssetChecks:true}));
+ for(const bad of [
+  [{frame:30,assetKeys:['path','unknown']}],
+  [{frame:30,assetKeys:['path','path']}],
+  [{frame:450,assetKeys:['path','exercise']}],
+  [{frame:30,assetKeys:['path']},{frame:30,assetKeys:['exercise']}],
+  [{frame:30,assetKeys:[]}]
+ ]){
+  scene.params.assetChecks=bad;
+  assert.doesNotThrow(()=>customScenePlan(scene));
+  assert.throws(()=>customScenePlan(scene,{validateAssetChecks:true}),/CUSTOM_ASSET_CHECK_INVALID/);
+ }
+});

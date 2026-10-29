@@ -29,7 +29,7 @@ export function probeCustomSources(film:Json,sceneId:string,sources:Record<strin
 }
 
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string){
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false){
   const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
     ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
@@ -39,11 +39,12 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
   if(!release)throw Error('RENDER_ENVIRONMENT_MISMATCH');
   const evidence:Json[]=[];
   for(const scene of film.scenes.filter((scene:Json)=>scene.kind==='custom'&&(!probeSceneId||scene.id===probeSceneId)).sort((a:Json,b:Json)=>Number(b.params.hardest===true)-Number(a.params.hardest===true))){
-    const p=customScenePlan(scene,{validateVisibleTextSlots:repairFailures});
+    const p=customScenePlan(scene,{validateVisibleTextSlots:repairFailures,validateAssetChecks:assetChecksRequired});
     // A placeholder cannot establish behavior in a shared frame; defer those frames to the full check.
     const eligible=(frame:number)=>!probeSceneId||film.scenes.filter((item:Json)=>item.start<=frame&&frame<item.end).length===1;
     const reading=p.readingHolds.map(hold=>scene.start+Math.floor((hold.start+hold.end-1)/2)).filter(eligible);
-    const frames=[...new Set([scene.start,scene.end-1,...reading,...p.events.map(event=>scene.start+event.frame)])].filter(eligible).sort((a,b)=>a-b);
+    const assetFrames=assetChecksRequired?(p.assetChecks??[]).map(check=>scene.start+check.frame).filter(eligible):[];
+    const frames=[...new Set([scene.start,scene.end-1,...reading,...assetFrames,...p.events.map(event=>scene.start+event.frame)])].filter(eligible).sort((a,b)=>a-b);
     if(!frames.length){evidence.push({sceneId:scene.id,scope:'probe_no_unshared_frames',images:[],observations:[],comparisons:[]});continue;}
     for(const aspect of context.aspects){
       if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -54,7 +55,8 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
           aspectId:aspect,durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality:'still',frames,
           renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:resourceRefs.map((asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:context.audioSources?.some((audio:Json)=>audio.resourceId===asset.resourceId)?'audio':asset.kind}))},
         options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
-          resources:context.resources.map((asset:Json)=>({...asset,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render)},
+          resources:context.resources.map((asset:Json)=>({...asset,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render),
+          ...(assetFrames.length?{observeAssets:true}:{})},
         inputs:[{...source,name:'film'},...modules,...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))]};
       // Resource transport uses the same narrow private contract as ordinary render jobs.
       task.options.resources=context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true}));
@@ -84,7 +86,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
           phase='forward';currentFrame=frame;
           await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
           let failureCode:string|undefined;
-          if(reading.includes(frame)){
+          if(reading.includes(frame)||assetFrames.includes(frame)){
             const response=await owner.checkFrame(op.id,frame);if(!response.ok)throw Error('CUSTOM_FRAME_CHECK_FAILED');
             const checked=parseCanonicalJson(await response.text()) as Json;
             if(!validObservation(checked.observation)||checked.observation.renderId!==taskId||checked.observation.aspectId!==aspect||checked.observation.frame!==frame)throw Error('CUSTOM_OBSERVATION_SCOPE');
@@ -97,6 +99,13 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
             if(expected.length)expectation={visibleTextSlots:expected,missingTextSlots:missing};
             if(checked.observation.findings.some((finding:Json)=>finding.severity==='BLOCK'))failureCode='CUSTOM_QA_BLOCK';
             else if(missing.length)failureCode='CUSTOM_HOLD_TEXT_MISSING';
+            if(assetFrames.includes(frame)){
+              if(!Array.isArray(checked.observation.assets))throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
+              const keys=[...new Set((p.assetChecks??[]).filter(check=>scene.start+check.frame===frame).flatMap(check=>check.assetKeys))];
+              const missingAssets=keys.filter(key=>!checked.observation.assets.some((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key].resourceId&&asset.visibility==='visible'));
+              expectation={...expectation,visibleAssetKeys:keys,missingAssetKeys:missingAssets};
+              if(missingAssets.length&&!failureCode)failureCode='CUSTOM_REQUIRED_ASSET_NOT_VISIBLE';
+            }
           }
           if(failureCode&&!repairFailures)throw Error(failureCode);
           const response=await owner.frame(op.id,frame);if(!response.ok)throw Error('CUSTOM_FRAME_CHECK_FAILED');

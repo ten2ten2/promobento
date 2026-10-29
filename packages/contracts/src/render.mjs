@@ -62,6 +62,7 @@ export function assertRenderTask(task) {
   const bytes = task.inputs.reduce((sum, input) => sum + input.byteLength, 0);
   if (bytes > (task.mode === 'assemble' ? 512 : 200) * 1048576) throw Error('TASK_INPUT_BUDGET_EXCEEDED');
   if (task.mode === 'studio' && task.job.quality !== 'still') throw Error('TASK_INVALID');
+  if (task.options?.observeAssets && task.mode !== 'studio') throw Error('TASK_SCOPE_INVALID');
   if (task.options && (task.options.target.aspect !== task.job.aspectId || task.options.target.totalFrames !== task.job.totalFrames)) throw Error('TASK_SCOPE_INVALID');
   if (task.mode === 'shard' && (task.shard.start >= task.shard.end || task.shard.end > task.job.totalFrames
     || task.shard.start % 15 || task.shard.end % 15 || task.shard.instance !== task.instance)) throw Error('SHARD_SCOPE_INVALID');

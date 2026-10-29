@@ -47,7 +47,7 @@ export interface FilmSpec {
 export type FilmScene = {
   id: string; start: number; end: number; purpose: string; focusFrom?: string; focusTo?: string;
   layout?: Partial<Record<AspectId, Record<string, unknown>>>;
-  transitionIn?: { type: 'cut' | 'crossfade' | 'push' | 'whip' | 'wipe' | 'zoom-through' | 'match-handoff'; frames: number };
+  transitionIn?: { type: 'cut' | 'crossfade' | 'fade-through' | 'push' | 'whip' | 'wipe' | 'zoom-through' | 'match-handoff'; frames: number };
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
   | { kind: 'custom'; module: string; brief: string; params?: Record<string, unknown> }

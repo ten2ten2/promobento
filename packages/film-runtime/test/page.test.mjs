@@ -59,6 +59,14 @@ test('frame layers are history-free, half-open and carry scene-local time and tr
   assert.equal(frameLayers(spec.scenes,120)[1].seconds,0);assert.equal(frameLayers(spec.scenes,126)[0].seconds,.2);
   const once=frameLayers(spec.scenes,333);frameLayers(spec.scenes,449);assert.deepEqual(frameLayers(spec.scenes,333),once);
   assert.equal(once[0].opacity,1);assert.equal(once[1].opacity,.5);
+  spec.scenes[2].transitionIn.type='fade-through';
+  for(let frame=330;frame<336;frame++){
+    const [outgoing,incoming]=frameLayers(spec.scenes,frame);
+    assert.ok(outgoing.opacity===0||incoming.opacity===0,`text layers overlap at frame ${frame}`);
+    assert.ok(outgoing.opacity>0||incoming.opacity>0,`both layers disappear at frame ${frame}`);
+  }
+  assert.ok(frameLayers(spec.scenes,333)[1].opacity>0);
+  assert.deepEqual(frameLayers(spec.scenes,336).map(layer=>layer.opacity),[1]);
   for(const type of ['push','whip']){spec.scenes[1].transitionIn.type=type;const layers=frameLayers(spec.scenes,123);
     assert.equal(layers[1].x-layers[0].x,1);assert.equal(layers[0].blur>0,type==='whip');}
   assert.deepEqual(frameLayers(spec.scenes,450),[]);

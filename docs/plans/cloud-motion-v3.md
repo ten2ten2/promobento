@@ -123,7 +123,7 @@ GSAP 3.14.2 只随镜像分发，不进 Git；Three.js 0.186.1 按需加载；�
 | 课程 | ★talking-head、★curriculum、outcomes、instructor-intro、offer-deadline、whiteboard-explainer、math-explainer、illustrated-explainer、story-figure |
 | 3D | device-3d、logo-3d、product-stage |
 | 收尾／全局 | ★cta-endcard、★captions、brand-sting |
-| 转场 | cut、crossfade、push、whip；待补 wipe、zoom-through、match handoff |
+| 转场 | cut、crossfade、fade-through、push、whip；待补 wipe、zoom-through、match handoff |
 
 图表涨跌配色可配置；评价／报价／期限须绑定事实与权利。角色原创，不采用上游作者形象。`device-3d` 已额外接入，其他未实现项不因列在表内成为可调用积木。
 
@@ -237,6 +237,8 @@ Fit／Amplify／Unexpected 提供不同概念、色板来源、运动、声音�
 按 hardest 顺序，每镜头上下文只带其 brief、相关槽位／素材观察、风格、相邻姿势和方法。当前最多两个自写镜头，先创建静态布局，再分至多三个动作窗口原子编辑同一模块；窗口不改变原事件／时长或降低 brief，最后核对所有状态、署名和阅读点。
 
 最难镜头先做独立探针，其他模块可用无画面占位；只检查无重叠的可归因帧，不能当完整候选证明。全部模块完成后仍检查每请求画幅的事件／首尾／阅读窗口、逆序和新实例冷 seek，确认 studio 关闭后才渲整片。
+
+新方法可按[导演说明](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)为关键帧声明DOM图片检查；已声明素材未显示或无法确认时停止，未声明内容和Canvas仍需审片。CTA可用 `fade-through` 避免出入场正文叠字；旧 `crossfade` 保持原含义。
 
 符合已冻结方法的 `CUSTOM_QA_BLOCK`、`CUSTOM_HOLD_TEXT_MISSING`、`CUSTOM_SEEK_MISMATCH` 有完整证据时，每镜头最多一次 D 定点修复，仍共用原次数／费用／期限。不可归因的重叠、未知消费、权限或清理未确认直接停止。实际工具、文字拟合和输入约定见 [cloud README](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)。
 

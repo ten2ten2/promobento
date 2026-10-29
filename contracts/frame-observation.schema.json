@@ -39,6 +39,17 @@
         }
       }
     },
+    "assets": {
+      "description": "Optional trusted CDP observations of requested DOM image assets, not a judgment of their legibility or semantic correctness.",
+      "type": "array", "maxItems": 200,
+      "items": {"type": "object", "additionalProperties": false,
+        "required": ["sceneId", "resourceId", "visibility"],
+        "properties": {
+          "sceneId": {"type": "string", "maxLength": 48},
+          "resourceId": {"type": "string", "pattern": "^res_[A-Za-z0-9_-]{4,64}$"},
+          "visibility": {"enum": ["visible", "hidden", "unverified"]}
+        }}
+    },
     "regions": {
       "type": "array", "maxItems": 200,
       "items": {"type": "object", "additionalProperties": false, "required": ["regionId", "box"],

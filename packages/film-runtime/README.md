@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-当前支持九个核心积木、device-3d 和三个新增镜头、四画幅和cut／crossfade／push／whip。页面由可信生成器组装，绘制按镜头时间确定；实际验收和未实现能力见[实施状态](../../docs/implementation-status.md)。积木／自写API以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准，不包含上游作者形象。
+源码支持九个核心积木、device-3d 和三个新增镜头、四画幅和cut／crossfade／fade-through／push／whip。`fade-through` 在画面背景上先淡出上一镜头、再淡入下一镜头，不改变既有crossfade。页面由可信生成器组装，绘制按镜头时间确定；实际部署、验收和未实现能力见[实施状态](../../docs/implementation-status.md)。积木／自写API以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准，不包含上游作者形象。
 
 ## 构建和调用
 
@@ -34,7 +34,7 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 
 custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(id,ctx=>({timeline}))`，支持DOM、SVG图形、Canvas2D、暂停GSAP／OM.clock，不允许任意依赖／导入。只在独立uid的容器Chromium沙箱求值，页面生成器／Worker／控制器不执行它。
 
-params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。
+params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。导演方法1.6可用 `assetChecks` 声明需要验证的DOM图片和帧，检查范围与限制见[导演说明](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)；旧源码和Canvas用法不增加该前置。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。
 
 可信宿主以PageOptions.customSources提供原始路径→字节；每份≤64KiB、合计≤512KiB，只接FilmSpec列明路径，每镜头声明的首尾／事件／阅读去重最多24帧。Acorn只静态解析；动态构造器在源码前封闭，宿主用直接CDP桥。源码／Q0／完整身份核对后才启动浏览器，源文件只在任务本地同源路径提供。
 
@@ -56,6 +56,7 @@ filmSourceHash、构建回执及分段身份包含全部模块原始字节；纯
 | `runtime_case=journey-beats` | ui-journey四画幅三状态阅读和连续后逆／冷seek |
 | `runtime_case=focus-port` | 新镜头四画幅、PTS 源帧偏移及正向／逆向／冷 seek |
 | `runtime_case=custom` | 原创自写镜头、真实帧／CDP和定点故障，不重做媒体／配乐／G1 |
+| `runtime_case=custom-assets` | 自写图片实际可见／隐藏观察与CTA先退后进转场，不重做完整媒体／配乐 |
 
 runtime_case均与suite=runtime一起使用。失败保留画幅／帧号／实际PNG和已完成项，容差仍最大通道差≤2且差异像素≤0.1%，不按测试结果放宽。
 

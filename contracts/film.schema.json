@@ -174,7 +174,7 @@
     "transition": {
       "type": "object", "additionalProperties": false, "required": ["type", "frames"],
       "properties": {
-        "type": {"enum": ["cut", "crossfade", "push", "whip", "wipe", "zoom-through", "match-handoff"]},
+        "type": {"enum": ["cut", "crossfade", "fade-through", "push", "whip", "wipe", "zoom-through", "match-handoff"]},
         "frames": {"type": "integer", "minimum": 0, "maximum": 30}
       }
     },

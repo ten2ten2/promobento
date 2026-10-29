@@ -52,7 +52,7 @@ B只写三张精简方向卡与骨架，可信宿主按原事实／主图／色�
 
 完整输出结构失败时，A／每素材／B／F最多一次纠正，C最多两次；仍受各阶段原总次数／金额／期限。有效结果缓存按请求、模型、目录和工作区／项目／用途隔离，只收已结响应；旧缓存经同范围已结原回执重新准入，不再付一次，也不复活旧操作。原回执缺失时停止，不为相同内容悄悄再付一次；完整但无用量的结果只允许原 callId 回放，不能跨操作复用，缺响应的未知请求不重发。新操作的首次模型派发仍须单独授权并预留费用；未知、网络或截断不进入纠正。
 
-准入限制当前真实能力：texture=none、四种转场、无布局覆盖／素材裁剪、精确获准字体face。复用页面生成器只处理JSON并丢弃HTML，不在Worker求值作品。三张卡先汇总错误再启动studio。模型调用前还核对后续密钥／能力、release／实际镜像、沙箱、字体、broker和PNG；成功健康缓存10分钟，换镜像／过期／跨用户等待重查，探针费计当前操作。
+准入限制当前真实能力：texture=none、无布局覆盖／素材裁剪、精确获准字体face；staging有四种转场，源码另支持 `fade-through`，部署情况见[实施状态](../../docs/implementation-status.md)。复用页面生成器只处理JSON并丢弃HTML，不在Worker求值作品。三张卡先汇总错误再启动studio。模型调用前还核对后续密钥／能力、release／实际镜像、沙箱、字体、broker和PNG；成功健康缓存10分钟，换镜像／过期／跨用户等待重查，探针费计当前操作。
 
 E/F按画幅取得全部阅读PNG拼图和源引用、第一画幅动作姿势；逐图核对身份、拒绝空／重复／混尺寸／超限。片外帧标签／空格不算影片内容。E 还接收低清全片运动线索及其局限，见[渲染服务](../render-container/README.md#四种模式)；该改动已部署内部 staging，尚未经过真实 E 评测。每秒画面、声音曲线和完整Q1/Q2尚未接齐，有限姿势和低分辨率差异不能代替正常速度视听。
 
@@ -62,7 +62,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。当前方法1.5.0，旧冻结方法的顺序／前置不追溯新增。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.6.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -71,6 +71,10 @@ B定信息形态／运动语言，C定Treatment、完整结构／时间和最多
 edit_file使用自包含Schema，path必须当前模块字符串，首次仅create，之后唯一匹配str_replace／insert；不给非字面量ctx.asset(key)／ctx.text(id)放行，helper接已解析handle。源码反馈带code/path和有界行。文字父框有正宽高，隐藏槽位也须拟合；竖屏独立重排，按变换后安全区验，ctx.text().mount返回元素的内联颜色要在该元素修改，不只改父级。
 
 两个custom时先验最难镜头，无画面占位只参与可归因、无其他镜头重叠的提前探针；所有真实模块完成后，仍在每请求画幅独立studio检查事件／首尾／阅读窗口、逆序和新实例冷seek。1.2及后续方法按visibleTextSlots和sceneId核对阅读点；每模块冻结原始字节，proof不借提前探针代替。
+
+方法1.6可为自写镜头声明 `assetChecks:[{frame,assetKeys}]`，各帧为镜头局部整数、不能与其他镜头重叠，且与事件／阅读点共用24帧上限。C应对关键DOM图片选择需要实际出现的帧；D的受检素材须以 `ctx.asset(key).url` 绑定的DOM图片出现。可信CDP只检查所属镜头、可见样式、裁切及命中，缺失／无法确认时保留实际帧并停止，不自动付费修复。它不证明图片可读、动作完整或作品质量；未声明的素材和Canvas绘制仍依赖E/F与人工审片，不改变原有Canvas调用条件。取不到可靠坐标时C应选择无需该坐标的设计；D不能靠空值或静态占位冒充完成。声明检查时先探测所用renderer的素材观测能力，不支持则在D调用前停止。
+
+方法1.6的CTA入场使用cut或 `fade-through`：先淡出上一镜头，再淡入CTA，不改变旧 `crossfade` 的叠化语义；使用新转场时先探测实际renderer是否支持。自写镜头内自行绘制的文字交接仍需实际审片。
 
 失败证据绑定sourceHash／scene／aspect，保留阶段／帧／CDP／像素比较及实际PNG。studio关闭确认且错误为可归因CUSTOM_QA_BLOCK／CUSTOM_HOLD_TEXT_MISSING／CUSTOM_SEEK_MISMATCH时，每镜头最多一次D定点修复，共用原次数／金额／期限；重叠无法归因、未知消费、Q0／权限／平台或停止未确认直接失败。看图模式给真实失败图，文本模式只给实际观测／比较，不冒称看过帧。
 

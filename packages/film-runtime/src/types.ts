@@ -13,12 +13,14 @@ export interface AssetRecord {
 export interface PageOptions {
   target: Target; seed: string; fonts: FontRecord[]; resources: AssetRecord[]; confirmedFactIds: string[];
   initTimeoutMs: number; frameTimeoutMs: number;
+  observeAssets?: boolean;
   customSources?: Record<string,string>;
 }
 export interface PagePlan {
   spec: FilmSpec; usesWebgl: boolean; target: Target; seed: string; manifestHash: string;
   assets: Record<string, AssetHandle & {videoFrames?: AssetRecord['videoFrames']; videoStartSeconds?: number}>;
   fonts: FontRecord[]; initTimeoutMs: number; frameTimeoutMs: number;
+  observeAssets?: boolean;
 }
 export interface PrivateClock {
   begin(seed: string): void; seek(seconds: number): void; paint(timeoutMs: number): Promise<void>;

@@ -897,6 +897,10 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 10000
+            },
+            "observeAssets": {
+              "description": "Request trusted DOM image observations for a studio check.",
+              "type": "boolean"
             }
           }
         },

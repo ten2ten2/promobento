@@ -40,7 +40,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     if (!Number.isFinite(target.safeInsets[side]) || target.safeInsets[side] < 0 || target.safeInsets[side] >= 0.5) throw Error('SAFE_INSETS_INVALID');
   for (const scene of spec.scenes) {
     if (scene.layout && Object.keys(scene.layout).length) throw Error('LAYOUT_OVERRIDES_NOT_IMPLEMENTED');
-    if (scene.transitionIn && !['cut', 'crossfade', 'push', 'whip'].includes(scene.transitionIn.type)) throw Error('TRANSITION_NOT_IMPLEMENTED');
+    if (scene.transitionIn && !['cut', 'crossfade', 'fade-through', 'push', 'whip'].includes(scene.transitionIn.type)) throw Error('TRANSITION_NOT_IMPLEMENTED');
     if (scene.kind === 'custom') continue;
     const references = blockReferences(scene.params);
     for (const id of references.texts) if (!Object.hasOwn(spec.texts, id)) throw Error('TEXT_SLOT_UNKNOWN');
@@ -108,6 +108,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     safeInsets:{top:target.safeInsets.top,right:target.safeInsets.right,bottom:target.safeInsets.bottom,left:target.safeInsets.left},
     fps:30,totalFrames:spec.totalFrames}, seed: options.seed, manifestHash: digest(spec), assets, fonts,
     initTimeoutMs: options.initTimeoutMs, frameTimeoutMs: options.frameTimeoutMs};
+  if (options.observeAssets === true) plan.observeAssets = true;
   if(spec.scenes.some(scene=>scene.kind==='custom'))plan.manifestHash=filmSourceHash(raw,options.customSources);
   const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
   const css = [...new Map(fonts.map(font => [`${font.fontId}/${font.weight}/${font.style}`, font])).values()].map(font =>

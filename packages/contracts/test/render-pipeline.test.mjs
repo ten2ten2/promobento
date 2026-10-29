@@ -46,6 +46,9 @@ test('private tasks reject unknown fields, duplicate input names and missing rig
   assert.doesNotThrow(()=>assertRenderTask(task));
   assert.throws(()=>assertRenderTask({...task,evil:true}),/TASK_INVALID/);
   assert.throws(()=>assertRenderTask({...task,options:{...options,resources:[{...options.resources[0],rightsCleared:false}]}}),/TASK_INVALID/);
+  assert.throws(()=>assertRenderTask({...task,options:{...options,observeAssets:true}}),/TASK_SCOPE_INVALID/);
+  const {shard,...base}=task;
+  assert.doesNotThrow(()=>assertRenderTask({...base,mode:'studio',job:{...job,quality:'still',frames:[45]},options:{...options,observeAssets:true}}));
   const blob={name:'film',key:'evals/test/film.json',sha256:sha,byteLength:10};
   assert.throws(()=>assertRenderTask({...task,inputs:[blob,blob]}),/TASK_INPUT_DUPLICATE/);
 });

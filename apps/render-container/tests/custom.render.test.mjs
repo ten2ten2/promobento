@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {chromium} from 'playwright-core';
 import {filmSession} from '../src/browser.mjs';
-import {compareSeam} from '@promobento/contracts/seams';
+import {compareSeam,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
 const rules=JSON.parse(readFileSync('config/platform-presets.json')),lock=JSON.parse(readFileSync('apps/render-container/environment.lock.json')),catalog=JSON.parse(readFileSync('/opt/fonts/catalog.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
 const mode=process.env.PROMOBENTO_RUNTIME_CASE??'custom',report={scope:'sandboxed_custom_DOM_SVG_Canvas_GSAP_not_cloud_or_owner_quality',mode,aspects:[],attacks:[],passed:false};
-const file=mode==='custom'?'report.json':mode==='custom-guards'?'guards.json':mode==='custom-loop'?'fault-loop.json':mode==='custom-init-loop'?'fault-init-loop.json':'fault-memory.json';
+const file=mode==='custom'?'report.json':mode==='custom-guards'?'guards.json':mode==='custom-assets'?'asset-check.json':mode==='custom-loop'?'fault-loop.json':mode==='custom-init-loop'?'fault-init-loop.json':'fault-memory.json';
 const font=face=>readFileSync('/opt/fonts/'+catalog.fonts.find(item=>item.fontId===face.fontId&&item.weight===face.weight).file);
 const killBrowser=async()=>{const browser=await chromium.connectOverCDP('http://127.0.0.1:9222');const cdp=await browser.newBrowserCDPSession();await cdp.send('Browser.close').catch(()=>{});};
 async function open(aspect,attack,initialization=false,legacy=false){
@@ -22,7 +22,33 @@ async function open(aspect,attack,initialization=false,legacy=false){
  return filmSession({raw:JSON.stringify(film),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
 }
 try{
- if(mode==='custom-init-loop'){
+ if(mode==='custom-assets'){
+  const film=filmFixture(),options=pageOptions('landscape',rules.aspectLayouts.landscape);
+  film.scenes=[{id:'product',kind:'custom',module:'scenes/product/index.js',start:0,end:240,purpose:'Check an original image and heading.',brief:'Show the image after the initial hold.',
+   params:{textSlots:['product'],assetKeys:['dashboard'],events:[],readingHolds:[{start:30,end:110}],assetChecks:[{frame:45,assetKeys:['dashboard']},{frame:90,assetKeys:['dashboard']}]}},
+   {...film.scenes[2],start:232,transitionIn:{type:'fade-through',frames:8}}];
+  const source=`PB.scene('product',ctx=>{
+   const heading=document.createElement('div');Object.assign(heading.style,{position:'absolute',left:'8%',top:'30%',width:'38%',height:'30%'});ctx.root.append(heading);ctx.text('product').mount(heading);
+   const wrap=document.createElement('div'),img=document.createElement('img');Object.assign(wrap.style,{position:'absolute',left:'60%',top:'20%',width:'25%',height:'55%'});img.src=ctx.asset('dashboard').url;Object.assign(img.style,{width:'100%',height:'100%'});wrap.append(img);ctx.root.append(wrap);
+   const timeline=gsap.timeline({paused:true});ctx.OM.clock(timeline,t=>{wrap.style.opacity=t<2?'0':'1';},8);return {timeline};});`;
+  options.fonts=options.fonts.map(face=>{const installed=catalog.fonts.find(item=>item.fontId===face.fontId&&item.weight===face.weight);return{...face,licenseRef:installed.licenseRef,codePoints:installed.codePoints};});
+  options.customSources={'scenes/product/index.js':source};options.observeAssets=true;
+  const original=pngRgba(2,2,Uint8Array.from([0,180,0,255,0,180,0,255,0,180,0,255,0,180,0,255]));
+  const session=await filmSession({raw:JSON.stringify(film),options,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{
+   for(const [frame,visibility]of [[45,'hidden'],[90,'visible']]){
+    await session.frame(frame,{format:'png'});const observation=await session.observe('asset-check',frame);
+    assert.equal(observation.assets.find(asset=>asset.sceneId==='product'&&asset.resourceId==='res_fixture_dashboard')?.visibility,visibility,JSON.stringify(observation.assets));
+   }
+   for(const frame of [232,234,236,238,240]){
+    writeFileSync(`${output}/fade-through-${frame}.png`,await session.frame(frame,{format:'png'}));
+    const observation=await session.observe('asset-check',frame),outgoing=observation.texts.some(text=>text.slotId==='product'),incoming=observation.texts.some(text=>text.slotId==='cta');
+    assert.ok(!outgoing||!incoming,`Outgoing and CTA text overlap at frame ${frame}`);
+    if(frame===236)assert.ok(!outgoing&&incoming);
+   }
+   report.assetObservation='hidden_then_visible';report.fadeThrough='no_cross_scene_text_overlap';report.sandbox=session.sandbox;
+  }finally{await session.close();}
+ }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);
  }else if(!['custom','custom-guards'].includes(mode)){

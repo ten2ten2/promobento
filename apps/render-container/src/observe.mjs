@@ -1,6 +1,7 @@
 /** Trusted CDP snapshot and platform-font inspection; no page-supplied QA booleans. */
 export async function observe(cdp, plan, renderId, frame) {
-  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight'];
+  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight',
+    ...(plan.observeAssets ? ['mask-image', 'filter', 'pointer-events'] : [])];
   const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', {computedStyles: names, includePaintOrder: true});
   const strings = snapshot.strings, {nodes, layout} = snapshot.documents[0];
   const rowFor = new Map(layout.nodeIndex.map((node, row) => [node, row]));
@@ -90,5 +91,84 @@ export async function observe(cdp, plan, renderId, frame) {
     if(active&&custom&&!slot)throw Error('CUSTOM_TEXT_UNBOUND');
   }
   for(const text of texts)if(customIds.size&&text.text!==plan.spec.texts[text.slotId].text)throw Error('CUSTOM_TEXT_MISMATCH');
-  return {schemaVersion: '3.0.0', kind: 'frame_observation', renderId, aspectId: plan.target.aspect, frame, texts, regions, findings};
+  let assets;
+  if(plan.observeAssets){
+    assets=[];
+    const definitelyHidden=node=>{
+      for(let current=node;current>=0;current=parent(current)){
+        if(['hidden','collapse'].includes(style(current,'visibility'))||style(current,'display')==='none'||style(current,'opacity')==='0')return true;
+      }
+      return false;
+    };
+    // Normal hit testing ignores pointer-events:none layers even when they paint over the image.
+    // Only fall back through a definitely invisible top layer if no later pointer-free layer
+    // can cover this point. If paint order is unavailable, retain an unverified result.
+    const possiblePointerOverlay=(target,x,y)=>{
+      const targetRow=rowFor.get(target),order=layout.paintOrders?.[targetRow];
+      if(!Number.isInteger(order))return true;
+      for(const [candidate,row]of rowFor){
+        if(candidate===target||ancestor(candidate,target)||ancestor(target,candidate)||style(candidate,'pointer-events')!=='none'||definitelyHidden(candidate))continue;
+        const otherOrder=layout.paintOrders?.[row],box=layout.bounds[row];
+        if(!Number.isInteger(otherOrder)||!box)return true;
+        if(otherOrder>=order&&x>=box[0]&&x<box[0]+box[2]&&y>=box[1]&&y<box[1]+box[3])return true;
+      }
+      return false;
+    };
+    const expected=new Map();
+    for(const scene of plan.spec.scenes){
+      if(!customIds.has(scene.id)||!Array.isArray(scene.params?.assetChecks))continue;
+      const ids=new Set();
+      for(const check of scene.params.assetChecks)if(check?.frame===frame-scene.start&&Array.isArray(check.assetKeys))
+        for(const key of check.assetKeys)if(plan.assets?.[key])ids.add(plan.assets[key].resourceId);
+      if(ids.size)expected.set(scene.id,ids);
+    }
+    for(let node=0;node<nodes.parentIndex.length;node++){
+      if(strings[nodes.nodeName?.[node]]!=='IMG')continue;
+      const src=attributes(node).get('src');let url;
+      try{url=new URL(src,'http://film.internal');}catch{continue;}
+      if(url.origin!=='http://film.internal'||url.search||url.hash)continue;
+      const match=/^\/r\/(res_[A-Za-z0-9_-]{4,64})$/.exec(url.pathname);
+      if(!match)continue;
+      let sceneId,visible=true,opacity=1,masked=false;
+      const row=rowFor.get(node),bounds=row===undefined?null:layout.bounds[row];
+      let left=bounds?Math.max(0,bounds[0]):0,top=bounds?Math.max(0,bounds[1]):0,
+        right=bounds?Math.min(plan.target.width,bounds[0]+bounds[2]):0,bottom=bounds?Math.min(plan.target.height,bounds[1]+bounds[3]):0;
+      for(let current=node;current>=0;current=parent(current)){
+        const candidate=attributes(current).get('data-scene');if(customIds.has(candidate))sceneId=candidate;
+        const visibility=style(current,'visibility'),display=style(current,'display'),alpha=style(current,'opacity');
+        if(visibility==='hidden'||visibility==='collapse'||display==='none')visible=false;
+        if(alpha!=null){const value=Number(alpha);if(Number.isFinite(value))opacity*=value;else masked=true;}
+        if((style(current,'mask-image')??'none')!=='none'||(style(current,'filter')??'none')!=='none')masked=true;
+        const parentRow=rowFor.get(current);
+        if(current!==node&&parentRow!==undefined&&['hidden','clip','scroll','auto'].includes(style(current,'overflow'))){
+          const [x,y,w,h]=layout.bounds[parentRow];left=Math.max(left,x);top=Math.max(top,y);right=Math.min(right,x+w);bottom=Math.min(bottom,y+h);
+        }
+      }
+      if(!sceneId||!expected.get(sceneId)?.has(match[1]))continue;
+      let state='hidden';
+      if(visible&&opacity>0&&right-left>=1&&bottom-top>=1){
+        state='unverified';
+        if(opacity>=0.1&&!masked){
+          // Transparent, pointer-active layers may sit over the centre of an image. Include
+          // perimeter points without treating an obscured centre as proof of visibility.
+          for(const [fx,fy] of [[.5,.5],[.25,.25],[.75,.25],[.25,.75],[.75,.75],
+            [.005,.005],[.995,.005],[.005,.995],[.995,.995]]){
+            const x=Math.min(plan.target.width-1,Math.floor(left+(right-left)*fx)),y=Math.min(plan.target.height-1,Math.floor(top+(bottom-top)*fy));
+            try{
+              const all=await cdp.send('DOM.getNodeForLocation',{x,y,ignorePointerEventsNone:true}),hitNode=nodes.backendNodeId.indexOf(all.backendNodeId);
+              if(hitNode>=0&&ancestor(hitNode,node))state='visible';
+              else if(hitNode>=0&&definitelyHidden(hitNode)){
+                const normal=await cdp.send('DOM.getNodeForLocation',{x,y,ignorePointerEventsNone:false}),normalNode=nodes.backendNodeId.indexOf(normal.backendNodeId);
+                if(normalNode>=0&&ancestor(normalNode,node)&&!possiblePointerOverlay(node,x,y))state='visible';
+              }
+            }catch(error){if(!String(error.message).includes('No node found at given location'))throw error;}
+            if(state==='visible')break;
+          }
+        }
+      }
+      assets.push({sceneId,resourceId:match[1],visibility:state});
+      if(assets.length>200)throw Error('ASSET_OBSERVATION_LIMIT');
+    }
+  }
+  return {schemaVersion: '3.0.0', kind: 'frame_observation', renderId, aspectId: plan.target.aspect, frame, texts, regions, findings,...(assets?{assets}:{})};
 }

@@ -8,12 +8,12 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false){
- if(sceneScopedObservation&&!customScenes)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false){
+ if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  await operation(env,op.id,op.generation);await rights(env,op,resources);
  const release=await env.DB.prepare("SELECT * FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>();
  if(!release||release.runtime_version!==context.runtimeVersion||release.image_digest!==await env.SHARDS.getByName('release-metadata').imageDigest())throw Error('RENDER_ENVIRONMENT_MISMATCH');
- const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{})});
+ const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{})});
  const cached=parseCanonicalJson(await coordinator.rendererHealth(cacheKey)) as Json|null;
  if(cached&&cached.checkedAt<=Date.now()&&Date.now()-cached.checkedAt<cacheMs)return;
  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -25,12 +25,19 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   audio:{music:{kind:'none'},sfx:[],captions:'off',mute:true},assets:{},texts:{headline:{text:'Render health check',role:'headline',factIds:[]}},
   scenes:[{id:'health',start:0,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},purpose:'Private renderer health probe.'}],
   treatment:{message:'Private renderer health probe.',hook:'Readiness only.',energyCurve:[{frame:0,level:1},{frame:449,level:1}],continuity:'Single trusted block.'}};
- const sources:Record<string,string>={};
+ const sources:Record<string,string>={},asset=assetScopedObservation?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
+ if(assetScopedObservation&&!asset)throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
+ const healthEnd=fadeThrough?240:450;
  if(customScenes){
-  film.scenes=[{id:'health',start:0,end:450,kind:'custom',module:'scenes/health/index.js',brief:'Private custom runtime health probe.',purpose:'Private renderer health probe.',
-   params:{textSlots:['headline'],assetKeys:[],events:[],readingHolds:[{start:30,end:450}]}}];
-  sources['scenes/health/index.js']='PB.scene("health",ctx=>{const panel=document.createElement("div");Object.assign(panel.style,{position:"absolute",left:"10%",top:"30%",width:"80%",height:"40%"});ctx.root.append(panel);ctx.text("headline").mount(panel);const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:15});return {timeline};});';
+  if(asset)film.assets.health={resourceId:asset.resourceId};
+  film.scenes=[{id:'health',start:0,end:healthEnd,kind:'custom',module:'scenes/health/index.js',brief:'Private custom runtime health probe.',purpose:'Private renderer health probe.',
+   params:{textSlots:['headline'],assetKeys:asset?['health']:[],events:[],readingHolds:[{start:30,end:healthEnd}],...(asset?{assetChecks:[{frame:45,assetKeys:['health']}]}:{})}}];
+  sources['scenes/health/index.js']='PB.scene("health",ctx=>{const panel=document.createElement("div");Object.assign(panel.style,{position:"absolute",left:"10%",top:"30%",width:"80%",height:"40%"});ctx.root.append(panel);ctx.text("headline").mount(panel);'+
+   (asset?'const img=document.createElement("img");img.src=ctx.asset("health").url;Object.assign(img.style,{position:"absolute",left:"10%",top:"5%",width:"15%",height:"20%",objectFit:"contain"});ctx.root.append(img);':'')+
+   `const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:${healthEnd/30}});return {timeline};});`;
  }
+ if(fadeThrough){film.scenes[0].end=healthEnd;film.scenes.push({id:'health-end',start:healthEnd-8,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},
+  transitionIn:{type:'fade-through',frames:8},purpose:'Check the supported fade-through transition.'});}
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
  const aspect='landscape',layout=platform.aspectLayouts.landscape;
@@ -40,7 +47,9 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    runtimeVersion:context.runtimeVersion,rendererRelease:release.id,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[45],
    renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources},
   options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:450},seed:context.seed,
-   fonts:context.fonts,resources:[],confirmedFactIds:[],initTimeoutMs:30000,frameTimeoutMs:5000},inputs:[{...source,name:'film'},...modules]};
+   fonts:context.fonts,resources:asset?[{resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true}]:[],
+   confirmedFactIds:[],initTimeoutMs:30000,frameTimeoutMs:5000,...(assetScopedObservation?{observeAssets:true}:{})},
+  inputs:[{...source,name:'film'},...modules,...(asset?[{name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}]:[])]};
  const owner=env.OPERATIONS.getByName(op.id);
  let failed=false;
  try{
@@ -54,6 +63,8 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    const checked=parseCanonicalJson(await response.text()) as Json,observation=checked.observation;
    if(!validObservation(observation)||observation.renderId!==taskId||observation.aspectId!==aspect||observation.frame!==45
      ||!observation.texts.some((text:Json)=>text.sceneId==='health'&&text.slotId==='headline'))throw Error('RENDER_OBSERVATION_SCOPE_UNAVAILABLE');
+   if(assetScopedObservation&&(!Array.isArray(observation.assets)||!observation.assets.some((item:Json)=>item.sceneId==='health'&&item.resourceId===asset.resourceId&&item.visibility==='visible')))
+    throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
   }
   await operation(env,op.id,op.generation);
  }catch(error){failed=true;throw error;}

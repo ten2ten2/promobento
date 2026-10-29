@@ -58,6 +58,8 @@ test('assets, blocks and fonts must exist and be cleared', () => {
 });
 
 test('transitions require exactly one outgoing scene and real overlap, and cuts have no duration',()=>{
+  const sequential=example();sequential.scenes[3].transitionIn.type='fade-through';
+  assert.deepEqual(validate(sequential),[]);assert.deepEqual(codes(filmSpecErrors(sequential)),[]);
   const gap=example();gap.scenes[2].end=390;
   assert.ok(codes(filmSpecErrors(gap)).includes('TRANSITION_WITHOUT_OVERLAP'));
   const cut=example();cut.scenes[1].transitionIn.type='cut';
