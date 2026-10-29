@@ -4,11 +4,11 @@
 
 ## 当前检查点
 
-最近已留证的内部 staging Worker 源码为 `1a5500bab98bfccb498c88f0620615e383bf3d74`，导演方法 **1.5.0**；[CI](https://github.com/ten2ten2/promobento/actions/runs/40812756409)与 [deploy-only 部署](https://github.com/ten2ten2/promobento/actions/runs/40814792555)通过。部署复用已登记的 `renderer-fdb8e4e447d5`，镜像摘要为 `sha256:f04332da47005285f1ebb00b90cf1eb92072a56909c28bed2af26c16433714ee`；部署时健康、空容量及模型预算只读检查通过，该部署检查未调用模型或渲染，临时密钥已回收。
+最近已留证的内部 staging Worker 源码为 `057e91e6ba0f332d908507069384ecf50d530a18`，导演方法 **1.7.0**；[deploy-only 部署](https://github.com/ten2ten2/promobento/actions/runs/40862499919)通过，镜像摘要 `sha256:218d4136bf6ec20ad8a2f56ecffad2cc3de80c4681f1d350419b68c8daea3c7d`。健康、空容量及模型预算只读检查通过，没有调用模型或渲染，临时密钥已回收。该部署的 `component-relay` 1.0.0 在真实素材冷 seek 发现像素不一致，不能用于自动评测；源码已修复为 1.0.1，待部署。
 
 负责人另行批准的 Duolingo 15 秒评测已生成横屏低清审片；E 模型请求返回 HTTP 502 且用量未知，F 未运行，也没有竖屏或高清最终片。实际帧与绑定源码表明首个镜头未测出按钮坐标，却静默停在路径图，未实现规格中的练习画面交接；片尾正文与 CTA 叠字。此片不作为质量通过，负责人试听待确认。作品覆盖仍为 **1/12 创作输入、2/24 最终片**。[审片、失败原因与回执](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
 
-源码新增方法1.6的素材关键帧检查与 `fade-through`，分别针对未出现的自写素材和CTA叠字；方法1.7新增绑定素材观察的组件抽离与页面接力积木。适用范围和限制见[导演说明](../apps/cloud/README.md#导演选择结构d-实现自写镜头)。这些不是对任意动作或影片质量的自动证明；原审片未改写，既有 staging 仍是方法1.5.0，新的renderer和Worker尚未部署或云验。
+方法1.6的素材关键帧检查与 `fade-through` 分别针对未出现的自写素材和CTA叠字；方法1.7新增绑定素材观察的组件抽离与页面接力积木。适用范围和限制见[导演说明](../apps/cloud/README.md#导演选择结构d-实现自写镜头)。这些不是对任意动作或影片质量的自动证明；原审片未改写，修复版 `component-relay` 尚未部署或云验。
 
 连接中断现报为 `MODEL_TRANSPORT_FAILED`，保留未知预留及不重发语义。结果缓存按工作区／项目／用途隔离，只收已结响应；旧缓存经已结原回执重新准入，回执缺失不自动重购。Duolingo 前次 D 动作请求仍未知、不恢复；新轮未产生 A–C 和首个布局的模型预留，后续 D 动作另行结算。[具体证据](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
 

@@ -51,7 +51,7 @@ export const blockCatalog = [
       focusTrack:{...focusTrack,description:'Normalized source-space centre and zoom, at increasing scene-local frames starting at zero; interpolated smoothly.'},
       aspectTracks:{type:'object',additionalProperties:false,properties:{landscape:focusTrack,portrait:focusTrack,feed:focusTrack,square:focusTrack},
         description:'Optional aspect-specific framing; missing aspects use focusTrack or the centred default.'}}}},
-  { ...common, id:'component-relay', category:'software', cost:'medium', regions:['journey'],
+  { ...common, id:'component-relay', version:'1.0.1', category:'software', cost:'medium', regions:['journey'],
     events:[{name:'component-land',description:'The real image detail settles after lifting from its original position.'},
       ...[1,2,3].map(index=>({name:'product-step-'+index,description:'The next real page arrives.'}))],
     params:{type:'object',additionalProperties:false,required:['items','focus','beatFrames'],properties:{

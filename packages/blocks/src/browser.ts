@@ -417,44 +417,58 @@ function beatJourney(ctx:SceneContext,params:{beatFrames:number;items:Item[]}) {
   },events,regions:[region('journey',safe,ctx.root)]};
 }
 
-window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.0.0',build(ctx,params){
+window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.0.1',build(ctx,params){
   const safe=inSafe(ctx),box=safeBox(ctx),wide=ctx.target.aspect==='landscape',hasText=typeof params.textSlot==='string';
   safe.style.zIndex='1';
   if(hasText)text(ctx,params.textSlot,node(safe,{position:'absolute',left:'0',top:wide?'29%':'1%',
     width:wide?'35%':'100%',height:wide?'42%':'22%'}),3);
   const bounds:Box={x:box.x+box.width*(wide&&hasText?.40:.02),y:box.y+box.height*(wide?.04:hasText?.25:.03),
     width:box.width*(wide&&hasText?.58:.96),height:box.height*(wide?.92:hasText?.72:.94)};
-  const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
-  Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
-  const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const surface=cpuSurface(ctx),stage={x:0,y:0,width:ctx.target.width,height:ctx.target.height};
   const items=(params.items as Array<{assetKey:string}>).map(item=>{
     const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('RELAY_IMAGE_REQUIRED');
-    const image=new Image();image.src=asset.url;
-    return{asset,image,ready:image.decode(),box:relayFit(bounds,asset.width,asset.height)};
+    return{asset,source:projectedAsset(ctx,item.assetKey),box:relayFit(bounds,asset.width,asset.height)};
   });
   const first=items[0]!,roi=first.asset.roi[Number(String(params.focus).slice(4))];
   if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('RELAY_ROI_INVALID');
   const beat=Number(params.beatFrames),events=blockEvents('component-relay',ctx.frames,params);
-  const draw=(image:HTMLImageElement,rect:Box,shadow=false)=>{
-    paint.save();if(shadow){paint.shadowColor='rgba(0,0,0,.22)';paint.shadowBlur=Math.min(bounds.width,bounds.height)*.035;paint.shadowOffsetY=bounds.height*.012;}
-    paint.drawImage(image,rect.x,rect.y,rect.width,rect.height);paint.restore();
+  const left=Math.floor(roi.x*first.asset.width),top=Math.floor(roi.y*first.asset.height);
+  const right=Math.min(first.asset.width,Math.ceil((roi.x+roi.width)*first.asset.width));
+  const bottom=Math.min(first.asset.height,Math.ceil((roi.y+roi.height)*first.asset.height));
+  const exactRoi={x:left/first.asset.width,y:top/first.asset.height,width:(right-left)/first.asset.width,height:(bottom-top)/first.asset.height};
+  let images:Array<ReturnType<typeof mediaPyramid>>=[],detail:ReturnType<typeof mediaPyramid>;
+  const ready=Promise.all(items.map(item=>item.source.load(0))).then(levels=>{
+    images=levels;const original=levels[0]![0]!,width=right-left,height=bottom-top,data=new Uint8ClampedArray(width*height*4);
+    for(let y=0;y<height;y++)data.set(original.data.subarray(((top+y)*original.width+left)*4,((top+y)*original.width+right)*4),y*width*4);
+    detail=mediaPyramid({width,height,data});
+  });
+  // Deterministic pixel-space drop shadow, composited before each real image.
+  const shadow=(rect:Box,opacity:number)=>{
+    const data=surface.pixels.data,dx=Math.max(2,Math.round(bounds.width*.008)),dy=Math.max(3,Math.round(bounds.height*.012));
+    const x0=Math.max(0,Math.floor(bounds.x),Math.floor(rect.x+dx)),y0=Math.max(0,Math.floor(bounds.y),Math.floor(rect.y+dy));
+    const x1=Math.min(ctx.target.width,Math.ceil(bounds.x+bounds.width),Math.ceil(rect.x+rect.width+dx));
+    const y1=Math.min(ctx.target.height,Math.ceil(bounds.y+bounds.height),Math.ceil(rect.y+rect.height+dy));
+    for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){
+      const i=(y*ctx.target.width+x)*4,remaining=data[i+3]!/255*(1-opacity),alpha=opacity+remaining;
+      for(let channel=0;channel<3;channel++)data[i+channel]=data[i+channel]!*remaining/alpha;
+      data[i+3]=alpha*255;
+    }
   };
-  return {ready:Promise.all(items.map(item=>item.ready)).then(()=>{}),render(time){
-    const frame=time*30;paint.clearRect(0,0,canvas.width,canvas.height);
-    paint.save();paint.beginPath();paint.rect(bounds.x,bounds.y,bounds.width,bounds.height);paint.clip();
+  const draw=(levels:ReturnType<typeof mediaPyramid>,rect:Box,opacity:number)=>{
+    shadow(rect,opacity);paintProjectedMedia(surface.pixels,levels,rect,stage,0,0,0,1,{clip:bounds,radius:0});
+  };
+  return {ready,render(time){
+    const frame=time*30;surface.pixels.data.fill(0);
     for(const [index,item]of items.entries()){
       if(!relayVisible(frame,index,items.length,beat))continue;
       const x=relayPageOffset(frame,index,items.length,beat,bounds.width*1.2);
       if(index===0){
-        const pose=componentPose(frame,beat,item.box,roi,bounds),page={...pose.page,x:pose.page.x+x},component={...pose.component,x:pose.component.x+x};
-        draw(item.image,page,true);
-        if(pose.lift>0){paint.save();paint.shadowColor='rgba(0,0,0,.25)';paint.shadowBlur=pose.lift*Math.min(bounds.width,bounds.height)*.04;
-          paint.shadowOffsetY=pose.lift*bounds.height*.014;
-          paint.drawImage(item.image,roi.x*item.asset.width,roi.y*item.asset.height,roi.width*item.asset.width,roi.height*item.asset.height,
-            component.x,component.y,component.width,component.height);paint.restore();}
-      }else draw(item.image,{...item.box,x:item.box.x+x},true);
+        const pose=componentPose(frame,beat,item.box,exactRoi,bounds),page={...pose.page,x:pose.page.x+x},component={...pose.component,x:pose.component.x+x};
+        draw(images[index]!,page,.12);
+        if(pose.lift>0)draw(detail,component,.22*pose.lift);
+      }else draw(images[index]!,{...item.box,x:item.box.x+x},.12);
     }
-    paint.restore();
+    surface.write();
   },events,regions:[region('journey',safe,ctx.root)]};
 }});
 

@@ -78,12 +78,14 @@ journeyBeats.scenes=[{id:'journey',kind:'block',block:'ui-journey@1',start:0,end
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))
   pages.set('/journey-beats-'+aspect+'.html',generateFilmPage(JSON.stringify(journeyBeats),pageOptions(aspect,layout)));
 const componentRelay=filmFixture();
+componentRelay.assets.dashboard.resourceId='res_fixture_journey';
 componentRelay.assets.dashboard.roi=[{x:.18,y:.18,width:.45,height:.34}];
 componentRelay.assets.mark={resourceId:'res_fixture_mark'};
 componentRelay.scenes=[{id:'component',kind:'block',block:'component-relay@1',start:0,end:450,
   params:{textSlot:'product',focus:'roi:0',beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'mark'}]},purpose:'Lift a real detail and relay between pages.'}];
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   const options=pageOptions(aspect,layout);
+  options.resources[0]={...options.resources[0],resourceId:'res_fixture_journey',width:2200,height:1400};
   options.resources.push({resourceId:'res_fixture_mark',kind:'image',width:168,height:168,licenseRef:'fixture-original-mark',rightsCleared:true});
   pages.set('/component-relay-'+aspect+'.html',generateFilmPage(JSON.stringify(componentRelay),options));
 }
