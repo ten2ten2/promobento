@@ -280,6 +280,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
 test('A-C/E/F replay both SSE adapters, three real-protocol still requests and user wait exclusion',async()=>{
  for(const nativeProtocol of [false,true]){
  const r=await fixture({nativeProtocol});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.equal(r.result.publicUseCleared,false);assert.equal(r.result.ownerNormalSpeedReview,'pending');
+ assert.match(r.specInputs[0].task,/use trusted blocks/);assert.doesNotMatch(r.specInputs[0].task,/no custom scenes/i);
  assert.deepEqual(r.models,['facts','assets','directions','spec','review','coldReview']);assert.equal(r.reservations,6);assert.equal(r.settlements,6);
  assert.equal(r.choiceCount,1);assert.equal(r.studioCount,5);assert.equal(r.closedCount,5);assert.equal(r.activeStudio,null);assert.equal(r.renders.length,3);
  }
@@ -326,6 +327,7 @@ test('authored directions permit custom shots and review can replace a fixed blo
  assert.equal(r.renders.length,4);assert.equal(r.result.sceneModules.length,1);assert.equal(r.activeStudio,null);
  const legacy=await fixture({methodWithoutCustom:true,frozenMethodVersion:'1.8.0'});assert.ifError(legacy.error);
  assert.match(legacy.specInputs[0].task,/choose blocks or sandboxed custom scenes/);assert.equal(legacy.reviewRequests[0].customSceneRepair,undefined);
+ assert.doesNotMatch(legacy.directionInputs[0].task,/no custom scenes/i);
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){
