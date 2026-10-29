@@ -18,6 +18,8 @@
 
 新操作的动作请求与上一未知请求具有相同 requestHash：复用旧规格和布局导致同一请求内容以新 callId 重复派发，违反了负责人此前不重发原请求的要求。当时账本只阻止同 callId 重发；后续源码新增同范围原子防重发与限定 502 备用路由，部署情况见[实施状态](../../implementation-status.md)。两次各 **132,415 usd_micros** 均保持未知预留，须凭两次时间和账户记录向供应商分别核对。新轮未新增已结模型费用，计算保守上界 **4,834 usd_micros**；物理计算已停止／结算、容量为空、临时密钥已回收。私有回执和原始 SSE 留在本机 `artifacts/s1-duolingo-authored-retry-2026-10-30/` 与 staging 私有 R2。
 
+`84b1faa539c34d5648d1e659c7f9f8f46d70a3d0` 的[自动检查](https://github.com/ten2ten2/promobento/actions/runs/40926693641)和 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40929361435)通过；离线模拟覆盖 502 切换、未知预留、恢复及跨操作并发防重发。部署只读健康、容量与预算，没有发起模型或渲染；真实 502 切换与成片质量仍未验证。
+
 ## 方法 1.8.0：按反馈重新自动编排
 
 负责人指出鱼卡与后续练习没有关系。基于前一自动规格的**手动修订**将鱼卡先返回翻译页，再交接不同练习；本机播放器 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`。这不是自动发现或自动改稿。
