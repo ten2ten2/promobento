@@ -22,3 +22,11 @@ export function materialApproval(card,asset){
  }
  return{source,original:null,...(explicit?{explicit}: {})};
 }
+
+/** A local approval binds the selected path, its declared source and the actual bytes. */
+export function assertLocalMaterialIdentity(approval,asset,sha256){
+ if(approval.source.kind!=='local_project_media')return;
+ if(!approval.explicit||asset.derivation?.kind!=='approved_local_project_file'
+  ||approval.explicit.sourceFile!==asset.derivation.sourceFile||approval.explicit.sourceUrl!==asset.sourceUrl
+  ||!/^[a-f0-9]{64}$/.test(approval.explicit.sha256??'')||sha256!==approval.explicit.sha256)throw Error('LOCAL_MATERIAL_IDENTITY_MISMATCH');
+}

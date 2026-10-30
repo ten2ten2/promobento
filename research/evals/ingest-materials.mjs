@@ -5,7 +5,7 @@ import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {materialApproval} from './material-approval.mjs';
+import {materialApproval,assertLocalMaterialIdentity} from './material-approval.mjs';
 
 const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
 if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
@@ -27,7 +27,8 @@ const prepared=selected.assets.map(asset=>{
  }
  const bytes=readFileSync(join(directory,asset.file));if(bytes.length>8<<20||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'
   ||bytes.readUInt32BE(16)!==asset.width||bytes.readUInt32BE(20)!==asset.height)throw Error('MATERIAL_IDENTITY_INVALID');
- return{asset,bytes,sha256:sha256Bytes(bytes),original:approval.original,explicit:approval.explicit,originalSource};
+ const sha256=sha256Bytes(bytes);assertLocalMaterialIdentity(approval,asset,sha256);
+ return{asset,bytes,sha256,original:approval.original,explicit:approval.explicit,originalSource};
 });
 const env={...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-material-ingest.log'},args=['--filter','@promobento/cloud','exec','wrangler'];
 const wrangler=(command,options={})=>execFileSync('pnpm',[...args,...command],{env,encoding:'utf8',timeout:60000,...options});
