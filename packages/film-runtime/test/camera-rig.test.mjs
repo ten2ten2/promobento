@@ -27,5 +27,7 @@ test('original camera rig samples contiguous shots in absolute time and tracks a
   assert.ok(Object.isFrozen(cameraRig.eases));
   assert.throws(()=>cameraRig.track({}, {position:[0,0,0],forward:[0,1,0]}),/horizontal direction/);
   assert.throws(()=>cameraRig.create([{...rig.shots()[0],start:1}]),/contiguous/);
+  const invalidEase=rig.shots();invalidEase[0].keys[1].ease='constructor';
+  assert.throws(()=>cameraRig.create(invalidEase),/Unknown camera ease/);
   assert.throws(()=>rig.sample(NaN),/finite/);
 });

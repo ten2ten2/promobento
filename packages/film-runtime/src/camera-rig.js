@@ -1,5 +1,5 @@
 // huashu-motion@52467f99c602b76ba86d511d37acdfe93fa1e16e, Copyright (c) 2026 Huashu, MIT (LICENSE.huashu).
-// Module export and internal copies adapted; camera sampling and tracking are upstream.
+// Module export and internal copies adapted; the easing name must be an own catalog entry.
 /* Huashu Motion camera rig. Absolute-time sampling, no renderer dependency. MIT. */
 export default (function(){
  'use strict';
@@ -10,7 +10,7 @@ export default (function(){
   if(!Array.isArray(shots)||!shots.length)throw new Error('Camera rig requires shots');
   const source=structuredClone(shots);let previousEnd=0;const ids=new Set();
   source.forEach((s,i)=>{if(!finite(s.start)||!finite(s.end)||s.start!==previousEnd||s.end<=s.start)throw new Error('Camera shots must be contiguous, increasing, and start at zero');previousEnd=s.end;if(typeof s.id!=='string'||!s.id.trim()||ids.has(s.id)||!Array.isArray(s.keys)||s.keys.length<1)throw new Error('Camera shot needs a unique non-empty string id and pose keys');ids.add(s.id);let last=-1;
-   s.keys.forEach((k,j)=>{if(!finite(k.at)||k.at<0||k.at>s.end-s.start+1e-9||k.at<=last||(j===0&&k.at!==0))throw new Error('Camera key times must increase from zero inside each shot');last=k.at;for(const name of ['position','target'])if(!Array.isArray(k[name])||k[name].length!==3||!k[name].every(finite))throw new Error('Camera vectors require three finite values');if(!finite(k.fov)||k.fov<=1||k.fov>=150)throw new Error('Camera field of view is invalid');if(k.roll!==undefined&&!finite(k.roll))throw new Error('Camera roll is invalid');if(k.ease&&!ease[k.ease])throw new Error('Unknown camera ease');});
+   s.keys.forEach((k,j)=>{if(!finite(k.at)||k.at<0||k.at>s.end-s.start+1e-9||k.at<=last||(j===0&&k.at!==0))throw new Error('Camera key times must increase from zero inside each shot');last=k.at;for(const name of ['position','target'])if(!Array.isArray(k[name])||k[name].length!==3||!k[name].every(finite))throw new Error('Camera vectors require three finite values');if(!finite(k.fov)||k.fov<=1||k.fov>=150)throw new Error('Camera field of view is invalid');if(k.roll!==undefined&&!finite(k.roll))throw new Error('Camera roll is invalid');if(k.ease&&!Object.hasOwn(ease,k.ease))throw new Error('Unknown camera ease');});
   });
   function sample(time){if(!finite(time))throw new Error('Camera time must be finite');const t=Math.max(0,Math.min(time,previousEnd));const shot=source.find(s=>t<s.end)||source[source.length-1],local=t-shot.start;let a=shot.keys[0],b=a;for(let i=1;i<shot.keys.length;i++){b=shot.keys[i];if(local<=b.at)break;a=b;}const progress=b.at===a.at?0:Math.abs(local-b.at)<1e-9?1:clamp((local-a.at)/(b.at-a.at)),u=ease[b.ease||'linear'](progress),mix=(x,y)=>x+(y-x)*u;return{time:t,shot:shot.id,local,progress,position:a.position.map((n,i)=>mix(n,b.position[i])),target:a.target.map((n,i)=>mix(n,b.target[i])),fov:mix(a.fov,b.fov),roll:mix(a.roll||0,b.roll||0)};}
   return Object.freeze({duration:previousEnd,sample,shots:()=>structuredClone(source)});

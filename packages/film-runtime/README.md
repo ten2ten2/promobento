@@ -53,7 +53,7 @@ const rig = ctx.OM.cameraRig.create([{id:'reveal', start:0, end:4, keys:[
 ctx.OM.clock(timeline, t => camera.set({...rig.sample(t)}), 4);
 ```
 
-该算法来自 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e` 的 `runtime/camera-rig.js`，MIT；只改为模块导出、场景 API 和内部副本，不包含上游示例角色或素材。
+该算法来自 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e` 的 `runtime/camera-rig.js`，MIT；改为模块导出、场景 API 和内部副本，并只接受目录中实际定义的缓动名称；不包含上游示例角色或素材。
 
 可信宿主以PageOptions.customSources提供原始路径→字节；每份≤64KiB、合计≤512KiB，只接FilmSpec列明路径，每镜头声明的首尾／事件／阅读去重最多24帧。Acorn只静态解析；动态构造器在源码前封闭，宿主用直接CDP桥。源码／Q0／完整身份核对后才启动浏览器，源文件只在任务本地同源路径提供。
 

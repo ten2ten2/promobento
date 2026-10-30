@@ -148,7 +148,7 @@ try{
   }
   const clipShapes=await open('landscape',"ctx.CLIP.TY.marker(drawing,20,20,100,30,.5,'#ffffff')");
   try{await clipShapes.frame(36,{format:'png'});report.clipShapes='available';}finally{await clipShapes.close();}
-  const rigFilm=filmFixture(),rigOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  const rigFilm=filmFixture(),rigOptions=pageOptions('portrait',rules.aspectLayouts.portrait);
   rigFilm.assets={};rigFilm.scenes=[{id:'rig',kind:'custom',module:'scenes/rig/index.js',start:0,end:450,
    purpose:'Absolute-time camera path.',brief:'Move a real staged shape with the upstream camera rig.',
    params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:450}]}}];
@@ -156,16 +156,17 @@ try{
   rigOptions.customSources={'scenes/rig/index.js':`PB.scene('rig',ctx=>{
    const world=document.createElement('div'),panel=document.createElement('div');ctx.root.append(world);world.append(panel);
    Object.assign(panel.style,{position:'absolute',left:'35%',top:'35%',width:'30%',height:'30%',background:'rgb(255,0,0)'});
-   const camera=ctx.OM.space(world),rig=ctx.OM.cameraRig.create([{id:'reveal',start:0,end:15,keys:[
-    {at:0,position:[960,540,1800],target:[960,540,0],fov:35},
-    {at:4,position:[1400,540,1800],target:[960,540,0],fov:35,ease:'linear'}]}]);
+   const W=ctx.target.width,H=ctx.target.height,camera=ctx.OM.space(world),rig=ctx.OM.cameraRig.create([{id:'reveal',start:0,end:15,keys:[
+    {at:0,position:[W/2,H/2,H*5/3],target:[W/2,H/2,0],fov:35},
+    {at:4,position:[W/2+W*11/48,H/2,H*5/3],target:[W/2,H/2,0],fov:35,ease:'linear'}]}]);
    const timeline=gsap.timeline({paused:true});ctx.OM.clock(timeline,t=>camera.set({...rig.sample(t)}),15);return {timeline};});`};
   const rig=await filmSession({raw:JSON.stringify(rigFilm),options:rigOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
   try{
    const first=await rig.frame(30,{format:'png'}),later=await rig.frame(90,{format:'png'}),reverse=await rig.frame(30,{format:'png'});
    assert.notDeepEqual(first,later,'original rig moves the spatial camera');
    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
-   report.originalCameraRig='absolute_time_motion_and_reverse_seek';
+   writeFileSync(`${output}/camera-rig-portrait-30.png`,first);writeFileSync(`${output}/camera-rig-portrait-90.png`,later);
+   report.originalCameraRig='portrait_absolute_time_motion_and_reverse_seek';
   }finally{await rig.close();}
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
