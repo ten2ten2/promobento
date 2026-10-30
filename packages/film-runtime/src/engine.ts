@@ -142,7 +142,7 @@ const engine: FilmEngine = {
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
-        OM: window.__pbCreateOM({root, target: window.__omTarget}, helperRegions), CLIP: window.CLIP,
+        OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene'}, helperRegions), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
           const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
@@ -173,11 +173,17 @@ const engine: FilmEngine = {
       };
       let instance:BlockInstance;
       if(scene.kind==='custom'){
-        const declared=customScenePlan(scene),built=factory!(ctx);
-        if(!built?.timeline||!['pause','seek','duration'].every(key=>typeof (built.timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
+        const declared=customScenePlan(scene);
+        let built:CustomScene|undefined,gsapScope:{kill():void}|undefined;
+        // Opt in for original compositions that address their own elements by selector.
+        // Older custom scenes keep their original document-wide GSAP semantics.
+        if(scene.params?.gsapScope==='scene')gsapScope=window.gsap.context(()=>{built=factory!(ctx);},root);
+        else built=factory!(ctx);
+        const timeline=built?.timeline;
+        if(!built||!timeline||!['pause','seek','duration'].every(key=>typeof (timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
         if(Math.abs(built.timeline.duration()-(scene.end-scene.start)/30)>1/30)throw Error('CUSTOM_TIMELINE_DURATION');
         if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
-        instance={timeline:built.timeline,events:declared.events,regions:built.regions??[]};
+        instance={timeline:built.timeline,events:declared.events,regions:built.regions??[],...(gsapScope?{dispose:()=>gsapScope.kill()}:{})};
       }else instance=definition!.build(ctx,scene.params);
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');

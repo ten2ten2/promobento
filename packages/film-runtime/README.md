@@ -37,6 +37,8 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 `OM.camera` 和 `OM.space` 的字符串选择器先查当前镜头，再沿用文档范围回退；多个镜头复用原版模板的同名 ID 时，各自镜头优先。显式元素引用不变。连续 `OM.space.to` 只替换该镜头的相机驱动 tween，不终止作者时间线或保留重复驱动。
 
+原版场景若使用 `gsap.set('#id', ...)` 或时间线中的选择器，在该自写镜头的 `params` 中设置 `gsapScope: 'scene'`，注册镜头时的 GSAP 字符串选择器和 OM 相机选择器就只查当前镜头；销毁镜头时释放对应 GSAP context。省略时保留上面的旧用法。该选项不改变源码、素材、文字或渲染隔离的准入要求，也不执行原版 HTML。
+
 params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。导演方法1.6可用 `assetChecks` 声明需要验证的DOM图片和帧，检查范围与限制见[导演说明](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)；旧源码和Canvas用法不增加该前置。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。
 
 可信宿主以PageOptions.customSources提供原始路径→字节；每份≤64KiB、合计≤512KiB，只接FilmSpec列明路径，每镜头声明的首尾／事件／阅读去重最多24帧。Acorn只静态解析；动态构造器在源码前封闭，宿主用直接CDP桥。源码／Q0／完整身份核对后才启动浏览器，源文件只在任务本地同源路径提供。

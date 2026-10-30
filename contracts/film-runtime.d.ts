@@ -50,6 +50,7 @@ export type FilmScene = {
   transitionIn?: { type: 'cut' | 'crossfade' | 'fade-through' | 'push' | 'whip' | 'wipe' | 'zoom-through' | 'match-handoff'; frames: number };
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
+  /** params.gsapScope='scene' opts into scene-local GSAP and OM selectors at build time. */
   | { kind: 'custom'; module: string; brief: string; params?: Record<string, unknown> }
 );
 

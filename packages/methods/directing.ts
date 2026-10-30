@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.19.0',
+  id: 'product-directing', version: '1.20.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -38,12 +38,14 @@ export const directingMethodPack = {
       'For component-relay, copy an observed first-image region exactly into that asset roi and select componentBehavior explicitly. Use return-to-source for a detail belonging to that page, so it returns before other examples appear. Use carry only when the same identifiable detail is observed with the same region label on every later image and has a meaningful connection to each, not merely to maintain motion. Different exercises, languages or screenshots do not by themselves establish one continuous lesson. Image observations and matching labels are model observations, not independent proof; inspect the rendered result.',
       'Shorten generic copy before shrinking product evidence. Do not replace a missing visual idea with extra captions, numbered navigation, decorative ROI boxes or empty panels. If the catalog cannot express the chosen mechanism, specify a custom scene brief and its concrete actions; do not invent block parameters.',
       'For a custom scene, describe how the real subject is framed, moves, hands off to the next view and lands for reading in each target aspect. Treat changes of scale, layering, camera and timing as choices that serve the product, not decoration. Keep separate examples separate; use only observed geometry, not simulated product actions.',
+      'For an adapted original template whose GSAP uses string selectors, set the custom scene params.gsapScope to "scene": those selectors and OM camera selectors then resolve only in that scene while it is built. Omit it for existing scenes whose document-wide selector behavior must stay unchanged.',
       'When an exercise or workflow is the proof, keep the prompt, the relevant controls and the result or choices together in the readable landing, using the supplied image observations. A detail crop may lead into that landing but must not replace the context needed to understand it.',
       'Use only geometry actually supplied by verified asset observations. If a particular product control cannot be located from that evidence, choose a visual handoff that does not require its coordinates; never ask D to guess or silently leave that shot incomplete. For a CTA transition, use a cut or fade-through so outgoing copy clears before the CTA appears.'
     ],
     scenes: [
       'Build the hardest product-specific shot first using the actual material and fonts. Establish start/end composition, identity anchors, content actions versus camera actions, landing frames and reading windows before filling the rest. Each reading hold declares exactly which of the scene text slots must be visible there; an intentionally text-free hold declares an empty list.',
       'Use one paused GSAP timeline or ctx.OM.clock with a pure draw(t). Work in the scene root with relative target dimensions. Text comes only from ctx.text slots; images come only from ctx.asset. DOM, SVG shapes and Canvas2D are supported; imports, custom WebGL, network, timers, dynamic evaluation and raw text drawing are not.',
+      'When this scene declares params.gsapScope="scene", GSAP string selectors used while building it and OM camera string selectors refer to this scene, allowing template IDs to be reused across scenes. Otherwise preserve the existing document-wide GSAP behavior. Use actual element references inside draw(t), which runs later.',
       'ctx.text(slot).mount(parent, options) returns the actual text element with its own inline ink color. A color set only on the parent does not override it. If a contrasting surface needs a different text color, set the returned element’s style.color, and check the real rendered contrast in each reading hold.',
       'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.',
       'Give objects that move together one shared geometry and state. Derive a pointer destination from its target and carry the same object through contact, movement and result when the brief calls for it. Keep independent captions and sound separate; do not expose incidental geometry as controls.',

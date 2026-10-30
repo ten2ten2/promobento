@@ -97,6 +97,26 @@ try{
    }
    report.sceneLocalCamera='duplicate_world_ids_isolated';
   }finally{await multi.close();}
+  const scopedFilm=filmFixture(),scopedOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  scopedFilm.assets={};scopedFilm.scenes=['first','second'].map((id,index)=>({id,kind:'custom',module:`scenes/${id}/index.js`,
+   start:index*225,end:(index+1)*225,purpose:'Scene-local GSAP selector fixture.',brief:'Two worlds with the same template ID.',
+   params:{gsapScope:'scene',textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:225}]}}));
+  scopedOptions.resources=[];scopedOptions.fonts=multiOptions.fonts;
+  scopedOptions.customSources=Object.fromEntries(['first','second'].map((id,index)=>[`scenes/${id}/index.js`,`PB.scene('${id}',ctx=>{
+   const panel=document.createElement('div');panel.id='same';Object.assign(panel.style,{position:'absolute',left:'25%',top:'25%',width:'50%',height:'50%',background:'${index?'rgb(0,0,255)':'rgb(255,0,0)'}'});ctx.root.append(panel);
+   gsap.set('#same',{opacity:${index}});const timeline=gsap.timeline({paused:true});timeline.to('#same',{x:200,duration:1},0).to({}, {duration:7.5},0);return {timeline};});`]));
+  // The opt-in is new; an old film that omitted it retains document-wide selectors.
+  for(const [scope,expected] of [['scene',[16,23,18]],['legacy',[255,0,0]]]){
+   if(scope==='legacy')for(const scene of scopedFilm.scenes)delete scene.params.gsapScope;
+   const session=await filmSession({raw:JSON.stringify(scopedFilm),options:scopedOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    const png=await session.frame(30,{format:'png'}),{width,height,pixels}=pngPixels(png),at=(Math.floor(height*.5)*width+Math.floor(width*.5))*4;
+    assert.deepEqual([...pixels.subarray(at,at+3)],expected,`${scope} GSAP selector`);
+    const second=pngPixels(await session.frame(255,{format:'png'})),side=(Math.floor(second.height*.5)*second.width+Math.floor(second.width*.26))*4;
+    assert.deepEqual([...second.pixels.subarray(side,side+3)],scope==='scene'?[16,23,18]:[0,0,255],`${scope} GSAP timeline selector`);
+   }finally{await session.close();}
+  }
+  report.gsapSelectors='scene_opt_in_and_legacy_preserved';
   const spaceFilm=filmFixture(),spaceOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
   spaceFilm.assets={};spaceFilm.scenes=[{id:'world',kind:'custom',module:'scenes/world/index.js',start:0,end:450,
    purpose:'Multiple original spatial camera moves.',brief:'Exercise the timeline and its unrelated tween.',

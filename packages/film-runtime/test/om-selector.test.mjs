@@ -49,6 +49,9 @@ test('OM cameras prefer the scene with duplicate template IDs and preserve docum
     assert.equal(space.pose(1.5).yaw, 0);
     om.camera('#legacy');
     assert.match(remote.style.transform, /^translate\(/);
+    const scoped = createOM({root, target: {width: 1000, height: 500}, sceneScoped: true}, []);
+    assert.throws(() => scoped.camera('#legacy'), /OM\.camera — no element/);
+    assert.throws(() => scoped.space('#legacy'), /OM\.space — no element/);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;

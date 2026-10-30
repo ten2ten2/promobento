@@ -4,7 +4,7 @@ export function createOM(ctx, regions) {
   const OM = {};
   // Original compositions have one document; a PromoBento page can hold several scenes
   // with the same template IDs. Prefer this scene, retaining the legacy document fallback.
-  const inScene = (selector) => ctx.root.querySelector(selector) || document.querySelector(selector);
+  const inScene = (selector) => ctx.root.querySelector(selector) || (ctx.sceneScoped ? null : document.querySelector(selector));
   OM.region = (id, box) => { regions.push({regionId:id,boxAt:frame=>{const b=box(frame/30);return b?{x:b[0],y:b[1],width:b[2],height:b[3]}:null;}});return OM; };
   OM.beat = (n,bpm) => {if(!(bpm>0))throw Error('BPM_REQUIRED');return n*60/bpm;};
   // Canvas / WebGL engines that draw a whole frame from a time value plug into the film's
