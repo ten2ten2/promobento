@@ -121,7 +121,7 @@ mise exec -- node research/evals/run-case.mjs \
   --check-authored-frames artifacts/s1-authored-snapshot
 ```
 
-使用新固定 renderer release 和同一素材／事实／seed，逐操作重新登记权利，通过现有 studio 在横竖画幅检查事件、素材声明、阅读点、逆序和冷 seek，并保存实际 PNG 与 `authored-frame-check.json`；不调用模型或编码影片。遇到未知、遮挡、隐藏、阅读 BLOCK 或 seek 不一致即停止，仍保留已经拍到的帧。成功只说明这些帧检查通过，不等于整片、E/F 或画质验收。其他任务未停止、计算未结算或临时密钥存在时仍拒绝新操作。
+使用新固定 renderer release 和同一素材／事实／seed，逐操作重新登记权利，通过现有 studio 在横竖画幅检查事件、素材声明、阅读点、逆序和冷 seek，并保存实际 PNG 与 `authored-frame-check.json`；不调用模型或编码影片。若失败回执来自仅完成一段镜头的早期 probe，必须同时保存回执中绑定的其他占位模块；工具只检查该镜头不与其他场景重叠的帧，并标记为部分镜头检查。遇到未知、遮挡、隐藏、阅读 BLOCK 或 seek 不一致即停止，仍保留已经拍到的帧。成功只说明这些帧检查通过，不等于整片、E/F 或画质验收。其他任务未停止、计算未结算或临时密钥存在时仍拒绝新操作。
 
 ### 只复验实际卡片的标题/副标题碰撞
 

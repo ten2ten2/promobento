@@ -21,22 +21,27 @@ export function readAuthoredSnapshot(directory){
   sources[scene.module]=readFileSync(join(root,scene.module),'utf8');
  }
  if(!Object.keys(sources).length||!receipt.quote||failure.kind!=='custom_scene_check_failure'||filmSourceHash(canonical(film),sources)!==failure.sourceHash)throw Error('AUTHORED_SNAPSHOT_IDENTITY_MISMATCH');
- return{film,sources,failure,receipt};
+ const partialSceneId=typeof failure.sceneId==='string'&&film.scenes.some(scene=>scene.kind==='custom'&&scene.id===failure.sceneId)
+  &&Array.isArray(failure.modules)&&failure.modules.length===Object.keys(sources).length
+  &&failure.modules.every(module=>Object.hasOwn(sources,module.name)&&module.key?.includes(`/custom-probe/${failure.sceneId}/${failure.sourceHash}/`))?failure.sceneId:null;
+ return{film,sources,failure,receipt,partialSceneId};
 }
 
 export async function probeAuthoredFrames({snapshot,context,operationId,prefix,output,json,call}){
- const{film,sources,failure,receipt}=snapshot;if(film.durationSeconds!==context.durationSeconds)throw Error('AUTHORED_SNAPSHOT_DURATION_MISMATCH');
+ const{film,sources,failure,receipt,partialSceneId}=snapshot;if(film.durationSeconds!==context.durationSeconds)throw Error('AUTHORED_SNAPSHOT_DURATION_MISMATCH');
  const source=await json('objects/'+prefix+'/authored-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
  const modules=[];for(const[path,text]of Object.entries(sources))modules.push({...await json('objects/'+prefix+'/'+path,{method:'PUT',body:new TextEncoder().encode(text),mediaType:'text/javascript'}),name:path});
  const resources=context.resources.map(asset=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind}));
- const report={scope:'same_original_authored_source_in_staging_studio_no_models',sourceHash:failure.sourceHash,sourceCallId:receipt.callId,status:'running',aspects:[]};
+ const report={scope:partialSceneId?'same_original_partial_scene_probe_with_placeholders_no_models':'same_original_authored_source_in_staging_studio_no_models',sourceHash:failure.sourceHash,sourceCallId:receipt.callId,...(partialSceneId?{partialSceneId}:{}),status:'running',aspects:[]};
  const save=()=>writeFileSync(join(output,'authored-frame-check.json'),canonical(report)+'\n');save();
  try{
-  for(const aspect of context.aspects)for(const scene of film.scenes.filter(scene=>scene.kind==='custom')){
+  for(const aspect of context.aspects)for(const scene of film.scenes.filter(scene=>scene.kind==='custom'&&(!partialSceneId||scene.id===partialSceneId))){
    const p=customScenePlan(scene,{validateVisibleTextSlots:true,validateAssetChecks:true});
    const reading=p.readingHolds.map(hold=>scene.start+Math.floor((hold.start+hold.end-1)/2));
    const assetFrames=(p.assetChecks??[]).map(check=>scene.start+check.frame);
-   const frames=[...new Set([scene.start,scene.end-1,...reading,...assetFrames,...p.events.map(event=>scene.start+event.frame)])].sort((a,b)=>a-b);
+   const eligible=frame=>!partialSceneId||film.scenes.filter(item=>item.start<=frame&&frame<item.end).length===1;
+   const frames=[...new Set([scene.start,scene.end-1,...reading,...assetFrames,...p.events.map(event=>scene.start+event.frame)])].filter(eligible).sort((a,b)=>a-b);
+   if(!frames.length)throw Error('CUSTOM_PROBE_NO_UNSHARED_FRAMES');
    const layout=platform.aspectLayouts[aspect],taskId='authored-'+digest({operationId,sceneId:scene.id,aspect,sourceHash:failure.sourceHash}).slice(0,48);
    const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:'standard-3',taskId,
     job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId,candidateId:taskId,sourceHash:failure.sourceHash,
@@ -66,7 +71,7 @@ export async function probeAuthoredFrames({snapshot,context,operationId,prefix,o
     }
     await call(`operations/${operationId}/studio/close`,{method:'POST'});active=false;
     active=true;await json('studio',{method:'POST',body:{...task,taskId:taskId+'-cold'}});
-    const frame=reading.length?reading[Math.floor(reading.length/2)]:frames[Math.floor(frames.length/2)];
+    const eligibleReading=reading.filter(eligible),frame=eligibleReading.length?eligibleReading[Math.floor(eligibleReading.length/2)]:frames[Math.floor(frames.length/2)];
     const actual=new Uint8Array(await(await call(`operations/${operationId}/frames/${frame}`)).arrayBuffer()),comparison=compareSeam(baseline.get(frame),actual);
     evidence.comparisons.push({frame,mode:'cold',...comparison});if(comparison.verdict==='RENDER_SEAM_BLOCK')throw Error('CUSTOM_SEEK_MISMATCH');
    }catch(error){primaryFailure=error;throw error;}

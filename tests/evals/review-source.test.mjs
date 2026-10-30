@@ -45,6 +45,12 @@ test('authored frame recheck binds the original source, checks both aspects and 
   const report=await probeAuthoredFrames(args);assert.equal(report.status,'passed');assert.deepEqual(report.aspects.map(a=>a.aspect),['landscape','portrait']);assert.ok(report.aspects.every(a=>a.comparisons.some(c=>c.mode==='cold')));assert.equal(closed,4);
   unverified=true;await assert.rejects(probeAuthoredFrames(args),/CUSTOM_REQUIRED_ASSET_NOT_VISIBLE/);assert.equal(closed,5);
   assert.equal(parseCanonicalJson(readFileSync(join(output,'authored-frame-check.json'))).status,'failed');
+  failure.sceneId='product';failure.modules=[{name:path,key:`operations/fixture/custom-probe/product/${hash}/${path}`}];writeFileSync(join(root,'failure.json'),canonical(failure));
+  const partial=readAuthoredSnapshot(root);assert.equal(partial.partialSceneId,'product');
+  partial.film.scenes.push({id:'overlap',kind:'block',start:440,end:450});unverified=false;
+  const partialReport=await probeAuthoredFrames({...args,snapshot:partial});
+  assert.equal(partialReport.scope,'same_original_partial_scene_probe_with_placeholders_no_models');
+  assert.ok(partialReport.aspects.every(a=>a.sceneId==='product'&&!a.frames.includes(449)));
  }finally{rmSync(root,{recursive:true,force:true});rmSync(output,{recursive:true,force:true});}
 });
 
