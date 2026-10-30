@@ -117,6 +117,8 @@ export interface CameraRigHelpers {
   readonly eases: readonly CameraRigKey['ease'][];
 }
 export interface MotionHelpers {
+  /** Register asynchronous scene setup before the first frame; late registrations fail. */
+  ready<T>(promise: PromiseLike<T>): PromiseLike<T>;
   clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
   beat(n: number, bpm: number): number;
   random(seed: number): () => number;

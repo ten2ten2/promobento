@@ -154,20 +154,44 @@ try{
    params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:450}]}}];
   rigOptions.resources=[];rigOptions.fonts=multiOptions.fonts;
   rigOptions.customSources={'scenes/rig/index.js':`PB.scene('rig',ctx=>{
-   const world=document.createElement('div'),panel=document.createElement('div');ctx.root.append(world);world.append(panel);
+   const world=document.createElement('div'),back=document.createElement('div'),panel=document.createElement('div');ctx.root.append(world);world.append(back,panel);
+   Object.assign(back.style,{position:'absolute',left:'15%',top:'22%',width:'20%',height:'25%',background:'rgb(0,100,255)',transform:'translateZ(-300px)'});
    Object.assign(panel.style,{position:'absolute',left:'35%',top:'35%',width:'30%',height:'30%',background:'rgb(255,0,0)'});
    const W=ctx.target.width,H=ctx.target.height,camera=ctx.OM.space(world),rig=ctx.OM.cameraRig.create([{id:'reveal',start:0,end:15,keys:[
     {at:0,position:[W/2,H/2,H*5/3],target:[W/2,H/2,0],fov:35},
-    {at:4,position:[W/2+W*11/48,H/2,H*5/3],target:[W/2,H/2,0],fov:35,ease:'linear'}]}]);
+    {at:4,position:[W/2+W*2,H/2,H*5/6],target:[W/2,H/2,0],fov:35,ease:'linear'}]}]);
    const timeline=gsap.timeline({paused:true});ctx.OM.clock(timeline,t=>camera.set({...rig.sample(t)}),15);return {timeline};});`};
   const rig=await filmSession({raw:JSON.stringify(rigFilm),options:rigOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
   try{
    const first=await rig.frame(30,{format:'png'}),later=await rig.frame(90,{format:'png'}),reverse=await rig.frame(30,{format:'png'});
-   assert.notDeepEqual(first,later,'original rig moves the spatial camera');
+   assert.ok(compareSeam(first,later).diffPixelPct>2,'original rig visibly moves the spatial camera');
    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
    writeFileSync(`${output}/camera-rig-portrait-30.png`,first);writeFileSync(`${output}/camera-rig-portrait-90.png`,later);
    report.originalCameraRig='portrait_absolute_time_motion_and_reverse_seek';
   }finally{await rig.close();}
+  const readyFilm=filmFixture(),readyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  readyFilm.assets={};readyFilm.scenes=[{id:'ready',kind:'custom',module:'scenes/ready/index.js',start:0,end:450,
+   purpose:'Wait for scene setup.',brief:'A registered asynchronous change must appear in the first frame.',
+   params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:450}]}}];
+  readyOptions.resources=[];readyOptions.fonts=multiOptions.fonts;
+  readyOptions.customSources={'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   const panel=document.createElement('div');Object.assign(panel.style,{position:'absolute',inset:'0',background:'rgb(255,0,0)'});ctx.root.append(panel);
+   const first=Promise.resolve().then(()=>{let next=Promise.resolve();for(let i=0;i<25;i++)next=next.then(()=>{});
+    ctx.OM.ready(next.then(()=>{panel.style.background='rgb(0,0,255)';}));});ctx.OM.ready(first);
+   const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:15});return {timeline};});`};
+  const ready=await filmSession({raw:JSON.stringify(readyFilm),options:readyOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{
+   const {width,height,pixels}=pngPixels(await ready.frame(0,{format:'png'})),at=(Math.floor(height*.5)*width+Math.floor(width*.5))*4;
+   assert.deepEqual([...pixels.subarray(at,at+3)],[0,0,255],'nested ready completes before first frame');
+  }finally{await ready.close();}
+  const rejectedOptions={...readyOptions,customSources:{'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   ctx.OM.ready(Promise.reject(Error('READY_FIXTURE_FAILED')));const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:15});return {timeline};});`}};
+  let unexpected;
+  try{await assert.rejects(async()=>{unexpected=await filmSession({raw:JSON.stringify(readyFilm),options:rejectedOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});},/READY_FIXTURE_FAILED/);}
+  finally{await unexpected?.close();}
+  const late=await open('landscape','ctx.OM.ready(Promise.resolve())');
+  try{await assert.rejects(late.frame(36),/CUSTOM_READY_CLOSED/);}finally{await late.close().catch(()=>{});}
+  report.sceneReady='nested_setup_waited_rejection_and_late_registration_blocked';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

@@ -1,6 +1,6 @@
 # 导演方法来源
 
-方法 1.21 沿用 1.17 的上游导演资料及模板源码原文，并按阶段作为导演参考；可为改写原版模板的自写镜头选择镜头内 GSAP 和 OM 选择器，并使用移入的原版绝对时间相机轨道。具体作品仍遵守 PromoBento 的素材、事实与沙箱契约，不复制参考影片的图像、品牌、角色或产品主张。
+方法 1.22 沿用 1.17 的上游导演资料及模板源码原文，并按阶段作为导演参考；可为改写原版模板的自写镜头选择镜头内 GSAP 和 OM 选择器，使用移入的原版绝对时间相机轨道，并在首帧前等待已声明的异步准备。具体作品仍遵守 PromoBento 的素材、事实与沙箱契约，不复制参考影片的图像、品牌、角色或产品主张。
 
 - 固定基础参考：huashu-motion `4236053`。
 - 负责人指定的固定样片与流程参考：huashu-motion [`52467f99c602b76ba86d511d37acdfe93fa1e16e`](https://github.com/alchaincyf/huashu-motion/tree/52467f99c602b76ba86d511d37acdfe93fa1e16e) 的 README、`skills/huashu-motion/SKILL.md`、`references/director.md`、`references/product-demo-continuity.md`。1.17 的 [固定源码](huashu-motion/source.mjs) 保留原始 SKILL、40 篇参考资料与 11 个模板的 HTML 原文：方向阶段提供视觉语言库，规格、镜头和审片阶段提供相关原文；选中相应视觉语言时，镜头阶段还收到对应原始模板源码。模板只作模型参考，不作为可执行工程或现成素材；非对应语言不会加载模板。

@@ -26,12 +26,13 @@ export interface PrivateClock {
   begin(seed: string): void; seek(seconds: number): void; paint(timeoutMs: number): Promise<void>;
   wait<T>(work: Promise<T>, timeoutMs: number, code: string): Promise<T>;
 }
+export interface SceneReadiness {open: boolean; pending: Promise<unknown>[]}
 export interface FilmEngine extends RendererCompositionBridge { prepare(plan: PagePlan): Promise<void> }
 declare global {
   interface Window {
     PB: PB; __omEngine: FilmEngine; __omTarget: Target; __omReady: boolean; __omBootFailed?: string;
     __pbTakeClock?: () => PrivateClock;
-    __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[]) => SceneContext['OM'];
+    __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[], readiness: SceneReadiness) => SceneContext['OM'];
     CLIP: SceneContext['CLIP'];
     gsap: {timeline(options: {paused: boolean}): MotionTimeline;
       context(callback: () => void, scope: Element): {kill(): void}};

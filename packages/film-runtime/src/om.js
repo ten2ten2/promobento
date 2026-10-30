@@ -1,8 +1,15 @@
 // Adapted from huashu-motion@4236053, Copyright (c) 2026 Huashu, MIT (LICENSE.huashu).
 // Scoped to one scene; no legacy vars, parser, sound declarations, signature or page bootstrap.
 import cameraRig from './camera-rig.js';
-export function createOM(ctx, regions) {
+export function createOM(ctx, regions, readiness = {open:false, pending:[]}) {
   const OM = {cameraRig};
+  // Original OM.ready waits for asynchronous scene setup before the first frame.
+  // The host closes registration once the initial ready queue has settled.
+  OM.ready = (promise) => {
+    if (!readiness.open) throw Error('CUSTOM_READY_CLOSED');
+    readiness.pending.push(Promise.resolve(promise));
+    return promise;
+  };
   // Original compositions have one document; a PromoBento page can hold several scenes
   // with the same template IDs. Prefer this scene, retaining the legacy document fallback.
   const inScene = (selector) => ctx.root.querySelector(selector) || (ctx.sceneScoped ? null : document.querySelector(selector));

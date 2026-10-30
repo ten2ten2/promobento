@@ -139,10 +139,11 @@ const engine: FilmEngine = {
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
       const helperRegions: SceneRegion[] = [];
+      const readiness = {open:true, pending:[] as Promise<unknown>[]};
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
-        OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene'}, helperRegions), CLIP: window.CLIP,
+        OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene'}, helperRegions, readiness), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
           const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
@@ -187,6 +188,15 @@ const engine: FilmEngine = {
       }else instance=definition!.build(ctx,scene.params);
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');
+      if(instance.ready)readiness.pending.push(instance.ready);
+      if(readiness.pending.length){
+        instance={...instance,ready:(async()=>{
+          let index=0;
+          try{
+            while(index<readiness.pending.length){const batch=readiness.pending.slice(index);index+=batch.length;await Promise.all(batch);}
+          }finally{readiness.open=false;}
+        })()};
+      }else readiness.open=false;
       instance.timeline?.pause();
       instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...helperRegions, ...(textRegions.get(scene.id) ?? [])]}, random});
     }
