@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import {OperationWorkflow,directorActiveLimitMs} from '../src/director.ts';
-import {hasPriorVisibleAssets} from '../src/director-scenes.ts';
+import {hasPriorVisibleAssets,hasClearedQaBeforeSeek} from '../src/director-scenes.ts';
 import worker from '../src/index.ts';
 import {ShardDO} from '../src/compute.ts';
 import {AUDIO_INSTANCE} from '../src/render-task.ts';
@@ -25,7 +25,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en'}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -93,7 +93,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const assets=activeStudio.options.observeAssets&&!oldAssetObservation?[{sceneId:health?'health':customAssetWrongScene?'other':'product',resourceId:assetId,visibility:!health&&(customAssetUnverified||regressionAfterSeek&&frameRepairs>=1&&(persistentRegression||frameRepairs===1)||regressionAfterRevision&&trace.includes('revise-existing-scene'))?'unverified':!health&&customAssetMissing&&(!fixableFrameFailure||frameRepairs===0)?'hidden':'visible'}]:undefined;
     return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts,regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[],...(assets?{assets}:{})}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));const visits=(studioFrames.get(frame)??0)+1;studioFrames.set(frame,visits);
-    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='boundary'?frame===149&&activeStudio.taskId.endsWith('-cold-149'):customSeekFailure==='shard-sequential'?frame===209&&activeStudio.taskId.endsWith('-seq-209')&&studioFrames.has(208):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
+    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0||seekAfterQaRepair&&frameRepairs>=1&&(persistentDistinctSeek||frameRepairs===1))&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='boundary'?frame===149&&activeStudio.taskId.endsWith('-cold-149'):customSeekFailure==='shard-sequential'?frame===209&&activeStudio.taskId.endsWith('-seq-209')&&studioFrames.has(208):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
     return new Response(mismatch?pngRgba(1,1,Uint8Array.from([200,0,0,255])):png);},
    async closeStudio(){if(cleanupFailure||failCustomClose&&activeStudio?.taskId.startsWith('custom-'))throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
   };}},
@@ -173,7 +173,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    else{assert.equal(body.messages[1].content.filter((part:any)=>part.type==='image_url').length,1);assert.match(input.validationFeedback.frameImages,/contact sheet/);}
    if(repairTransportFailure)throw Error('MOCK_REPAIR_TRANSPORT_FAILURE');
    if(regressionAfterSeek&&frameRepairs===2)assert.match(input.repairGuidance,/verified visible at the same frame/);
-   value={toolCalls:[{id:'mock-frame-repair',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:regressionAfterSeek&&frameRepairs===2?'/* runtime repaired */':'/* tail authored */',newStr:unchangedFrameRepair?'/* tail authored */':regressionAfterSeek&&frameRepairs===2?'/* regression repaired */':'/* runtime repaired */'}}]};}
+   value={toolCalls:[{id:'mock-frame-repair',name:'edit_file',arguments:'',input:{command:'str_replace',path:'scenes/product/index.js',oldStr:(regressionAfterSeek||seekAfterQaRepair)&&frameRepairs===2?'/* runtime repaired */':'/* tail authored */',newStr:unchangedFrameRepair?'/* tail authored */':(regressionAfterSeek||seekAfterQaRepair)&&frameRepairs===2?'/* regression repaired */':'/* runtime repaired */'}}]};}
   else if(input.task.startsWith('Revise this existing custom')){stage='scenes';trace.push('revise-existing-scene');
    assert.equal(input.previousPlan.scene.brief,spec.scenes[1].brief);assert.equal(input.revisedPlan.scene.brief,fixed.scenes[1].brief);assert.match(input.currentSource,regressionAfterRevision?/runtime repaired/:/tail authored/);
    assert.match(input.sourceImages,textOnlyScenes?/No images are attached/:/Images follow resources/);
@@ -584,6 +584,18 @@ test('review shard history catches a seek mismatch missed by sparse checks and r
  assert.equal(modern.customFailures[0].phase,'shard-sequential');assert.equal(modern.customFailures[0].frame,209);
  assert.equal(modern.customFailures[0].comparisons.at(-1).mode,'shard-sequential');assert.equal(modern.activeStudio,null);
  const frozen=await fixture({customScene:true,customSeekFailure:'shard-sequential',frozenMethodVersion:'1.17.0'});assert.ifError(frozen.error);assert.equal(frozen.frameRepairs,0);
+});
+test('a cleared QA block permits one distinct seek repair and never an unbounded chain',async()=>{
+ const repaired=await fixture({customScene:true,customQaFailure:true,customSeekFailure:'reverse',fixableFrameFailure:true,seekAfterQaRepair:true});assert.ifError(repaired.error);
+ assert.equal(repaired.frameRepairs,2);assert.deepEqual(repaired.customFailures.map((f:any)=>f.code),['CUSTOM_QA_BLOCK','CUSTOM_SEEK_MISMATCH']);assert.equal(repaired.activeStudio,null);
+ const persistent=await fixture({customScene:true,customQaFailure:true,customSeekFailure:'reverse',fixableFrameFailure:true,seekAfterQaRepair:true,persistentDistinctSeek:true});
+ assert.equal(persistent.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(persistent.frameRepairs,2);assert.equal(persistent.renders.length,0);
+ const frozen=await fixture({customScene:true,customQaFailure:true,customSeekFailure:'reverse',fixableFrameFailure:true,seekAfterQaRepair:true,frozenMethodVersion:'1.18.0'});
+ assert.equal(frozen.error.message,'CUSTOM_SEEK_MISMATCH');assert.equal(frozen.frameRepairs,1);
+ const prev={code:'CUSTOM_QA_BLOCK',aspect:'portrait',sceneId:'scene',frame:111,observations:[{frame:111,findings:[{severity:'BLOCK'}]}]};
+ const next={code:'CUSTOM_SEEK_MISMATCH',aspect:'portrait',sceneId:'scene',frame:209,observations:[{frame:111,findings:[]}]};
+ assert.equal(hasClearedQaBeforeSeek(prev,next),true);assert.equal(hasClearedQaBeforeSeek(prev,{...next,aspect:'landscape'}),false);
+ assert.equal(hasClearedQaBeforeSeek(prev,{...next,observations:[]}),false);assert.equal(hasClearedQaBeforeSeek(prev,{...next,observations:[{frame:111}]}),false);assert.equal(hasClearedQaBeforeSeek(prev,{...next,frame:111}),false);
 });
 test('seek repair can correct one proven same-frame asset visibility regression, never an initial unknown',async()=>{
  const fixed=await fixture({customScene:true,customSeekFailure:'reverse',fixableFrameFailure:true,regressionAfterSeek:true});assert.ifError(fixed.error);

@@ -23,6 +23,16 @@ export function hasPriorVisibleAssets(previous:Json|undefined,failure:Json,scene
       observation.assets?.some((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key]?.resourceId&&asset.visibility==='visible')));
 }
 
+/** A second, distinct seek failure may be fixed only after the exact earlier blocked frame is clear. */
+export function hasClearedQaBeforeSeek(previous:Json|undefined,failure:Json){
+  if(previous?.code!=='CUSTOM_QA_BLOCK'||failure.code!=='CUSTOM_SEEK_MISMATCH'||previous.aspect!==failure.aspect
+    ||previous.sceneId!==failure.sceneId||previous.frame===failure.frame)return false;
+  const before=previous.observations?.find((item:Json)=>item.frame===previous.frame);
+  const after=failure.observations?.find((item:Json)=>item.frame===previous.frame);
+  return Boolean(Array.isArray(before?.findings)&&before.findings.some((item:Json)=>item.severity==='BLOCK')
+    &&Array.isArray(after?.findings)&&!after.findings.some((item:Json)=>item.severity==='BLOCK'));
+}
+
 /** Inert placeholders allow one completed scene to be checked before other modules are authored.
  * They are executed only by the renderer, never used for a candidate or a final proof. */
 export function probeCustomSources(film:Json,sceneId:string,sources:Record<string,string>){

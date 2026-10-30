@@ -3,7 +3,7 @@ import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflar
 import {directingMethodRef,recallDirecting,type DirectingMethodPack} from '../../../packages/methods/directing.ts';
 import {customSceneInstructions} from '../../../packages/methods/custom-scene.ts';
 import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit} from '@promobento/contracts/custom-source';
-import {checkCustomScenes,probeCustomSources,CustomSceneCheckError,hasPriorVisibleAssets} from './director-scenes.ts';
+import {checkCustomScenes,probeCustomSources,CustomSceneCheckError,hasPriorVisibleAssets,hasClearedQaBeforeSeek} from './director-scenes.ts';
 import agentToolsSchema from '../../../contracts/agent-tools.schema.json';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
@@ -134,12 +134,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const assetRegressionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=14);
     const detailedBlockFeedback=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=16);
     const reviewShardHistory=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=18);
+    const separateQaSeekRepair=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=19);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
     const sceneCache=new Map<string,{key:string;source:string;plan:Json}>();
-    const sceneChecksRepaired=new Map<string,{failure:Json;source:string;film:string}>();
+    const sceneChecksRepaired=new Map<string,{failure:Json;source:string;film:string;count:number}>();
     let sceneObservationRequired=false,assetObservationRequired=false,fadeThroughRequired=false;
     const progress=async(status:string)=>directorProgress(this.env,op,status);
     // Narrow the model's hints to the actual S1 renderer; the full protocol keeps its future fields.
@@ -325,7 +326,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         // the same asset was positively visible at this exact frame/aspect before that edit.
         const assetRegression=assetRegressionMethod&&unverifiedFailure&&previous!==undefined&&previous.source===cached.source&&previous.film===canonical(film)
           &&hasPriorVisibleAssets(previous.failure,failure,scene,film,missing);
-        if(previous&&!assetRegression||!previous&&unverifiedFailure)throw Error(failure.code);
+        const distinctSeek=separateQaSeekRepair&&previous?.count===1&&previous.source===cached.source&&previous.film===canonical(film)
+          &&hasClearedQaBeforeSeek(previous.failure,failure);
+        if((previous&&((!assetRegression&&!distinctSeek)||(separateQaSeekRepair&&previous.count>=2)))||(!previous&&unverifiedFailure))throw Error(failure.code);
         // A mixed frame can contain another scene: seek/Q1 pixels alone cannot attribute its defect.
         if(failure.code!=='CUSTOM_HOLD_TEXT_MISSING'&&film.scenes.filter((item:Json)=>item.start<=failure.frame&&failure.frame<item.end).length!==1)throw Error(failure.code);
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
@@ -360,7 +363,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         },true,scene.id);
         if(value.kind==='s1_model_validation_failure')throw Error(value.code);
         cached.source=applyCustomEdit(currentSource,value.toolCalls[0].input,scene.module);sources[scene.module]=cached.source;sceneSources[scene.module]=cached.source;
-        sceneChecksRepaired.set(scene.module,{failure,source:cached.source,film:canonical(film)});
+        sceneChecksRepaired.set(scene.module,{failure,source:cached.source,film:canonical(film),count:(previous?.count??0)+1});
       }
       };
       for(const [sceneIndex,scene] of custom.entries()){
