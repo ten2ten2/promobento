@@ -64,6 +64,8 @@ E 的首份修改规格存在场景转场错误，模型修正了规格；重新
 
 方法 1.18 的原版参考竖屏操作 `eval-duolingo-15-1793372661264` 选择 kinetic-type 方向，进入最难自写镜头检查；第 **111 帧**文字 `word-speak` 因低对比度 BLOCK，D 添加深色底后该帧不再 BLOCK，但下一次预检第 **209 帧**正／逆序最大通道差 **2**、变化像素 **2.57335%**，超过原容差。每镜头一次修复已用，操作以 `CUSTOM_SEEK_MISMATCH` 停止；未进入完整预检后的真实分段顺序检查，也没有低清片、E/F 或最终片。实际帧和两次完整失败证据在 `artifacts/s1-duolingo-portrait-huashu-2026-10-30/`。模型已结 **111,619**、计算上界 **12,189 usd_micros**，无新未知预留，计算已停止、容量为空、临时密钥回收。已部署的方法 1.19 针对同一源码／规格、同画幅下已确认原 QA BLOCK 消除后出现的另一帧 seek 失败，最多允许一次额外定点修复；原 QA 未消除、初始不确定、同帧或不同源码、持续失败仍停止，旧冻结方法不变。尚未真实验证。
 
+方法 1.19 新竖屏操作 `eval-duolingo-15-1793375203857` 查看三张近似方向图后选择 continuous-morph；规格调用 `eval-duolingo-15-1793375203857-spec` 于上海时间 **2026-10-30 23:52:18.468** 派发至 `modelswitch/claude-opus-5-5`。原始流先返回推理片段，随后报告 `upstream_stream_error: upstream stream disconnected: connection reset by peer`、`service_error`、502，未给出规格正文、工具调用或 usage；无法仅凭该回执确定对端或断连原因。操作以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停止，未进入 D、审片或最终渲染。原请求不重发，账户负责人须凭时间、模型与账户记录核对费用；**115,601 usd_micros** 仍为未知预留，不是确认费用。本轮其他模型已结 **8,644**、计算保守上界 **3,983 usd_micros**；计算已停止、容量为空、临时密钥回收。私有方向图、完整回执和原始流在 `artifacts/s1-duolingo-portrait-huashu19-2026-10-30/`。
+
 ## 方法 1.8.0：按反馈重新自动编排
 
 负责人指出鱼卡与后续练习没有关系。基于前一自动规格的**手动修订**将鱼卡先返回翻译页，再交接不同练习；本机播放器 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`。这不是自动发现或自动改稿。
