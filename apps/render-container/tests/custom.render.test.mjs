@@ -104,16 +104,17 @@ try{
   scopedOptions.resources=[];scopedOptions.fonts=multiOptions.fonts;
   scopedOptions.customSources=Object.fromEntries(['first','second'].map((id,index)=>[`scenes/${id}/index.js`,`PB.scene('${id}',ctx=>{
    const panel=document.createElement('div');panel.id='same';Object.assign(panel.style,{position:'absolute',left:'25%',top:'25%',width:'50%',height:'50%',background:'${index?'rgb(0,0,255)':'rgb(255,0,0)'}'});ctx.root.append(panel);
-   gsap.set('#same',{opacity:${index}});const timeline=gsap.timeline({paused:true});timeline.to('#same',{x:200,duration:1},0).to({}, {duration:7.5},0);return {timeline};});`]));
+   gsap.set('#same',{backgroundColor:'${index?'rgb(0,0,255)':'rgb(255,0,0)'}'});const timeline=gsap.timeline({paused:true});${index?"timeline.to('#same',{x:200,duration:1},0);":''}timeline.to({}, {duration:7.5},0);return {timeline};});`]));
   // The opt-in is new; an old film that omitted it retains document-wide selectors.
-  for(const [scope,expected] of [['scene',[16,23,18]],['legacy',[255,0,0]]]){
+  for(const [scope,expected] of [['scene',[255,0,0]],['legacy',[0,0,255]]]){
    if(scope==='legacy')for(const scene of scopedFilm.scenes)delete scene.params.gsapScope;
    const session=await filmSession({raw:JSON.stringify(scopedFilm),options:scopedOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
    try{
     const png=await session.frame(30,{format:'png'}),{width,height,pixels}=pngPixels(png),at=(Math.floor(height*.5)*width+Math.floor(width*.5))*4;
     assert.deepEqual([...pixels.subarray(at,at+3)],expected,`${scope} GSAP selector`);
-    const second=pngPixels(await session.frame(255,{format:'png'})),side=(Math.floor(second.height*.5)*second.width+Math.floor(second.width*.26))*4;
-    assert.deepEqual([...second.pixels.subarray(side,side+3)],scope==='scene'?[16,23,18]:[0,0,255],`${scope} GSAP timeline selector`);
+    await session.frame(255,{format:'png'});
+    const firstAgain=pngPixels(await session.frame(30,{format:'png'})),side=(Math.floor(firstAgain.height*.5)*firstAgain.width+Math.floor(firstAgain.width*.26))*4;
+    assert.deepEqual([...firstAgain.pixels.subarray(side,side+3)],scope==='scene'?[255,0,0]:[16,23,18],`${scope} GSAP timeline selector`);
    }finally{await session.close();}
   }
   report.gsapSelectors='scene_opt_in_and_legacy_preserved';
