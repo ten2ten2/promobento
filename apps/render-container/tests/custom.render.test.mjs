@@ -52,7 +52,7 @@ try{
   // pointer-free overlay with original synthetic pixels, never real user footage.
   const perspectiveFilm=filmFixture(),perspectiveOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
   perspectiveFilm.scenes=[{id:'product',kind:'custom',module:'scenes/product/index.js',start:0,end:240,purpose:'Observe a perspective image.',brief:'Exercise transparent and painted overlays.',
-   params:{textSlots:['product'],assetKeys:['dashboard'],events:[],readingHolds:[],assetChecks:[45,90,120,150].map(frame=>({frame,assetKeys:['dashboard']}))}},
+   params:{textSlots:['product'],assetKeys:['dashboard'],events:[],readingHolds:[{start:30,end:110}],assetChecks:[45,90,120,150].map(frame=>({frame,assetKeys:['dashboard']}))}},
    {...perspectiveFilm.scenes[2],start:232,transitionIn:{type:'fade-through',frames:8}}];
   const perspectiveSource=`PB.scene('product',ctx=>{
    const stage=document.createElement('div'),world=document.createElement('div'),img=document.createElement('img'),front=document.createElement('div'),child=document.createElement('div'),label=document.createElement('div');

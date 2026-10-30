@@ -111,6 +111,18 @@ mise exec -- node research/evals/recover-case.mjs artifacts/s1-minimax-15/report
 
 该入口拒绝活动操作与其他内部会话，不创建操作、不触发模型或渲染，仅调用既有的终态 reconcile 与回执读取。原失败原因、generation、已发布媒体和未知模型费用保留；新回执写回同一私有报告，临时密钥独立绑定/回收。普通执行也逐步保存已取回的清理证据；`cleanupStatus:unconfirmed`、`cleanupError` 与密钥回收状态分开记录，清理错误不覆盖原模型/渲染失败。物理停止或费用仍未知时不得开始下一题。
 
+### 用原自写源码复验实际帧
+
+已完成导演规格和自写源码、但真实帧检查失败时，可在私有目录准备 `film-receipt.json`（已结算完整 FilmSpec 回执）、`failure.json`（原自写帧检查失败回执）及按 FilmSpec 模块路径保存的原源码，例如 `scenes/aisle/index.js`。工具按共享契约重算 FilmSpec／全部源码身份并与失败回执核对；不在本机执行作者代码。
+
+```sh
+mise exec -- node research/evals/run-case.mjs \
+  artifacts/s1-eval-inputs-current duolingo-15 artifacts/s1-authored-frame-recheck \
+  --check-authored-frames artifacts/s1-authored-snapshot
+```
+
+使用新固定 renderer release 和同一素材／事实／seed，逐操作重新登记权利，通过现有 studio 在横竖画幅检查事件、素材声明、阅读点、逆序和冷 seek，并保存实际 PNG 与 `authored-frame-check.json`；不调用模型或编码影片。遇到未知、遮挡、隐藏、阅读 BLOCK 或 seek 不一致即停止，仍保留已经拍到的帧。成功只说明这些帧检查通过，不等于整片、E/F 或画质验收。其他任务未停止、计算未结算或临时密钥存在时仍拒绝新操作。
+
 ### 只复验实际卡片的标题/副标题碰撞
 
 新渲染镜像部署并重新准备输入后，可用已完成的 `write_spec` 回执复现同一 FilmSpec、素材、字体和 seed，只取横屏 270 帧并读 CDP：
