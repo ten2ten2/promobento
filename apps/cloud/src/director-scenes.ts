@@ -36,7 +36,7 @@ export function probeCustomSources(film:Json,sceneId:string,sources:Record<strin
 }
 
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false,checkShardSeams=false,reportUnverifiedAssets=false){
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false,checkShardSeams=false,reportUnverifiedAssets=false,checkReviewShardHistory=false){
   const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
     ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
@@ -68,9 +68,20 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
       // Reproduce the real 2D review/final shard cuts, including the preceding warm
       // frame: cold seek of a reading hold alone missed a history-dependent shadow.
       // WebGL's adaptive partition needs its own bounded check; its final seam gate remains unchanged.
-      const boundaries:number[]=[];
+      const boundaries:number[]=[],reviewSequences=new Map<number,number[]>();
       if(checkShardSeams&&!filmUsesWebgl(film)){
         const {frames:_,...job}=task.job;
+        if(checkReviewShardHistory&&film.durationSeconds===15){
+          const shards=planShards({...job,quality:'review'},film,{seed:context.seed}).shards;
+          for(const shard of shards.slice(0,-1)){
+            const boundary=shard.end-1,sequence=[...(shard.start?[shard.start-1]:[])];
+            for(let at=shard.start;at<shard.end;at+=2)sequence.push(at);
+            sequence.push(boundary);
+            // Probes with placeholder scenes cannot prove a mixed source's history.
+            if(boundary>=scene.start&&boundary<scene.end&&film.scenes.filter((item:Json)=>item.start<=boundary&&boundary<item.end).length===1
+              &&(!probeSceneId||sequence.every(at=>at>=scene.start&&at<scene.end&&eligible(at))))reviewSequences.set(boundary,[...new Set(sequence)]);
+          }
+        }
         for(const quality of ['review','final'])for(const shard of planShards({...job,quality},film,{seed:context.seed}).shards.slice(1)){
           const frame=shard.start-1;
           if(frame>=scene.start&&frame<scene.end&&film.scenes.filter((item:Json)=>item.start<=frame&&frame<item.end).length===1)boundaries.push(frame);
@@ -150,15 +161,36 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
       finally{await closeStudio();}
       const coldFrame=reading.length?reading[Math.floor(reading.length/2)]!:frames[Math.floor(frames.length/2)]!;
       for(const frame of [...new Set([coldFrame,...boundaries])]){
-        const coldTask={...task,taskId:taskId+(frame===coldFrame?'-cold':'-cold-'+frame)};
-        failed=false;repairable=undefined;
+        const sequence=reviewSequences.get(frame);
+        const coldTask={...task,job:{...task.job,frames:sequence??task.job.frames},taskId:taskId+(frame===coldFrame?'-cold':'-cold-'+frame)};
+        failed=false;repairable=undefined;let studioOpen=false;
         try{
           phase='cold';currentFrame=frame;
           if(checkShardSeams){await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);}
-          await owner.studio(op.id,canonical(coldTask));
-          await compareFrame(frame,'cold',await owner.frame(op.id,frame));
+          studioOpen=true;await owner.studio(op.id,canonical(coldTask));
+          const coldResponse=await owner.frame(op.id,frame);
+          if(!coldResponse.ok)throw Error('CUSTOM_FRAME_CHECK_FAILED');
+          await compareFrame(frame,'cold',sequence?coldResponse.clone():coldResponse);
+          if(sequence){
+            const cold=new Uint8Array(await coldResponse.arrayBuffer());let warm:Uint8Array|undefined;
+            await closeStudio();studioOpen=false;
+            const warmTask={...coldTask,taskId:taskId+'-seq-'+frame};
+            studioOpen=true;await owner.studio(op.id,canonical(warmTask));
+            phase='shard-sequential';currentFrame=frame;
+            for(const at of sequence){
+              if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
+              await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
+              const response=await owner.frame(op.id,at);if(!response.ok)throw Error('CUSTOM_FRAME_CHECK_FAILED');
+              const bytes=new Uint8Array(await response.arrayBuffer());if(at===frame)warm=bytes;
+            }
+            if(!warm)throw Error('CUSTOM_FRAME_CHECK_FAILED');
+            const comparison=compareSeam(cold,warm);
+            const actual=comparison.verdict==='RENDER_SEAM_BLOCK'?await immutableBytes(env,`${prefix}/${scene.id}/${aspect}/${frame}-shard-sequential.png`,warm,'image/png'):undefined;
+            comparisons.push({frame,mode:'shard-sequential',...comparison,...(actual?{actual}:{})});
+            if(actual){expectation={kind:'review_shard_history',start:sequence[0],end:frame,stride:2};throw Error('CUSTOM_SEEK_MISMATCH');}
+          }
         }catch(error){failed=true;try{await recordFailure(error);}catch(recordError){if(recordError instanceof CustomSceneCheckError)repairable=recordError;throw recordError;}throw error;}
-        finally{await closeStudio();}
+        finally{if(studioOpen)await closeStudio();}
       }
       evidence.push({sceneId:scene.id,aspect,images,observations,comparisons});
     }

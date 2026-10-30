@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {directingMethodPack,recallDirecting} from './directing.ts';
 test('stage recall carries the shared story method and the right audience without unrelated stages',()=>{
   const software=recallDirecting(directingMethodPack,'spec','software');
-  assert.equal(software.version,'1.17.0');assert.match(software.audience,/workflow/);
+  assert.equal(software.version,'1.18.0');assert.match(software.audience,/workflow/);
   assert.match(software.guidance.join(' '),/focusFrom\/focusTo/);
   assert.ok(!software.guidance.some(text=>text.includes('Offer different')));
   const course=recallDirecting(directingMethodPack,'coldReview','course');

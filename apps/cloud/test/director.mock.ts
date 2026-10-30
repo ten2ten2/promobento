@@ -93,7 +93,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const assets=activeStudio.options.observeAssets&&!oldAssetObservation?[{sceneId:health?'health':customAssetWrongScene?'other':'product',resourceId:assetId,visibility:!health&&(customAssetUnverified||regressionAfterSeek&&frameRepairs>=1&&(persistentRegression||frameRepairs===1)||regressionAfterRevision&&trace.includes('revise-existing-scene'))?'unverified':!health&&customAssetMissing&&(!fixableFrameFailure||frameRepairs===0)?'hidden':'visible'}]:undefined;
     return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts,regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[],...(assets?{assets}:{})}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));const visits=(studioFrames.get(frame)??0)+1;studioFrames.set(frame,visits);
-    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='boundary'?frame===149&&activeStudio.taskId.endsWith('-cold-149'):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
+    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='boundary'?frame===149&&activeStudio.taskId.endsWith('-cold-149'):customSeekFailure==='shard-sequential'?frame===209&&activeStudio.taskId.endsWith('-seq-209')&&studioFrames.has(208):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
     return new Response(mismatch?pngRgba(1,1,Uint8Array.from([200,0,0,255])):png);},
    async closeStudio(){if(cleanupFailure||failCustomClose&&activeStudio?.taskId.startsWith('custom-'))throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
   };}},
@@ -578,6 +578,13 @@ test('new 2D custom preflight detects a shard-boundary cold mismatch and uses th
  assert.equal(frozen.frameRepairs,0);assert.equal(frozen.result.directingMethod.version,'1.12.0');
 });
 
+test('review shard history catches a seek mismatch missed by sparse checks and repairs it',async()=>{
+ const modern=await fixture({customScene:true,customSeekFailure:'shard-sequential',fixableFrameFailure:true});assert.ifError(modern.error);
+ assert.equal(modern.frameRepairs,1);assert.equal(modern.customFailures[0].code,'CUSTOM_SEEK_MISMATCH');
+ assert.equal(modern.customFailures[0].phase,'shard-sequential');assert.equal(modern.customFailures[0].frame,209);
+ assert.equal(modern.customFailures[0].comparisons.at(-1).mode,'shard-sequential');assert.equal(modern.activeStudio,null);
+ const frozen=await fixture({customScene:true,customSeekFailure:'shard-sequential',frozenMethodVersion:'1.17.0'});assert.ifError(frozen.error);assert.equal(frozen.frameRepairs,0);
+});
 test('seek repair can correct one proven same-frame asset visibility regression, never an initial unknown',async()=>{
  const fixed=await fixture({customScene:true,customSeekFailure:'reverse',fixableFrameFailure:true,regressionAfterSeek:true});assert.ifError(fixed.error);
  assert.equal(fixed.frameRepairs,2);assert.equal(fixed.result.final.length,2);assert.equal(fixed.activeStudio,null);

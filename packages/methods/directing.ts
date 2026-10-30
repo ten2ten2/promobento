@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.17.0',
+  id: 'product-directing', version: '1.18.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
