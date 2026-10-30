@@ -1,7 +1,7 @@
 // Adapted from huashu-motion@4236053, Copyright (c) 2026 Huashu, MIT (LICENSE.huashu).
 // Scoped to one scene; no legacy vars, parser, sound declarations, signature or page bootstrap.
 import cameraRig from './camera-rig.js';
-export function createOM(ctx, regions, readiness = {open:false, pending:[]}) {
+export function createOM(ctx, regions, readiness = {open:false, pending:[]}, sounds = {open:false,declarations:[],used:new Set()}) {
   const OM = {cameraRig};
   // Original OM.ready waits for asynchronous scene setup before the first frame.
   // The host closes registration once the initial ready queue has settled.
@@ -9,6 +9,16 @@ export function createOM(ctx, regions, readiness = {open:false, pending:[]}) {
     if (!readiness.open) throw Error('CUSTOM_READY_CLOSED');
     readiness.pending.push(Promise.resolve(promise));
     return promise;
+  };
+  // Audio is frozen from the inert source before rendering. The browser only
+  // verifies that each admitted declaration is actually invoked during setup.
+  OM.sfx = (id, at, options) => {
+    if(!sounds.open)throw Error('CUSTOM_SFX_CLOSED');
+    if(options!==undefined&&(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(key=>key!=='gain')))throw Error('CUSTOM_SFX_OPTIONS_UNSUPPORTED');
+    const gain=options?.gain??1;
+    const index=sounds.declarations.findIndex((item,i)=>!sounds.used.has(i)&&item.id===id&&item.seconds===at&&item.gain===gain);
+    if(index<0)throw Error('CUSTOM_SFX_UNDECLARED');
+    sounds.used.add(index);return at;
   };
   // Original compositions have one document; a PromoBento page can hold several scenes
   // with the same template IDs. Prefer this scene, retaining the legacy document fallback.

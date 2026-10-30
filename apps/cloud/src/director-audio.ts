@@ -1,5 +1,6 @@
 import {validate} from '@promobento/contracts/validators/audio-admission';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
+import {filmCustomSfx} from '@promobento/contracts/custom-source';
 import {deriveAudioPlan,GENERATED_LICENSE} from '../../../packages/audio/src/plan.mjs';
 import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import {getJson,rights} from './store.ts';
@@ -44,14 +45,15 @@ export async function admitDirectorAudio(env:PipelineEnv,op:Operation,input:unkn
 }
 
 /** Selectors are creative input; they grant no rights. Plans and container inputs are assembled by the host. */
-export function directorAudio(film:Json,catalog:AdmittedMusic[],seed:string){
+export function directorAudio(film:Json,catalog:AdmittedMusic[],seed:string,sceneSources?:Record<string,string>){
  if(!film.audio.mute&&film.audio.voice)throw Error('AUDIO_VOICE_PLAN_REQUIRED');
  const request=film.audio.music,external=!film.audio.mute&&['score','upload'].includes(request.kind);
  const music=external?catalog.find(item=>item.kind===request.kind&&(item.kind==='score'?item.scoreRef===request.scoreRef:item.resourceId===request.resourceId)):undefined;
  if(external&&!music)throw Error('AUDIO_EXTERNAL_PLAN_REQUIRED');
  const approval=music?.kind==='score'?music.approvals.find(item=>item.totalFrames===film.totalFrames):undefined;
  if(music?.kind==='score'&&!approval)throw Error('SCORE_APPROVAL_REQUIRED');
- const plan=deriveAudioPlan(film,filmBlockEvents(film as any),music?{externalMusic:music}:{});
+ const sourceSfx=sceneSources?filmCustomSfx(film as any,sceneSources):[];
+ const plan=deriveAudioPlan(film,filmBlockEvents(film as any),{...(music?{externalMusic:music}:{}),sourceSfx});
  const clearedSources=plan.sources.map((source:Json)=>{
   if(source.sourceId==='music'&&music)return{sourceId:'music',licenseRef:music.licenseRef,sha256:music.sha256,rightsCleared:true,...(approval?{requestHash:approval.requestHash}:{})};
   if(source.licenseRef!==GENERATED_LICENSE)throw Error('AUDIO_RIGHTS_PENDING');return{sourceId:source.sourceId,licenseRef:source.licenseRef,rightsCleared:true};

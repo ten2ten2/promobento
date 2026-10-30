@@ -2,7 +2,7 @@ import {directorBlockParamIssues} from './director-block-feedback.ts';
 import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflare:workers';
 import {directingMethodRef,recallDirecting,type DirectingMethodPack} from '../../../packages/methods/directing.ts';
 import {customSceneInstructions} from '../../../packages/methods/custom-scene.ts';
-import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit} from '@promobento/contracts/custom-source';
+import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx} from '@promobento/contracts/custom-source';
 import {checkCustomScenes,probeCustomSources,CustomSceneCheckError,hasPriorVisibleAssets,hasClearedQaBeforeSeek} from './director-scenes.ts';
 import agentToolsSchema from '../../../contracts/agent-tools.schema.json';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -16,10 +16,11 @@ import {validate as validDirections} from '@promobento/contracts/validators/dire
 import {validate as validAnalysis} from '@promobento/contracts/validators/director-analysis';
 import {validate as validInsight} from '@promobento/contracts/validators/asset-insight';
 import {validate as validTool} from '@promobento/contracts/validators/agent-tools';
-import {audioPlanHash} from '../../../packages/audio/src/plan.mjs';
+import {audioPlanHash,deriveAudioPlan} from '../../../packages/audio/src/plan.mjs';
+import {SFX_IDS} from '../../../packages/audio/src/catalog.mjs';
 import {blockCatalog} from '../../../packages/blocks/src/catalog.ts';
 import {relayObservationIssues} from './component-relay.ts';
-import {filmMotionFrames} from '../../../packages/blocks/src/events.mjs';
+import {filmBlockEvents,filmMotionFrames} from '../../../packages/blocks/src/events.mjs';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import filmSchema from '../../../contracts/film.schema.json';
 import directionSchema from '../../../contracts/direction.schema.json';
@@ -76,10 +77,24 @@ const customLiteralGuidance=(scene:FilmSpec['scenes'][number])=>{
     +(p.textSlots.length?`Likewise pass ctx.text(${canonical(p.textSlots[0])}) to a layout helper, or mount that literal call directly. `:'This scene declares no text slots. ')
     +'Keep a literal ctx.text/ctx.asset access for every declared slot/asset; do not delete a declaration to hide an invalid access.';
 };
+const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>scene.kind==='custom'&&scene.params?.sourceSfx===true
+  ?customSceneInstructions.replace('sound events are frozen in scene.params.events, not evaluated from source.',
+    `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be a scene-local 30 fps frame boundary, written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and frame in FilmSpec audio.sfx.`)
+  :customSceneInstructions;
 const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec)=>{
   const lines=source.split('\n');
-  return customSourceErrors(scene,source,film).map(issue=>({code:issue.code,path:'/source/'+issue.line,sourceLine:(lines[issue.line-1]??'').slice(0,400),
+  const issues=customSourceErrors(scene,source,film).map(issue=>({code:issue.code,path:'/source/'+issue.line,sourceLine:(lines[issue.line-1]??'').slice(0,400),
     ...(['CUSTOM_SLOT_UNDECLARED','CUSTOM_DECLARATION_UNUSED'].includes(issue.code)?{hint:customLiteralGuidance(scene)}:{})}));
+  if(!issues.length&&scene.kind==='custom'&&scene.params?.sourceSfx===true){
+    const sounds=extractCustomSfx(scene,source,film);
+    for(const sound of sounds)if(!SFX_IDS.includes(sound.id))
+      issues.push({code:'CUSTOM_SFX_UNKNOWN',path:'/source',sourceLine:'',hint:'Use a supported sound ID: '+SFX_IDS.join(', ')});
+    if(!issues.length&&sounds.length)try{
+      const reference={...film,audio:{...film.audio,music:{kind:'none'},mute:false}};
+      deriveAudioPlan(reference,filmBlockEvents(reference as any),{sourceSfx:sounds.map(sound=>({...sound,sceneId:scene.id}))});
+    }catch(error){issues.push({code:(error as Error).message,path:'/source',sourceLine:'',hint:'Keep source sound hits unique and consistent with FilmSpec audio.sfx.'});}
+  }
+  return issues;
 };
 const toBase64=(bytes:Uint8Array)=>{
   if(bytes.length>1<<20)throw Error('MODEL_IMAGE_TOO_LARGE');let binary='';for(let start=0;start<bytes.length;start+=32768)binary+=String.fromCharCode(...bytes.subarray(start,start+32768));return btoa(binary);
@@ -348,7 +363,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         const currentSource=cached.source;
         const value=await runModel('scene-'+scene.id+'-frame-repair-'+hash.slice(0,16),'scenes',{messages:[{role:'user',text:canonical({
           task:'Repair this custom scene using exactly one scoped edit_file call. Fix the actual failing frame without changing the original brief, timing, confirmed facts or other scene modules.',
-          instructions:customSceneInstructions,scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
+          instructions:customInstructionsFor(scene),scene,style:film.style,texts:Object.fromEntries(p.textSlots.map(id=>[id,film.texts[id]])),assets:Object.fromEntries(p.assetKeys.map(id=>[id,film.assets[id]])),
           resources:resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,sha256:asset.sha256})),targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
           currentSource,validationFeedback:{code:failure.code,sceneId:failure.sceneId,aspect:failure.aspect,phase:failure.phase,frame:failure.frame,...(failure.expectation?{expectation:failure.expectation}:{}),...(observed?{observation:observed}:{}),...(comparisonStats?{comparison:comparisonStats}:{}),
             frameImages:textOnly?'No images attached: this text-only model receives the actual CDP observation and pixel comparison, not a visual interpretation.':refs.length>1?(failure.phase==='shard-sequential'?'Attached contact sheet: tile 0 is the preflight forward frame (matched to the cold frame within tolerance); tile 1 is after the actual review shard frame sequence.':'Attached contact sheet: tile 0 is the forward frame, tile 1 is the reverse/cold frame.'):'Attached contact sheet: tile 0 is the actual failing forward frame.'},
@@ -386,7 +401,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
             for(let attempt=0;;attempt++){
               const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-revision-'+attempt,'scenes',{messages:[{role:'user',text:canonical({
                 task:'Revise this existing custom scene to implement the revised plan. Make exactly one scoped edit_file call; preserve unaffected behavior and the original facts.',
-                instructions:customSceneInstructions,previousPlan,revisedPlan:plan,currentSource,resources,
+                instructions:customInstructionsFor(scene),previousPlan,revisedPlan:plan,currentSource,resources,
                 sourceImages:textOnly?'No images are attached. Use the validated, resource-bound assetObservations; do not infer unobserved content.':'Images follow resources in the same order; use their actual content.',
                 ...(textOnly?{assetObservations}:{}),targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
                 literalAccessGuidance:customLiteralGuidance(scene),textLayoutRequirements,...(feedback?{validationFeedback:feedback}:{}),
@@ -404,7 +419,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           }else for(const {name:phase,window} of phases){
             let feedback:Json|undefined;
             for(let attempt=0;;attempt++){
-              const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,phase,
+              const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customInstructionsFor(scene),phase,
                 phaseTask:phase==='layout'?'Read the complete original brief to plan geometry that supports its specified start, landing and end compositions in each aspect. Create only a small runnable static base, not the finished shot: mount every declared text/asset with named handles and bounded aspect-aware geometry; show a clean initial pose. Define function draw(t) for that static pose and wire it with ctx.OM.clock to a paused timeline of the exact duration. Do not implement choreography, glyph masks, transitions or elaborate motion yet. The next edits implement them; this base is never submitted as a film. Keep the source compact.'
                 :'Implement every behavior in the next phaseWindow of the ORIGINAL scene brief below. The window uses scene-local half-open integer frames; divide by 30 for local seconds. Preserve every already-authored earlier window, derive all states from absolute time, and leave later windows at the current ending pose until the next edit. Reuse named handles, text and assets; correct base geometry where needed to meet the original aspect-specific size/position/readability requirements. Do not rebuild unrelated code or solve later windows. One tool call is one atomic edit, not one behavior: use a unique str_replace covering all affected draw branches (the entire draw function if needed), or insert. Update content selection, visibility and required copy as well as camera/geometry. These are authoring chunks, not new film cuts; the complete original frame/reading plan will be checked.',
                 ...(window?{phaseWindow:window}:{}),apiExample,literalAccessGuidance:customLiteralGuidance(scene),textLayoutRequirements,
@@ -443,7 +458,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const serialized=await step.do<string>('render-'+name+'-'+aspect,{retries:{limit:0,delay:'1 second'},timeout:'8 minutes'},async()=>{
         checkDeadline();
         await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
-        const source=await immutableJson(this.env,`operations/${op.id}/${name}/film.json`,film),sound=directorAudio(film,audioCatalog,context.seed),audioPlan=sound.plan;
+        const source=await immutableJson(this.env,`operations/${op.id}/${name}/film.json`,film),sound=directorAudio(film,audioCatalog,context.seed,sceneSources),audioPlan=sound.plan;
         const audio=await immutableJson(this.env,`operations/${op.id}/${name}/audio-plan.json`,audioPlan);
         const input={job:{schemaVersion:'3.0.0',kind:'render_job',renderId,operationId:op.id,candidateId:'candidate-'+digest({operationId:op.id}).slice(0,48),sourceHash:filmSourceHash(canonical(film),sceneSources),
           runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality,

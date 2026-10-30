@@ -1,6 +1,6 @@
 import { canonical, parseCanonicalJson } from '@promobento/contracts/canonical';
 import { digest } from '@promobento/contracts/digest';
-import {assertCustomSources} from '@promobento/contracts/custom-source';
+import {assertCustomSources,extractCustomSfx} from '@promobento/contracts/custom-source';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import { filmSpecErrors } from '@promobento/contracts/film';
 import { validate as validateBlockParams } from '@promobento/contracts/validators/block-params';
@@ -120,6 +120,9 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     fps:30,totalFrames:spec.totalFrames}, seed: options.seed, manifestHash: digest(spec), assets, fonts,
     initTimeoutMs: options.initTimeoutMs, frameTimeoutMs: options.frameTimeoutMs};
   if (options.observeAssets === true) plan.observeAssets = true;
+  const customSfx=Object.fromEntries(spec.scenes.flatMap(scene=>scene.kind==='custom'&&scene.params?.sourceSfx===true
+    ?[[scene.id,extractCustomSfx(scene,options.customSources![scene.module]!,spec)] as const]:[]));
+  if(Object.keys(customSfx).length)plan.customSfx=customSfx;
   if(spec.scenes.some(scene=>scene.kind==='custom'))plan.manifestHash=filmSourceHash(raw,options.customSources);
   const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
   const css = [...new Map(fonts.map(font => [`${font.fontId}/${font.weight}/${font.style}`, font])).values()].map(font =>

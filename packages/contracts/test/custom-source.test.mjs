@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonical} from '../src/canonical.mjs';
-import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit} from '../src/custom-source.mjs';
+import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx,filmCustomSfx} from '../src/custom-source.mjs';
 import {filmSourceHash,filmSourceIdentity} from '../src/film-source.mjs';
 import {filmBuildReceipt} from '../src/film-composition.mjs';
 import {filmFixture} from '../../film-runtime/test/fixture.mjs';
@@ -60,4 +60,31 @@ test('optional asset checks validate their targets and frames without restrictin
   assert.doesNotThrow(()=>customScenePlan(scene));
   assert.throws(()=>customScenePlan(scene,{validateAssetChecks:true}),/CUSTOM_ASSET_CHECK_INVALID/);
  }
+});
+
+test('source SFX are extracted without execution and use frozen BPM and frame-aligned times',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.params.sourceSfx=true;
+ film.audio={music:{kind:'procedural',style:'mallet',bpm:120},sfx:[],captions:'off'};
+ const source=sources[scene.module].replace('const timeline=',"ctx.OM.sfx('whoosh',ctx.OM.beat(1),{gain:.5});const timeline=");
+ assert.deepEqual(customSourceErrors(scene,source,film),[]);
+ const sounds=extractCustomSfx(scene,source,film);
+ assert.deepEqual(sounds,[{id:'whoosh',frame:15,seconds:.5,gain:.5,gainDb:20*Math.log10(.5)}]);
+ assert.deepEqual(filmCustomSfx(film,{[scene.module]:source}),[{...sounds[0],sceneId:scene.id}]);
+ const emptyOptions=source.replace("ctx.OM.sfx('whoosh',ctx.OM.beat(1),{gain:.5})","ctx.OM.sfx('whoosh',.5,{})");
+ assert.equal(extractCustomSfx(scene,emptyOptions,film)[0].gain,1);
+ for(const [bad,code] of [
+  ["ctx.OM.sfx('whoosh',ctx.random())",'CUSTOM_SFX_STATIC_TIME_REQUIRED'],
+  ["ctx.OM.sfx('whoosh',.51)",'CUSTOM_SFX_FRAME_REQUIRED'],
+  ["ctx.OM.sfx('whoosh',.5,{pan:1})",'CUSTOM_SFX_OPTIONS_UNSUPPORTED'],
+  ["ctx.OM.sfx('whoosh',.5,{gain:0})",'CUSTOM_SFX_GAIN_INVALID'],
+  ["ctx.OM.sfx('whoosh',.5);ctx.OM.sfx('whoosh',.5)",'CUSTOM_SFX_DUPLICATE']
+ ]){
+  const broken=source.replace("ctx.OM.sfx('whoosh',ctx.OM.beat(1),{gain:.5})",bad);
+  assert.throws(()=>extractCustomSfx(scene,broken,film),new RegExp(code));
+  assert.ok(customSourceErrors(scene,broken,film).some(item=>item.code===code));
+ }
+ const noBpm=structuredClone(film);noBpm.audio.music={kind:'none'};
+ assert.throws(()=>extractCustomSfx(scene,source,noBpm),/CUSTOM_SFX_STATIC_TIME_REQUIRED/);
+ const legacy=structuredClone(scene);delete legacy.params.sourceSfx;
+ assert.deepEqual(extractCustomSfx(legacy,source,film),[]);
 });

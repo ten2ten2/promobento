@@ -18,6 +18,8 @@ WAV 合格不代替 AAC 编码后的验收。最终 MP4 的测量、一次有界
 
 FilmSpec 的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
 
+显式开启 `params.sourceSfx` 的自写镜头可使用原版 `ctx.OM.sfx` 声明；宿主从源码静态取得已限定的音效与帧、将上游线性 gain 换算为 AudioPlan 的 dB，并在付费渲染前核对源码与计划。声明的时间、支持范围和静音语义见[片子运行时](../../film-runtime/README.md#自写镜头源码与规格分开)。这不包含原版可选的 pan／pitch／note／dur 或任意子帧时间，也不改变既有 FilmSpec 音效的默认增益。
+
 ## Lead-in 事件先冻结，再合成
 
 `whoosh`、`whip`、`riser`、`reverse` 的 `at` 是冲击/收束落点，不是波形起点。便携目录保存 48 kHz 样本数，`deriveAudioPlan` 写入每个事件的 `sfxTiming:{anchorFrame,synthesisSamples,durationSamples,leadSamples}`，并计算覆盖实际声音的半开帧区间。`synthesisSamples` 是 DSP 请求时长，`durationSamples` 是实际源波形长度；现有 mix 给 riser/reverse 多一个偏移样本，原样保留，不为此改写已经验收的配乐。源样本零位于 `anchorFrame*1600-leadSamples`；仅在影片首尾裁切，早于片头的源样本不后移到片头。whip 的 6,336 样本前导不是整数帧，仍按样本精确对齐。整个音效都在片头之前时明确拒绝 `SFX_OUTSIDE_FILM`。

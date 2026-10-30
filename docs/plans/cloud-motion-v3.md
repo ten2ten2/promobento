@@ -316,7 +316,7 @@ Workers AI ASR 是 S3 路线，前置小样本不等于产品集成；转写为 
 
 ### 8.2 音频
 
-AudioPlan 是可信端从 FilmSpec、获准音源、积木／自写声明事件生成的不可变数据，不在 Worker 求值作品的 OM.music／OM.sfx。页面禁止 AudioContext。音乐源为 procedural／score／upload／none；显式静音不造假音轨。
+AudioPlan 是可信端从 FilmSpec、获准音源、积木／自写声明事件生成的不可变数据，不在 Worker 求值作品的 OM.music／OM.sfx。自写镜头显式开启 `sourceSfx` 时，可从源码静态提取受限音效声明并冻结；具体准入和核对见[运行时](../../packages/film-runtime/README.md#自写镜头源码与规格分开)。页面禁止 AudioContext。音乐源为 procedural／score／upload／none；显式静音不造假音轨。
 
 配乐、23 种合成 SFX／五组音色和拍点按实际事件对齐；ABC 支持有理拍点并记录帧舍入。音轨精确在 N/30 秒内收尾，时序变更重算依赖；上传配乐分析真实拍点。旁白／原声需确认转写和字幕，录屏默认静音，不能借音乐上传绕过语音准入。
 

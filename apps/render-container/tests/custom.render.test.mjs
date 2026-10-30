@@ -194,6 +194,26 @@ try{
   const late=await open('landscape','ctx.OM.ready(Promise.resolve())');
   try{await assert.rejects(late.frame(36),/CUSTOM_READY_CLOSED/);}finally{await late.close().catch(()=>{});}
   report.sceneReady='nested_setup_waited_rejection_and_late_registration_blocked';report.musicBeat='frozen_bpm_and_explicit_override';
+  const soundFilm=structuredClone(readyFilm);soundFilm.scenes[0].params.sourceSfx=true;
+  const soundOptions={...readyOptions,customSources:{'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   const panel=document.createElement('div');Object.assign(panel.style,{position:'absolute',left:'10%',top:'30%',width:'20%',height:'30%',background:'rgb(255,0,0)'});ctx.root.append(panel);
+   const timeline=gsap.timeline({paused:true});timeline.to(panel,{x:300,duration:1},ctx.OM.sfx('whoosh',ctx.OM.beat(1),{gain:.5}));timeline.to({}, {duration:15},0);return {timeline};});`}};
+  const sound=await filmSession({raw:JSON.stringify(soundFilm),options:soundOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{
+   const before=await sound.frame(15,{format:'png'}),after=await sound.frame(30,{format:'png'});
+   assert.ok(compareSeam(before,after).diffPixelPct>2,'registered sound time drives a visible timeline movement');
+   assert.equal(sound.plan.customSfx.ready[0].frame,15);assert.equal(sound.plan.customSfx.ready[0].gain,.5);
+  }finally{await sound.close();}
+  for(const [declaration,expected] of [
+   ["if(false)ctx.OM.sfx('whoosh',.5);",/CUSTOM_SFX_NOT_EXECUTED/],
+   ["const fn=ctx.OM.sfx;fn('whoosh',.5);",/CUSTOM_SFX_UNDECLARED/]
+  ]){
+   const opts={...soundOptions,customSources:{'scenes/ready/index.js':`PB.scene('ready',ctx=>{${declaration}const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:15});return {timeline};});`}};
+   let unexpectedSound;
+   try{await assert.rejects(async()=>{unexpectedSound=await filmSession({raw:JSON.stringify(soundFilm),options:opts,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});},expected);}
+   finally{await unexpectedSound?.close();}
+  }
+  report.sourceSfx='timeline_anchor_and_unexecuted_or_dynamic_rejected';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

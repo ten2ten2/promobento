@@ -7,7 +7,7 @@ import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} f
 import {verifyRenderShards} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {runRenderTask,AUDIO_INSTANCE} from './render-task.ts';
-import {checkedBytes,loadCustomSources} from './render-source.ts';
+import {checkedBytes,loadCustomSources,verifySourceSfxPlan} from './render-source.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
@@ -30,7 +30,9 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const raw = await checkedBytes(this.env, filmBlob);
       const sources=await loadCustomSources(this.env,input.inputs);
       if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
-      const film = parseCanonicalJson(raw) as Json, partition = planShards(input.job, film, {seed: input.options.seed});
+      const film = parseCanonicalJson(raw) as Json;
+      await verifySourceSfxPlan(this.env,film,sources,input);
+      const partition = planShards(input.job, film, {seed: input.options.seed});
       const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
       const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
         return runRenderTask(this.env,step,{renderId:row.id,op,job:input.job,imageDigest:release.image_digest,deadlineAt},{name,mode,instance,additions});

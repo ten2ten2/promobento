@@ -29,6 +29,65 @@ const forbiddenMembers=new Set(['constructor','prototype','__proto__','ownerDocu
   'insertAdjacentHTML','insertAdjacentText','createTextNode','write','writeln','fillText','strokeText','defineBlock','ticker','cssText','getRandomValues','randomUUID']);
 const memberName=node=>node.computed?node.property.type==='Literal'?node.property.value:null:node.property.name;
 const isFunction=node=>['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
+const omCall=(node,ctx,name)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)===name
+  &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM'&&node.callee.object.object?.name===ctx;
+
+/** Read bounded literal sound declarations as data; never execute author source. Times are scene-local seconds. */
+export function extractCustomSfx(scene,source,spec){
+  if(scene.params?.sourceSfx!==true)return [];
+  let tree;try{tree=parse(source,{ecmaVersion:2024,sourceType:'module',locations:true});}catch{throw Error('CUSTOM_SOURCE_SYNTAX');}
+  const call=tree.body.length===1&&tree.body[0].type==='ExpressionStatement'?tree.body[0].expression:null;
+  const factory=call?.arguments?.[1],ctx=factory?.params?.[0]?.name;
+  if(call?.type!=='CallExpression'||call.callee?.object?.name!=='PB'||memberName(call.callee)!=='scene'
+    ||call.arguments[0]?.value!==scene.id||!ctx)throw Error('CUSTOM_REGISTRATION_INVALID');
+  const number=node=>{
+    if(node?.type==='Literal'&&typeof node.value==='number'&&Number.isFinite(node.value))return node.value;
+    if(node?.type==='UnaryExpression'&&['+','-'].includes(node.operator)){const x=number(node.argument);return node.operator==='-'?-x:x;}
+    if(node?.type==='BinaryExpression'&&['+','-','*','/'].includes(node.operator)){
+      const a=number(node.left),b=number(node.right),v=node.operator==='+'?a+b:node.operator==='-'?a-b:node.operator==='*'?a*b:a/b;
+      if(Number.isFinite(v))return v;
+    }
+    if(omCall(node,ctx,'beat')&&node.arguments.length>=1&&node.arguments.length<=2){
+      const bpm=node.arguments[1]?number(node.arguments[1]):spec.audio?.music?.kind==='procedural'?spec.audio.music.bpm:undefined;
+      if(Number.isFinite(bpm)&&bpm>0)return number(node.arguments[0])*60/bpm;
+    }
+    throw Error('CUSTOM_SFX_STATIC_TIME_REQUIRED');
+  };
+  const result=[];
+  const walk=node=>{
+    if(!node||typeof node!=='object')return;
+    if(omCall(node,ctx,'sfx')){
+      if(node.arguments.length<2||node.arguments.length>3||typeof node.arguments[0]?.value!=='string'||!id.test(node.arguments[0].value))throw Error('CUSTOM_SFX_INVALID');
+      const seconds=number(node.arguments[1]),frame=Math.round(seconds*30);
+      if(!Number.isFinite(seconds)||seconds<0||Math.abs(seconds*30-frame)>1e-6||frame>=scene.end-scene.start)throw Error('CUSTOM_SFX_FRAME_REQUIRED');
+      let gain=1;
+      if(node.arguments[2]){
+        const options=node.arguments[2];
+        if(options.type!=='ObjectExpression'||options.properties.length>1)throw Error('CUSTOM_SFX_OPTIONS_UNSUPPORTED');
+        if(options.properties.length){
+          const property=options.properties[0];
+          if(property.type!=='Property'||property.computed||property.kind!=='init'||(property.key.name??property.key.value)!=='gain')throw Error('CUSTOM_SFX_OPTIONS_UNSUPPORTED');
+          try{gain=number(property.value);}catch{throw Error('CUSTOM_SFX_GAIN_INVALID');}
+        }
+      }
+      if(!Number.isFinite(gain)||gain<.001||gain>10**(12/20))throw Error('CUSTOM_SFX_GAIN_INVALID');
+      result.push({id:node.arguments[0].value,frame,seconds,gain,gainDb:20*Math.log10(gain)});
+      if(result.length>100)throw Error('CUSTOM_SFX_LIMIT');
+    }
+    for(const [key,value]of Object.entries(node))if(!['loc','start','end'].includes(key)){
+      if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);
+    }
+  };
+  walk(factory.body);
+  const seen=new Set();for(const sound of result){const key=sound.id+':'+sound.frame;if(seen.has(key))throw Error('CUSTOM_SFX_DUPLICATE');seen.add(key);}
+  return result;
+}
+export function filmCustomSfx(spec,sources){
+  return spec.scenes.filter(scene=>scene.kind==='custom'&&scene.params?.sourceSfx===true).flatMap(scene=>{
+    const source=sources?.[scene.module];if(typeof source!=='string')throw Error('CUSTOM_SOURCE_MISSING');
+    return extractCustomSfx(scene,source,spec).map(item=>({...item,sceneId:scene.id}));
+  });
+}
 function bindPattern(node,names){
   if(!node)return;
   if(node.type==='Identifier')names.add(node.name);
@@ -102,6 +161,7 @@ export function customSourceErrors(scene,source,spec) {
     if(scoped)scopes.pop();
   }
   walk(factory);
+  if(scene.params?.sourceSfx===true)try{extractCustomSfx(scene,source,spec);}catch(error){fail(error.message,factory);}
   if(plan.textSlots.some(key=>!used.text.has(key))||plan.assetKeys.some(key=>!used.asset.has(key)))fail('CUSTOM_DECLARATION_UNUSED',factory);
   return errors;
 }

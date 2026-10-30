@@ -32,7 +32,7 @@ export function assertAudioPlan(plan) {
 }
 
 /** Block events are read from the trusted built scene, in local frames. Event ids survive array reordering. */
-export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, externalMusic} = {}) {
+export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, externalMusic, sourceSfx = []} = {}) {
   const plan = {schemaVersion: '3.0.0', kind: 'audio_plan', totalFrames: spec.totalFrames, sampleRate: 48000, channels: 2,
     loudnessTarget, truePeakMax: -1, mute: Boolean(spec.audio.mute), music: {kind: 'none'}, events: [], sources: []};
   if (spec.audio.mute) return plan;
@@ -54,8 +54,15 @@ export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, extern
   const declared = new Map(blockEvents.map(event => [`${event.sceneId}:${event.name}`, event]));
   const requests = spec.audio.sfx === 'auto' ? blockEvents.filter(event => autoSound[event.name]).map(event => ({
     id: autoSound[event.name], at: {sceneId: event.sceneId, event: event.name}
-  })) : spec.audio.sfx;
-  const seen = new Set();
+  })) : [...spec.audio.sfx];
+  if(!Array.isArray(sourceSfx)||sourceSfx.length>200)throw Error('CUSTOM_SFX_LIMIT');
+  for(const item of sourceSfx){
+    const scene=spec.scenes.find(scene=>scene.kind==='custom'&&scene.id===item.sceneId&&scene.params?.sourceSfx===true);
+    if(!scene||!Number.isInteger(item.frame)||item.frame<0||item.frame>=scene.end-scene.start
+      ||!Number.isFinite(item.gainDb)||item.gainDb< -60||item.gainDb>12)throw Error('CUSTOM_SFX_INVALID');
+    requests.push({id:item.id,at:{frame:scene.start+item.frame},gain:item.gainDb,fromSource:true});
+  }
+  const seen = new Set(),seenSoundFrame = new Set();
   for (const request of requests) {
     if (!SFX_IDS.includes(request.id)) throw Error('SFX_UNKNOWN');
     const reference = 'frame' in request.at ? 'frame:' + request.at.frame : request.at.sceneId + ':' + request.at.event;
@@ -65,6 +72,9 @@ export function deriveAudioPlan(spec, blockEvents, {loudnessTarget = -14, extern
     const scene = event && spec.scenes.find(scene => scene.id === event.sceneId);
     const frame = 'frame' in request.at ? request.at.frame : scene && scene.start + event.frame;
     if (!Number.isInteger(frame) || frame < 0 || frame >= spec.totalFrames) throw Error('AUDIO_EVENT_REFERENCE_INVALID');
+    const soundFrame=request.id+':'+frame;
+    if(request.fromSource&&seenSoundFrame.has(soundFrame))throw Error('AUDIO_EVENT_DUPLICATE');
+    seenSoundFrame.add(soundFrame);
     const sourceId = 'sfx_' + request.id;
     if (!plan.sources.some(source => source.sourceId === sourceId)) plan.sources.push({sourceId, origin: 'procedural', licenseRef: GENERATED_LICENSE});
     const timing=SFX_LEAD_TIMING[request.id],start=timing?frame*1600-timing.leadSamples:frame*1600;

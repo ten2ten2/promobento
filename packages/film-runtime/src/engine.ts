@@ -140,11 +140,12 @@ const engine: FilmEngine = {
       const random = randomSequence(input.seed + '\0' + scene.id);
       const helperRegions: SceneRegion[] = [];
       const readiness = {open:true, pending:[] as Promise<unknown>[]};
+      const sounds = {open:scene.kind==='custom'&&scene.params?.sourceSfx===true,declarations:input.customSfx?.[scene.id]??[],used:new Set<number>()};
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
-          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness), CLIP: window.CLIP,
+          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
           const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
@@ -187,6 +188,8 @@ const engine: FilmEngine = {
         if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
         instance={timeline:built.timeline,events:declared.events,regions:built.regions??[],...(gsapScope?{dispose:()=>gsapScope.kill()}:{})};
       }else instance=definition!.build(ctx,scene.params);
+      sounds.open=false;
+      if(sounds.used.size!==sounds.declarations.length)throw Error('CUSTOM_SFX_NOT_EXECUTED');
       if (!instance.render && !instance.timeline) throw Error('BLOCK_DRAW_MISSING');
       if (instance.render && instance.timeline) throw Error('BLOCK_DRAW_AMBIGUOUS');
       if(instance.ready)readiness.pending.push(instance.ready);

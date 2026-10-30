@@ -41,6 +41,8 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 `ctx.OM.beat(n)` 在已冻结程序配乐明确设置 BPM 时返回 `n` 拍的秒数；也可用 `ctx.OM.beat(n, bpm)` 显式指定，未提供 BPM 时会报错。它计算长度，不自动把局部时点对齐全片节拍；全片节拍帧可读取 `ctx.beats`。
 
+自写镜头的 `params.sourceSfx: true` 开启原版 `ctx.OM.sfx(id, seconds, {gain})` 用法：在构建时间线时调用一次，返回相同时点用于动作落点。宿主不执行源码，而是从固定源码静态读取声明并在渲染前冻结到 AudioPlan；沙箱检查声明是否确实执行且只执行一次。支持现有程序音效 ID、落在 30 fps 帧边界的镜头局部时间、数字运算及 BPM 已知的 `ctx.OM.beat`；`gain` 是 0.001–3.9810717055349722 的线性倍率，省略为 1。动态时间、其他音效选项和重复落点明确拒绝，影片静音时不生成声音。不要在 FilmSpec 音效列表中重复同一声音和帧。源码变化会重新绑定音频计划；无该选项的旧镜头保持原行为。
+
 原版场景若使用 `gsap.set('#id', ...)` 或时间线中的选择器，在该自写镜头的 `params` 中设置 `gsapScope: 'scene'`，注册镜头时的 GSAP 字符串选择器和 OM 相机选择器就只查当前镜头；销毁镜头时释放对应 GSAP context。省略时保留上面的旧用法。该选项不改变源码、素材、文字或渲染隔离的准入要求，也不执行原版 HTML。
 
 params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。导演方法1.6可用 `assetChecks` 声明需要验证的DOM图片和帧，检查范围与限制见[导演说明](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)；旧源码和Canvas用法不增加该前置。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。

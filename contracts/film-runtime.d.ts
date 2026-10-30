@@ -50,7 +50,7 @@ export type FilmScene = {
   transitionIn?: { type: 'cut' | 'crossfade' | 'fade-through' | 'push' | 'whip' | 'wipe' | 'zoom-through' | 'match-handoff'; frames: number };
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
-  /** params.gsapScope='scene' opts into scene-local GSAP and OM selectors at build time. */
+  /** params.gsapScope='scene' scopes selectors; params.sourceSfx=true enables frozen source sound declarations. */
   | { kind: 'custom'; module: string; brief: string; params?: Record<string, unknown> }
 );
 
@@ -119,6 +119,8 @@ export interface CameraRigHelpers {
 export interface MotionHelpers {
   /** Register asynchronous scene setup before the first frame; late registrations fail. */
   ready<T>(promise: PromiseLike<T>): PromiseLike<T>;
+  /** With params.sourceSfx=true, register one statically admitted, frame-aligned sound during construction. */
+  sfx(id: string, atSeconds: number, options?: {gain?: number}): number;
   clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
   /** Seconds for n beats. Omitted bpm uses the frozen procedural-music bpm, if present. */
   beat(n: number, bpm?: number): number;

@@ -60,6 +60,11 @@ test('OM cameras prefer the scene with duplicate template IDs and preserve docum
     assert.equal(tempoOM.beat(4),2);assert.equal(tempoOM.beat(4,60),4);
     assert.throws(()=>tempoOM.beat(4,null),/BPM_REQUIRED/);
     assert.throws(()=>readyOM.beat(4),/BPM_REQUIRED/);
+    const sounds={open:true,declarations:[{id:'whoosh',seconds:.5,gain:.5}],used:new Set()};
+    const soundOM=createOM({root,target:{width:1000,height:500}},[],readiness,sounds);
+    assert.equal(soundOM.sfx('whoosh',.5,{gain:.5}),.5);assert.equal(sounds.used.size,1);
+    assert.throws(()=>soundOM.sfx('whoosh',.5,{gain:.5}),/CUSTOM_SFX_UNDECLARED/);
+    sounds.open=false;assert.throws(()=>soundOM.sfx('whoosh',.5,{gain:.5}),/CUSTOM_SFX_CLOSED/);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;

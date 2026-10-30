@@ -1,6 +1,9 @@
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {canonical} from '@promobento/contracts/canonical';
+import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {filmSourceHash} from '@promobento/contracts/film-source';
+import {filmCustomSfx} from '@promobento/contracts/custom-source';
+import {assertAudioPlan,audioPlanHash,deriveAudioPlan} from '../../../packages/audio/src/plan.mjs';
+import {filmBlockEvents} from '../../../packages/blocks/src/events.mjs';
 import type {PipelineEnv,BlobRef} from './pipeline-types.ts';
 
 export async function checkedBytes(env:PipelineEnv,blob:BlobRef){
@@ -22,4 +25,22 @@ export async function verifyRenderSource(env:PipelineEnv,film:unknown,inputs:Blo
  const sources=await loadCustomSources(env,inputs);
  if(filmSourceHash(canonical(film),sources)!==expected)throw Error('SOURCE_IDENTITY_MISMATCH');
  return sources;
+}
+
+/** Source-authored effects must be present in the immutable audio plan before paid compute. */
+export async function verifySourceSfxPlan(env:PipelineEnv,film:Record<string,any>,sources:Record<string,string>,input:Record<string,any>){
+ const effects=filmCustomSfx(film as any,sources);if(!effects.length)return;
+ const blob=(input.audioInputsBlobs as BlobRef[]|undefined)?.find(item=>item.name==='audio-plan');
+ if(!blob||blob.byteLength>4<<20)throw Error('CUSTOM_SFX_AUDIO_PLAN_MISSING');
+ const plan=parseCanonicalJson(await checkedBytes(env,blob)) as Record<string,any>;
+ assertAudioPlan(plan);
+ if(audioPlanHash(plan,{seed:input.audioInputs?.seed})!==input.job.audioPlanHash)throw Error('AUDIO_PLAN_SCOPE_MISMATCH');
+ if(plan.mute!==Boolean(film.audio.mute))throw Error('CUSTOM_SFX_AUDIO_PLAN_MISMATCH');
+ const reference={...film,audio:{...film.audio,music:{kind:'none'},sfx:[],mute:false}};
+ const expected=deriveAudioPlan(reference,filmBlockEvents(reference as any),{sourceSfx:effects});
+ if(plan.mute)return;
+ for(const event of expected.events){
+  const actual=plan.events.find((item:Record<string,any>)=>item.eventId===event.eventId);
+  if(!actual||canonical(actual)!==canonical(event))throw Error('CUSTOM_SFX_AUDIO_PLAN_MISMATCH');
+ }
 }
