@@ -92,7 +92,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const assets=activeStudio.options.observeAssets&&!oldAssetObservation?[{sceneId:health?'health':customAssetWrongScene?'other':'product',resourceId:assetId,visibility:!health&&customAssetUnverified?'unverified':!health&&customAssetMissing&&(!fixableFrameFailure||frameRepairs===0)?'hidden':'visible'}]:undefined;
     return Response.json({frameIndex:frame,observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:activeStudio.job.renderId,aspectId:activeStudio.job.aspectId,frame,texts,regions:[],findings:customQaFailure&&activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)?[{code:'text-clipped',severity:'BLOCK',slotId:'product'}]:[],...(assets?{assets}:{})}});},
    async frame(_id:string,frame:number){assert.ok(activeStudio.job.frames.includes(frame));const visits=(studioFrames.get(frame)??0)+1;studioFrames.set(frame,visits);
-    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
+    const mismatch=activeStudio.taskId.startsWith('custom-')&&(!fixableFrameFailure||frameRepairs===0)&&(customSeekFailure==='cold'?activeStudio.taskId.endsWith('-cold'):customSeekFailure==='boundary'?frame===149&&activeStudio.taskId.endsWith('-cold-149'):customSeekFailure==='reverse'&&visits>1&&frame===(customSeekOverlap?335:242));
     return new Response(mismatch?pngRgba(1,1,Uint8Array.from([200,0,0,255])):png);},
    async closeStudio(){if(cleanupFailure||failCustomClose&&activeStudio?.taskId.startsWith('custom-'))throw Error('MOCK_CLEANUP_FAILURE');if(activeStudio)closedCount++;activeStudio=null;}
   };}},
@@ -555,6 +555,15 @@ test('hardest custom scene is checked before the second is authored, without rep
  assert.equal(stopped.frameRepairs,1);assert.equal(stopped.renders.length,0);assert.equal(stopped.activeStudio,null);
  const frozen=await fixture({customScene:true,twoCustom:true,frozenMethodVersion:'1.2.0'});assert.ifError(frozen.error);
  assert.ok(frozen.trace.includes('author-cta'));assert.ok(!frozen.trace.includes('probe-studio'));assert.equal(frozen.result.directingMethod.version,'1.2.0');
+});
+
+test('new 2D custom preflight detects a shard-boundary cold mismatch and uses the bounded scene repair',async()=>{
+ const repaired=await fixture({customScene:true,customSeekFailure:'boundary',fixableFrameFailure:true});assert.ifError(repaired.error);
+ assert.equal(repaired.frameRepairs,1);assert.equal(repaired.customFailures[0].code,'CUSTOM_SEEK_MISMATCH');
+ assert.equal(repaired.customFailures[0].frame,149);assert.equal(repaired.customFailures[0].phase,'cold');
+ assert.equal(repaired.result.final.length,2);assert.equal(repaired.activeStudio,null);
+ const frozen=await fixture({customScene:true,customSeekFailure:'boundary',frozenMethodVersion:'1.12.0'});assert.ifError(frozen.error);
+ assert.equal(frozen.frameRepairs,0);assert.equal(frozen.result.directingMethod.version,'1.12.0');
 });
 
 test('only a definitively hidden asset receives one bounded repair; unverified or wrong-scene assets still stop',async()=>{

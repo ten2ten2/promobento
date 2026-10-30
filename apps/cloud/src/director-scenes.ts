@@ -3,7 +3,7 @@ import {digest} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {compareSeam} from '@promobento/contracts/seams';
 import {customScenePlan} from '@promobento/contracts/custom-source';
-import {renderPageTiming} from '@promobento/contracts/render';
+import {filmUsesWebgl,planShards,renderPageTiming} from '@promobento/contracts/render';
 import {validate as validObservation} from '@promobento/contracts/validators/frame-observation';
 import platform from '../../../config/platform-presets.json';
 import policy from '../../../config/agent-policy.json';
@@ -29,7 +29,7 @@ export function probeCustomSources(film:Json,sceneId:string,sources:Record<strin
 }
 
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false){
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false,checkShardSeams=false){
   const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
     ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
@@ -58,6 +58,18 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
           resources:context.resources.map((asset:Json)=>({...asset,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render),
           ...(assetFrames.length?{observeAssets:true}:{})},
         inputs:[{...source,name:'film'},...modules,...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))]};
+      // Reproduce the real 2D review/final shard cuts, including the preceding warm
+      // frame: cold seek of a reading hold alone missed a history-dependent shadow.
+      // WebGL's adaptive partition needs its own bounded check; its final seam gate remains unchanged.
+      const boundaries:number[]=[];
+      if(checkShardSeams&&!filmUsesWebgl(film)){
+        const {frames:_,...job}=task.job;
+        for(const quality of ['review','final'])for(const shard of planShards({...job,quality},film,{seed:context.seed}).shards.slice(1)){
+          const frame=shard.start-1;
+          if(frame>=scene.start&&frame<scene.end&&film.scenes.filter((item:Json)=>item.start<=frame&&frame<item.end).length===1)boundaries.push(frame);
+        }
+        task.job.frames=[...new Set([...frames,...boundaries,...boundaries.map(frame=>frame-1).filter(frame=>frame>=scene.start&&eligible(frame))])].sort((a,b)=>a-b);
+      }
       // Resource transport uses the same narrow private contract as ordinary render jobs.
       task.options.resources=context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true}));
       const owner=env.OPERATIONS.getByName(op.id);let failed=false,repairable:CustomSceneCheckError|undefined;
@@ -87,7 +99,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
       };
       try{
         await owner.studio(op.id,canonical(task));
-        for(const frame of frames){
+        for(const frame of task.job.frames){
           phase='forward';currentFrame=frame;
           await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
           let failureCode:string|undefined;
@@ -118,21 +130,25 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
           if(failureCode)throw Error(failureCode);
           expectation=undefined;
         }
-        for(const frame of [...frames].reverse()){
+        for(const frame of [...task.job.frames].reverse()){
           phase='reverse';currentFrame=frame;
           await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
           await compareFrame(frame,'reverse',await owner.frame(op.id,frame));
         }
       }catch(error){failed=true;try{await recordFailure(error);}catch(recordError){if(recordError instanceof CustomSceneCheckError)repairable=recordError;throw recordError;}throw error;}
       finally{await closeStudio();}
-      const coldFrame=reading.length?reading[Math.floor(reading.length/2)]!:frames[Math.floor(frames.length/2)]!,coldTask={...task,taskId:taskId+'-cold'};
-      failed=false;repairable=undefined;
-      try{
-        phase='cold';currentFrame=coldFrame;
-        await owner.studio(op.id,canonical(coldTask));
-        await compareFrame(coldFrame,'cold',await owner.frame(op.id,coldFrame));
-      }catch(error){failed=true;try{await recordFailure(error);}catch(recordError){if(recordError instanceof CustomSceneCheckError)repairable=recordError;throw recordError;}throw error;}
-      finally{await closeStudio();}
+      const coldFrame=reading.length?reading[Math.floor(reading.length/2)]!:frames[Math.floor(frames.length/2)]!;
+      for(const frame of [...new Set([coldFrame,...boundaries])]){
+        const coldTask={...task,taskId:taskId+(frame===coldFrame?'-cold':'-cold-'+frame)};
+        failed=false;repairable=undefined;
+        try{
+          phase='cold';currentFrame=frame;
+          if(checkShardSeams){await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);}
+          await owner.studio(op.id,canonical(coldTask));
+          await compareFrame(frame,'cold',await owner.frame(op.id,frame));
+        }catch(error){failed=true;try{await recordFailure(error);}catch(recordError){if(recordError instanceof CustomSceneCheckError)repairable=recordError;throw recordError;}throw error;}
+        finally{await closeStudio();}
+      }
       evidence.push({sceneId:scene.id,aspect,images,observations,comparisons});
     }
   }

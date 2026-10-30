@@ -68,7 +68,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.12.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.13.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -91,6 +91,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 方法1.10在审片修改已有自写镜头的规格时，让 D 对该镜头现有源码做范围内编辑，实施新旧规格的实际差异，而不从静态底稿重新分段编写。改后仍按全部声明、目标画幅和完整帧检查，模型输出无效或结果无法通过时停止；旧冻结方法仍使用原路径。此优化不延长活动上限，也不保证实际调用一定更快或画面合格。
 
 方法1.12将方向卡请求输出上限从 16,384 调整为 32,768 token，为高 effort 推理后返回卡片留出空间；旧方法保留原上限。阶段次数、费用与活动期限不变，截断结果仍保留回执并停止，不当作可用方向或重发原请求。
+
+方法1.13对不含 WebGL 的影片，根据真实 review／final 分片计划，将每个属于单一自写镜头的分段边界及其前一帧加入正向、逆向检查，并在新 studio 中逐边界冷取帧比较。检测到可归因差异沿用每镜头一次 D 修复及完整复查，原接缝阈值不变；旧冻结方法和 WebGL 镜头保持原路径。稀疏预检不等于完整播放，最终分段接缝仍须通过。
 
 Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有的 `studio-diagnostics/<taskId>.json`，因为 Studio 没有渲染分片的 attempt 行；诊断写入失败不覆盖原始启动错误，也不重试模型。
 

@@ -129,6 +129,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const sourceRevisionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=10);
     const hiddenAssetRepairMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=11);
     const expandedDirectionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=12);
+    const shardSeamMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=13);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[];
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -296,7 +297,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           sceneModules=checked.modules;sceneProofKey=checked.evidenceKey;break;
         }
         const result=parseCanonicalJson(await step.do<string>(name,{retries:{limit:0,delay:'1 second'},timeout:'8 minutes'},async()=>{
-          try{return canonical({checked:await checkCustomScenes(this.env,op,context,film,sources,deadline(),true,probeSceneId,Boolean(checkedAssetsMethod),Boolean(hiddenAssetRepairMethod))});}
+          try{return canonical({checked:await checkCustomScenes(this.env,op,context,film,sources,deadline(),true,probeSceneId,Boolean(checkedAssetsMethod),Boolean(hiddenAssetRepairMethod),Boolean(shardSeamMethod))});}
           catch(error){if(error instanceof CustomSceneCheckError)return canonical({failure:error.failure});throw error;}
         })) as Json;
         if(result.checked){if(!probeSceneId){sceneModules=result.checked.modules;sceneProofKey=result.checked.evidenceKey;}break;}
@@ -327,7 +328,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           currentSource,validationFeedback:{code:failure.code,sceneId:failure.sceneId,aspect:failure.aspect,phase:failure.phase,frame:failure.frame,...(failure.expectation?{expectation:failure.expectation}:{}),...(observed?{observation:observed}:{}),...(comparisonStats?{comparison:comparisonStats}:{}),
             frameImages:textOnly?'No images attached: this text-only model receives the actual CDP observation and pixel comparison, not a visual interpretation.':refs.length>1?'Attached contact sheet: tile 0 is the forward frame, tile 1 is the reverse/cold frame.':'Attached contact sheet: tile 0 is the actual failing forward frame.'},
           ...(textOnly?{assetObservations}:{}),literalAccessGuidance:customLiteralGuidance(scene),
-          repairGuidance:'For seek mismatch keep draw(t) history-independent. If dynamically resizing a cropped image causes raster differences, a fixed-resolution Canvas2D with complete clear and redraw is one tested option; preserve the real pixels and choreography. For missing or covered text, make the specified slot visible in that hold. '+(hiddenAssetRepairMethod?'For definitively hidden required assets, implement their actual appearance at the required frame using the original asset and preserve the intended transitions; do not add a tiny or hidden placeholder. ':'')+'The complete scene will be checked again in every requested aspect.'}),...(images.length?{images}:{})}],
+          repairGuidance:'For seek mismatch keep draw(t) history-independent. If dynamically resizing a cropped image causes raster differences, a fixed-resolution Canvas2D with complete clear and redraw is one tested option; preserve the real pixels and choreography. '+(shardSeamMethod?'A blurred box-shadow combined with changing transform/compositing can also differ between cold and warm renders; if the evidence points there, use a deterministic alternative while preserving the composition. ':'')+'For missing or covered text, make the specified slot visible in that hold. '+(hiddenAssetRepairMethod?'For definitively hidden required assets, implement their actual appearance at the required frame using the original asset and preserve the intended transitions; do not add a tiny or hidden placeholder. ':'')+'The complete scene will be checked again in every requested aspect.'}),...(images.length?{images}:{})}],
           tools:[{name:'edit_file',description:'Edit only the failing scene using a unique str_replace or insert; never create a new module.',parameters:customEditParameters([scene.module],['str_replace','insert'])}],
           ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'&&providers.steps.scenes.includes('/deepseek-')?{toolChoice:'edit_file'}:{}),maxOutputTokens:32768},value=>{
           const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
