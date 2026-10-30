@@ -136,6 +136,18 @@ try{
    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
    report.spatialCamera='multiple_moves_one_driver_and_reverse_seek';
   }finally{await space.close();}
+  // CLIP is trusted library code, but its text helpers must not bypass the scene's
+  // fact-bound DOM slots, including via a detached OffscreenCanvas.
+  for(const [name,attack] of [
+   ['clip-canvas-text',"ctx.CLIP.TY.text(drawing,'unbound claim',100,100)"],
+   ['clip-offscreen-text',"const x=new OffscreenCanvas(200,200).getContext('2d');ctx.CLIP.TY.text(x,'unbound claim',100,100)"]
+  ]){
+   const session=await open('landscape',attack);
+   try{await assert.rejects(session.frame(36),/RUNTIME_TEXT_FORBIDDEN/);report.attacks.push({name,blocked:true});}
+   finally{await session.close().catch(()=>{});}
+  }
+  const clipShapes=await open('landscape',"ctx.CLIP.TY.marker(drawing,20,20,100,30,.5,'#ffffff')");
+  try{await clipShapes.frame(36,{format:'png'});report.clipShapes='available';}finally{await clipShapes.close();}
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

@@ -53,6 +53,12 @@ for (const key of ['localStorage', 'sessionStorage', 'indexedDB', 'caches'])
   Object.defineProperty(window, key, {get: deny('RUNTIME_STORAGE_FORBIDDEN'), configurable: false});
 Object.defineProperty(document, 'cookie', {get: deny('RUNTIME_STORAGE_FORBIDDEN'), set: deny('RUNTIME_STORAGE_FORBIDDEN')});
 for (const key of ['AudioContext', 'webkitAudioContext', 'Audio']) replace(window, key, deny('RUNTIME_AUDIO_FORBIDDEN'));
+// Canvas pixels do not carry a fact-bound text slot. This also covers text drawn
+// indirectly by the original CLIP helpers and by detached/offscreen canvases.
+for (const context of [window.CanvasRenderingContext2D, window.OffscreenCanvasRenderingContext2D]) {
+  if (!context) continue;
+  for (const key of ['fillText', 'strokeText']) replace(context.prototype, key, deny('RUNTIME_TEXT_FORBIDDEN'));
+}
 const createElement = document.createElement.bind(document);
 document.createElement = ((tag: string, options?: ElementCreationOptions) => {
   if (['iframe', 'frame', 'object', 'embed'].includes(tag.toLowerCase())) throw Error('RUNTIME_IFRAME_FORBIDDEN');
