@@ -8,16 +8,16 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {probeCardLayout} from './probe-card-layout.mjs';
 import {probeReviewRender} from './probe-review-render.mjs';
-import {readAuthoredSnapshot,probeAuthoredFrames} from './probe-authored-frames.mjs';
+import {readAuthoredSnapshot,readCompletedAuthoredSnapshot,probeAuthoredFrames} from './probe-authored-frames.mjs';
 import {readApprovedMusic,admitMusic} from './admit-music.mjs';
 import {reviewPage} from './review-page.mjs';
 import {readOperationState} from './read-operation.mjs';
 import {selectCaseAspects} from './select-case-aspects.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(modeArg==='--portrait'?Boolean(sourceArg):(!['--check-card-layout','--check-review-render','--check-final-render','--check-authored-frames','--score','--music'].includes(modeArg)||!sourceArg)))throw Error('EVAL_MODE_INVALID');
+if(modeArg!==undefined&&(modeArg==='--portrait'?Boolean(sourceArg):(!['--check-card-layout','--check-review-render','--check-final-render','--check-authored-frames','--check-authored-final','--score','--music'].includes(modeArg)||!sourceArg)))throw Error('EVAL_MODE_INVALID');
 if(extra.length&&(!['--check-review-render','--check-final-render'].includes(modeArg)||extra.length!==2||!['--score','--music'].includes(extra[0])||!extra[1]))throw Error('EVAL_MODE_INVALID');
-const probeSource=modeArg?.startsWith('--check-')?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
+const probeSource=modeArg?.startsWith('--check-')?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=['--check-final-render','--check-authored-final'].includes(modeArg)?'final':'review';
 const musicMode=['--score','--music'].includes(modeArg)?modeArg:extra[0],musicFile=musicMode===modeArg?sourceArg:extra[1];
 if(probeSource&&!probeSource.startsWith(resolve('artifacts')+'/')&&!probeSource.startsWith(resolve('docs/evidence')+'/'))throw Error('PRIVATE_COMPLETED_RECEIPT_REQUIRED');
 if(!inputArg||!outputArg||![input,output].every(path=>path.startsWith(resolve('artifacts')+'/'))||existsSync(output))throw Error('NEW_PRIVATE_EVAL_OUTPUT_REQUIRED');
@@ -44,7 +44,7 @@ if(inventory[0]?.results?.[0]?.unfinished!==0)throw Error('OTHER_OPERATION_ACTIV
 mkdirSync(output,{recursive:true});
 const operationId='eval-'+caseId+'-'+Date.now(),prefix='evals/'+operationId,key=randomBytes(32).toString('hex');
 const base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
-const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':modeArg==='--check-authored-frames'?'s1_actual_authored_frame_check':'s1_actual_'+probeQuality+'_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
+const report={kind:probeSource?(layoutSource?'s1_actual_card_layout_check':modeArg==='--check-authored-frames'?'s1_actual_authored_frame_check':modeArg==='--check-authored-final'?'s1_actual_authored_final_render':'s1_actual_'+probeQuality+'_render_check'):'s1_actual_creative_case',caseId,operationId,sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
  rendererRelease:context.rendererRelease,rendererSourceSha,scope:'internal_eval_only',publicUseCleared:false,status:'starting',authPropagationRetries:0,operationReadTransportRetries:0,ownerNormalSpeedReview:probeSource?'not_applicable_regression':'pending'};
 const save=()=>writeFileSync(join(output,'report.json'),canonical(report)+'\n');
 let secretBound=false,operationAttempted=false,stopping=false,primaryFailure;process.once('SIGINT',()=>{stopping=true;});process.once('SIGTERM',()=>{stopping=true;});
@@ -112,6 +112,10 @@ try{
  }else if(modeArg==='--check-authored-frames'){
   report.authoredFrames=await probeAuthoredFrames({snapshot:readAuthoredSnapshot(probeSource),context,operationId,prefix,output,json,call});
   report.status='authored_frames_validated';report.finishedAt=new Date().toISOString();save();
+ }else if(modeArg==='--check-authored-final'){
+  const snapshot=readCompletedAuthoredSnapshot(probeSource,'portrait');
+  report.final=await probeReviewRender({receipt:snapshot.receipt,snapshot,aspect:'portrait',context,operationId,prefix,output,json,download,stopping:()=>stopping,quality:'final'});
+  report.status='authored_final_render_validated_unapproved';report.finishedAt=new Date().toISOString();save();
  }else if(probeSource){
   report[probeQuality]=await probeReviewRender({receipt:read(probeSource),context,operationId,prefix,output,json,download,stopping:()=>stopping,quality:probeQuality,externalMusic});
   report.status=probeQuality+'_render_validated';report.finishedAt=new Date().toISOString();save();

@@ -8,7 +8,7 @@ import {filmSourceHash} from '@promobento/contracts/film-source';
 import {pngRgba} from '@promobento/contracts/seams';
 import {customFixture} from '../../packages/film-runtime/test/custom-fixture.mjs';
 import {completedReviewFilm,probeReviewRender} from '../../research/evals/probe-review-render.mjs';
-import {readAuthoredSnapshot,probeAuthoredFrames} from '../../research/evals/probe-authored-frames.mjs';
+import {readAuthoredSnapshot,readCompletedAuthoredSnapshot,probeAuthoredFrames} from '../../research/evals/probe-authored-frames.mjs';
 import {selectCaseAspects} from '../../research/evals/select-case-aspects.mjs';
 import {reviewPage} from '../../research/evals/review-page.mjs';
 
@@ -59,6 +59,15 @@ test('authored frame recheck binds the original source, checks both aspects and 
   const partialReport=await probeAuthoredFrames({...args,snapshot:partial});
   assert.equal(partialReport.scope,'same_original_partial_scene_probe_with_placeholders_no_models');
   assert.ok(partialReport.aspects.every(a=>a.sceneId==='product'&&!a.frames.includes(449)));
+  const proof={kind:'custom_scene_preflight',sourceHash:hash,modules:[{name:path,key:`operations/fixture/custom-check/${hash}/${path}`}],evidence:[{sceneId:'product',aspect:'portrait',comparisons:[{mode:'reverse',verdict:'pass'},{mode:'cold',verdict:'pass'}]}]};
+  writeFileSync(join(root,'proof.json'),canonical({...proof,kind:'custom_scene_probe'}));assert.throws(()=>readCompletedAuthoredSnapshot(root,'portrait'),/AUTHORED_SNAPSHOT_IDENTITY_MISMATCH/);
+  writeFileSync(join(root,'proof.json'),canonical(proof));const complete=readCompletedAuthoredSnapshot(root,'portrait');let submitted;
+  const final=await probeReviewRender({receipt:complete.receipt,snapshot:complete,aspect:'portrait',context,operationId:'fixture-operation',prefix:'evals/fixture-operation',output,quality:'final',stopping:()=>false,download:async()=>{},json:async(name,options)=>{
+   if(name.startsWith('objects/'))return{key:name.slice(8),sha256:'a'.repeat(64),byteLength:options.body.length};
+   if(name==='renders'){submitted=options.body;return{};}return{status:'passed',result_json:canonical({outputs:[]})};
+  }});
+  assert.equal(final.scope,'actual_private_unapproved_authored_portrait_final_no_models');assert.equal(submitted.job.aspectId,'portrait');assert.equal(submitted.job.sourceHash,hash);assert.ok(submitted.inputs.some(blob=>blob.name===path));
+  assert.throws(()=>readCompletedAuthoredSnapshot(root,'landscape'),/AUTHORED_SNAPSHOT_IDENTITY_MISMATCH/);
  }finally{rmSync(root,{recursive:true,force:true});rmSync(output,{recursive:true,force:true});}
 });
 

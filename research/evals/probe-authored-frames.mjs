@@ -27,6 +27,23 @@ export function readAuthoredSnapshot(directory){
  return{film,sources,failure,receipt,partialSceneId};
 }
 
+// Only a complete preflight can authorize a standalone render of the identical source.
+// A partial probe or a failure record never counts as a completed film.
+export function readCompletedAuthoredSnapshot(directory,aspect){
+ const root=resolve(directory);if(!root.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_AUTHORED_SNAPSHOT_REQUIRED');
+ const receipt=parseCanonicalJson(readFileSync(join(root,'film-receipt.json'))),proof=parseCanonicalJson(readFileSync(join(root,'proof.json')));
+ const {film}=completedReviewFilm(receipt),sources={},custom=film.scenes.filter(scene=>scene.kind==='custom');
+ for(const scene of custom){
+  if(scene.module!==`scenes/${scene.id}/index.js`||!/^[a-z][a-z0-9-]{0,47}$/.test(scene.id))throw Error('CUSTOM_EDIT_SCOPE');
+  sources[scene.module]=readFileSync(join(root,scene.module),'utf8');
+ }
+ if(!custom.length||!receipt.quote||proof.kind!=='custom_scene_preflight'||filmSourceHash(canonical(film),sources)!==proof.sourceHash
+  ||!Array.isArray(proof.modules)||proof.modules.length!==custom.length||proof.modules.some(module=>!Object.hasOwn(sources,module.name)||!module.key?.includes(`/custom-check/${proof.sourceHash}/`))
+  ||!Array.isArray(proof.evidence)||custom.some(scene=>!proof.evidence.some(e=>e.sceneId===scene.id&&e.aspect===aspect&&Array.isArray(e.comparisons)
+   &&e.comparisons.some(c=>c.mode==='reverse')&&e.comparisons.some(c=>c.mode==='cold')&&e.comparisons.every(c=>c.verdict!=='RENDER_SEAM_BLOCK'))))throw Error('AUTHORED_SNAPSHOT_IDENTITY_MISMATCH');
+ return{film,sources,receipt,proof};
+}
+
 export async function probeAuthoredFrames({snapshot,context,operationId,prefix,output,json,call}){
  const{film,sources,failure,receipt,partialSceneId}=snapshot;if(film.durationSeconds!==context.durationSeconds)throw Error('AUTHORED_SNAPSHOT_DURATION_MISMATCH');
  const source=await json('objects/'+prefix+'/authored-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});

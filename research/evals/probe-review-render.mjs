@@ -24,21 +24,23 @@ export function completedReviewFilm(receipt){
  throw Error('COMPLETED_FILM_RECEIPT_REQUIRED');
 }
 
-export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping,quality='review',externalMusic}){
+export async function probeReviewRender({receipt,context,operationId,prefix,output,json,download,stopping,quality='review',externalMusic,snapshot,aspect='landscape'}){
  if(!['review','final'].includes(quality))throw Error('FILM_PROBE_QUALITY_INVALID');
  const {film,sourceKind}=completedReviewFilm(receipt);
- if(film.durationSeconds!==context.durationSeconds||film.scenes.some(scene=>scene.kind!=='block')||film.audio.voice
+ if(film.durationSeconds!==context.durationSeconds||(!snapshot&&film.scenes.some(scene=>scene.kind!=='block'))||film.audio.voice
   ||!externalMusic&&!['procedural','none'].includes(film.audio.music.kind))throw Error('TRUSTED_BLOCK_GENERATED_AUDIO_REVIEW_REQUIRED');
+ if(snapshot&&(quality!=='final'||aspect!=='portrait'||filmSourceHash(canonical(film),snapshot.sources)!==snapshot.proof.sourceHash))throw Error('AUTHORED_SNAPSHOT_IDENTITY_MISMATCH');
  if(externalMusic){
   const selector=externalMusic.kind==='score'?{kind:'score',scoreRef:externalMusic.scoreRef}:{kind:'upload',resourceId:externalMusic.resourceId};
   if(film.audio.mute||canonical(film.audio.music)!==canonical(selector))throw Error('EVAL_REQUIRED_MUSIC_NOT_USED');
  }
  const sound=directorAudio(film,externalMusic?[externalMusic]:[],context.seed),{plan}=sound;
  const source=await json('objects/'+prefix+'/'+quality+'-film.json',{method:'PUT',body:new TextEncoder().encode(canonical(film))});
+ const modules=[];for(const[path,text]of Object.entries(snapshot?.sources??{}))modules.push({...await json('objects/'+prefix+'/'+path,{method:'PUT',body:new TextEncoder().encode(text),mediaType:'text/javascript'}),name:path});
  const audio=await json('objects/'+prefix+'/audio-plan.json',{method:'PUT',body:new TextEncoder().encode(canonical(plan))});
- const renderId=quality+'-'+operationId,aspect='landscape',{ratio,...layout}=platform.aspectLayouts[aspect];
+ const renderId=quality+'-'+operationId,{ratio,...layout}=platform.aspectLayouts[aspect];
  const job={schemaVersion:'3.0.0',kind:'render_job',renderId,operationId,candidateId:'candidate-'+operationId,
-  sourceHash:filmSourceHash(canonical(film)),runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,
+  sourceHash:filmSourceHash(canonical(film),snapshot?.sources),runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,aspectId:aspect,
   durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality,
   renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},
   audioPlanHash:audioPlanHash(plan,{seed:context.seed}),resources:[...context.resources.map(asset=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind})),
@@ -46,10 +48,10 @@ export async function probeReviewRender({receipt,context,operationId,prefix,outp
  const input={job,options:{target:{aspect,...layout,fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
   resources:context.resources.map(asset=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true})),
   confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render)},
-  inputs:[{...source,name:'film'},...context.resources.map(asset=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))],
+  inputs:[{...source,name:'film'},...modules,...context.resources.map(asset=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))],
   audioInputsBlobs:[{...audio,name:'audio-plan'},...sound.blobs],audioInputs:sound.inputs,
   coverFrame:Math.floor(film.totalFrames*.55)};
- const partition=planShards(job,film,{seed:context.seed}),report={scope:'actual_private_'+quality+'_render_from_completed_paid_spec_no_models',
+ const partition=planShards(job,film,{seed:context.seed}),report={scope:snapshot?'actual_private_unapproved_authored_portrait_final_no_models':'actual_private_'+quality+'_render_from_completed_paid_spec_no_models',
   sourceCallId:receipt.callId,sourceKind,renderId,sourceHash:job.sourceHash,partition,deadlineMs:renderDeadlineMs(job,partition,policy.render),status:'running'};
  const save=()=>writeFileSync(join(output,quality+'-render.json'),canonical(report)+'\n');save();
  try{
