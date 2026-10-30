@@ -4,7 +4,7 @@
 
 ## 当前检查点
 
-最近已留证的内部 staging 源码为 `5769c0e811c4a145f4eb8cde59482b62348f8aa7`，导演方法 **1.12.0**；[deploy-only 部署](https://github.com/ten2ten2/promobento/actions/runs/41007996265)发布 `renderer-5769c0e811c4`，镜像摘要 `sha256:043e812e1387bbdb8842e86a3b64dc191fee04ec3e661c1fc5172757ea349e3f`。部署健康、空容量及模型预算只读检查通过，部署本身没有调用模型或渲染，临时密钥已回收。早期 `component-relay` 1.0.0 在真实素材冷 seek 发现像素不一致；后续使用固定 CPU 取样，已有真实素材和工程位图的四画幅顺序／逆序／冷 seek 检查通过。
+最近已留证的内部 staging Worker 源码为 `a87f49c9f4e7a0b7b73d1572bd95099089b61043`，导演方法 **1.12.0**；[Worker 部署](https://github.com/ten2ten2/promobento/actions/runs/41011143863)沿用此前发布的 `renderer-5769c0e811c4`，镜像摘要 `sha256:043e812e1387bbdb8842e86a3b64dc191fee04ec3e661c1fc5172757ea349e3f`。部署健康、空容量及模型预算只读检查通过，部署本身没有调用模型或渲染，临时密钥已回收。早期 `component-relay` 1.0.0 在真实素材冷 seek 发现像素不一致；后续使用固定 CPU 取样，已有真实素材和工程位图的四画幅顺序／逆序／冷 seek 检查通过。
 
 新一轮 Duolingo 自动评测实际选中组件接力并交付横屏低清片；E 输出未形成工具调用且 usage 缺失，保留未知预留，F 和最终横竖片未运行。原片中的组件随首张页面离开，而规格要求它在后续页面继续接力；方法 1.7.1／`component-relay` 1.0.2 已修复并部署，复用原已结算规格重渲的横屏低清片确认卡片留在后续页面旁。画面整体仍偏静态，未通过质量验收。[片子、费用与范围](evidence/2026-10-24-s1-director/README.md#方法-170组件接力自动低清片e-未完成)。
 
@@ -22,7 +22,7 @@
 
 部署完成后暂停的竖屏评测 `eval-duolingo-15-1793333748476` 已受控取消，generation 1；没有模型调用，计算已停止／结算、容量为空、临时密钥回收。负责人随后要求继续：操作 `eval-duolingo-15-1793337364224` 的方向请求用满 16,384 token 推理而没有方向正文，已结算后以 `MODEL_OUTPUT_TRUNCATED` 停止。方法 1.12 把新方向请求上限调整为 32,768，旧冻结方法及截断不重发规则不变；新竖屏评测生成了可播放的低清审片，但 E 放大产品后的重渲在第 149 帧因跨分段像素差异阻断。最终片和 F 尚未完成。[实际审片与接缝](evidence/2026-10-24-s1-director/README.md#方法-190自写镜头试片在-d-中断)。
 
-复用已完成自写规格及原源码做竖屏最终编码时，独立 `/renders` 入站仅按 FilmSpec 算身份，错误拒绝了自写模块；没有启动渲染或调用模型。源码已修复入站身份校验并复用工作流的源码字节读取，仍待部署与实际编码验证。
+复用已完成自写规格及原源码做竖屏最终编码时，独立 `/renders` 入站曾仅按 FilmSpec 算身份，错误拒绝自写模块。修复入站身份校验并部署后，真实竖屏 1080×1920／30 fps 渲染已准入，但原镜头在第 149 帧同样因跨分段像素差异阻断；未生成最终片。两次编码探针均未调用模型；具体接缝、费用与保留的审片见[实际审片与接缝](evidence/2026-10-24-s1-director/README.md#方法-190自写镜头试片在-d-中断)。
 
 负责人另行批准的 Duolingo 15 秒评测已生成横屏低清审片；E 模型请求返回 HTTP 502 且用量未知，F 未运行，也没有竖屏或高清最终片。实际帧与绑定源码表明首个镜头未测出按钮坐标，却静默停在路径图，未实现规格中的练习画面交接；片尾正文与 CTA 叠字。此片不作为质量通过，负责人试听待确认。作品覆盖仍为 **1/12 创作输入、2/24 最终片**。[审片、失败原因与回执](evidence/2026-10-24-s1-director/README.md#duolingo-15-秒低清审片已生成e-请求-502)。
 
@@ -73,7 +73,7 @@
 
 ## 继续工作所需入口
 
-- [评测输入、私有素材、当前审片与试听用法](../research/evals/README.md)；本机 MiniMax 人工稿为 `artifacts/s1-minimax-method150-2026-10-27/index.html`，新 Duolingo E 前横屏低清片为 `artifacts/s1-duolingo-clean-handoffs-2026-10-30/review-before-E.mp4`。
+- [评测输入、私有素材、当前审片与试听用法](../research/evals/README.md)；本机 MiniMax 人工稿为 `artifacts/s1-minimax-method150-2026-10-27/index.html`，新 Duolingo E 前竖屏低清片为 `artifacts/s1-duolingo-portrait-extended-2026-10-30/review-before-E.mp4`。
 - [导演／作品证据](evidence/2026-10-24-s1-director/README.md)、[当前性能／隔离／内存](evidence/2026-10-24-s1-performance/README.md)、[运行时与自写镜头](evidence/2026-10-24-s1-runtime/README.md)、[云端媒体与恢复](evidence/2026-10-24-s1-staging/README.md)、[模型能力与历史费用](evidence/2026-10-23-model-probe/README.md)。
 - 本地原生联调／新构建部署封装仍未合入主线，review出片曾失败、封装未在Actions实跑，不作为当前可用入口；沿用主线README的命令。
 - 私有暂停检查点 `s1-paused-private-20261025`（`31cb416`）只按需要逐项取用，不整支合并或推公开仓库。既有源素材、许可、音源、作品和费用回执继续保留；本机旧轮次原始数据在 `artifacts/history/`，不是完整历史媒体包。
