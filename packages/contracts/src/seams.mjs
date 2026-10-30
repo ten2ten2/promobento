@@ -1,8 +1,9 @@
 import {inflateSync,deflateSync} from 'node:zlib';
 import {Buffer} from 'node:buffer';
 
-/** Bounded decoder for trusted CDP RGB/RGBA PNGs (8 bit, non-interlaced), shared by Worker and container. */
-export function pngPixels(bytes) {
+// Parse and inflate once, including per-row filter validation, without allocating a second
+// full RGBA image when both trusted PNGs are byte-identical.
+function pngData(bytes) {
   const buffer = Buffer.from(bytes);
   if (buffer.length < 45 || buffer.length > 12 * 1024 * 1024 || buffer.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a')
     throw Error('SEAM_PNG_INVALID');
@@ -25,11 +26,17 @@ export function pngPixels(bytes) {
   const stride = width * channels, expected = (stride + 1) * height;
   const raw = inflateSync(Buffer.concat(chunks), {maxOutputLength: expected});
   if (raw.length !== expected) throw Error('SEAM_PNG_INVALID');
+  for(let y=0;y<height;y++)if(raw[y*(stride+1)]>4)throw Error('SEAM_PNG_UNSUPPORTED');
+  return {width,height,channels,stride,raw};
+}
+
+/** Bounded decoder for trusted CDP RGB/RGBA PNGs (8 bit, non-interlaced), shared by Worker and container. */
+export function pngPixels(bytes) {
+  const {width,height,channels,stride,raw}=pngData(bytes);
   const pixels = Buffer.alloc(width * height * 4), previous = Buffer.alloc(stride), row = Buffer.alloc(stride);
   const paeth = (a, b, c) => { const p = a + b - c, x = Math.abs(p - a), y = Math.abs(p - b), z = Math.abs(p - c); return x <= y && x <= z ? a : y <= z ? b : c; };
   for (let y = 0; y < height; y++) {
     const offset = y * (stride + 1), filter = raw[offset];
-    if (filter > 4) throw Error('SEAM_PNG_UNSUPPORTED');
     row.set(raw.subarray(offset + 1, offset + 1 + stride));
     // Select once per row: the old array expression calculated every predictor, including
     // Paeth, for every byte even when the PNG row used no filter at all.
@@ -50,10 +57,9 @@ export function pngPixels(bytes) {
 }
 
 export function compareSeam(expected, actual) {
+  // Byte identity proves equal pixels, but never bypass PNG structure/inflate/filter checks.
+  if (Buffer.from(expected).equals(Buffer.from(actual))) {pngData(expected);return {identical:true,maxChannelDiff:0,diffPixelPct:0,verdict:'pass'};}
   const a = pngPixels(expected);
-  // A byte-identical image has identical decoded pixels. Decode it once so malformed
-  // identical inputs still fail the same PNG checks rather than bypassing validation.
-  if (Buffer.from(expected).equals(Buffer.from(actual))) return {identical:true,maxChannelDiff:0,diffPixelPct:0,verdict:'pass'};
   const b = pngPixels(actual);
   if (a.width !== b.width || a.height !== b.height) throw Error('SEAM_DIMENSIONS_MISMATCH');
   let maxChannelDiff = 0, changed = 0;

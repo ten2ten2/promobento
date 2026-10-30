@@ -34,6 +34,7 @@ test('CDP RGB and RGBA PNGs retain exact pixels with every PNG row predictor',()
 
 test('identical invalid PNGs still fail; seam tolerance and dimensions stay unchanged',()=>{
  const invalid=Buffer.from('not a PNG');assert.throws(()=>compareSeam(invalid,invalid),/SEAM_PNG_INVALID/);
+ const badFilter=filteredPng(4,5).bytes;assert.throws(()=>compareSeam(badFilter,badFilter),/SEAM_PNG_UNSUPPORTED/);
  const pixels=new Uint8Array(1000*4).fill(255),base=pngRgba(1000,1,pixels);
  pixels[0]=253;assert.deepEqual(compareSeam(base,pngRgba(1000,1,pixels)),{identical:false,maxChannelDiff:2,diffPixelPct:.1,verdict:'pass_within_tolerance'});
  pixels[0]=252;assert.equal(compareSeam(base,pngRgba(1000,1,pixels)).verdict,'RENDER_SEAM_BLOCK');
