@@ -1,3 +1,4 @@
+import {directorBlockParamIssues} from './director-block-feedback.ts';
 import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflare:workers';
 import {directingMethodRef,recallDirecting,type DirectingMethodPack} from '../../../packages/methods/directing.ts';
 import {customSceneInstructions} from '../../../packages/methods/custom-scene.ts';
@@ -131,6 +132,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const expandedDirectionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=12);
     const shardSeamMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=13);
     const assetRegressionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=14);
+    const detailedBlockFeedback=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=16);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[];
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -178,7 +180,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const blocks=new Map(blockCatalog.map(block=>[block.id,{major:1,validateParams:(params:object)=>validBlock({block:block.id+'@1',params})?[]:['BLOCK_PARAMS_INVALID']}]));
       const result=filmSpecErrors(value as FilmSpec,{blocks,resources:new Map(context.resources.map((asset:Json)=>[asset.resourceId,{...asset,rightsCleared:true}])),
         fontIds:new Set<string>(context.fonts.map((font:Json)=>font.fontId)),confirmedFactIds:new Set<string>(context.confirmedFactIds)});
-      if(result.errors.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',result.errors.slice(0,24),value);
+      if(result.errors.length){
+        const issues=detailedBlockFeedback?result.errors.flatMap(issue=>{
+          const match=issue.code==='BLOCK_PARAMS_INVALID'?/^\/scenes\/(\d+)\/params$/.exec(issue.path):null;
+          if(!match)return [issue];
+          const index=Number(match[1]),scene=value.scenes[index];
+          const detail=directorBlockParamIssues(scene.block,scene.params,index);
+          return detail.length?detail:[issue];
+        }):result.errors;
+        throw new DirectorValidationError('FILM_SEMANTICS_INVALID',issues.slice(0,24),value);
+      }
       const relayIssues=relayObservationIssues(value,relayInsights,context.resources,{requireBehavior:Boolean(scopedRelayMethod)});
       if(relayIssues.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',relayIssues,value);
       try{
