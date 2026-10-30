@@ -44,6 +44,10 @@ test('source SFX is in the frozen plan and an altered or missing plan cannot ent
  const wrongSeed=inputFor(sound.plan);wrongSeed.audioInputs.seed='other-seed';
  await assert.rejects(verifySourceSfxPlan(env,film,sources,wrongSeed),/AUDIO_PLAN_SCOPE_MISMATCH/);
  await assert.rejects(verifySourceSfxPlan(env,film,sources,{audioInputsBlobs:[]}),/CUSTOM_SFX_AUDIO_PLAN_MISSING/);
+ const fractional={...sources,[scene.module]:sources[scene.module].replace("'whoosh',.5","'whoosh',.51")};
+ const precise=directorAudio(film,[],seed,fractional);assert.equal(precise.plan.events[0].sourceSample,24480);
+ await verifySourceSfxPlan(env,film,fractional,inputFor(precise.plan));
+ await assert.rejects(verifySourceSfxPlan(env,film,fractional,inputFor(sound.plan)),/CUSTOM_SFX_AUDIO_PLAN_MISMATCH/);
  const silent=structuredClone(film);silent.audio.mute=true;
  await verifySourceSfxPlan(env,silent,sources,inputFor(directorAudio(silent,[],seed,sources).plan));
 });

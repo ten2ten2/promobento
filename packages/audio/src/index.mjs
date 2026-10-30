@@ -39,7 +39,7 @@ export function synthesizePlan(plan, {seed, labels = {}, clearedSources, bytesBy
     if (event.kind === 'music' && music && event.sourceId === plan.music.sourceId) pcm = music;
     else if (source.origin === 'procedural' && event.kind === 'sfx' && event.sourceId.startsWith('sfx_')) {
       const sound = SFX[event.sourceId.slice(4)]; if (!sound) throw Error('SFX_UNKNOWN');
-      const {sig, lead} = sound.fn({dur:event.sfxTiming?event.sfxTiming.synthesisSamples/48000:(event.frameEndExclusive-event.frameStart)/30},rng(seed+':'+event.eventId),
+      const {sig, lead} = sound.fn({dur:event.sfxTiming?event.sfxTiming.synthesisSamples/48000:event.sourceSample!==undefined?Math.min(n-event.sourceSample,96000)/48000:(event.frameEndExclusive-event.frameStart)/30},rng(seed+':'+event.eventId),
         (degree, octave) => mtof(12 * (octave + 1) + [0, 2, 4, 5, 7, 9, 11][((degree - 1) % 7 + 7) % 7]));
       if(Math.round(lead*48000)!==(event.sfxTiming?.leadSamples??0))throw Error('SFX_TIMING_MISMATCH');
       pcm = Array.isArray(sig) ? {L: sig[0], R: sig[1]} : {L: sig, R: sig};
@@ -48,9 +48,9 @@ export function synthesizePlan(plan, {seed, labels = {}, clearedSources, bytesBy
       const bytes = bytesBySource.get(event.sourceId); if (!bytes || !source.sha256) throw Error('AUDIO_SOURCE_MISSING');
       pcm = decodeSampleWav(bytes);
     } else throw Error('AUDIO_SOURCE_UNSUPPORTED');
-    const placement=event.sfxTiming?event.sfxTiming.anchorFrame*1600-event.sfxTiming.leadSamples:event.frameStart*1600;
+    const placement=event.sfxTiming?(event.sourceSample??event.sfxTiming.anchorFrame*1600)-event.sfxTiming.leadSamples:(event.sourceSample??event.frameStart*1600);
     const start=event.sfxTiming?Math.max(0,placement):placement,offset=event.sfxTiming?Math.max(0,-placement):(event.sourceOffsetFrames??0)*1600;
-    const length=event.sfxTiming?Math.min(n-start,event.sfxTiming.durationSamples-offset):(event.frameEndExclusive-event.frameStart)*1600;
+    const length=event.sfxTiming?Math.min(n-start,event.sfxTiming.durationSamples-offset):event.sourceSample!==undefined?Math.min(n-start,96000):(event.frameEndExclusive-event.frameStart)*1600;
     // Short synthesized hits naturally decay; uploaded sources must cover the declared interval.
     if (source.origin !== 'procedural' && offset + length > pcm.L.length) throw Error('AUDIO_SOURCE_OUT_OF_RANGE');
     const pan = (event.pan ?? 0) * Math.PI / 4, left = Math.cos(Math.PI / 4 + pan) * Math.SQRT2, right = Math.sin(Math.PI / 4 + pan) * Math.SQRT2;

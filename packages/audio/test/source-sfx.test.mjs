@@ -27,3 +27,26 @@ test('source-declared sound is frozen into the actual plan with upstream linear 
  const muted=structuredClone(film);muted.audio.mute=true;
  assert.deepEqual(deriveAudioPlan(muted,events,{sourceSfx:effects}).events,[]);
 });
+
+
+test('source BPM hits keep their nearest audio sample, including lead-in and ordinary effects',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.params.sourceSfx=true;
+ film.audio={music:{kind:'procedural',style:'mallet',bpm:124},sfx:[],captions:'off'};
+ sources[scene.module]=sources[scene.module].replace('const timeline=',"ctx.OM.sfx('whoosh',ctx.OM.beat(1));ctx.OM.sfx('pop',ctx.OM.beat(1));const timeline=");
+ const effects=filmCustomSfx(film,sources),plan=deriveAudioPlan(film,filmBlockEvents(film),{sourceSfx:effects});
+ const whoosh=plan.events.find(e=>e.sourceId==='sfx_whoosh'),pop=plan.events.find(e=>e.sourceId==='sfx_pop');
+ assert.equal(whoosh.eventId,'whoosh:sample:23226');assert.equal(whoosh.sourceSample,23226);assert.equal(whoosh.sfxTiming.anchorFrame,14);
+ assert.equal(whoosh.frameStart,5);assert.equal(whoosh.frameEndExclusive,21);
+ assert.equal(pop.sourceSample,23226);assert.equal(pop.frameStart,14);assert.equal(pop.frameEndExclusive,75);
+ const broken=structuredClone(plan);broken.events.find(e=>e.sourceId==='sfx_whoosh').sfxTiming.anchorFrame=15;
+ assert.throws(()=>audioPlanHash(broken,{seed:'source-sfx-test'}),/SFX_TIMING_INVALID/);
+ const noMusic=structuredClone(plan);noMusic.music={kind:'none'};noMusic.events=noMusic.events.filter(e=>e.kind!=='music');noMusic.sources=noMusic.sources.filter(e=>e.sourceId!=='music');
+ const clearedSources=new Map(noMusic.sources.map(item=>[item.sourceId,{...item,rightsCleared:true}]));
+ const out=synthesizePlan(noMusic,{seed:'source-sfx-test',clearedSources});
+ const audible=(start,end)=>out.wav.subarray(44+start*4,44+end*4).some(byte=>byte!==0);
+ assert.equal(audible(0,8826),false);assert.equal(audible(8826,23226),true);
+ const onlyPop=structuredClone(noMusic);onlyPop.events=onlyPop.events.filter(e=>e.sourceId==='sfx_pop');onlyPop.sources=onlyPop.sources.filter(e=>e.sourceId==='sfx_pop');
+ const popWav=synthesizePlan(onlyPop,{seed:'source-sfx-test',clearedSources}).wav;
+ assert.equal(popWav.subarray(44,44+23226*4).some(byte=>byte!==0),false);
+ assert.equal(popWav.subarray(44+23226*4,44+24000*4).some(byte=>byte!==0),true);
+});

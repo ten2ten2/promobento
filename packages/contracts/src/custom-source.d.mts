@@ -3,7 +3,7 @@ export const CUSTOM_SOURCE_MAX_BYTES: number;
 export interface CustomPlan {textSlots:string[];assetKeys:string[];events:Array<{name:string;frame:number}>;readingHolds:Array<{start:number;end:number;visibleTextSlots?:string[]}>;assetChecks?:Array<{frame:number;assetKeys:string[]}>;hardest?:boolean;sourceSfx?:boolean}
 export function customScenePlan(scene:FilmScene,options?:{validateVisibleTextSlots?:boolean;validateAssetChecks?:boolean}):CustomPlan;
 export function customSourceErrors(scene:FilmScene,source:string,spec:FilmSpec):Array<{code:string;line:number}>;
-export interface CustomSfx {id:string;frame:number;seconds:number;gain:number;gainDb:number}
+export interface CustomSfx {id:string;frame:number;sample?:number;seconds:number;gain:number;gainDb:number}
 export function extractCustomSfx(scene:FilmScene,source:string,spec:FilmSpec):CustomSfx[];
 export function filmCustomSfx(spec:FilmSpec,sources?:Record<string,string>):Array<CustomSfx & {sceneId:string}>;
 export function assertCustomSources(spec:FilmSpec,sources?:Record<string,string>):void;

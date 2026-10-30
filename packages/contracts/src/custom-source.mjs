@@ -58,8 +58,8 @@ export function extractCustomSfx(scene,source,spec){
     if(!node||typeof node!=='object')return;
     if(omCall(node,ctx,'sfx')){
       if(node.arguments.length<2||node.arguments.length>3||typeof node.arguments[0]?.value!=='string'||!id.test(node.arguments[0].value))throw Error('CUSTOM_SFX_INVALID');
-      const seconds=number(node.arguments[1]),frame=Math.round(seconds*30);
-      if(!Number.isFinite(seconds)||seconds<0||Math.abs(seconds*30-frame)>1e-6||frame>=scene.end-scene.start)throw Error('CUSTOM_SFX_FRAME_REQUIRED');
+      const seconds=number(node.arguments[1]),sample=Math.round(seconds*48000),frame=Math.floor(sample/1600);
+      if(!Number.isFinite(seconds)||seconds<0||sample>=(scene.end-scene.start)*1600)throw Error('CUSTOM_SFX_TIME_INVALID');
       let gain=1;
       if(node.arguments[2]){
         const options=node.arguments[2];
@@ -71,7 +71,7 @@ export function extractCustomSfx(scene,source,spec){
         }
       }
       if(!Number.isFinite(gain)||gain<.001||gain>10**(12/20))throw Error('CUSTOM_SFX_GAIN_INVALID');
-      result.push({id:node.arguments[0].value,frame,seconds,gain,gainDb:20*Math.log10(gain)});
+      result.push({id:node.arguments[0].value,frame,seconds,gain,gainDb:20*Math.log10(gain),...(sample%1600?{sample}:{})});
       if(result.length>100)throw Error('CUSTOM_SFX_LIMIT');
     }
     for(const [key,value]of Object.entries(node))if(!['loc','start','end'].includes(key)){
@@ -79,7 +79,7 @@ export function extractCustomSfx(scene,source,spec){
     }
   };
   walk(factory.body);
-  const seen=new Set();for(const sound of result){const key=sound.id+':'+sound.frame;if(seen.has(key))throw Error('CUSTOM_SFX_DUPLICATE');seen.add(key);}
+  const seen=new Set();for(const sound of result){const key=sound.id+':'+(sound.sample??sound.frame*1600);if(seen.has(key))throw Error('CUSTOM_SFX_DUPLICATE');seen.add(key);}
   return result;
 }
 export function filmCustomSfx(spec,sources){

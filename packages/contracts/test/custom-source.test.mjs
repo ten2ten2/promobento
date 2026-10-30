@@ -62,7 +62,7 @@ test('optional asset checks validate their targets and frames without restrictin
  }
 });
 
-test('source SFX are extracted without execution and use frozen BPM and frame-aligned times',()=>{
+test('source SFX are extracted without execution and use frozen BPM and sample-accurate times',()=>{
  const {film,sources}=customFixture(),scene=film.scenes[0];scene.params.sourceSfx=true;
  film.audio={music:{kind:'procedural',style:'mallet',bpm:120},sfx:[],captions:'off'};
  const source=sources[scene.module].replace('const timeline=',"ctx.OM.sfx('whoosh',ctx.OM.beat(1),{gain:.5});const timeline=");
@@ -74,7 +74,7 @@ test('source SFX are extracted without execution and use frozen BPM and frame-al
  assert.equal(extractCustomSfx(scene,emptyOptions,film)[0].gain,1);
  for(const [bad,code] of [
   ["ctx.OM.sfx('whoosh',ctx.random())",'CUSTOM_SFX_STATIC_TIME_REQUIRED'],
-  ["ctx.OM.sfx('whoosh',.51)",'CUSTOM_SFX_FRAME_REQUIRED'],
+  ["ctx.OM.sfx('whoosh',-1)",'CUSTOM_SFX_TIME_INVALID'],
   ["ctx.OM.sfx('whoosh',.5,{pan:1})",'CUSTOM_SFX_OPTIONS_UNSUPPORTED'],
   ["ctx.OM.sfx('whoosh',.5,{gain:0})",'CUSTOM_SFX_GAIN_INVALID'],
   ["ctx.OM.sfx('whoosh',.5);ctx.OM.sfx('whoosh',.5)",'CUSTOM_SFX_DUPLICATE']
@@ -83,6 +83,9 @@ test('source SFX are extracted without execution and use frozen BPM and frame-al
   assert.throws(()=>extractCustomSfx(scene,broken,film),new RegExp(code));
   assert.ok(customSourceErrors(scene,broken,film).some(item=>item.code===code));
  }
+ const offFrame=structuredClone(film);offFrame.audio.music.bpm=124;
+ const offBeat=extractCustomSfx(offFrame.scenes[0],source,offFrame)[0];
+ assert.equal(offBeat.seconds,60/124);assert.equal(offBeat.sample,23226);assert.equal(offBeat.frame,14);
  const noBpm=structuredClone(film);noBpm.audio.music={kind:'none'};
  assert.throws(()=>extractCustomSfx(scene,source,noBpm),/CUSTOM_SFX_STATIC_TIME_REQUIRED/);
  const legacy=structuredClone(scene);delete legacy.params.sourceSfx;

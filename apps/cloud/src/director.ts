@@ -79,7 +79,7 @@ const customLiteralGuidance=(scene:FilmSpec['scenes'][number])=>{
 };
 const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>scene.kind==='custom'&&scene.params?.sourceSfx===true
   ?customSceneInstructions.replace('sound events are frozen in scene.params.events, not evaluated from source.',
-    `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be a scene-local 30 fps frame boundary, written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and frame in FilmSpec audio.sfx.`)
+    `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be scene-local seconds written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM; audio is placed at the nearest 48 kHz sample. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and time in FilmSpec audio.sfx.`)
   :customSceneInstructions;
 const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec)=>{
   const lines=source.split('\n');
