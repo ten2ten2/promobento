@@ -143,7 +143,8 @@ const engine: FilmEngine = {
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
-        OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene'}, helperRegions, readiness), CLIP: window.CLIP,
+        OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
+          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
           const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');

@@ -56,6 +56,10 @@ test('OM cameras prefer the scene with duplicate template IDs and preserve docum
     const pending = Promise.resolve('loaded');assert.equal(readyOM.ready(pending),pending);
     assert.equal(readiness.pending.length,1);readiness.open=false;
     assert.throws(()=>readyOM.ready(pending),/CUSTOM_READY_CLOSED/);
+    const tempoOM = createOM({root,target:{width:1000,height:500},bpm:120},[]);
+    assert.equal(tempoOM.beat(4),2);assert.equal(tempoOM.beat(4,60),4);
+    assert.throws(()=>tempoOM.beat(4,null),/BPM_REQUIRED/);
+    assert.throws(()=>readyOM.beat(4),/BPM_REQUIRED/);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;

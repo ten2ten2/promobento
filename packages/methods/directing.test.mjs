@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {directingMethodPack,recallDirecting} from './directing.ts';
 test('stage recall carries the shared story method and the right audience without unrelated stages',()=>{
   const software=recallDirecting(directingMethodPack,'spec','software');
-  assert.equal(software.version,'1.22.0');assert.match(software.audience,/workflow/);
+  assert.equal(software.version,'1.23.0');assert.match(software.audience,/workflow/);
   assert.match(software.guidance.join(' '),/focusFrom\/focusTo/);
   assert.match(software.guidance.join(' '),/params\.gsapScope.*scene/);
   assert.ok(!software.guidance.some(text=>text.includes('Offer different')));
@@ -14,6 +14,7 @@ test('stage recall carries the shared story method and the right audience withou
   assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/GSAP string selectors.*this scene/);
   assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/cameraRig\.create\(shots\)/);
   assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/OM\.ready\(promise\)/);
+  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/OM\.beat\(n\).*frozen procedural music bpm/);
   assert.match(recallDirecting(directingMethodPack,'review','software').guidance.join(' '),/zoom above 1 crops source edges/);
   const visual=recallDirecting(directingMethodPack,'directions','software').upstreamReference;
   assert.equal(visual.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');

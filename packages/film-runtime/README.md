@@ -39,6 +39,8 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 场景构建时可用 `ctx.OM.ready(promise)` 登记首帧前必须完成的异步准备；宿主等待已登记任务及其中登记的后续任务，失败或超时则停止初始化。准备结束后不接受新的登记。素材仍只能使用已授权的 `ctx.asset`，此接口不开放网络或任意依赖。
 
+`ctx.OM.beat(n)` 在已冻结程序配乐明确设置 BPM 时返回 `n` 拍的秒数；也可用 `ctx.OM.beat(n, bpm)` 显式指定，未提供 BPM 时会报错。它计算长度，不自动把局部时点对齐全片节拍；全片节拍帧可读取 `ctx.beats`。
+
 原版场景若使用 `gsap.set('#id', ...)` 或时间线中的选择器，在该自写镜头的 `params` 中设置 `gsapScope: 'scene'`，注册镜头时的 GSAP 字符串选择器和 OM 相机选择器就只查当前镜头；销毁镜头时释放对应 GSAP context。省略时保留上面的旧用法。该选项不改变源码、素材、文字或渲染隔离的准入要求，也不执行原版 HTML。
 
 params声明textSlots、assetKeys、局部整数帧events、readingHolds，可用hardest指定优先。导演方法1.6可用 `assetChecks` 声明需要验证的DOM图片和帧，检查范围与限制见[导演说明](../../apps/cloud/README.md#导演选择结构d-实现自写镜头)；旧源码和Canvas用法不增加该前置。ctx.text／ctx.asset必须字面量；createElement／createElementNS／getContext的tag／namespace／context也须字面量，helper可以接已建元素或已解析handle。ctx.style.palette直接含bg／ink／accent，不是FilmSpec的roles包装。全部可见文字经text mount，当前Canvas/SVG文字绘制禁止。

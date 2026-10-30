@@ -490,6 +490,7 @@ test('frozen huashu reference and chosen template reach the actual directing and
  assert.match(scene,/ui-space\/index\.html/);assert.match(scene,/OM\.space/);
  assert.match(scene,/cameraRig\.create/);
  assert.match(scene,/OM\.ready\(promise\)/);
+ assert.match(scene,/OM\.beat\(n\)/);
  const old=await fixture({customScene:true,visualLanguage:'cursor-demo',frozenMethodVersion:'1.16.0'});assert.ifError(old.error);
  assert.doesNotMatch(old.methodPrompts.find(item=>item.task.startsWith('Implement')).system,/upstreamReference/);
 });

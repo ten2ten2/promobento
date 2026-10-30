@@ -173,8 +173,10 @@ try{
   readyFilm.assets={};readyFilm.scenes=[{id:'ready',kind:'custom',module:'scenes/ready/index.js',start:0,end:450,
    purpose:'Wait for scene setup.',brief:'A registered asynchronous change must appear in the first frame.',
    params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:450}]}}];
+  readyFilm.audio.music={kind:'procedural',style:'mallet',bpm:120};
   readyOptions.resources=[];readyOptions.fonts=multiOptions.fonts;
   readyOptions.customSources={'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   if(ctx.OM.beat(2)!==1||ctx.OM.beat(2,60)!==2||ctx.beats[1]!==15)throw Error('BEAT_FIXTURE_FAILED');
    const panel=document.createElement('div');Object.assign(panel.style,{position:'absolute',inset:'0',background:'rgb(255,0,0)'});ctx.root.append(panel);
    const first=Promise.resolve().then(()=>{let next=Promise.resolve();for(let i=0;i<25;i++)next=next.then(()=>{});
     ctx.OM.ready(next.then(()=>{panel.style.background='rgb(0,0,255)';}));});ctx.OM.ready(first);
@@ -191,7 +193,7 @@ try{
   finally{await unexpected?.close();}
   const late=await open('landscape','ctx.OM.ready(Promise.resolve())');
   try{await assert.rejects(late.frame(36),/CUSTOM_READY_CLOSED/);}finally{await late.close().catch(()=>{});}
-  report.sceneReady='nested_setup_waited_rejection_and_late_registration_blocked';
+  report.sceneReady='nested_setup_waited_rejection_and_late_registration_blocked';report.musicBeat='frozen_bpm_and_explicit_override';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

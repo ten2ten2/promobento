@@ -120,7 +120,8 @@ export interface MotionHelpers {
   /** Register asynchronous scene setup before the first frame; late registrations fail. */
   ready<T>(promise: PromiseLike<T>): PromiseLike<T>;
   clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
-  beat(n: number, bpm: number): number;
+  /** Seconds for n beats. Omitted bpm uses the frozen procedural-music bpm, if present. */
+  beat(n: number, bpm?: number): number;
   random(seed: number): () => number;
   spring(bounce: number): (progress: number) => number;
   springValue(from: number, changes: Array<{at: number; to: number}>, time: number, options?: {bounce?: number; settle?: number}): number;
