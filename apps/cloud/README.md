@@ -68,7 +68,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.10.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.11.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -78,7 +78,7 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 
 两个custom时先验最难镜头，无画面占位只参与可归因、无其他镜头重叠的提前探针；所有真实模块完成后，仍在每请求画幅独立studio检查事件／首尾／阅读窗口、逆序和新实例冷seek。1.2及后续方法按visibleTextSlots和sceneId核对阅读点；每模块冻结原始字节，proof不借提前探针代替。
 
-方法1.6可为自写镜头声明 `assetChecks:[{frame,assetKeys}]`，各帧为镜头局部整数、不能与其他镜头重叠，且与事件／阅读点共用24帧上限。C应对关键DOM图片选择需要实际出现的帧；D的受检素材须以 `ctx.asset(key).url` 绑定的DOM图片出现。可信CDP只检查所属镜头、可见样式、裁切及命中，缺失／无法确认时保留实际帧并停止，不自动付费修复。它不证明图片可读、动作完整或作品质量；未声明的素材和Canvas绘制仍依赖E/F与人工审片，不改变原有Canvas调用条件。取不到可靠坐标时C应选择无需该坐标的设计；D不能靠空值或静态占位冒充完成。声明检查时先探测所用renderer的素材观测能力，不支持则在D调用前停止。
+方法1.6可为自写镜头声明 `assetChecks:[{frame,assetKeys}]`，各帧为镜头局部整数、不能与其他镜头重叠，且与事件／阅读点共用24帧上限。C应对关键DOM图片选择需要实际出现的帧；D的受检素材须以 `ctx.asset(key).url` 绑定的DOM图片出现。可信CDP只检查所属镜头、可见样式、裁切及命中；方法1.11在明确观察到所需图片隐藏时，可基于实际失败帧有界修复一次并重新检查，`unverified` 或无所属图片仍停止。旧方法保留原停止行为。它不证明图片可读、动作完整或作品质量；未声明的素材和Canvas绘制仍依赖E/F与人工审片，不改变原有Canvas调用条件。取不到可靠坐标时C应选择无需该坐标的设计；D不能靠空值或静态占位冒充完成。声明检查时先探测所用renderer的素材观测能力，不支持则在D调用前停止。
 
 方法1.6的CTA入场使用cut或 `fade-through`：先淡出上一镜头，再淡入CTA，不改变旧 `crossfade` 的叠化语义；使用新转场时先探测实际renderer是否支持。自写镜头内自行绘制的文字交接仍需实际审片。
 

@@ -29,7 +29,7 @@ export function probeCustomSources(film:Json,sceneId:string,sources:Record<strin
 }
 
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false){
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false){
   const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
     ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
@@ -68,7 +68,12 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
         const failure={kind:'custom_scene_check_failure',sourceHash,sceneId:scene.id,aspect,code,phase,frame:currentFrame,modules,images,observations,comparisons,...(expectation?{expectation}:{})};
         try{await immutableJson(env,`${prefix}/${scene.id}/${aspect}/failure.json`,failure);}
         catch(evidenceError){throw new Error(code,{cause:evidenceError});}
-        if(repairFailures&&['CUSTOM_QA_BLOCK','CUSTOM_HOLD_TEXT_MISSING','CUSTOM_SEEK_MISMATCH'].includes(code))throw new CustomSceneCheckError(code,failure);
+        const lastAssets=observations.at(-1)?.assets??[],missing=expectation?.missingAssetKeys;
+        const hiddenAssets=repairHiddenAssets&&code==='CUSTOM_REQUIRED_ASSET_NOT_VISIBLE'&&Array.isArray(missing)&&missing.length>0&&missing.every((key:string)=>{
+          const matched=lastAssets.filter((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key].resourceId);
+          return matched.length>0&&matched.every((asset:Json)=>asset.visibility==='hidden');
+        });
+        if(repairFailures&&(['CUSTOM_QA_BLOCK','CUSTOM_HOLD_TEXT_MISSING','CUSTOM_SEEK_MISMATCH'].includes(code)||hiddenAssets))throw new CustomSceneCheckError(code,failure);
       };
       const closeStudio=async()=>{
         try{await owner.closeStudio();}catch(error){if(repairable)throw new Error(repairable.message,{cause:error});if(!failed)throw error;}
