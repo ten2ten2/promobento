@@ -1,6 +1,6 @@
 // A curated selection from already inspected official pages, not an unrestricted website importer.
 import {chromium} from 'playwright-core';
-import {readFileSync,writeFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdtempSync,rmSync,existsSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -8,11 +8,13 @@ const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
 const selectedTopic=process.argv[3];
 if(selectedTopic&&!['deepseek','minimax','duolingo','marugoto','hf-llm-course'].includes(selectedTopic))throw Error('CURATED_SELECTION_UNAVAILABLE');
 if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
-const capture=parseCanonicalJson(readFileSync(join(directory,'capture.json'))),byId=new Map(capture.assets.map(asset=>[asset.id,asset]));
+const topicCapture=selectedTopic?join(directory,`capture-${selectedTopic}.json`):null;
+const capture=parseCanonicalJson(readFileSync(topicCapture&&existsSync(topicCapture)?topicCapture:join(directory,'capture.json'))),byId=new Map(capture.assets.map(asset=>[asset.id,asset]));
 const profile=mkdtempSync(join(tmpdir(),'promobento-material-selection-'));
 const context=await chromium.launchPersistentContext(profile,{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,
  viewport:{width:1600,height:1000},deviceScaleFactor:1,locale:'en-US',timezoneId:'UTC',acceptDownloads:false});
-const selected=selectedTopic?parseCanonicalJson(readFileSync(join(directory,'selected.json'))).assets.filter(asset=>asset.topicId!==selectedTopic):[];
+const selectionFile=join(directory,'selected.json');
+const selected=selectedTopic&&existsSync(selectionFile)?parseCanonicalJson(readFileSync(selectionFile)).assets.filter(asset=>asset.topicId!==selectedTopic):[];
 const save=()=>writeFileSync(join(directory,'selected.json'),canonical({scope:'internal_eval_only',publicUseCleared:false,assets:selected})+'\n');
 const add=(entry,extra)=>{selected.push({...extra,...entry,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false});save();};
 try{

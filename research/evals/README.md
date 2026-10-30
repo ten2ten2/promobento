@@ -159,6 +159,8 @@ mise exec -- node research/evals/run-case.mjs \
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：
 
+在指定已批准题目后追加 `--grab`，例如 `node research/evals/capture-materials.mjs <私有输出目录> duolingo --grab`，可在原 capture 流程中额外保留最多八屏页面截图，并观察图片／logo／视频候选 URL、可见颜色和字体；不自动下载候选素材；内联 SVG 只记录候选存在，不复制 SVG 字节。输出仍为内部评测候选，须逐项查看并按既有 `select-materials`／`ingest-materials` 审核及登记；观察到的网址或样式不是素材许可，也没有接入客户素材处理。页面采集方法参考 huashu-motion `cli/lib/grab.js`（MIT；来源见[方法通知](../../packages/methods/NOTICE.md)）。
+
 ```sh
 mise exec -- node research/evals/capture-materials.mjs artifacts/eval-materials-2026-10-24
 mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-2026-10-24
