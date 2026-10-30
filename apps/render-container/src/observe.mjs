@@ -124,6 +124,37 @@ export async function observe(cdp, plan, renderId, frame) {
       }
       return false;
     };
+    // Chromium hit testing can return an opacity-zero sibling even though it paints nothing.
+    // Only fall through that hit if the point lies in the actual transformed image and each
+    // clipping ancestor, and no later, potentially painted node overlaps it. Bounds alone are
+    // not proof for rotated images; unknown quads or paint order stay unverified.
+    const visibleBelowHiddenHit=async(target,x,y)=>{
+      const pointInQuad=(q)=>{
+        if(!Array.isArray(q)||q.length!==8||q.some(v=>!Number.isFinite(v)))return false;
+        let sign=0;
+        for(let i=0;i<4;i++){
+          const j=(i+1)%4,cross=(q[2*j]-q[2*i])*(y-q[2*i+1])-(q[2*j+1]-q[2*i+1])*(x-q[2*i]);
+          if(Math.abs(cross)<1e-6)continue;
+          const next=Math.sign(cross);if(sign&&next!==sign)return false;sign=next;
+        }
+        return sign!==0;
+      };
+      const inContent=async node=>{
+        try{const result=await cdp.send('DOM.getContentQuads',{backendNodeId:nodes.backendNodeId[node]});return result.quads?.some(pointInQuad)===true;}
+        catch{return false;}
+      };
+      if(!await inContent(target))return false;
+      for(let current=parent(target);current>=0;current=parent(current))
+        if(['hidden','clip','scroll','auto'].includes(style(current,'overflow'))&&!await inContent(current))return false;
+      const order=layout.paintOrders?.[rowFor.get(target)];if(!Number.isInteger(order))return false;
+      for(const[candidate,row]of rowFor){
+        if(candidate===target||ancestor(candidate,target)||ancestor(target,candidate)||definitelyHidden(candidate)||paintlessContainer(candidate))continue;
+        const otherOrder=layout.paintOrders?.[row],box=layout.bounds[row];
+        if(!Number.isInteger(otherOrder)||!box)return false;
+        if(otherOrder>=order&&x>=box[0]&&x<box[0]+box[2]&&y>=box[1]&&y<box[1]+box[3])return false;
+      }
+      return true;
+    };
     const expected=new Map();
     for(const scene of plan.spec.scenes){
       if(!customIds.has(scene.id)||!Array.isArray(scene.params?.assetChecks))continue;
@@ -170,6 +201,7 @@ export async function observe(cdp, plan, renderId, frame) {
               else if(hitNode>=0&&(definitelyHidden(hitNode)||paintlessContainer(hitNode))){
                 const normal=await cdp.send('DOM.getNodeForLocation',{x,y,ignorePointerEventsNone:false}),normalNode=nodes.backendNodeId.indexOf(normal.backendNodeId);
                 if(normalNode>=0&&ancestor(normalNode,node)&&!possiblePointerOverlay(node,x,y))state='visible';
+                else if(normalNode>=0&&definitelyHidden(normalNode)&&await visibleBelowHiddenHit(node,x,y))state='visible';
               }
             }catch(error){if(!String(error.message).includes('No node found at given location'))throw error;}
             if(state==='visible')break;

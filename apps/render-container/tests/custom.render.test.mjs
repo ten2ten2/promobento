@@ -55,10 +55,13 @@ try{
    params:{textSlots:['product'],assetKeys:['dashboard'],events:[],readingHolds:[{start:30,end:110}],assetChecks:[45,90,120,150].map(frame=>({frame,assetKeys:['dashboard']}))}},
    {...perspectiveFilm.scenes[2],start:232,transitionIn:{type:'fade-through',frames:8}}];
   const perspectiveSource=`PB.scene('product',ctx=>{
-   const stage=document.createElement('div'),world=document.createElement('div'),img=document.createElement('img'),front=document.createElement('div'),child=document.createElement('div'),label=document.createElement('div');
+   const stage=document.createElement('div'),world=document.createElement('div'),img=document.createElement('img'),hidden=document.createElement('div'),front=document.createElement('div'),child=document.createElement('div'),label=document.createElement('div');
    Object.assign(stage.style,{position:'absolute',inset:'0',overflow:'hidden',perspective:'1100px'});ctx.root.append(stage);
    Object.assign(world.style,{position:'absolute',left:'50%',top:'40%',width:'0',height:'0',transformStyle:'preserve-3d'});stage.append(world);
    img.src=ctx.asset('dashboard').url;Object.assign(img.style,{position:'absolute',left:'-150px',top:'-250px',width:'300px',height:'500px',transform:'translate3d(-200px,0,-200px) rotateY(30deg)'});world.append(img);
+   // An invisible later sibling is still hit-testable in Chromium; it must not conceal
+   // the image, while a genuinely painted layer above it must remain unverified.
+   Object.assign(hidden.style,{position:'absolute',inset:'0',background:'black',opacity:'0'});stage.append(hidden);
    Object.assign(front.style,{position:'absolute',inset:'0',pointerEvents:'none'});ctx.root.append(front);
    Object.assign(child.style,{position:'absolute',left:'0',top:'0',width:'100%',height:'100%'});front.append(child);
    Object.assign(label.style,{position:'absolute',left:'5%',top:'5%',width:'30%',height:'10%',opacity:'0'});ctx.root.append(label);ctx.text('product').mount(label);

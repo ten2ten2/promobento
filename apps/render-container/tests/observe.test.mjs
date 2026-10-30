@@ -41,7 +41,7 @@ test('CDP font size and weight select the original 3:1 large / 4.5:1 ordinary co
   }
 });
 
-async function imageObservation({opacity='1',hit=103,mask='none',sceneId='product',frame=45,observeAssets=true,overlayOpacity='0',anotherOpacity='0',overlayBackground='rgba(0, 0, 0, 0)',overlayShadow='none',overlayImage='none',overlayBorder='none',overlayTag='DIV',overlayPseudo=false}={}){
+async function imageObservation({opacity='1',hit=103,mask='none',sceneId='product',frame=45,observeAssets=true,overlayOpacity='0',anotherOpacity='0',overlayBackground='rgba(0, 0, 0, 0)',overlayShadow='none',overlayImage='none',overlayBorder='none',overlayTag='DIV',overlayPseudo=false,quads=true}={}){
  const strings=[],s=value=>{let index=strings.indexOf(value);if(index<0){index=strings.length;strings.push(value);}return index;};
  const nodes={parentIndex:[-1,0,1,2,1,1],nodeType:[1,1,1,1,1,1],nodeName:['HTML','SECTION','DIV','IMG',overlayTag,'DIV'].map(s),...(overlayPseudo?{pseudoType:{index:[4],value:[s('before')]}}:{}),
   nodeValue:[s(''),s(''),s(''),s(''),s(''),s('')],backendNodeId:[100,101,102,103,104,105],
@@ -60,6 +60,7 @@ async function imageObservation({opacity='1',hit=103,mask='none',sceneId='produc
    return{strings,documents:[{nodes,layout}]};
   }
   if(method==='DOM.getNodeForLocation')return{backendNodeId:typeof hit==='function'?hit(input):hit};
+  if(method==='DOM.getContentQuads')return{quads:quads?[[100,100,400,100,400,500,100,500]]:[]};
   return{};
  }};
  const plan={observeAssets,target:{aspect:'landscape',width:1920,height:1080,safeInsets:{top:0,bottom:0,left:0,right:0}},fonts:[],
@@ -78,6 +79,11 @@ test('asset observations use actual scene-scoped DOM state and do not turn an oc
   const actual=await imageObservation({...overlay,overlayOpacity:'1',hit:input=>input.ignorePointerEventsNone?104:103});assert.equal(actual.assets[0].visibility,'unverified');
  }
  const opaque=await imageObservation({hit:input=>input.ignorePointerEventsNone?104:103,anotherOpacity:'1'});assert.equal(opaque.assets[0].visibility,'unverified');
+ // Both hit tests can land on an opacity-zero sibling. Geometry plus paint order can
+ // prove the image underneath only when no painted node can cover the sampled point.
+ assert.equal((await imageObservation({hit:104})).assets[0].visibility,'visible');
+ assert.equal((await imageObservation({hit:104,anotherOpacity:'1'})).assets[0].visibility,'unverified');
+ assert.equal((await imageObservation({hit:104,quads:false})).assets[0].visibility,'unverified');
  const passiveImage=await imageObservation({hit:input=>input.ignorePointerEventsNone?103:102});assert.equal(passiveImage.assets[0].visibility,'visible');
  const masked=await imageObservation({mask:'url(#mask)'});assert.equal(masked.assets[0].visibility,'unverified');
  assert.deepEqual((await imageObservation({sceneId:'other'})).assets,[]);
