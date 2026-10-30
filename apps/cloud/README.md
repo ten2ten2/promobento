@@ -96,7 +96,9 @@ Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有�
 
 当前 E 的规格改写是创作过程内的自动审片修复；用户对已生成影片提交批注并创建新候选的改稿入口尚未实现。具体产品改稿和版本规则见[13](../../docs/prd/13-agent-native-production.md#7-定点编辑和协作)与[14](../../docs/prd/14-production-contracts.md)。
 
-失败证据绑定sourceHash／scene／aspect，保留阶段／帧／CDP／像素比较及实际PNG。studio关闭确认且错误为可归因CUSTOM_QA_BLOCK／CUSTOM_HOLD_TEXT_MISSING／CUSTOM_SEEK_MISMATCH时，每镜头最多一次D定点修复，共用原次数／金额／期限；重叠无法归因、未知消费、Q0／权限／平台或停止未确认直接失败。看图模式给真实失败图，文本模式只给实际观测／比较，不冒称看过帧。
+失败证据绑定sourceHash／scene／aspect，保留阶段／帧／CDP／像素比较及实际PNG。studio关闭确认且错误为可归因CUSTOM_QA_BLOCK／CUSTOM_HOLD_TEXT_MISSING／CUSTOM_SEEK_MISMATCH，或方法1.11中声明素材明确为hidden时，每镜头最多一次D定点修复，共用原次数／金额／期限；unverified素材、重叠无法归因、未知消费、Q0／权限／平台或停止未确认直接失败。看图模式给真实失败图，文本模式只给实际观测／比较，不冒称看过帧。
+
+内部独立渲染入口与工作流共同读取并校验冻结的自写模块字节，按 FilmSpec 和全部源码核对 `sourceHash`；可信积木原入口保持不变。模块仅作为数据传输，在隔离渲染容器内执行，不能用该入口绕过素材权利或最终分片检查。
 
 仅staging/evaluation/internal_eval_only、冻结方法≥1.5.0且实际custom可用30分钟活动上限；原起点、方向等待扣除、修复不重置，其他仍20分钟。[期限与配置来源](../../docs/plans/cloud-motion-v3.md#611-预算限制与-effort)。
 

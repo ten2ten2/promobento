@@ -3,7 +3,6 @@ import {directingMethodPack,directingMethodRef} from '../../../packages/methods/
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {assertRenderJob, assertRenderTask, planShards} from '@promobento/contracts/render';
-import {filmSourceHash} from '@promobento/contracts/film-source';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
 import {reconcileOperation,dispatchRender,dispatchRenderProgress} from './render-recovery.ts';
 import {dispatchDirectorFailure,dispatchDirectorProgress,getReviewDraft} from './director-recovery.ts';
@@ -12,6 +11,7 @@ import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative,recoverWorkflows} from './workflow-recovery.ts';
 import {validId, type PipelineEnv, type Json} from './pipeline-types.ts';
 import {AUDIO_INSTANCE} from './render-task.ts';
+import {verifyRenderSource} from './render-source.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
 export {RenderWorkflow} from './render-workflow.ts';
@@ -183,7 +183,7 @@ export default {
         if (existing) {if (existing.request_hash !== hash) throw Error('IDEMPOTENCY_CONFLICT'); return Response.json({renderId:input.job.renderId});}
         await rights(env,op,input.job.resources);
         const raw = await getJson(env,input.inputs.find((object:Json)=>object.name==='film')?.key);
-        if (filmSourceHash(canonical(raw)) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
+        await verifyRenderSource(env,raw,input.inputs,input.job.sourceHash);
         const shards = planShards(input.job,raw,{seed:input.options.seed}).shards;
         // Validate exact private transport before scheduling any paid compute; rights still come from D1.
         assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',taskId:crypto.randomUUID(),brokerToken:crypto.randomUUID(),

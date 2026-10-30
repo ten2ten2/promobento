@@ -2,19 +2,16 @@ import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudfl
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {planShards, assertRenderJob,renderDeadlineMs} from '@promobento/contracts/render';
 import {filmSourceHash} from '@promobento/contracts/film-source';
-import {sha256Bytes} from '@promobento/contracts/digest';
 import {operation, rights, immutableJson, getJson} from './store.ts';
 import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
 import {verifyRenderShards} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {runRenderTask,AUDIO_INSTANCE} from './render-task.ts';
+import {checkedBytes,loadCustomSources} from './render-source.ts';
 import policy from '../../../config/agent-policy.json';
 import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
 
-export async function checkedBytes(env: PipelineEnv, blob: BlobRef) {
-  const object = await env.MEDIA.get(blob.key); if (!object || object.size !== blob.byteLength || object.size > 50 << 20) throw Error('RENDER_OUTPUT_MISSING');
-  const bytes = new Uint8Array(await object.arrayBuffer()); if (sha256Bytes(bytes) !== blob.sha256) throw Error('RENDER_OUTPUT_IDENTITY_MISMATCH'); return bytes;
-}
+export {checkedBytes} from './render-source.ts';
 export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: string}> {
   async run(event: WorkflowEvent<{renderId: string}>, step: WorkflowStep) {
     const row = parseCanonicalJson(await step.do('load-render', async () => {
@@ -31,11 +28,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       if (!release) throw Error('RENDER_ENVIRONMENT_MISMATCH');
       const filmBlob = input.inputs.find((blob: BlobRef) => blob.name === 'film'); if (!filmBlob) throw Error('SOURCE_UNAVAILABLE');
       const raw = await checkedBytes(this.env, filmBlob);
-      const sources:Record<string,string>={};
-      for(const blob of input.inputs.filter((blob:BlobRef)=>blob.name.startsWith('scenes/'))){
-        if(blob.byteLength>65536)throw Error('CUSTOM_SOURCE_SIZE');
-        sources[blob.name]=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await checkedBytes(this.env,blob));
-      }
+      const sources=await loadCustomSources(this.env,input.inputs);
       if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
       const film = parseCanonicalJson(raw) as Json, partition = planShards(input.job, film, {seed: input.options.seed});
       const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));

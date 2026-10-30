@@ -24,7 +24,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -278,7 +278,20 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    assert.equal((await read(route+'review-draft')).status,422);assert.equal((await read('artifacts/'+file)).status,404);
    draftApi='private_draft_only_rights_and_generation_checked';
   }
-  return{result,error,state,draftApi,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,specInputs,directionInputs,validationFeedback,reviewRequests,frameRepairs,trace,
+  let admission;
+  if(renderAdmission&&result?.final?.length){
+   db.prepare("UPDATE pipeline_operations SET status='active' WHERE id='mock-operation'").run();env.S1_ENABLED='internal_eval';env.EVAL_API_KEY='fixture-internal-key';
+   db.prepare('UPDATE pipeline_outbox SET delivered_at=? WHERE delivered_at IS NULL').run(Date.now());
+   const row=db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(result.final[0].renderId),input=parseCanonicalJson(objects.get(row.job_key).bytes);
+   const pending:any[]=[],post=async(value:any)=>worker.fetch(new Request('https://fixture.invalid/internal/s1/renders',{method:'POST',headers:{authorization:'Bearer fixture-internal-key','content-type':'application/json'},body:canonical(value)}),env,{waitUntil:(promise:any)=>pending.push(promise)} as any);
+   const missing=clone(input);missing.job.renderId='render-admission-missing';missing.inputs=missing.inputs.filter((item:any)=>!item.name.startsWith('scenes/'));
+   const missingResponse=await post(missing);assert.equal(missingResponse.status,422);assert.equal((parseCanonicalJson(await missingResponse.text()) as any).code,'CUSTOM_SOURCE_MISSING');
+   const tampered=clone(input);tampered.job.renderId='render-admission-tampered';tampered.inputs.find((item:any)=>item.name.startsWith('scenes/')).sha256='0'.repeat(64);
+   const tamperedResponse=await post(tampered);assert.equal(tamperedResponse.status,422);assert.equal((parseCanonicalJson(await tamperedResponse.text()) as any).code,'RENDER_OUTPUT_IDENTITY_MISMATCH');
+   const accepted=clone(input);accepted.job.renderId='render-admission-accepted';const acceptedResponse=await post(accepted);assert.equal(acceptedResponse.status,202);await Promise.all(pending);
+   admission='custom_source_admitted_missing_and_tampered_rejected';
+  }
+  return{result,error,state,draftApi,admission,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,specInputs,directionInputs,validationFeedback,reviewRequests,frameRepairs,trace,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
@@ -345,6 +358,10 @@ test('current direction output budget leaves frozen 1.11 and legacy requests unc
  const current=await fixture({methodWithoutCustom:true});assert.ifError(current.error);
  const frozen=await fixture({methodWithoutCustom:true,frozenMethodVersion:'1.11.0'});assert.ifError(frozen.error);
  const legacy=await fixture();assert.ifError(legacy.error);
+});
+test('internal render entry admits matching custom sources and rejects missing or tampered modules',async()=>{
+ const r=await fixture({customScene:true,renderAdmission:true});assert.ifError(r.error);
+ assert.equal(r.admission,'custom_source_admitted_missing_and_tampered_rejected');
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){
