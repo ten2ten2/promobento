@@ -136,7 +136,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
     const sceneCache=new Map<string,{key:string;source:string;plan:Json}>();
-    const sceneChecksRepaired=new Map<string,Json>();
+    const sceneChecksRepaired=new Map<string,{failure:Json;source:string;film:string}>();
     let sceneObservationRequired=false,assetObservationRequired=false,fadeThroughRequired=false;
     const progress=async(status:string)=>directorProgress(this.env,op,status);
     // Narrow the model's hints to the actual S1 renderer; the full protocol keeps its future fields.
@@ -311,11 +311,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         });
         // One extra correction only for an observed regression introduced by the seek repair:
         // the same asset was positively visible at this exact frame/aspect before that edit.
-        const assetRegression=assetRegressionMethod&&unverifiedFailure&&hasPriorVisibleAssets(previous,failure,scene,film,missing);
+        const assetRegression=assetRegressionMethod&&unverifiedFailure&&previous!==undefined&&previous.source===cached.source&&previous.film===canonical(film)
+          &&hasPriorVisibleAssets(previous.failure,failure,scene,film,missing);
         if(previous&&!assetRegression||!previous&&unverifiedFailure)throw Error(failure.code);
         // A mixed frame can contain another scene: seek/Q1 pixels alone cannot attribute its defect.
         if(failure.code!=='CUSTOM_HOLD_TEXT_MISSING'&&film.scenes.filter((item:Json)=>item.start<=failure.frame&&failure.frame<item.end).length!==1)throw Error(failure.code);
-        sceneChecksRepaired.set(scene.module,failure);
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         const textOnly=policy.director.steps.scenes.inputMode==='asset-insights',observed=failure.observations.find((item:Json)=>item.frame===failure.frame);
         const forward=failure.images.find((item:Json)=>item.frame===failure.frame),comparison=failure.comparisons.at(-1);
@@ -348,6 +348,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         },true,scene.id);
         if(value.kind==='s1_model_validation_failure')throw Error(value.code);
         cached.source=applyCustomEdit(currentSource,value.toolCalls[0].input,scene.module);sources[scene.module]=cached.source;sceneSources[scene.module]=cached.source;
+        sceneChecksRepaired.set(scene.module,{failure,source:cached.source,film:canonical(film)});
       }
       };
       for(const [sceneIndex,scene] of custom.entries()){
