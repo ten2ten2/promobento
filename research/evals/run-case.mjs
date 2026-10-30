@@ -12,9 +12,10 @@ import {readAuthoredSnapshot,probeAuthoredFrames} from './probe-authored-frames.
 import {readApprovedMusic,admitMusic} from './admit-music.mjs';
 import {reviewPage} from './review-page.mjs';
 import {readOperationState} from './read-operation.mjs';
+import {selectCaseAspects} from './select-case-aspects.mjs';
 
 const[inputArg,caseId,outputArg,modeArg,sourceArg,...extra]=process.argv.slice(2),input=resolve(inputArg??''),output=resolve(outputArg??'');
-if(modeArg!==undefined&&(!['--check-card-layout','--check-review-render','--check-final-render','--check-authored-frames','--score','--music'].includes(modeArg)||!sourceArg))throw Error('EVAL_MODE_INVALID');
+if(modeArg!==undefined&&(modeArg==='--portrait'?Boolean(sourceArg):(!['--check-card-layout','--check-review-render','--check-final-render','--check-authored-frames','--score','--music'].includes(modeArg)||!sourceArg)))throw Error('EVAL_MODE_INVALID');
 if(extra.length&&(!['--check-review-render','--check-final-render'].includes(modeArg)||extra.length!==2||!['--score','--music'].includes(extra[0])||!extra[1]))throw Error('EVAL_MODE_INVALID');
 const probeSource=modeArg?.startsWith('--check-')?resolve(sourceArg):null,layoutSource=modeArg==='--check-card-layout'?probeSource:null,probeQuality=modeArg==='--check-final-render'?'final':'review';
 const musicMode=['--score','--music'].includes(modeArg)?modeArg:extra[0],musicFile=musicMode===modeArg?sourceArg:extra[1];
@@ -28,6 +29,7 @@ const context=read(join(input,item.contextFile));
 if(!probeSource&&(manifest.creativeBriefVersion!=='director-led-v1'||context.creativeBriefVersion!=='director-led-v1'))throw Error('EVAL_REFRESH_DIRECTOR_INPUTS_REQUIRED');
 if(context.scope!=='internal_eval_only'||context.publicUseCleared!==false||context.rendererRelease!==manifest.rendererRelease
  ||context.factConfirmation.confirmedBy!=='owner'||canonical(context.aspects)!==canonical(['landscape','portrait']))throw Error('CONFIRMED_CONTEXT_REQUIRED');
+context.aspects=selectCaseAspects(context.aspects,modeArg);
 if(!/^renderer-[a-f0-9]{12}$/.test(context.rendererRelease))throw Error('PINNED_RENDERER_SOURCE_REQUIRED');
 const music=musicMode?readApprovedMusic(musicMode==='--score'?'score':'upload',resolve(musicFile),context.durationSeconds*30):null;
 const rendererSourceSha=execFileSync('git',['rev-parse',context.rendererRelease.slice(9)+'^{commit}'],{encoding:'utf8'}).trim();

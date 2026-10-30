@@ -9,6 +9,14 @@ import {pngRgba} from '@promobento/contracts/seams';
 import {customFixture} from '../../packages/film-runtime/test/custom-fixture.mjs';
 import {completedReviewFilm,probeReviewRender} from '../../research/evals/probe-review-render.mjs';
 import {readAuthoredSnapshot,probeAuthoredFrames} from '../../research/evals/probe-authored-frames.mjs';
+import {selectCaseAspects} from '../../research/evals/select-case-aspects.mjs';
+import {reviewPage} from '../../research/evals/review-page.mjs';
+
+test('portrait-only evaluation is explicit and its player does not claim a landscape film',()=>{
+ const aspects=['landscape','portrait'];assert.deepEqual(selectCaseAspects(aspects),aspects);
+ assert.deepEqual(selectCaseAspects(aspects,'--portrait'),['portrait']);assert.deepEqual(aspects,['landscape','portrait']);
+ assert.match(reviewPage({title:'Fixture',movies:[{aspect:'portrait',quality:'final',file:'portrait.mp4'}]}),/竖屏成片已交付/);
+});
 
 test('native review accepts the original paid tool contract and the actual completed C JSON, never partial output',()=>{
   const receipt=parseCanonicalJson(readFileSync(new URL('../../docs/evidence/2026-10-24-s1-director/minimax-seventh-attempt/spec-response.json',import.meta.url)));

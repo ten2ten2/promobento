@@ -68,7 +68,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.8.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.10.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -87,6 +87,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 方法1.8要求 C 显式选择 `componentBehavior`：仅属于源页面的对象选择 `return-to-source`，页面切换前归位；`carry` 要求对后续每个页面都有实际叙事关系，宿主还核对该区域标签是否出现在每张素材各自的 A 阶段观察中。标签匹配只是模型观察，不证明实际语义关系；E/F 仍须检查。使用该字段时预检实际 renderer 是否支持；旧冻结方法和未带字段的既有影片保留原 `carry` 行为及原预检。
 
 方法1.9强调基于产品设计构图、主体比例和镜头接力：当积木不能表达所选编排，C 可指定自写镜头，E 也可在具体视觉缺陷需要时把受影响积木换成自写镜头，由 D 编写并经既有沙箱检查后重渲。旧方法的请求与执行路径不变。方向图仍是可信积木生成的静态近似，不是已实现的自写镜头；是否真正改善画质须以实际作品和正常速度视听判定。
+
+方法1.10在审片修改已有自写镜头的规格时，让 D 对该镜头现有源码做范围内编辑，实施新旧规格的实际差异，而不从静态底稿重新分段编写。改后仍按全部声明、目标画幅和完整帧检查，模型输出无效或结果无法通过时停止；旧冻结方法仍使用原路径。此优化不延长活动上限，也不保证实际调用一定更快或画面合格。
 
 Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有的 `studio-diagnostics/<taskId>.json`，因为 Studio 没有渲染分片的 attempt 行；诊断写入失败不覆盖原始启动错误，也不重试模型。
 

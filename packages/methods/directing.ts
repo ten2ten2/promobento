@@ -1,6 +1,6 @@
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.9.0',
+  id: 'product-directing', version: '1.10.0',
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -42,7 +42,8 @@ export const directingMethodPack = {
       'ctx.text(slot).mount(parent, options) returns the actual text element with its own inline ink color. A color set only on the parent does not override it. If a contrasting surface needs a different text color, set the returned element’s style.color, and check the real rendered contrast in each reading hold.',
       'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.',
       'Give objects that move together one shared geometry and state. Derive a pointer destination from its target and carry the same object through contact, movement and result when the brief calls for it. Keep independent captions and sound separate; do not expose incidental geometry as controls.',
-      'A required asset must actually appear in its declared check frame. If the essential geometry cannot be supported by the supplied evidence, fail explicitly rather than leave a null placeholder or silently hold the initial pose.'
+      'A required asset must actually appear in its declared check frame. If the essential geometry cannot be supported by the supplied evidence, fail explicitly rather than leave a null placeholder or silently hold the initial pose.',
+      'When a reviewed plan revises an existing custom scene, edit its existing source to implement the revised plan instead of rebuilding the entire scene. Preserve unaffected behavior and check the complete result.'
     ],
     review: [
       'Judge the rendered causal sequence, not just text fit. Does the opening earn attention? Does a shared visual element actually change role or reveal a consequence? Is there a clear payoff, a rhythm contrast and a concise brand ending?',

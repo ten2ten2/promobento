@@ -5,7 +5,7 @@ export function reviewPage({title,movies,draft=false,coldReviewStatus}){
  const message=draft?(coldReviewStatus==='blocked'
   ?'自动修改已停止；独立冷审仍有未解决的问题。以下保留最后实际渲染版本，供你判断下一步。'
   :'自动修改已到上限。以下保留最后实际渲染版本，最后一轮新建议未应用；独立冷审尚未通过。')
-  :'横竖成片已交付，请按正常速度完整视听。';
+  :movies.length===1?(movies[0].aspect==='portrait'?'竖屏成片已交付，请按正常速度完整视听。':'横屏成片已交付，请按正常速度完整视听。'):'横竖成片已交付，请按正常速度完整视听。';
  return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escape(title)} · ${heading}</title><style>
 :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b1524;color:#f5f1e8}body{max-width:1040px;margin:48px auto;padding:0 24px}h1{font-size:clamp(28px,5vw,44px);line-height:1.15}p{font-size:18px;line-height:1.6;color:#cad6e8}small{font-size:15px;color:#b5c6df}section{margin:32px 0}h2{font-size:23px}video{display:block;width:100%;max-height:76vh;background:#030a13;border-radius:12px}.controls{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:16px 0}button{border:0;border-radius:8px;padding:13px 20px;background:#b6eaff;color:#102034;font:600 17px system-ui;cursor:pointer}button:focus-visible,a:focus-visible{outline:3px solid white;outline-offset:4px}.state{font-size:16px;color:#cad6e8}a{color:#b6eaff}footer{margin-top:28px;font-size:16px;line-height:1.7}

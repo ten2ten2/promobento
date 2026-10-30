@@ -126,11 +126,12 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const relayMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=7);
     const scopedRelayMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=8);
     const authoredDirectionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=9);
+    const sourceRevisionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=10);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[];
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
-    const sceneCache=new Map<string,{key:string;source:string}>();
+    const sceneCache=new Map<string,{key:string;source:string;plan:Json}>();
     const sceneChecksRepaired=new Set<string>();
     let sceneObservationRequired=false,assetObservationRequired=false,fadeThroughRequired=false;
     const progress=async(status:string)=>directorProgress(this.env,op,status);
@@ -337,7 +338,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       }
       };
       for(const [sceneIndex,scene] of custom.entries()){
-        const p=customScenePlan(scene),key=digest({scene,style:film.style,texts:p.textSlots.map(id=>[id,film.texts[id]]),assets:p.assetKeys.map(id=>[id,film.assets[id]]),aspects:context.aspects});
+        const p=customScenePlan(scene),plan={scene,style:film.style,texts:p.textSlots.map(id=>[id,film.texts[id]]),assets:p.assetKeys.map(id=>[id,film.assets[id]]),aspects:context.aspects},key=digest(plan);
         let cached=sceneCache.get(scene.module);
         if(cached?.key!==key){
           const resources=context.resources.filter((asset:Json)=>p.assetKeys.some(id=>film.assets[id].resourceId===asset.resourceId));
@@ -351,7 +352,27 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
             portrait:'Check the portrait headline width independently. If side-by-side columns cannot fit at the minimum size and line budget, reflow the portrait composition instead of shrinking text or increasing maxLines. Compute the final transformed label/chip box against safeInsets and the brand row; do not reuse a landscape full-height upward translation in portrait.',
             minimumFontSizeBySlot:Object.fromEntries(p.textSlots.map(id=>[id,Math.max(...context.aspects.map((aspect:string)=>film.texts[id].role==='cta'?(aspect==='landscape'?28:32):(aspect==='landscape'?32:36)))]))};
           const apiExample=`const box=document.createElement('div'); const s=ctx.target.safeInsets,w=ctx.target.width,h=ctx.target.height,m=.02; Object.assign(box.style,{position:'absolute',left:w*(s.left+m)+'px',top:h*(s.top+m)+'px',width:w*(1-s.left-s.right-2*m)+'px',height:h*(1-s.top-s.bottom-2*m)+'px'}); ctx.root.append(box); ${p.textSlots.length?`ctx.text(${canonical(p.textSlots[0])}).mount(box,{maxLines:3,maxFontSize:48,align:'start'});`:''} const timeline=gsap.timeline({paused:true}); function draw(t){box.style.opacity='1';box.style.transform='none';} ctx.OM.clock(timeline,draw,(ctx.frames.end-ctx.frames.start)/30); return {timeline};`;
-          for(const {name:phase,window} of phases){
+          if(cached&&sourceRevisionMethod){
+            const currentSource=cached.source,previousPlan=cached.plan;let feedback:Json|undefined;
+            for(let attempt=0;;attempt++){
+              const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-revision-'+attempt,'scenes',{messages:[{role:'user',text:canonical({
+                task:'Revise this existing custom scene to implement the revised plan. Make exactly one scoped edit_file call; preserve unaffected behavior and the original facts.',
+                instructions:customSceneInstructions,previousPlan,revisedPlan:plan,currentSource,resources,
+                sourceImages:textOnly?'No images are attached. Use the validated, resource-bound assetObservations; do not infer unobserved content.':'Images follow resources in the same order; use their actual content.',
+                ...(textOnly?{assetObservations}:{}),targetAspects:context.aspects.map((aspect:string)=>({aspect,...(platform.aspectLayouts as Json)[aspect]})),
+                literalAccessGuidance:customLiteralGuidance(scene),textLayoutRequirements,...(feedback?{validationFeedback:feedback}:{}),
+                guidance:'Apply all changed geometry, timing, content and motion across the whole scene, not just the first window. Use a unique str_replace covering all affected code or insert; keep draw(t) seek-independent. The entire revised scene will be checked in every requested aspect.'}),...(images.length?{images}:{})}],
+                tools:[{name:'edit_file',description:'Edit only this existing scene module, using a unique str_replace or insert.',parameters:customEditParameters([scene.module],['str_replace','insert'])}],
+                ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'&&providers.steps.scenes.includes('/deepseek-')?{toolChoice:'edit_file'}:{}),maxOutputTokens:32768},value=>{
+                const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
+                if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input})||calls[0].input.path!==scene.module||calls[0].input.command==='create')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/toolCalls/0/input'}],value);
+                try{const next=applyCustomEdit(currentSource,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);if(next===currentSource)throw Error('CUSTOM_REPAIR_UNCHANGED');}
+                catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
+              },true,scene.id);
+              if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
+              source=applyCustomEdit(currentSource,value.toolCalls[0].input,scene.module);break;
+            }
+          }else for(const {name:phase,window} of phases){
             let feedback:Json|undefined;
             for(let attempt=0;;attempt++){
               const value=await runModel('scene-'+scene.id+'-'+key.slice(0,16)+'-'+phase+'-'+attempt,'scenes',{messages:[{role:'user',text:canonical({task:'Implement this chosen custom scene incrementally, hardest shot first. Make one scoped edit_file call, with no prose.',instructions:customSceneInstructions,phase,
@@ -377,7 +398,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               source=applyCustomEdit(source,value.toolCalls[0].input,scene.module);break;
             }
           }
-          cached={key,source:source!};sceneCache.set(scene.module,cached);
+          cached={key,source:source!,plan};sceneCache.set(scene.module,cached);
         }
         sceneSources[scene.module]=cached!.source;
         if(earlySceneProbe&&custom.length>1&&sceneIndex===0){
