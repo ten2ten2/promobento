@@ -134,7 +134,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const assetRegressionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=14);
     const detailedBlockFeedback=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=16);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
-    let relayInsights:Json[]=[];
+    let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
     const sceneCache=new Map<string,{key:string;source:string;plan:Json}>();
@@ -254,7 +254,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         await directorEnvironment(this.env,op,context,sourceResources,deadline(),methods!==null,sceneObservationRequired,assetObservationRequired,fadeThroughRequired);
         // json_object gateways do not receive the native schema parameter. Supply its contract in text too.
-        const method=methods?recallDirecting(methods,stage,context.audience):null;
+        const method=methods?recallDirecting(methods,stage,context.audience,chosenVisualLanguage):null;
         const promptSystem=(methods?system.replace('S1 uses trusted blocks only, 15 or 30 seconds at 30 fps. No custom JS, HTML, network or hidden text.',
           'Films are 15 or 30 seconds at 30 fps. Use trusted blocks or declared sandboxed DOM/SVG/Canvas2D custom scenes when needed. Only D/E author scoped modules; never execute author code in the host. No network, hidden text or unsupported APIs.'):system)+(method?'\nDIRECTING METHOD (fixed for this operation):\n'+canonical(method):'')
           +(!request.tools?.length&&request.schema?'\nReturn JSON matching this response schema:\n'+canonical(request.schema):'');
@@ -554,6 +554,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       });
       const choice=await step.waitForEvent<{key:string;directionsHash:string}>('direction-choice',{type:'direction-choice',timeout:'24 hours'});
       if(choice.payload.directionsHash!==directionHash||!directions.cards.some((card:Json)=>card.key===choice.payload.key))throw Error('DIRECTION_CHOICE_INVALID');
+      chosenVisualLanguage=directions.cards.find((card:Json)=>card.key===choice.payload.key)?.language??'';
       const resumedAt=await step.do('resume-after-choice',async()=>{await this.env.DB.prepare("UPDATE pipeline_operations SET status='active' WHERE id=? AND generation=? AND status='awaiting_user'").bind(op.id,op.generation).run();return Date.now();});pausedMs=resumedAt-waitStarted;
       await progress('spec');
       const writeSpec=async(name='spec',coldReviewFeedback?:Json):Promise<Json>=>{

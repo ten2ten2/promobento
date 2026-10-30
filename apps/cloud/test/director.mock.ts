@@ -25,7 +25,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en'}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -135,7 +135,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  }
  const method=customScene||methodWithoutCustom?await immutableJson(env,'operations/mock-operation/directing-method.json',legacyCustomMethod?{...directingMethodPack,version:'1.1.0'}:frozenMethodVersion?{...directingMethodPack,version:frozenMethodVersion}:directingMethodPack):null;
  await immutableJson(env,'evals/mock/context.json',context);if(!missingContext)db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key) VALUES(?,?,?)').run('mock-operation','evals/mock/context.json',method?.key??null);
- let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[],specInputs:any[]=[],directionInputs:any[]=[];
+ let reviewRound=0,specRequests=0,coldRequests=0;const validationFeedback:any[]=[],specInputs:any[]=[],directionInputs:any[]=[],methodPrompts:any[]=[];
  globalThis.fetch=async(url:any,init:any)=>{
   // No native fetch fallback: any unexpected URL fails before network access.
   const target=String(url),body=parseCanonicalJson(init.body);networkCalls++;
@@ -146,6 +146,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   if(networkStreamFailure)return new Response(new ReadableStream({pull(controller){controller.error(Error('Network connection lost.'));}}));
   const user=provider.kind==='anthropic'?body.messages[0].content[0].text:typeof body.messages[1].content==='string'?body.messages[1].content:body.messages[1].content[0].text;
   const input=parseCanonicalJson(user);let stage:string,value:any;
+  if(input.task.startsWith('Propose')||input.task.startsWith('Implement'))methodPrompts.push({task:input.task,system:provider.kind==='anthropic'?body.system[0].text:body.messages[0].content});
   if(scene502&&input.task.startsWith('Implement')&&input.phase==='motion-0'&&body.model==='claude-opus-5-5'){
    trace.push('claude-scene-502');return new Response('data: '+canonical({error:{code:502,type:'service_error'}})+'\n\ndata: [DONE]\n\n');
   }
@@ -154,7 +155,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);
    const version=legacyCustomMethod?'1.1.0':frozenMethodVersion||directingMethodPack.version,[major,minor]=version.split('.').map(Number);
    assert.equal(body.max_tokens,(customScene||methodWithoutCustom)&&(major>1||major===1&&minor>=12)?32768:16384);
-   value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
+   value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:visualLanguage,palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;specInputs.push(input);assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
@@ -293,7 +294,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const accepted=clone(input);accepted.job.renderId='render-admission-accepted';const acceptedResponse=await post(accepted);assert.equal(acceptedResponse.status,202);await Promise.all(pending);
    admission='custom_source_admitted_missing_and_tampered_rejected';
   }
-  return{result,error,state,draftApi,admission,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,specInputs,directionInputs,validationFeedback,reviewRequests,frameRepairs,trace,
+  return{result,error,state,draftApi,admission,models,networkCalls,studioCount,closedCount,choiceCount,activeStudio,progress,specRequests,specInputs,directionInputs,validationFeedback,reviewRequests,frameRepairs,trace,methodPrompts,
    reservations:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n),settlements:Number(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n),modelStages:db.prepare("SELECT stage FROM cost_reservations WHERE kind='model'").all().map(row=>row.stage),
    renders:db.prepare('SELECT * FROM pipeline_renders').all(),outbox:db.prepare('SELECT * FROM pipeline_outbox').all(),modelBudget:await modelBudgetStatus(env),
    moduleSources:[...objects].filter(([key])=>key.endsWith('/scenes/product/index.js')).map(([,value])=>new TextDecoder().decode(value.bytes)),
@@ -481,6 +482,15 @@ test('30-minute active limit is restricted to newly frozen internal custom evalu
 });
 
 // These are transport/control-flow checks; pixel quality and isolation are exercised in the container.
+test('frozen huashu reference and chosen template reach the actual directing and authoring requests',async()=>{
+ const modern=await fixture({customScene:true,visualLanguage:'cursor-demo'});assert.ifError(modern.error);
+ const directions=modern.methodPrompts.find(item=>item.task.startsWith('Propose')).system;
+ const scene=modern.methodPrompts.find(item=>item.task.startsWith('Implement')).system;
+ assert.match(directions,/references\/library\/languages\/cursor-demo\.md/);
+ assert.match(scene,/ui-space\/index\.html/);assert.match(scene,/OM\.space/);
+ const old=await fixture({customScene:true,visualLanguage:'cursor-demo',frozenMethodVersion:'1.16.0'});assert.ifError(old.error);
+ assert.doesNotMatch(old.methodPrompts.find(item=>item.task.startsWith('Implement')).system,/upstreamReference/);
+});
 test('scene 502 fallback continues the real director workflow with the original unknown reservation',async()=>{
  const r=await fixture({customScene:true,textOnlyScenes:true,scene502:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');
  assert.ok(r.trace.includes('claude-scene-502'));assert.ok(r.trace.includes('deepseek-scene-fallback'));

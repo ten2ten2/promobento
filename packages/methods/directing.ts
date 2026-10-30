@@ -1,6 +1,9 @@
+import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.16.0',
+  id: 'product-directing', version: '1.17.0',
+  // Freeze upstream source with the method so historical operations never change.
+  huashuSource,
   sources: [
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/SKILL.md',scope:'Director-led brief, treatment, hardest-shot-first build and actual-output review; adapted to our sandbox and delivery contract.'},
     {ref:'https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/skills/huashu-motion/references/director.md',scope:'Message shape and visual language selection; no fixed story or timing template.'},
@@ -23,6 +26,7 @@ export const directingMethodPack = {
   stages: {
     directions: [
       'Offer different story mechanisms, not three palettes of the same slide sequence. In the existing logline/skeleton fields name what carries the eye between moments and how its role changes.',
+      'When a visual language in the supplied original huashu-motion library fits, identify it by its library name in the direction language field. You may combine or invent a language when the product calls for it; never use the library to invent product actions.',
       'Propose distinct product-specific compositions and visible actions, not only different copy or palettes. A silent trusted hero is an approximation, not evidence that the proposed choreography has been built.',
       'Prefer one strong opening action over a long title screen. Place the most distinctive product moment early enough to earn attention. Use trusted blocks where they fit and custom scenes for choreography they cannot express.'
     ],
@@ -62,11 +66,31 @@ export const directingMethodPack = {
   }
 } as const;
 
-export interface DirectingMethodPack {id:string;version:string;sources:readonly {ref:string;scope:string}[];common:readonly string[];audiences:Record<'software'|'course',string>;stages:Record<string,readonly string[]>}
+export interface DirectingMethodPack {id:string;version:string;huashuSource?: {revision:string;references:Record<string,string>;templateSources:Record<string,string>};sources:readonly {ref:string;scope:string}[];common:readonly string[];audiences:Record<'software'|'course',string>;stages:Record<string,readonly string[]>}
 export const directingMethodRef=(pack:DirectingMethodPack)=>({id:pack.id,version:pack.version,contentHash:digest(pack)});
 /** Bounded stage recall, with no customer material or unrelated methods in the cacheable prefix. */
-export function recallDirecting(pack: DirectingMethodPack, stage: string, audience: 'software' | 'course') {
+export function recallDirecting(pack: DirectingMethodPack, stage: string, audience: 'software' | 'course', language = '') {
   if (!Object.hasOwn(pack.stages,stage)) return null;
+  const [major=0,minor=0]=pack.version.split('.').map(Number);
+  const upstream=pack.id==='product-directing'&&(major>1||major===1&&minor>=17)?pack.huashuSource:undefined;
+  const stageSources:Record<string,string[]>={
+    directions:['references/director.md','references/visual-direction.md','references/library/README.md','references/library/formats.md',
+      ...Object.keys(upstream?.references??{}).filter(path=>path.startsWith('references/library/languages/')).sort()],
+    spec:['references/director.md','references/product-demo-continuity.md','references/rhythm.md'],
+    scenes:['references/product-demo-continuity.md','references/craft.md','references/depth.md'],
+    review:['references/verification.md','references/product-demo-continuity.md','references/craft.md'],
+    coldReview:['references/verification.md','references/craft.md']
+  };
+  const references=(stageSources[stage]??[]).flatMap(path=>{
+    const content=upstream?.references[path];return content?[{path,content}]:[];
+  });
+  const templates:Record<string,string>={'cursor-demo':'ui-space','continuous-morph':'ui-space','kinetic-type':'kinetic-type',
+    'hand-drawn':'whiteboard','3d-object':'object-3d','data-story':'finance-chart','editorial-collage':'vox-collage'};
+  const selected=stage==='scenes'?Object.keys(templates).find(name=>language.toLowerCase().split(/[^a-z0-9-]+/).includes(name)):undefined;
+  const templatePath=selected?templates[selected]+'/index.html':undefined;
+  const template=templatePath&&upstream?.templateSources[templatePath];
   return {id: pack.id, version: pack.version, common: pack.common, audience: pack.audiences[audience],
-    stage, guidance: pack.stages[stage]};
+    stage, guidance: pack.stages[stage],...(references.length?{upstreamReference:{revision:upstream!.revision,
+      usage:'Original huashu-motion reference material, not new tools or permissions. Follow the supplied scene contract and approved materials; use the reference to make product-specific visual decisions.',references,
+      ...(template?{template:{path:templatePath,content:template,usage:'Reference source only: adapt its choreography to the declared PB.scene contract and approved product materials; do not execute this HTML or use its demo assets.'}}:{})}}:{})};
 }

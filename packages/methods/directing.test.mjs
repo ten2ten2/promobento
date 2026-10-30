@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {directingMethodPack,recallDirecting} from './directing.ts';
 test('stage recall carries the shared story method and the right audience without unrelated stages',()=>{
   const software=recallDirecting(directingMethodPack,'spec','software');
-  assert.equal(software.version,'1.16.0');assert.match(software.audience,/workflow/);
+  assert.equal(software.version,'1.17.0');assert.match(software.audience,/workflow/);
   assert.match(software.guidance.join(' '),/focusFrom\/focusTo/);
   assert.ok(!software.guidance.some(text=>text.includes('Offer different')));
   const course=recallDirecting(directingMethodPack,'coldReview','course');
@@ -11,6 +11,14 @@ test('stage recall carries the shared story method and the right audience withou
   assert.equal(recallDirecting(directingMethodPack,'assets','software'),null);
   assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/returns the actual text element.*parent does not override/);
   assert.match(recallDirecting(directingMethodPack,'review','software').guidance.join(' '),/zoom above 1 crops source edges/);
-  const frozen=structuredClone(directingMethodPack);frozen.version='fixture-older-version';
-  assert.equal(recallDirecting(frozen,'review','software').version,'fixture-older-version');
+  const visual=recallDirecting(directingMethodPack,'directions','software').upstreamReference;
+  assert.equal(visual.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');
+  assert.ok(visual.references.some(item=>item.path==='references/library/languages/cursor-demo.md'&&item.content.includes('Action → response → result')));
+  assert.ok(recallDirecting(directingMethodPack,'scenes','software').upstreamReference.references.some(item=>item.path==='references/product-demo-continuity.md'));
+  const scene=recallDirecting(directingMethodPack,'scenes','software','cursor-demo').upstreamReference;
+  assert.equal(scene.template.path,'ui-space/index.html');assert.match(scene.template.content,/OM\.space/);
+  assert.equal(recallDirecting(directingMethodPack,'scenes','software','unrelated').upstreamReference.template,undefined);
+  const frozen=structuredClone(directingMethodPack);frozen.version='1.16.0';
+  assert.equal(recallDirecting(frozen,'directions','software').upstreamReference,undefined);
+  assert.equal(recallDirecting(frozen,'review','software').version,'1.16.0');
 });
