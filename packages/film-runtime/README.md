@@ -43,6 +43,18 @@ params声明textSlots、assetKeys、局部整数帧events、readingHolds，可�
 
 浏览器在源码运行前禁用 Canvas 和 OffscreenCanvas 的 `fillText`／`strokeText`，包括原版 CLIP 辅助函数间接调用；图形绘制和已有 DOM 文字槽不受影响。上游依赖 Canvas 文字的完整语法需先接入可核验的文字来源与帧观测，不能将这些函数直接开放给客户作品。
 
+`ctx.OM.cameraRig` 提供原版按绝对时间采样的相机轨道和主体跟拍算法。轨道从零开始，各段连续，关键帧的 `at` 是该段内的秒数；相机位置、目标和视场由同一时间确定，适合顺序、逆序和冷取帧。它可驱动 `ctx.OM.space`，但不会自动识别产品操作或创建三维素材。
+
+```js
+const rig = ctx.OM.cameraRig.create([{id:'reveal', start:0, end:4, keys:[
+  {at:0, position:[400,300,1800], target:[500,300,0], fov:35},
+  {at:4, position:[600,300,1500], target:[500,300,0], fov:35, ease:'inOutCubic'}
+]}]);
+ctx.OM.clock(timeline, t => camera.set({...rig.sample(t)}), 4);
+```
+
+该算法来自 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e` 的 `runtime/camera-rig.js`，MIT；只改为模块导出、场景 API 和内部副本，不包含上游示例角色或素材。
+
 可信宿主以PageOptions.customSources提供原始路径→字节；每份≤64KiB、合计≤512KiB，只接FilmSpec列明路径，每镜头声明的首尾／事件／阅读去重最多24帧。Acorn只静态解析；动态构造器在源码前封闭，宿主用直接CDP桥。源码／Q0／完整身份核对后才启动浏览器，源文件只在任务本地同源路径提供。
 
 filmSourceHash、构建回执及分段身份包含全部模块原始字节；纯积木省略customSources保持原摘要。CDP拒绝未绑定／改写文字，阅读窗口按冻结方法核对实际sceneId／必显槽。运行时攻击／资源故障的实际证据范围见实施状态。

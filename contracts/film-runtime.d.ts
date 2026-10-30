@@ -95,6 +95,27 @@ export interface MotionCamera {
   to(timeline: MotionTimeline | null, at: number, pose: Record<string, unknown>): MotionCamera;
   apply?(seconds: number): unknown;
 }
+export type CameraVector = [number, number, number];
+export interface CameraRigKey {
+  at: number; position: CameraVector; target: CameraVector; fov: number; roll?: number;
+  ease?: 'linear' | 'hold' | 'inQuad' | 'outCubic' | 'inOutCubic' | 'inOutQuint' | 'outExpo' | 'inExpo';
+}
+export interface CameraRigShot {id: string; start: number; end: number; keys: CameraRigKey[]}
+export interface CameraRigPose {
+  time: number; shot: string; local: number; progress: number;
+  position: CameraVector; target: CameraVector; fov: number; roll: number;
+}
+export interface CameraRig {
+  readonly duration: number;
+  sample(seconds: number): CameraRigPose;
+  shots(): CameraRigShot[];
+}
+export interface CameraRigHelpers {
+  create(shots: CameraRigShot[]): CameraRig;
+  track<T extends object>(pose: T, subject: {position: CameraVector; forward: CameraVector},
+    options?: {distance?: number; height?: number; side?: number; lookAhead?: number}): T & {position: CameraVector; target: CameraVector};
+  readonly eases: readonly CameraRigKey['ease'][];
+}
 export interface MotionHelpers {
   clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
   beat(n: number, bpm: number): number;
@@ -103,6 +124,7 @@ export interface MotionHelpers {
   springValue(from: number, changes: Array<{at: number; to: number}>, time: number, options?: {bounce?: number; settle?: number}): number;
   camera(world: HTMLElement | string, options?: Record<string, unknown>): MotionCamera;
   space(world: HTMLElement | string, options?: Record<string, unknown>): MotionCamera;
+  readonly cameraRig: CameraRigHelpers;
   region(id: string, boxAt: (seconds: number) => [number, number, number, number] | null): MotionHelpers;
 }
 /** Canvas helper namespaces from the pinned clip library; full signatures are in the shipped JS sources. */

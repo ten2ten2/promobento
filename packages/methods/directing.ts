@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.20.0',
+  id: 'product-directing', version: '1.21.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -46,6 +46,7 @@ export const directingMethodPack = {
       'Build the hardest product-specific shot first using the actual material and fonts. Establish start/end composition, identity anchors, content actions versus camera actions, landing frames and reading windows before filling the rest. Each reading hold declares exactly which of the scene text slots must be visible there; an intentionally text-free hold declares an empty list.',
       'Use one paused GSAP timeline or ctx.OM.clock with a pure draw(t). Work in the scene root with relative target dimensions. Text comes only from ctx.text slots; images come only from ctx.asset. DOM, SVG shapes and Canvas2D are supported; imports, custom WebGL, network, timers, dynamic evaluation and raw text drawing are not.',
       'When this scene declares params.gsapScope="scene", GSAP string selectors used while building it and OM camera string selectors refer to this scene, allowing template IDs to be reused across scenes. Otherwise preserve the existing document-wide GSAP behavior. Use actual element references inside draw(t), which runs later.',
+      'For a continuous 3D camera path, ctx.OM.cameraRig.create(shots) provides the original absolute-time rig. Each shot has id, start, end and keys; times are seconds, shots are contiguous from zero, and keys begin at local at:0 with position, target and fov. In ctx.OM.clock use camera.set({...rig.sample(t)}) on a scene-local ctx.OM.space camera. Optional cameraRig.track(pose,{position,forward},options) follows a real staged subject. It moves the film camera, not the product interface.',
       'ctx.text(slot).mount(parent, options) returns the actual text element with its own inline ink color. A color set only on the parent does not override it. If a contrasting surface needs a different text color, set the returned element’s style.color, and check the real rendered contrast in each reading hold.',
       'Implement the visible handoff, not just a written continuity note. Keep source captures truthful; original staging is film packaging, not fabricated product behavior. Check ordered movement poses and settled text separately.',
       'Give objects that move together one shared geometry and state. Derive a pointer destination from its target and carry the same object through contact, movement and result when the brief calls for it. Keep independent captions and sound separate; do not expose incidental geometry as controls.',
