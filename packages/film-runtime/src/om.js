@@ -2,6 +2,9 @@
 // Scoped to one scene; no legacy vars, parser, sound declarations, signature or page bootstrap.
 export function createOM(ctx, regions) {
   const OM = {};
+  // Original compositions have one document; a PromoBento page can hold several scenes
+  // with the same template IDs. Prefer this scene, retaining the legacy document fallback.
+  const inScene = (selector) => ctx.root.querySelector(selector) || document.querySelector(selector);
   OM.region = (id, box) => { regions.push({regionId:id,boxAt:frame=>{const b=box(frame/30);return b?{x:b[0],y:b[1],width:b[2],height:b[3]}:null;}});return OM; };
   OM.beat = (n,bpm) => {if(!(bpm>0))throw Error('BPM_REQUIRED');return n*60/bpm;};
   // Canvas / WebGL engines that draw a whole frame from a time value plug into the film's
@@ -71,9 +74,8 @@ export function createOM(ctx, regions) {
   // view pickable in the studio.
   OM.camera = function (world, opts) {
     const o = opts || {};
-    const el = typeof world === 'string' ? document.querySelector(world) : world;
+    const el = typeof world === 'string' ? inScene(world) : world;
     if (!el) throw new Error(`huashu-motion: OM.camera — no element ${world}`);
-    const root = null;
     const W = o.width || ctx.target.width || 1920;
     const H = o.height || ctx.target.height || 1080;
     el.style.transformOrigin = '0 0';
@@ -85,7 +87,7 @@ export function createOM(ctx, regions) {
     // World coordinates of an element, measured against the world's own box so the current camera
     // pose and the studio's preview scale cancel out.
     const box = (target) => {
-      const t = typeof target === 'string' ? el.querySelector(target) || document.querySelector(target) : target;
+      const t = typeof target === 'string' ? el.querySelector(target) || inScene(target) : target;
       if (!t) throw new Error(`huashu-motion: OM.camera — no element ${target}`);
       const wr = el.getBoundingClientRect(), r = t.getBoundingClientRect();
       const k = wr.width / (el.offsetWidth || W);
@@ -146,12 +148,11 @@ export function createOM(ctx, regions) {
     const o = opts || {};
     const rad = Math.PI / 180;
     const three = subject && subject.isPerspectiveCamera ? subject : null;
-    const root = null;
     const W = o.width || ctx.target.width || 1920;
     const H = o.height || ctx.target.height || 1080;
     let world = null;
     if (!three) {
-      world = typeof subject === 'string' ? document.querySelector(subject) : subject;
+      world = typeof subject === 'string' ? inScene(subject) : subject;
       if (!world) throw new Error(`huashu-motion: OM.space — no element ${subject}`);
       if (getComputedStyle(world).position === 'static') world.style.position = 'absolute';
       Object.assign(world.style, { left: '0px', top: '0px', width: W + 'px', height: H + 'px', transformOrigin: '0 0 0', transformStyle: 'preserve-3d' });
@@ -167,7 +168,7 @@ export function createOM(ctx, regions) {
     // Where an element sits in the world: its layout box carried through the transforms of the
     // positioned elements between it and the world (put transforms on positioned elements).
     const locate = (sel) => {
-      const el = typeof sel === 'string' ? (world || document).querySelector(sel) || document.querySelector(sel) : sel;
+      const el = typeof sel === 'string' ? world?.querySelector(sel) || inScene(sel) : sel;
       if (!el) throw new Error(`huashu-motion: OM.space — no element ${sel}`);
       let m = new DOMMatrix(), n = el;
       while (n && n !== world) {
@@ -269,9 +270,13 @@ export function createOM(ctx, regions) {
         moves.sort((a, b) => a.at - b.at);
         plan = to;
         if (world && tl) {
-          if (drive) drive.kill();
+          // Timeline.fromTo returns the timeline, not the new tween. Killing it
+          // also detaches the author's timeline and leaves the old driver behind.
+          // Remove only this camera's proxy tween when extending its path.
+          if (drive) drive.killTweensOf(proxy);
           const end = cam.end();
-          drive = tl.fromTo(proxy, { t: 0 }, { t: end, duration: end, ease: 'none', immediateRender: false }, 0);
+          tl.fromTo(proxy, { t: 0 }, { t: end, duration: end, ease: 'none', immediateRender: false }, 0);
+          drive = tl;
         }
         return cam;
       },

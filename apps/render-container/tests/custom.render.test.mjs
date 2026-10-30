@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {chromium} from 'playwright-core';
 import {filmSession} from '../src/browser.mjs';
-import {compareSeam,pngRgba} from '@promobento/contracts/seams';
+import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
@@ -77,6 +77,44 @@ try{
    }
    report.perspectiveAssetObservation='transparent_visible_opaque_unverified_hidden_descendant_unverified';
   }finally{await perspective.close();}
+  // Original template selectors commonly reuse #world. Both scenes are built before
+  // either is drawn; the second camera must not change the first scene's world.
+  const multiFilm=filmFixture(),multiOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  multiFilm.assets={};multiFilm.scenes=['first','second'].map((id,index)=>({id,kind:'custom',module:`scenes/${id}/index.js`,
+   start:index*225,end:(index+1)*225,purpose:'Scene-local camera fixture.',brief:'Two worlds with the same template ID.',
+   params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:225}]}}));
+  multiOptions.resources=[];multiOptions.fonts=multiOptions.fonts.map(face=>{const installed=catalog.fonts.find(item=>item.fontId===face.fontId&&item.weight===face.weight);return{...face,licenseRef:installed.licenseRef,codePoints:installed.codePoints};});
+  multiOptions.customSources=Object.fromEntries(['first','second'].map((id,index)=>[`scenes/${id}/index.js`,`PB.scene('${id}',ctx=>{
+   const world=document.createElement('div'),panel=document.createElement('div');world.id='world';
+   Object.assign(world.style,{position:'absolute',left:'0',top:'0',width:'100%',height:'100%'});ctx.root.append(world);
+   Object.assign(panel.style,{position:'absolute',left:'25%',top:'25%',width:'50%',height:'50%',background:'${index?'rgb(0,0,255)':'rgb(255,0,0)'}'});world.append(panel);
+   ctx.OM.camera('#world').set({zoom:${index?2:1}});const timeline=gsap.timeline({paused:true});timeline.to({}, {duration:7.5});return {timeline};});`]));
+  const multi=await filmSession({raw:JSON.stringify(multiFilm),options:multiOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{
+   for(const [frame,color] of [[30,[16,23,18]],[255,[0,0,255]]]){
+    const png=await multi.frame(frame,{format:'png'}),{width,height,pixels}=pngPixels(png),at=(Math.floor(height*.15)*width+Math.floor(width*.15))*4;
+    assert.deepEqual([...pixels.subarray(at,at+3)],color,`scene-local camera at frame ${frame}`);
+   }
+   report.sceneLocalCamera='duplicate_world_ids_isolated';
+  }finally{await multi.close();}
+  const spaceFilm=filmFixture(),spaceOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  spaceFilm.assets={};spaceFilm.scenes=[{id:'world',kind:'custom',module:'scenes/world/index.js',start:0,end:450,
+   purpose:'Multiple original spatial camera moves.',brief:'Exercise the timeline and its unrelated tween.',
+   params:{textSlots:[],assetKeys:[],events:[],readingHolds:[{start:0,end:450}]}}];
+  spaceOptions.resources=[];spaceOptions.fonts=multiOptions.fonts;
+  spaceOptions.customSources={'scenes/world/index.js':`PB.scene('world',ctx=>{
+   const world=document.createElement('div'),panel=document.createElement('div');ctx.root.append(world);world.append(panel);
+   Object.assign(panel.style,{position:'absolute',left:'30%',top:'30%',width:'40%',height:'40%',background:'rgb(255,0,0)'});
+   const timeline=gsap.timeline({paused:true});timeline.to(panel,{x:80,duration:2},0);
+   const camera=ctx.OM.space(world).set({flat:true});camera.to(timeline,0,{yaw:20,duration:1});camera.to(timeline,1,{yaw:-20,duration:1});
+   if(timeline.getChildren().length!==2)throw Error('CAMERA_DRIVER_INVALID');timeline.to({}, {duration:15},0);return {timeline};});`};
+  const space=await filmSession({raw:JSON.stringify(spaceFilm),options:spaceOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{
+   const first=await space.frame(15,{format:'png'}),later=await space.frame(45,{format:'png'}),reverse=await space.frame(15,{format:'png'});
+   assert.notDeepEqual(first,later,'spatial camera and panel actually move');
+   assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
+   report.spatialCamera='multiple_moves_one_driver_and_reverse_seek';
+  }finally{await space.close();}
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);
