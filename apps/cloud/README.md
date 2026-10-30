@@ -68,7 +68,7 @@ E/F带原briefContext、方向、事实和当前媒体，F不带D/E对话。E可
 
 ## 导演选择结构，D 实现自写镜头
 
-新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.14.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
+新creative冻结 [product-directing](../../packages/methods/directing.ts) 的版本／摘要，进入缓存、费用及候选／草稿身份；旧空directing_method_key仍走原积木路径，不改付费检查点。源码当前方法1.15.0，旧冻结方法的顺序／前置不追溯新增；实际部署见[实施状态](../../docs/implementation-status.md)。
 
 B定信息形态／运动语言，C定Treatment、完整结构／时间和最多两个custom；hero只是可信积木构图预览。D按hardest顺序只写本scene模块，静态解析不求值。当前C/D用网关Opus，D显式asset-insights，只取得A按resourceId／sha256绑定的真实观察，不发图片、不改Claude vision:false。默认images模式仍要求vision，缺观察／能力就停止，不降级。
 
@@ -95,6 +95,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 方法1.13对不含 WebGL 的影片，根据真实 review／final 分片计划，将每个属于单一自写镜头的分段边界及其前一帧加入正向、逆向检查，并在新 studio 中逐边界冷取帧比较。检测到可归因差异沿用每镜头一次 D 修复及完整复查，原接缝阈值不变；旧冻结方法和 WebGL 镜头保持原路径。稀疏预检不等于完整播放，最终分段接缝仍须通过。
 
 方法1.14在 seek 修复后、规格和修复后源码未再变化时，若同镜头、同画幅、同帧的已证实可见素材变为 `unverified`，允许一次额外范围内修复并重新完整检查；初次不确定、缺少同帧可见证据或再次失败仍停止，不能把 `unverified` 改记为可见。指导空白时隐藏装饰 Canvas；仍受原模型调用数、金额和活动期限限制。旧冻结方法不变。
+
+方法1.15在规格和审片方法中要求将界面提示、相关控件和选项作为可读整体，提醒 `continuous-focus` 的 cover／zoom 会裁掉素材边缘；强调查看实际帧。这是导演指导，不是自动证明素材内文字完整，也不改变旧方法或 block 取景语义。
 
 Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有的 `studio-diagnostics/<taskId>.json`，因为 Studio 没有渲染分片的 attempt 行；诊断写入失败不覆盖原始启动错误，也不重试模型。
 
