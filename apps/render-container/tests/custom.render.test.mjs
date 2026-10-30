@@ -48,6 +48,32 @@ try{
    }
    report.assetObservation='hidden_then_visible';report.fadeThrough='no_cross_scene_text_overlap';report.sandbox=session.sandbox;
   }finally{await session.close();}
+  // Reproduce the 3D aisle's zero-sized perspective origin and full-frame transparent
+  // pointer-free overlay with original synthetic pixels, never real user footage.
+  const perspectiveFilm=filmFixture(),perspectiveOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  perspectiveFilm.scenes=[{id:'product',kind:'custom',module:'scenes/product/index.js',start:0,end:240,purpose:'Observe a perspective image.',brief:'Exercise transparent and painted overlays.',
+   params:{textSlots:['product'],assetKeys:['dashboard'],events:[],readingHolds:[],assetChecks:[45,90,120,150].map(frame=>({frame,assetKeys:['dashboard']}))}},
+   {...perspectiveFilm.scenes[2],start:232,transitionIn:{type:'fade-through',frames:8}}];
+  const perspectiveSource=`PB.scene('product',ctx=>{
+   const stage=document.createElement('div'),world=document.createElement('div'),img=document.createElement('img'),front=document.createElement('div'),child=document.createElement('div'),label=document.createElement('div');
+   Object.assign(stage.style,{position:'absolute',inset:'0',overflow:'hidden',perspective:'1100px'});ctx.root.append(stage);
+   Object.assign(world.style,{position:'absolute',left:'50%',top:'40%',width:'0',height:'0',transformStyle:'preserve-3d'});stage.append(world);
+   img.src=ctx.asset('dashboard').url;Object.assign(img.style,{position:'absolute',left:'-150px',top:'-250px',width:'300px',height:'500px',transform:'translate3d(-200px,0,-200px) rotateY(30deg)'});world.append(img);
+   Object.assign(front.style,{position:'absolute',inset:'0',pointerEvents:'none'});ctx.root.append(front);
+   Object.assign(child.style,{position:'absolute',left:'0',top:'0',width:'100%',height:'100%'});front.append(child);
+   Object.assign(label.style,{position:'absolute',left:'5%',top:'5%',width:'30%',height:'10%',opacity:'0'});ctx.root.append(label);ctx.text('product').mount(label);
+   const timeline=gsap.timeline({paused:true});ctx.OM.clock(timeline,t=>{const f=t*30;front.style.backgroundColor=f>=90&&f<120?'rgb(0,0,0)':'transparent';img.style.opacity=f>=120&&f<150?'0':'1';child.style.backgroundColor=f>=150?'rgb(0,0,0)':'transparent';},8);return {timeline};});`;
+  perspectiveOptions.fonts=perspectiveOptions.fonts.map(face=>{const installed=catalog.fonts.find(item=>item.fontId===face.fontId&&item.weight===face.weight);return{...face,licenseRef:installed.licenseRef,codePoints:installed.codePoints};});
+  perspectiveOptions.customSources={'scenes/product/index.js':perspectiveSource};perspectiveOptions.observeAssets=true;
+  const perspective=await filmSession({raw:JSON.stringify(perspectiveFilm),options:perspectiveOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{
+   for(const [frame,visibility] of [[45,'visible'],[90,'unverified'],[120,'hidden'],[150,'unverified']]){
+    const png=await perspective.frame(frame,{format:'png'});if(frame===45||frame===90)writeFileSync(`${output}/asset-perspective-${frame}.png`,png);
+    const observation=await perspective.observe('perspective-asset-check',frame);
+    assert.equal(observation.assets.find(asset=>asset.sceneId==='product'&&asset.resourceId==='res_fixture_dashboard')?.visibility,visibility,JSON.stringify({frame,assets:observation.assets}));
+   }
+   report.perspectiveAssetObservation='transparent_visible_opaque_unverified_hidden_descendant_unverified';
+  }finally{await perspective.close();}
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

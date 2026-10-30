@@ -1,7 +1,8 @@
 /** Trusted CDP snapshot and platform-font inspection; no page-supplied QA booleans. */
 export async function observe(cdp, plan, renderId, frame) {
   const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight',
-    ...(plan.observeAssets ? ['mask-image', 'filter', 'pointer-events'] : [])];
+    ...(plan.observeAssets ? ['mask-image', 'filter', 'pointer-events', 'background-image', 'box-shadow', 'outline-style',
+      'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style', 'border-image-source', 'backdrop-filter'] : [])];
   const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', {computedStyles: names, includePaintOrder: true});
   const strings = snapshot.strings, {nodes, layout} = snapshot.documents[0];
   const rowFor = new Map(layout.nodeIndex.map((node, row) => [node, row]));
@@ -100,14 +101,23 @@ export async function observe(cdp, plan, renderId, frame) {
       }
       return false;
     };
+    // A transparent DIV can receive an ignorePointerEventsNone hit without painting pixels.
+    // Only treat it as paintless when every relevant decoration is explicitly absent; its
+    // children and pseudo-elements are checked independently as possible overlays.
+    const paintlessContainer=node=>{
+      if(strings[nodes.nodeName?.[node]]!=='DIV'||nodes.nodeType[node]!==1||nodes.pseudoType?.index?.includes(node))return false;
+      const background=color(style(node,'background-color'));
+      return background?.alpha===0&&['background-image','box-shadow','border-image-source','filter','backdrop-filter'].every(key=>style(node,key)==='none')
+        &&['outline-style','border-top-style','border-right-style','border-bottom-style','border-left-style'].every(key=>style(node,key)==='none');
+    };
     // Normal hit testing ignores pointer-events:none layers even when they paint over the image.
-    // Only fall back through a definitely invisible top layer if no later pointer-free layer
-    // can cover this point. If paint order is unavailable, retain an unverified result.
+    // Fall through only a hidden or provably paintless hit when no later painted layer can cover
+    // the point. Missing styles or paint order remain unverified.
     const possiblePointerOverlay=(target,x,y)=>{
       const targetRow=rowFor.get(target),order=layout.paintOrders?.[targetRow];
       if(!Number.isInteger(order))return true;
       for(const [candidate,row]of rowFor){
-        if(candidate===target||ancestor(candidate,target)||ancestor(target,candidate)||style(candidate,'pointer-events')!=='none'||definitelyHidden(candidate))continue;
+        if(candidate===target||ancestor(candidate,target)||ancestor(target,candidate)||style(candidate,'pointer-events')!=='none'||definitelyHidden(candidate)||paintlessContainer(candidate))continue;
         const otherOrder=layout.paintOrders?.[row],box=layout.bounds[row];
         if(!Number.isInteger(otherOrder)||!box)return true;
         if(otherOrder>=order&&x>=box[0]&&x<box[0]+box[2]&&y>=box[1]&&y<box[1]+box[3])return true;
@@ -157,7 +167,7 @@ export async function observe(cdp, plan, renderId, frame) {
             try{
               const all=await cdp.send('DOM.getNodeForLocation',{x,y,ignorePointerEventsNone:true}),hitNode=nodes.backendNodeId.indexOf(all.backendNodeId);
               if(hitNode>=0&&ancestor(hitNode,node))state='visible';
-              else if(hitNode>=0&&definitelyHidden(hitNode)){
+              else if(hitNode>=0&&(definitelyHidden(hitNode)||paintlessContainer(hitNode))){
                 const normal=await cdp.send('DOM.getNodeForLocation',{x,y,ignorePointerEventsNone:false}),normalNode=nodes.backendNodeId.indexOf(normal.backendNodeId);
                 if(normalNode>=0&&ancestor(normalNode,node)&&!possiblePointerOverlay(node,x,y))state='visible';
               }
