@@ -2,7 +2,7 @@ import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflar
 import {directingMethodRef,recallDirecting,type DirectingMethodPack} from '../../../packages/methods/directing.ts';
 import {customSceneInstructions} from '../../../packages/methods/custom-scene.ts';
 import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit} from '@promobento/contracts/custom-source';
-import {checkCustomScenes,probeCustomSources,CustomSceneCheckError} from './director-scenes.ts';
+import {checkCustomScenes,probeCustomSources,CustomSceneCheckError,hasPriorVisibleAssets} from './director-scenes.ts';
 import agentToolsSchema from '../../../contracts/agent-tools.schema.json';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
@@ -130,12 +130,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const hiddenAssetRepairMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=11);
     const expandedDirectionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=12);
     const shardSeamMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=13);
+    const assetRegressionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=14);
     const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
     let relayInsights:Json[]=[];
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
     const sceneCache=new Map<string,{key:string;source:string;plan:Json}>();
-    const sceneChecksRepaired=new Set<string>();
+    const sceneChecksRepaired=new Map<string,Json>();
     let sceneObservationRequired=false,assetObservationRequired=false,fadeThroughRequired=false;
     const progress=async(status:string)=>directorProgress(this.env,op,status);
     // Narrow the model's hints to the actual S1 renderer; the full protocol keeps its future fields.
@@ -297,15 +298,24 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           sceneModules=checked.modules;sceneProofKey=checked.evidenceKey;break;
         }
         const result=parseCanonicalJson(await step.do<string>(name,{retries:{limit:0,delay:'1 second'},timeout:'8 minutes'},async()=>{
-          try{return canonical({checked:await checkCustomScenes(this.env,op,context,film,sources,deadline(),true,probeSceneId,Boolean(checkedAssetsMethod),Boolean(hiddenAssetRepairMethod),Boolean(shardSeamMethod))});}
+          try{return canonical({checked:await checkCustomScenes(this.env,op,context,film,sources,deadline(),true,probeSceneId,Boolean(checkedAssetsMethod),Boolean(hiddenAssetRepairMethod),Boolean(shardSeamMethod),Boolean(assetRegressionMethod))});}
           catch(error){if(error instanceof CustomSceneCheckError)return canonical({failure:error.failure});throw error;}
         })) as Json;
         if(result.checked){if(!probeSceneId){sceneModules=result.checked.modules;sceneProofKey=result.checked.evidenceKey;}break;}
         const failure=result.failure,scene=custom.find((item:Json)=>item.id===failure.sceneId),cached=scene&&sceneCache.get(scene.module);
-        if(!scene||!cached||sceneChecksRepaired.has(scene.module))throw Error(failure.code);
+        if(!scene||!cached)throw Error(failure.code);
+        const previous=sceneChecksRepaired.get(scene.module),missing=failure.expectation?.missingAssetKeys;
+        const unverifiedFailure=failure.code==='CUSTOM_REQUIRED_ASSET_NOT_VISIBLE'&&Array.isArray(missing)&&missing.length>0&&missing.every((key:string)=>{
+          const matched=(failure.observations.at(-1)?.assets??[]).filter((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key]?.resourceId);
+          return matched.length>0&&matched.every((asset:Json)=>asset.visibility==='unverified');
+        });
+        // One extra correction only for an observed regression introduced by the seek repair:
+        // the same asset was positively visible at this exact frame/aspect before that edit.
+        const assetRegression=assetRegressionMethod&&unverifiedFailure&&hasPriorVisibleAssets(previous,failure,scene,film,missing);
+        if(previous&&!assetRegression||!previous&&unverifiedFailure)throw Error(failure.code);
         // A mixed frame can contain another scene: seek/Q1 pixels alone cannot attribute its defect.
         if(failure.code!=='CUSTOM_HOLD_TEXT_MISSING'&&film.scenes.filter((item:Json)=>item.start<=failure.frame&&failure.frame<item.end).length!==1)throw Error(failure.code);
-        sceneChecksRepaired.add(scene.module);
+        sceneChecksRepaired.set(scene.module,failure);
         checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
         const textOnly=policy.director.steps.scenes.inputMode==='asset-insights',observed=failure.observations.find((item:Json)=>item.frame===failure.frame);
         const forward=failure.images.find((item:Json)=>item.frame===failure.frame),comparison=failure.comparisons.at(-1);
@@ -328,7 +338,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           currentSource,validationFeedback:{code:failure.code,sceneId:failure.sceneId,aspect:failure.aspect,phase:failure.phase,frame:failure.frame,...(failure.expectation?{expectation:failure.expectation}:{}),...(observed?{observation:observed}:{}),...(comparisonStats?{comparison:comparisonStats}:{}),
             frameImages:textOnly?'No images attached: this text-only model receives the actual CDP observation and pixel comparison, not a visual interpretation.':refs.length>1?'Attached contact sheet: tile 0 is the forward frame, tile 1 is the reverse/cold frame.':'Attached contact sheet: tile 0 is the actual failing forward frame.'},
           ...(textOnly?{assetObservations}:{}),literalAccessGuidance:customLiteralGuidance(scene),
-          repairGuidance:'For seek mismatch keep draw(t) history-independent. If dynamically resizing a cropped image causes raster differences, a fixed-resolution Canvas2D with complete clear and redraw is one tested option; preserve the real pixels and choreography. '+(shardSeamMethod?'A blurred box-shadow combined with changing transform/compositing can also differ between cold and warm renders; if the evidence points there, use a deterministic alternative while preserving the composition. ':'')+'For missing or covered text, make the specified slot visible in that hold. '+(hiddenAssetRepairMethod?'For definitively hidden required assets, implement their actual appearance at the required frame using the original asset and preserve the intended transitions; do not add a tiny or hidden placeholder. ':'')+'The complete scene will be checked again in every requested aspect.'}),...(images.length?{images}:{})}],
+          repairGuidance:'For seek mismatch keep draw(t) history-independent. If dynamically resizing a cropped image causes raster differences, a fixed-resolution Canvas2D with complete clear and redraw is one tested option; preserve the real pixels and choreography. '+(shardSeamMethod?'A blurred box-shadow combined with changing transform/compositing can also differ between cold and warm renders; if the evidence points there, use a deterministic alternative while preserving the composition. ':'')+(assetRegressionMethod?'Hide any decorative canvas while it contains no pixels, including before and after its effect; make visibility a pure function of time so the canvas cannot intercept observations when clear. ':'')+(assetRegression?'This asset was verified visible at the same frame before the seek repair, but is now unverified. Inspect layers introduced by that repair; do not assume the image is missing or conceal the failed check. ':'')+'For missing or covered text, make the specified slot visible in that hold. '+(hiddenAssetRepairMethod?'For definitively hidden required assets, implement their actual appearance at the required frame using the original asset and preserve the intended transitions; do not add a tiny or hidden placeholder. ':'')+'The complete scene will be checked again in every requested aspect.'}),...(images.length?{images}:{})}],
           tools:[{name:'edit_file',description:'Edit only the failing scene using a unique str_replace or insert; never create a new module.',parameters:customEditParameters([scene.module],['str_replace','insert'])}],
           ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'&&providers.steps.scenes.includes('/deepseek-')?{toolChoice:'edit_file'}:{}),maxOutputTokens:32768},value=>{
           const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);

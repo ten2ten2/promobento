@@ -16,6 +16,13 @@ export class CustomSceneCheckError extends Error {
   constructor(code:string,readonly failure:Json){super(code);}
 }
 
+/** Prior evidence must identify this scene, aspect, frame and each exact resource. */
+export function hasPriorVisibleAssets(previous:Json|undefined,failure:Json,scene:Json,film:Json,missing:string[]){
+  return previous?.code==='CUSTOM_SEEK_MISMATCH'&&previous.aspect===failure.aspect&&missing.length>0
+    &&previous.observations.some((observation:Json)=>observation.frame===failure.frame&&missing.every(key=>
+      observation.assets?.some((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key]?.resourceId&&asset.visibility==='visible')));
+}
+
 /** Inert placeholders allow one completed scene to be checked before other modules are authored.
  * They are executed only by the renderer, never used for a candidate or a final proof. */
 export function probeCustomSources(film:Json,sceneId:string,sources:Record<string,string>){
@@ -29,7 +36,7 @@ export function probeCustomSources(film:Json,sceneId:string,sources:Record<strin
 }
 
 /** A new studio instance per aspect; raw author bytes are never evaluated in this Worker. */
-export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false,checkShardSeams=false){
+export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Json,film:Json,sources:Record<string,string>,deadlineAt:number,repairFailures=false,probeSceneId?:string,assetChecksRequired=false,repairHiddenAssets=false,checkShardSeams=false,reportUnverifiedAssets=false){
   const sourceHash=filmSourceHash(canonical(film),sources),prefix=probeSceneId
     ?`operations/${op.id}/custom-probe/${probeSceneId}/${sourceHash}`:`operations/${op.id}/custom-check/${sourceHash}`;
   const source=await immutableJson(env,prefix+'/film.json',film),modules:BlobRef[]=[];
@@ -85,7 +92,11 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
           const matched=lastAssets.filter((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key].resourceId);
           return matched.length>0&&matched.every((asset:Json)=>asset.visibility==='hidden');
         });
-        if(repairFailures&&(['CUSTOM_QA_BLOCK','CUSTOM_HOLD_TEXT_MISSING','CUSTOM_SEEK_MISMATCH'].includes(code)||hiddenAssets))throw new CustomSceneCheckError(code,failure);
+        const unverifiedAssets=reportUnverifiedAssets&&code==='CUSTOM_REQUIRED_ASSET_NOT_VISIBLE'&&Array.isArray(missing)&&missing.length>0&&missing.every((key:string)=>{
+          const matched=lastAssets.filter((asset:Json)=>asset.sceneId===scene.id&&asset.resourceId===film.assets[key].resourceId);
+          return matched.length>0&&matched.every((asset:Json)=>asset.visibility==='unverified');
+        });
+        if(repairFailures&&(['CUSTOM_QA_BLOCK','CUSTOM_HOLD_TEXT_MISSING','CUSTOM_SEEK_MISMATCH'].includes(code)||hiddenAssets||unverifiedAssets))throw new CustomSceneCheckError(code,failure);
       };
       const closeStudio=async()=>{
         try{await owner.closeStudio();}catch(error){if(repairable)throw new Error(repairable.message,{cause:error});if(!failed)throw error;}
