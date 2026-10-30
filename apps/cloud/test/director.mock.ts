@@ -150,7 +150,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   }
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
   else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
-  else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
+  else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);
+   const version=legacyCustomMethod?'1.1.0':frozenMethodVersion||directingMethodPack.version,[major,minor]=version.split('.').map(Number);
+   assert.equal(body.max_tokens,(customScene||methodWithoutCustom)&&(major>1||major===1&&minor>=12)?32768:16384);
+   value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:'en',palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
   else if(input.task.startsWith('Write')){stage='spec';specRequests++;specInputs.push(input);assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
@@ -337,6 +340,11 @@ test('authored directions permit custom shots and review can replace a fixed blo
  const legacy=await fixture({methodWithoutCustom:true,frozenMethodVersion:'1.8.0'});assert.ifError(legacy.error);
  assert.match(legacy.specInputs[0].task,/choose blocks or sandboxed custom scenes/);assert.equal(legacy.reviewRequests[0].customSceneRepair,undefined);
  assert.doesNotMatch(legacy.directionInputs[0].task,/no custom scenes/i);
+});
+test('current direction output budget leaves frozen 1.11 and legacy requests unchanged',async()=>{
+ const current=await fixture({methodWithoutCustom:true});assert.ifError(current.error);
+ const frozen=await fixture({methodWithoutCustom:true,frozenMethodVersion:'1.11.0'});assert.ifError(frozen.error);
+ const legacy=await fixture();assert.ifError(legacy.error);
 });
 test('compact direction cards materialize three real-protocol trusted heroes without model-written FilmSpecs',async()=>{
  for(const nativeProtocol of [false,true]){

@@ -42,6 +42,8 @@ E 的首份修改规格存在场景转场错误，模型修正了规格；重新
 
 负责人要求部署后暂停；[部署](https://github.com/ten2ten2/promobento/actions/runs/41001349894)已完成。刚启动的竖屏操作 `eval-duolingo-15-1793333748476` 已取消，未调用模型；计算保守上界 **1,021 usd_micros**，计算已停止／结算、容量为空、临时密钥回收。回执保存在 `artifacts/s1-duolingo-portrait-seam-2026-10-30/`。
 
+恢复后的竖屏操作 `eval-duolingo-15-1793337364224` 在方向阶段收到已终止且有 usage 的截断流：16,384 输出 token 均用于推理，没有方向正文；以 `MODEL_OUTPUT_TRUNCATED` 停止，未重发该请求。模型已结 **5,772**、计算保守上界 **546 usd_micros**；终态恢复已确认计算停止、容量为空、临时密钥回收。回执在 `artifacts/s1-duolingo-portrait-resume-2026-10-30/`。
+
 ## 方法 1.8.0：按反馈重新自动编排
 
 负责人指出鱼卡与后续练习没有关系。基于前一自动规格的**手动修订**将鱼卡先返回翻译页，再交接不同练习；本机播放器 `artifacts/s1-duolingo-relay-context-2026-10-29/index.html`。这不是自动发现或自动改稿。
