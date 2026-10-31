@@ -48,11 +48,14 @@ function validCard(card){return card.status==='confirmed_for_s1_eval'&&card.conf
 function checkApproval(card,asset){
  const decision=materialApproval(card,asset),original=asset.derivation;
  const web=original?.sourceOrigin==='web',inline=original?.sourceOrigin==='inline-svg';
+ const webPathType=web?kindFor(approvedWebUrl(asset.imageUrl).pathname):undefined;
  if(!decision.explicit||original?.kind!=='approved_artwork_rasterization'||decision.explicit.sourceUrl!==asset.sourceUrl
   ||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??'')||original.sourceSha256!==decision.explicit.sha256
   ||(inline?(decision.source.kind==='local_project_media'||original.sourceMediaType!=='image/svg+xml'||!inlineSelector(original.selector)
     ||decision.explicit.selector!==original.selector||asset.imageUrl!==undefined||!approvedWebUrl(asset.sourceUrl))
-   :web?(decision.source.kind==='local_project_media'||decision.explicit.imageUrl!==asset.imageUrl||original.imageUrl!==asset.imageUrl||kindFor(approvedWebUrl(asset.imageUrl).pathname)!==original.sourceMediaType)
+   :web?(decision.source.kind==='local_project_media'||decision.explicit.imageUrl!==asset.imageUrl||original.imageUrl!==asset.imageUrl
+      ||!extension(original.sourceMediaType)||(webPathType?webPathType!==original.sourceMediaType:decision.explicit.sourceMediaType!==original.sourceMediaType)
+      ||decision.explicit.sourceMediaType!==undefined&&decision.explicit.sourceMediaType!==original.sourceMediaType)
    :(decision.source.kind!=='local_project_media'||decision.explicit.sourceFile!==original.sourceFile||kindFor(original.sourceFile)!==original.sourceMediaType)))throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');
  return decision;
 }
@@ -159,7 +162,8 @@ export async function captureApprovedWebArtwork({outputDir,card,entries,download
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('ARTWORK_SELECTION_INVALID');
  const accepted=entries.map(entry=>{
   if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim())throw Error('ARTWORK_SELECTION_INVALID');
-  approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.imageUrl),mediaType=kindFor(url.pathname);if(!mediaType)throw Error('ARTWORK_KIND_UNSUPPORTED');
+  approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.imageUrl),mediaType=kindFor(url.pathname)??entry.sourceMediaType;
+  if(!extension(mediaType)||entry.sourceMediaType!==undefined&&entry.sourceMediaType!==mediaType)throw Error('ARTWORK_KIND_UNSUPPORTED');
   const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,imageUrl:entry.imageUrl,approvalRef:entry.approvalRef,
    derivation:{kind:'approved_artwork_rasterization',sourceOrigin:'web',imageUrl:entry.imageUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+'.source.'+extension(mediaType)}};
   checkApproval(card,asset);return{entry,asset};

@@ -40,7 +40,8 @@ return selected.assets.map(asset=>{
   if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
    ||(inline?(approval.source.kind==='local_project_media'||!asset.derivation.selector||approval.explicit.selector!==asset.derivation.selector
       ||asset.derivation.sourceMediaType!=='image/svg+xml'||asset.imageUrl!==undefined)
-    :web?(approval.source.kind==='local_project_media'||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl)
+    :web?(approval.source.kind==='local_project_media'||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl
+      ||approval.explicit.sourceMediaType!==undefined&&approval.explicit.sourceMediaType!==asset.derivation.sourceMediaType)
     :(approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile))
    ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(artwork.original)!==approval.explicit.sha256
    ||artwork.sourceMediaType!==asset.derivation.sourceMediaType)throw Error('ARTWORK_VERIFICATION_REQUIRED');

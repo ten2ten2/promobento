@@ -26,6 +26,23 @@ test('inline SVG requires exact source and selector approval before any page req
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
+test('extensionless web artwork requires an explicitly approved media type before download',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.web-artwork-type-test-'));let calls=0;
+ try{
+  const sourceUrl='https://example.com/product',imageUrl='https://example.com/brand',sourceMediaType='image/svg+xml';
+  const asset={id:'fixture-mark',sourceUrl,imageUrl,sourceMediaType,description:'Synthetic logo.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-mark'};
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'official_product_page',url:sourceUrl}],
+   materialApprovals:{'fixture-mark':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic logo.',sourceUrl,imageUrl,sha256:sha256Bytes(svg)}}};
+  const download=async()=>{calls++;throw Error('UNEXPECTED_DOWNLOAD');};
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'no-type'),card,entries:[{...asset,sourceMediaType:undefined}],download}),/ARTWORK_KIND_UNSUPPORTED/);
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'unapproved-type'),card,entries:[asset],download}),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'wrong-extension'),card,entries:[{...asset,imageUrl:imageUrl+'.svg',sourceMediaType:'image/gif'}],download}),/ARTWORK_KIND_UNSUPPORTED/);
+  card.materialApprovals['fixture-mark'].sourceMediaType='image/gif';
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'wrong-approval'),card,entries:[asset],download}),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+  assert.equal(calls,0);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
 test('ICNS keeps the largest static embedded PNG and rejects malformed containers',()=>{
  const png=(size,color)=>Buffer.from(pngRgba(size,size,Uint8Array.from({length:size*size*4},(_,i)=>i%4===3?255:color)));
  const chunk=(type,bytes)=>{const head=Buffer.alloc(8);head.write(type);head.writeUInt32BE(bytes.length+8,4);return Buffer.concat([head,bytes]);};
