@@ -184,7 +184,7 @@ mise exec -- node research/evals/discover-local-materials.mjs \
 
 `candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；后续收集支持逐项批准的 PNG、JPEG、静态 WebP，以及下述受限 SVG、ICO／ICNS、静态 GIF／AVIF 和 MP4／MOV／WebM；其他格式仍需接入。
 
-需要参考项目样式时，可在命令末尾显式追加 `--styles`：工具只读取受限数量和大小的 `.css`，提取直接声明的十六进制颜色及首选字体名，并记录相对来源；超出上限记入遗漏。结果不是实际页面样式、字体许可或素材授权，仍须核对后才能用于方向；不加该参数保持原先只列文件的行为。
+需要参考项目样式时，可在命令末尾显式追加 `--styles`：工具只读取受限数量和大小的 `.css`、`.scss`、`.less`，提取直接声明的十六进制及 RGB／HSL／OKLCH 颜色字面量和首选字体名，并记录相对来源；超出上限记入遗漏，不执行样式、展开变量或处理导入。结果不是实际页面样式、字体许可或素材授权，仍须核对后才能用于方向；不加该参数保持原先只列文件的行为。
 
 已有逐项批准的本地项目 PNG、JPEG 和静态 WebP 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
 

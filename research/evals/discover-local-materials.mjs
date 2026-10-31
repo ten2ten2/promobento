@@ -33,11 +33,11 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
     if(!within(root,realpathSync(path)))throw Error('LOCAL_MATERIAL_PATH_INVALID');scan(path,depth+1);continue;
    }
    const ext=extname(item.name).toLowerCase(),kind=kinds.get(ext);if(!item.isFile())continue;
-   if(observeStyles&&ext==='.css'){
+   if(observeStyles&&['.css','.scss','.less'].includes(ext)){
     const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink()||!within(root,realpathSync(path)))throw Error('LOCAL_MATERIAL_PATH_INVALID');
     if(styleFiles>=100||stat.size>256<<10||styleBytes+stat.size>2<<20){if(!missing.includes('style_limit'))missing.push('style_limit');continue;}
     styleFiles++;styleBytes+=stat.size;const css=readFileSync(path,'utf8').replace(/\/\*[\s\S]*?\*\//g,''),source=relative(root,path).split(sep).join('/');
-    for(const match of css.matchAll(/:\s*(#[0-9a-f]{8}|#[0-9a-f]{6}|#[0-9a-f]{4}|#[0-9a-f]{3})(?![0-9a-z_-])/gi))add(colours,match[1].toLowerCase(),source);
+    for(const match of css.matchAll(/:\s*(#[0-9a-f]{8}|#[0-9a-f]{6}|#[0-9a-f]{4}|#[0-9a-f]{3})(?![0-9a-z_-])|:\s*((?:rgba?|hsla?|oklch)\([^()\r\n]{1,128}\))/gi))add(colours,(match[1]??match[2]).replace(/\s+/g,' ').toLowerCase(),source);
     for(const match of css.matchAll(/(?:^|[;{])\s*font-family\s*:\s*(['"]?)([a-z][a-z0-9 -]{0,59})\1\s*(?=[,;}])/gi))add(fonts,match[2].trim(),source);
     continue;
    }
@@ -50,7 +50,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
  scan(root,0);
  const result={kind:'local_material_candidates',topicId:card.topicId,sourceUrl,scope:'internal_eval_only',publicUseCleared:false,
   candidates,missing,skippedSymlinks:symlinks,...(observeStyles?{styleObservations:{colours:[...colours.values()],fonts:[...fonts.values()],filesRead:styleFiles,
-   scope:'declared_css_only_not_font_or_asset_permission'}}:{})};
+   scope:'declared_stylesheets_only_not_font_or_asset_permission'}}:{})};
  mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
  writeFileSync(join(output,'candidates.json'),canonical(result)+'\n',{flag:'wx'});return result;
 }

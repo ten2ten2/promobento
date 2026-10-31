@@ -23,6 +23,12 @@ test('local media discovery lists private candidates without copying bytes or gr
   const styles=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'styles'),card,observeStyles:true}).styleObservations;
   assert.deepEqual(styles.colours.map(item=>item.value),['#aabbcc','#abc']);assert.deepEqual(styles.fonts,[{value:'Fixture Sans',count:2,sources:['screens/style.css']}]);
   assert.equal(styles.filesRead,1);assert.match(styles.scope,/not_font_or_asset_permission/);
+  writeFileSync(join(source,'screens','theme.scss'),'$accent: oklch(65% 0.2 140); .brand { background: rgb(10 20 30 / 0.5); font-family: "Display Fixture"; }');
+  writeFileSync(join(source,'screens','theme.less'),'@ink: hsl(120 30% 40%); .button { color: rgba(1, 2, 3, .8); }');
+  const extended=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'extended'),card,observeStyles:true}).styleObservations;
+  assert.deepEqual(extended.colours.filter(item=>item.sources.includes('screens/theme.scss')).map(item=>item.value),['oklch(65% 0.2 140)','rgb(10 20 30 / 0.5)']);
+  assert.deepEqual(extended.colours.filter(item=>item.sources.includes('screens/theme.less')).map(item=>item.value),['hsl(120 30% 40%)','rgba(1, 2, 3, .8)']);
+  assert.ok(extended.fonts.some(item=>item.value==='Display Fixture'&&item.sources.includes('screens/theme.scss')));
   writeFileSync(join(source,'screens','many.css'),Array.from({length:101},(_,index)=>`.c${index}{color:#${index.toString(16).padStart(6,'0')}}`).join('\n'));
   const limited=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'limited'),card,observeStyles:true});
   assert.equal(limited.styleObservations.colours.length,100);assert.ok(limited.missing.includes('style_value_limit'));
