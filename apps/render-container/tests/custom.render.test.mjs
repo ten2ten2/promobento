@@ -62,9 +62,10 @@ try{
   // the blank template's masked entrance; author code never creates text.
   const splitFilm=structuredClone(film);splitFilm.scenes[0].runtimeText='grapheme-v1';
   const splitSource=source.replace("ctx.text('product').mount(heading);", "const title=ctx.text('product').mount(heading,{split:'graphemes'});")
-   .replace("const timeline=gsap.timeline({paused:true});", "const timeline=gsap.timeline({paused:true});timeline.fromTo(title.querySelectorAll('.pb-grapheme'),{yPercent:110},{yPercent:0,duration:.5,stagger:.01},0);");
+   .replace("const timeline=gsap.timeline({paused:true});", "const timeline=gsap.timeline({paused:true});timeline.fromTo(title.querySelectorAll('.pb-grapheme'),{yPercent:110},{yPercent:0,duration:.5,stagger:.01},0);")
+   .replace("ctx.OM.clock(timeline,t=>{", "ctx.OM.clock(timeline,t=>{if(t>=1)for(const word of title.querySelectorAll('.pb-word')){const chars=word.querySelectorAll('.pb-grapheme');for(const ch of chars)if(Math.abs(ch.getBoundingClientRect().top-chars[0].getBoundingClientRect().top)>1)throw Error('WORD_SPLIT');}");
   for(const aspect of ['landscape','portrait']){
-   const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':splitSource};
+   const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':splitSource.replace('const timeline=gsap.timeline({paused:true});',"if(title.querySelectorAll('.pb-word').length!==6)throw Error('WORD_GROUPING_INVALID');const timeline=gsap.timeline({paused:true});")};
    const split=await filmSession({raw:JSON.stringify(splitFilm),options:opts,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{const start=await split.frame(0,{format:'png'}),settled=await split.frame(45,{format:'png'}),observation=await split.observe('grapheme-test',45),reverse=await split.frame(0,{format:'png'});
     writeFileSync(`${output}/grapheme-title-${aspect}.png`,settled);
@@ -74,8 +75,8 @@ try{
   }
   const styleOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'}),piece=title.querySelector('.pb-grapheme');piece.style.fontFamily='serif';piece.style.color=ctx.style.palette.bg;")}};
   const styled=await filmSession({raw:JSON.stringify(splitFilm),options:styleOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
-  try{await styled.frame(45,{format:'png'});const observation=await styled.observe('grapheme-style',45);
-   assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FALLBACK_USED'));assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FACE_MISMATCH'));assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='low-contrast'));
+  try{writeFileSync(`${output}/grapheme-style.png`,await styled.frame(45,{format:'png'}));const observation=await styled.observe('grapheme-style',45),details=JSON.stringify(observation);
+   assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FALLBACK_USED'),details);assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FACE_MISMATCH'),details);assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='low-contrast'),details);
   }finally{await styled.close();}
   const combinedFilm=structuredClone(splitFilm);combinedFilm.texts.product.text='A\u0301 B';
   const combinedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelectorAll('.pb-grapheme').length!==2)throw Error('GRAPHEME_SPLIT_INVALID');")}};

@@ -145,6 +145,7 @@ jobs:
             artifacts/film-runtime/canvas-number-*.png
             artifacts/film-runtime/canvas-subtitle-*.png
             artifacts/film-runtime/grapheme-title-*.png
+            artifacts/film-runtime/grapheme-style.png
             artifacts/film-runtime/canvas-wrapped-*.png
             artifacts/film-runtime/canvas-sequence-*.png
             artifacts/film-runtime/whiteboard-clip-*.png
@@ -167,6 +168,7 @@ jobs:
             artifacts/film-runtime/canvas-number-*.png
             artifacts/film-runtime/canvas-subtitle-*.png
             artifacts/film-runtime/grapheme-title-*.png
+            artifacts/film-runtime/grapheme-style.png
       - name: Retain compact studio crop frames for visual inspection
         if: always() && (github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
