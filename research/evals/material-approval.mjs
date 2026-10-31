@@ -30,3 +30,11 @@ export function assertLocalMaterialIdentity(approval,asset,sha256){
   ||approval.explicit.sourceFile!==asset.derivation.sourceFile||approval.explicit.sourceUrl!==asset.sourceUrl
   ||!/^[a-f0-9]{64}$/.test(approval.explicit.sha256??'')||sha256!==approval.explicit.sha256)throw Error('LOCAL_MATERIAL_IDENTITY_MISMATCH');
 }
+
+/** A web-image approval fixes both the source URL and the exact bytes before download. */
+export function assertRemoteMaterialIdentity(approval,asset,sha256){
+ if(!approval.explicit?.imageUrl&&asset.derivation?.kind!=='approved_web_image')return;
+ if(!approval.explicit||asset.derivation?.kind!=='approved_web_image'||approval.explicit.sourceUrl!==asset.sourceUrl
+  ||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl
+  ||!/^[a-f0-9]{64}$/.test(approval.explicit.sha256??'')||approval.explicit.sha256!==sha256)throw Error('WEB_MATERIAL_IDENTITY_MISMATCH');
+}

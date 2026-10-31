@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {materialApproval,assertLocalMaterialIdentity} from './material-approval.mjs';
+import {materialApproval,assertLocalMaterialIdentity,assertRemoteMaterialIdentity} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 
 export function prepareMaterialSelection(directory,selected,topics,{readCard=path=>parseCanonicalJson(readFileSync(path))}={}){
@@ -24,7 +24,7 @@ return selected.assets.map(asset=>{
  const bytes=readFileSync(join(directory,asset.file));if(bytes.length>8<<20)throw Error('MATERIAL_IDENTITY_INVALID');
  const {width,height,extension,mediaType}=imageHeader(bytes);
  if(!asset.file.endsWith('.'+extension)||width!==asset.width||height!==asset.height||extension!=='png'&&asset.mediaType&&asset.mediaType!==mediaType)throw Error('MATERIAL_IDENTITY_INVALID');
- const sha256=sha256Bytes(bytes);assertLocalMaterialIdentity(approval,asset,sha256);
+ const sha256=sha256Bytes(bytes);assertLocalMaterialIdentity(approval,asset,sha256);assertRemoteMaterialIdentity(approval,asset,sha256);
  return{asset,bytes,sha256,mediaType,extension,original:approval.original,explicit:approval.explicit,originalSource};
 });
 }

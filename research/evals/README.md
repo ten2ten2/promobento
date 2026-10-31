@@ -166,6 +166,15 @@ mise exec -- node research/evals/capture-materials.mjs artifacts/eval-materials-
 mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-2026-10-24
 ```
 
+逐项授权的网页原图可进入同一待审清单。先在该题 `assetSources` 登记页面，并在事实卡 `materialApprovals` 为每个素材登记负责人批准、来源页 `sourceUrl`、原图 `imageUrl` 和批准字节的 `sha256`。私有清单的 `files` 每项提供相同的 `sourceUrl`、`imageUrl`、`id`、`approvalRef` 和 `description`：
+
+```sh
+mise exec -- node research/evals/capture-approved-web-images.mjs \
+  artifacts/example-web-capture <已批准题目ID> artifacts/example-approved-web-files.json
+```
+
+采集前检查全部条目的许可和精确 URL；仅请求无凭据、无查询参数的 HTTPS 原图，不跟随重定向，并拒绝私网地址。只接收 1 MiB、4096×4096 以内的 PNG、JPEG 和静态 WebP，实际字节须与逐项批准一致。输出原字节及 `pending_visual_selection` 清单；后续仍须实际查看、批准并通过 `ingest-materials` 登记。网页观察到的候选 URL 不自动获得许可，SVG、视频、图标及客户通用采集尚未打通。
+
 本地项目可先生成候选清单：在该题事实卡的 `assetSources` 登记 `local_project_media` 来源后运行：
 
 ```sh
