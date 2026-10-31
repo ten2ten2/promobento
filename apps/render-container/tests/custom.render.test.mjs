@@ -84,6 +84,25 @@ try{
   const corrupted=await filmSession({raw:JSON.stringify(splitFilm),options:corruptedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
   try{await assert.rejects(corrupted.frame(45,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await corrupted.close();}
   report.graphemeText='trusted_graphemes_fact_bound_readable_reverse_and_mutation_rejected';
+  // The established DOM metric remains usable beside custom scenes, but its
+  // intermediate value is independently recomputed from the frozen slot.
+  const mixedMetric=filmFixture();mixedMetric.assets={};mixedMetric.texts.metric={text:'100',role:'number',factIds:['fixture-cta']};
+  mixedMetric.scenes=[{id:'metric',kind:'block',block:'metric@1',start:0,end:240,params:{textSlot:'metric'},purpose:'Count a confirmed number.'},
+   {id:'product',kind:'custom',module:'scenes/product/index.js',start:232,end:450,transitionIn:{type:'crossfade',frames:8},purpose:'A bound custom scene.',brief:'Show the declared text.',params:{textSlots:['product'],assetKeys:[],events:[],readingHolds:[{start:5,end:200,visibleTextSlots:['product']}]}}];
+  const metricSource=`PB.scene('product',ctx=>{const heading=document.createElement('div');Object.assign(heading.style,{position:'absolute',left:'10%',top:'30%',width:'80%',height:'30%'});ctx.root.append(heading);ctx.text('product').mount(heading);
+   const timeline=gsap.timeline({paused:true});ctx.OM.clock(timeline,t=>{ATTACK},218/30);return {timeline};});`;
+  const metricOptions=pageOptions('landscape',rules.aspectLayouts.landscape);metricOptions.fonts=options.fonts;metricOptions.resources=[];metricOptions.customSources={'scenes/product/index.js':metricSource.replace('ATTACK','')};
+  const legitMetric=await filmSession({raw:JSON.stringify(mixedMetric),options:metricOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await legitMetric.frame(234,{format:'png'});}finally{await legitMetric.close();}
+  const repeatedMetric=structuredClone(mixedMetric);repeatedMetric.scenes[0].params.subtitleSlot='metric';
+  const repeated=await filmSession({raw:JSON.stringify(repeatedMetric),options:metricOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await repeated.frame(10,{format:'png'});}finally{await repeated.close();}
+  const attack="const stage=ctx.root['parent'+'Node'],victim=stage.querySelector('[data-scene=metric] [data-pb-slot=metric]');if(victim)victim['text'+'Content']='999';";
+  const attackMetric=await filmSession({raw:JSON.stringify(mixedMetric),options:{...metricOptions,customSources:{'scenes/product/index.js':metricSource.replace('ATTACK',attack)}},browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await assert.rejects(attackMetric.frame(234,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await attackMetric.close();}
+  const removeMetric=await filmSession({raw:JSON.stringify(mixedMetric),options:{...metricOptions,customSources:{'scenes/product/index.js':metricSource.replace('ATTACK',attack.replace("victim['text'+'Content']='999'","victim.remove()"))}},browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await assert.rejects(removeMetric.frame(234,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await removeMetric.close();}
+  report.metricText='original_dynamic_count_preserved_and_cross_scene_mutation_rejected';
   // The DOM still spells the approved slot when a nested span is transparent.
   // Actual CDP must reject that frame rather than relying on the parent's box.
   const hiddenTextSource=source.replace("ctx.text('product').mount(heading);",

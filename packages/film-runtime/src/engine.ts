@@ -5,6 +5,7 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 import {createClipHelpers} from './clip/helpers.js';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
+import {parseMetricText,metricTextAt} from './metric-text.ts';
 import {createTextIntegrity} from './text-integrity.ts';
 import {isStudioRuntime} from '@promobento/contracts/studio-runtime';
 import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
@@ -141,7 +142,14 @@ async function draw(frameIndex: number): Promise<void> {
     // text, including frames between those sampling points, to its real slot.
     const hasCustom=current.spec.scenes.some(scene=>scene.kind==='custom');
     for(const layer of layers){const instance=instances.get(layer.id)!;
-      if(instance.scene.kind==='custom'||hasCustom&&instance.scene.kind==='block'&&instance.scene.block!=='metric@1')textIntegrity.verify(instance.root);}
+      if(instance.scene.kind==='custom'||hasCustom&&instance.scene.kind==='block'){
+        const scene=instance.scene;
+        const metricSlot=scene.kind==='block'&&scene.block==='metric@1'?String(scene.params.textSlot):undefined;
+        const metricElement=(instance.instance as BlockInstance & {metricTextElement?:HTMLElement}).metricTextElement;
+        if(metricSlot&&!metricElement)throw Error('METRIC_TEXT_HANDOFF_MISSING');
+        const override=metricSlot?{element:metricElement!,expected:metricTextAt(parseMetricText(current.spec.texts[metricSlot]!.text),layer.seconds).text}:undefined;
+        textIntegrity.verify(instance.root,override);
+      }}
     if(hasCustom)textIntegrity.verifyBody(filmBody!,filmStage!,filmPlanElement!);
     frame = frameIndex;
   } finally { busy = false; }

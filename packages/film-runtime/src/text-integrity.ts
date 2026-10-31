@@ -15,10 +15,11 @@ export function createTextIntegrity(){
    apply(set,owners,[element,{root,expected}]);const slots=apply(get,byRoot,[root]) as Node[]|undefined;
    if(slots)apply(push,slots,[element]);else apply(set,byRoot,[root,[element]]);
   },
-  verify(root:Element){
+  verify(root:Element,override?:{element:Node;expected:string}){
+   if(override&&!apply(contains,root,[override.element]))throw Error('CUSTOM_TEXT_MISMATCH');
    const slots=(apply(get,byRoot,[root])??[]) as Node[];
    for(let i=0;i<slots.length;i++){const element=slots[i]!,owner=apply(get,owners,[element]) as {root:Element;expected:string};
-    if(apply(contains,root,[element])&&apply(text,element,[])!==owner.expected)throw Error('CUSTOM_TEXT_MISMATCH');
+    if(apply(contains,root,[element])&&apply(text,element,[])!==(override?.element===element?override.expected:owner.expected))throw Error('CUSTOM_TEXT_MISMATCH');
    }
    const walker=walk(root,4);let node:Node|null;
    while((node=apply(next,walker,[]) as Node|null)){

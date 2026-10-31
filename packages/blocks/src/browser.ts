@@ -1,5 +1,6 @@
 import type { Box, SceneContext, SceneRegion } from '../../../contracts/film-runtime.d.ts';
 import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
+import {parseMetricText,metricTextAt} from '../../film-runtime/src/metric-text.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
 import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
@@ -612,14 +613,12 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
 window.PB.defineBlock<Record<string, unknown>>({id: 'metric', version: '1.0.0', build(ctx, params) {
   const safe = inSafe(ctx), title = node(safe, {position: 'absolute', top: '20%', width: '100%', height: '44%'});
   const handle = ctx.text(String(params.textSlot)), element = handle.mount(title, {maxLines: 2});
-  const match = /^(\D*?)([-+]?\d+(?:[.,]\d+)?)(\D*)$/.exec(handle.text);
-  if (!match || !Number.isFinite(Number(match[2]!.replace(',', '.')))) throw Error('METRIC_NUMBER_INVALID');
-  const number = Number(match[2]!.replace(',', '.')), decimals = match[2]!.split(/[.,]/)[1]?.length ?? 0;
+  const metric=parseMetricText(handle.text);
   element.dataset.pbFinalText = handle.text;
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '72%', width: '100%', height: '22%'}), 3);
   const line = node(safe, {position: 'absolute', top: '12%', height: '6px', width: '0', background: ctx.style.palette.accent ?? ''});
-  return {render(time) { const p = easeOut(time / 1.2);
-    element.textContent = p === 1 ? handle.text : match[1] + (number * p).toFixed(decimals).replace('.', match[2]!.includes(',') ? ',' : '.') + match[3];
+  return {metricTextElement:element,render(time) { const {progress:p,text:value}=metricTextAt(metric,time);
+    element.textContent = value;
     element.dataset.pbCounting = String(p < 1); line.style.width = `${p * 80}%`;
   }, events: blockEvents('metric', ctx.frames, params), regions: [region('metric', title, ctx.root)]};
 }});
