@@ -175,7 +175,9 @@ jobs:
         with:
           name: studio-crop-review
           if-no-files-found: ignore
-          path: artifacts/film-runtime/om3-crop-*.png
+          path: |
+            artifacts/film-runtime/om3-crop-*.png
+            artifacts/film-runtime/om3-panels-*-opacity-*.png
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
         shell: bash
