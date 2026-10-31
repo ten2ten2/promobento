@@ -49,12 +49,13 @@ test('downloader pins public DNS and refuses redirects, private addresses and ov
  const responder=(status,body,headers={})=>(url,options,callback)=>{
   calls++;assert.equal(url.href,imageUrl);assert.equal(options.method,'GET');
   options.lookup('cdn.example.com',{all:true},(error,records)=>{assert.ifError(error);assert.deepEqual(records,[{address:'93.184.216.34',family:4}]);});
-  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{const res=new PassThrough();res.statusCode=status;res.headers=headers;callback(res);res.end(body);});req.destroy=error=>req.emit('error',error);return req;
+  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{const res=new PassThrough();res.statusCode=status;res.headers=headers;res.on('close',()=>req.emit('close'));callback(res);res.end(body);});req.destroy=error=>req.emit('error',error);req.on('error',()=>req.emit('close'));req.on('close',()=>{});return req;
  };
  assert.deepEqual(await downloadApprovedImage(imageUrl,{resolveAddress:publicDns,makeRequest:responder(200,png)}),png);
  await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:publicDns,makeRequest:responder(302,Buffer.alloc(0))}),/WEB_MATERIAL_HTTP_302/);
  await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:publicDns,makeRequest:responder(200,Buffer.alloc(0),{'content-length':String((1<<20)+1)})}),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
+ await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:publicDns,makeRequest:responder(200,Buffer.alloc((1<<20)+1))}),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
  for(const address of [{address:'127.0.0.1',family:4},{address:'10.1.2.3',family:4},{address:'169.254.169.254',family:4},{address:'::ffff:127.0.0.1',family:6},{address:'2001:db8::1',family:6}])
   await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:async()=>[address],makeRequest:()=>{throw Error('UNEXPECTED_REQUEST');}}),/WEB_MATERIAL_ADDRESS_INVALID/);
- assert.equal(calls,3);
+ assert.equal(calls,4);
 });

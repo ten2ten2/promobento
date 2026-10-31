@@ -36,7 +36,9 @@ export async function downloadApprovedImage(value,{resolveAddress=lookup,makeReq
    response.on('data',chunk=>{length+=chunk.length;if(length>MAX_BYTES){response.destroy(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}parts.push(chunk);});
    response.on('end',()=>done(Buffer.concat(parts)));response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));response.on('error',fail);
   });
-  req.on('timeout',()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')));req.on('error',fail);req.end();
+  // Limit total wall time as well as socket inactivity; a slow stream cannot hold intake open forever.
+  const deadline=setTimeout(()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')),15000);
+  req.on('close',()=>clearTimeout(deadline));req.on('timeout',()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')));req.on('error',fail);req.end();
  });
 }
 export async function captureApprovedWebImages({outputDir,card,entries,download=downloadApprovedImage}){
