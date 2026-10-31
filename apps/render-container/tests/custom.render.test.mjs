@@ -822,14 +822,19 @@ try{
   const opacityFilm=structuredClone(cropFilm);opacityFilm.scenes[0].runtime3D='om3-studio-v5';
   const opacitySource=`PB.scene('custom-studio',ctx=>{
    const studio=ctx.OM3.studio('dashboard',['other']),timeline=gsap.timeline({paused:true});
-   ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,distanceScale:2,panels:[t<3?{x:2,z:1,scale:.55,visible:true,opacity:t<1?.5:t<2?1:0}:{x:2,z:1,scale:.55,visible:true}]}),15);return {timeline};});`;
+   ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,distanceScale:2,panels:[t<3?{x:2,z:1,scale:.55,visible:true,opacity:t<1?.5:t<2?1:0}:t<4?{x:2,z:1,scale:.55,visible:true}:{x:2,z:1,scale:.55,visible:true,yaw:180,opacity:.5}]}),15);return {timeline};});`;
   for(const aspect of ['landscape','portrait']){
    const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
    options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});options.customSources={'scenes/custom-studio/index.js':opacitySource};options.initTimeoutMs=60000;options.frameTimeoutMs=10000;
    const session=await filmSession({raw:JSON.stringify(opacityFilm),options,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?cropSource:image,killBrowser});
-   try{const half=await session.frame(15,{format:'png'}),full=await session.frame(45,{format:'png'}),hidden=await session.frame(75,{format:'png'}),reset=await session.frame(105,{format:'png'});
+   try{const half=await session.frame(15,{format:'png'}),full=await session.frame(45,{format:'png'}),hidden=await session.frame(75,{format:'png'}),reset=await session.frame(105,{format:'png'}),back=await session.frame(135,{format:'png'});
     assert.ok(compareSeam(half,full).diffPixelPct>.05,'half opacity changes the real 3D panel pixels');
     assert.ok(compareSeam(half,hidden).diffPixelPct>.05,'half opacity is not an invisible panel');
+    assert.ok(compareSeam(back,hidden).diffPixelPct>.01,'a turned translucent panel keeps its back surface');
+    const a=pngPixels(full).pixels,b=pngPixels(hidden).pixels,c=pngPixels(half).pixels;let sample=-1;
+    for(let i=0;i<a.length;i+=4)if(a[i]>200&&a[i+1]<30&&b[i]<30&&b[i+1]>180){sample=i;break;}
+    assert.ok(sample>=0,'find panel over the primary screen');
+    for(let channel=0;channel<3;channel++)assert.ok(Math.abs(c[sample+channel]-(a[sample+channel]+b[sample+channel])/2)<15,`panel alpha must composite once, channel ${channel}: ${a[sample+channel]},${c[sample+channel]},${b[sample+channel]}`);
     assert.notEqual(compareSeam(full,reset).verdict,'RENDER_SEAM_BLOCK','omitted opacity resets to 1');
     assert.notEqual(compareSeam(half,await session.frame(15,{format:'png'})).verdict,'RENDER_SEAM_BLOCK');
     writeFileSync(`${output}/om3-panels-${aspect}-opacity-half.png`,half);writeFileSync(`${output}/om3-panels-${aspect}-opacity-full.png`,full);writeFileSync(`${output}/om3-panels-${aspect}-opacity-hidden.png`,hidden);

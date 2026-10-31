@@ -173,7 +173,7 @@ mise exec -- node research/evals/capture-approved-web-images.mjs \
   artifacts/example-web-capture <已批准题目ID> artifacts/example-approved-web-files.json
 ```
 
-采集前检查全部条目的许可和精确 URL；仅请求无凭据、无查询参数的 HTTPS 原图，不跟随重定向，并拒绝私网地址。只接收 1 MiB、4096×4096 以内的 PNG、JPEG 和静态 WebP，实际字节须与逐项批准一致。输出原字节及 `pending_visual_selection` 清单；后续仍须实际查看、批准并通过 `ingest-materials` 登记。网页观察到的候选 URL 不自动获得许可，其他格式及客户通用采集尚未打通。
+采集前检查全部条目的许可和精确 URL；仅请求无凭据、无查询参数的 HTTPS 原图，不跟随重定向，并拒绝私网地址。只接收 1 MiB、4096×4096 以内的静态 PNG、JPEG 和静态 WebP，实际字节须与逐项批准一致。输出原字节及 `pending_visual_selection` 清单；后续仍须实际查看、批准并通过 `ingest-materials` 登记。网页观察到的候选 URL 不自动获得许可，其他格式及客户通用采集尚未打通。
 
 本地项目可先生成候选清单：在该题事实卡的 `assetSources` 登记 `local_project_media` 来源后运行：
 
@@ -199,7 +199,7 @@ mise exec -- node research/evals/capture-local-materials.mjs \
   artifacts/example-local-capture <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-只读取清单中已逐项批准、位于项目目录内的 PNG、JPEG 或静态 WebP，保留原字节并输出待人工查看的 `selected.json`；不运行项目代码、不扫描或复制其他文件，也不自动批准素材。当前导演输入上限为单图 1 MiB 和 4096×4096；不合格须先按获准范围处理。此入口是内部评测，不是客户文件上传或任意网站采集。
+只读取清单中已逐项批准、位于项目目录内的静态 PNG、JPEG 或静态 WebP，保留原字节并输出待人工查看的 `selected.json`；不运行项目代码、不扫描或复制其他文件，也不自动批准素材。当前导演输入上限为单图 1 MiB 和 4096×4096；不合格须先按获准范围处理。此入口是内部评测，不是客户文件上传或任意网站采集。
 
 已逐项批准的**SVG、ICO、ICNS、静态 GIF 和 AVIF** 可转成 PNG 进入同一流程。本地文件在事实卡的 `materialApprovals` 仍绑定原始 `sourceFile`、`sourceUrl` 和原文件 `sha256`，私有清单结构与上面的本地图片一致。
 

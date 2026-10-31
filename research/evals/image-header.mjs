@@ -17,8 +17,19 @@ const oriented=(width,height,orientation)=>orientation>=5?{width:height,height:w
 export function imageHeader(bytes){
  const b=Buffer.from(bytes);let width,height,orientation=1,exifSeen=false,mediaType,extension;
  const setOrientation=value=>{if(exifSeen&&orientation!==value)return fail();orientation=value;exifSeen=true;};
- if(b.length>=24&&b.subarray(0,8).toString('hex')==='89504e470d0a1a0a'){
-  width=b.readUInt32BE(16);height=b.readUInt32BE(20);mediaType='image/png';extension='png';
+ if(b.length>=8&&b.subarray(0,8).toString('hex')==='89504e470d0a1a0a'){
+  let offset=8,header=false,data=false,ended=false;
+  while(offset<b.length){
+   if(offset+12>b.length)return fail();const length=b.readUInt32BE(offset),type=b.toString('ascii',offset+4,offset+8),next=offset+12+length;
+   if(next>b.length)return fail();
+   if(['acTL','fcTL','fdAT'].includes(type))throw Error('ANIMATED_IMAGE_UNSUPPORTED');
+   if(!header){if(type!=='IHDR'||length!==13)return fail();header=true;width=b.readUInt32BE(offset+8);height=b.readUInt32BE(offset+12);}
+   else if(type==='IHDR')return fail();
+   if(type==='IDAT')data=true;
+   if(type==='IEND'){if(length!==0||next!==b.length)return fail();ended=true;break;}
+   offset=next;
+  }
+  if(!header||!data||!ended)return fail();mediaType='image/png';extension='png';
  }else if(b.length>=4&&b[0]===255&&b[1]===216){
   mediaType='image/jpeg';extension='jpg';let offset=2,foundScan=false;
   while(offset<b.length){

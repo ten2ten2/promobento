@@ -2,7 +2,7 @@ import {createTrustedWebGL,releaseTrustedWebGL} from './private-webgl.ts';
 // Adapted from huashu-motion@52467f99 runtime/three/om-three.js and templates/object-3d.
 // Copyright (c) 2026 Huashu, MIT; see ../NOTICE.md. Product pixels come only from ctx.asset.
 import {ACESFilmicToneMapping,CanvasTexture,Color,DirectionalLight,DoubleSide,EquirectangularReflectionMapping,
-  Group,Mesh,MeshBasicMaterial,MeshPhysicalMaterial,MeshStandardMaterial,PerspectiveCamera,PlaneGeometry,
+  Group,Mesh,MeshBasicMaterial,MeshPhysicalMaterial,MeshStandardMaterial,Path,PerspectiveCamera,PlaneGeometry,
   PMREMGenerator,Scene,Shape,ShapeGeometry,SRGBColorSpace,Texture,WebGLRenderer} from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {blockEvents} from './events.mjs';
@@ -42,6 +42,16 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
+// A fading device needs one composite per pixel: the opaque box behind its
+// face would otherwise apply opacity a second time. Keep only its front bezel.
+function fadingBezel(width:number,height:number,radius:number,bezel:number){
+ const outer=new Shape(),hole=new Path();
+ const rounded=(path:Path,w:number,h:number,r:number)=>{const x=-w/2,y=-h/2;
+  path.moveTo(x+r,y);path.lineTo(x+w-r,y);path.quadraticCurveTo(x+w,y,x+w,y+r);path.lineTo(x+w,y+h-r);path.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  path.lineTo(x+r,y+h);path.quadraticCurveTo(x,y+h,x,y+h-r);path.lineTo(x,y+r);path.quadraticCurveTo(x,y,x+r,y);};
+ rounded(outer,width+2*bezel,height+2*bezel,radius);rounded(hole,width,height,Math.max(0,radius-bezel));outer.holes.push(hole);
+ return new ShapeGeometry(outer,16);
+}
 function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>;panelOpacity?:boolean}){
  const asset=ctx.asset(params.assetKey),panelAssets=(params.panelKeys??[]).map(key=>ctx.asset(key));
  if([asset,...panelAssets].some(item=>item.kind==='video'))throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
@@ -69,19 +79,23 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
  const sweep=new Mesh(sweepGeometry(),new MeshStandardMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.85,side:DoubleSide}));sweep.receiveShadow=true;scene.add(sweep);
  const key=new DirectionalLight('#ffffff',2.2);key.position.set(4.8,8,5.6);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:48});key.shadow.bias=-.0004;key.shadow.normalBias=.02;
  const rim=new DirectionalLight('#ffffff',1.2);rim.position.set(-6.4,4,-8);scene.add(key,rim);
- const makeDevice=(screen:typeof asset,roi?:{x:number;y:number;width:number;height:number})=>{
+ const makeDevice=(screen:typeof asset,roi?:{x:number;y:number;width:number;height:number},fading=false)=>{
   const imageWidth=screen.width*(roi?.width??1),imageHeight=screen.height*(roi?.height??1);
   const width=3.8*Math.min(1,imageWidth/imageHeight),height=width*imageHeight/imageWidth,bezel=.08,depth=.12,radius=Math.min(.12,(Math.min(width,height)+2*bezel)/2-.001);
   const device=new Group(),bodyGeometry=new RoundedBoxGeometry(width+2*bezel,height+2*bezel,depth,6,Math.min(radius,depth/2-.001));
   const bodyMaterial=new MeshPhysicalMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.35,metalness:.7,clearcoat:1,clearcoatRoughness:.15});
-  const body=new Mesh(bodyGeometry,bodyMaterial);body.castShadow=true;body.receiveShadow=true;device.add(body);
+  const body=new Mesh(bodyGeometry,bodyMaterial);body.castShadow=!fading;body.receiveShadow=true;device.add(body);
   const image=document.createElement('img');image.src=screen.url;image.alt='';const texture=new Texture(image);texture.colorSpace=SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   if(roi){texture.repeat.set(roi.width,roi.height);texture.offset.set(roi.x,1-roi.y-roi.height);}
   const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
-  const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
-  return{screen,device,body,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial};
+  const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);
+  const bezelGeometry=fading?fadingBezel(width,height,radius,bezel):undefined,bezelMaterial=fading?new MeshBasicMaterial({color:ctx.style.palette.bg??'#19211b',transparent:true,depthWrite:false}):undefined;
+  const translucentBezel=bezelGeometry&&bezelMaterial?new Mesh(bezelGeometry,bezelMaterial):undefined;if(translucentBezel){translucentBezel.position.z=depth/2+.001;translucentBezel.visible=false;device.add(translucentBezel);}
+  const backGeometry=fading?roundedPlane(width+2*bezel,height+2*bezel,radius):undefined,translucentBack=backGeometry&&bezelMaterial?new Mesh(backGeometry,bezelMaterial):undefined;
+  if(translucentBack){translucentBack.position.z=-depth/2-.001;translucentBack.rotation.y=Math.PI;translucentBack.visible=false;device.add(translucentBack);}scene.add(device);
+  return{screen,device,body,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial,bezelGeometry,bezelMaterial,translucentBezel,backGeometry,translucentBack};
  };
- const main=makeDevice(asset),panels=panelAssets.map((screen,index)=>makeDevice(screen,panelRois[index])),devices=[main,...panels],{device,width,height,bezel}=main;
+ const main=makeDevice(asset),panels=panelAssets.map((screen,index)=>makeDevice(screen,panelRois[index],Boolean(params.panelOpacity))),devices=[main,...panels],{device,width,height,bezel}=main;
  // Additional screens start hidden; each seek must state exactly which belong in this shot.
  for(const panel of panels)panel.device.visible=false;
  const camera=new PerspectiveCamera(30,stage.clientWidth/stage.clientHeight,.05,400);
@@ -110,7 +124,8 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
     if(![x,y,z,py,pp,pr,ps,opacity].every(Number.isFinite)||Math.abs(x)>4||Math.abs(y)>4||Math.abs(z)>4||Math.abs(py)>180||Math.abs(pp)>180||Math.abs(pr)>180
       ||ps<.25||ps>1.5||opacity<0||opacity>1||typeof visible!=='boolean')throw Error('STUDIO_VIEW_INVALID');
     panel.device.position.set(x,y,z);panel.device.rotation.set(pp*Math.PI/180,py*Math.PI/180,pr*Math.PI/180);panel.device.scale.setScalar(ps);panel.device.visible=visible&&opacity>0;
-    if(params.panelOpacity){for(const material of [panel.bodyMaterial,panel.faceMaterial]){const transparent=opacity<1;if(material.transparent!==transparent){material.transparent=transparent;material.needsUpdate=true;}material.opacity=opacity;material.depthWrite=!transparent;}panel.body.castShadow=opacity===1;}
+    if(params.panelOpacity){const transparent=opacity<1;if(panel.faceMaterial.transparent!==transparent){panel.faceMaterial.transparent=transparent;panel.faceMaterial.needsUpdate=true;}
+     panel.faceMaterial.opacity=opacity;panel.faceMaterial.depthWrite=!transparent;panel.body.visible=!transparent;panel.translucentBezel!.visible=transparent;panel.translucentBack!.visible=transparent;panel.bezelMaterial!.opacity=opacity;}
    }
   }
   if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');
@@ -120,7 +135,7 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };
  const dispose=()=>{if(disposed)return;disposed=true;canvas.removeEventListener('webglcontextlost',onLost);
-  for(const part of devices){part.bodyGeometry.dispose();part.bodyMaterial.dispose();part.faceGeometry.dispose();part.faceMaterial.dispose();part.texture.dispose();}
+  for(const part of devices){part.bodyGeometry.dispose();part.bodyMaterial.dispose();part.faceGeometry.dispose();part.faceMaterial.dispose();part.bezelGeometry?.dispose();part.backGeometry?.dispose();part.bezelMaterial?.dispose();part.texture.dispose();}
   sweep.geometry.dispose();sweep.material.dispose();environment.dispose();sky.dispose();pmrem.dispose();key.dispose();rim.dispose();renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);};
  const ready=Promise.all(devices.map(async part=>{await part.image.decode();if(part.image.naturalWidth!==part.screen.width||part.image.naturalHeight!==part.screen.height)throw Error('ASSET_DIMENSIONS_MISMATCH');part.texture.needsUpdate=true;})).then(()=>{if(!disposed)draw(0);}).catch(error=>{dispose();throw error;});
  return{ready,render:draw,renderView,dispose,events:blockEvents('object-studio',ctx.frames,params),regions:[{regionId:'product',boxAt(){const box=stage.getBoundingClientRect(),root=ctx.root.getBoundingClientRect();return{x:box.x-root.x,y:box.y-root.y,width:box.width,height:box.height};}}]};

@@ -10,6 +10,10 @@ export const webp=Buffer.from('UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoCAAMAAUAmJaACd
 test('bounded image headers identify the actual PNG, JPEG and WebP dimensions and EXIF orientation',()=>{
  const png=pngRgba(2,3,new Uint8Array(2*3*4));
  assert.deepEqual(imageHeader(png),{mediaType:'image/png',extension:'png',width:2,height:3});
+ assert.throws(()=>imageHeader(png.subarray(0,24)),/MATERIAL_IDENTITY_INVALID/);
+ const actl=Buffer.alloc(20);actl.writeUInt32BE(8,0);actl.write('acTL',4);actl.writeUInt32BE(2,8);
+ const animatedPng=Buffer.concat([png.subarray(0,33),actl,png.subarray(33)]);assert.throws(()=>imageHeader(animatedPng),/ANIMATED_IMAGE_UNSUPPORTED/);
+ const broken=Buffer.from(png);broken.writeUInt32BE(0x7fffffff,33);assert.throws(()=>imageHeader(broken),/MATERIAL_IDENTITY_INVALID/);
  assert.deepEqual(imageHeader(jpeg),{mediaType:'image/jpeg',extension:'jpg',width:2,height:3});
  assert.deepEqual(imageHeader(webp),{mediaType:'image/webp',extension:'webp',width:2,height:3});
  const tiff=Buffer.alloc(26);tiff.write('II');tiff.writeUInt16LE(42,2);tiff.writeUInt32LE(8,4);tiff.writeUInt16LE(1,8);
