@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {pngRgba} from '@promobento/contracts/seams';
+import {sha256Bytes} from '@promobento/contracts/digest';
+import {captureApprovedArtwork,verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
+import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+
+const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30" viewBox="0 0 40 30"><rect width="40" height="30" fill="#22aa44"/><circle cx="20" cy="15" r="8" fill="#ffcc22"/></svg>');
+function icon(){const png=pngRgba(2,3,Uint8Array.from({length:24},(_,i)=>i%4===3?255:60));const head=Buffer.alloc(22);head.writeUInt16LE(1,2);head.writeUInt16LE(1,4);head[6]=2;head[7]=3;head.writeUInt16LE(1,10);head.writeUInt16LE(32,12);head.writeUInt32LE(png.length,14);head.writeUInt32LE(22,18);return Buffer.concat([head,png]);}
+const approval=(sourceFile,bytes)=>({status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic artwork.',sourceFile,sourceUrl:'local://fixture',sha256:sha256Bytes(bytes)});
+const entry=(id,sourceFile)=>({id,sourceFile,sourceUrl:'local://fixture',description:'Synthetic cleared artwork.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/'+id});
+
+test('approved SVG and icon are rasterized in isolated Chrome and re-created before ingestion',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.artwork-test-'));
+ try{
+  const source=join(root,'source');mkdirSync(source);const ico=icon();writeFileSync(join(source,'mark.svg'),svg);writeFileSync(join(source,'favicon.ico'),ico);
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],
+   materialApprovals:{'fixture-mark':approval('mark.svg',svg),'fixture-icon':approval('favicon.ico',ico)}};
+  const entries=[entry('fixture-mark','mark.svg'),entry('fixture-icon','favicon.ico')],denied=join(root,'denied');
+  await assert.rejects(captureApprovedArtwork({sourceDir:source,outputDir:denied,card,entries:[entries[0],{...entries[1],id:'unapproved-icon',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/unapproved-icon'}]}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(existsSync(denied),false);
+  const output=join(root,'output'),result=await captureApprovedArtwork({sourceDir:source,outputDir:output,card,entries});
+  assert.deepEqual(result.assets.map(a=>[a.width,a.height,a.review]),[[40,30,'pending_visual_selection'],[2,3,'pending_visual_selection']]);
+  assert.deepEqual(readFileSync(join(output,'fixture-mark.source.svg')),svg);assert.deepEqual(readFileSync(join(output,'fixture-icon.source.ico')),ico);
+  const cardPath=join(root,'card.json');writeFileSync(cardPath,JSON.stringify(card));const topics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:cardPath}]};
+  await assert.rejects(verifyArtworkSelections(output,result,topics),/MATERIAL_REVIEW_REQUIRED/);
+  const reviewed=structuredClone(result);for(const asset of reviewed.assets){asset.review='approved_for_internal_eval_by_codex';asset.reviewedAt='2026-10-31';}
+  const verified=await verifyArtworkSelections(output,reviewed,topics);assert.equal(verified.size,2);
+  assert.deepEqual(reviewed.assets.map(artworkSourceObjectName),['fixture-mark-source.svg','fixture-icon-source.ico']);
+  for(const asset of reviewed.assets)assert.match('evals/materials-fixture/fixture/'+artworkSourceObjectName(asset),/^evals\/[A-Za-z0-9_/-]{4,240}\.[a-z0-9]{2,8}$/);
+  assert.throws(()=>prepareMaterialSelection(output,reviewed,topics,{readCard:()=>card}),/ARTWORK_VERIFICATION_REQUIRED/);
+  const prepared=prepareMaterialSelection(output,reviewed,topics,{readCard:()=>card,verifiedArtwork:verified});assert.equal(prepared.length,2);assert.equal(prepared[0].artwork.sourceMediaType,'image/svg+xml');
+  const changedCard=structuredClone(card);changedCard.materialApprovals['fixture-mark'].sha256='0'.repeat(64);
+  assert.throws(()=>prepareMaterialSelection(output,reviewed,topics,{readCard:()=>changedCard,verifiedArtwork:verified}),/ARTWORK_VERIFICATION_REQUIRED/);
+  const mark=join(output,'fixture-mark.png'),original=readFileSync(mark);writeFileSync(mark,Buffer.concat([original,Buffer.from('tampered')]));
+  await assert.rejects(verifyArtworkSelections(output,reviewed,topics),/ARTWORK_DERIVATION_MISMATCH/);writeFileSync(mark,original);
+  const changed=structuredClone(reviewed);changed.assets[0].derivation.chromeVersion='0.0.0.0';await assert.rejects(verifyArtworkSelections(output,changed,topics),/ARTWORK_RENDERER_CHANGED/);
+  writeFileSync(join(output,'fixture-mark.source.svg'),Buffer.from('tampered'));await assert.rejects(verifyArtworkSelections(output,reviewed,topics),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('approved SVG must still reject active and externally linked markup',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.artwork-unsafe-test-'));
+ try{const source=join(root,'source');mkdirSync(source);
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],materialApprovals:{}};
+  for(const bad of ['<script>alert(1)</script>','<image href="https://example.com/private.png"/>','<rect onload="alert(1)"/>','<rect fill="url(https://example.com/a)"/>','<text>unlicensed font</text>']){
+   const bytes=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'+bad+'</svg>');writeFileSync(join(source,'bad.svg'),bytes);card.materialApprovals['fixture-bad']=approval('bad.svg',bytes);
+   await assert.rejects(captureApprovedArtwork({sourceDir:source,outputDir:join(root,'output'),card,entries:[entry('fixture-bad','bad.svg')]}),/ARTWORK_SVG_UNSUPPORTED/);assert.equal(existsSync(join(root,'output')),false);
+  }
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

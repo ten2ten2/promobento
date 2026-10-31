@@ -5,11 +5,13 @@ import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 
 const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
 if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
 const selected=parseCanonicalJson(readFileSync(join(directory,'selected.json'))),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
-const prepared=prepareMaterialSelection(directory,selected,topics);
+const verifiedArtwork=await verifyArtworkSelections(directory,selected,topics);
+const prepared=prepareMaterialSelection(directory,selected,topics,{verifiedArtwork});
 const receiptPath=join(directory,'ingestion.json'),previous=existsSync(receiptPath)?parseCanonicalJson(readFileSync(receiptPath)):null;
 const env={...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-material-ingest.log'},args=['--filter','@promobento/cloud','exec','wrangler'];
 const wrangler=(command,options={})=>execFileSync('pnpm',[...args,...command],{env,encoding:'utf8',timeout:60000,...options});
@@ -50,10 +52,11 @@ try{
  if(!ready)throw Error('MATERIAL_SECRET_PROPAGATION_TIMEOUT');
  const budgetBefore=await call('model-budget');
  await call('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'eval-materials',purpose:'evaluation',maxMicros:1000000}});operationCreated=true;
- for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource}of prepared){
+ for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource,artwork}of prepared){
   const reused=previous?.assets.find(item=>item.id===asset.id&&item.topicId===asset.topicId&&item.sha256===sha256&&item.byteLength===bytes.length
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
-   &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl));
+   &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
+   &&(!artwork||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256));
   if(reused){
    // Re-admit the exact existing evidence for this operation; do not upload passed material again.
    await call('rights',{method:'POST',body:{operationId,resourceId:reused.resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:reused.evidenceKey}});
@@ -68,11 +71,13 @@ try{
    const name=asset.licenseFile.slice(0,-4).replaceAll('.','-')+'.txt';
    licenseNotice=await upload(`${prefix}/${asset.topicId}/${name}`,text,'text/plain');
   }
-  const sourceObject=originalSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.svg`,originalSource,'image/svg+xml'):null;
+  const sourceObject=originalSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.svg`,originalSource,'image/svg+xml')
+   :artwork?await upload(`${prefix}/${asset.topicId}/${artworkSourceObjectName(asset)}`,artwork.original,artwork.sourceMediaType):null;
+  if(artwork&&sourceObject.sha256!==asset.derivation.sourceSha256)throw Error('ARTWORK_UPLOAD_IDENTITY_MISMATCH');
   const evidence=await upload(`${prefix}/${asset.topicId}/${asset.id}-rights.json`,{kind:'eval_material_rights',resourceId,sha256,licenseRef,scope:'internal_eval_only',approvedBy:'owner',
    source:asset.sourceUrl,basis:original?'Original self-contained factual diagram created for this project; no copied interface, logo, image, portrait or testimonial.':explicit?explicit.basis:topics.rights.rule,
    decisionRef:original||explicit?asset.approvalRef:manifest.rightsDecision,decidedBy:original?original.approvedBy:explicit?explicit.approvedBy:topics.decidedBy,decidedAt:original?original.approvedAt:explicit?explicit.approvedOn:topics.decidedAt,
-   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),
+   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(artwork?{originalSource:sourceObject}:{}),
    ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
    acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),...(asset.derivation?{derivation:asset.derivation}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
   await call('rights',{method:'POST',body:{operationId,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
@@ -80,7 +85,7 @@ try{
    sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSourceKey:sourceObject.key,approvalRef:asset.approvalRef}:{}),
    ...(explicit?{approvalRef:asset.approvalRef}:{}),
-   ...(asset.derivation?{derivation:asset.derivation}:{}),
+   ...(asset.derivation?{derivation:asset.derivation}:{}),...(artwork?{originalSourceKey:sourceObject.key}:{}),
    ...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),scope:'internal_eval_only',publicUseCleared:false});save();
   console.log(canonical({id:asset.id,key:object.key,byteLength:object.byteLength}));
  }

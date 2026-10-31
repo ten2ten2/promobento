@@ -6,7 +6,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {materialApproval,assertLocalMaterialIdentity,assertRemoteMaterialIdentity} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 
-export function prepareMaterialSelection(directory,selected,topics,{readCard=path=>parseCanonicalJson(readFileSync(path))}={}){
+export function prepareMaterialSelection(directory,selected,topics,{readCard=path=>parseCanonicalJson(readFileSync(path)),verifiedArtwork=new Map()}={}){
 if(!Array.isArray(selected.assets)||!selected.assets.length||new Set(selected.assets.map(asset=>asset.id)).size!==selected.assets.length)throw Error('MATERIAL_SELECTION_INVALID');
 if(selected.scope!=='internal_eval_only'||selected.publicUseCleared!==false||topics.factConfirmation.confirmedBy!=='owner')throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
 return selected.assets.map(asset=>{
@@ -24,7 +24,14 @@ return selected.assets.map(asset=>{
  const bytes=readFileSync(join(directory,asset.file));if(bytes.length>8<<20)throw Error('MATERIAL_IDENTITY_INVALID');
  const {width,height,extension,mediaType}=imageHeader(bytes);
  if(!asset.file.endsWith('.'+extension)||width!==asset.width||height!==asset.height||extension!=='png'&&asset.mediaType&&asset.mediaType!==mediaType)throw Error('MATERIAL_IDENTITY_INVALID');
- const sha256=sha256Bytes(bytes);assertLocalMaterialIdentity(approval,asset,sha256);assertRemoteMaterialIdentity(approval,asset,sha256);
- return{asset,bytes,sha256,mediaType,extension,original:approval.original,explicit:approval.explicit,originalSource};
+ const sha256=sha256Bytes(bytes),artwork=asset.derivation?.kind==='approved_artwork_rasterization'?verifiedArtwork.get(asset.id):undefined;
+ if(asset.derivation?.kind==='approved_artwork_rasterization'){
+  if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.source.kind!=='local_project_media'
+   ||approval.explicit.sourceFile!==asset.derivation.sourceFile||approval.explicit.sourceUrl!==asset.sourceUrl
+   ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(artwork.original)!==approval.explicit.sha256
+   ||artwork.sourceMediaType!==asset.derivation.sourceMediaType)throw Error('ARTWORK_VERIFICATION_REQUIRED');
+ }
+ else{assertLocalMaterialIdentity(approval,asset,sha256);assertRemoteMaterialIdentity(approval,asset,sha256);}
+ return{asset,bytes,sha256,mediaType,extension,original:approval.original,explicit:approval.explicit,originalSource,...(artwork?{artwork}: {})};
 });
 }
