@@ -12,7 +12,7 @@ import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections}
 import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
 import {prepareMaterialSelection} from '../../../research/evals/prepare-material-selection.mjs';
 import {observeProduct} from '../../../research/evals/product-observation.mjs';
-import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextFrameDigests,canvasNumberText} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
@@ -261,6 +261,22 @@ try{
    }finally{await canvasSession.close();}
   }
   report.canvasTitle='bound_original_canvas_text_checked_against_actual_frame_landscape_portrait_reverse';
+  const numberFilm=structuredClone(canvasFilm);numberFilm.texts={number:{text:'123',role:'number',factIds:['confirmed-number']}};
+  numberFilm.scenes[0].block='canvas-number@1';numberFilm.scenes[0].params={textSlot:'number'};
+  for(const aspect of ['landscape','portrait']){
+   numberFilm.texts.number.text=aspect==='landscape'?'123':'12.30%';
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.resources=[];options.fonts=multiOptions.fonts;options.confirmedFactIds=['confirmed-number'];
+   const session=await filmSession({raw:JSON.stringify(numberFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    for(const frame of [0,1,8,20,45]){await session.frame(frame,{format:'png'});assert.equal(session.canvasTextTrace(frame)[0].text,canvasNumberText(numberFilm.texts.number.text,frame));}
+    const settled=await session.capturePng(45),observation=await session.observe('canvas-number-check',45);
+    assert.ok(observation.texts.some(text=>text.slotId==='number'&&text.text===numberFilm.texts.number.text&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    await session.frame(80,{format:'png'});assert.equal(compareSeam(settled,await session.frame(45,{format:'png'})).verdict,'pass');
+    writeFileSync(`${output}/canvas-number-${aspect}.png`,settled);
+   }finally{await session.close();}
+  }
+  report.canvasNumber='original_y5_count_bound_each_frame_to_confirmed_number_landscape_portrait';
   const markedFilm=structuredClone(canvasFilm);markedFilm.scenes[0].params.highlightFrame=45;
   const unmarkedFilm=structuredClone(markedFilm);delete unmarkedFilm.scenes[0].params.highlightFrame;
   for(const aspect of ['landscape','portrait']){

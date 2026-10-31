@@ -5,6 +5,10 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='canvas-number'){
+    if(duration<90)throw Error('CANVAS_NUMBER_READING_HOLD_MISSING');
+    return [{name:'number-land',frame:30}];
+  }
   if(id==='canvas-title'&&params.highlightFrame!==undefined){
     if(!Number.isInteger(params.highlightFrame)||params.highlightFrame<36||params.highlightFrame>360||params.highlightFrame+30>=duration)throw Error('CANVAS_HIGHLIGHT_READING_HOLD_MISSING');
     return [{name:'title-land',frame:30},{name:'highlight-land',frame:params.highlightFrame+18}];
@@ -57,7 +61,7 @@ export function blockEvents(id, frames, params) {
     if(landings.at(-1)>=duration)throw Error('FEATURE_BEAT_AFTER_SCENE');
     return landings.map((frame,index)=>({name:index===params.items.length-1?'feature-land':'feature-step-'+(index+1),frame}));
   }
-  const fixed = {'hook-title': ['title-land', 18], 'kinetic-title':['title-land',15], 'canvas-title':['title-land',30], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
+  const fixed = {'hook-title': ['title-land', 18], 'kinetic-title':['title-land',15], 'canvas-title':['title-land',30], 'canvas-number':['number-land',30], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
     metric: ['metric-land', 36], 'talking-head': ['speaker-land', 15], 'device-3d':['product-land',24],'object-studio':['product-land',54]};
   let event = fixed[id];
   if (id === 'feature-grid' || id === 'curriculum') event = [id === 'curriculum' ? 'module-land' : 'feature-land', Math.round(((params.items.length - 1) * .12 + .5) * 30)];
@@ -121,7 +125,7 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='canvas-title@1'&&scene.params.highlightFrame!==undefined)return [0,scene.params.highlightFrame,scene.params.highlightFrame+18,scene.end-scene.start-1]
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
-  if(['continuous-focus@1','kinetic-title@1','canvas-title@1','drawn-steps@1'].includes(scene.block)){
+  if(['continuous-focus@1','kinetic-title@1','canvas-title@1','canvas-number@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;
    return [0,6,Math.floor(span/4),Math.floor(span/2),Math.floor(span*3/4),span-1]
     .map(frame=>Math.floor((scene.start+Math.min(span-1,frame))/stride)*stride);

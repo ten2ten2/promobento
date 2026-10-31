@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pngRgba} from '@promobento/contracts/seams';
 import {appendCanvasTextObservations,compareCanvasTextFrame} from '../src/canvas-text-proof.mjs';
+import {canvasNumberText} from '@promobento/contracts/canvas-text';
 
 test('Canvas text proof requires the complete actual frame and every bounded ink region',()=>{
  const width=12,height=8,base=new Uint8Array(width*height*4).fill(255),ink=new Uint8Array(base);
@@ -20,6 +21,19 @@ test('Canvas text proof requires the complete actual frame and every bounded ink
  assert.equal(check(withText,{boxes:[{x:-1,y:2,width:4,height:1}]}).clipped,true);
  assert.throws(()=>check(withText,{boxes:[]}),/CANVAS_TEXT_PROOF_INVALID/);
  assert.throws(()=>check(withText,{withoutText:pngRgba(1,1,Uint8Array.from([255,255,255,255]))}),/CANVAS_TEXT_DIMENSIONS_MISMATCH/);
+});
+
+test('an original counter observation reports its actual frame value bound to the confirmed final slot',()=>{
+ const width=12,height=8,base=new Uint8Array(width*height*4).fill(255),ink=new Uint8Array(base);
+ for(const x of [2,6]){const i=(2*width+x)*4;ink[i]=0;ink[i+1]=0;ink[i+2]=0;}
+ const png=bytes=>Buffer.from(pngRgba(width,height,bytes)),withText=png(ink),withoutText=png(base),url=bytes=>'data:image/png;base64,'+bytes.toString('base64'),displayed=canvasNumberText('123',0);
+ assert.equal(displayed.length,2);
+ const plan={target:{width,height,aspect:'landscape',safeInsets:{left:0,right:0,top:0,bottom:0}},fonts:[{fontId:'fixture',weight:600,style:'normal',codePoints:[...Array(10)].map((_,i)=>48+i)}],
+  spec:{totalFrames:450,scenes:[{id:'count',kind:'block',block:'canvas-number@1',start:0,end:450,params:{textSlot:'number'}}],texts:{number:{text:'123',role:'number',factIds:['confirmed']}},style:{type:{display:{fontId:'fixture',weight:600}}}}};
+ const proof={sceneId:'count',slotId:'number',text:displayed,fontId:'fixture',weight:600,style:'normal',fontSize:40,alpha:1,boxes:[{x:2,y:2,width:1,height:1},{x:6,y:2,width:1,height:1}],withText:url(withText),withoutText:url(withoutText)};
+ const {withText:_withText,withoutText:_withoutText,...trace}=proof,fontsByScene=new Map([['count',[{familyName:'Fixture',isCustomFont:true,glyphCount:2}]]]);
+ const observation=appendCanvasTextObservations({plan,frame:0,proofs:[proof],traces:[trace],fontsByScene,actual:withText,observation:{texts:[],regions:[],findings:[]}});
+ assert.equal(observation.texts[0].text,displayed);assert.notEqual(displayed,plan.spec.texts.number.text);assert.deepEqual(observation.findings,[]);
 });
 
 test('only plan-bound, actual-frame Canvas proof can become a readable text observation',()=>{

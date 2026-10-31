@@ -4,11 +4,22 @@ import {createGrammar,grammarNames} from '../src/clip/grammars/index.js';
 import {createClipStage} from '../src/clip/stage.js';
 import {createClipHelpers} from '../src/clip/helpers.js';
 import {safeMarker} from '../src/clip/grammars/y5_kinetic_type.js';
+import {canvasNumberText,parseCanvasNumber} from '@promobento/contracts/canvas-text';
 
 test('the bound title marker favors foreground contrast without duplicating the page color',()=>{
  assert.equal(safeMarker('#101010','#f9f9f9'),'#FFD23F');
  assert.equal(safeMarker('#ffffff','#101010'),'#3A86FF');
  assert.notEqual(safeMarker('#ffffff','#3a86ff'),'#3A86FF');
+});
+test('bound decimal and percent counts retain the original y5 easing and formatting',()=>{
+ const {TY,MO}=createClipHelpers();
+ for(const text of ['0','123','0.50','12.30%','999.99%']){
+  const {value,decimals,suffix}=parseCanvasNumber(text);
+  for(let frame=0;frame<=24;frame++){
+   const p=Math.min(1,(frame/30+1/30)/.7),expected=TY.fmt(value*MO.expoOut(p),decimals)+suffix;
+   assert.equal(canvasNumberText(text,frame),expected);
+  }
+ }
 });
 
 test('original grammars are allowlisted and create independent scene state',()=>{

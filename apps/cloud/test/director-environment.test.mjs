@@ -94,7 +94,7 @@ test('Canvas title preflight requires an actual readable observation for the exa
  const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,confirmedFactIds:['confirmed-number']};
  let probes=0,closes=0,taskId,film,blocked=false,blockedFrame=-1;
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
-  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.ok(['canvas-title@1','canvas-sequence@1'].includes(film.scenes[0].block));if(film.scenes[0].block==='canvas-sequence@1')assert.deepEqual(task.job.frames,[45,165]);if(film.scenes[0].params.highlightFrame!==undefined)assert.deepEqual(task.job.frames,[45,film.scenes[0].params.highlightFrame+24]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.ok(['canvas-title@1','canvas-sequence@1','canvas-number@1'].includes(film.scenes[0].block));if(film.scenes[0].block==='canvas-sequence@1')assert.deepEqual(task.job.frames,[45,165]);if(film.scenes[0].block==='canvas-number@1')assert.deepEqual(task.job.frames,[0,45]);if(film.scenes[0].params.highlightFrame!==undefined)assert.deepEqual(task.job.frames,[45,film.scenes[0].params.highlightFrame+24]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
   async checkFrame(_id,frame){const slotId=film.scenes[0].block==='canvas-sequence@1'?(frame<120?'headline-0':'headline-1'):'headline',bad=blocked||frame===blockedFrame;const text={slotId,sceneId:'health',text:film.texts[slotId].text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:bad,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:bad?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
   async closeStudio(){closes++;}
@@ -109,9 +109,11 @@ test('Canvas title preflight requires an actual readable observation for the exa
  blockedFrame=69;await assert.rejects(highlight(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);blockedFrame=-1;
  await highlight();assert.deepEqual(film.style.palette.roles,palette);await highlight();assert.equal(probes,6,'the exact highlighted title has its own renderer probe and rejected marker frames are not cached');
  palette.bg='#eeeeee';await highlight();assert.equal(probes,7,'a changed palette cannot reuse an earlier highlight probe');
+ const number=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],text:'123',factIds:['confirmed-number'],number:true});
+ await number();assert.equal(film.texts.headline.role,'number');assert.equal(probes,8);
  const pages=[{text:'HELLO',factIds:['confirmed-number']},{text:'WORLD',factIds:['confirmed-number']}];
  const sequence=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],...pages[0],pages});
- await sequence();await sequence();assert.equal(probes,8,'sequence preflights each actual page once per exact input');
+ await sequence();await sequence();assert.equal(probes,9,'sequence preflights each actual page once per exact input');
  blocked=true;pages[1]={...pages[1],text:'OTHER'};await assert.rejects(sequence(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);
 
 });

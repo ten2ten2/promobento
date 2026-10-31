@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {blockEvents,filmObservationFrames,filmMotionFrames} from '../src/events.mjs';
+import {assertCanvasNumber} from '../src/canvas-title-validate.ts';
 
 const calls=[];
 globalThis.window={__pbTakeCanvasText:()=>function(text,x,y){calls.push({text,x,y});}};
@@ -36,4 +37,12 @@ test('a title highlight has an explicit readable hold and leaves old title timin
  assert.deepEqual(filmMotionFrames({scenes:[scene]},'final'),[0,45,63,149]);
  assert.throws(()=>blockEvents('canvas-title',{start:0,end:75},scene.params),/CANVAS_HIGHLIGHT_READING_HOLD_MISSING/);
  assert.deepEqual(blockEvents('canvas-title',{start:0,end:150},{textSlot:'headline'}),[{name:'title-land',frame:30}]);
+});
+
+test('the original count admits only a bounded fact slot and holds after settling',()=>{
+ for(const text of ['0','1','999','0.50','12.30%'])assert.doesNotThrow(()=>assertCanvasNumber(text,'number','normal'));
+ for(const text of ['01','1000','-1','1.234','$1','+1%'])assert.throws(()=>assertCanvasNumber(text,'number'),/CANVAS_NUMBER_TEXT_UNSUPPORTED/);
+ assert.throws(()=>assertCanvasNumber('5','headline'),/CANVAS_NUMBER_TEXT_UNSUPPORTED/);
+ assert.throws(()=>blockEvents('canvas-number',{start:0,end:89},{}),/CANVAS_NUMBER_READING_HOLD_MISSING/);
+ assert.deepEqual(blockEvents('canvas-number',{start:0,end:90},{}),[{name:'number-land',frame:30}]);
 });

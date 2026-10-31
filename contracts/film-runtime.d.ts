@@ -154,7 +154,7 @@ export interface ClipHelpers {
 
 export interface SceneEvent { name: string; frame: number }
 export interface SceneRegion { regionId: string; boxAt(frame: number): Box | null }
-/** Private trusted-block comparison inputs; never supplied by authored scenes. */
+/** Private trusted-block inputs; text is the actual frame value, including a bound count transition. */
 export interface CanvasTextTrace {
   slotId:string; text:string; fontId:string; weight:number; style:'normal';
   boxes:Box[]; fontSize:number; alpha:number;

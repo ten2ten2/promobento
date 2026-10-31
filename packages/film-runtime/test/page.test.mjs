@@ -76,6 +76,20 @@ test('audited Canvas title accepts a bounded headline and refuses unproved scrip
  const mixedOpts=options();mixedOpts.resources=[];mixedOpts.customSources=mixed.sources;
  assert.throws(()=>make(mixed.film,mixedOpts),/CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED/);
 });
+test('the original Canvas counter requires a confirmed bounded number and complete digit coverage',()=>{
+ const film=filmFixture();film.assets={};film.texts={number:{text:'123',role:'number',factIds:['fixture-cta']}};
+ film.scenes=[{id:'count',start:0,end:450,kind:'block',block:'canvas-number@1',params:{textSlot:'number'},purpose:'Count an exact confirmed value.'}];
+ const opts=options();opts.resources=[];opts.fonts[0].codePoints=[...Array(10)].map((_,i)=>48+i);
+ assert.doesNotThrow(()=>make(film,opts));
+ const invalid=structuredClone(film);invalid.texts.number.text='1234';assert.throws(()=>make(invalid,opts),/CANVAS_NUMBER_TEXT_UNSUPPORTED/);
+ const missing=structuredClone(opts);missing.fonts[0].codePoints=[49,50,51];assert.throws(()=>make(film,missing),/CANVAS_NUMBER_DIGIT_COVERAGE_REQUIRED/);
+ const short=structuredClone(film);short.scenes[0].end=80;short.scenes.push({id:'rest',start:80,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'number'},purpose:'Fill the remaining timeline.'});
+ assert.throws(()=>make(short,opts),/CANVAS_NUMBER_READING_HOLD_MISSING/);
+ const mixed=customFixture();mixed.film.scenes[0].start=225;mixed.film.scenes[0].end=450;mixed.film.scenes[0].params.events=[];mixed.film.scenes[0].params.readingHolds=[{start:0,end:225}];
+ mixed.film.texts.number=film.texts.number;mixed.film.scenes.unshift({...film.scenes[0],end:225});mixed.film.assets={};
+ const mixedOpts=options();mixedOpts.resources=[];mixedOpts.customSources=mixed.sources;
+ assert.throws(()=>make(mixed.film,mixedOpts),/CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED/);
+});
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{
   const spec=filmFixture();assert.deepEqual(frameLayers(spec.scenes,0).map(x=>x.id),['hook']);
   assert.deepEqual(frameLayers(spec.scenes,120).map(x=>x.id),['hook','product']);

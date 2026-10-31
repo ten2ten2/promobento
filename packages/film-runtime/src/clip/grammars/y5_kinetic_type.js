@@ -1,3 +1,4 @@
+import {canvasNumberText} from '@promobento/contracts/canvas-text';
 // 片段 · 动态文字（y5）：字就是演员。一个 cue 一页：主词在 at 这一帧砸进来（弹簧过冲 ≈8%），辅句从槽里升起；
 // 换页是色带擦除，新页面露出来的那一帧＝at（擦除在 at 之前 0.3s 开始）。
 // cues：title | point（一页：text 主词（太长自动缩字号、最多两行），sub 辅句，data.label 左上小标签如「01」）
@@ -111,7 +112,7 @@ function drawPage(c, P, t, ctx) {
   }
   // 主词：每行在 at（+0.08s/行）砸进来；数字页从 0 滚到落定
   lines.forEach((ln, i) => {
-    let s = ln; if (P.num) { const k = MO.expoOut(clamp(lt / 0.7)); s = (P.nd.prefix || '') + TY.fmt((P.nd.value || 0) * k, P.nd.decimals ?? 0) + (P.nd.suffix || ''); }
+    let s = ln; if (P.num) { const k = MO.expoOut(clamp(lt / 0.7)); s = ctx.data.safeNumber ? canvasNumberText(P.text,Math.round(t*30)) : (P.nd.prefix || '') + TY.fmt((P.nd.value || 0) * k, P.nd.decimals ?? 0) + (P.nd.suffix || ''); }
     const w = TY.width(c, s, size, ctx.fontFamily || 'PuHui-Black'), x = textCenter - w / 2, y = y0 + i * lh;
     TY.slam(c, s, x, y, lt - (ctx.data.boundTogether ? 0 : i * 0.08), { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
     if (lt - i * 0.08 > 0) CLIP.mark(c, CLIP.rid('word', pi), x, y - size * 0.88, w, size * 1.0);

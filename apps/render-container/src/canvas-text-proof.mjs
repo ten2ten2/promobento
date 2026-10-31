@@ -1,6 +1,6 @@
 import {pngPixels} from '@promobento/contracts/seams';
 import {canonical} from '@promobento/contracts/canonical';
-import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotAt} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotAt,canvasNumberText} from '@promobento/contracts/canvas-text';
 
 /**
  * Check a trusted, full-frame Canvas text layer against the actual screenshot.
@@ -49,14 +49,15 @@ export function appendCanvasTextObservations({plan,frame,observation,proofs,trac
  };
  for(const scene of scenes){
   const proof=proofs.find(item=>item?.sceneId===scene.id),slotId=canvasTextSlotAt(scene,frame),slot=plan.spec.texts[slotId],font=plan.spec.style.type.display;
-  if(!proof||!slot||proof.slotId!==slotId||proof.text!==slot.text||proof.fontId!==font.fontId||proof.weight!==font.weight||proof.style!==(font.style??'normal')
+  const displayed=scene.block==='canvas-number@1'&&slot?canvasNumberText(slot.text,frame-scene.start):slot?.text;
+  if(!proof||!slot||proof.slotId!==slotId||proof.text!==displayed||proof.fontId!==font.fontId||proof.weight!==font.weight||proof.style!==(font.style??'normal')
    ||!Number.isFinite(proof.fontSize)||proof.fontSize<=0||!Number.isFinite(proof.alpha)||proof.alpha<0||proof.alpha>1
-   ||!Array.isArray(proof.boxes)||proof.boxes.length!==[...slot.text].filter(ch=>ch.trim()).length)throw Error('CANVAS_TEXT_PROOF_INVALID');
+   ||!Array.isArray(proof.boxes)||proof.boxes.length!==[...displayed].filter(ch=>ch.trim()).length)throw Error('CANVAS_TEXT_PROOF_INVALID');
   const {withText:_withText,withoutText:_withoutText,...metadata}=proof;
   if(canonical(metadata)!==canonical(traces.find(item=>item.sceneId===scene.id)))throw Error('CANVAS_TEXT_TRACE_MISMATCH');
   const face=plan.fonts.find(item=>item.fontId===font.fontId&&item.weight===font.weight&&item.style===(font.style??'normal'));
   if(!face?.codePoints)throw Error('FONT_CMAP_UNAVAILABLE');
-  const cmap=new Set(face.codePoints),missingGlyphs=[...slot.text].filter(ch=>ch.trim()&&!cmap.has(ch.codePointAt(0))).length;
+  const cmap=new Set(face.codePoints),missingGlyphs=[...displayed].filter(ch=>ch.trim()&&!cmap.has(ch.codePointAt(0))).length;
   const platformFonts=fontsByScene?.get(scene.id);
   if(!Array.isArray(platformFonts)||platformFonts.length>8||platformFonts.some(item=>typeof item.familyName!=='string'||item.familyName.length>120
    ||typeof item.isCustomFont!=='boolean'||!Number.isSafeInteger(item.glyphCount)||item.glyphCount<0))throw Error('CANVAS_FONT_OBSERVATION_UNAVAILABLE');
@@ -68,7 +69,7 @@ export function appendCanvasTextObservations({plan,frame,observation,proofs,trac
   const largeText=proof.fontSize>=24||proof.fontSize>=14*4/3&&font.weight>=700;
   const clipped=result.clipped||!result.actualMatches||result.changedPixels===0||result.unobservedBoxes>0;
   const ratio=Math.max(1,Math.min(21,result.contrastRatio));
-  observation.texts.push({slotId,sceneId:scene.id,text:slot.text,box:{x:left,y:top,width:right-left,height:bottom-top},
+  observation.texts.push({slotId,sceneId:scene.id,text:displayed,box:{x:left,y:top,width:right-left,height:bottom-top},
    fonts:platformFonts.map(item=>({family:item.familyName,glyphCount:item.glyphCount})),fallbackUsed,missingGlyphs,
    contrastRatio:ratio,largeText,insideSafeArea:result.insideSafeArea,clipped,covered:!result.actualMatches});
   observation.regions.push({regionId:slotId,box:{x:left,y:top,width:right-left,height:bottom-top}});

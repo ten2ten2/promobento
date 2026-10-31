@@ -35,6 +35,10 @@ export async function filmSession({raw, options, browserVersion, resource, video
   if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
   if (![1, .5].includes(captureScale)) throw Error('CAPTURE_SCALE_INVALID');
   const generated = generateFilmPage(raw, options), {plan} = generated;
+  if(plan.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-number@1')){
+    const face=plan.spec.style.type.display,font=plan.fonts.find(item=>item.fontId===face.fontId&&item.weight===face.weight&&item.style===(face.style??'normal'));
+    if(!font?.codePoints||[...'0123456789'].some(character=>!font.codePoints.includes(character.codePointAt(0))))throw Error('CANVAS_NUMBER_DIGIT_COVERAGE_REQUIRED');
+  }
   const scripts = new Map(['shim', 'engine', 'gsap', 'compat', 'blocks', 'boot',...(plan.usesWebgl?['blocks-3d']:[])].map(name => [`/runtime/${name}.js`, readFileSync(new URL(name + '.js', runtimeDirectory))]));
   for(const [path,source]of Object.entries(options.customSources??{}))scripts.set('/'+path,Buffer.from('"use strict";\n'+source));
   const assets = new Map(Object.values(plan.assets).map(asset => ['/r/' + asset.resourceId, asset]));

@@ -3,7 +3,7 @@ import {fillBoundCanvasText} from './private-canvas-text.ts';
 export interface GlyphBox {x:number;y:number;width:number;height:number}
 export interface CanvasTitleTrace {boxes:GlyphBox[];fontSize:number;alpha:number;draws:number;font:string;letterSpacing:string}
 
-/** Only the fixed original y5 title path receives this proxy; it is never given to authored code. */
+/** Only the fixed original y5 title and bound-number paths receive this proxy. */
 export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:string,trace:CanvasTitleTrace|null){
  let remaining=expected,draws=0;
  const canvas=new Proxy(context,{

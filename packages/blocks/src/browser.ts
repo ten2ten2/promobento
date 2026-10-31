@@ -9,7 +9,8 @@ import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
 import {carriedPose,componentPose,readingPose,relayFit,relayPageOffset,relayPageOpacity,relayVisible,returnPose} from './component-relay.ts';
 import {createClipStage} from '../../film-runtime/src/clip/stage.js';
 import {boundCanvasTitle,type CanvasTitleTrace} from './canvas-title.ts';
-import {assertCanvasTitle} from './canvas-title-validate.ts';
+import {assertCanvasTitle,assertCanvasNumber} from './canvas-title-validate.ts';
+import {canvasNumberText,parseCanvasNumber} from '@promobento/contracts/canvas-text';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -103,12 +104,12 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
    regions:[region('product',canvas,ctx.root),region('headline',heading,ctx.root)]};
 }});
 
-// One fact-bound title, on up to two lines, through the original y5 grammar. This
-// narrowly audited path has no custom scenes, nested clips, captions or numbers.
-function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence',highlightFrame?:number){
-  const events=blockEvents(id,ctx.frames,id==='canvas-title'?{highlightFrame}:{items});
+// Fact-bound y5 titles and a bounded count. The audited path does not
+// accept custom scenes, nested clips, captions or arbitrary Canvas text.
+function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence'|'canvas-number',highlightFrame?:number){
+  const events=blockEvents(id,ctx.frames,id==='canvas-title'?{highlightFrame}:{items}),numeric=id==='canvas-number';
   const font=ctx.style.type.display,slots=items.map(item=>ctx.text(item.textSlot));
-  for(const slot of slots)assertCanvasTitle(slot.text,slot.role,font.style);
+  for(const slot of slots)numeric?assertCanvasNumber(slot.text,slot.role,font.style):assertCanvasTitle(slot.text,slot.role,font.style);
   const selected=(time:number)=>Math.max(0,items.findLastIndex(item=>item.startFrame<=time*30+1e-6));
   let text=slots[0]!.text,currentSlot=items[0]!.textSlot;
   const family=`PBC-${font.fontId}-${font.weight}`,canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
@@ -120,18 +121,18 @@ function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFr
   const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   const without=document.createElement('canvas');without.width=canvas.width;without.height=canvas.height;const clean=without.getContext('2d');if(!clean)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   let stage:ReturnType<typeof createClipStage>|undefined,trace:CanvasTitleTrace|undefined,lastTime:number|undefined;
-  const ready=document.fonts.load(`normal 400 36px "${family}"`,slots.map(slot=>slot.text).join('')).then(faces=>{
+  const ready=document.fonts.load(`normal 400 36px "${family}"`,numeric?'0123456789'+slots[0]!.text:slots.map(slot=>slot.text).join('')).then(faces=>{
     if(!faces.length||faces.some(face=>face.status!=='loaded'))throw Error('CANVAS_TITLE_FONT_UNAVAILABLE');
     const inset=ctx.target.safeInsets;
     stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,
       safe:{left:inset.left*canvas.width,right:inset.right*canvas.width,top:inset.top*canvas.height,bottom:inset.bottom*canvas.height},
-      data:{safeText:true,boundTogether:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
-      cues:[...items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text})),
+      data:{safeText:true,boundTogether:true,...(numeric?{safeNumber:true}:{}),palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
+      cues:[...(numeric?[{kind:'number',at:.7,data:parseCanvasNumber(slots[0]!.text)}]:items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text}))),
         ...(highlightFrame===undefined?[]:[{kind:'highlight',at:highlightFrame/30}])]},{width:canvas.width,height:canvas.height,fontFamily:family});
   });
   const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
     return{slotId:currentSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
-  return{ready,render(time:number){if(!stage)throw Error('CLIP_NOT_READY');const index=selected(time);text=slots[index]!.text;currentSlot=items[index]!.textSlot;fontProbe.textContent=text;trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
+  return{ready,render(time:number){if(!stage)throw Error('CLIP_NOT_READY');const index=selected(time);text=numeric?canvasNumberText(slots[index]!.text,Math.round(time*30)):slots[index]!.text;currentSlot=items[index]!.textSlot;fontProbe.textContent=text;trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
     const bound=boundCanvasTitle(paint,text,trace);stage.draw(bound.canvas,time);bound.finish();if(!trace.boxes.length)throw Error('CANVAS_TEXT_NOT_DRAWN');
     fontProbe.style.font=trace.font;fontProbe.style.letterSpacing=trace.letterSpacing;lastTime=time;
   },canvasTextTrace:currentTrace,canvasTextProof(){if(!stage||!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
@@ -144,6 +145,7 @@ function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFr
   }}]};
 }
 window.PB.defineBlock<{textSlot:string;highlightFrame?:number}>({id:'canvas-title',version:'1.1.0',build:(ctx,params)=>buildCanvasTitles(ctx,[{textSlot:params.textSlot,startFrame:0}],'canvas-title',params.highlightFrame)});
+window.PB.defineBlock<{textSlot:string}>({id:'canvas-number',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,[{textSlot:params.textSlot,startFrame:0}],'canvas-number')});
 window.PB.defineBlock<{items:Array<{textSlot:string;startFrame:number}>}>({id:'canvas-sequence',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,params.items,'canvas-sequence')});
 
 function cpuSurface(ctx:SceneContext){

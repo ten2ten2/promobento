@@ -7,3 +7,5 @@ export function assertCanvasTextFrameDigests(spec:Record<string,any>,shard:{star
 
 export function isCanvasTextScene(scene:Record<string,any>):boolean;
 export function canvasTextSlotAt(scene:Record<string,any>,frame:number):string|undefined;
+export function canvasNumberText(text:string,frame:number):string;
+export function parseCanvasNumber(text:string):{value:number;decimals:number;suffix:string};

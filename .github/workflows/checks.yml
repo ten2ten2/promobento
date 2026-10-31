@@ -142,6 +142,7 @@ jobs:
           path: |
             artifacts/film-runtime/canvas-title-*.png
             artifacts/film-runtime/canvas-highlight-*.png
+            artifacts/film-runtime/canvas-number-*.png
             artifacts/film-runtime/canvas-wrapped-*.png
             artifacts/film-runtime/canvas-sequence-*.png
             artifacts/film-runtime/whiteboard-clip-*.png

@@ -9,7 +9,7 @@ import { validate as validateBlockParams } from '@promobento/contracts/validator
 import { validate } from '@promobento/contracts/validators/film';
 import { blockCatalog, blockReferences } from '../../blocks/src/catalog.ts';
 import {blockEvents} from '../../blocks/src/events.mjs';
-import {assertCanvasTitle} from '../../blocks/src/canvas-title-validate.ts';
+import {assertCanvasTitle,assertCanvasNumber} from '../../blocks/src/canvas-title-validate.ts';
 import type { FilmSpec } from '../../../contracts/film-runtime.d.ts';
 import type { PageOptions, PagePlan } from './types.ts';
 
@@ -57,6 +57,11 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     for (const id of references.assets) if (!Object.hasOwn(spec.assets, id)) throw Error('ASSET_SLOT_UNKNOWN');
     if(scene.block==='canvas-title@1'){
       const slot=spec.texts[String(scene.params.textSlot)]!;assertCanvasTitle(slot.text,slot.role,spec.style.type.display.style);
+    }
+    if(scene.block==='canvas-number@1'){
+      const slot=spec.texts[String(scene.params.textSlot)]!;assertCanvasNumber(slot.text,slot.role,spec.style.type.display.style);
+      if(!slot.factIds.length)throw Error('CANVAS_NUMBER_FACT_REQUIRED');
+      blockEvents('canvas-number',scene,scene.params);
     }
     if(scene.block==='canvas-sequence@1'){
       const items=scene.params.items as Array<{textSlot:string;startFrame:number}>;
@@ -119,6 +124,10 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if (!font?.rightsCleared || !font.licenseRef) throw Error('FONT_RIGHTS_OR_FACE_MISSING');
       return font;
     });
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-number@1')){
+    const ref=spec.style.type.display,face=fonts.find(font=>font.fontId===ref.fontId&&font.weight===ref.weight&&font.style===(ref.style??'normal'));
+    if(face?.codePoints&&[...'0123456789'].some(character=>!face.codePoints!.includes(character.codePointAt(0)!)))throw Error('CANVAS_NUMBER_DIGIT_COVERAGE_REQUIRED');
+  }
   for (const slot of Object.values(spec.texts)) {
     const display = ['headline', 'cta', 'number'].includes(slot.role), ref = spec.style.type[display ? 'display' : 'text'];
     const face = fonts.find(font => font.fontId === ref.fontId && font.weight === ref.weight && font.style === (ref.style ?? 'normal'))!;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -9,6 +9,17 @@ const context={product:'Original Workbench',audience:'software',fonts:[{fontId:'
  resources:[{resourceId:'res_fixture_dashboard'},{resourceId:'res_fixture_logo'}]};
 const card={key:'fit',usesDepth:false,language:'en',palette:[{role:'bg',color:'#101712',source:'fixture'},{role:'ink',color:'#f4f8ee',source:'fixture'},{role:'accent',color:'#d9fa73',source:'fixture'}],
  feel:{eventsPerBar:2},logline:'One real product image and a readable identity.',skeleton:[{approach:'block:feature-grid'},{approach:'block:ui-showcase'},{approach:'block:cta-endcard'}]};
+
+test('a number hero uses the exact confirmed numeric fact, not a decorated or inferred value',()=>{
+ const numeric={...context,facts:[{id:'count',text:'123'}],confirmedFactIds:['count']},method={id:'product-directing',version:'1.43.0'};
+ assert.equal(supportsCanvasNumber(method,numeric),true);assert.equal(supportsCanvasNumber({...method,version:'1.42.0'},numeric),false);
+ const film=directionHero({...card,skeleton:[{approach:'block:canvas-number'}]},numeric,0);
+ assert.equal(film.scenes[0].block,'canvas-number@1');assert.deepEqual(film.texts.number,{text:'123',role:'number',factIds:['count']});
+ const opts=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});opts.resources=[];opts.confirmedFactIds=['count'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),opts));
+ assert.equal(supportsCanvasNumber(method,{...numeric,facts:[{id:'count',text:'123%'}]}),true);
+ assert.equal(supportsCanvasNumber(method,{...numeric,facts:[{id:'count',text:'+123%'}]}),false);
+});
 
 test('compact direction heroes prefer the proposed product shot over a paragraph grid and keep the real primary image',()=>{
  for(const [index,depth]of [[0,false],[1,true],[2,false]]){

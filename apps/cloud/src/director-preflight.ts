@@ -9,7 +9,7 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];highlightFrame?:number;palette?:Record<string,string>;pages?:Array<{text:string;factIds:string[]}>},whiteboard=false,keynote:boolean|'highlight'=false){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];number?:boolean;highlightFrame?:number;palette?:Record<string,string>;pages?:Array<{text:string;factIds:string[]}>},whiteboard=false,keynote:boolean|'highlight'=false){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(whiteboard&&(canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
@@ -83,7 +83,11 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'whiteboard-clip@1',params:{assetKey:'health',textSlot:'headline'},purpose:'Probe original whiteboard image reveal.'}];
  }
  if(canvasTitle){
-  if(canvasTitle.pages){
+  if(canvasTitle.number){
+   if(canvasTitle.pages||canvasTitle.highlightFrame!==undefined)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
+   film.texts.headline={text:canvasTitle.text,role:'number',factIds:canvasTitle.factIds};
+   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-number@1',params:{textSlot:'headline'},purpose:'Probe the exact fact-bound number and its counting frames.'}];
+  }else if(canvasTitle.pages){
    if(canvasTitle.pages.length<2||canvasTitle.pages.length>3)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
    film.texts=Object.fromEntries(canvasTitle.pages.map((page,index)=>['headline-'+index,{text:page.text,role:'headline',factIds:page.factIds}]));
    film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-sequence@1',params:{items:canvasTitle.pages.map((_,index)=>({textSlot:'headline-'+index,startFrame:index*120}))},purpose:'Probe each bound Canvas title page and font.'}];
@@ -97,7 +101,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
  const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):voxClip==='highlight'?84:voxClip?135:whiteboard?105:keynote==='highlight'?84:keynote?165:45;
- const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):canvasTitle?.highlightFrame!==undefined?[45,canvasTitle.highlightFrame+24]:[probeFrame];
+ const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):canvasTitle?.number?[0,45]:canvasTitle?.highlightFrame!==undefined?[45,canvasTitle.highlightFrame+24]:[probeFrame];
  const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:objectStudio||customStudio?'standard-4':'standard-3',taskId,generation:op.generation,
   deadlineAt:Math.min(deadlineAt,Date.now()+90000),imageDigest:release.image_digest,
   job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash:filmSourceHash(canonical(film),sources),
@@ -116,7 +120,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    const frame=await owner.frame(op.id,frameIndex);if(!frame.ok)throw Error('RENDER_PREFLIGHT_FAILED');
    const bytes=new Uint8Array(await frame.arrayBuffer());
    if(bytes.length<8||![137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value))throw Error('RENDER_PREFLIGHT_FAILED');
-   if(sceneScopedObservation||canvasTitle||whiteboard){
+   if(sceneScopedObservation||canvasTitle&&!canvasTitle.number||canvasTitle?.number&&frameIndex>=30||whiteboard){
     const response=await owner.checkFrame(op.id,frameIndex);if(!response.ok)throw Error('RENDER_PREFLIGHT_FAILED');
     const checked=parseCanonicalJson(await response.text()) as Json,observation=checked.observation;
     const slotId=canvasTitle?.pages?'headline-'+index:'headline',text=canvasTitle?.pages?.[index]?.text??canvasTitle?.text;
