@@ -19,19 +19,30 @@ export async function observeProduct(page){
    const host=image.parentElement,identity=[image.id,image.getAttribute('class'),image.alt,image.getAttribute('aria-label'),image.getAttribute('src'),host?.id,host?.getAttribute('class')].join(' ');
    if(/logo|brand|wordmark|lockup/i.test(identity)){const src=url(image.currentSrc||image.src);if(src)logos.push({src,kind:'image'});}
   }
-  for(const svg of document.querySelectorAll('svg')){
-   if(svg.parentElement?.closest('svg'))continue;
-   const host=svg.closest('a,header,nav,[class*=logo],[id*=logo]');
-   if(visible(svg)&&host&&/logo|brand|wordmark|lockup/i.test([svg.id,svg.getAttribute('class'),svg.getAttribute('aria-label'),host.id,host.getAttribute('class')].join(' '))){
-    const parts=[];let element=svg;
-    while(element&&element!==document.documentElement&&parts.length<32){
-     const name=element.localName;if(!/^[a-z][a-z0-9-]*$/i.test(name)||!element.parentElement){parts.length=0;break;}
-     const siblings=[...element.parentElement.children].filter(child=>child.localName===name&&child.namespaceURI===element.namespaceURI);
-     parts.unshift(`${name}:nth-of-type(${siblings.indexOf(element)+1})`);element=element.parentElement;
-    }
-    const selector=element===document.documentElement?['html',...parts].join(' > '):'';
-    if(selector&&selector.length<=256&&document.querySelectorAll(selector).length===1&&document.querySelector(selector)===svg)logos.push({src:null,kind:'inline-svg',selector});
+  // Selectors identify candidates only. Extraction still requires separate approval and static-source verification.
+  const vectors=[],icons=[];
+  const selectorFor=target=>{const parts=[];let element=target;
+   while(element&&element!==document.documentElement&&parts.length<32){
+    const name=element.localName;if(!/^[a-z][a-z0-9-]*$/i.test(name)||!element.parentElement)return null;
+    const siblings=[...element.parentElement.children].filter(child=>child.localName===name&&child.namespaceURI===element.namespaceURI);
+    parts.unshift(`${name}:nth-of-type(${siblings.indexOf(element)+1})`);element=element.parentElement;
    }
+   const selector=element===document.documentElement?['html',...parts].join(' > '):'';
+   return selector&&selector.length<=256&&document.querySelectorAll(selector).length===1&&document.querySelector(selector)===target?selector:null;
+  };
+  for(const svg of document.querySelectorAll('svg')){
+   if(svg.parentElement?.closest('svg')||!visible(svg))continue;
+   const host=svg.closest('a,header,nav,[class*=logo],[id*=logo]'),isLogo=host&&/logo|brand|wordmark|lockup/i.test([svg.id,svg.getAttribute('class'),svg.getAttribute('aria-label'),host.id,host.getAttribute('class')].join(' '));
+   if(vectors.length>200&&!isLogo)continue;
+   const selector=selectorFor(svg);if(!selector)continue;
+   if(vectors.length<=200){const box=svg.getBoundingClientRect(),label=(svg.getAttribute('aria-label')||svg.querySelector('title')?.textContent||'').trim().slice(0,160);
+    vectors.push({selector,width:Math.round(box.width),height:Math.round(box.height),label});}
+   if(isLogo)logos.push({src:null,kind:'inline-svg',selector});
+  }
+  for(const image of document.images){
+   if(icons.length>200)break;
+   const src=url(image.currentSrc||image.src),box=image.getBoundingClientRect();if(!src||!visible(image))continue;
+   if(/\.svg(?:[?#]|$)/i.test(src)||box.width<=128&&box.height<=128)icons.push({src,alt:(image.alt||'').slice(0,160),width:Math.round(box.width),height:Math.round(box.height)});
   }
   const videos=[...document.querySelectorAll('video')].map(video=>({src:url(video.currentSrc||video.src||video.querySelector('source')?.src),poster:url(video.poster)})).filter(video=>video.src||video.poster);
   const weights=new Map(),fonts=new Map(),add=(role,value,weight)=>{if(value&&!/transparent|rgba\(0, 0, 0, 0\)/.test(value))weights.set(role+'|'+value,(weights.get(role+'|'+value)||0)+weight);};
@@ -58,18 +69,18 @@ export async function observeProduct(page){
   };
   for(const sheet of document.styleSheets)try{visit(sheet.cssRules);}catch{cssRulesUnavailable=true;}
   const pageText=document.body?.innerText||'';
-  return{text:pageText.slice(0,7000),images:images.slice(0,200),logos:logos.slice(0,200),videos:videos.slice(0,200),candidateCapExceeded:[images,logos,videos].some(items=>items.length>200),colours,cssVariables,cssVariablesTruncated,cssRulesUnavailable,fonts:[...fonts].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([family,chars])=>({family,chars})),pageHeight:document.documentElement.scrollHeight,
+  return{text:pageText.slice(0,7000),images:images.slice(0,200),logos:logos.slice(0,200),videos:videos.slice(0,200),vectors:vectors.slice(0,200),icons:icons.slice(0,200),candidateCapExceeded:[images,logos,videos,vectors,icons].some(items=>items.length>200),colours,cssVariables,cssVariablesTruncated,cssRulesUnavailable,fonts:[...fonts].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([family,chars])=>({family,chars})),pageHeight:document.documentElement.scrollHeight,
    cookieNoticeVisible:[...document.querySelectorAll('button,[role=button]')].some(el=>visible(el)&&/^(reject all|accept cookies|accept all)$/i.test(el.textContent.trim())&&/cookies/i.test(el.parentElement?.innerText||''))};
  });
 }
 
 /** Combine observed, not downloaded, candidates from every visited viewport. */
 export function mergeProductObservations(observations){
- const result={...observations[0],images:[],logos:[],videos:[],cssVariables:[],candidateCapExceeded:observations.some(item=>item.candidateCapExceeded),cssVariablesTruncated:observations.some(item=>item.cssVariablesTruncated),cssRulesUnavailable:observations.some(item=>item.cssRulesUnavailable)};
+ const result={...observations[0],images:[],logos:[],videos:[],vectors:[],icons:[],cssVariables:[],candidateCapExceeded:observations.some(item=>item.candidateCapExceeded),cssVariablesTruncated:observations.some(item=>item.cssVariablesTruncated),cssRulesUnavailable:observations.some(item=>item.cssRulesUnavailable)};
  delete result.viewY;
- for(const name of ['images','logos','videos']){
-  const seen=new Set();for(const observation of observations)for(const item of observation[name]){
-   const key=name==='logos'&&item.kind==='inline-svg'?'inline:'+item.selector:name==='videos'?(item.src??'')+'|'+(item.poster??''):item.src;
+ for(const name of ['images','logos','videos','vectors','icons']){
+  const seen=new Set();for(const observation of observations)for(const item of observation[name]??[]){
+   const key=name==='vectors'?'inline:'+item.selector:name==='logos'&&item.kind==='inline-svg'?'inline:'+item.selector:name==='videos'?(item.src??'')+'|'+(item.poster??''):item.src;
    if(!key||seen.has(key))continue;seen.add(key);
    if(result[name].length<200)result[name].push({...item,...(Number.isFinite(observation.viewY)?{observedAtY:observation.viewY}:{})});else result.candidateCapExceeded=true;
   }

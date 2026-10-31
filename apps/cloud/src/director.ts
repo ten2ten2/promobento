@@ -40,7 +40,7 @@ import {directorProgress,commitCandidate,commitReviewDraft,failDirector,director
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet,selectCustomMotionFrames,auditSheetReferences} from './director-sheets.mjs';
-import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle} from './direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle,supportsCanvasSubtitleSequence} from './direction-hero.ts';
 import {workflowStarted} from './workflow-state.ts';
 import type {PipelineEnv,Json,BlobRef,Operation} from './pipeline-types.ts';
 
@@ -175,13 +175,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const canvasSequenceMethod=supportsCanvasSequence(methods,context);
     const canvasNumberMethod=supportsCanvasNumber(methods,context);
     const canvasSubtitleMethod=supportsCanvasSubtitle(methods,context);
+    const canvasSubtitleSequenceMethod=supportsCanvasSubtitleSequence(methods,context);
     const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
     const extendedDrawnIcons=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=37);
     const keynoteMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=39)&&supportsVoxClip(methods,context.resources);
     const keynoteHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=41);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='canvas-number'||canvasNumberMethod)&&(block.id!=='canvas-subtitle'||canvasSubtitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='canvas-number'||canvasNumberMethod)&&(block.id!=='canvas-subtitle'||canvasSubtitleMethod)&&(block.id!=='canvas-subtitle-sequence'||canvasSubtitleSequenceMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
         if(block.id==='canvas-title'&&!canvasHighlightMethod){const legacy=structuredClone(block) as Json;legacy.version='1.0.0';delete legacy.params.properties.highlightFrame;
           legacy.events=legacy.events.filter((event:Json)=>event.name!=='highlight-land');return legacy;}
@@ -242,7 +243,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(!canvasSequenceMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-sequence@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasNumberMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-number@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasSubtitleMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-subtitle@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
-      for(const scene of value.scenes.filter((item:Json)=>item.block==='canvas-subtitle@1'))for(const slotId of [scene.params.textSlot,scene.params.subtitleSlot]){
+      if(!canvasSubtitleSequenceMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-subtitle-sequence@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      for(const scene of value.scenes.filter((item:Json)=>['canvas-subtitle@1','canvas-subtitle-sequence@1'].includes(item.block)))for(const slotId of (scene.block==='canvas-subtitle@1'?[scene.params.textSlot,scene.params.subtitleSlot]:(scene.params.items??[]).flatMap((item:Json)=>[item.textSlot,item.subtitleSlot]))){
         const slot=value.texts[slotId];
         if(!slot||!slot.factIds?.some((id:string)=>context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
           throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
@@ -259,7 +261,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       }
       const canvasTitles=value.scenes.filter((scene:Json)=>scene.block==='canvas-title@1');
       if(canvasTitles.length&&!canvasTitleMethod)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
-      if((canvasTitles.length||value.scenes.some((scene:Json)=>['canvas-sequence@1','canvas-number@1','canvas-subtitle@1'].includes(scene.block)))&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if((canvasTitles.length||value.scenes.some((scene:Json)=>['canvas-sequence@1','canvas-number@1','canvas-subtitle@1','canvas-subtitle-sequence@1'].includes(scene.block)))&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
         if(scene.runtimeText&&!graphemeMethod)throw Error('CUSTOM_TEXT_RUNTIME_NOT_AVAILABLE');
@@ -334,7 +336,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           const selection=earlySceneProbe?selectCustomMotionFrames(first.movie.motionFrames,film,quality):null;
           const existing=selection?new Set(filmMotionFrames(film as unknown as Parameters<typeof filmMotionFrames>[0],quality,{eventNeighborhoods:false})):null;
           const baseFrames=existing?first.movie.motionFrames.filter((blob:BlobRef)=>existing.has(Number(/\/motion-frames\/(\d+)\.png$/.exec(blob.key)?.[1]))):first.movie.motionFrames;
-          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','canvas-number@1','canvas-subtitle@1','whiteboard-clip@1','keynote-clip@1','drawn-steps@1'].includes(scene.block));
+          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','canvas-number@1','canvas-subtitle@1','canvas-subtitle-sequence@1','whiteboard-clip@1','keynote-clip@1','drawn-steps@1'].includes(scene.block));
           const {bytes,...layout}=await reviewContactSheet({aspect:first.aspect,frames:baseFrames,load:blob=>checkedBytes(this.env,blob),sampleKind:selection||generalMotion?'motion_keyposes':'beat_choreography_keyposes'});
           const object=await immutableBytes(this.env,`operations/${op.id}/${name}/contact-sheet-motion.png`,bytes,'image/png');
           motionSheets.push({aspect:first.aspect,renderId:first.movie.renderId,image:object,...layout,...(selection?{selection:{sceneId:selection.sceneId,requested:selection.requested,missing:selection.missing,scope:selection.scope}}:{})});
@@ -402,6 +404,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         const face=film.style.type.display,bodyFace=film.style.type.text,{text,factIds}=film.texts[scene.params.textSlot],supporting=film.texts[scene.params.subtitleSlot];
         await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,
           {...face,text,factIds,subtitle:{...bodyFace,text:supporting.text,factIds:supporting.factIds},palette:film.style.palette.roles});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='canvas-subtitle-sequence@1')){
+        const face=film.style.type.display,bodyFace=film.style.type.text,pairs=scene.params.items.map((item:Json)=>{
+          const title=film.texts[item.textSlot],supporting=film.texts[item.subtitleSlot];
+          return{text:title.text,factIds:title.factIds,subtitle:{...bodyFace,text:supporting.text,factIds:supporting.factIds}};
+        });
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,
+          {...face,text:pairs[0].text,factIds:pairs[0].factIds,pairs,palette:film.style.palette.roles});
       }
     };
     const prepareScenes=async(film:Json)=>{

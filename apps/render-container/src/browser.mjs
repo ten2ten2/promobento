@@ -129,7 +129,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
         const {root}=await cdp.send('DOM.getDocument'),fontsByScene=new Map();
         for(const scene of plan.spec.scenes.filter(item=>isCanvasTextScene(item)&&item.start<=frame&&frame<item.end)){
           for(const slotId of canvasTextSlotsAt(scene,frame)){
-            const selector=scene.block==='canvas-subtitle@1'?`[data-scene="${scene.id}"] [data-pb-canvas-slot="${slotId}"]`:`[data-scene="${scene.id}"] [data-pb-canvas-font="1"]`;
+            const selector=['canvas-subtitle@1','canvas-subtitle-sequence@1'].includes(scene.block)?`[data-scene="${scene.id}"] [data-pb-canvas-slot="${slotId}"]`:`[data-scene="${scene.id}"] [data-pb-canvas-font="1"]`;
             const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector});
             const fonts=nodeId?(await cdp.send('CSS.getPlatformFontsForNode',{nodeId})).fonts:[];fontsByScene.set(scene.id+'\0'+slotId,fonts);
           }

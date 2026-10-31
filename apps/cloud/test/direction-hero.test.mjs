@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle,supportsCanvasSubtitleSequence} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -26,6 +26,16 @@ test('a two-slot Canvas hero uses two exact confirmed facts',()=>{
  assert.equal(supportsCanvasSubtitle(method,confirmed),true);assert.equal(supportsCanvasSubtitle({...method,version:'1.43.0'},confirmed),false);
  const film=directionHero({...card,skeleton:[{approach:'block:canvas-subtitle'}]},confirmed,0);
  assert.equal(film.scenes[0].block,'canvas-subtitle@1');assert.deepEqual(film.texts.supporting,{text:'WORLD',role:'body',factIds:['second']});
+ const opts=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});opts.resources=[];opts.confirmedFactIds=['first','second'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),opts));
+});
+
+test('a multi-page Canvas hero is gated by method version and binds both slots on each page',()=>{
+ const confirmed={...context,facts:[{id:'first',text:'HELLO'},{id:'first',text:'HELLO'},{id:'second',text:'WORLD'}],confirmedFactIds:['first','second']};
+ assert.equal(supportsCanvasSubtitleSequence({id:'product-directing',version:'1.46.0'},confirmed),false);
+ assert.equal(supportsCanvasSubtitleSequence({id:'product-directing',version:'1.47.0'},confirmed),true);
+ const film=directionHero({...card,skeleton:[{approach:'block:canvas-subtitle-sequence'}]},confirmed,0);
+ assert.deepEqual(film.scenes[0].params.items.map(item=>[film.texts[item.textSlot].text,film.texts[item.subtitleSlot].text]),[['HELLO','WORLD'],['WORLD','HELLO']]);
  const opts=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});opts.resources=[];opts.confirmedFactIds=['first','second'];
  assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),opts));
 });

@@ -367,6 +367,24 @@ try{
    }finally{await session.close();}
   }
   report.canvasSubtitle='independent_exact_slots_fonts_and_actual_pixel_proofs_landscape_portrait';
+  const pairedPages=structuredClone(pairFilm);pairedPages.texts={title:{text:'HELLO',role:'headline',factIds:['first']},sub:{text:'WORLD',role:'body',factIds:['second']},title2:{text:'WORLD',role:'headline',factIds:['second']},sub2:{text:'HELLO',role:'body',factIds:['first']}};
+  pairedPages.scenes[0].block='canvas-subtitle-sequence@1';pairedPages.scenes[0].params={items:[{textSlot:'title',subtitleSlot:'sub',startFrame:0},{textSlot:'title2',subtitleSlot:'sub2',startFrame:120}]};
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]),installed=catalog.fonts.find(item=>item.fontId==='geist-mono'&&item.weight===400);
+   options.resources=[];options.fonts=[...multiOptions.fonts,{fontId:'geist-mono',weight:400,style:'normal',licenseRef:installed.licenseRef,rightsCleared:true,codePoints:installed.codePoints}];options.confirmedFactIds=['first','second'];
+   const session=await filmSession({raw:JSON.stringify(pairedPages),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    for(const frame of [0,45,119,120,121,165]){const png=await session.frame(frame,{format:'png'}),traces=session.canvasTextTrace(frame),second=frame>=120;
+     assert.deepEqual(traces.map(trace=>[trace.slotId,trace.text,trace.fontId]),second?[['title2','WORLD','geist-sans'],['sub2','HELLO','geist-mono']]:[['title','HELLO','geist-sans'],['sub','WORLD','geist-mono']]);
+     if(frame===45||frame===165){const observation=await session.observe('canvas-paired-pages-check',frame);
+      assert.equal(observation.texts.filter(text=>!text.clipped&&!text.fallbackUsed).length,2,JSON.stringify(observation));
+      assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+      writeFileSync(`${output}/canvas-subtitle-sequence-${aspect}-${frame}.png`,png);}
+    }
+    const before=await session.frame(45,{format:'png'});await session.frame(165,{format:'png'});assert.equal(compareSeam(before,await session.frame(45,{format:'png'})).verdict,'pass');
+   }finally{await session.close();}
+  }
+  report.canvasSubtitleSequence='each_original_page_binds_two_exact_slots_and_fonts_landscape_portrait_reverse';
   const markedFilm=structuredClone(canvasFilm);markedFilm.scenes[0].params.highlightFrame=45;
   const unmarkedFilm=structuredClone(markedFilm);delete unmarkedFilm.scenes[0].params.highlightFrame;
   for(const aspect of ['landscape','portrait']){
@@ -590,6 +608,15 @@ try{
   assert.ok(pairObservations.some(item=>item.frame===45&&item.texts.some(text=>text.text==='HELLO')&&item.texts.some(text=>text.text==='WORLD')));
   assert.ok(pairObservations.every(item=>!item.findings.some(finding=>finding.severity==='BLOCK')));
   report.canvasSubtitleShard='receipt_bound_two_slots_and_independent_actual_pixel_proofs';
+
+  const pairedDir=`${output}/canvas-subtitle-sequence-shard`,pairedShard={index:0,start:105,end:135};
+  const pairedReceipt=await renderShard({job:shardJob,shard:pairedShard,raw:JSON.stringify(pairedPages),options:pairOptions,font,
+   resource:()=>{throw Error('UNEXPECTED_RESOURCE');},directory:pairedDir,browserVersion:lock.browser.version,
+   imageDigest:process.env.PROMOBENTO_TEST_IMAGE_DIGEST,encoding:rules.encodingProfiles.mp4_h264_1080_v1,threads:2,killBrowser});
+  const pairedBytes=readFileSync(`${pairedDir}/frame-digests.json`),pairedRecords=JSON.parse(pairedBytes);
+  assert.equal(sha256Bytes(pairedBytes),pairedReceipt.outputs.frameDigests);assertCanvasTextFrameDigests(pairedPages,pairedShard,'final',pairedRecords);
+  assert.ok(pairedRecords.every(record=>record.canvasText.map(item=>item.slotId).join(',')===(record.frame<120?'title,sub':'title2,sub2')));
+  report.canvasSubtitleSequenceShard='receipt_binds_both_slots_on_every_frame_across_original_wipe';
 
   const rigFilm=filmFixture(),rigOptions=pageOptions('portrait',rules.aspectLayouts.portrait);
   rigFilm.assets={};rigFilm.scenes=[{id:'rig',kind:'custom',module:'scenes/rig/index.js',start:0,end:450,
@@ -870,13 +897,14 @@ try{
    const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');
    const observationBrowser=await chromium.connectOverCDP('http://127.0.0.1:9222');let selector;
    try{const context=await observationBrowser.newContext();try{await context.route('**/*',route=>route.abort());const page=await context.newPage();
-     await page.setContent(`<style>:root{--brand:#22aa44;--size:12px}@media(min-width:300px){.brand{--accent:rgb(10,20,30)}}</style><header class="brand">${svg}</header><img width="300" height="150" src="https://example.test/a.png">`);
+     await page.setContent(`<style>:root{--brand:#22aa44;--size:12px}@media(min-width:300px){.brand{--accent:rgb(10,20,30)}}</style><header class="brand">${svg}</header><img width="300" height="150" src="https://example.test/a.png"><img width="24" height="24" alt="Next" src="https://example.test/next.svg"><svg width="12" height="12" aria-label="Chart"><rect width="12" height="12"/></svg>`);
      const first=await observeProduct(page);selector=first.logos.find(item=>item.kind==='inline-svg')?.selector;
      assert.ok(selector);assert.equal(await page.locator(selector).count(),1);
+     assert.ok(first.vectors.some(item=>item.label==='Chart'));assert.ok(first.icons.some(item=>item.src==='https://example.test/next.svg'));assert.ok(first.vectors.every(item=>!('svg' in item)));
      assert.ok(first.cssVariables.some(item=>item.name==='--brand'&&item.value==='#22aa44'));assert.ok(first.cssVariables.some(item=>item.name==='--accent'&&item.conditions.length));assert.ok(!first.cssVariables.some(item=>item.name==='--size'));
      await page.evaluate(()=>{document.querySelector('img').src='https://example.test/b.png';});
      const second=await observeProduct(page),merged=mergeProductObservations([{...first,viewY:0},{...second,viewY:1000}]);
-     assert.deepEqual(merged.images.map(item=>item.src),['https://example.test/a.png','https://example.test/b.png']);assert.equal(merged.images[1].observedAtY,1000);
+     assert.deepEqual(merged.images.map(item=>item.src),['https://example.test/a.png','https://example.test/b.png']);assert.equal(merged.images[1].observedAtY,1000);assert.equal(merged.vectors.length,first.vectors.length);assert.equal(merged.icons.length,first.icons.length);
     }finally{await context.close();}}finally{await observationBrowser.close();}
    const html=Buffer.from(`<!doctype html><html><body><header class="brand">${svg}</header><script>document.querySelector('#mark').setAttribute('width','999')</script></body></html>`);
    const inlineCard={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},

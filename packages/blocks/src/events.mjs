@@ -27,7 +27,7 @@ export function blockEvents(id, frames, params) {
     if(duration<135)throw Error('WHITEBOARD_READING_HOLD_MISSING');
     return [{name:'product-land',frame:90}];
   }
-  if(id==='canvas-sequence'){
+  if(id==='canvas-sequence'||id==='canvas-subtitle-sequence'){
     const items=params.items;
     if(items[0]?.startFrame!==0||items.some((item,index)=>index>0&&item.startFrame-items[index-1].startFrame<120)
       ||duration-items.at(-1).startFrame<120)throw Error('CANVAS_SEQUENCE_READING_HOLD_MISSING');
@@ -88,7 +88,7 @@ export function filmObservationFrames(spec,quality){
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
   if(scene.block==='keynote-clip@1')return blockEvents('keynote-clip',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
-  if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
+  if(['canvas-sequence@1','canvas-subtitle-sequence@1'].includes(scene.block))return blockEvents(scene.block.split('@')[0],scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
@@ -118,7 +118,7 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    .flatMap(event=>[Math.max(0,event.frame-36),event.frame-30,event.frame-6,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='whiteboard-clip@1')return [0,15,30,60,90].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
-  if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
+  if(['canvas-sequence@1','canvas-subtitle-sequence@1'].includes(scene.block))return blockEvents(scene.block.split('@')[0],scene,scene.params)
    .flatMap(event=>[event.frame-30,event.frame-9,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)

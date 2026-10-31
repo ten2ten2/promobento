@@ -58,3 +58,10 @@ test('the original count admits only a bounded fact slot and holds after settlin
  assert.throws(()=>blockEvents('canvas-number',{start:0,end:89},{}),/CANVAS_NUMBER_READING_HOLD_MISSING/);
  assert.deepEqual(blockEvents('canvas-number',{start:0,end:90},{}),[{name:'number-land',frame:30}]);
 });
+
+test('each Canvas title and subtitle page is observed and sampled at its own settled hold',()=>{
+ const scene={kind:'block',block:'canvas-subtitle-sequence@1',start:30,end:330,params:{items:[{textSlot:'a',subtitleSlot:'b',startFrame:0},{textSlot:'c',subtitleSlot:'d',startFrame:120}]}};
+ assert.deepEqual(blockEvents('canvas-subtitle-sequence',scene,scene.params).map(item=>item.frame),[30,150]);
+ assert.deepEqual(filmObservationFrames({scenes:[scene]},'final'),[75,195]);
+ assert.deepEqual(filmMotionFrames({scenes:[scene]},'final'),[30,51,60,150,171,180]);
+});

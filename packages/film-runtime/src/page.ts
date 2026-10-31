@@ -74,6 +74,16 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if(!title.factIds.length||!subtitle.factIds.length)throw Error('CANVAS_SUBTITLE_FACT_REQUIRED');
       blockEvents('canvas-subtitle',scene,scene.params);
     }
+    if(scene.block==='canvas-subtitle-sequence@1'){
+      const items=scene.params.items as Array<{textSlot:string;subtitleSlot:string;startFrame:number}>;
+      blockEvents('canvas-subtitle-sequence',scene,scene.params);
+      for(const item of items){
+        const title=spec.texts[item.textSlot]!,subtitle=spec.texts[item.subtitleSlot]!;
+        if(item.textSlot===item.subtitleSlot)throw Error('CANVAS_SUBTITLE_SLOTS_INVALID');
+        assertCanvasTitle(title.text,title.role,spec.style.type.display.style);assertCanvasSubtitle(subtitle.text,subtitle.role,spec.style.type.text.style);
+        if(!title.factIds.length||!subtitle.factIds.length)throw Error('CANVAS_SUBTITLE_FACT_REQUIRED');
+      }
+    }
     if(scene.block==='canvas-sequence@1'){
       const items=scene.params.items as Array<{textSlot:string;startFrame:number}>;
       blockEvents('canvas-sequence',scene,scene.params);
@@ -184,7 +194,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
   const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
   const css = [...new Map(fonts.map(font => [`${font.fontId}/${font.weight}/${font.style}`, font])).values()].map(font =>
     `@font-face{font-family:"PB-${font.fontId}";font-weight:${font.weight};font-style:${font.style};src:url("/f/${font.fontId}/${font.weight}-${font.style}.woff2") format("woff2");font-display:block}`).join('');
-  const display=spec.style.type.display,canvasFaces=hasCanvasTitle?[display,...(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-subtitle@1')?[spec.style.type.text]:[])]:[];
+  const display=spec.style.type.display,canvasFaces=hasCanvasTitle?[display,...(spec.scenes.some(scene=>scene.kind==='block'&&['canvas-subtitle@1','canvas-subtitle-sequence@1'].includes(scene.block))?[spec.style.type.text]:[])]:[];
   const canvasFont=canvasFaces.filter((face,index)=>canvasFaces.findIndex(item=>item.fontId===face.fontId&&item.weight===face.weight)===index)
    .map(face=>`@font-face{font-family:"PBC-${face.fontId}-${face.weight}";font-weight:400;font-style:normal;src:url("/f/${face.fontId}/${face.weight}-${face.style??'normal'}.woff2") format("woff2");font-display:block}`).join('');
   const html = `<!doctype html><html data-om-signature="off"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}${canvasFont}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:${spec.style.palette.roles.bg}}#film{position:relative;width:${target.width}px;height:${target.height}px;overflow:hidden}</style><script src="/runtime/shim.js"></script><script defer src="/runtime/engine.js"></script><script defer src="/runtime/gsap.js"></script><script defer src="/runtime/compat.js"></script><script defer src="/runtime/blocks.js"></script>${usesWebgl?'<script defer src="/runtime/blocks-3d.js"></script>':''}${spec.scenes.filter(scene=>scene.kind==='custom').map(scene=>`<script defer src="/${scene.module}"></script>`).join('')}<script defer src="/runtime/boot.js"></script></head><body><main id="film"></main><script type="application/json" id="pb-plan">${safeJson(plan)}</script></body></html>`;

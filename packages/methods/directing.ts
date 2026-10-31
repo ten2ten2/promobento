@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.46.0',
+  id: 'product-directing', version: '1.47.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -41,6 +41,7 @@ export const directingMethodPack = {
       'For canvas-title, an optional highlightFrame adds the original animated marker behind the whole confirmed headline, without adding new copy. Start at or after frame 36 and leave at least 30 frames after the cue. Inspect contrast at the reading hold.',
       'canvas-number runs the original y5 count using one exact confirmed number slot containing 0–999.99, with at most two decimal places and an optional percent sign. It animates toward that value and settles before the reading hold; reserve at least 90 frames. Preserve the exact confirmed text; do not add other units or make an unconfirmed numerical claim.',
       'canvas-subtitle runs the original y5 title and rising supporting sentence: textSlot must be a headline, subtitleSlot a body slot, and each must exactly match its own confirmed fact. Both use normal admitted fonts and the same restricted character set as canvas-title. Reserve at least 120 frames, keep the reading hold free of overlays, and never mix this block with custom scenes.',
+      'canvas-subtitle-sequence runs two or three original y5 title and supporting-sentence pages. Each item has textSlot, subtitleSlot and a startFrame: the first is 0 and each later page starts at least 120 frames after the previous one; bind each headline and body exactly to its confirmed fact, keep each reading hold unobstructed, and do not mix with custom scenes.',
       'canvas-sequence runs two or three original y5 title pages with the original color-band wipe. Every page needs its own exact confirmed headline slot; startFrame begins at 0, and leave at least 120 frames per page. Keep reading holds free of overlays and never mix this block with custom scenes. Use it for a meaningful typographic progression, not product proof.',
       'keynote-clip uses the original t2 screenshot-card motion for two or three distinct, cleared and causally related source states, without numbered badges or unbound Canvas text. Allow at least 120 frames per state and never carry a detail from one exercise onto another. The direction preview repeats a single image; only the final source establishes a real handoff.',
       'A keynote-clip item may use focus:roi:n only for the exact observed region on that same source image. It adds the original animated emphasis while keeping the full page visible. Never reuse a previous exercise’s region on a different page; the visual observation is not independent proof of the interaction.',

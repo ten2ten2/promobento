@@ -1,6 +1,6 @@
 import {pngPixels} from '@promobento/contracts/seams';
 import {canonical} from '@promobento/contracts/canonical';
-import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotsAt,canvasNumberText} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotsAt,canvasTextSubtitleSlotAt,canvasNumberText} from '@promobento/contracts/canvas-text';
 
 /**
  * Check a trusted, full-frame Canvas text layer against the actual screenshot.
@@ -48,7 +48,7 @@ export function appendCanvasTextObservations({plan,frame,observation,proofs,trac
   return Buffer.from(value.slice('data:image/png;base64,'.length),'base64');
  };
  for(const {scene,slotId}of bindings){
-  const proof=proofs.find(item=>item?.sceneId===scene.id&&item?.slotId===slotId),slot=plan.spec.texts[slotId],font=scene.block==='canvas-subtitle@1'&&slotId===scene.params.subtitleSlot?plan.spec.style.type.text:plan.spec.style.type.display;
+  const proof=proofs.find(item=>item?.sceneId===scene.id&&item?.slotId===slotId),slot=plan.spec.texts[slotId],font=slotId===canvasTextSubtitleSlotAt(scene,frame)?plan.spec.style.type.text:plan.spec.style.type.display;
   const displayed=scene.block==='canvas-number@1'&&slot?canvasNumberText(slot.text,frame-scene.start):slot?.text;
   if(!proof||!slot||proof.slotId!==slotId||proof.text!==displayed||proof.fontId!==font.fontId||proof.weight!==font.weight||proof.style!==(font.style??'normal')
    ||!Number.isFinite(proof.fontSize)||proof.fontSize<=0||!Number.isFinite(proof.alpha)||proof.alpha<0||proof.alpha>1

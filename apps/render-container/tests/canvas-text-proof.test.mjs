@@ -75,4 +75,11 @@ test('two Canvas slots in one scene require independent actual-pixel and font ev
  const input={plan,frame:45,proofs,traces,fontsByScene,actual,observation:{texts:[],regions:[],findings:[]}},result=appendCanvasTextObservations(input);
  assert.deepEqual(result.texts.map(text=>[text.slotId,text.text,text.fonts[0].family]),[['title','AB','Display'],['sub','CD','Body']]);assert.deepEqual(result.findings,[]);
  assert.throws(()=>appendCanvasTextObservations({...input,proofs:[proofs[0]],observation:{texts:[],regions:[],findings:[]}}),/CANVAS_TEXT_PROOF_MISSING/);
+ const sequence=structuredClone(plan);sequence.spec.scenes[0].block='canvas-subtitle-sequence@1';sequence.spec.scenes[0].params={items:[{textSlot:'title',subtitleSlot:'sub',startFrame:0},{textSlot:'title2',subtitleSlot:'sub2',startFrame:120}]};
+ sequence.spec.texts.title2={...sequence.spec.texts.title};sequence.spec.texts.sub2={...sequence.spec.texts.sub};
+ const later=proofs.map((item,index)=>({...item,slotId:index?'sub2':'title2'})),laterTraces=later.map(({withText,withoutText,...item})=>item);
+ const laterFonts=new Map([['intro\0title2',[{familyName:'Display',isCustomFont:true,glyphCount:2}]],['intro\0sub2',[{familyName:'Body',isCustomFont:true,glyphCount:2}]]]);
+ const next=appendCanvasTextObservations({...input,plan:sequence,frame:120,proofs:later,traces:laterTraces,fontsByScene:laterFonts,observation:{texts:[],regions:[],findings:[]}});
+ assert.deepEqual(next.texts.map(item=>[item.slotId,item.fonts[0].family]),[['title2','Display'],['sub2','Body']]);
+ assert.throws(()=>appendCanvasTextObservations({...input,plan:sequence,frame:120,observation:{texts:[],regions:[],findings:[]}}),/CANVAS_TEXT_(PROOF|TRACE)_INVALID|CANVAS_TEXT_TRACE_MISSING/);
 });

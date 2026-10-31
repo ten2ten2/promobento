@@ -60,3 +60,17 @@ test('a single Canvas scene binds headline and subtitle separately to their own 
  assert.doesNotThrow(()=>assertCanvasTextFrameDigests(spec,{start:0,end:4},'review',records));
  assert.throws(()=>assertCanvasTextFrameDigests(spec,{start:0,end:4},'review',[records[0],{...records[1],canvasText:[title]}]),/CANVAS_TEXT_TRACE_MISSING/);
 });
+
+test('title/subtitle sequences bind both exact slots to each page interval and face',async()=>{
+ const {filmTextBindings}=await import('../src/film.mjs');
+ const scene={id:'sequence',kind:'block',block:'canvas-subtitle-sequence@1',start:10,end:310,params:{items:[{textSlot:'title-a',subtitleSlot:'sub-a',startFrame:0},{textSlot:'title-b',subtitleSlot:'sub-b',startFrame:120}]}};
+ const spec={totalFrames:450,scenes:[scene],texts:{'title-a':{text:'A',role:'headline',factIds:['a']},'sub-a':{text:'B',role:'body',factIds:['b']},'title-b':{text:'C',role:'headline',factIds:['c']},'sub-b':{text:'D',role:'body',factIds:['d']}},style:{type:{display:{fontId:'display',weight:700},text:{fontId:'body',weight:400}}}};
+ const trace=(slotId,text,fontId,weight)=>({sceneId:'sequence',slotId,text,fontId,weight,style:'normal',boxes:[{x:1,y:1,width:2,height:3}],fontSize:40,alpha:1});
+ const first=[trace('title-a','A','display',700),trace('sub-a','B','body',400)],second=[trace('title-b','C','display',700),trace('sub-b','D','body',400)];
+ assert.doesNotThrow(()=>assertCanvasTextTrace(spec,129,first));assert.doesNotThrow(()=>assertCanvasTextTrace(spec,130,second));
+ assert.throws(()=>assertCanvasTextTrace(spec,130,first),/CANVAS_TEXT_TRACE_INVALID/);assert.throws(()=>assertCanvasTextTrace(spec,130,[second[0]]),/CANVAS_TEXT_TRACE_MISSING/);
+ assert.throws(()=>assertCanvasTextTrace(spec,130,[second[0],{...second[1],fontId:'display',weight:700}]),/CANVAS_TEXT_TRACE_INVALID/);
+ assert.deepEqual(filmTextBindings(spec).map(({slotId,frameStart,frameEndExclusive})=>({slotId,frameStart,frameEndExclusive})),[
+  {slotId:'title-a',frameStart:10,frameEndExclusive:130},{slotId:'sub-a',frameStart:10,frameEndExclusive:130},
+  {slotId:'title-b',frameStart:130,frameEndExclusive:310},{slotId:'sub-b',frameStart:130,frameEndExclusive:310}]);
+});

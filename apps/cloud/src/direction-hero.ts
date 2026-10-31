@@ -33,13 +33,17 @@ export function supportsCanvasSubtitle(method:Json|null,context:Json):boolean{
  const facts=(context.facts??[]).filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',font.style);assertCanvasSubtitle(fact.text,'body',font.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
  return new Set(facts.map((fact:Json)=>fact.id)).size>=2;
 }
+export function supportsCanvasSubtitleSequence(method:Json|null,context:Json):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number);
+ return supportsCanvasSubtitle(method,context)&&(major>1||major===1&&minor>=47);
+}
 
 /** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
 export function directionHero(card:Json,context:Json,index:number):Json{
  const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','canvas-subtitle','hook-title','kinetic-title','cta-endcard','captions'];
+ const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','canvas-subtitle','canvas-subtitle-sequence','hook-title','kinetic-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':'ui-journey'):
   proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip'].includes(id))??
@@ -72,6 +76,11 @@ export function directionHero(card:Json,context:Json,index:number):Json{
   const eligible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);assertCanvasSubtitle(fact.text,'body',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
   const second=eligible.find((fact:Json)=>fact.id!==eligible[0]?.id);if(!second)throw Error('CANVAS_SUBTITLE_FACT_REQUIRED');
   params={textSlot:text('headline',eligible[0]),subtitleSlot:text('supporting',second,'body')};
+ }
+ else if(block==='canvas-subtitle-sequence'){
+  const eligible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);assertCanvasSubtitle(fact.text,'body',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
+  const second=eligible.find((fact:Json)=>fact.id!==eligible[0]?.id);if(!second)throw Error('CANVAS_SUBTITLE_FACT_REQUIRED');
+  const pair=[eligible[0],second];params={items:[0,1].map(index=>({textSlot:text('headline-'+index,pair[index]),subtitleSlot:text('supporting-'+index,pair[1-index],'body'),startFrame:index*120}))};
  }
  else if(block==='canvas-sequence'){
   const admissible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});

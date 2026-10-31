@@ -9,7 +9,7 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes:boolean|'grapheme'=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'|'v4'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];number?:boolean;highlightFrame?:number;palette?:Record<string,string>;pages?:Array<{text:string;factIds:string[]}>;subtitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[]}},whiteboard=false,keynote:boolean|'highlight'=false){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes:boolean|'grapheme'=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'|'v4'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];number?:boolean;highlightFrame?:number;palette?:Record<string,string>;pages?:Array<{text:string;factIds:string[]}>;pairs?:Array<{text:string;factIds:string[];subtitle:{fontId:string;weight:number;style?:string;text:string;factIds:string[]}}>;subtitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[]}},whiteboard=false,keynote:boolean|'highlight'=false){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(whiteboard&&(canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
@@ -84,7 +84,14 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'whiteboard-clip@1',params:{assetKey:'health',textSlot:'headline'},purpose:'Probe original whiteboard image reveal.'}];
  }
  if(canvasTitle){
-  if(canvasTitle.subtitle){
+  if(canvasTitle.pairs){
+   if(canvasTitle.pages||canvasTitle.subtitle||canvasTitle.number||canvasTitle.highlightFrame!==undefined||canvasTitle.pairs.length<2||canvasTitle.pairs.length>3)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
+   const first=canvasTitle.pairs[0]!.subtitle,body=context.fonts?.find((face:Json)=>face.fontId===first.fontId&&face.weight===first.weight&&(face.style??'normal')===(first.style??'normal'));
+   if(!body||canvasTitle.pairs.some(pair=>pair.subtitle.fontId!==first.fontId||pair.subtitle.weight!==first.weight||(pair.subtitle.style??'normal')!==(first.style??'normal')))throw Error('DIRECTOR_INPUT_INVALID');
+   film.style.type.text={fontId:body.fontId,weight:body.weight,...(body.style?{style:body.style}:{})};
+   film.texts=Object.fromEntries(canvasTitle.pairs.flatMap((pair,index)=>[['headline-'+index,{text:pair.text,role:'headline',factIds:pair.factIds}],['supporting-'+index,{text:pair.subtitle.text,role:'body',factIds:pair.subtitle.factIds}]]));
+   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-subtitle-sequence@1',params:{items:canvasTitle.pairs.map((_,index)=>({textSlot:'headline-'+index,subtitleSlot:'supporting-'+index,startFrame:index*120}))},purpose:'Probe each bound Canvas title and supporting sentence.'}];
+  }else if(canvasTitle.subtitle){
    if(canvasTitle.pages||canvasTitle.number||canvasTitle.highlightFrame!==undefined)throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
    const body=context.fonts?.find((face:Json)=>face.fontId===canvasTitle.subtitle!.fontId&&face.weight===canvasTitle.subtitle!.weight&&(face.style??'normal')===(canvasTitle.subtitle!.style??'normal'));
    if(!body)throw Error('DIRECTOR_INPUT_INVALID');film.style.type.text={fontId:body.fontId,weight:body.weight,...(body.style?{style:body.style}:{})};
@@ -108,7 +115,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
  const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):voxClip==='highlight'?84:voxClip?135:whiteboard?105:keynote==='highlight'?84:keynote?165:45;
- const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):canvasTitle?.number?[0,45]:canvasTitle?.highlightFrame!==undefined?[45,canvasTitle.highlightFrame+24]:[probeFrame];
+ const probeFrames=canvasTitle?.pairs?canvasTitle.pairs.map((_,index)=>45+index*120):canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):canvasTitle?.number?[0,45]:canvasTitle?.highlightFrame!==undefined?[45,canvasTitle.highlightFrame+24]:[probeFrame];
  const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:objectStudio||customStudio?'standard-4':'standard-3',taskId,generation:op.generation,
   deadlineAt:Math.min(deadlineAt,Date.now()+90000),imageDigest:release.image_digest,
   job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash:filmSourceHash(canonical(film),sources),
@@ -130,12 +137,13 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    if(sceneScopedObservation||canvasTitle&&!canvasTitle.number||canvasTitle?.number&&frameIndex>=30||whiteboard){
     const response=await owner.checkFrame(op.id,frameIndex);if(!response.ok)throw Error('RENDER_PREFLIGHT_FAILED');
     const checked=parseCanonicalJson(await response.text()) as Json,observation=checked.observation;
-    const slotId=canvasTitle?.pages?'headline-'+index:'headline',text=canvasTitle?.pages?.[index]?.text??canvasTitle?.text;
+    const slotId=canvasTitle?.pages||canvasTitle?.pairs?'headline-'+index:'headline',text=canvasTitle?.pairs?.[index]?.text??canvasTitle?.pages?.[index]?.text??canvasTitle?.text;
     if(!validObservation(observation)||observation.renderId!==taskId||observation.aspectId!==aspect||observation.frame!==frameIndex
       ||!observation.texts.some((item:Json)=>item.sceneId==='health'&&item.slotId===slotId))throw Error('RENDER_OBSERVATION_SCOPE_UNAVAILABLE');
     if((canvasTitle||whiteboard||customScenes==='grapheme')&&(!observation.texts.some((item:Json)=>item.sceneId==='health'&&item.slotId===slotId&&item.text===(text??'Render health check')&&!item.clipped&&!item.covered&&!item.fallbackUsed)
       ||observation.findings.some((finding:Json)=>finding.severity==='BLOCK')))throw Error(customScenes==='grapheme'?'RENDER_TEXT_SPLIT_UNAVAILABLE':'RENDER_CANVAS_TEXT_UNAVAILABLE');
-    if(canvasTitle?.subtitle&&!observation.texts.some((item:Json)=>item.sceneId==='health'&&item.slotId==='supporting'&&item.text===canvasTitle.subtitle!.text&&!item.clipped&&!item.covered&&!item.fallbackUsed))throw Error('RENDER_CANVAS_TEXT_UNAVAILABLE');
+    const subtitle=canvasTitle?.pairs?.[index]?.subtitle??canvasTitle?.subtitle,subtitleSlot=canvasTitle?.pairs?'supporting-'+index:'supporting';
+    if(subtitle&&!observation.texts.some((item:Json)=>item.sceneId==='health'&&item.slotId===subtitleSlot&&item.text===subtitle.text&&!item.clipped&&!item.covered&&!item.fallbackUsed))throw Error('RENDER_CANVAS_TEXT_UNAVAILABLE');
     if(assetScopedObservation&&(!Array.isArray(observation.assets)||!observation.assets.some((item:Json)=>item.sceneId==='health'&&item.resourceId===asset.resourceId&&item.visibility==='visible')))
      throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
    }

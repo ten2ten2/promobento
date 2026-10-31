@@ -217,6 +217,8 @@ mise exec -- node research/evals/approved-artwork.mjs \
 
 网页下载先核对全部许可，不跟随重定向、拒绝私网地址；原文件和转换结果同样须查看并重建核对。此入口不是任意客户上传。 本机有 Chrome 时，可用 `mise exec -- node --test research/evals/approved-artwork.test.mjs` 验证隔离解码和重建；该专项不替代 staging 真实素材验收。
 
+增强页面观察会列出可见内联 SVG 的唯一结构选择器，以及 SVG 图片和小图候选；跨屏去重，仅供人工查找，观察不提取素材文件，也不构成素材批准。
+
 网页源码中的内联 SVG 可使用 `--inline`：事实卡逐项批准 `sourceUrl`、选择器 `selector` 和该 SVG 经浏览器 `XMLSerializer` 序列化后的字节 `sha256`；清单提供同一 `selector`、`sourceUrl`、`approvalRef` 和 `description`。选择器只接受简单 ID 或观察结果提供的结构路径，必须恰好命中一个 SVG。工具先核对全部批准，再获取静态 UTF-8 HTML 并在离线浏览器中解析，不执行网页脚本；单页上限 4 MiB、同批网页合计上限 16 MiB。动态插入的 SVG 不会被自动替代。命中的源字节须与批准身份一致，之后沿用上述安全 SVG、审看、重建和权利登记流程。
 
 ```sh

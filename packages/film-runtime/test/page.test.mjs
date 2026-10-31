@@ -99,6 +99,15 @@ test('an original Canvas title and subtitle have separate confirmed slots and fo
  const role=structuredClone(film);role.texts.sub.role='headline';assert.throws(()=>make(role,opts),/CANVAS_SUBTITLE_TEXT_UNSUPPORTED/);
  const unbound=structuredClone(film);unbound.texts.sub.factIds=[];assert.throws(()=>make(unbound,opts),/CANVAS_SUBTITLE_FACT_REQUIRED/);
 });
+test('each Canvas sequence page requires a distinct confirmed title and supporting slot',()=>{
+ const film=filmFixture();film.assets={};film.texts={title:{text:'HELLO',role:'headline',factIds:['fixture-cta']},sub:{text:'Real product',role:'body',factIds:['fixture-cta']},title2:{text:'WORLD',role:'headline',factIds:['fixture-cta']},sub2:{text:'Next step',role:'body',factIds:['fixture-cta']}};
+ film.scenes=[{id:'intro',start:0,end:450,kind:'block',block:'canvas-subtitle-sequence@1',params:{items:[{textSlot:'title',subtitleSlot:'sub',startFrame:0},{textSlot:'title2',subtitleSlot:'sub2',startFrame:120}]},purpose:'Two exact pages.'}];
+ const opts=options();opts.resources=[];assert.doesNotThrow(()=>make(film,opts));
+ const same=structuredClone(film);same.scenes[0].params.items[1].subtitleSlot='title2';assert.throws(()=>make(same,opts),/CANVAS_SUBTITLE_SLOTS_INVALID/);
+ const role=structuredClone(film);role.texts.sub2.role='headline';assert.throws(()=>make(role,opts),/CANVAS_SUBTITLE_TEXT_UNSUPPORTED/);
+ const unbound=structuredClone(film);unbound.texts.sub2.factIds=[];assert.throws(()=>make(unbound,opts),/CANVAS_SUBTITLE_FACT_REQUIRED/);
+ const short=structuredClone(film);short.scenes[0].params.items[1].startFrame=90;assert.throws(()=>make(short,opts),/CANVAS_SEQUENCE_READING_HOLD_MISSING/);
+});
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{
   const spec=filmFixture();assert.deepEqual(frameLayers(spec.scenes,0).map(x=>x.id),['hook']);
   assert.deepEqual(frameLayers(spec.scenes,120).map(x=>x.id),['hook','product']);
