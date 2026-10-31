@@ -75,11 +75,16 @@ try{
     assert.ok(compareSeam(start,settled).diffPixelPct>.01,`${aspect} title actually moves`);assert.notEqual(compareSeam(start,reverse).verdict,'RENDER_SEAM_BLOCK');
    }finally{await split.close();}
   }
-  const styleOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'}),piece=title.querySelector('.pb-grapheme');piece.style.fontFamily='serif';piece.style.color=ctx.style.palette.bg;")}};
+  const styleOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'}),piece=title.querySelector('.pb-grapheme');piece.style.fontFamily='serif';piece.style.color='#555555';")}};
   const styled=await filmSession({raw:JSON.stringify(splitFilm),options:styleOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
   try{writeFileSync(`${output}/grapheme-style.png`,await styled.frame(45,{format:'png'}));const observation=await styled.observe('grapheme-style',45),details=JSON.stringify(observation);
    assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FALLBACK_USED'),details);assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FACE_MISMATCH'),details);assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='low-contrast'),details);
   }finally{await styled.close();}
+  const invisibleOptions={...styleOptions,customSources:{'scenes/product/index.js':styleOptions.customSources['scenes/product/index.js'].replace("piece.style.color='#555555'","piece.style.color=ctx.style.palette.bg")}};
+  const invisible=await filmSession({raw:JSON.stringify(splitFilm),options:invisibleOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await invisible.frame(45,{format:'png'});const observation=await invisible.observe('grapheme-invisible',45);
+   assert.ok(observation.findings.some(item=>item.slotId==='product'&&(item.code==='low-contrast'||item.code==='text-clipped'&&['Nested text has no visible layout bounds.','Nested text foreground or background is unavailable.'].includes(item.detail))),JSON.stringify(observation));
+  }finally{await invisible.close();}
   const combinedFilm=structuredClone(splitFilm);combinedFilm.texts.product.text='A\u0301 B';
   const combinedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelectorAll('.pb-grapheme').length!==2)throw Error('GRAPHEME_SPLIT_INVALID');")}};
   const combined=await filmSession({raw:JSON.stringify(combinedFilm),options:combinedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});

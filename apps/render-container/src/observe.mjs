@@ -78,9 +78,6 @@ export async function observe(cdp, plan, renderId, frame) {
     // a child may be transparent, clipped or translated outside the viewport.
     for(const piece of textNodes){
       if(parent(piece.index)===node||!piece.text.trim())continue;
-      const pieceRow=rowFor.get(piece.index),bounds=pieceRow===undefined?null:layout.bounds[pieceRow];
-      if(!bounds||bounds[2]<=0||bounds[3]<=0){markClipped('Nested text has no visible layout bounds.');continue;}
-      const [px,py,pw,ph]=bounds;
       const nestedForeground=color(style(parent(piece.index),'color'));let nestedBackground;
       for(let current=parent(piece.index);current>=0;current=parent(current)){const candidate=color(style(current,'background-color'));if(candidate?.alpha===1){nestedBackground=candidate.rgb;break;}}
       if(!nestedForeground||!nestedBackground)markClipped('Nested text foreground or background is unavailable.');
@@ -89,6 +86,9 @@ export async function observe(cdp, plan, renderId, frame) {
         const rgb=nestedForeground.rgb.map((value,index)=>value*nestedForeground.alpha+nestedBackground[index]*(1-nestedForeground.alpha));
         ratio=Math.min(ratio,contrast(rgb,nestedBackground));
       }
+      const pieceRow=rowFor.get(piece.index),bounds=pieceRow===undefined?null:layout.bounds[pieceRow];
+      if(!bounds||bounds[2]<=0||bounds[3]<=0){markClipped('Nested text has no visible layout bounds.');continue;}
+      const [px,py,pw,ph]=bounds;
       if(px<0||py<0||px+pw>plan.target.width+1||py+ph>plan.target.height+1)markClipped(`Nested text [${rect(bounds)}] extends outside the frame.`);
       if(px<plan.target.width*safe.left-2||py<plan.target.height*safe.top-2
         ||px+pw>plan.target.width*(1-safe.right)+2||py+ph>plan.target.height*(1-safe.bottom)+2)insideSafeArea=false;
