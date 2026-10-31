@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {filmObservationFrames} from '../../../packages/blocks/src/events.mjs';
 import {checkShardObservations} from '../src/render-observations.ts';
+import {validate as validObservation} from '@promobento/contracts/validators/frame-observation';
 import {webglFixture} from '../../../packages/film-runtime/test/webgl-fixture.mjs';
 
 test('24 short shards cover exact global reading holds; missing/duplicate/wrong-scope/BLOCK observations still fail',()=>{
@@ -26,5 +27,7 @@ test('24 short shards cover exact global reading holds; missing/duplicate/wrong-
  for(const bad of[[good,good],[{...good,renderId:'other-render'}],[{...good,aspectId:'portrait'}],[{...good,frame:46}]])
   assert.throws(()=>checkShardObservations(job,shard,film,bad),/QA_OBSERVATION_SCOPE_INVALID/);
  assert.throws(()=>checkShardObservations(job,shard,film,[{...good,findings:[{code:'text-clipped',severity:'BLOCK'}]}]),/QA_BLOCK/);
+ const wrongFace={...good,findings:[{code:'FONT_FACE_MISMATCH',severity:'BLOCK',detail:'A grapheme uses a different bound face.'}]};
+ assert.equal(validObservation(wrongFace),true);assert.throws(()=>checkShardObservations(job,shard,film,[wrongFace]),/QA_BLOCK/);
  assert.throws(()=>checkShardObservations(job,shards.find(result=>result.report.start===0).report,film,[good]),/QA_OBSERVATION_SCOPE_INVALID/);
 });

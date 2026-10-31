@@ -1,6 +1,6 @@
 /** Trusted CDP snapshot and platform-font inspection; no page-supplied QA booleans. */
 export async function observe(cdp, plan, renderId, frame) {
-  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight',
+  const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight','font-family','font-style',
     ...(plan.observeAssets ? ['mask-image', 'filter', 'pointer-events', 'background-image', 'box-shadow', 'outline-style',
       'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style', 'border-image-source', 'backdrop-filter'] : [])];
   const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', {computedStyles: names, includePaintOrder: true});
@@ -41,6 +41,10 @@ export async function observe(cdp, plan, renderId, frame) {
     const descendants=textNodes.map(item=>item.text).join('');
     const missingGlyphs = [...descendants].filter(character => !/[\s\u200d\ufe0e\ufe0f]/u.test(character) && !coverage.has(character.codePointAt(0))).length;
     const nestedParents=[...new Set(textNodes.filter(piece=>piece.text.trim()&&parent(piece.index)!==node).map(piece=>parent(piece.index)))];
+    const faceMismatch=Boolean(graphemeScene&&[...new Set(textNodes.filter(piece=>piece.text.trim()).map(piece=>parent(piece.index)))].some(index=>{
+      const family=(style(index,'font-family')??'').split(',')[0].trim().replace(/^(['"])(.*)\1$/,'$2');
+      return family!=='PB-'+ref.fontId||Number.parseFloat(style(index,'font-weight'))!==ref.weight||style(index,'font-style')!==(ref.style??'normal');
+    }));
     const {nodeIds} = await cdp.send('DOM.pushNodesByBackendIdsToFrontend', {backendNodeIds: [node,...nestedParents].map(index=>nodes.backendNodeId[index])});
     if(nodeIds.length!==nestedParents.length+1||nodeIds.some(id=>!id))throw Error('FONT_OBSERVATION_UNAVAILABLE');
     const fontResults=await Promise.all(nodeIds.map(nodeId=>cdp.send('CSS.getPlatformFontsForNode',{nodeId})));
@@ -121,9 +125,9 @@ export async function observe(cdp, plan, renderId, frame) {
       fallbackUsed, missingGlyphs, contrastRatio: Math.max(1, Math.min(21, ratio)), largeText,
       insideSafeArea, clipped, covered});
     regions.push({regionId: slotId, box});
-    for (const [condition, code] of [[fallbackUsed, 'FONT_FALLBACK_USED'], [missingGlyphs > 0, 'FONT_GLYPH_MISSING'],
+    for (const [condition, code] of [[fallbackUsed, 'FONT_FALLBACK_USED'], [faceMismatch, 'FONT_FACE_MISMATCH'], [missingGlyphs > 0, 'FONT_GLYPH_MISSING'],
       [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < (largeText?3:4.5), 'low-contrast']])
-      if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId,...(code==='text-clipped'&&clipDetail?{detail:clipDetail}:{})});
+      if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId,...(code==='text-clipped'&&clipDetail?{detail:clipDetail}:code==='FONT_FACE_MISMATCH'?{detail:'A grapheme uses a different font family, weight or style than its bound face.'}:{})});
   }
   if(customIds.size)for(const [node,row]of rowFor){
     if(nodes.nodeType[node]!==3||!strings[nodes.nodeValue[node]]?.trim())continue;

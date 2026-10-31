@@ -59,7 +59,7 @@
       "type": "array", "maxItems": 200,
       "items": {"type": "object", "additionalProperties": false, "required": ["code", "severity"],
         "properties": {
-          "code": {"enum": ["text-cut", "text-clipped", "text-covered", "text-overlap", "blank-frame", "low-contrast", "unbound-text", "outside-safe-area", "FONT_FALLBACK_USED", "FONT_GLYPH_MISSING", "TEXT_FIT_FAILED"]},
+          "code": {"enum": ["text-cut", "text-clipped", "text-covered", "text-overlap", "blank-frame", "low-contrast", "unbound-text", "outside-safe-area", "FONT_FALLBACK_USED", "FONT_FACE_MISMATCH", "FONT_GLYPH_MISSING", "TEXT_FIT_FAILED"]},
           "severity": {"enum": ["BLOCK", "REVIEW"]},
           "slotId": {"oneOf": [{"type": "string", "maxLength": 48}, {"type": "null"}]},
           "detail": {"type": "string", "maxLength": 300}

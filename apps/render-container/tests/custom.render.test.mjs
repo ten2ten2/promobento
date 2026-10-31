@@ -75,7 +75,7 @@ try{
   const styleOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'}),piece=title.querySelector('.pb-grapheme');piece.style.fontFamily='serif';piece.style.color=ctx.style.palette.bg;")}};
   const styled=await filmSession({raw:JSON.stringify(splitFilm),options:styleOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
   try{await styled.frame(45,{format:'png'});const observation=await styled.observe('grapheme-style',45);
-   assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FALLBACK_USED'));assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='low-contrast'));
+   assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FALLBACK_USED'));assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='FONT_FACE_MISMATCH'));assert.ok(observation.findings.some(item=>item.slotId==='product'&&item.code==='low-contrast'));
   }finally{await styled.close();}
   const combinedFilm=structuredClone(splitFilm);combinedFilm.texts.product.text='A\u0301 B';
   const combinedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelectorAll('.pb-grapheme').length!==2)throw Error('GRAPHEME_SPLIT_INVALID');")}};

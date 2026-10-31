@@ -9,7 +9,7 @@ function observation(size,weight,background){
     layout:{nodeIndex:[0,1],bounds:[[0,0,1920,1080],[50,50,100,40]],styles:[]}}]};
   const cdp={async send(method,input){
     if(method==='DOMSnapshot.captureSnapshot'){
-      const values={'font-size':size+'px','font-weight':String(weight),color:'rgb(255, 255, 255)',
+      const values={'font-size':size+'px','font-weight':String(weight),'font-family':'\"PB-test\"','font-style':'normal',color:'rgb(255, 255, 255)',
         'background-color':'rgba(0, 0, 0, 0)',visibility:'visible',display:'block',opacity:'1',overflow:'visible'};
       snapshot.documents[0].layout.styles=[input.computedStyles.map(name=>s(name==='background-color'?background:values[name])),input.computedStyles.map(name=>s(values[name]))];
       return snapshot;
@@ -41,7 +41,7 @@ test('CDP font size and weight select the original 3:1 large / 4.5:1 ordinary co
   }
 });
 
-async function nestedTextObservation({opacity='1',transparent=false,outside=false,clippedByChild=false,missingLayout=false,nestedFallback=false,nestedMissingFont=false,nestedColor,grapheme=false,missingFontNode=false}={}){
+async function nestedTextObservation({opacity='1',transparent=false,outside=false,clippedByChild=false,missingLayout=false,nestedFallback=false,nestedMissingFont=false,nestedColor,nestedFamily,grapheme=false,missingFontNode=false}={}){
  const strings=[],s=value=>{let i=strings.indexOf(value);if(i<0){i=strings.length;strings.push(value);}return i;};
  const nodes={parentIndex:[-1,0,1,1,3],nodeType:[1,1,3,1,3],nodeValue:['','','Te','','xt'].map(s),backendNodeId:[100,101,102,103,104],
   attributes:[grapheme?[s('data-scene'),s('product')]:[],[s('data-pb-slot'),s('label')],[],[],[]]};
@@ -49,8 +49,8 @@ async function nestedTextObservation({opacity='1',transparent=false,outside=fals
   ...(missingLayout?[]:[[outside?2000:90,50,30,40]])],styles:[]};
  const cdp={async send(method,input){
   if(method==='DOMSnapshot.captureSnapshot'){
-   const styles={'font-size':'36px','font-weight':'600',color:'rgb(0, 0, 0)','background-color':'rgb(255, 255, 255)',visibility:'visible',display:'block',opacity:'1',overflow:'visible'};
-   layout.styles=layout.nodeIndex.map(node=>input.computedStyles.map(name=>s(node===3&&name==='opacity'?opacity:node===3&&name==='color'&&transparent?'rgba(0, 0, 0, 0)':node===3&&name==='color'&&nestedColor?nestedColor:node===3&&name==='overflow'&&clippedByChild?'hidden':styles[name])));
+   const styles={'font-size':'36px','font-weight':'600','font-family':'\"PB-test\"','font-style':'normal',color:'rgb(0, 0, 0)','background-color':'rgb(255, 255, 255)',visibility:'visible',display:'block',opacity:'1',overflow:'visible'};
+   layout.styles=layout.nodeIndex.map(node=>input.computedStyles.map(name=>s(node===3&&name==='opacity'?opacity:node===3&&name==='color'&&transparent?'rgba(0, 0, 0, 0)':node===3&&name==='color'&&nestedColor?nestedColor:node===3&&name==='font-family'&&nestedFamily?nestedFamily:node===3&&name==='overflow'&&clippedByChild?'hidden':styles[name])));
    return{strings,documents:[{nodes,layout}]};
   }
   if(method==='DOM.pushNodesByBackendIdsToFrontend')return{nodeIds:missingFontNode?[input.backendNodeIds[0],0]:input.backendNodeIds};
@@ -75,6 +75,7 @@ test('a nested glyph that is transparent, clipped or translated out of frame can
  assert.equal((await nestedTextObservation({opacity:'.5'})).texts[0].clipped,false);
  assert.equal((await nestedTextObservation({opacity:'.5',grapheme:true})).texts[0].clipped,true);
  await assert.rejects(nestedTextObservation({missingFontNode:true}),/FONT_OBSERVATION_UNAVAILABLE/);
+ const wrongFace=await nestedTextObservation({grapheme:true,nestedFamily:'\"PB-other\"'});assert.equal(wrongFace.texts[0].fallbackUsed,false);assert.ok(wrongFace.findings.some(f=>f.code==='FONT_FACE_MISMATCH'));
  const lowContrast=await nestedTextObservation({nestedColor:'rgb(220, 220, 220)'});assert.ok(lowContrast.findings.some(f=>f.code==='low-contrast'));
 });
 
