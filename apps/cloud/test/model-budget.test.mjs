@@ -29,6 +29,7 @@ test('historical primary reports inventory every request; unknown prices/usage n
  const different={...history,sources:['different inventory']};await assert.rejects(budget.importModelOpening(env,different),/MODEL_OPENING_CONFLICT/);
 });
 test('temporary history allowance preserves unknown opening, holds $5, caps cumulative new spend at $10 and never enables production',async t=>{
+ const actualNow=Date.now;t.after(()=>{Date.now=actualNow;});Date.now=()=>Date.parse('2026-10-31T12:00:00+08:00');
  const{env,shared}=await fixture(t,false,historicalModelSpend());
  const before=await budget.modelBudgetStatus(env);assert.equal(before.budgetBasis,'provisional');assert.equal(before.openingConfirmed,false);assert.equal(before.openingMicros,null);
  assert.equal(before.budgetedHistoryMicros,5000000);assert.equal(before.admissionLimitMicros,15000000);assert.equal(before.limitMicros,300000000);

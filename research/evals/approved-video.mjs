@@ -48,11 +48,19 @@ async function openBrowser(){
 }
 async function extractVideo({page,version},source,mediaType){
  sourceSignature(source,mediaType);
+ if(mediaType==='image/gif'){
+  // WebCodecs is secure-context-only. This origin is fulfilled entirely by
+  // Playwright; the context-wide route still blocks every real network request.
+  const origin='http://127.0.0.1/promobento-animation-decoder';
+  await page.route(origin,route=>route.fulfill({status:200,contentType:'text/html',body:`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`}));
+  try{await page.goto(origin,{waitUntil:'load',timeout:15000});}finally{await page.unroute(origin);}
+ }
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
   if(window.__pbAnimatedDecoder){window.__pbAnimatedDecoder.close();window.__pbAnimatedDecoder=null;}
   if(mediaType==='image/gif'){
-   if(typeof ImageDecoder!=='function'||!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_DECODER_UNAVAILABLE');
+   if(typeof ImageDecoder!=='function')throw Error(isSecureContext?'ANIMATED_DECODER_UNAVAILABLE':'ANIMATED_DECODER_INSECURE_CONTEXT');
+   if(!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_GIF_UNSUPPORTED');
    const decoder=new ImageDecoder({data:buffer,type:mediaType,preferAnimation:true});await decoder.completed;await decoder.tracks.ready;const track=decoder.tracks.selectedTrack;
    if(!track?.animated||track.frameCount<2||track.frameCount>1800){decoder.close();throw Error('ANIMATED_FRAME_COUNT_UNSUPPORTED');}
    const ends=[];let duration=0,width=0,height=0;
