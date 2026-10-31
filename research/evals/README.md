@@ -166,6 +166,15 @@ mise exec -- node research/evals/capture-materials.mjs artifacts/eval-materials-
 mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-2026-10-24
 ```
 
+本地项目可先生成候选清单：在该题事实卡的 `assetSources` 登记 `local_project_media` 来源后运行：
+
+```sh
+mise exec -- node research/evals/discover-local-materials.mjs \
+  artifacts/example-local-candidates <已批准题目ID> <本地项目目录> <登记的local来源URL>
+```
+
+`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；当前后续收集／入库只接收逐项批准的 PNG，其他格式仍需各自完成准入与处理。
+
 已有逐项批准的本地项目 PNG 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
 
 ```json
