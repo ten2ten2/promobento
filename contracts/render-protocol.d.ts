@@ -1,4 +1,5 @@
 /** Contract only; these types are not a browser or sandbox implementation. film-v1 pages: see film-runtime.d.ts. */
+import type {CanvasTextTrace} from './film-runtime.d.ts';
 export type DurationSeconds = 15 | 30;
 export type FrameCount = 450 | 900;
 /** New renders are per aspect. Historical targetId envelopes remain read-compatible, never mixed with aspectId. */
@@ -52,7 +53,9 @@ export interface Inspect extends Envelope {
   command: 'inspect'; frameIndex: number; x01: number; y01: number; previewEpoch?: number;
 }
 export interface Dispose extends Envelope { command: 'dispose' }
-export interface FrameReady extends Envelope { event: 'frame-ready'; frameIndex: number; manifestHash: Sha256 }
+export interface FrameReady extends Envelope { event: 'frame-ready'; frameIndex: number; manifestHash: Sha256;
+  /** Present only for the audited trusted Canvas-title path, including empty intervals. */
+  canvasTextTrace?: Array<CanvasTextTrace & {sceneId:string}> }
 /** Low-resolution nominal-time playback, including approximation of motion profiles; never QA evidence. */
 export interface PreviewFrameReady extends Envelope { event: 'preview-frame-ready'; frameIndex: number; manifestHash: Sha256; previewEpoch: number }
 /** A single sample barrier is not readiness of the averaged output frame. */

@@ -26,6 +26,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const rendered = performance.now();
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
   const frameDigests = [], frameCaptureMs = [], seamFrames = [], observations = [];
+  const hasCanvasText=session.plan.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
   // Settled reading holds. Dynamic/transition coverage is the separate S2 temporal QA pass.
   const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
   const motionFrames = new Set(filmMotionFrames(session.plan.spec,job.quality));
@@ -39,7 +40,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
       const jpeg = await session.frame(frame);
       frameCaptureMs.push(Math.round((performance.now() - captureStarted) * 1000) / 1000);
       await inRenderPhase({phase:'encoder_write',frame},()=>encoder.frame(jpeg, options.frameTimeoutMs));
-      frameDigests.push({frame, sha256: sha(jpeg)});
+      frameDigests.push({frame, sha256: sha(jpeg),...(hasCanvasText?{canvasText:session.canvasTextTrace(frame)}:{})});
       if (observeFrames.has(frame)) {
         observations.push(await inRenderPhase({phase:'frame_observation',frame},()=>session.observe(job.renderId, frame)));
         mkdirSync(join(directory, 'observation-frames'), {recursive: true});

@@ -7,6 +7,8 @@ import {canonical} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
+import {renderShard} from '../src/shard.mjs';
+import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
@@ -52,6 +54,26 @@ try{
    }
    report.assetObservation='hidden_then_visible';report.fadeThrough='no_cross_scene_text_overlap';report.sandbox=session.sandbox;
   }finally{await session.close();}
+  // The DOM still spells the approved slot when a nested span is transparent.
+  // Actual CDP must reject that frame rather than relying on the parent's box.
+  const hiddenTextSource=source.replace("ctx.text('product').mount(heading);",
+   "const slot=ctx.text('product').mount(heading),piece=document.createElement('span');slot.append(piece);piece.append(slot.firstChild);piece.style.opacity='0';");
+  const hiddenTextOptions={...options,customSources:{'scenes/product/index.js':hiddenTextSource}};
+  const hiddenText=await filmSession({raw:JSON.stringify(film),options:hiddenTextOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await hiddenText.frame(90,{format:'png'});const observation=await hiddenText.observe('nested-text-check',90);
+   assert.ok(observation.texts.some(text=>text.slotId==='product'&&text.clipped));
+   assert.ok(observation.findings.some(finding=>finding.code==='text-clipped'&&finding.severity==='BLOCK'));
+  }finally{await hiddenText.close();}report.nestedText='transparent_bound_glyphs_blocked_by_actual_cdp';
+  for(const [attack,expected]of [
+   ["heading.firstChild.firstChild.nodeValue='Unconfirmed claim';",/CUSTOM_TEXT_MISMATCH/],
+   ["heading.append('Unbound claim');",/CUSTOM_TEXT_UNBOUND/]
+  ]){
+   const attackSource=source.replace("wrap.style.opacity=t<2?'0':'1';",`if(t>0){${attack}}wrap.style.opacity=t<2?'0':'1';`);
+   const attackOptions={...options,customSources:{'scenes/product/index.js':attackSource}};
+   const attackSession=await filmSession({raw:JSON.stringify(film),options:attackOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+   try{await assert.rejects(attackSession.frame(45,{format:'png'}),expected);}finally{await attackSession.close().catch(()=>{});}
+  }
+  report.everyFrameText='changed_and_unbound_dom_text_blocked_before_capture';
   // Approved JPEG and WebP bytes must decode through the same asset broker as PNG.
   const jpeg=Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAADAAIDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAL/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABgf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCAA5IH/9k=','base64'),webp=Buffer.from('UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoCAAMAAUAmJaACdLoB+AADsAD+rhf/NgVzXPv9/+8+fufP3Pn/CAAA','base64');
   const tiff=Buffer.alloc(26);tiff.write('II');tiff.writeUInt16LE(42,2);tiff.writeUInt32LE(8,4);tiff.writeUInt16LE(1,8);
@@ -196,8 +218,37 @@ try{
    try{await assert.rejects(session.frame(36),/RUNTIME_TEXT_FORBIDDEN/);report.attacks.push({name,blocked:true});}
    finally{await session.close().catch(()=>{});}
   }
+  const handoff=await open('landscape',"const d=ctx.root['owner'+'Document'],v=d['default'+'View'];if(typeof v['__pbTake'+'CanvasText']!=='undefined')throw Error('CANVAS_TEXT_CAPABILITY_LEAKED')");
+  try{await handoff.frame(36,{format:'png'});}finally{await handoff.close();}
   const clipShapes=await open('landscape',"ctx.CLIP.TY.marker(drawing,20,20,100,30,.5,'#ffffff')");
   try{await clipShapes.frame(36,{format:'png'});report.clipShapes='available';}finally{await clipShapes.close();}
+  const canvasFilm=filmFixture();canvasFilm.assets={};canvasFilm.texts={headline:{text:'HELLO',role:'headline',factIds:[]}};
+  canvasFilm.scenes=[{id:'title',kind:'block',block:'canvas-title@1',start:0,end:450,params:{textSlot:'headline'},purpose:'Original bound Canvas title fixture.'}];
+  for(const aspect of ['landscape','portrait']){
+   const canvasOptions=pageOptions(aspect,rules.aspectLayouts[aspect]);canvasOptions.resources=[];canvasOptions.fonts=multiOptions.fonts;
+   const canvasSession=await filmSession({raw:JSON.stringify(canvasFilm),options:canvasOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{const first=await canvasSession.frame(45,{format:'png'}),observation=await canvasSession.observe('canvas-title-check',45);
+    assert.ok(observation.texts.some(text=>text.slotId==='headline'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    await canvasSession.frame(90,{format:'png'});const reverse=await canvasSession.frame(45,{format:'png'});
+    assert.equal(compareSeam(first,reverse).verdict,'pass');writeFileSync(`${output}/canvas-title-${aspect}.png`,first);
+   }finally{await canvasSession.close();}
+  }
+  report.canvasTitle='bound_original_canvas_text_checked_against_actual_frame_landscape_portrait_reverse';
+  // Exercise the production encoder path, not just the in-browser trace: every
+  // encoded frame must survive in the receipt-bound trace file.
+  const shardOptions=pageOptions('landscape',rules.aspectLayouts.landscape);shardOptions.resources=[];shardOptions.fonts=multiOptions.fonts;
+  const shardJob={renderId:'canvas-trace-check',aspectId:'landscape',quality:'final',totalFrames:450,
+   renderProfile:{sampleCount:1,shutterAngle:0}},shard={index:0,start:30,end:60},shardDir=`${output}/canvas-trace-shard`;
+  const receipt=await renderShard({job:shardJob,shard,raw:JSON.stringify(canvasFilm),options:shardOptions,font,
+   resource:()=>{throw Error('UNEXPECTED_RESOURCE');},directory:shardDir,browserVersion:lock.browser.version,
+   imageDigest:process.env.PROMOBENTO_TEST_IMAGE_DIGEST,encoding:rules.encodingProfiles.mp4_h264_1080_v1,threads:2,killBrowser});
+  const traceBytes=readFileSync(`${shardDir}/frame-digests.json`),records=JSON.parse(traceBytes);
+  assert.equal(sha256Bytes(traceBytes),receipt.outputs.frameDigests);assertCanvasTextFrameDigests(canvasFilm,shard,'final',records);
+  const shardObservations=JSON.parse(readFileSync(`${shardDir}/observations.json`));
+  assert.ok(shardObservations.some(item=>item.frame===45&&item.texts.some(text=>text.text==='HELLO')));
+  assert.ok(shardObservations.every(item=>!item.findings.some(finding=>finding.severity==='BLOCK')));
+  report.canvasTitleShard='receipt_bound_trace_for_every_encoded_frame_and_actual_reading_hold';
   const rigFilm=filmFixture(),rigOptions=pageOptions('portrait',rules.aspectLayouts.portrait);
   rigFilm.assets={};rigFilm.scenes=[{id:'rig',kind:'custom',module:'scenes/rig/index.js',start:0,end:450,
    purpose:'Absolute-time camera path.',brief:'Move a real staged shape with the upstream camera rig.',

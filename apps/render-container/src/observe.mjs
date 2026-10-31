@@ -36,7 +36,8 @@ export async function observe(cdp, plan, renderId, frame) {
     const face = plan.fonts.find(face => face.fontId === ref.fontId && face.weight === ref.weight && face.style === (ref.style ?? 'normal'));
     if (!face?.codePoints) throw Error('FONT_CMAP_UNAVAILABLE');
     const coverage = new Set(face.codePoints);
-    const descendants = nodes.nodeValue.map((value, index) => nodes.nodeType[index] === 3 && ancestor(index, node) ? strings[value] : '').join('');
+    const textNodes=nodes.nodeValue.flatMap((value,index)=>nodes.nodeType[index]===3&&ancestor(index,node)?[{index,text:strings[value]??''}]:[]);
+    const descendants=textNodes.map(item=>item.text).join('');
     const missingGlyphs = [...descendants].filter(character => !/[\s\u200d\ufe0e\ufe0f]/u.test(character) && !coverage.has(character.codePointAt(0))).length;
     const {nodeIds} = await cdp.send('DOM.pushNodesByBackendIdsToFrontend', {backendNodeIds: [nodes.backendNodeId[node]]});
     const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId: nodeIds[0]});
@@ -47,13 +48,34 @@ export async function observe(cdp, plan, renderId, frame) {
     const foreground = color(style(node, 'color'));
     if (!background || !foreground) throw Error('CONTRAST_OBSERVATION_UNAVAILABLE');
     const ratio = contrast(foreground.rgb, background), safe = plan.target.safeInsets;
-    const insideSafeArea = x >= plan.target.width * safe.left - 2 && y >= plan.target.height * safe.top - 2
+    let insideSafeArea = x >= plan.target.width * safe.left - 2 && y >= plan.target.height * safe.top - 2
       && x + width <= plan.target.width * (1 - safe.right) + 2 && y + height <= plan.target.height * (1 - safe.bottom) + 2;
     let clipped = x < 0 || y < 0 || x + width > plan.target.width + 1 || y + height > plan.target.height + 1;
     for (let current = parent(node); current >= 0; current = parent(current)) {
       const parentRow = rowFor.get(current); if (parentRow === undefined || !['hidden', 'clip'].includes(style(current, 'overflow'))) continue;
       const [a, b, w, h] = layout.bounds[parentRow];
       if (x < a - 1 || y < b - 1 || x + width > a + w + 1 || y + height > b + h + 1) clipped = true;
+    }
+    // A slot can contain individually animated spans. The slot's bounding box
+    // and concatenated DOM text alone do not prove that every part is painted:
+    // a child may be transparent, clipped or translated outside the viewport.
+    for(const piece of textNodes){
+      if(parent(piece.index)===node||!piece.text.trim())continue;
+      const pieceRow=rowFor.get(piece.index),bounds=pieceRow===undefined?null:layout.bounds[pieceRow];
+      if(!bounds||bounds[2]<=0||bounds[3]<=0){clipped=true;continue;}
+      const [px,py,pw,ph]=bounds;
+      if(px<0||py<0||px+pw>plan.target.width+1||py+ph>plan.target.height+1)clipped=true;
+      if(px<plan.target.width*safe.left-2||py<plan.target.height*safe.top-2
+        ||px+pw>plan.target.width*(1-safe.right)+2||py+ph>plan.target.height*(1-safe.bottom)+2)insideSafeArea=false;
+      for(let current=parent(piece.index);current>=0;current=parent(current)){
+        if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||style(current,'opacity')==='0')clipped=true;
+        const pieceColor=color(style(current,'color'));if(current!==node&&pieceColor?.alpha===0)clipped=true;
+        const parentRow=rowFor.get(current);
+        if(parentRow!==undefined&&['hidden','clip'].includes(style(current,'overflow'))){
+          const [a,b,w,h]=layout.bounds[parentRow];if(px<a-1||py<b-1||px+pw>a+w+1||py+ph>b+h+1)clipped=true;
+        }
+        if(current===node)break;
+      }
     }
     // Hit-test the visible intersection, never an off-viewport center. Fully clipped text is
     // already a BLOCK above; absence of a hit inside the viewport is conservative occlusion review.

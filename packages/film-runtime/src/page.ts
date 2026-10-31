@@ -8,6 +8,7 @@ import { validate as validateBlockParams } from '@promobento/contracts/validator
 import { validate } from '@promobento/contracts/validators/film';
 import { blockCatalog, blockReferences } from '../../blocks/src/catalog.ts';
 import {blockEvents} from '../../blocks/src/events.mjs';
+import {assertCanvasTitle} from '../../blocks/src/canvas-title-validate.ts';
 import type { FilmSpec } from '../../../contracts/film-runtime.d.ts';
 import type { PageOptions, PagePlan } from './types.ts';
 
@@ -34,6 +35,8 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
   });
   if (result.errors.length) throw Error(result.errors.map(issue => issue.code + ':' + issue.path).join('; '));
   const target = {...options.target, safeInsets: {...options.target.safeInsets}};
+  const hasCanvasTitle=spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+  if(hasCanvasTitle&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED');
   if (!['landscape', 'portrait', 'feed', 'square'].includes(target.aspect) || target.fps !== 30 || target.totalFrames !== spec.totalFrames
     || !Number.isSafeInteger(target.width) || target.width < 1 || !Number.isSafeInteger(target.height) || target.height < 1
     || ![options.initTimeoutMs, options.frameTimeoutMs].every(value => Number.isSafeInteger(value) && value > 0)
@@ -51,6 +54,9 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     const references = blockReferences(scene.params);
     for (const id of references.texts) if (!Object.hasOwn(spec.texts, id)) throw Error('TEXT_SLOT_UNKNOWN');
     for (const id of references.assets) if (!Object.hasOwn(spec.assets, id)) throw Error('ASSET_SLOT_UNKNOWN');
+    if(scene.block==='canvas-title@1'){
+      const slot=spec.texts[String(scene.params.textSlot)]!;assertCanvasTitle(slot.text,slot.role,spec.style.type.display.style);
+    }
     if (scene.block === 'captions@1') {
       let end = -1;
       for (const cue of scene.params.cues as Array<{textSlot: string; start: number; end: number}>) {
@@ -137,6 +143,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
   const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'none'; media-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
   const css = [...new Map(fonts.map(font => [`${font.fontId}/${font.weight}/${font.style}`, font])).values()].map(font =>
     `@font-face{font-family:"PB-${font.fontId}";font-weight:${font.weight};font-style:${font.style};src:url("/f/${font.fontId}/${font.weight}-${font.style}.woff2") format("woff2");font-display:block}`).join('');
-  const html = `<!doctype html><html data-om-signature="off"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:${spec.style.palette.roles.bg}}#film{position:relative;width:${target.width}px;height:${target.height}px;overflow:hidden}</style><script src="/runtime/shim.js"></script><script defer src="/runtime/engine.js"></script><script defer src="/runtime/gsap.js"></script><script defer src="/runtime/compat.js"></script><script defer src="/runtime/blocks.js"></script>${usesWebgl?'<script defer src="/runtime/blocks-3d.js"></script>':''}${spec.scenes.filter(scene=>scene.kind==='custom').map(scene=>`<script defer src="/${scene.module}"></script>`).join('')}<script defer src="/runtime/boot.js"></script></head><body><main id="film"></main><script type="application/json" id="pb-plan">${safeJson(plan)}</script></body></html>`;
+  const display=spec.style.type.display,canvasFont=hasCanvasTitle?`@font-face{font-family:"PBC-${display.fontId}-${display.weight}";font-weight:400;font-style:normal;src:url("/f/${display.fontId}/${display.weight}-${display.style??'normal'}.woff2") format("woff2");font-display:block}`:'';
+  const html = `<!doctype html><html data-om-signature="off"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css}${canvasFont}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden}body{background:${spec.style.palette.roles.bg}}#film{position:relative;width:${target.width}px;height:${target.height}px;overflow:hidden}</style><script src="/runtime/shim.js"></script><script defer src="/runtime/engine.js"></script><script defer src="/runtime/gsap.js"></script><script defer src="/runtime/compat.js"></script><script defer src="/runtime/blocks.js"></script>${usesWebgl?'<script defer src="/runtime/blocks-3d.js"></script>':''}${spec.scenes.filter(scene=>scene.kind==='custom').map(scene=>`<script defer src="/${scene.module}"></script>`).join('')}<script defer src="/runtime/boot.js"></script></head><body><main id="film"></main><script type="application/json" id="pb-plan">${safeJson(plan)}</script></body></html>`;
   return {html, csp, plan};
 }

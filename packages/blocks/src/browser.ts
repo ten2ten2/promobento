@@ -8,6 +8,8 @@ import {journeyPose} from './journey-motion.ts';
 import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
 import {carriedPose,componentPose,readingPose,relayFit,relayPageOffset,relayPageOpacity,relayVisible,returnPose} from './component-relay.ts';
 import {createClipStage} from '../../film-runtime/src/clip/stage.js';
+import {boundCanvasTitle,type CanvasTitleTrace} from './canvas-title.ts';
+import {assertCanvasTitle} from './canvas-title-validate.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -39,7 +41,9 @@ window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({i
   const events=blockEvents('vox-clip',ctx.frames,params),images:Record<string,HTMLImageElement>=Object.create(null);
   const ready=Promise.all(params.items.map(async item=>{
     const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('VOX_CLIP_IMAGE_REQUIRED');
-    const image=new Image();image.src=asset.url;await image.decode();images[item.assetKey]=image;
+    const image=new Image();image.src=asset.url;await image.decode();
+    if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');
+    images[item.assetKey]=image;
   })).then(()=>{});
   const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
   Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
@@ -52,6 +56,40 @@ window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({i
   });
   return{ready:prepared,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);},events,
     regions:[region('product',canvas,ctx.root)]};
+}});
+
+// One short, fact-bound title through the original y5 Canvas grammar. This
+// narrowly audited path has no custom scenes, nested clips, captions or numbers.
+window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',build(ctx,params){
+  const slot=ctx.text(params.textSlot),font=ctx.style.type.display,text=slot.text;
+  assertCanvasTitle(text,slot.role,font.style);
+  const family=`PBC-${font.fontId}-${font.weight}`,canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+  Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+  // This hidden span is solely a platform-font probe; actual text visibility
+  // is established separately by comparing Canvas pixels with the screenshot.
+  const fontProbe=document.createElement('span');fontProbe.dataset.pbCanvasFont='1';fontProbe.textContent=text;
+  Object.assign(fontProbe.style,{position:'absolute',left:'-10000px',top:'0',visibility:'hidden',whiteSpace:'pre',pointerEvents:'none'});ctx.root.append(fontProbe);
+  const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const without=document.createElement('canvas');without.width=canvas.width;without.height=canvas.height;const clean=without.getContext('2d');if(!clean)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  let stage:ReturnType<typeof createClipStage>|undefined,trace:CanvasTitleTrace|undefined,lastTime:number|undefined;
+  const ready=document.fonts.load(`normal 400 36px "${family}"`,text).then(faces=>{
+    if(!faces.length||faces.some(face=>face.status!=='loaded'))throw Error('CANVAS_TITLE_FONT_UNAVAILABLE');
+    stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,data:{palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
+      cues:[{kind:'title',at:0,text}]},{width:canvas.width,height:canvas.height,fontFamily:family});
+  });
+  const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
+    return{slotId:params.textSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
+  return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
+    stage.draw(boundCanvasTitle(paint,text,trace),time);if(trace.draws!==1||!trace.boxes.length)throw Error('CANVAS_TEXT_NOT_DRAWN');
+    fontProbe.style.font=trace.font;fontProbe.style.letterSpacing=trace.letterSpacing;lastTime=time;
+  },canvasTextTrace:currentTrace,canvasTextProof(){if(!stage||!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
+    stage.draw(boundCanvasTitle(clean,text,null),lastTime);
+    return{...currentTrace(),withText:canvas.toDataURL('image/png'),withoutText:without.toDataURL('image/png')};
+  },events:blockEvents('canvas-title',ctx.frames,params),regions:[{regionId:'headline',boxAt(){
+    if(!trace?.boxes.length)return null;const left=Math.min(...trace.boxes.map(box=>box.x)),top=Math.min(...trace.boxes.map(box=>box.y)),
+      right=Math.max(...trace.boxes.map(box=>box.x+box.width)),bottom=Math.max(...trace.boxes.map(box=>box.y+box.height));
+    return{x:left,y:top,width:right-left,height:bottom-top};
+  }}]};
 }});
 
 function cpuSurface(ctx:SceneContext){

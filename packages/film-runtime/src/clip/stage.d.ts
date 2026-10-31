@@ -8,4 +8,4 @@ export interface ClipStage {
 }
 export function createClipStage(spec:{grammar:string;duration:number;fps?:number;data:Record<string,unknown>;cues:ClipCue[];
   safe?:Partial<{top:number;bottom:number;left:number;right:number;fill:string}>;alpha?:boolean;theme?:Record<string,unknown>},
-  options:{width:number;height:number;images?:Record<string,CanvasImageSource>}):ClipStage;
+  options:{width:number;height:number;images?:Record<string,CanvasImageSource>;fontFamily?:string}):ClipStage;

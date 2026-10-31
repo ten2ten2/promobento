@@ -25,6 +25,10 @@
       "types": "./src/random.d.mts",
       "default": "./src/random.mjs"
     },
+    "./canvas-text": {
+      "types": "./src/canvas-text.d.mts",
+      "default": "./src/canvas-text.mjs"
+    },
     "./digest": {
       "types": "./src/digest.d.mts",
       "default": "./src/digest.mjs"

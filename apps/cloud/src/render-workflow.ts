@@ -70,7 +70,8 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
             ...(result.report.peakMemoryMiB===null?{peakMemoryUnavailableReason:result.report.peakMemoryUnavailableReason}:{})}))};
         const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport, peakMemory,
           observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/'))),
-          motionFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/motion-frames/')))};
+          motionFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/motion-frames/'))),
+          ...(film.scenes.some((scene:Json)=>scene.kind==='block'&&scene.block==='canvas-title@1')?{canvasTextTraces:shards.map(result=>output(result,'/frame-digests.json'))}:{})};
         let resultJson: string;
         try { resultJson=canonical(result); }
         catch {

@@ -60,3 +60,28 @@ test('QA failures drain started reads, stop new shards and retain the first fail
  await assert.rejects(verifyRenderShards(seam),/RENDER_SEAM_BLOCK/);
  const gl=fixture('webgl');delete gl.shards[0].report.webgl;await assert.rejects(verifyRenderShards(gl),/SHARD_WEBGL_REPORT_MISSING/);
 });
+
+test('Canvas title shards require complete plan-bound traces in the receipted frame digests',async()=>{
+ const f=fixture(),scene=f.film.scenes[0];scene.block='canvas-title@1';scene.params={textSlot:'headline'};
+ f.film.texts.headline.text='AB';
+ const trace={sceneId:scene.id,slotId:'headline',text:'AB',fontId:f.film.style.type.display.fontId,
+  weight:f.film.style.type.display.weight,style:'normal',fontSize:40,alpha:1,
+  boxes:[{x:1,y:1,width:2,height:3},{x:4,y:1,width:2,height:3}]};
+ const setRecords=(index,records)=>{
+  const bytes=new TextEncoder().encode(canonical(records)),key=index+'/frame-digests.json',sha256=sha256Bytes(bytes);
+  f.objects.set(key,bytes);const result=f.shards[index],ref={name:key,key,sha256,byteLength:bytes.length};
+  result.outputs=result.outputs.filter(item=>item.key!==key).concat(ref);result.report.outputs.frameDigests=sha256;
+ };
+ for(let i=0;i<f.shards.length;i++){
+  const {start,end}=f.partition.shards[i];setRecords(i,Array.from({length:end-start},(_,offset)=>{
+   const frame=start+offset;return{frame,sha256:'a'.repeat(64),canvasText:frame<scene.end?[trace]:[]};
+  }));
+ }
+ await verifyRenderShards(f);
+ const original=parseCanonicalJson(f.objects.get('0/frame-digests.json'));
+ setRecords(0,original.slice(1));await assert.rejects(verifyRenderShards(f),/CANVAS_TEXT_TRACE_MISSING/);
+ const altered=structuredClone(original);altered[0].canvasText[0].text='AC';setRecords(0,altered);
+ await assert.rejects(verifyRenderShards(f),/CANVAS_TEXT_TRACE_INVALID/);
+ setRecords(0,original);f.shards[0].report.outputs.frameDigests='0'.repeat(64);
+ await assert.rejects(verifyRenderShards(f),/SHARD_RECEIPT_INVALID/);
+});

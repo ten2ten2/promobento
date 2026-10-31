@@ -17,6 +17,8 @@ PID1只分离uid后降为10003，控制器10001、Chromium启动器／浏览器1
 | audio | 冻结AudioPlan合成一次、两遍loudnorm和实际母带测量，48kHz双声道；越界者至多一次补偿／过采样限幅，合格字节不改 |
 | studio | 只处理task允许的still／check帧，seek／截图／观测整次互斥；Worker管理许可／generation／关闭 |
 
+`canvas-title@1` 在每个编码源帧将受限可信绘制的文字、字体、透明度和逐字框写入 `frame-digests.json`，与该帧截图摘要一起受分段回执绑定；云端按冻结 FilmSpec 校验完整轨迹。阅读点另外检查实际截图是否与有字画布一致，并与无字画布比较文字像素；平台字体由 CDP 独立读取。读取点以外的像素可见性和完整动态 QA 尚未由这项检查证明，同片自写代码不受支持。
+
 分段和必要视频纠正使用平台一秒门槛70%的maxrate、20%的VBV buffer，目标码率不高于maxrate；仍实测滑窗，超标只重编码一次，复测失败阻断。不改变平台交付上限。
 
 assemble对**最终MP4的AAC解码信号**测响度／真峰／静音：任务从同一audio结果的受校验audio-report取得目标，历史直接assemble保持−14LUFS／−1dBTP默认。目标±0.5LU、真峰不高于上限；越界只从原WAV作一次补偿、4×过采样／延迟补偿限幅，再编码AAC、视频复制。余量按该次AAC相对WAV的峰值增量＋0.4dB，仍失败报OUTPUT_AUDIO_OUT_OF_RANGE。冻结母带不覆盖；media.audio保存最终与纠正前实测，reencoded仅指视频重编码。[实际超峰／云验](../../docs/evidence/2026-10-24-s1-director/README.md#当前修复所依据的反例)。
@@ -31,7 +33,7 @@ review 会按空开场、闪变、低运动区间的优先级，最多取两个�
 
 review保持30fps源时间轴，隔帧捕获完整逻辑尺寸JPEG92后由FFmpeg缩半尺寸／15fps；PNG由同一完整尺寸帧在宿主整数面积平均缩小，不用浏览器半比例截图。final为既定1080p／30fps；motion4/8未开放。视频只读授权PTS帧图，不使用video元素。
 
-filmObservationFrames生成全片阅读计划，再落各分段；没有计划点的短段保存空数组。Worker核对精确帧、身份和BLOCK，不以“数组非空”代替覆盖。custom文字观测附sceneId，方法据此核对阅读窗口visibleTextSlots；旧观测合同保留。
+filmObservationFrames生成全片阅读计划，再落各分段；没有计划点的短段保存空数组。Worker核对精确帧、身份和BLOCK，不以“数组非空”代替覆盖。custom文字观测附sceneId，方法据此核对阅读窗口visibleTextSlots；槽位内嵌套文字若被隐藏、裁切或移到画外，按实际 CDP 文字矩形阻断，不以父槽位完整字符串代替可见性。旧观测合同保留。
 
 自写素材的可信观测结合实际图片、可见样式、裁切和 CDP 命中；透明、无背景／边框／阴影等自身绘制的普通 DIV 不再单独遮挡命中判断，其子节点和伪元素仍分别检查。对于命中透明度为零的层，只有目标及裁切祖先的变换后四边形覆盖采样点、且绘制顺序排除后方遮挡时才确认可见。无法排除实际绘制、遮罩或遮挡时保持 `unverified`，不把它当作可见；不同画幅仍须分别核验。
 

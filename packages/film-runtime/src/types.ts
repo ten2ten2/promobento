@@ -1,4 +1,4 @@
-import type { AssetHandle, FilmSpec, Target, PB, SceneContext, MotionTimeline } from '../../../contracts/film-runtime.d.ts';
+import type { AssetHandle, CanvasTextProof, FilmSpec, Target, PB, SceneContext, MotionTimeline } from '../../../contracts/film-runtime.d.ts';
 import type { RendererCompositionBridge } from '../../../contracts/render-protocol.d.ts';
 
 export interface FontRecord {
@@ -33,10 +33,11 @@ export interface PrivateClock {
 }
 export interface SceneReadiness {open: boolean; pending: Promise<unknown>[]}
 export interface SceneSounds {open: boolean; declarations: import('@promobento/contracts/custom-source').CustomSfx[]; used: Set<number>}
-export interface FilmEngine extends RendererCompositionBridge { prepare(plan: PagePlan): Promise<void>;webglInfo():WebglInfo[] }
+export interface FilmEngine extends RendererCompositionBridge { prepare(plan: PagePlan): Promise<void>;webglInfo():WebglInfo[];canvasTextProof():Array<CanvasTextProof & {sceneId:string}> }
 declare global {
   interface Window {
     PB: PB; __omEngine: FilmEngine; __omTarget: Target; __omReady: boolean; __omBootFailed?: string;
+    __pbTakeCanvasText?:()=>unknown;
     __pbTakeClock?: () => PrivateClock;
     __pbTakeWebGLFactory?:()=>PrivateWebglFactory;
     __pbTakeWebGLInspector?:()=>()=>WebglInfo[];

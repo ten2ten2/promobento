@@ -28,6 +28,7 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 - `continuous-focus` 保持一段已清权图像或视频连续，按时间纯函数平滑取景，不生成鼠标或操作。`sourceStartFrame` 是叠加资源起点的 30 fps 源帧偏移；`focusTrack` 与可选 `aspectTracks` 用镜头局部帧和源画面归一化中心 `x/y`、`zoom` 定位，首帧须为 0、后续严格递增并在镜头内。未指定取景为画面中心。视频必须由调用方提供已清权 PTS 帧图；该镜头不负责上传、抽帧或自动追踪鼠标；源码中的内部导演方法 1.29 可传递已批准的本地／网页视频帧包，真实 staging 使用尚待验收。
 - `component-relay` 在第一张清权静态图中按 `focus:roi:n` 抬起真实区域的副本。`componentBehavior:return-to-source` 让只属于当前页面的细节回到原处后再接入不同页面；`carry` 将有明确关联的细节带到后续页面旁。省略该字段保留旧片的 `carry` 行为。回归原页的模式还在后续图片阅读时缓慢推进，不改动截图内容。原页面仍保留原组件，不伪装成真实操作；支持 2–4 张图、可选文字和按拍的落点／阅读间隔。区域必须完整落在图内，向外取整到源图像素后使用固定 Canvas CPU 取样，避免图片缩放缓存随 seek 历史改变；影片还需正常审片。不支持录屏、自动识别或精确抠出不规则轮廓。导演使用该镜头时只接受绑定素材观察中的原坐标，观察本身仍须按实际画面复核。
 - `kinetic-title` 和 `drawn-steps` 分别移植花叔的弹簧字卡和白板逐步绘制语法，文字仍走事实绑定槽位，不带原作角色、字体或示例素材。[来源和许可](../blocks/NOTICE.md)。
+- `canvas-title@1` 接入原版 y5 的单行标题画法，只接受非斜体、受限文字集的一个 headline 槽；同一片不能包含自写镜头。每个编码源帧记录与冻结文字、字体及字框绑定的轨迹；阅读点把实际截图与有字／无字的可信画布进行像素比较，并检查真实字体、缺字、对比度与安全区。它尚未开放给自动导演，也不开放任意 Canvas 文字或其他 y5 场景。[渲染检查范围](../../apps/render-container/README.md#四种模式)。
 - device-3d用Three.js0.186.1将清权静态图贴原创设备几何，不接视频纹理；仅3D页加载bundle。姿态是时间纯函数，无自主循环；ready等纹理／首帧，dispose释放资源和context。BlockInstance.ready/dispose可选，旧积木不需新增前置。[许可](../blocks/NOTICE.md)。
 - `object-studio@1` 将一张已清权静态图贴到原版圆角设备，使用移植的柔光环境、弧形背景和连续相机，画面为全幅舞台；可选 `textSlot` 作为简短的事实绑定 DOM 文字覆盖，主体仍占据主要画面。首帧等待原始图片解码并核对尺寸，渲染结束释放几何、纹理与 WebGL context。它是产品主体展示，不模拟产品操作；不接视频纹理或原版 GLB／SVG／HDR 加载器。[许可](../blocks/NOTICE.md)。
 
@@ -36,6 +37,8 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 ## 自写镜头：源码与规格分开
 
 custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(id,ctx=>({timeline}))`，支持DOM、SVG图形、Canvas2D、暂停GSAP／OM.clock，不允许任意依赖／导入。只在独立uid的容器Chromium沙箱求值，页面生成器／Worker／控制器不执行它。
+
+每次自写镜头帧就绪、截图前，引擎检查当前镜头的 DOM 文字是否仍属于真实 `ctx.text(...).mount(...)` 槽位且与该槽位原文一致；篡改文字、复制槽位节点或添加槽外文字会使帧失败。该检查覆盖未抽样的帧，但不证明逐字动画的可见性、字体或对比度；阅读点仍使用可信 CDP 观测，图片内文字及 Canvas／Shader 文字也不因此获得覆盖。
 
 `OM.camera` 和 `OM.space` 的字符串选择器先查当前镜头，再沿用文档范围回退；多个镜头复用原版模板的同名 ID 时，各自镜头优先。显式元素引用不变。连续 `OM.space.to` 只替换该镜头的相机驱动 tween，不终止作者时间线或保留重复驱动。
 
@@ -98,7 +101,7 @@ filmSourceHash、构建回执及分段身份包含全部模块原始字节；纯
 | `runtime_case=component-relay` | 四画幅组件抽离、页面接力及逆／冷 seek |
 | `runtime_case=focus-port` | 新镜头四画幅、PTS 源帧偏移及正向／逆向／冷 seek |
 | `runtime_case=custom` | 原创自写镜头、真实帧／CDP和定点故障，不重做媒体／配乐／G1 |
-| `runtime_case=custom-assets` | 自写图片实际可见／隐藏观察与CTA先退后进转场，不重做完整媒体／配乐 |
+| `runtime_case=custom-assets` | 自写图片／文字观察、CTA 转场，以及 Canvas 标题实帧、字体和分段编码轨迹；不重做完整媒体／配乐 |
 
 runtime_case均与suite=runtime一起使用。失败保留画幅／帧号／实际PNG和已完成项，容差仍最大通道差≤2且差异像素≤0.1%，不按测试结果放宽。
 

@@ -6,6 +6,7 @@ import {frameLayers} from '../src/motion.ts';
 import {blockCatalog} from '../../blocks/src/catalog.ts';
 import {createSchemaValidator,parseCanonicalJson} from '../../contracts/index.mjs';
 import {filmFixture,pageOptions} from './fixture.mjs';
+import {customFixture} from './custom-fixture.mjs';
 
 const rules=parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json',import.meta.url)));
 const options=()=>pageOptions('landscape',rules.aspectLayouts.landscape);
@@ -58,6 +59,18 @@ test('original Vox template accepts only cleared stills and preserves a final re
  assert.doesNotThrow(()=>make(film));
  const video=options();video.resources[0].kind='video';assert.throws(()=>make(film,video),/VOX_CLIP_IMAGE_REQUIRED/);
  film.scenes[0].params.items[1].assetKey='missing';assert.throws(()=>make(film),/ASSET_SLOT_UNKNOWN|ASSET_UNKNOWN/);
+});
+test('audited Canvas title accepts a bounded headline and refuses unproved scripts and mixed custom code',()=>{
+ const film=filmFixture();film.assets={};film.texts={headline:{text:'HELLO',role:'headline',factIds:[]}};
+ film.scenes=[{id:'title',start:0,end:450,kind:'block',block:'canvas-title@1',params:{textSlot:'headline'},purpose:'Synthetic Canvas headline.'}];
+ const opts=options();opts.resources=[];const page=make(film,opts);assert.match(page.html,/PBC-geist-sans-600/);
+ for(const text of ['a\u0301','مرحبا','A\nB','😀🏽']){const candidate=structuredClone(film);candidate.texts.headline.text=text;assert.throws(()=>make(candidate,opts),/CANVAS_TITLE_TEXT_UNSUPPORTED/);}
+ const wrongRole=structuredClone(film);wrongRole.texts.headline.role='body';assert.throws(()=>make(wrongRole,opts),/CANVAS_TITLE_TEXT_UNSUPPORTED/);
+ const mixed=customFixture();mixed.film.scenes[0].start=225;mixed.film.scenes[0].end=450;
+ mixed.film.scenes[0].params.events=[];mixed.film.scenes[0].params.readingHolds=[{start:0,end:225}];
+ mixed.film.scenes.unshift({...film.scenes[0],end:225});mixed.film.assets={};
+ const mixedOpts=options();mixedOpts.resources=[];mixedOpts.customSources=mixed.sources;
+ assert.throws(()=>make(mixed.film,mixedOpts),/CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED/);
 });
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{
   const spec=filmFixture();assert.deepEqual(frameLayers(spec.scenes,0).map(x=>x.id),['hook']);

@@ -165,7 +165,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const voxClipMethod=supportsVoxClip(methods,context.resources);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
+    const availableBlocks=blockCatalog.filter(block=>block.id!=='canvas-title'&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1'));
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};

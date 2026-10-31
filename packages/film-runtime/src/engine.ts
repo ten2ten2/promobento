@@ -3,6 +3,7 @@ import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, SceneConte
 import {customScenePlan} from '@promobento/contracts/custom-source';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
+import {createTextIntegrity} from './text-integrity.ts';
 import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
 
 const clock = window.__pbTakeClock?.();
@@ -13,6 +14,7 @@ const blocks = new Map<string, BlockDefinition>();
 const customScenes = new Map<string,(ctx:SceneContext)=>CustomScene>();
 const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>; postSeek: Map<(time: number) => void, number>}>();
 const fitters: Array<() => void> = [];
+const textIntegrity=createTextIntegrity();
 const textRegions = new Map<string, SceneRegion[]>();
 const requestIds = new Set<string>();
 const videoCache = new Map<string, ImageBitmap>();
@@ -68,6 +70,7 @@ function textSlot(slotId: string): TextSlotHandle {
       parent.append(el);
       const sceneRoot = el.closest<HTMLElement>('[data-scene]');
       if (!sceneRoot?.dataset.scene) throw Error('TEXT_SCENE_MISSING');
+      textIntegrity.register(sceneRoot,el,slot.text);
       const regions = textRegions.get(sceneRoot.dataset.scene) ?? [];
       regions.push({regionId: slotId, boxAt() {
         if (!el.getClientRects().length || getComputedStyle(el).visibility !== 'visible') return null;
@@ -120,16 +123,32 @@ async function draw(frameIndex: number): Promise<void> {
     for (const animation of document.getAnimations()) { animation.pause(); animation.currentTime = frameIndex / 30 * 1000; }
     await clock!.paint(current.frameTimeoutMs);
     if (window.__omBootFailed) throw Error(window.__omBootFailed);
+    // The sampled CDP observations remain necessary for visibility, typography
+    // and contrast. This separate check binds every emitted custom frame's DOM
+    // text, including frames between those sampling points, to its real slot.
+    for(const layer of layers){const instance=instances.get(layer.id)!;if(instance.scene.kind==='custom')textIntegrity.verify(instance.root);}
     frame = frameIndex;
   } finally { busy = false; }
 }
 
 const engine: FilmEngine = {
   webglInfo(){return inspectWebgl!();},
+  canvasTextProof(){
+    if(frame<0||busy||disposed)throw Error('FRAME_NOT_READY');
+    return frameLayers(requiredPlan().spec.scenes,frame).flatMap(layer=>{
+      const value=instances.get(layer.id)!;return value.instance.canvasTextProof?[{...value.instance.canvasTextProof(),sceneId:layer.id}]:[];
+    });
+  },
   async prepare(input) {
     try { await clock!.wait((async () => {
     if (plan || disposed) throw Error('INVALID_SESSION');
     plan = input;
+    // Authored factories must never run if the trusted block bundle failed to
+    // consume the one-shot native Canvas text capability.
+    if (window.__pbTakeCanvasText) {
+      delete window.__pbTakeCanvasText;
+      throw Error('RUNTIME_TEXT_HANDOFF_MISSING');
+    }
     const studioFactory = window.__pbTakeStudioFactory?.();
     // If no 3D bundle consumed it, discard the creation capability before author code runs.
     window.__pbTakeWebGLFactory?.();
@@ -263,7 +282,11 @@ const engine: FilmEngine = {
     check(input, 'seek');
     if ('previewEpoch' in input) throw Error('INVALID_SESSION');
     await draw(input.frameIndex);
-    return {...input, event: 'frame-ready' as const, manifestHash: requiredPlan().manifestHash};
+    const current=requiredPlan(),usesCanvas=current.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+    const canvasTextTrace=usesCanvas?frameLayers(current.spec.scenes,input.frameIndex).flatMap(layer=>{
+      const value=instances.get(layer.id)!;return value.instance.canvasTextTrace?[{...value.instance.canvasTextTrace(),sceneId:layer.id}]:[];
+    }):undefined;
+    return {...input, event: 'frame-ready' as const, manifestHash: current.manifestHash,...(canvasTextTrace?{canvasTextTrace}:{})};
   },
   async sampleSubframe(input: Sample) {
     check(input, 'sample');

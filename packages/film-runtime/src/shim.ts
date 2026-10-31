@@ -53,6 +53,14 @@ for (const key of ['localStorage', 'sessionStorage', 'indexedDB', 'caches'])
   Object.defineProperty(window, key, {get: deny('RUNTIME_STORAGE_FORBIDDEN'), configurable: false});
 Object.defineProperty(document, 'cookie', {get: deny('RUNTIME_STORAGE_FORBIDDEN'), set: deny('RUNTIME_STORAGE_FORBIDDEN')});
 for (const key of ['AudioContext', 'webkitAudioContext', 'Audio']) replace(window, key, deny('RUNTIME_AUDIO_FORBIDDEN'));
+// Keep the native operation private for narrowly audited trusted blocks. Only
+// the fixed block bundle may take it, before authored scripts are loaded.
+const nativeCanvasFillText=window.CanvasRenderingContext2D?.prototype.fillText;
+Object.defineProperty(window,'__pbTakeCanvasText',{configurable:true,value:()=>{
+  const path=new URL((document.currentScript as HTMLScriptElement|null)?.src??location.href).pathname;
+  if(path!=='/runtime/blocks.js'||!nativeCanvasFillText)throw Error('RUNTIME_TEXT_HANDOFF_FORBIDDEN');
+  delete window.__pbTakeCanvasText;return nativeCanvasFillText;
+}});
 // Canvas pixels do not carry a fact-bound text slot. This also covers text drawn
 // indirectly by the original CLIP helpers and by detached/offscreen canvases.
 for (const context of [window.CanvasRenderingContext2D, window.OffscreenCanvasRenderingContext2D]) {

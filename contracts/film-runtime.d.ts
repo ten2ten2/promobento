@@ -151,6 +151,12 @@ export interface ClipHelpers {
 
 export interface SceneEvent { name: string; frame: number }
 export interface SceneRegion { regionId: string; boxAt(frame: number): Box | null }
+/** Private trusted-block comparison inputs; never supplied by authored scenes. */
+export interface CanvasTextTrace {
+  slotId:string; text:string; fontId:string; weight:number; style:'normal';
+  boxes:Box[]; fontSize:number; alpha:number;
+}
+export interface CanvasTextProof extends CanvasTextTrace { withText:string; withoutText:string }
 
 /** Trusted blocks: render must be a pure function of time (checked by golden frames, plan §4.3). */
 export interface BlockDefinition<Params = Record<string, unknown>> {
@@ -165,6 +171,8 @@ export interface BlockInstance {
   timeline?: GsapTimelineLike;
   events: ReadonlyArray<SceneEvent>;
   regions: ReadonlyArray<SceneRegion>;
+  canvasTextProof?(): CanvasTextProof;
+  canvasTextTrace?(): CanvasTextTrace;
   /** Release scene-owned textures, geometries, contexts and other resources. */
   dispose?(): void | Promise<void>;
 }

@@ -32,7 +32,7 @@ export function blockEvents(id, frames, params) {
     if(landings.at(-1)>=duration)throw Error('FEATURE_BEAT_AFTER_SCENE');
     return landings.map((frame,index)=>({name:index===params.items.length-1?'feature-land':'feature-step-'+(index+1),frame}));
   }
-  const fixed = {'hook-title': ['title-land', 18], 'kinetic-title':['title-land',15], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
+  const fixed = {'hook-title': ['title-land', 18], 'kinetic-title':['title-land',15], 'canvas-title':['title-land',30], 'ui-showcase': ['product-land', 21], 'cta-endcard': ['cta-land', 15],
     metric: ['metric-land', 36], 'talking-head': ['speaker-land', 15], 'device-3d':['product-land',24],'object-studio':['product-land',54]};
   let event = fixed[id];
   if (id === 'feature-grid' || id === 'curriculum') event = [id === 'curriculum' ? 'module-land' : 'feature-land', Math.round(((params.items.length - 1) * .12 + .5) * 30)];
@@ -83,7 +83,7 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .flatMap(event=>[event.frame-18,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
-  if(['continuous-focus@1','kinetic-title@1','drawn-steps@1'].includes(scene.block)){
+  if(['continuous-focus@1','kinetic-title@1','canvas-title@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;
    return [0,6,Math.floor(span/4),Math.floor(span/2),Math.floor(span*3/4),span-1]
     .map(frame=>Math.floor((scene.start+Math.min(span-1,frame))/stride)*stride);

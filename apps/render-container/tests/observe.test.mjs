@@ -41,6 +41,35 @@ test('CDP font size and weight select the original 3:1 large / 4.5:1 ordinary co
   }
 });
 
+async function nestedTextObservation({opacity='1',transparent=false,outside=false,clippedByChild=false,missingLayout=false}={}){
+ const strings=[],s=value=>{let i=strings.indexOf(value);if(i<0){i=strings.length;strings.push(value);}return i;};
+ const nodes={parentIndex:[-1,0,1,1,3],nodeType:[1,1,3,1,3],nodeValue:['','','Te','','xt'].map(s),backendNodeId:[100,101,102,103,104],
+  attributes:[[],[s('data-pb-slot'),s('label')],[],[],[]]};
+ const layout={nodeIndex:missingLayout?[0,1,3]:[0,1,3,4],bounds:[[0,0,1920,1080],[50,50,100,40],[90,50,clippedByChild?5:30,40],
+  ...(missingLayout?[]:[[outside?2000:90,50,30,40]])],styles:[]};
+ const cdp={async send(method,input){
+  if(method==='DOMSnapshot.captureSnapshot'){
+   const styles={'font-size':'36px','font-weight':'600',color:'rgb(0, 0, 0)','background-color':'rgb(255, 255, 255)',visibility:'visible',display:'block',opacity:'1',overflow:'visible'};
+   layout.styles=layout.nodeIndex.map(node=>input.computedStyles.map(name=>s(node===3&&name==='opacity'?opacity:node===3&&name==='color'&&transparent?'rgba(0, 0, 0, 0)':node===3&&name==='overflow'&&clippedByChild?'hidden':styles[name])));
+   return{strings,documents:[{nodes,layout}]};
+  }
+  if(method==='DOM.pushNodesByBackendIdsToFrontend')return{nodeIds:[1]};
+  if(method==='CSS.getPlatformFontsForNode')return{fonts:[{familyName:'Test',isCustomFont:true,glyphCount:4}]};
+  if(method==='DOM.getNodeForLocation')return{backendNodeId:101};return{};
+ }};
+ const face={fontId:'test',weight:600,style:'normal'},plan={target:{aspect:'landscape',width:1920,height:1080,safeInsets:{top:0,bottom:0,left:0,right:0}},
+  fonts:[{...face,codePoints:[...'Text'].map(ch=>ch.codePointAt(0))}],spec:{scenes:[],texts:{label:{role:'body'}},style:{type:{text:face}}}};
+ return observe(cdp,plan,'render-test',45);
+}
+
+test('a nested glyph that is transparent, clipped or translated out of frame cannot pass as visible slot text',async()=>{
+ const visible=await nestedTextObservation();assert.equal(visible.texts[0].text,'Text');assert.equal(visible.texts[0].clipped,false);
+ for(const options of [{opacity:'0'},{transparent:true},{outside:true},{clippedByChild:true},{missingLayout:true}]){
+  const result=await nestedTextObservation(options);assert.equal(result.texts[0].clipped,true,JSON.stringify(options));
+  assert.ok(result.findings.some(f=>f.code==='text-clipped'&&f.severity==='BLOCK'));
+ }
+});
+
 async function imageObservation({opacity='1',hit=103,mask='none',sceneId='product',frame=45,observeAssets=true,overlayOpacity='0',anotherOpacity='0',overlayBackground='rgba(0, 0, 0, 0)',overlayShadow='none',overlayImage='none',overlayBorder='none',overlayTag='DIV',overlayPseudo=false,quads=true}={}){
  const strings=[],s=value=>{let index=strings.indexOf(value);if(index<0){index=strings.length;strings.push(value);}return index;};
  const nodes={parentIndex:[-1,0,1,2,1,1],nodeType:[1,1,1,1,1,1],nodeName:['HTML','SECTION','DIV','IMG',overlayTag,'DIV'].map(s),...(overlayPseudo?{pseudoType:{index:[4],value:[s('before')]}}:{}),
