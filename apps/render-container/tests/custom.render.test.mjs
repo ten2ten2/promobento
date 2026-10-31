@@ -337,6 +337,26 @@ try{
   }
   report.keynoteClip='two_separate_original_screens_handoff_reverse_landscape_portrait';
 
+  // A prior authored scene may edit its own handles, but cannot change which
+  // admitted image, ROI or style a later trusted scene receives.
+  const poisonFilm=filmFixture();poisonFilm.assets.other={resourceId:'res_fixture_other'};
+  poisonFilm.scenes=[{id:'poison',start:0,end:120,kind:'custom',module:'scenes/poison/index.js',params:{textSlots:['headline'],assetKeys:['dashboard'],events:[],readingHolds:[{start:0,end:120,visibleTextSlots:[]}]},purpose:'Test scene-local handles.',brief:'Keep later scenes unchanged.'},
+   {id:'keynote',start:120,end:360,kind:'block',block:'keynote-clip@1',params:{items:[{assetKey:'dashboard'},{assetKey:'other'}],intervalFrames:120},purpose:'Two source states.'},
+   {id:'hook',start:360,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},purpose:'Bound final title.'}];
+  const poisonBase=`PB.scene('poison',ctx=>{const a=ctx.asset('dashboard');MUTATE
+   const box=document.createElement('div');Object.assign(box.style,{position:'absolute',width:'100%',height:'50%',opacity:'0'});ctx.root.append(box);
+   const label=ctx.text('headline').mount(box);ASSERT
+   const timeline=gsap.timeline({paused:true});timeline.to({},{duration:4});return {timeline};});`;
+  const poisonSource=poisonBase.replace('MUTATE',"a.url='/r/res_fixture_other';a.roi[0].x=0;ctx.style.palette.bg='#ff00ff';ctx.style.palette.ink='#112233';ctx.style.type.display.fontId='forged';if(ctx.asset('dashboard').url!=='/r/res_fixture_other')throw Error('SCENE_LOCAL_MUTATION_LOST');")
+   .replace('ASSERT',"if(label.style.color!=='rgb(17, 34, 51)')throw Error('SCENE_LOCAL_STYLE_LOST');");
+  const poisonOptions=pageOptions('landscape',rules.aspectLayouts.landscape);poisonOptions.fonts=multiOptions.fonts;poisonOptions.resources[0].width=64;poisonOptions.resources[0].height=64;
+  poisonOptions.resources.push({...poisonOptions.resources[0],resourceId:'res_fixture_other'});
+  const shot=async source=>{const session=await filmSession({raw:JSON.stringify(poisonFilm),options:{...poisonOptions,customSources:{'scenes/poison/index.js':source}},browserVersion:lock.browser.version,font,
+    resource:id=>id==='res_fixture_other'?magenta:keynoteGreen,killBrowser});
+   try{return[await session.frame(165,{format:'png'}),await session.frame(405,{format:'png'})];}finally{await session.close();}};
+  const attacked=await shot(poisonSource),clean=await shot(poisonBase.replace('MUTATE','').replace('ASSERT',''));
+  for(let i=0;i<attacked.length;i++)assert.equal(compareSeam(attacked[i],clean[i]).diffPixelPct,0,'a previous scene cannot change a later trusted image or style');
+  report.sceneLocalHandles='same_scene_mutation_preserved_no_cross_scene_asset_or_style_poison';
 
   const iconFilm=filmFixture();iconFilm.assets={};iconFilm.texts={one:{text:'ONE',role:'headline',factIds:[]},two:{text:'TWO',role:'headline',factIds:[]},three:{text:'THREE',role:'headline',factIds:[]}};
   const iconGroups=[['person','cat','network'],['bulb','cross','stack'],['gear','clock','chart']];

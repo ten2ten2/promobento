@@ -1,6 +1,6 @@
 import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import { randomSequence } from '@promobento/contracts/random';
-import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
+import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, FilmSpec, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
 import {customScenePlan} from '@promobento/contracts/custom-source';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
@@ -12,6 +12,7 @@ const clock = window.__pbTakeClock?.();
 if (!clock) throw Error('RUNTIME_CLOCK_HANDOFF_MISSING');
 const inspectWebgl=window.__pbTakeWebGLInspector?.();
 if(!inspectWebgl)throw Error('RUNTIME_WEBGL_HANDOFF_MISSING');
+const cloneSceneData=globalThis.structuredClone.bind(globalThis);
 const blocks = new Map<string, BlockDefinition>();
 const customScenes = new Map<string,(ctx:SceneContext)=>CustomScene>();
 const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>; postSeek: Map<(time: number) => void, number>}>();
@@ -48,7 +49,7 @@ const check = (input: Envelope & {command: string}, command: string): void => {
 };
 const fontFamily = (fontId: string): string => '"PB-' + fontId + '"';
 
-function textSlot(slotId: string): TextSlotHandle {
+function textSlot(slotId: string, sceneStyle?: FilmSpec['style']): TextSlotHandle {
   const current = requiredPlan();
   const slot = current.spec.texts[slotId];
   if (!slot) throw Error('TEXT_SLOT_UNKNOWN');
@@ -59,16 +60,16 @@ function textSlot(slotId: string): TextSlotHandle {
       el.textContent = slot.text; el.dataset.omId = slotId; el.dataset.pbSlot = slotId;
       if (slot.lang) el.lang = slot.lang;
       const display = slot.role === 'headline' || slot.role === 'cta' || slot.role === 'number';
-      const font = current.spec.style.type[display ? 'display' : 'text'];
+      const style=sceneStyle??current.spec.style,font = style.type[display ? 'display' : 'text'];
       const landscape = current.target.aspect === 'landscape';
       const minimum = slot.role === 'cta' ? landscape ? 28 : 32 : landscape ? 32 : 36;
-      const scale = {compact: 0.85, regular: 1, large: 1.15}[current.spec.style.type.scale];
+      const scale = {compact: 0.85, regular: 1, large: 1.15}[style.type.scale];
       const natural = display ? Math.max(minimum, Math.min(150, current.target.width * 0.085) * scale) : Math.max(minimum, 40 * scale);
       if (options.maxFontSize !== undefined && (!Number.isFinite(options.maxFontSize) || options.maxFontSize < minimum)) throw Error('TEXT_SIZE_INVALID');
       const start = Math.min(natural, options.maxFontSize ?? natural);
       Object.assign(el.style, {display: 'block', width: '100%', whiteSpace: 'pre-wrap', overflowWrap: 'normal', wordBreak: 'normal',
         fontFamily: fontFamily(font.fontId), fontWeight: String(font.weight), fontStyle: font.style ?? 'normal',
-        lineHeight: '1.1', letterSpacing: display ? '-0.045em' : '-0.015em', color: current.spec.style.palette.roles.ink,
+        lineHeight: '1.1', letterSpacing: display ? '-0.045em' : '-0.015em', color: style.palette.roles.ink,
         textAlign: options.align ?? 'start'});
       parent.append(el);
       const sceneRoot = el.closest<HTMLElement>('[data-scene]');
@@ -158,9 +159,11 @@ const engine: FilmEngine = {
     const studioFactory = window.__pbTakeStudioFactory?.();
     // If no 3D bundle consumed it, discard the creation capability before author code runs.
     window.__pbTakeWebGLFactory?.();
-    // Ordinary scene asset handles are mutable; retain the admitted values before any factory runs.
-    const admittedStudioAssets=new Map(Object.entries(input.assets).map(([key,asset])=>[key,{...asset}]));
-    const admittedStudioPalette={...input.spec.style.palette.roles};
+    // Keep immutable admitted values before any authored factory runs. Each
+    // scene gets its own mutable handles, including nested ROI/video metadata.
+    const admittedAssets=cloneSceneData(input.assets),admittedStyle=cloneSceneData(input.spec.style);
+    const admittedStudioAssets=new Map(Object.entries(admittedAssets));
+    const admittedStudioPalette={...admittedStyle.palette.roles};
     Object.defineProperty(window, '__omTarget', {value: Object.freeze({...input.target, safeInsets: Object.freeze({...input.target.safeInsets})}), writable: false});
     window.CLIP.U.setStage(input.target.width, input.target.height);
     const stage = document.getElementById('film');
@@ -180,6 +183,7 @@ const engine: FilmEngine = {
       Object.assign(root.style, {position: 'absolute', inset: '0', overflow: 'hidden', visibility: 'hidden', background: input.spec.style.palette.roles.bg});
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
+      const sceneAssets=cloneSceneData(admittedAssets),sceneStyle=cloneSceneData(admittedStyle);
       const helperRegions: SceneRegion[] = [];
       const readiness = {open:true, pending:[] as Promise<unknown>[]};
       const postSeek = new Map<(time: number) => void, number>();
@@ -189,9 +193,9 @@ const engine: FilmEngine = {
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
           ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: window.CLIP,
-        style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
+        style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle),
         asset(key) {
-          const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
+          const asset = sceneAssets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
           if (asset.kind !== 'video') return asset;
           return {...asset, async frameAt(seconds: number) {
             if (!Number.isFinite(seconds) || seconds < 0) throw Error('VIDEO_FRAME_UNAVAILABLE');
