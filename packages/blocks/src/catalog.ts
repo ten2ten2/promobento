@@ -81,6 +81,9 @@ export const blockCatalog = [
     events: [{name: 'speaker-land', description: 'The speaker nameplate settles.'}],
     params: {type: 'object', additionalProperties: false, required: ['assetKey', 'textSlot'], properties: {
       assetKey: slot, textSlot: slot, subtitleSlot: slot}}},
+  { ...common, id: 'object-studio', category: '3d', cost: 'high', usesWebgl: true, regions: ['product'],
+    events: [{name:'product-land',description:'The real screenshot settles on the lit studio device.'}],
+    params:{type:'object',additionalProperties:false,required:['assetKey'],properties:{assetKey:slot,textSlot:slot}}},
   { ...common, id: 'device-3d', category: '3d', cost: 'high', usesWebgl: true, regions: ['product'],
     events: [{name:'product-land',description:'The real product screen settles on an original 3D display.'}],
     params:{type:'object',additionalProperties:false,required:['assetKey'],properties:{assetKey:slot,textSlot:slot}}}

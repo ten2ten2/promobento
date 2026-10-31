@@ -53,6 +53,26 @@ test('scene-scoped observation is probed before models without changing the lega
  await directorEnvironment(env,op,context,[],Date.now()+60000,true);assert.equal(probes,4,'older methods still work on the old renderer');
 });
 
+test('original 3D studio is probed only when requested, on a WebGL instance, before rendering',async t=>{
+ const{db,DB}=sqliteD1();t.after(()=>db.close());const{objects,MEDIA}=memoryMedia();const image='sha256:'+'a'.repeat(64),cache=new Map();
+ const op={id:'health-operation',generation:0};db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
+ db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
+ const resource={resourceId:'res_fixture_dashboard',kind:'image',width:64,height:64,licenseRef:'fixture',key:'evals/fixture/image.png',sha256:'a'.repeat(64),byteLength:123};
+ const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,resources:[resource]};
+ let oldRenderer=false,probes=0,closes=0;
+ const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
+  async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
+   const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
+   if(film.scenes[0].block==='object-studio@1'){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
+   assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
+  async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},async closeStudio(){closes++;}
+ };}}};
+ const check=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,true);
+ await check();await check();assert.equal(probes,1);assert.equal(closes,1);
+ cache.clear();oldRenderer=true;await assert.rejects(check(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
+ await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,3,'an unsupported new studio does not disable old scenes');
+});
+
 test('studio ownership is persisted before execute; cancelled or failed startup cannot lose its cleanup handle',async t=>{
  const{outputFiles}=await build({entryPoints:['apps/cloud/src/compute.ts'],bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{
   name:'do-fixture',setup(build){build.onResolve({filter:/^cloudflare:workers$/},()=>({path:'do',namespace:'fixture'}));

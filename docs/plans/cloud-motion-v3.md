@@ -125,7 +125,7 @@ GSAP 3.14.2 只随镜像分发，不进 Git；Three.js 0.186.1 按需加载；�
 | 收尾／全局 | ★cta-endcard、★captions、brand-sting |
 | 转场 | cut、crossfade、fade-through、push、whip；待补 wipe、zoom-through、match handoff |
 
-图表涨跌配色可配置；评价／报价／期限须绑定事实与权利。角色原创，不采用上游作者形象。`device-3d` 已额外接入，其他未实现项不因列在表内成为可调用积木。
+图表涨跌配色可配置；评价／报价／期限须绑定事实与权利。角色原创，不采用上游作者形象。`device-3d` 和 `object-studio` 已额外接入，其他未实现项不因列在表内成为可调用积木。
 
 ### 4.4 自写镜头
 
@@ -146,7 +146,7 @@ Q0 静态解析 Acorn，不执行作品；完整模块通过身份与安全准�
 
 按锁定 SwiftShader 的 CPU 路线实现，真实 context 的 renderer/vendor/version 每次与环境锁核对；不匹配报 `RENDER_ENVIRONMENT_MISMATCH`。只有 3D 页面加载 bundle，ready 等待资源与首帧，dispose 释放纹理／几何／context，context 丢失明确失败。
 
-WebGL 帧默认占比 ≤30%，超出需说明并按 3D 时间目标验收；分段初始代价为 2D 的 6 倍、最多 24 段，使用 standard-4。不采用前置探针无收益的 renderScale、着色器磁盘缓存和文件系统快照加速；未来变更须有对应负载证据。现有 device-3d 不等于自写 WebGL 已开放。
+WebGL 帧默认占比 ≤30%，超出需说明并按 3D 时间目标验收；分段初始代价为 2D 的 6 倍、最多 24 段，使用 standard-4。不采用前置探针无收益的 renderScale、着色器磁盘缓存和文件系统快照加速；未来变更须有对应负载证据。现有 device-3d／object-studio 不等于自写 WebGL 已开放。
 
 ## 5. 渲染管线
 

@@ -31,3 +31,11 @@ test('new trusted blocks can actually be selected for a direction hero',()=>{
   assert.equal(film.scenes[0].block,id+'@1');assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
  }
 });
+
+
+test('a direction explicitly choosing original studio receives a real 3D hero with the cleared primary image',()=>{
+ const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
+ const film=directionHero({...card,usesDepth:true,skeleton:[{approach:'block:object-studio'}]},context,0);
+ assert.equal(film.scenes[0].block,'object-studio@1');assert.equal(film.assets.hero.resourceId,'res_fixture_dashboard');
+ assert.equal(generateFilmPage(JSON.stringify(film),options).plan.usesWebgl,true);
+});

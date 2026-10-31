@@ -235,6 +235,26 @@ try{
   const failing=await filmSession({raw:JSON.stringify(clockFilm),options:failingOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
   try{await assert.rejects(failing.frame(15),/CLOCK_DRAW_FAILED/);}finally{await failing.close().catch(()=>{});}
   report.afterSeekClock='all_tweens_before_canvas_draw_reverse_seek_and_failure';
+  // Original OM3 studio primitives with an engineering-only, cleared synthetic image.
+  // Check actual WebGL pixels in both layouts and repeat a backwards seek.
+  const studioFilm=filmFixture();studioFilm.scenes=[{id:'studio',kind:'block',block:'object-studio@1',start:0,end:450,params:{assetKey:'dashboard',textSlot:'product'},purpose:'Render the original studio around a cleared synthetic screen.'}];
+  const rgba=new Uint8Array(64*64*4);for(let i=0;i<rgba.length;i+=4){rgba[i]=10;rgba[i+1]=220;rgba[i+2]=20;rgba[i+3]=255;}
+  const image=pngRgba(64,64,rgba);
+  for(const aspect of ['landscape','portrait']){
+   const studioOptions=pageOptions(aspect,rules.aspectLayouts[aspect]);studioOptions.fonts=multiOptions.fonts;studioOptions.resources[0].width=64;studioOptions.resources[0].height=64;
+   studioOptions.initTimeoutMs=60000;studioOptions.frameTimeoutMs=10000;
+   const session=await filmSession({raw:JSON.stringify(studioFilm),options:studioOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+   try{
+    const first=await session.frame(15,{format:'png'}),later=await session.frame(90,{format:'png'}),reverse=await session.frame(15,{format:'png'});
+    const pixels=pngPixels(later);let green=0;for(let i=0;i<pixels.pixels.length;i+=4)if(pixels.pixels[i]<60&&pixels.pixels[i+1]>150&&pixels.pixels[i+2]<60)green++;
+    assert.ok(green>pixels.width*pixels.height*.02,`${aspect} real screen texture visible: ${green}`);
+    assert.ok(compareSeam(first,later).diffPixelPct>.1,`${aspect} studio camera moves`);
+    const check=await session.observe('studio-test',15);assert.ok(check.texts.some(text=>text.slotId==='product'&&!text.clipped));assert.ok(!check.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(check.findings));
+    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK',`${aspect} backwards seek`);
+    writeFileSync(`${output}/object-studio-${aspect}-15.png`,first);writeFileSync(`${output}/object-studio-${aspect}-90.png`,later);
+   }finally{await session.close();}
+  }
+  report.originalStudio='landscape_portrait_real_texture_camera_and_reverse_seek';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

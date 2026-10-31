@@ -60,7 +60,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if (slot?.role !== 'number' || !match || !Number.isFinite(Number(match[2]!.replace(',', '.')))) throw Error('METRIC_NUMBER_INVALID');
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
-    if(scene.block==='device-3d@1'&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
+    if(['device-3d@1','object-studio@1'].includes(scene.block)&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
     if (scene.block === 'ui-showcase@1' && typeof scene.params.focus === 'string') {
       const asset = spec.assets[String(scene.params.assetKey)];
       if (!asset?.roi?.[Number(scene.params.focus.slice(4))]) throw Error('ASSET_ROI_UNKNOWN');

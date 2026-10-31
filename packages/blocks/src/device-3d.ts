@@ -1,3 +1,4 @@
+import './object-studio.ts';
 import {AmbientLight,BoxGeometry,Color,DirectionalLight,Group,Mesh,MeshBasicMaterial,MeshStandardMaterial,
   PerspectiveCamera,PlaneGeometry,Scene,SRGBColorSpace,Texture,WebGLRenderer} from 'three';
 import {easeOut} from '../../film-runtime/src/motion.ts';

@@ -1,7 +1,7 @@
 import {digest} from './digest.mjs';
 import {validate} from '../generated/render-job.mjs';
 
-export const WEBGL_BLOCKS=Object.freeze(['device-3d@1']);
+export const WEBGL_BLOCKS=Object.freeze(['object-studio@1','device-3d@1']);
 export const filmUsesWebgl=spec=>spec.scenes.some(scene=>scene.kind==='block'&&WEBGL_BLOCKS.includes(scene.block));
 export const renderPageTiming=(spec,policy)=>({initTimeoutMs:filmUsesWebgl(spec)?policy.startupWebglMs:policy.startupMs,
   frameTimeoutMs:filmUsesWebgl(spec)?policy.frameTimeoutWebglMs:policy.frameTimeoutMs});

@@ -150,7 +150,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const detailedBlockFeedback=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=16);
     const reviewShardHistory=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=18);
     const separateQaSeekRepair=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=19);
-    const availableBlocks=blockCatalog.filter(block=>block.id!=='component-relay'||relayMethod);
+    const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod));
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
@@ -310,6 +311,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       assetObservationRequired=Boolean(checkedAssetsMethod&&custom.some((scene:Json)=>(scene.params.assetChecks??[]).length));
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
+      if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
         relayScenes.some((scene:Json)=>Object.hasOwn(scene.params,'componentBehavior')));
@@ -539,10 +541,12 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       for(const card of directions.cards){
         const blob=await step.do<string>('direction-frame-'+card.key,{retries:{limit:0,delay:'1 second'},timeout:'2 minutes'},async()=>{
           checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
-          const film=card.keyframeFilm,source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
+          const film=card.keyframeFilm;
+          if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
+          const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
           const taskId='still-'+digest({operationId:op.id,direction:card.key}).slice(0,48),frame=45;
-          const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:'standard-3',taskId,generation:op.generation,deadlineAt:deadline(),
+          const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:film.scenes.some((scene:Json)=>scene.block==='object-studio@1')?'standard-4':'standard-3',taskId,generation:op.generation,deadlineAt:deadline(),
             imageDigest:(await this.env.DB.prepare("SELECT image_digest FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>())?.image_digest,
             job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:'candidate-'+digest({operationId:op.id}).slice(0,48),sourceHash:filmSourceHash(canonical(film)),runtimeVersion:context.runtimeVersion,
               rendererRelease:context.rendererRelease,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[frame],

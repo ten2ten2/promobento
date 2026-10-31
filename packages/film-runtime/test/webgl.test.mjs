@@ -44,3 +44,19 @@ test('WebGL block loads only when used, preserves facts/assets and uses shared c
  assert.ok(review.shards.every(shard=>shard.start%30===0&&shard.end%30===0));
  assert.deepEqual(planShards(job,filmFixture(),{seed:'seed'}).shards.map(shard=>[shard.start,shard.end]),[[0,75],[75,150],[150,225],[225,300],[300,375],[375,450]]);
 });
+
+
+test('original object studio is a real admitted image-only WebGL block and receives WebGL render resources',()=>{
+ const film=webglFixture();film.scenes[0].block='object-studio@1';
+ for(const[aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const page=generateFilmPage(JSON.stringify(film),pageOptions(aspect,layout));
+  assert.equal(page.plan.usesWebgl,true);assert.match(page.html,/blocks-3d\.js/);
+  assert.equal(page.plan.assets.dashboard.resourceId,'res_fixture_dashboard');
+ }
+ const video=pageOptions('landscape',rules.aspectLayouts.landscape);video.resources[0].kind='video';
+ assert.throws(()=>generateFilmPage(JSON.stringify(film),video),/DEVICE_TEXTURE_IMAGE_REQUIRED/);
+ assert.deepEqual(blockEvents('object-studio',{start:0,end:450},{}),[{name:'product-land',frame:54}]);
+ const job={schemaVersion:'3.0.0',kind:'render_job',renderId:'studio-test',operationId:'studio-test',candidateId:'studio-test',sourceHash:filmSourceHash(JSON.stringify(film)),runtimeVersion:'film-runtime-v1',rendererRelease:'test-release',aspectId:'portrait',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:[]};
+ assert.ok(planShards(job,film,{seed:'seed'}).shards.every(shard=>shard.instance==='standard-4'));
+ assert.deepEqual(renderPageTiming(film,policy),{initTimeoutMs:60000,frameTimeoutMs:10000});
+});
