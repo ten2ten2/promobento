@@ -159,3 +159,12 @@ test('keynote emphasis uses a complete ROI on the same admitted image',()=>{
  const wrong=structuredClone(film);wrong.scenes[0].params.items[1].focus='roi:0';assert.throws(()=>make(wrong,opts),/KEYNOTE_CLIP_ROI_INVALID/);
  const outside=structuredClone(film);outside.assets.dashboard.roi[0].x=.9;assert.throws(()=>make(outside,opts),/KEYNOTE_CLIP_ROI_INVALID/);
 });
+
+test('v4 studio accepts only a real in-bounds ROI on its declared panel',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v4';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};film.assets.panel={resourceId:'res_fixture_dashboard',roi:[{x:.1,y:.2,width:.3,height:.4}]};scene.params.assetKeys=['dashboard','panel'];scene.params.panelFocus={panel:'roi:0'};
+ sources[scene.module]=sources[scene.module].replace('const timeline=',"const studio=ctx.OM3.studio('dashboard',['panel']);const timeline=");
+ const opts=options();opts.customSources=sources;assert.equal(make(film,opts).plan.usesWebgl,true);
+ film.assets.panel.roi=[];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
+ film.assets.panel.roi=[{x:.9,y:.2,width:.3,height:.4}];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
+});

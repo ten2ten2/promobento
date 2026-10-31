@@ -8,6 +8,9 @@ export function relayObservationIssues(film:Json,insights:Json[],resources:Json[
     return roi&&insights.find(item=>item.sha256===resource?.sha256)?.regions?.find((region:Json)=>['x','y','width','height'].every(field=>region.box?.[field]===roi[field]));
   };
   for(const [index,scene] of film.scenes.entries()){
+    if(scene.kind==='custom'&&scene.runtime3D==='om3-studio-v4')
+      for(const [key,focus] of Object.entries(scene.params?.panelFocus??{}))
+        if(typeof focus!=='string'||!observedRegion(key,focus))issues.push({code:'STUDIO_ROI_NOT_OBSERVED',path:`/scenes/${index}/params/panelFocus/${key}`});
     if(scene.kind==='block'&&['vox-clip@1','keynote-clip@1'].includes(scene.block)){
       for(const [itemIndex,item]of (scene.params.items??[]).entries())if(item.focus&&!observedRegion(item.assetKey,item.focus))
         issues.push({code:scene.block==='vox-clip@1'?'VOX_ROI_NOT_OBSERVED':'KEYNOTE_ROI_NOT_OBSERVED',path:`/scenes/${index}/params/items/${itemIndex}/focus`});

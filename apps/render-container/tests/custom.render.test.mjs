@@ -700,6 +700,27 @@ try{
     const reverse=await session.frame(15,{format:'png'});assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
    }finally{await session.close();}
   }
+  // v4 crops the observed top-left source region, not the other image quadrants.
+  const cropFilm=structuredClone(panelsFilm);cropFilm.scenes[0].runtime3D='om3-studio-v4';
+  cropFilm.assets.other.roi=[{x:.05,y:.05,width:.35,height:.25}];cropFilm.scenes[0].params.panelFocus={other:'roi:0'};
+  const patterned=new Uint8Array(64*64*4);
+  for(let y=0;y<64;y++)for(let x=0;x<64;x++){const i=(y*64+x)*4,red=x<32&&y<32;patterned[i]=red?220:10;patterned[i+1]=10;patterned[i+2]=red?10:220;patterned[i+3]=255;}
+  const cropSource=pngRgba(64,64,patterned);
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
+   options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});options.customSources={'scenes/custom-studio/index.js':panelsSource};options.initTimeoutMs=60000;options.frameTimeoutMs=10000;
+   const session=await filmSession({raw:JSON.stringify(cropFilm),options,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?cropSource:image,killBrowser});
+   try{const first=await session.frame(15,{format:'png'}),hidden=await session.frame(120,{format:'png'}),reverse=await session.frame(15,{format:'png'});
+    const colors=png=>{const frame=pngPixels(png);let red=0,blue=0,green=0;for(let i=0;i<frame.pixels.length;i+=4){const [r,g,b]=frame.pixels.subarray(i,i+3);if(r>150&&g<60&&b<60)red++;if(b>150&&r<60&&g<60)blue++;if(g>150&&r<60&&b<60)green++;}return{red,blue,green};};
+    const shown=colors(first),gone=colors(hidden);assert.ok(shown.red>1000&&shown.green>1000,`${aspect} observed red ROI and primary product remain visible`);
+    assert.equal(shown.blue,0,`${aspect} unselected blue source pixels do not appear`);assert.equal(gone.red,0,`${aspect} detail is hidden after its state`);assert.ok(gone.green>1000);
+    const p=pngPixels(first);let left=p.width,right=0,top=p.height,bottom=0;
+    for(let y=0;y<p.height;y++)for(let x=0;x<p.width;x++){const i=(y*p.width+x)*4;if(p.pixels[i]>150&&p.pixels[i+1]<60&&p.pixels[i+2]<60){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}}
+    const ratio=(right-left+1)/(bottom-top+1);assert.ok(ratio>1.2&&ratio<1.6,`${aspect} panel uses the cropped source aspect: ${ratio}`);
+    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');writeFileSync(`${output}/om3-crop-${aspect}.png`,first);writeFileSync(`${output}/om3-crop-${aspect}-hidden.png`,hidden);
+   }finally{await session.close();}
+  }
+  report.studioCrop='v4_observed_top_left_pixels_visibility_and_reverse_landscape_portrait';
   const badPanels={...movingOptions,resources:[...movingOptions.resources,{...movingOptions.resources[0],resourceId:'res_fixture_other'}],
    customSources:{'scenes/custom-studio/index.js':panelsSource.replace('scale:.55','scale:2')}};
   const invalidPanels=await filmSession({raw:JSON.stringify(panelsFilm),options:badPanels,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?other:image,killBrowser});

@@ -9,6 +9,11 @@ export function customScenePlan(scene,{validateVisibleTextSlots=false,validateAs
   if(!p||!Array.isArray(p.textSlots)||!Array.isArray(p.assetKeys)||!Array.isArray(p.events)||!Array.isArray(p.readingHolds)||!p.readingHolds.length)
     throw Error('CUSTOM_PLAN_REQUIRED');
   for(const keys of [p.textSlots,p.assetKeys])if(keys.length>100||new Set(keys).size!==keys.length||keys.some(key=>typeof key!=='string'||!id.test(key)))throw Error('CUSTOM_PLAN_INVALID');
+  if(scene.runtime3D==='om3-studio-v4'){
+    const focus=p.panelFocus;
+    if(!focus||typeof focus!=='object'||Array.isArray(focus)||Object.keys(focus).length<1||Object.keys(focus).length>2
+      ||Object.entries(focus).some(([key,value])=>!p.assetKeys.includes(key)||typeof value!=='string'||!/^roi:[0-7]$/.test(value)))throw Error('CUSTOM_3D_PANEL_FOCUS_INVALID');
+  }
   if(p.events.length>100||p.events.some(e=>!e||typeof e.name!=='string'||!id.test(e.name)||!Number.isInteger(e.frame)||e.frame<0||e.frame>=duration)||new Set(p.events.map(e=>e.name)).size!==p.events.length)throw Error('CUSTOM_EVENT_INVALID');
   if(p.readingHolds.length>60||p.readingHolds.some(h=>!h||!Number.isInteger(h.start)||!Number.isInteger(h.end)||h.start<0||h.end<=h.start||h.end>duration))throw Error('CUSTOM_READING_HOLD_INVALID');
   if(validateVisibleTextSlots&&p.readingHolds.some(h=>h.visibleTextSlots!==undefined&&(!Array.isArray(h.visibleTextSlots)||h.visibleTextSlots.length>p.textSlots.length||new Set(h.visibleTextSlots).size!==h.visibleTextSlots.length||h.visibleTextSlots.some(key=>typeof key!=='string'||!p.textSlots.includes(key)))))throw Error('CUSTOM_HOLD_TEXT_INVALID');
@@ -32,14 +37,16 @@ const memberName=node=>node.computed?node.property.type==='Literal'?node.propert
 const isFunction=node=>['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
 const studioCall=(node,ctx)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)==='studio'
   &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM3'&&node.callee.object.object?.name===ctx;
-/** Static literal studio bindings; v3 admits one primary and one or two separate panels. */
+/** Static literal studio bindings; v3/v4 admit a primary and up to two panels. */
 function studioKeys(node,scene){
  const args=node.arguments??[],primary=args[0]?.value;
  if(typeof primary!=='string')return null;
- if(scene.runtime3D!=='om3-studio-v3')return args.length===1?[primary]:null;
+ if(!['om3-studio-v3','om3-studio-v4'].includes(scene.runtime3D))return args.length===1?[primary]:null;
  const array=args[1];if(args.length!==2||array?.type!=='ArrayExpression'||array.elements.length<1||array.elements.length>2)return null;
  const keys=[primary,...array.elements.map(item=>item?.type==='Literal'?item.value:undefined)];
- return keys.every(key=>typeof key==='string')&&new Set(keys).size===keys.length?keys:null;
+ if(!keys.every(key=>typeof key==='string')||new Set(keys).size!==keys.length)return null;
+ if(scene.runtime3D==='om3-studio-v4'&&Object.keys(scene.params?.panelFocus??{}).some(key=>!keys.slice(1).includes(key)))return null;
+ return keys;
 }
 /** Read declared studio assets as inert syntax, never as executable source. */
 export function customStudioAssets(scene,source){

@@ -119,3 +119,13 @@ test('v3 studio binds every panel as a distinct declared literal and rejects dyn
  const old=structuredClone(scene);old.runtime3D='om3-studio-v2';
  assert.ok(customSourceErrors(old,source,film).some(issue=>issue.code==='CUSTOM_SLOT_UNDECLARED'));
 });
+
+test('v4 binds crops only to declared literal panels and a bounded ROI reference',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v4';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};film.assets.other={resourceId:'res_fixture_other'};scene.params.assetKeys=['dashboard','other'];scene.params.panelFocus={other:'roi:0'};
+ const source=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard',['other']);const timeline=");
+ assert.deepEqual(customSourceErrors(scene,source,film),[]);assert.deepEqual(customStudioAssets(scene,source),['dashboard','other']);
+ for(const bad of [undefined,{},[],{other:'roi:8'},{other:'0'},{missing:'roi:0'}]){scene.params.panelFocus=bad;assert.throws(()=>customScenePlan(scene),/CUSTOM_3D_PANEL_FOCUS_INVALID/);}
+ scene.params.panelFocus={dashboard:'roi:0'};assert.ok(customSourceErrors(scene,source,film).some(issue=>issue.code==='CUSTOM_SLOT_UNDECLARED'));assert.throws(()=>customStudioAssets(scene,source),/CUSTOM_3D_ONE_STUDIO_REQUIRED/);
+ const legacy=structuredClone(scene);legacy.runtime3D='om3-studio-v3';delete legacy.params.panelFocus;assert.deepEqual(customSourceErrors(legacy,source,film),[]);
+});

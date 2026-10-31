@@ -54,6 +54,8 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 `om3-studio-v2` 在同一 API 上增加独立的主体旋转 `objectYaw`／`objectPitch`／`objectRoll`（各 ±180°）和 `objectScale`（0.5–1.5），可与相机运动分别编排；每次绘制省略的值回到默认位置，逆序 seek 不依赖上一帧。v1 继续拒绝这些字段。源码中的导演方法 1.33 才选择 v2，并在使用前以该版本检查固定镜像；仍只有一张已清权静态图构成的设备，不加载任意 3D 模型或素材。
 `om3-studio-v3` 允许 `ctx.OM3.studio('主图', ['面板一', '面板二'])` 增加一至两张独立声明、逐项清权的静态图。`render({panels:[...]})` 按顺序设置每张面板的 `x/y/z`（±4）、`yaw/pitch/roll`（±180°）、`scale`（0.25–1.5）和 `visible`；不提供 `visible:true` 的面板在该帧隐藏，不沿用上一帧状态。面板必须有真实的叙事关系，不能把某道练习的细节带到不相干的画面。每帧重新设置，正逆序 seek 一致；v1/v2 不接收该新参数。源码中的方法 1.38 使用前先探测 v3 固定镜像；该能力不是任意 GLB、加载器或 WebGL。
 
+源码中的 `om3-studio-v4` 可在 `params.panelFocus` 中将面板键绑定到该面板素材的 `roi:n`，以原图区域构成独立细节屏；导演要求坐标与同一素材的观察结果完全一致，生成页面也检查区域有效。未指定裁切的面板仍显示完整图片，逐帧可见性与 v3 相同。方法 1.45 使用前探测 v4 固定镜像；它仍不是任意 Three.js、模型或加载器。该版本尚未部署。
+
 ```js
 const studio = ctx.OM3.studio('product');
 const view = {yaw: -30}, timeline = gsap.timeline({paused: true});

@@ -42,9 +42,15 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[]}){
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>}){
  const asset=ctx.asset(params.assetKey),panelAssets=(params.panelKeys??[]).map(key=>ctx.asset(key));
  if([asset,...panelAssets].some(item=>item.kind==='video'))throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
+ const panelRois=panelAssets.map((screen,index)=>{
+  const focus=params.panelFocus?.[params.panelKeys![index]!];if(!focus)return undefined;
+  const roi=screen.roi[Number(focus.slice(4))];
+  if(!roi||![roi.x,roi.y,roi.width,roi.height].every(Number.isFinite)||roi.x<0||roi.y<0||roi.width<=0||roi.height<=0||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('CUSTOM_3D_PANEL_ROI_INVALID');
+  return roi;
+ });
  const safe=document.createElement('div'),inset=ctx.target.safeInsets,wide=ctx.target.aspect==='landscape',hasText=Boolean(params.textSlot);
  const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',inset:'0'});ctx.root.append(stage);
  const canvas=document.createElement('canvas');canvas.dataset.pbWebgl='object-studio';Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});stage.append(canvas);
@@ -63,17 +69,19 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
  const sweep=new Mesh(sweepGeometry(),new MeshStandardMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.85,side:DoubleSide}));sweep.receiveShadow=true;scene.add(sweep);
  const key=new DirectionalLight('#ffffff',2.2);key.position.set(4.8,8,5.6);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:48});key.shadow.bias=-.0004;key.shadow.normalBias=.02;
  const rim=new DirectionalLight('#ffffff',1.2);rim.position.set(-6.4,4,-8);scene.add(key,rim);
- const makeDevice=(screen:typeof asset)=>{
-  const width=3.8*Math.min(1,screen.width/screen.height),height=width*screen.height/screen.width,bezel=.08,depth=.12,radius=Math.min(.12,(Math.min(width,height)+2*bezel)/2-.001);
+ const makeDevice=(screen:typeof asset,roi?:{x:number;y:number;width:number;height:number})=>{
+  const imageWidth=screen.width*(roi?.width??1),imageHeight=screen.height*(roi?.height??1);
+  const width=3.8*Math.min(1,imageWidth/imageHeight),height=width*imageHeight/imageWidth,bezel=.08,depth=.12,radius=Math.min(.12,(Math.min(width,height)+2*bezel)/2-.001);
   const device=new Group(),bodyGeometry=new RoundedBoxGeometry(width+2*bezel,height+2*bezel,depth,6,Math.min(radius,depth/2-.001));
   const bodyMaterial=new MeshPhysicalMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.35,metalness:.7,clearcoat:1,clearcoatRoughness:.15});
   const body=new Mesh(bodyGeometry,bodyMaterial);body.castShadow=true;body.receiveShadow=true;device.add(body);
   const image=document.createElement('img');image.src=screen.url;image.alt='';const texture=new Texture(image);texture.colorSpace=SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  if(roi){texture.repeat.set(roi.width,roi.height);texture.offset.set(roi.x,1-roi.y-roi.height);}
   const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
   const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
   return{screen,device,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial};
  };
- const main=makeDevice(asset),panels=panelAssets.map(makeDevice),devices=[main,...panels],{device,width,height,bezel}=main;
+ const main=makeDevice(asset),panels=panelAssets.map((screen,index)=>makeDevice(screen,panelRois[index])),devices=[main,...panels],{device,width,height,bezel}=main;
  // Additional screens start hidden; each seek must state exactly which belong in this shot.
  for(const panel of panels)panel.device.visible=false;
  const camera=new PerspectiveCamera(30,stage.clientWidth/stage.clientHeight,.05,400);

@@ -65,8 +65,9 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
   async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
    const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
    if(film.scenes[0].block==='vox-clip@1'&&film.scenes[0].params.items[0].focus){assert.deepEqual(task.job.frames,[84]);assert.equal(film.scenes[0].params.intervalFrames,120);assert.deepEqual(film.assets.health.roi,[{x:.2,y:.2,width:.4,height:.4}]);}
-   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2','om3-studio-v3'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
+   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2','om3-studio-v3','om3-studio-v4'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
     if(film.scenes[0].runtime3D==='om3-studio-v2'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/objectYaw:15,objectScale:1/);}
+    if(film.scenes[0].runtime3D==='om3-studio-v4'){assert.deepEqual(film.scenes[0].params.panelFocus,{'health-panel':'roi:0'});assert.deepEqual(film.assets['health-panel'].roi,[{x:.2,y:.2,width:.4,height:.4}]);}
     if(film.scenes[0].runtime3D==='om3-studio-v3'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/panels:\[\{x:2,scale:\.5,visible:true\}\]/);assert.deepEqual(film.scenes[0].params.assetKeys,['health','health-panel']);}
     return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
    assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
@@ -80,11 +81,13 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  await motion();await motion();assert.equal(probes,3);assert.equal(cache.size,3);
  const panels=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v3');
  await panels();await panels();assert.equal(probes,4);assert.equal(cache.size,4);
+ const focused=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v4');
+ await focused();await focused();assert.equal(probes,5);assert.equal(cache.size,5);
  const vox=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,true);
  const marked=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,'highlight');
- await vox();await marked();await marked();assert.equal(probes,6);assert.equal(cache.size,6);
+ await vox();await marked();await marked();assert.equal(probes,7);assert.equal(cache.size,7);
  cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
- await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,8,'an unsupported new studio does not disable old scenes');
+ await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,9,'an unsupported new studio does not disable old scenes');
 });
 
 test('Canvas title preflight requires an actual readable observation for the exact font and text',async t=>{
@@ -181,4 +184,16 @@ test('keynote preflight binds the cleared image and separately probes the origin
  const check=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,undefined,false,true);
  const marked=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,undefined,false,'highlight');
  await check();await check();await marked();await marked();assert.equal(probes,2);resource.sha256='b'.repeat(64);await check();await marked();assert.equal(probes,4);
+});
+
+test('studio detail crops must match an observation of the same source bytes',async()=>{
+ const {relayObservationIssues}=await import('../src/component-relay.ts');
+ const box={x:.1,y:.2,width:.3,height:.4};
+ const film={assets:{panel:{resourceId:'first',roi:[box]}},scenes:[{kind:'custom',runtime3D:'om3-studio-v4',params:{panelFocus:{panel:'roi:0'}}}]};
+ const resources=[{resourceId:'first',sha256:'a'},{resourceId:'second',sha256:'b'}];
+ const insights=[{sha256:'a',regions:[{box,label:'detail'}]}];
+ assert.deepEqual(relayObservationIssues(film,insights,resources),[]);
+ assert.equal(relayObservationIssues(film,[{sha256:'b',regions:[{box}]}],resources)[0].code,'STUDIO_ROI_NOT_OBSERVED');
+ assert.equal(relayObservationIssues(film,[{sha256:'a',regions:[{box:{...box,x:.2}}]}],resources)[0].code,'STUDIO_ROI_NOT_OBSERVED');
+ const legacy=structuredClone(film);legacy.scenes[0].runtime3D='om3-studio-v3';assert.deepEqual(relayObservationIssues(legacy,[],resources),[]);
 });
