@@ -128,3 +128,11 @@ test('original keynote image sequence requires cleared stills and full per-scree
  const short=structuredClone(film);short.scenes[0].end=225;short.scenes.push({...filmFixture().scenes[2],start:225,transitionIn:{type:'cut',frames:0}});
  assert.throws(()=>make(short,opts),/KEYNOTE_READING_HOLD_MISSING/);
 });
+
+test('keynote emphasis uses a complete ROI on the same admitted image',()=>{
+ const film=filmFixture();film.assets.other={resourceId:'res_fixture_other'};
+ film.scenes=[{id:'keynote',start:0,end:450,kind:'block',block:'keynote-clip@1',params:{items:[{assetKey:'dashboard',focus:'roi:0'},{assetKey:'other'}],intervalFrames:120},purpose:'Highlight one real page.'}];
+ const opts=options();opts.resources.push({...opts.resources[0],resourceId:'res_fixture_other'});assert.doesNotThrow(()=>make(film,opts));
+ const wrong=structuredClone(film);wrong.scenes[0].params.items[1].focus='roi:0';assert.throws(()=>make(wrong,opts),/KEYNOTE_CLIP_ROI_INVALID/);
+ const outside=structuredClone(film);outside.assets.dashboard.roi[0].x=.9;assert.throws(()=>make(outside,opts),/KEYNOTE_CLIP_ROI_INVALID/);
+});

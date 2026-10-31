@@ -8,7 +8,8 @@ export function blockEvents(id, frames, params) {
   if(id==='keynote-clip'){
     const landings=params.items.map((_,index)=>index*params.intervalFrames+30);
     if(params.intervalFrames<120||duration-(params.items.length-1)*params.intervalFrames<120)throw Error('KEYNOTE_READING_HOLD_MISSING');
-    return landings.map((frame,index)=>({name:index===landings.length-1?'product-land':'product-step-'+(index+1),frame}));
+    const highlights=params.items.flatMap((item,index)=>item.focus?[{name:'highlight-land-'+(index+1),frame:index*params.intervalFrames+69}]:[]);
+    return [...landings.map((frame,index)=>({name:index===landings.length-1?'product-land':'product-step-'+(index+1),frame})),...highlights].sort((a,b)=>a.frame-b.frame);
   }
   if(id==='whiteboard-clip'){
     if(duration<135)throw Error('WHITEBOARD_READING_HOLD_MISSING');

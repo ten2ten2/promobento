@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.40.0',
+  id: 'product-directing', version: '1.41.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -40,6 +40,7 @@ export const directingMethodPack = {
       'canvas-title executes the original y5 headline with a fact-bound text slot and an admitted normal display font. It may wrap the original text into up to two lines; both lines enter together. Use only simple Latin, CJK and common characters without combining marks; keep it concise. It cannot appear in the same film as a custom scene. Keep its settled reading holds free of overlapping scenes and overlays. Treat it as one expressive title shot, not a substitute for the product or a page handoff.',
       'canvas-sequence runs two or three original y5 title pages with the original color-band wipe. Every page needs its own exact confirmed headline slot; startFrame begins at 0, and leave at least 120 frames per page. Keep reading holds free of overlays and never mix this block with custom scenes. Use it for a meaningful typographic progression, not product proof.',
       'keynote-clip uses the original t2 screenshot-card motion for two or three distinct, cleared and causally related source states, without numbered badges or unbound Canvas text. Allow at least 120 frames per state and never carry a detail from one exercise onto another. The direction preview repeats a single image; only the final source establishes a real handoff.',
+      'A keynote-clip item may use focus:roi:n only for the exact observed region on that same source image. It adds the original animated emphasis while keeping the full page visible. Never reuse a previous exercise’s region on a different page; the visual observation is not independent proof of the interaction.',
       'whiteboard-clip uses the original y3 marker and hand-drawn reveal for one cleared product image, with a separately bound headline. Reserve at least 135 frames and use it when a whiteboard explanation fits the story, not as a fabricated interface interaction.',
       'The drawn-steps icon options include the original y3 person, cat, network, bulb, cross, stack, gear, clock and chart motifs. Select an icon only when it helps explain the confirmed step; these are illustrative marks, not evidence of a product interaction.',
       'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. Choose om3-studio-v2 when the screen object itself must rotate or scale independently of the camera; choose distanceScale to keep the real screen within the frame unless a purposeful crop is warranted. The bounded studio does not synthesize product interactions or open arbitrary Three.js.',

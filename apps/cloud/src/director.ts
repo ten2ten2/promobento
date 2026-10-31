@@ -172,10 +172,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
     const extendedDrawnIcons=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=37);
     const keynoteMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=39)&&supportsVoxClip(methods,context.resources);
+    const keynoteHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=41);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
     const availableBlocks=blockCatalog.filter(block=>(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
+        if(block.id==='keynote-clip'&&!keynoteHighlightMethod){const legacy=structuredClone(block) as Json;legacy.version='1.0.0';delete legacy.params.properties.items.items.properties.focus;
+          legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;}
         if(block.id==='vox-clip'&&!voxHighlightMethod){const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
           legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;}
         if(block.id==='drawn-steps'&&!extendedDrawnIcons){const legacy=structuredClone(block) as Json;
@@ -217,6 +220,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(!extendedDrawnIcons&&value.scenes.some((scene:Json)=>scene.block==='drawn-steps@1'&&scene.params.items?.some((item:Json)=>item.icon&&!['circle','document','screen','chat','check','target'].includes(item.icon))))
         throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'DRAWN_ICON_NOT_AVAILABLE',path:'/scenes'}],value);
       if(!keynoteMethod&&value.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!keynoteHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'&&scene.params.items?.some((item:Json)=>item.focus)))
+        throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'KEYNOTE_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
       if(!preview)for(const scene of value.scenes.filter((item:Json)=>item.block==='keynote-clip@1'&&Array.isArray(item.params.items))){
         const identities=scene.params.items.map((item:Json)=>{const id=value.assets[item.assetKey]?.resourceId;return context.resources.find((asset:Json)=>asset.resourceId===id)?.sha256??id;});
         if(identities.every(Boolean)&&new Set(identities).size!==identities.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'KEYNOTE_DISTINCT_SCREENS_REQUIRED',path:'/scenes'}],value);
@@ -374,7 +379,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       assetObservationRequired=Boolean(checkedAssetsMethod&&custom.some((scene:Json)=>(scene.params.assetChecks??[]).length));
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
-      if(film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,true);
+      if(film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,
+        film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
       if(film.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,true);
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
@@ -619,7 +625,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
             film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
-          if(film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,true);
+          if(film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,
+            film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
           if(film.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,true);
           await preflightCanvasTitles(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);

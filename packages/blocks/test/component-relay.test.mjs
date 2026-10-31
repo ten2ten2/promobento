@@ -82,3 +82,13 @@ test('Vox highlights must belong to the exact source image and preserve reading 
  assert.deepEqual(filmObservationFrames(film,'final'),[33,84,153]);
  assert.throws(()=>blockEvents('vox-clip',vox,{...vox.params,intervalFrames:90}),/VOX_CLIP_HIGHLIGHT_HOLD_MISSING/);
 });
+
+test('keynote highlights require observation on the same source and keep a settled hold',()=>{
+ const scene={id:'keynote',kind:'block',block:'keynote-clip@1',start:0,end:450,params:{intervalFrames:120,items:[{assetKey:'first',focus:'roi:0'},{assetKey:'second'}]}};
+ const film={scenes:[scene],assets:{first:{resourceId:'res_one',roi:[roi]},second:{resourceId:'res_two'}}};
+ const resources=[{resourceId:'res_one',sha256:'source-one'}],insights=[{sha256:'source-one',regions:[{box:roi,label:'visible detail'}]}];
+ assert.deepEqual(relayObservationIssues(film,insights,resources),[]);
+ assert.equal(relayObservationIssues(film,[{sha256:'other',regions:[{box:roi}]}],resources)[0].code,'KEYNOTE_ROI_NOT_OBSERVED');
+ assert.deepEqual(blockEvents('keynote-clip',scene,scene.params).map(event=>event.frame),[30,69,150]);
+ assert.deepEqual(filmObservationFrames(film,'final'),[45,84,165]);
+});

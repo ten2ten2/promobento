@@ -360,6 +360,22 @@ try{
    }finally{await changed.close();}
   }
   report.keynoteClip='two_separate_original_screens_handoff_reverse_landscape_portrait';
+  // The highlight is tied to the first source's actual ROI. It must be visible
+  // without dimming the rest of the image and disappear with that source.
+  const focusFilm=structuredClone(keynoteFilm);focusFilm.scenes[0].params.items[0].focus='roi:0';
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
+   options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});
+   const capture=async film=>{const session=await filmSession({raw:JSON.stringify(film),options,browserVersion:lock.browser.version,font,resource:id=>id==='res_fixture_other'?keynoteGreen:magenta,killBrowser});
+    try{return[await session.frame(84,{format:'png'}),await session.frame(165,{format:'png'})];}finally{await session.close();}};
+   const plain=await capture(keynoteFilm),focused=await capture(focusFilm);
+   assert.ok(compareSeam(plain[0],focused[0]).diffPixelPct>.01,`${aspect} original ROI highlight changes the first page`);
+   const countMagenta=png=>{const p=pngPixels(png).pixels;let count=0;for(let i=0;i<p.length;i+=4)if(p[i]>180&&p[i+1]<80&&p[i+2]>180)count++;return count;};
+   assert.ok(countMagenta(focused[0])>countMagenta(plain[0])*.85,`${aspect} the page around the ROI remains visible`);
+   assert.notEqual(compareSeam(plain[1],focused[1]).verdict,'RENDER_SEAM_BLOCK',`${aspect} the old ROI does not follow the next page`);
+   writeFileSync(`${output}/keynote-focus-${aspect}.png`,focused[0]);
+  }
+  report.keynoteFocus='observed_source_region_emphasis_retains_context_and_leaves_before_next_page';
 
   // A prior authored scene may edit its own handles, but cannot change which
   // admitted image, ROI or style a later trusted scene receives.

@@ -145,6 +145,7 @@ jobs:
             artifacts/film-runtime/canvas-sequence-*.png
             artifacts/film-runtime/whiteboard-clip-*.png
             artifacts/film-runtime/keynote-clip-*.png
+            artifacts/film-runtime/keynote-focus-*.png
             artifacts/film-runtime/drawn-icons-*.png
             artifacts/film-runtime/object-motion-*.png
             artifacts/film-runtime/om3-panels-*.png

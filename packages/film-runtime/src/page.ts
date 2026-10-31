@@ -79,8 +79,9 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
     if(scene.block==='keynote-clip@1'){
-      for(const item of scene.params.items as Array<{assetKey:string}>){const asset=spec.assets[item.assetKey];
-        if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('KEYNOTE_IMAGE_REQUIRED');}
+      for(const item of scene.params.items as Array<{assetKey:string;focus?:string}>){const asset=spec.assets[item.assetKey];
+        if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('KEYNOTE_IMAGE_REQUIRED');
+        if(item.focus){const roi=asset.roi?.[Number(item.focus.slice(4))];if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('KEYNOTE_CLIP_ROI_INVALID');}}
       blockEvents('keynote-clip',scene,scene.params);
     }
     if(scene.block==='whiteboard-clip@1'){
