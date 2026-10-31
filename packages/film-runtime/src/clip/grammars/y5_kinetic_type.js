@@ -102,7 +102,7 @@ function drawPage(c, P, t, ctx) {
   lines.forEach((ln, i) => {
     let s = ln; if (P.num) { const k = MO.expoOut(clamp(lt / 0.7)); s = (P.nd.prefix || '') + TY.fmt((P.nd.value || 0) * k, P.nd.decimals ?? 0) + (P.nd.suffix || ''); }
     const w = TY.width(c, s, size, ctx.fontFamily || 'PuHui-Black'), x = textCenter - w / 2, y = y0 + i * lh;
-    TY.slam(c, s, x, y, lt - i * 0.08, { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
+    TY.slam(c, s, x, y, lt - (ctx.data.boundTogether ? 0 : i * 0.08), { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
     if (lt - i * 0.08 > 0) CLIP.mark(c, CLIP.rid('word', pi), x, y - size * 0.88, w, size * 1.0);
     for (const k of (knock || []).filter(k => k.i === i)) {             // 只在荧光笔那块平行四边形里，用底色再砸一遍同一行（和 TY.marker 同一形状）
       const [mx, my, mw, mh, mp] = k.mr, ww = mw * MO.expoOut(clamp(mp)), sk = mh * 0.18;

@@ -4,16 +4,23 @@ export interface GlyphBox {x:number;y:number;width:number;height:number}
 export interface CanvasTitleTrace {boxes:GlyphBox[];fontSize:number;alpha:number;draws:number;font:string;letterSpacing:string}
 
 /** Only the fixed original y5 title path receives this proxy; it is never given to authored code. */
-export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:string,trace:CanvasTitleTrace|null):CanvasRenderingContext2D{
- return new Proxy(context,{
+export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:string,trace:CanvasTitleTrace|null){
+ let remaining=expected,draws=0;
+ const canvas=new Proxy(context,{
   get(target,key){
    if(key==='fillText')return (text:string,x:number,y:number,maxWidth?:number)=>{
-    if(text!==expected||maxWidth!==undefined)throw Error('CANVAS_TEXT_BINDING_MISMATCH');
+    // A line break may replace whitespace at the wrap boundary, but may not
+    // change, reorder or omit any of the original non-whitespace characters.
+    if(draws)remaining=remaining.replace(/^\s+/u,'');
+    if(typeof text!=='string'||!text||maxWidth!==undefined||++draws>2||!remaining.startsWith(text))throw Error('CANVAS_TEXT_BINDING_MISMATCH');
+    remaining=remaining.slice(text.length);
     if(trace){
-     if(++trace.draws!==1)throw Error('CANVAS_TEXT_MULTILINE_UNSUPPORTED');
+     trace.draws=draws;
      if(!['left','start'].includes(target.textAlign)||!['alphabetic'].includes(target.textBaseline))throw Error('CANVAS_TEXT_LAYOUT_UNSUPPORTED');
      const size=/([\d.]+)px/.exec(target.font);if(!size)throw Error('CANVAS_TEXT_FONT_INVALID');
-     const m=target.getTransform();trace.fontSize=Number(size[1])*Math.min(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));trace.alpha=target.globalAlpha;
+     const m=target.getTransform(),fontSize=Number(size[1])*Math.min(Math.hypot(m.a,m.b),Math.hypot(m.c,m.d));
+     if(draws>1&&(trace.font!==target.font||trace.letterSpacing!==target.letterSpacing||Math.abs(trace.fontSize-fontSize)>1e-6||Math.abs(trace.alpha-target.globalAlpha)>1e-6))throw Error('CANVAS_TEXT_LAYOUT_UNSUPPORTED');
+     trace.fontSize=fontSize;trace.alpha=target.globalAlpha;
      trace.font=target.font;trace.letterSpacing=target.letterSpacing;
      const segments=new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text);let prefix='';
      for(const {segment}of segments){
@@ -34,4 +41,5 @@ export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:strin
   },
   set(target,key,value){return Reflect.set(target,key,value,target);}
  });
+ return{canvas,finish(){if(!draws||remaining.trim())throw Error('CANVAS_TEXT_BINDING_MISMATCH');}};
 }

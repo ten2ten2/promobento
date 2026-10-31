@@ -259,6 +259,23 @@ try{
    }finally{await canvasSession.close();}
   }
   report.canvasTitle='bound_original_canvas_text_checked_against_actual_frame_landscape_portrait_reverse';
+  // A wrapped title still consists only of the frozen text, including on the
+  // first encoded frame and after a reverse seek; inspect both real line boxes.
+  const wrappedFilm=structuredClone(canvasFilm);wrappedFilm.texts.headline.text='LEARN A LITTLE EVERY DAY';
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.resources=[];options.fonts=multiOptions.fonts;
+   const session=await filmSession({raw:JSON.stringify(wrappedFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    await session.frame(0,{format:'png'});assert.equal(session.canvasTextTrace(0)[0].boxes.length,wrappedFilm.texts.headline.text.replace(/\s/g,'').length);
+    const first=await session.frame(45,{format:'png'}),trace=session.canvasTextTrace(45)[0],observation=await session.observe('canvas-wrap-check',45);
+    assert.ok(Math.max(...trace.boxes.map(box=>box.y))-Math.min(...trace.boxes.map(box=>box.y))>trace.fontSize*.7,'the original title occupies two lines');
+    assert.ok(observation.texts.some(text=>text.slotId==='headline'&&text.text===wrappedFilm.texts.headline.text&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    await session.frame(90,{format:'png'});assert.equal(compareSeam(first,await session.frame(45,{format:'png'})).verdict,'pass');
+    writeFileSync(`${output}/canvas-wrapped-${aspect}.png`,first);
+   }finally{await session.close();}
+  }
+  report.canvasWrapped='two_lines_bound_from_first_frame_checked_against_actual_pixels_landscape_portrait';
   // Original y5's wipe changes pages; each captured frame and hold must bind
   // the actual active title, including cold and reverse seeks across the cut.
   const sequenceFilm=structuredClone(canvasFilm);
@@ -318,8 +335,10 @@ try{
    const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
    options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});
    const keynote=await filmSession({raw:JSON.stringify(keynoteFilm),options,browserVersion:lock.browser.version,font,resource:id=>id==='res_fixture_other'?keynoteGreen:magenta,killBrowser});let settled;
-   try{const first=await keynote.frame(60,{format:'png'}),transition=await keynote.frame(126,{format:'png'}),second=await keynote.frame(165,{format:'png'});
-    writeFileSync(`${output}/keynote-clip-${aspect}-first.png`,first);writeFileSync(`${output}/keynote-clip-${aspect}-handoff.png`,transition);writeFileSync(`${output}/keynote-clip-${aspect}-second.png`,second);
+   try{const cold=await keynote.frame(165,{format:'png'}),first=await keynote.frame(60,{format:'png'}),transition=await keynote.frame(126,{format:'png'}),second=await keynote.frame(165,{format:'png'});
+    writeFileSync(`${output}/keynote-clip-${aspect}-cold.png`,cold);writeFileSync(`${output}/keynote-clip-${aspect}-first.png`,first);writeFileSync(`${output}/keynote-clip-${aspect}-handoff.png`,transition);writeFileSync(`${output}/keynote-clip-${aspect}-second.png`,second);
+    const seekDifference=compareSeam(cold,second);
+    assert.equal(seekDifference.diffPixelPct,0,`${aspect} cold and sequential seeks must produce the same settled screen: ${JSON.stringify(seekDifference)}`);
     const count=png=>{const p=pngPixels(png);let magentaPixels=0,greenPixels=0;for(let i=0;i<p.pixels.length;i+=4){
      if(p.pixels[i]>180&&p.pixels[i+1]<80&&p.pixels[i+2]>180)magentaPixels++;
      if(p.pixels[i]<80&&p.pixels[i+1]>180&&p.pixels[i+2]<80)greenPixels++;
@@ -331,8 +350,10 @@ try{
     settled=second;
    }finally{await keynote.close();}
    const blue=solidPng(10,10,235),changed=await filmSession({raw:JSON.stringify(keynoteFilm),options,browserVersion:lock.browser.version,font,resource:id=>id==='res_fixture_other'?keynoteGreen:blue,killBrowser});
-   try{const changedSecond=await changed.frame(165,{format:'png'});
-    assert.equal(compareSeam(settled,changedSecond).diffPixelPct,0,`${aspect} replacing the previous exercise cannot change the settled next screen`);
+   try{await changed.frame(165,{format:'png'});await changed.frame(60,{format:'png'});await changed.frame(126,{format:'png'});const changedSecond=await changed.frame(165,{format:'png'});
+    writeFileSync(`${output}/keynote-clip-${aspect}-changed.png`,changedSecond);
+    const difference=compareSeam(settled,changedSecond);
+    assert.equal(difference.diffPixelPct,0,`${aspect} replacing the previous exercise cannot change the settled next screen: ${JSON.stringify(difference)}`);
    }finally{await changed.close();}
   }
   report.keynoteClip='two_separate_original_screens_handoff_reverse_landscape_portrait';

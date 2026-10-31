@@ -101,7 +101,7 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
    regions:[region('product',canvas,ctx.root),region('headline',heading,ctx.root)]};
 }});
 
-// One short, fact-bound title through the original y5 Canvas grammar. This
+// One fact-bound title, on up to two lines, through the original y5 grammar. This
 // narrowly audited path has no custom scenes, nested clips, captions or numbers.
 function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence'){
   const font=ctx.style.type.display,slots=items.map(item=>ctx.text(item.textSlot));
@@ -122,16 +122,16 @@ function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFr
     const inset=ctx.target.safeInsets;
     stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,
       safe:{left:inset.left*canvas.width,right:inset.right*canvas.width,top:inset.top*canvas.height,bottom:inset.bottom*canvas.height},
-      data:{safeText:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
+      data:{safeText:true,boundTogether:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
       cues:items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text}))},{width:canvas.width,height:canvas.height,fontFamily:family});
   });
   const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
     return{slotId:currentSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
   return{ready,render(time:number){if(!stage)throw Error('CLIP_NOT_READY');const index=selected(time);text=slots[index]!.text;currentSlot=items[index]!.textSlot;fontProbe.textContent=text;trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
-    stage.draw(boundCanvasTitle(paint,text,trace),time);if(trace.draws!==1||!trace.boxes.length)throw Error('CANVAS_TEXT_NOT_DRAWN');
+    const bound=boundCanvasTitle(paint,text,trace);stage.draw(bound.canvas,time);bound.finish();if(!trace.boxes.length)throw Error('CANVAS_TEXT_NOT_DRAWN');
     fontProbe.style.font=trace.font;fontProbe.style.letterSpacing=trace.letterSpacing;lastTime=time;
   },canvasTextTrace:currentTrace,canvasTextProof(){if(!stage||!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
-    stage.draw(boundCanvasTitle(clean,text,null),lastTime);
+    const bound=boundCanvasTitle(clean,text,null);stage.draw(bound.canvas,lastTime);bound.finish();
     return{...currentTrace(),withText:canvas.toDataURL('image/png'),withoutText:without.toDataURL('image/png')};
   },events:blockEvents(id,ctx.frames,id==='canvas-title'?{textSlot:currentSlot}:{items}),regions:[{regionId:'headline',boxAt(){
     if(!trace?.boxes.length)return null;const left=Math.min(...trace.boxes.map(box=>box.x)),top=Math.min(...trace.boxes.map(box=>box.y)),
