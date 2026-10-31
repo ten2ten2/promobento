@@ -42,7 +42,7 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>}){
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>;panelOpacity?:boolean}){
  const asset=ctx.asset(params.assetKey),panelAssets=(params.panelKeys??[]).map(key=>ctx.asset(key));
  if([asset,...panelAssets].some(item=>item.kind==='video'))throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
  const panelRois=panelAssets.map((screen,index)=>{
@@ -79,7 +79,7 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
   if(roi){texture.repeat.set(roi.width,roi.height);texture.offset.set(roi.x,1-roi.y-roi.height);}
   const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
   const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
-  return{screen,device,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial};
+  return{screen,device,body,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial};
  };
  const main=makeDevice(asset),panels=panelAssets.map((screen,index)=>makeDevice(screen,panelRois[index])),devices=[main,...panels],{device,width,height,bezel}=main;
  // Additional screens start hidden; each seek must state exactly which belong in this shot.
@@ -105,11 +105,12 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
    if(view.panels!==undefined&&(!Array.isArray(view.panels)||view.panels.length!==panels.length))throw Error('STUDIO_VIEW_INVALID');
    for(const [index,panel]of panels.entries()){
     const pose=view.panels===undefined?{}:view.panels[index];
-    if(!pose||typeof pose!=='object'||Array.isArray(pose)||Object.keys(pose).some(key=>!['x','y','z','yaw','pitch','roll','scale','visible'].includes(key)))throw Error('STUDIO_VIEW_INVALID');
-    const x=pose.x??0,y=pose.y??0,z=pose.z??0,py=pose.yaw??0,pp=pose.pitch??0,pr=pose.roll??0,ps=pose.scale??.5,visible=pose.visible??false;
-    if(![x,y,z,py,pp,pr,ps].every(Number.isFinite)||Math.abs(x)>4||Math.abs(y)>4||Math.abs(z)>4||Math.abs(py)>180||Math.abs(pp)>180||Math.abs(pr)>180
-      ||ps<.25||ps>1.5||typeof visible!=='boolean')throw Error('STUDIO_VIEW_INVALID');
-    panel.device.position.set(x,y,z);panel.device.rotation.set(pp*Math.PI/180,py*Math.PI/180,pr*Math.PI/180);panel.device.scale.setScalar(ps);panel.device.visible=visible;
+    if(!pose||typeof pose!=='object'||Array.isArray(pose)||Object.keys(pose).some(key=>!['x','y','z','yaw','pitch','roll','scale','visible',...(params.panelOpacity?['opacity']:[])].includes(key)))throw Error('STUDIO_VIEW_INVALID');
+    const x=pose.x??0,y=pose.y??0,z=pose.z??0,py=pose.yaw??0,pp=pose.pitch??0,pr=pose.roll??0,ps=pose.scale??.5,visible=pose.visible??false,opacity=pose.opacity??1;
+    if(![x,y,z,py,pp,pr,ps,opacity].every(Number.isFinite)||Math.abs(x)>4||Math.abs(y)>4||Math.abs(z)>4||Math.abs(py)>180||Math.abs(pp)>180||Math.abs(pr)>180
+      ||ps<.25||ps>1.5||opacity<0||opacity>1||typeof visible!=='boolean')throw Error('STUDIO_VIEW_INVALID');
+    panel.device.position.set(x,y,z);panel.device.rotation.set(pp*Math.PI/180,py*Math.PI/180,pr*Math.PI/180);panel.device.scale.setScalar(ps);panel.device.visible=visible&&opacity>0;
+    if(params.panelOpacity){for(const material of [panel.bodyMaterial,panel.faceMaterial]){const transparent=opacity<1;if(material.transparent!==transparent){material.transparent=transparent;material.needsUpdate=true;}material.opacity=opacity;material.depthWrite=!transparent;}panel.body.castShadow=opacity===1;}
    }
   }
   if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');

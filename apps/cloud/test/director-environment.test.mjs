@@ -67,9 +67,10 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
   async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
    const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
    if(film.scenes[0].block==='vox-clip@1'&&film.scenes[0].params.items[0].focus){assert.deepEqual(task.job.frames,[84]);assert.equal(film.scenes[0].params.intervalFrames,120);assert.deepEqual(film.assets.health.roi,[{x:.2,y:.2,width:.4,height:.4}]);}
-   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2','om3-studio-v3','om3-studio-v4'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
+   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2','om3-studio-v3','om3-studio-v4','om3-studio-v5'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
     if(film.scenes[0].runtime3D==='om3-studio-v2'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/objectYaw:15,objectScale:1/);}
-    if(film.scenes[0].runtime3D==='om3-studio-v4'){assert.deepEqual(film.scenes[0].params.panelFocus,{'health-panel':'roi:0'});assert.deepEqual(film.assets['health-panel'].roi,[{x:.2,y:.2,width:.4,height:.4}]);}
+    if(['om3-studio-v4','om3-studio-v5'].includes(film.scenes[0].runtime3D)){assert.deepEqual(film.scenes[0].params.panelFocus,{'health-panel':'roi:0'});assert.deepEqual(film.assets['health-panel'].roi,[{x:.2,y:.2,width:.4,height:.4}]);}
+    if(film.scenes[0].runtime3D==='om3-studio-v5'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/opacity:\.5/);}
     if(film.scenes[0].runtime3D==='om3-studio-v3'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/panels:\[\{x:2,scale:\.5,visible:true\}\]/);assert.deepEqual(film.scenes[0].params.assetKeys,['health','health-panel']);}
     return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
    assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
@@ -90,6 +91,8 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  await vox();await marked();await marked();assert.equal(probes,7);assert.equal(cache.size,7);
  cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
  await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,9,'an unsupported new studio does not disable old scenes');
+ oldRenderer=false;const translucent=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v5');
+ await translucent();await translucent();assert.equal(probes,10);assert.equal(cache.size,2,'the exact v5 probe has a distinct cache entry');
 });
 
 test('Canvas title preflight requires an actual readable observation for the exact font and text',async t=>{
@@ -202,5 +205,6 @@ test('studio detail crops must match an observation of the same source bytes',as
  assert.deepEqual(relayObservationIssues(film,insights,resources),[]);
  assert.equal(relayObservationIssues(film,[{sha256:'b',regions:[{box}]}],resources)[0].code,'STUDIO_ROI_NOT_OBSERVED');
  assert.equal(relayObservationIssues(film,[{sha256:'a',regions:[{box:{...box,x:.2}}]}],resources)[0].code,'STUDIO_ROI_NOT_OBSERVED');
+ film.scenes[0].runtime3D='om3-studio-v5';assert.deepEqual(relayObservationIssues(film,insights,resources),[]);assert.equal(relayObservationIssues(film,[],resources)[0].code,'STUDIO_ROI_NOT_OBSERVED');
  const legacy=structuredClone(film);legacy.scenes[0].runtime3D='om3-studio-v3';assert.deepEqual(relayObservationIssues(legacy,[],resources),[]);
 });

@@ -215,7 +215,7 @@
             "id": true, "start": true, "end": true, "layout": true, "transitionIn": true, "purpose": true, "focusFrom": true, "focusTo": true,
             "kind": {"const": "custom"},
             "module": {"type": "string", "pattern": "^scenes/[a-z][a-z0-9-]{0,47}/index\\.js$"},
-            "runtime3D": {"enum": ["om3-studio-v1", "om3-studio-v2", "om3-studio-v3", "om3-studio-v4"]},
+            "runtime3D": {"enum": ["om3-studio-v1", "om3-studio-v2", "om3-studio-v3", "om3-studio-v4", "om3-studio-v5"]},
             "runtimeText": {"const": "grapheme-v1"},
             "brief": {"type": "string", "minLength": 1, "maxLength": 2000},
             "params": {"type": "object", "maxProperties": 64}

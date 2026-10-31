@@ -174,6 +174,7 @@ test('v4 studio accepts only a real in-bounds ROI on its declared panel',()=>{
  film.assets.dashboard={resourceId:'res_fixture_dashboard'};film.assets.panel={resourceId:'res_fixture_dashboard',roi:[{x:.1,y:.2,width:.3,height:.4}]};scene.params.assetKeys=['dashboard','panel'];scene.params.panelFocus={panel:'roi:0'};
  sources[scene.module]=sources[scene.module].replace('const timeline=',"const studio=ctx.OM3.studio('dashboard',['panel']);const timeline=");
  const opts=options();opts.customSources=sources;assert.equal(make(film,opts).plan.usesWebgl,true);
+ scene.runtime3D='om3-studio-v5';assert.equal(make(film,opts).plan.usesWebgl,true);
  film.assets.panel.roi=[];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
  film.assets.panel.roi=[{x:.9,y:.2,width:.3,height:.4}];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
 });

@@ -819,6 +819,30 @@ try{
    }finally{await session.close();}
   }
   report.studioCrop='v4_observed_top_left_pixels_visibility_and_reverse_landscape_portrait';
+  const opacityFilm=structuredClone(cropFilm);opacityFilm.scenes[0].runtime3D='om3-studio-v5';
+  const opacitySource=`PB.scene('custom-studio',ctx=>{
+   const studio=ctx.OM3.studio('dashboard',['other']),timeline=gsap.timeline({paused:true});
+   ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,distanceScale:2,panels:[t<3?{x:2,z:1,scale:.55,visible:true,opacity:t<1?.5:t<2?1:0}:{x:2,z:1,scale:.55,visible:true}]}),15);return {timeline};});`;
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
+   options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});options.customSources={'scenes/custom-studio/index.js':opacitySource};options.initTimeoutMs=60000;options.frameTimeoutMs=10000;
+   const session=await filmSession({raw:JSON.stringify(opacityFilm),options,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?cropSource:image,killBrowser});
+   try{const half=await session.frame(15,{format:'png'}),full=await session.frame(45,{format:'png'}),hidden=await session.frame(75,{format:'png'}),reset=await session.frame(105,{format:'png'});
+    assert.ok(compareSeam(half,full).diffPixelPct>.05,'half opacity changes the real 3D panel pixels');
+    assert.ok(compareSeam(half,hidden).diffPixelPct>.05,'half opacity is not an invisible panel');
+    assert.notEqual(compareSeam(full,reset).verdict,'RENDER_SEAM_BLOCK','omitted opacity resets to 1');
+    assert.notEqual(compareSeam(half,await session.frame(15,{format:'png'})).verdict,'RENDER_SEAM_BLOCK');
+    writeFileSync(`${output}/om3-panels-${aspect}-opacity-half.png`,half);writeFileSync(`${output}/om3-panels-${aspect}-opacity-full.png`,full);writeFileSync(`${output}/om3-panels-${aspect}-opacity-hidden.png`,hidden);
+   }finally{await session.close();}
+  }
+  const opacityOptions=pageOptions('landscape',rules.aspectLayouts.landscape);opacityOptions.fonts=multiOptions.fonts;opacityOptions.resources[0].width=64;opacityOptions.resources[0].height=64;
+  opacityOptions.resources.push({...opacityOptions.resources[0],resourceId:'res_fixture_other'});opacityOptions.initTimeoutMs=60000;opacityOptions.frameTimeoutMs=10000;
+  for(const [film,source]of [[cropFilm,opacitySource],[opacityFilm,opacitySource.replace('opacity:t<1?.5:t<2?1:0','opacity:1.5')]]){
+   const session=await filmSession({raw:JSON.stringify(film),options:{...opacityOptions,customSources:{'scenes/custom-studio/index.js':source}},browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?cropSource:image,killBrowser});
+   try{await assert.rejects(session.frame(15),/STUDIO_VIEW_INVALID/);}finally{await session.close();}
+  }
+  report.studioOpacity='v5_translucent_observed_roi_panels_reset_and_reverse_landscape_portrait';
+
   const badPanels={...movingOptions,resources:[...movingOptions.resources,{...movingOptions.resources[0],resourceId:'res_fixture_other'}],
    customSources:{'scenes/custom-studio/index.js':panelsSource.replace('scale:.55','scale:2')}};
   const invalidPanels=await filmSession({raw:JSON.stringify(panelsFilm),options:badPanels,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?other:image,killBrowser});
@@ -897,10 +921,11 @@ try{
    const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');
    const observationBrowser=await chromium.connectOverCDP('http://127.0.0.1:9222');let selector;
    try{const context=await observationBrowser.newContext();try{await context.route('**/*',route=>route.abort());const page=await context.newPage();
-     await page.setContent(`<style>:root{--brand:#22aa44;--size:12px}@media(min-width:300px){.brand{--accent:rgb(10,20,30)}}</style><header class="brand">${svg}</header><img width="300" height="150" src="https://example.test/a.png"><img width="24" height="24" alt="Next" src="https://example.test/next.svg"><svg width="12" height="12" aria-label="Chart"><rect width="12" height="12"/></svg>`);
+     await page.setContent(`<style>:root{--brand:#22aa44;--size:12px}@media(min-width:300px){.brand{--accent:rgb(10,20,30)}}</style><header class="brand">${svg}</header><img width="300" height="150" src="https://example.test/a.png"><img width="24" height="24" alt="Next" src="https://example.test/next.svg"><svg width="12" height="12" aria-label="Chart"><rect width="12" height="12"/></svg><video poster="https://example.test/poster.png"><source src="https://example.test/first.webm"><source src="https://example.test/second.mp4"></video>`);
      const first=await observeProduct(page);selector=first.logos.find(item=>item.kind==='inline-svg')?.selector;
      assert.ok(selector);assert.equal(await page.locator(selector).count(),1);
      assert.ok(first.vectors.some(item=>item.label==='Chart'));assert.ok(first.icons.some(item=>item.src==='https://example.test/next.svg'));assert.ok(first.vectors.every(item=>!('svg' in item)));
+     assert.deepEqual(new Set(first.videos.map(item=>item.src)),new Set(['https://example.test/first.webm','https://example.test/second.mp4']));
      assert.ok(first.cssVariables.some(item=>item.name==='--brand'&&item.value==='#22aa44'));assert.ok(first.cssVariables.some(item=>item.name==='--accent'&&item.conditions.length));assert.ok(!first.cssVariables.some(item=>item.name==='--size'));
      await page.evaluate(()=>{document.querySelector('img').src='https://example.test/b.png';});
      const second=await observeProduct(page),merged=mergeProductObservations([{...first,viewY:0},{...second,viewY:1000}]);

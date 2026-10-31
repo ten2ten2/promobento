@@ -50,7 +50,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     if (scene.kind === 'custom') {
       if(isStudioRuntime(scene.runtime3D))for(const key of customStudioAssets(scene,options.customSources![scene.module]!)!){
         if(!['image','svg'].includes(resources.get(spec.assets[key]!.resourceId)?.kind??''))throw Error('CUSTOM_3D_IMAGE_REQUIRED');}
-      if(scene.runtime3D==='om3-studio-v4')for(const [key,focus] of Object.entries(scene.params?.panelFocus as Record<string,string>)){
+      if(['om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D??''))for(const [key,focus] of Object.entries(scene.params?.panelFocus as Record<string,string>)){
         const roi=spec.assets[key]?.roi?.[Number(focus.slice(4))];
         if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('CUSTOM_3D_PANEL_ROI_INVALID');
       }

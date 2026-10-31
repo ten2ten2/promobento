@@ -269,10 +269,10 @@ const engine: FilmEngine = {
           ctx.OM3=Object.freeze({studio(assetKey:string,panelKeys?:readonly string[]){
             if(!studioOpen||studios.length)throw Error('CUSTOM_3D_STUDIO_CLOSED');
             if(typeof assetKey!=='string'||!declared.assetKeys.includes(assetKey))throw Error('CUSTOM_SLOT_UNDECLARED');
-            const multi=scene.runtime3D==='om3-studio-v3'||scene.runtime3D==='om3-studio-v4';
+            const multi=scene.runtime3D==='om3-studio-v3'||scene.runtime3D==='om3-studio-v4'||scene.runtime3D==='om3-studio-v5';
             if(multi&&(!Array.isArray(panelKeys)||panelKeys.length<1||panelKeys.length>2||new Set([assetKey,...panelKeys]).size!==panelKeys.length+1
               ||panelKeys.some(key=>typeof key!=='string'||!declared.assetKeys.includes(key))))throw Error('CUSTOM_SLOT_UNDECLARED');
-            const studio=studioFactory(studioCtx,{assetKey,...(scene.runtime3D==='om3-studio-v2'||multi?{objectMotion:true}:{}),...(multi?{panelKeys:[...panelKeys!]}:{}),...(scene.runtime3D==='om3-studio-v4'?{panelFocus:{...scene.params!.panelFocus as Record<string,string>}}:{})});studios.push(studio);
+            const studio=studioFactory(studioCtx,{assetKey,...(scene.runtime3D==='om3-studio-v2'||multi?{objectMotion:true}:{}),...(multi?{panelKeys:[...panelKeys!]}:{}),...(['om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D??'')?{panelFocus:{...scene.params!.panelFocus as Record<string,string>}}:{}),...(scene.runtime3D==='om3-studio-v5'?{panelOpacity:true}:{})});studios.push(studio);
             void studio.ready.catch(()=>{});readiness.pending.push(studio.ready);
             return Object.freeze({render:(view:Parameters<typeof studio.renderView>[0])=>{if(studioOpen)throw Error('CUSTOM_3D_EARLY_DRAW');studio.renderView(view);}});
           }});
