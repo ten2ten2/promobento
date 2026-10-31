@@ -54,7 +54,7 @@ export type FilmScene = {
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
   /** params.gsapScope='scene' scopes selectors; params.sourceSfx=true enables frozen source sound declarations. */
-  | { kind: 'custom'; module: string; brief: string; runtime3D?: 'om3-studio-v1' | 'om3-studio-v2' | 'om3-studio-v3' | 'om3-studio-v4'; params?: Record<string, unknown> }
+  | { kind: 'custom'; module: string; brief: string; runtime3D?: 'om3-studio-v1' | 'om3-studio-v2' | 'om3-studio-v3' | 'om3-studio-v4'; runtimeText?: 'grapheme-v1'; params?: Record<string, unknown> }
 );
 
 /** A frozen asset as the page sees it; video frames come from the runtime, never a <video> element. */
@@ -71,7 +71,7 @@ export interface AssetHandle {
 export interface TextSlotHandle {
   slotId: string; text: string; role: 'headline' | 'body' | 'label' | 'number' | 'quote' | 'caption' | 'cta';
   /** Mounts the slot's text into an element with auto-fit to the role's minimum size; returns that element. */
-  mount(parent: Element, options?: { maxLines?: number; maxFontSize?: number; align?: 'start' | 'center' | 'end' }): HTMLElement;
+  mount(parent: Element, options?: { maxLines?: number; maxFontSize?: number; align?: 'start' | 'center' | 'end'; split?: 'graphemes' }): HTMLElement;
 }
 
 export interface SceneContext {

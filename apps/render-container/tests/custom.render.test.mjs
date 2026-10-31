@@ -11,7 +11,7 @@ import {renderShard} from '../src/shard.mjs';
 import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections} from '../../../research/evals/approved-video.mjs';
 import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
 import {prepareMaterialSelection} from '../../../research/evals/prepare-material-selection.mjs';
-import {observeProduct} from '../../../research/evals/product-observation.mjs';
+import {observeProduct,mergeProductObservations} from '../../../research/evals/product-observation.mjs';
 import {assertCanvasTextFrameDigests,canvasNumberText} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -58,6 +58,32 @@ try{
    }
    report.assetObservation='hidden_then_visible';report.fadeThrough='no_cross_scene_text_overlap';report.sandbox=session.sandbox;
   }finally{await session.close();}
+  // A trusted host may split the declared slot into original graphemes for
+  // the blank template's masked entrance; author code never creates text.
+  const splitFilm=structuredClone(film);splitFilm.scenes[0].runtimeText='grapheme-v1';
+  const splitSource=source.replace("ctx.text('product').mount(heading);", "const title=ctx.text('product').mount(heading,{split:'graphemes'});")
+   .replace("const timeline=gsap.timeline({paused:true});", "const timeline=gsap.timeline({paused:true});timeline.fromTo(title.querySelectorAll('.pb-grapheme'),{yPercent:110},{yPercent:0,duration:.5,stagger:.01},0);");
+  for(const aspect of ['landscape','portrait']){
+   const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':splitSource};
+   const split=await filmSession({raw:JSON.stringify(splitFilm),options:opts,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+   try{const start=await split.frame(0,{format:'png'}),settled=await split.frame(45,{format:'png'}),observation=await split.observe('grapheme-test',45),reverse=await split.frame(0,{format:'png'});
+    const text=observation.texts.find(item=>item.sceneId==='product'&&item.slotId==='product');assert.equal(text?.text,splitFilm.texts.product.text);assert.equal(text.clipped,false);assert.equal(text.fallbackUsed,false);
+    assert.ok(compareSeam(start,settled).diffPixelPct>.01,`${aspect} title actually moves`);assert.notEqual(compareSeam(start,reverse).verdict,'RENDER_SEAM_BLOCK');
+    writeFileSync(`${output}/grapheme-title-${aspect}.png`,settled);
+   }finally{await split.close();}
+  }
+  const combinedFilm=structuredClone(splitFilm);combinedFilm.texts.product.text='A\u0301 B';
+  const combinedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelectorAll('.pb-grapheme').length!==2)throw Error('GRAPHEME_SPLIT_INVALID');")}};
+  const combined=await filmSession({raw:JSON.stringify(combinedFilm),options:combinedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await combined.frame(45,{format:'png'});}finally{await combined.close();}
+  const legacySplitFilm=structuredClone(splitFilm);delete legacySplitFilm.scenes[0].runtimeText;
+  const legacySplitOptions={...options,customSources:{'scenes/product/index.js':source.replace("ctx.text('product').mount(heading);", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelector('.pb-grapheme'))throw Error('LEGACY_TEXT_CHANGED');")}};
+  const legacySplit=await filmSession({raw:JSON.stringify(legacySplitFilm),options:legacySplitOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await legacySplit.frame(45,{format:'png'});}finally{await legacySplit.close();}
+  const corruptedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("ctx.OM.clock(timeline,t=>{", "ctx.OM.clock(timeline,t=>{if(t>0)title.querySelector('.pb-grapheme')['text'+'Content']='X';")}};
+  const corrupted=await filmSession({raw:JSON.stringify(splitFilm),options:corruptedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await assert.rejects(corrupted.frame(45,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await corrupted.close();}
+  report.graphemeText='trusted_graphemes_fact_bound_readable_reverse_and_mutation_rejected';
   // The DOM still spells the approved slot when a nested span is transparent.
   // Actual CDP must reject that frame rather than relying on the parent's box.
   const hiddenTextSource=source.replace("ctx.text('product').mount(heading);",
@@ -799,8 +825,13 @@ try{
    const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');
    const observationBrowser=await chromium.connectOverCDP('http://127.0.0.1:9222');let selector;
    try{const context=await observationBrowser.newContext();try{await context.route('**/*',route=>route.abort());const page=await context.newPage();
-     await page.setContent(`<header class="brand">${svg}</header>`);selector=(await observeProduct(page)).logos.find(item=>item.kind==='inline-svg')?.selector;
+     await page.setContent(`<style>:root{--brand:#22aa44;--size:12px}@media(min-width:300px){.brand{--accent:rgb(10,20,30)}}</style><header class="brand">${svg}</header><img width="300" height="150" src="https://example.test/a.png">`);
+     const first=await observeProduct(page);selector=first.logos.find(item=>item.kind==='inline-svg')?.selector;
      assert.ok(selector);assert.equal(await page.locator(selector).count(),1);
+     assert.ok(first.cssVariables.some(item=>item.name==='--brand'&&item.value==='#22aa44'));assert.ok(first.cssVariables.some(item=>item.name==='--accent'&&item.conditions.length));assert.ok(!first.cssVariables.some(item=>item.name==='--size'));
+     await page.evaluate(()=>{document.querySelector('img').src='https://example.test/b.png';});
+     const second=await observeProduct(page),merged=mergeProductObservations([{...first,viewY:0},{...second,viewY:1000}]);
+     assert.deepEqual(merged.images.map(item=>item.src),['https://example.test/a.png','https://example.test/b.png']);assert.equal(merged.images[1].observedAtY,1000);
     }finally{await context.close();}}finally{await observationBrowser.close();}
    const html=Buffer.from(`<!doctype html><html><body><header class="brand">${svg}</header><script>document.querySelector('#mark').setAttribute('width','999')</script></body></html>`);
    const inlineCard={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},

@@ -216,6 +216,7 @@
             "kind": {"const": "custom"},
             "module": {"type": "string", "pattern": "^scenes/[a-z][a-z0-9-]{0,47}/index\\.js$"},
             "runtime3D": {"enum": ["om3-studio-v1", "om3-studio-v2", "om3-studio-v3", "om3-studio-v4"]},
+            "runtimeText": {"const": "grapheme-v1"},
             "brief": {"type": "string", "minLength": 1, "maxLength": 2000},
             "params": {"type": "object", "maxProperties": 64}
           }

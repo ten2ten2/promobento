@@ -168,3 +168,10 @@ test('v4 studio accepts only a real in-bounds ROI on its declared panel',()=>{
  film.assets.panel.roi=[];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
  film.assets.panel.roi=[{x:.9,y:.2,width:.3,height:.4}];assert.throws(()=>make(film,opts),/CUSTOM_3D_PANEL_ROI_INVALID/);
 });
+
+test('the grapheme runtime is explicit on a custom scene and rejects unknown versions',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtimeText='grapheme-v1';
+ sources[scene.module]=sources[scene.module].replace("ctx.text('headline').mount(heading,{maxLines:3})", "ctx.text('headline').mount(heading,{maxLines:3,split:'graphemes'})");
+ const opts=options();opts.customSources=sources;assert.equal(make(film,opts).plan.spec.scenes[0].runtimeText,'grapheme-v1');
+ scene.runtimeText='unknown';assert.throws(()=>make(film,opts),/FILM_SCHEMA_INVALID/);
+});

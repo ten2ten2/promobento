@@ -86,6 +86,7 @@ const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>{
   :customSceneInstructions;
  if(scene.kind==='custom'&&isStudioRuntime(scene.runtime3D))instructions=instructions.replace('custom WebGL/Three.js is not yet admitted.',
   `this scene has the bounded 3D studio. Construct exactly one ${['om3-studio-v3','om3-studio-v4'].includes(scene.runtime3D!)?"ctx.OM3.studio('primary',['panel'])":"ctx.OM3.studio('literal-asset-key')"} during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. ${['om3-studio-v2','om3-studio-v3','om3-studio-v4'].includes(scene.runtime3D!)?'The view can also set objectYaw, objectPitch and objectRoll in -180..180 degrees and objectScale in .5..1.5; omitted values reset to defaults. ':''}${['om3-studio-v3','om3-studio-v4'].includes(scene.runtime3D!)?"Use ctx.OM3.studio('primary',['panel']) with one or two additional distinct, declared literal image keys. Set panels:[{x,y,z,yaw,pitch,roll,scale,visible}] on every render: positions -4..4, rotations -180..180 degrees, scale .25..1.5; omitted visibility is false. Never carry a detail into an unrelated exercise. ":''}${scene.runtime3D==='om3-studio-v4'?'Panel crops are frozen in params.panelFocus and must name an exact observed ROI on that same panel asset. ':''}Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
+ if(scene.kind==='custom'&&scene.runtimeText==='grapheme-v1')instructions+=' Mount a text slot with {split:"graphemes"} and animate its .pb-grapheme children. The complete original text stays bound and must be readable at its hold.';
  return instructions;
 };
 const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec,resources:Json[])=>{
@@ -164,6 +165,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const customStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=28);
     const objectMotionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=33);
     const studioPanelsMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=38);
+    const graphemeMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=46);
     const studioFocusMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=45);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
     const voxClipMethod=supportsVoxClip(methods,context.resources);
@@ -211,6 +213,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     else if(!objectMotionMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={const:'om3-studio-v1'};
     else if(!studioPanelsMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2']};
     else if(!studioFocusMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2','om3-studio-v3']};
+    if(!graphemeMethod)delete s1FilmSchema.$defs.scene.oneOf[1].properties.runtimeText;
     s1FilmSchema.$defs.textSlot.properties.factIds.items.enum=context.confirmedFactIds;
     s1FilmSchema.$defs.textSlot.properties.factIds.description='Use only these confirmed fact ids. Every cta, number or quote slot, and every slot containing a digit, percent or currency symbol, must bind at least one genuinely relevant confirmed fact. Preserve existing bindings when editing. Do not invent ids or attach unrelated facts to unsupported claims.';
     delete s1FilmSchema.$defs.assetSlot.properties.crop;
@@ -259,6 +262,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if((canvasTitles.length||value.scenes.some((scene:Json)=>['canvas-sequence@1','canvas-number@1','canvas-subtitle@1'].includes(scene.block)))&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
+        if(scene.runtimeText&&!graphemeMethod)throw Error('CUSTOM_TEXT_RUNTIME_NOT_AVAILABLE');
         if(scene.runtime3D&&(!customStudioMethod||scene.runtime3D==='om3-studio-v2'&&!objectMotionMethod||scene.runtime3D==='om3-studio-v3'&&!studioPanelsMethod||scene.runtime3D==='om3-studio-v4'&&!studioFocusMethod))throw Error('CUSTOM_3D_NOT_AVAILABLE');
         const declared=customScenePlan(scene,{validateVisibleTextSlots:Boolean(checkedHoldMethod),validateAssetChecks:Boolean(checkedAssetsMethod&&!preview)});
         if(declared.textSlots.some(key=>!Object.hasOwn(value.texts,key))||declared.assetKeys.some(key=>!Object.hasOwn(value.assets,key)))throw Error('CUSTOM_SLOT_UNDECLARED');
@@ -297,7 +301,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         // D separately admits the exact source bytes and checks real custom frames before rendering.
         const checking=custom.length?{...value,scenes:value.scenes.map((scene:Json)=>{
           if(scene.kind!=='custom')return scene;
-          const {module,brief,params,kind,runtime3D,...common}=scene;
+          const {module,brief,params,kind,runtime3D,runtimeText,...common}=scene;
           return{...common,kind:'block',block:'hook-title@1',params:{textSlot:Object.keys(value.texts)[0]}};
         })}:value;
         generateFilmPage(canonical(checking),{target:{...layout,aspect:context.aspects[0],fps:30,totalFrames:value.totalFrames},seed:context.seed,
@@ -420,6 +424,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v3'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v3');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v4'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v4');
+      if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),'grapheme',true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
         relayScenes.some((scene:Json)=>Object.hasOwn(scene.params,'componentBehavior')));
@@ -664,6 +669,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v3'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v3');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v4'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v4');
+          if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),'grapheme',true);
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
           const taskId='still-'+digest({operationId:op.id,direction:card.key}).slice(0,48),frame=45;

@@ -50,7 +50,7 @@ const check = (input: Envelope & {command: string}, command: string): void => {
 };
 const fontFamily = (fontId: string): string => '"PB-' + fontId + '"';
 
-function textSlot(slotId: string, sceneStyle?: FilmSpec['style']): TextSlotHandle {
+function textSlot(slotId: string, sceneStyle?: FilmSpec['style'], splitGraphemes=false): TextSlotHandle {
   const current = requiredPlan();
   const slot = current.spec.texts[slotId];
   if (!slot) throw Error('TEXT_SLOT_UNKNOWN');
@@ -58,7 +58,15 @@ function textSlot(slotId: string, sceneStyle?: FilmSpec['style']): TextSlotHandl
     slotId, text: slot.text, role: slot.role,
     mount(parent, options = {}) {
       const el = document.createElement('span');
-      el.textContent = slot.text; el.dataset.omId = slotId; el.dataset.pbSlot = slotId;
+      if(splitGraphemes&&options.split==='graphemes'){
+        for(const {segment} of new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(slot.text)){
+          if(/^\s+$/u.test(segment)){el.append(document.createTextNode(segment));continue;}
+          const mask=document.createElement('span'),character=document.createElement('span');
+          Object.assign(mask.style,{display:'inline-block',overflow:'hidden',verticalAlign:'top'});
+          character.className='pb-grapheme';character.style.display='inline-block';character.textContent=segment;mask.append(character);el.append(mask);
+        }
+      }else el.textContent = slot.text;
+      el.dataset.omId = slotId; el.dataset.pbSlot = slotId;
       if (slot.lang) el.lang = slot.lang;
       const display = slot.role === 'headline' || slot.role === 'cta' || slot.role === 'number';
       const style=sceneStyle??current.spec.style,font = style.type[display ? 'display' : 'text'];
@@ -196,7 +204,7 @@ const engine: FilmEngine = {
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
           ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: sceneClip,
-        style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle),
+        style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle,scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'),
         asset(key) {
           const asset = sceneAssets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
           if (asset.kind !== 'video') return asset;

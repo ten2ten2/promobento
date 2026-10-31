@@ -4,11 +4,12 @@ import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync,existsSync} from
 import {resolve,join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {observeProduct} from './product-observation.mjs';
+import {observeProduct,mergeProductObservations} from './product-observation.mjs';
+import {capturePageOptions,capturePageScreens} from './capture-page.mjs';
 
 const root=new URL('../../',import.meta.url),topics=parseCanonicalJson(readFileSync(new URL('topics.json',import.meta.url)));
-const selected=process.argv[3],enhanced=process.argv[4]==='--grab',directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
-if(process.argv.length>5||process.argv[4]&&!enhanced)throw Error('CAPTURE_MODE_INVALID');
+const selected=process.argv[3],{grab:enhanced,maxShots}=capturePageOptions(process.argv.slice(4)),directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
+if(enhanced&&!selected)throw Error('EVAL_TOPIC_INVALID');
 if(selected&&!topics.topics.some(topic=>topic.id===selected&&topic.countsTowardGate!==false))throw Error('EVAL_TOPIC_INVALID');
 if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
 if(topics.rights.scope!=='internal_eval_only'||topics.factConfirmation.confirmedBy!=='owner')throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
@@ -43,18 +44,18 @@ try{
     if(actual.protocol!=='https:'||actual.hostname!==expected.hostname)throw Error('SOURCE_REDIRECT_REVIEW_REQUIRED');
     await page.screenshot({path:join(directory,file),fullPage:false,timeout:15000});
     let content=enhanced?await observeProduct(page):await page.evaluate(()=>({text:document.body.innerText.slice(0,7000),images:[...document.images].filter(image=>image.width>180&&image.height>100).slice(0,30).map(image=>({src:image.currentSrc,alt:image.alt,width:image.naturalWidth,height:image.naturalHeight,box:(()=>{const r=image.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height};})()}))}));
-    const screenshots=[{file,y:0}];
+    let screenshots=[{file,y:0}],missingBelow=false;
     if(enhanced){
      // No automatic asset downloads: observed URLs and screenshots are candidates only.
-     for(let y=1000;y<Math.min(content.pageHeight,8000);y+=1000){
-      const actualY=await page.evaluate(offset=>{window.scrollTo(0,offset);return window.scrollY;},y);await page.waitForTimeout(500);
-      const next=id+'-'+String(y/1000+1).padStart(2,'0')+'.png';if(existsSync(join(directory,next)))throw Error('CAPTURE_ALREADY_EXISTS');
-      await page.screenshot({path:join(directory,next),fullPage:false,timeout:15000});screenshots.push({file:next,y:actualY});
-     }
-     await page.evaluate(()=>window.scrollTo(0,0));content=await observeProduct(page);
+     const observations=[{...content,viewY:0}];
+     const captures=await capturePageScreens(page,{maxShots,firstFile:file,async save(index,y){
+      const next=id+'-'+String(index+1).padStart(2,'0')+'.png';if(existsSync(join(directory,next)))throw Error('CAPTURE_ALREADY_EXISTS');
+      await page.screenshot({path:join(directory,next),fullPage:false,timeout:15000});observations.push({...await observeProduct(page),viewY:y});return next;
+     }});screenshots=captures.screenshots;missingBelow=captures.missingBelow;
+     await page.evaluate(()=>window.scrollTo(0,0));observations.push({...await observeProduct(page),viewY:0});content=mergeProductObservations(observations);
     }
     entry={id,topicId:topic.id,sourceUrl:source.url,finalUrl:url,httpStatus:response?.status()??null,title:await page.title(),file,width:1600,height:1000,
-     intendedCapture:source.capture,rightsDecision:'research/evals/topics.json#/rights',scope:'internal_eval_only',publicUseCleared:false,review:'pending_visual_selection',...(enhanced?{screenshots,observationScope:'page_metadata_not_asset_permission',missing:[...(content.pageHeight>8000?['page continues below 8000px']:[]),...(content.cookieNoticeVisible?['cookie notice may cover part of screenshots']:[])]}:{}),...content};
+     intendedCapture:source.capture,rightsDecision:'research/evals/topics.json#/rights',scope:'internal_eval_only',publicUseCleared:false,review:'pending_visual_selection',...(enhanced?{screenshots,observationScope:'page_metadata_not_asset_permission',missing:[...(missingBelow?['page continues below the last captured viewport']:[]),...(content.candidateCapExceeded?['more than 200 candidates for at least one media category']:[]),...(content.cssVariablesTruncated?['CSS variable observation limit reached']:[]),...(content.cssRulesUnavailable?['some stylesheet rules are unavailable']:[]),...(content.cookieNoticeVisible?['cookie notice may cover part of screenshots']:[])]}:{}),...content};
    }catch(error){entry={id,topicId:topic.id,sourceUrl:source.url,status:'capture_failed',error:String(error.message??error)};}
    finally{await page.close();}
    report.assets.push(entry);save();console.log(canonical({id:entry.id,status:entry.status??entry.review,title:entry.title??null}));

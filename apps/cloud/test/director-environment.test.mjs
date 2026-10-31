@@ -38,20 +38,22 @@ test('image/sandbox/broker preflight caches only stopped successful probes for t
 });
 
 test('scene-scoped observation is probed before models without changing the legacy cache contract',async t=>{
- const{db,DB}=sqliteD1();t.after(()=>db.close());const{MEDIA}=memoryMedia();let probes=0,closes=0,taskId,oldRenderer=false;
+ const{db,DB}=sqliteD1();t.after(()=>db.close());const{objects,MEDIA}=memoryMedia();let probes=0,closes=0,taskId,oldRenderer=false,splitBad=false;
  const op={id:'health-operation',generation:0},image='sha256:'+'a'.repeat(64),cache=new Map();
  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
  const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts};
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
-  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;probes++;return canonical({status:'ready'});},async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
-  async checkFrame(_id,frame){const text={slotId:'headline',...(!oldRenderer?{sceneId:'health'}:{}),text:'Render health check',box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:false,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:[]}});},
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;probes++;const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);if(film.scenes[0].runtimeText==='grapheme-v1'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/TEXT_SPLIT_UNAVAILABLE/);}return canonical({status:'ready'});},async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
+  async checkFrame(_id,frame){const text={slotId:'headline',...(!oldRenderer?{sceneId:'health'}:{}),text:'Render health check',box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:splitBad,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:[]}});},
   async closeStudio(){closes++;}
  };}}};
  await directorEnvironment(env,op,context,[],Date.now()+60000,true);await directorEnvironment(env,op,context,[],Date.now()+60000,true,true);await directorEnvironment(env,op,context,[],Date.now()+60000,true,true);
  assert.equal(probes,2);assert.equal(closes,2);assert.equal(cache.size,2);
- cache.clear();oldRenderer=true;await assert.rejects(directorEnvironment(env,op,context,[],Date.now()+60000,true,true),/RENDER_OBSERVATION_SCOPE_UNAVAILABLE/);assert.equal(cache.size,0);assert.equal(closes,3);
- await directorEnvironment(env,op,context,[],Date.now()+60000,true);assert.equal(probes,4,'older methods still work on the old renderer');
+ splitBad=true;await assert.rejects(directorEnvironment(env,op,context,[],Date.now()+60000,'grapheme',true),/RENDER_TEXT_SPLIT_UNAVAILABLE/);assert.equal(cache.size,2);splitBad=false;
+ await directorEnvironment(env,op,context,[],Date.now()+60000,'grapheme',true);await directorEnvironment(env,op,context,[],Date.now()+60000,'grapheme',true);assert.equal(probes,4);assert.equal(cache.size,3);
+ cache.clear();oldRenderer=true;await assert.rejects(directorEnvironment(env,op,context,[],Date.now()+60000,true,true),/RENDER_OBSERVATION_SCOPE_UNAVAILABLE/);assert.equal(cache.size,0);assert.equal(closes,5);
+ await directorEnvironment(env,op,context,[],Date.now()+60000,true);assert.equal(probes,6,'older methods still work on the old renderer');
 });
 
 test('original 3D studio is probed only when requested, on a WebGL instance, before rendering',async t=>{
