@@ -9,7 +9,7 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio=false,packedVideo=false,voxClip=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[]}){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'=false,packedVideo=false,voxClip=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[]}){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  await operation(env,op.id,op.generation);await rights(env,op,resources);
@@ -19,7 +19,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  if(voxClip&&!voxAsset)throw Error('RENDER_VOX_ASSET_UNAVAILABLE');
  const release=await env.DB.prepare("SELECT * FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>();
  if(!release||release.runtime_version!==context.runtimeVersion||release.image_digest!==await env.SHARDS.getByName('release-metadata').imageDigest())throw Error('RENDER_ENVIRONMENT_MISMATCH');
- const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio:true}:{}),...(packedVideo?{packedVideo:packedAsset.sha256}: {}),...(voxClip?{voxClip:voxAsset.sha256}:{}),...(canvasTitle?{canvasTitle}:{})});
+ const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio}:{}),...(packedVideo?{packedVideo:packedAsset.sha256}: {}),...(voxClip?{voxClip:voxAsset.sha256}:{}),...(canvasTitle?{canvasTitle}:{})});
  const cached=parseCanonicalJson(await coordinator.rendererHealth(cacheKey)) as Json|null;
  if(cached&&cached.checkedAt<=Date.now()&&Date.now()-cached.checkedAt<cacheMs)return;
  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -55,9 +55,9 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  }
  if(customStudio){
   film.assets.health={resourceId:asset.resourceId};
-  film.scenes=[{id:'health',start:0,end:450,kind:'custom',runtime3D:'om3-studio-v1',module:'scenes/health/index.js',brief:'Private 3D runtime probe.',purpose:'Probe custom studio support.',
+  film.scenes=[{id:'health',start:0,end:450,kind:'custom',runtime3D:customStudio==='v2'?'om3-studio-v2':'om3-studio-v1',module:'scenes/health/index.js',brief:'Private 3D runtime probe.',purpose:'Probe custom studio support.',
    params:{textSlots:[],assetKeys:['health'],events:[],readingHolds:[{start:30,end:450,visibleTextSlots:[]}]}}];
-  sources['scenes/health/index.js']='PB.scene("health",ctx=>{const studio=ctx.OM3.studio("health");const timeline=gsap.timeline({paused:true});ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,pitch:0,distanceScale:1}),15);return {timeline};});';
+  sources['scenes/health/index.js']=`PB.scene("health",ctx=>{const studio=ctx.OM3.studio("health");const timeline=gsap.timeline({paused:true});ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,pitch:0,distanceScale:1${customStudio==='v2'?',objectYaw:15,objectScale:1':''}}),15);return {timeline};});`;
  }
  if(packedVideo){
   film.assets.health={resourceId:asset.resourceId};

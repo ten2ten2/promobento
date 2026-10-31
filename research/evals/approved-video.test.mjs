@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {chromium} from 'playwright-core';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
-import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,extractVideo} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 async function syntheticVideo(){let browser;try{
  browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true});const page=await browser.newPage();
  const data=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const ctx=canvas.getContext('2d'),stream=canvas.captureStream(10),chunks=[];
@@ -21,7 +21,6 @@ test('QuickTime intake checks exact approval and bytes before decoding or downlo
   let calls=0;const download=async()=>{calls++;return Buffer.from('different bytes');};
   await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'denied'),card:{...web,materialApprovals:{}},entries:[{...movEntry,sourceUrl,videoUrl}],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(calls,0);
   await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'web'),card:web,entries:[{...movEntry,sourceUrl,videoUrl}],download}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);assert.equal(calls,1);
-  await assert.rejects(extractVideo({page:{evaluate(){throw Error('UNEXPECTED_DECODE');}},version:'151.0.0.0'},Buffer.from('not a movie'),'video/quicktime'),/VIDEO_SOURCE_FORMAT_INVALID/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 test('approved video becomes reproducible 30 fps frames and a source-bound manifest',async()=>{

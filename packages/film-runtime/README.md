@@ -38,13 +38,15 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 
 custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(id,ctx=>({timeline}))`，支持DOM、SVG图形、Canvas2D、暂停GSAP／OM.clock，不允许任意依赖／导入。只在独立uid的容器Chromium沙箱求值，页面生成器／Worker／控制器不执行它。
 
-每次自写镜头帧就绪、截图前，引擎检查当前镜头的 DOM 文字是否仍属于真实 `ctx.text(...).mount(...)` 槽位且与该槽位原文一致；篡改文字、复制槽位节点或添加槽外文字会使帧失败。该检查覆盖未抽样的帧，但不证明逐字动画的可见性、字体或对比度；阅读点仍使用可信 CDP 观测，图片内文字及 Canvas／Shader 文字也不因此获得覆盖。
+每次含自写镜头的影片帧就绪、截图前，引擎检查整个 body 的文字是否仍属于原本场景中的真实 `ctx.text(...).mount(...)` 槽位；当前自写镜头和非计数的可信镜头还核对槽位原文。篡改文字、复制槽位节点、将文字移出场景或跨场景添加文字会使帧失败；可信数字积木的计数过程只检查槽位归属。该检查覆盖未抽样的帧，但不证明逐字动画的可见性、字体或对比度；阅读点仍使用可信 CDP 观测，图片内文字及 Canvas／Shader 文字也不因此获得覆盖。
 
 `OM.camera` 和 `OM.space` 的字符串选择器先查当前镜头，再沿用文档范围回退；多个镜头复用原版模板的同名 ID 时，各自镜头优先。显式元素引用不变。连续 `OM.space.to` 只替换该镜头的相机驱动 tween，不终止作者时间线或保留重复驱动。
 
 当 Canvas 绘制依赖同一 GSAP 时间线中其他 tween 的值时，用 `ctx.OM.clockAfter(timeline, draw, duration)`。它沿用原版 `OM3.film` 的顺序：先完成该时点的全部 tween，再同步调用 `draw`，之后才捕获帧；同一次 seek 的重复更新只绘制最后时点，异常会使帧失败。`draw` 不支持异步任务；受限 3D 舞台可在此回调中绘制。仅依赖时间参数的既有 `ctx.OM.clock` 不变。
 
 自写镜头可显式声明 `runtime3D: 'om3-studio-v1'`，并在构建时调用一次 `ctx.OM3.studio('assetKey')`。素材须为该镜头声明且已清权的静态图片；舞台在首帧前完成解码，按 3D 资源规格渲染并在销毁时释放。返回对象仅提供 `render({yaw, pitch, distanceScale, targetX, targetY})`：角度分别为 ±70°／±45°，距离比例为 0.8–3，目标坐标为 ±4；省略项使用默认值。通过 `ctx.OM.clockAfter` 在时间线更新后同步绘制，逆序 seek 仍由当前时间决定。导演方法 1.28 才选择此能力，实际使用时先探测固定镜像。该接口不暴露 Three.js、WebGL 上下文、任意模型或着色器，也不替代产品画面与文字的审片。
+
+`om3-studio-v2` 在同一 API 上增加独立的主体旋转 `objectYaw`／`objectPitch`／`objectRoll`（各 ±180°）和 `objectScale`（0.5–1.5），可与相机运动分别编排；每次绘制省略的值回到默认位置，逆序 seek 不依赖上一帧。v1 继续拒绝这些字段。源码中的导演方法 1.33 才选择 v2，并在使用前以该版本检查固定镜像；仍只有一张已清权静态图构成的设备，不加载任意 3D 模型或素材。
 
 ```js
 const studio = ctx.OM3.studio('product');

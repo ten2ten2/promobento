@@ -9,7 +9,7 @@ import agentToolsSchema from '../../../contracts/agent-tools.schema.json';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
-import {renderPageTiming,renderDeadlineMs,planShards} from '@promobento/contracts/render';
+import {renderPageTiming,renderDeadlineMs,planShards,isStudioRuntime} from '@promobento/contracts/render';
 import {filmSpecErrors,blockReferences} from '@promobento/contracts/film';
 import {validate as validFilm} from '@promobento/contracts/validators/film';
 import {validate as validBlock} from '@promobento/contracts/validators/block-params';
@@ -83,15 +83,15 @@ const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>{
   ?customSceneInstructions.replace('sound events are frozen in scene.params.events, not evaluated from source.',
     `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be scene-local seconds written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM; audio is placed at the nearest 48 kHz sample. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and time in FilmSpec audio.sfx.`)
   :customSceneInstructions;
- if(scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1')instructions=instructions.replace('custom WebGL/Three.js is not yet admitted.',
-  `this scene has the bounded 3D studio. Construct exactly one ctx.OM3.studio('literal-asset-key') during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
+ if(scene.kind==='custom'&&isStudioRuntime(scene.runtime3D))instructions=instructions.replace('custom WebGL/Three.js is not yet admitted.',
+  `this scene has the bounded 3D studio. Construct exactly one ctx.OM3.studio('literal-asset-key') during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. ${scene.runtime3D==='om3-studio-v2'?'The v2 view can also set objectYaw, objectPitch and objectRoll in -180..180 degrees and objectScale in .5..1.5; omitted values reset to defaults. ':''}Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
  return instructions;
 };
 const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec,resources:Json[])=>{
   const lines=source.split('\n');
   const issues=customSourceErrors(scene,source,film).map(issue=>({code:issue.code,path:'/source/'+issue.line,sourceLine:(lines[issue.line-1]??'').slice(0,400),
     ...(['CUSTOM_SLOT_UNDECLARED','CUSTOM_DECLARATION_UNUSED'].includes(issue.code)?{hint:customLiteralGuidance(scene)}:{})}));
-  if(!issues.length&&scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'){
+  if(!issues.length&&scene.kind==='custom'&&isStudioRuntime(scene.runtime3D)){
     const key=customStudioAsset(scene,source)!,kind=resources.find(asset=>asset.resourceId===film.assets[key]!.resourceId)?.kind;
     if(!['image','svg'].includes(kind))issues.push({code:'CUSTOM_3D_IMAGE_REQUIRED',path:'/source',sourceLine:'',hint:'Use a declared, cleared still image or SVG for the 3D screen.'});
   }
@@ -161,6 +161,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const reviewShardHistory=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=18);
     const separateQaSeekRepair=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=19);
     const customStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=28);
+    const objectMotionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=33);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
     const voxClipMethod=supportsVoxClip(methods,context.resources);
     const canvasTitleMethod=supportsCanvasTitle(methods,context);
@@ -185,6 +186,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     // A catalog implementation patch (e.g. 1.0.1) is not a FilmSpec block reference (@1).
     s1FilmSchema.$defs.scene.oneOf[0].properties.block.enum=availableBlocks.map(block=>block.id+'@'+block.version.split('.')[0]);
     if(!customStudioMethod)delete s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D;
+    else if(!objectMotionMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={const:'om3-studio-v1'};
     s1FilmSchema.$defs.textSlot.properties.factIds.items.enum=context.confirmedFactIds;
     s1FilmSchema.$defs.textSlot.properties.factIds.description='Use only these confirmed fact ids. Every cta, number or quote slot, and every slot containing a digit, percent or currency symbol, must bind at least one genuinely relevant confirmed fact. Preserve existing bindings when editing. Do not invent ids or attach unrelated facts to unsupported claims.';
     delete s1FilmSchema.$defs.assetSlot.properties.crop;
@@ -201,7 +203,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(canvasTitles.length&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
-        if(scene.runtime3D&&!customStudioMethod)throw Error('CUSTOM_3D_NOT_AVAILABLE');
+        if(scene.runtime3D&&(!customStudioMethod||scene.runtime3D==='om3-studio-v2'&&!objectMotionMethod))throw Error('CUSTOM_3D_NOT_AVAILABLE');
         const declared=customScenePlan(scene,{validateVisibleTextSlots:Boolean(checkedHoldMethod),validateAssetChecks:Boolean(checkedAssetsMethod&&!preview)});
         if(declared.textSlots.some(key=>!Object.hasOwn(value.texts,key))||declared.assetKeys.some(key=>!Object.hasOwn(value.assets,key)))throw Error('CUSTOM_SLOT_UNDECLARED');
         if(checkedHoldMethod&&declared.readingHolds.some(hold=>!Array.isArray(hold.visibleTextSlots)))throw Error('CUSTOM_HOLD_TEXT_REQUIRED');
@@ -342,6 +344,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
       await preflightCanvasTitles(film);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
+      if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
         relayScenes.some((scene:Json)=>Object.hasOwn(scene.params,'componentBehavior')));
@@ -579,6 +582,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
           await preflightCanvasTitles(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
+          if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
           const taskId='still-'+digest({operationId:op.id,direction:card.key}).slice(0,48),frame=45;

@@ -4,6 +4,7 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import {createTextIntegrity} from './text-integrity.ts';
+import {isStudioRuntime} from '@promobento/contracts/studio-runtime';
 import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
 
 const clock = window.__pbTakeClock?.();
@@ -20,6 +21,7 @@ const requestIds = new Set<string>();
 const videoCache = new Map<string, ImageBitmap>();
 let videoBytes = 0;
 let plan: PagePlan | undefined, envelope: Init | undefined, busy = false, disposed = false, frame = -1, lastSequence = 0;
+let filmBody:HTMLElement|undefined,filmStage:HTMLElement|undefined,filmPlanElement:Element|undefined;
 window.__omReady = false;
 Object.defineProperty(window, 'PB', {value: Object.freeze({
   info: Object.freeze({apiVersion: '3.0.0' as const, specVersion: 'film-v1' as const}),
@@ -126,7 +128,10 @@ async function draw(frameIndex: number): Promise<void> {
     // The sampled CDP observations remain necessary for visibility, typography
     // and contrast. This separate check binds every emitted custom frame's DOM
     // text, including frames between those sampling points, to its real slot.
-    for(const layer of layers){const instance=instances.get(layer.id)!;if(instance.scene.kind==='custom')textIntegrity.verify(instance.root);}
+    const hasCustom=current.spec.scenes.some(scene=>scene.kind==='custom');
+    for(const layer of layers){const instance=instances.get(layer.id)!;
+      if(instance.scene.kind==='custom'||hasCustom&&instance.scene.kind==='block'&&instance.scene.block!=='metric@1')textIntegrity.verify(instance.root);}
+    if(hasCustom)textIntegrity.verifyBody(filmBody!,filmStage!,filmPlanElement!);
     frame = frameIndex;
   } finally { busy = false; }
 }
@@ -159,6 +164,8 @@ const engine: FilmEngine = {
     window.CLIP.U.setStage(input.target.width, input.target.height);
     const stage = document.getElementById('film');
     if (!stage) throw Error('RUNTIME_STAGE_MISSING');
+    const planElement=document.getElementById('pb-plan');if(!document.body||!planElement)throw Error('RUNTIME_STAGE_MISSING');
+    filmBody=document.body;filmStage=stage;filmPlanElement=planElement;
     const fontLoads = input.fonts.map(font => document.fonts.load(`${font.style} ${font.weight} 36px ${fontFamily(font.fontId)}`));
     await Promise.all([...fontLoads, document.fonts.ready]);
     if (disposed) throw Error('INVALID_SESSION');
@@ -168,6 +175,7 @@ const engine: FilmEngine = {
       const factory=scene.kind==='custom'?customScenes.get(scene.id):null;
       if(scene.kind==='custom'&&!factory)throw Error('CUSTOM_SOURCE_MISSING');
       const root = document.createElement('section'); root.dataset.scene = scene.id;
+      textIntegrity.registerRoot(root);
       Object.assign(root.style, {position: 'absolute', inset: '0', overflow: 'hidden', visibility: 'hidden', background: input.spec.style.palette.roles.bg});
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
@@ -212,7 +220,7 @@ const engine: FilmEngine = {
       if(scene.kind==='custom'){
         const declared=customScenePlan(scene),studios: StudioInstance[]=[];
         let studioOpen=true;
-        if(scene.runtime3D==='om3-studio-v1'){
+        if(isStudioRuntime(scene.runtime3D)){
           if(!studioFactory)throw Error('CUSTOM_3D_RUNTIME_UNAVAILABLE');
           // Freeze the trusted inputs before author code can mutate its ordinary ctx handles.
           const studioAssets=new Map(declared.assetKeys.map(key=>[key,{...admittedStudioAssets.get(key)!}]));
@@ -221,7 +229,7 @@ const engine: FilmEngine = {
           ctx.OM3=Object.freeze({studio(assetKey:string){
             if(!studioOpen||studios.length)throw Error('CUSTOM_3D_STUDIO_CLOSED');
             if(typeof assetKey!=='string'||!declared.assetKeys.includes(assetKey))throw Error('CUSTOM_SLOT_UNDECLARED');
-            const studio=studioFactory(studioCtx,{assetKey});studios.push(studio);
+            const studio=studioFactory(studioCtx,{assetKey,...(scene.runtime3D==='om3-studio-v2'?{objectMotion:true}:{})});studios.push(studio);
             void studio.ready.catch(()=>{});readiness.pending.push(studio.ready);
             return Object.freeze({render:(view:Parameters<typeof studio.renderView>[0])=>{if(studioOpen)throw Error('CUSTOM_3D_EARLY_DRAW');studio.renderView(view);}});
           }});
@@ -237,7 +245,7 @@ const engine: FilmEngine = {
           if(!built||!timeline||!['pause','seek','duration'].every(key=>typeof (timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
           if(Math.abs(built.timeline.duration()-(scene.end-scene.start)/30)>1/30)throw Error('CUSTOM_TIMELINE_DURATION');
           if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
-          if(scene.runtime3D==='om3-studio-v1'&&studios.length!==1)throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');
+          if(isStudioRuntime(scene.runtime3D)&&studios.length!==1)throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');
           instance={timeline:built.timeline,events:declared.events,regions:built.regions??[],...((gsapScope||studios.length)?{dispose:()=>{try{gsapScope?.kill();}finally{studios.forEach(studio=>studio.dispose());}}}:{})};
         }catch(error){try{gsapScope?.kill();}finally{studios.forEach(studio=>studio.dispose());}throw error;}finally{studioOpen=false;}
       }else instance=definition!.build(ctx,scene.params);

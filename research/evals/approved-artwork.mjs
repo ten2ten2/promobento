@@ -12,8 +12,8 @@ import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-image
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
 const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns'})[extname(path).toLowerCase()];
-const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns'})[type];
+const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns','.gif':'image/gif','.avif':'image/avif'})[extname(path).toLowerCase()];
+const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns','image/gif':'gif','image/avif':'avif'})[type];
 export function artworkSourceObjectName(asset){
  const ext=extension(asset.derivation?.sourceMediaType);
  if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||!ext)throw Error('ARTWORK_SOURCE_INVALID');
@@ -56,19 +56,37 @@ function checkIdentity(card,asset,sourceBytes){
  const decision=checkApproval(card,asset);if(sha256Bytes(sourceBytes)!==decision.explicit.sha256)throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');return decision;
 }
 async function openBrowser(){
- const browser=await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
+ const isolatedTest=process.env.PROMOBENTO_BROWSER_TEST_CONTAINER==='1'&&process.platform==='linux'&&process.getuid?.()===10001;
+ const browser=isolatedTest?await chromium.connectOverCDP('http://127.0.0.1:9222'):await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
+ let context;
  try{
-  const context=await browser.newContext({viewport:{width:4096,height:4096},deviceScaleFactor:1,locale:'en-US',acceptDownloads:false});
+  context=await browser.newContext({viewport:{width:4096,height:4096},deviceScaleFactor:1,locale:'en-US',acceptDownloads:false});
   await context.route('**/*',route=>route.abort('blockedbyclient'));const page=await context.newPage();
+  if(isolatedTest)(await import('../../apps/render-container/src/browser.mjs')).sandboxState();
   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>html,body{margin:0;padding:0;background:transparent}img{display:block}</style><img id="art">`);
-  return{browser,context,page,version:browser.version()};
- }catch(error){await browser.close();throw error;}
+  return{browser,context,page,version:browser.version(),async close(){try{await context.close();}finally{await browser.close();}}};
+ }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}
 }
 async function bounded(work){
  let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('ARTWORK_RENDER_TIMEOUT')),15000);})]);}finally{clearTimeout(timer);}
 }
-export async function renderArtwork({page},bytes,mediaType){
+async function renderArtwork({page},bytes,mediaType){
  if(!bytes.length||bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');
+ if(mediaType==='image/gif'||mediaType==='image/avif'){
+  const header=bytes.toString('ascii',0,6);
+  if(mediaType==='image/gif'&&!['GIF87a','GIF89a'].includes(header)
+   ||mediaType==='image/avif'&&(bytes.length<16||bytes.toString('ascii',4,8)!=='ftyp'))throw Error('ARTWORK_FORMAT_INVALID');
+  // A still image must not silently become the first frame of an animation.
+  // Decode metadata in the same offline browser that creates the PNG.
+  await bounded(page.evaluate(async({base64,mediaType})=>{
+   if(typeof ImageDecoder!=='function'||!await ImageDecoder.isTypeSupported(mediaType))throw Error('ARTWORK_ANIMATION_CHECK_UNAVAILABLE');
+   const raw=atob(base64),data=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)data[i]=raw.charCodeAt(i);
+   const decoder=new ImageDecoder({data,type:mediaType});
+   try{await decoder.tracks.ready;await decoder.completed;const track=decoder.tracks.selectedTrack;
+    if(!track||track.frameCount!==1)throw Error('ARTWORK_ANIMATION_UNSUPPORTED');
+   }finally{decoder.close();}
+  },{base64:bytes.toString('base64'),mediaType}));
+ }
  if(mediaType==='image/svg+xml'){
   let source;try{source=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error('ARTWORK_SVG_INVALID');}
   if(/<!\s*(?:DOCTYPE|ENTITY)/i.test(source))throw Error('ARTWORK_SVG_UNSUPPORTED');
@@ -137,7 +155,7 @@ async function materializeArtwork(output,artifacts,inputs){
  let runner;const items=[];
  try{runner=await openBrowser();for(const input of inputs){const image=await renderArtwork(runner,input.bytes,input.asset.derivation.sourceMediaType);
   items.push({bytes:input.bytes,png:image.png,asset:{...input.asset,derivation:{...input.asset.derivation,chromeVersion:runner.version},file:input.entry.id+'.png',width:image.width,height:image.height,mediaType:'image/png',description:input.entry.description,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}});
- }}finally{await runner?.browser.close();}
+ }}finally{await runner?.close();}
  mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
  for(const item of items){writeFileSync(join(output,item.asset.derivation.originalFile),item.bytes,{flag:'wx'});writeFileSync(join(output,item.asset.file),item.png,{flag:'wx'});}
  const result={scope:'internal_eval_only',publicUseCleared:false,assets:items.map(item=>item.asset)};writeFileSync(join(output,'selected.json'),canonical(result)+'\n',{flag:'wx'});return result;
@@ -156,7 +174,7 @@ export async function captureApprovedWebArtwork({outputDir,card,entries,download
    derivation:{kind:'approved_artwork_rasterization',sourceOrigin:'web',imageUrl:entry.imageUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+'.source.'+extension(mediaType)}};
   checkApproval(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon,image/icns'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon,image/icns,image/gif,image/avif'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeArtwork(output,artifacts,inputs);
 }
 /** Independently rebuild artwork previews before any remote side effect; bytes must match. */
@@ -183,7 +201,7 @@ export async function verifyArtworkSelections(directory,selected,topics){
   const result=await renderArtwork(runner,bytes,asset.derivation.sourceMediaType),png=readFileSync(pngPath);
   if(!result.png.equals(png)||result.width!==asset.width||result.height!==asset.height)throw Error('ARTWORK_DERIVATION_MISMATCH');
   verified.set(asset.id,{sha256:sha256Bytes(png),original:bytes,sourceMediaType:asset.derivation.sourceMediaType});
- }}finally{await runner?.browser.close();}return verified;
+ }}finally{await runner?.close();}return verified;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceArg,manifestArg,...extra]=process.argv.slice(2),web=sourceArg==='--web',manifestFile=manifestArg;

@@ -21,7 +21,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
  const actualParent=realpathSync(parent);if(actualParent!==artifacts&&!within(artifacts,actualParent))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
  if(typeof observeStyles!=='boolean')throw Error('LOCAL_DISCOVERY_MODE_INVALID');
  const candidates=[],limits={maxDepth:6,maxEntries:10000,maxCandidates:1000},missing=[];let entries=0,symlinks=0,styleBytes=0,styleFiles=0;
- const colours=new Map(),fonts=new Map(),add=(map,value,path)=>{const existing=map.get(value);if(existing){existing.count++;if(existing.sources.length<8&&!existing.sources.includes(path))existing.sources.push(path);}else if(map.size<100)map.set(value,{value,count:1,sources:[path]});};
+ const colours=new Map(),fonts=new Map(),add=(map,value,path)=>{const existing=map.get(value);if(existing){existing.count++;if(existing.sources.length<8&&!existing.sources.includes(path))existing.sources.push(path);}else if(map.size<100)map.set(value,{value,count:1,sources:[path]});else if(!missing.includes('style_value_limit'))missing.push('style_value_limit');};
  const scan=(dir,depth)=>{
   for(const item of readdirSync(dir,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name,'en'))){
    if(++entries>limits.maxEntries){if(!missing.includes('entry_limit'))missing.push('entry_limit');return;}

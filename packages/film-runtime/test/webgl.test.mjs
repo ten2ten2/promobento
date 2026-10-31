@@ -71,6 +71,9 @@ test('an explicit custom studio loads the isolated WebGL runtime and uses 3D res
  assert.deepEqual(renderPageTiming(film,policy),{initTimeoutMs:60000,frameTimeoutMs:10000});
  const job={schemaVersion:'3.0.0',kind:'render_job',renderId:'studio-test',operationId:'studio-test',candidateId:'studio-test',sourceHash:filmSourceHash(JSON.stringify(film),sources),runtimeVersion:'film-runtime-v1',rendererRelease:'test-release',aspectId:'portrait',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:[]};
  assert.ok(planShards(job,film,{seed:'seed'}).shards.every(shard=>shard.instance==='standard-4'));
+ const next=structuredClone(film);next.scenes[0].runtime3D='om3-studio-v2';
+ assert.equal(generateFilmPage(JSON.stringify(next),options).plan.usesWebgl,true);
+ assert.ok(planShards(job,next,{seed:'seed'}).shards.every(shard=>shard.instance==='standard-4'));
  const legacy=structuredClone(film);delete legacy.scenes[0].runtime3D;
  assert.throws(()=>generateFilmPage(JSON.stringify(legacy),options),/CUSTOM_3D_NOT_DECLARED/);
 });

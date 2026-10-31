@@ -26,7 +26,7 @@ export interface PagePlan {
 }
 export interface PrivateWebglFactory {create(canvas:unknown):unknown;release(canvas:unknown):void}
 export interface WebglInfo {renderer:string;vendor:string;version:string}
-export interface StudioInstance {ready:Promise<void>;dispose():void;renderView(view:{yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number}):void}
+export interface StudioInstance {ready:Promise<void>;dispose():void;renderView(view:import('../../../contracts/film-runtime.d.ts').StudioView):void}
 export interface PrivateClock {
   begin(seed: string): void; seek(seconds: number): void; paint(timeoutMs: number): Promise<void>;
   wait<T>(work: Promise<T>, timeoutMs: number, code: string): Promise<T>;
@@ -41,7 +41,7 @@ declare global {
     __pbTakeClock?: () => PrivateClock;
     __pbTakeWebGLFactory?:()=>PrivateWebglFactory;
     __pbTakeWebGLInspector?:()=>()=>WebglInfo[];
-    __pbTakeStudioFactory?: () => (ctx:SceneContext, params:{assetKey:string}) => StudioInstance;
+    __pbTakeStudioFactory?: () => (ctx:SceneContext, params:{assetKey:string;objectMotion?:boolean}) => StudioInstance;
     __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean; bpm?: number}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[], readiness: SceneReadiness, sounds: SceneSounds, postSeek: Map<(time:number)=>void, number>) => SceneContext['OM'];
     CLIP: SceneContext['CLIP'];
     gsap: {timeline(options: {paused: boolean}): MotionTimeline;

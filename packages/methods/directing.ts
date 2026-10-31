@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.32.0',
+  id: 'product-directing', version: '1.33.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -17,6 +17,7 @@ export const directingMethodPack = {
     'Read the product and real material, then select the message shape: workflow, mechanism, evidence, transformation, character story or showcase. Choose motion that expresses that shape; do not force every product into a causal story, a screenshot tour or a fast-cut reel.',
     'When continuity is the chosen mechanism, choose a visual carrier whose role changes: a request opens into its result; a shared object connects different contexts; a focused detail becomes the payoff. Translating or tilting three screenshots is still a slideshow if nothing changes meaning.',
     'Use the supplied real assets as evidence, with original editorial staging around them. Distinguish a captured interface from an illustrated request or metaphor. Never invent an interaction, manufacture product proof, or morph an unrelated character into a brand mascot.',
+    'Do not reproduce huashu-motion’s bean Huashu author likeness. Use a character only when its actual artwork and intended use are separately cleared; a reference to a character style is not an asset license.',
     'Keep required copy, attribution and credits readable. A reference supplies a visual mechanism, not new claims, licensed imagery, or an obligation to reproduce its layout.'
   ],
   audiences: {
@@ -36,7 +37,7 @@ export const directingMethodPack = {
       'A cleared video provides a first-frame image plus source-timed 30 fps frames. The image alone does not establish later actions: inspect actual rendered frames and never fabricate actions. Keep each video use inside its available duration; its source audio is not automatically admitted.',
       'vox-clip is the original Vox image choreography, restricted to cleared static images without Canvas captions. Choose distinct, causally related real states and allow enough time to read them; it does not carry an extracted detail into another exercise. Use separate fact-bound text scenes where copy is needed. The direction preview repeats the same primary image and does not establish a real page handoff.',
       'canvas-title executes the original y5 single-line headline with a fact-bound text slot and an admitted normal display font. Use only simple Latin, CJK and common characters without combining marks; keep it short. It cannot appear in the same film as a custom scene. Keep its settled reading holds free of overlapping scenes and overlays. Treat it as one expressive title shot, not a substitute for the product or a page handoff.',
-      'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. The bounded studio supports one scene-local camera; it does not synthesize product interactions or open arbitrary Three.js.',
+      'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. Choose om3-studio-v2 when the screen object itself must rotate or scale independently of the camera. The bounded studio does not synthesize product interactions or open arbitrary Three.js.',
       'For a lit product-object reveal, object-studio uses a cleared real screenshot on a rounded screen in the adapted huashu-motion studio, with a continuous moving camera and full-frame stage. Prefer a short optional textSlot, or omit it to give the product maximum scale. It is a hero reveal, not an invented product action or a substitute for showing an actual workflow.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',
       'For each boundary, the outgoing subject, location or shape must motivate the next view. Use a continuous trusted story block when it expresses this better than independent entrances and exits.',

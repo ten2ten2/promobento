@@ -34,12 +34,15 @@ function sourceSignature(bytes,mediaType){
 }
 async function bounded(work,ms=15000){let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('VIDEO_DECODE_TIMEOUT')),ms);})]);}finally{clearTimeout(timer);}}
 async function openBrowser(){
- const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true,timeout:30000});
- try{const context=await browser.newContext({viewport:{width:16,height:16},deviceScaleFactor:1,acceptDownloads:false});await context.route('**/*',route=>route.abort('blockedbyclient'));
-  const page=await context.newPage();await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);return{browser,page,version:browser.version()};
- }catch(error){await browser.close();throw error;}
+ const isolatedTest=process.env.PROMOBENTO_BROWSER_TEST_CONTAINER==='1'&&process.platform==='linux'&&process.getuid?.()===10001;
+ const browser=isolatedTest?await chromium.connectOverCDP('http://127.0.0.1:9222'):
+  await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true,timeout:30000});
+ let context;try{context=await browser.newContext({viewport:{width:16,height:16},deviceScaleFactor:1,acceptDownloads:false});await context.route('**/*',route=>route.abort('blockedbyclient'));
+  const page=await context.newPage();if(isolatedTest)(await import('../../apps/render-container/src/browser.mjs')).sandboxState();
+  await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);return{browser,page,version:browser.version(),async close(){try{await context.close();}finally{await browser.close();}}};
+ }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}
 }
-export async function extractVideo({page,version},source,mediaType){
+async function extractVideo({page,version},source,mediaType){
  sourceSignature(source,mediaType);
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
@@ -95,7 +98,7 @@ async function materializeVideo(output,artifacts,inputs){
   totalPackBytes+=out.packs.reduce((sum,pack)=>sum+pack.length,0);if(totalPackBytes>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
   const ext=extension(input.asset.derivation.sourceMediaType);if(!ext)throw Error('VIDEO_SOURCE_FORMAT_INVALID');const derivation={...input.asset.derivation,originalFile:input.entry.id+'.source.'+ext,manifestFile:input.entry.id+'.video.json',packFiles:out.packs.map((_,i)=>input.entry.id+'.pack-'+i+'.bin'),browserVersion:runner.version};
   collected.push({source:input.bytes,...out,asset:{...input.asset,derivation,file:input.entry.id+'.png',width:out.manifest.width,height:out.manifest.height,mediaType:'image/png',description:input.entry.description,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}});
- }}finally{await runner?.browser.close();}
+ }}finally{await runner?.close();}
  mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
  for(const item of collected){writeFileSync(join(output,item.asset.derivation.originalFile),item.source,{flag:'wx'});writeFileSync(join(output,item.asset.file),item.poster,{flag:'wx'});writeFileSync(join(output,item.asset.derivation.manifestFile),item.raw,{flag:'wx'});
   for(const [i,pack]of item.packs.entries())writeFileSync(join(output,item.asset.derivation.packFiles[i]),pack,{flag:'wx'});}
@@ -148,7 +151,7 @@ export async function verifyVideoSelections(directory,selected,topics){
   const result=await extractVideo(runner,source,asset.derivation.sourceMediaType);
   if(!result.raw.equals(manifestBytes)||!result.poster.equals(poster)||result.packs.length!==packs.length||result.packs.some((pack,index)=>!pack.equals(packs[index])))throw Error('VIDEO_DERIVATION_MISMATCH');
   verified.set(asset.id,{source,manifest:result.manifest,manifestBytes,poster,packs});
- }}finally{await runner?.browser.close();}return verified;
+ }}finally{await runner?.close();}return verified;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceArg,manifestFile,...extra]=process.argv.slice(2),web=sourceArg==='--web';if(!outputDir||!topicId||!sourceArg||!manifestFile||extra.length)throw Error('VIDEO_CAPTURE_ARGUMENTS_REQUIRED');

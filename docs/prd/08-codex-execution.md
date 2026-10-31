@@ -28,7 +28,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `build:film-runtime` | 构建 Node 页面生成器、预编译积木参数校验器及浏览器 shim、engine、OM/clip 与可信积木 |
 | `test:browser` | CI 隔离镜像内运行核心积木帧集、新镜头专项、JPEG→MP4/音频链路及四画幅 seek/布局/字体/桥接回归；输出 13 种 30 秒程序风格试听；本机直接调用明确失败，见[运行时说明](../../packages/film-runtime/README.md) |
 | `test:cloud-local` | 预编译当前 Schema，在本机以固定 SSE、SQLite 和 R2 模拟回放真实 A–C/E/F 编排、三方向 still 请求、用户等待、修复、冷审拒绝与取消；不访问网络、不构建镜像，不代表云验或模型能力通过 |
-| `build:validators` | 把全部 14 个 v3 Schema（含单位经济、导演分析、音乐准入与研究模型费用）及派生积木参数预编译为独立 ESM 验证器及类型声明；Workers 从 `@promobento/contracts/validators/<name>` 导入，见[共享契约库](../../packages/contracts/README.md) |
+| `build:validators` | 把全部 15 个 v3 Schema（含单位经济、导演分析、视频帧清单、音乐准入与研究模型费用）及派生积木参数预编译为独立 ESM 验证器及类型声明；Workers 从 `@promobento/contracts/validators/<name>` 导入，见[共享契约库](../../packages/contracts/README.md) |
 | `build:agent-reference` / `check:agent-reference` | 先预编译验证器，再生成或核对离线 Studio 参考 |
 
 云部署／集成目前使用 [Actions 工作流](../../apps/cloud/README.md#部署)，评测使用 [research/evals 的 Node 入口](../../research/evals/README.md)。`build:containers`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 尚不是已登记的 mise 命令；有真实实现时再加入，不建空脚本。

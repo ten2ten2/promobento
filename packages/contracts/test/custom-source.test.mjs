@@ -97,6 +97,7 @@ test('custom 3D studio requires one literal, declared asset and explicit profile
  film.assets.dashboard={resourceId:'res_fixture_dashboard'};scene.params.assetKeys=['dashboard'];
  const source=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard');const timeline=");
  assert.deepEqual(customSourceErrors(scene,source,film),[]);
+ const next=structuredClone(scene);next.runtime3D='om3-studio-v2';assert.deepEqual(customSourceErrors(next,source,film),[]);
  const noProfile=structuredClone(scene);delete noProfile.runtime3D;
  assert.ok(customSourceErrors(noProfile,source,film).some(issue=>issue.code==='CUSTOM_3D_NOT_DECLARED'));
  for(const bad of ["ctx.OM3.studio('other')","ctx.OM3.studio(ctx.random())"]){

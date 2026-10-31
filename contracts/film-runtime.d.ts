@@ -19,6 +19,8 @@ export interface StyleTokens {
 }
 export interface FontRef { fontId: string; weight: number; style?: 'normal' | 'italic' }
 export interface Box { x: number; y: number; width: number; height: number }
+export interface StudioView {yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number;
+  objectYaw?:number;objectPitch?:number;objectRoll?:number;objectScale?:number}
 
 /** Data accepted by film.schema.json; executable code is never carried in this object. */
 export interface FilmSpec {
@@ -51,7 +53,7 @@ export type FilmScene = {
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
   /** params.gsapScope='scene' scopes selectors; params.sourceSfx=true enables frozen source sound declarations. */
-  | { kind: 'custom'; module: string; brief: string; runtime3D?: 'om3-studio-v1'; params?: Record<string, unknown> }
+  | { kind: 'custom'; module: string; brief: string; runtime3D?: 'om3-studio-v1' | 'om3-studio-v2'; params?: Record<string, unknown> }
 );
 
 /** A frozen asset as the page sees it; video frames come from the runtime, never a <video> element. */
@@ -85,8 +87,8 @@ export interface SceneContext {
   random(): number;
   OM: MotionHelpers;
   CLIP: ClipHelpers;
-  /** Available only to a scene that declares runtime3D: 'om3-studio-v1'. */
-  OM3?: {studio(assetKey: string): {render(view: {yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number}): void}};
+  /** v2 additionally permits bounded object rotation and scale. */
+  OM3?: {studio(assetKey: string): {render(view:StudioView): void}};
 }
 
 export interface MotionTimeline extends GsapTimelineLike {

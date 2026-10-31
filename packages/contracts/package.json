@@ -38,6 +38,10 @@
       "types": "./src/render.d.mts",
       "default": "./src/render.mjs"
     },
+    "./studio-runtime": {
+      "types": "./src/studio-runtime.d.mts",
+      "default": "./src/studio-runtime.mjs"
+    },
     "./seams": {
       "types": "./src/seams.d.mts",
       "default": "./src/seams.mjs"

@@ -23,6 +23,9 @@ test('local media discovery lists private candidates without copying bytes or gr
   const styles=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'styles'),card,observeStyles:true}).styleObservations;
   assert.deepEqual(styles.colours.map(item=>item.value),['#aabbcc','#abc']);assert.deepEqual(styles.fonts,[{value:'Fixture Sans',count:2,sources:['screens/style.css']}]);
   assert.equal(styles.filesRead,1);assert.match(styles.scope,/not_font_or_asset_permission/);
+  writeFileSync(join(source,'screens','many.css'),Array.from({length:101},(_,index)=>`.c${index}{color:#${index.toString(16).padStart(6,'0')}}`).join('\n'));
+  const limited=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'limited'),card,observeStyles:true});
+  assert.equal(limited.styleObservations.colours.length,100);assert.ok(limited.missing.includes('style_value_limit'));
   assert.throws(()=>discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:out,card}),/NEW_PRIVATE_OUTPUT_REQUIRED/);
  }finally{rmSync(local,{recursive:true,force:true});rmSync(outputs,{recursive:true,force:true});}
 });

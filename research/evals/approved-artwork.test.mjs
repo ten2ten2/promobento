@@ -25,6 +25,12 @@ test('ICNS keeps the largest static embedded PNG and rejects malformed container
  assert.throws(()=>extractIcnsPng(unsupported),/ARTWORK_ICNS_UNSUPPORTED/);
 });
 
+test('GIF and AVIF sources retain their original format',()=>{
+ for(const type of ['image/gif','image/avif']){
+  assert.equal(artworkSourceObjectName({id:'fixture-art',derivation:{sourceMediaType:type}}),'fixture-art-source.'+type.split('/')[1]);
+ }
+});
+
 test('approved SVG and icon are rasterized in isolated Chrome and re-created before ingestion',async()=>{
  const root=mkdtempSync(resolve('artifacts/.artwork-test-'));
  try{

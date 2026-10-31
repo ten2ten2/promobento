@@ -6,7 +6,7 @@ import {ACESFilmicToneMapping,CanvasTexture,Color,DirectionalLight,DoubleSide,Eq
   PMREMGenerator,Scene,Shape,ShapeGeometry,SRGBColorSpace,Texture,WebGLRenderer} from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {blockEvents} from './events.mjs';
-import type {SceneContext} from '../../../contracts/film-runtime.d.ts';
+import type {SceneContext,StudioView} from '../../../contracts/film-runtime.d.ts';
 import '../../film-runtime/src/types.ts';
 
 function studioSky(){
@@ -40,8 +40,7 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-type StudioView={yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number};
-function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string}){
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean}){
  const asset=ctx.asset(params.assetKey);if(asset.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
  const safe=document.createElement('div'),inset=ctx.target.safeInsets,wide=ctx.target.aspect==='landscape',hasText=Boolean(params.textSlot);
  const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',inset:'0'});ctx.root.append(stage);
@@ -79,11 +78,15 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };
  const renderView=(view:StudioView)=>{
-  if(!view||typeof view!=='object'||Array.isArray(view)||Object.keys(view).some(key=>!['yaw','pitch','distanceScale','targetX','targetY'].includes(key)))throw Error('STUDIO_VIEW_INVALID');
+  const objectKeys=['objectYaw','objectPitch','objectRoll','objectScale'];
+  if(!view||typeof view!=='object'||Array.isArray(view)||Object.keys(view).some(key=>!['yaw','pitch','distanceScale','targetX','targetY',...(params.objectMotion?objectKeys:[])].includes(key)))throw Error('STUDIO_VIEW_INVALID');
   const yaw=view.yaw??0,pitch=view.pitch??0,scale=view.distanceScale??1,targetX=view.targetX??0,targetY=view.targetY??0;
-  if(![yaw,pitch,scale,targetX,targetY].every(Number.isFinite)||Math.abs(yaw)>70||Math.abs(pitch)>45||scale<.8||scale>3||Math.abs(targetX)>4||Math.abs(targetY)>4)throw Error('STUDIO_VIEW_INVALID');
+  const objectYaw=view.objectYaw??0,objectPitch=view.objectPitch??0,objectRoll=view.objectRoll??0,objectScale=view.objectScale??1;
+  if(![yaw,pitch,scale,targetX,targetY,objectYaw,objectPitch,objectRoll,objectScale].every(Number.isFinite)||Math.abs(yaw)>70||Math.abs(pitch)>45||scale<.8||scale>3||Math.abs(targetX)>4||Math.abs(targetY)>4
+   ||Math.abs(objectYaw)>180||Math.abs(objectPitch)>180||Math.abs(objectRoll)>180||objectScale<.5||objectScale>1.5)throw Error('STUDIO_VIEW_INVALID');
   if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');
   const y=yaw*Math.PI/180,p=pitch*Math.PI/180,d=distance*scale;
+  device.rotation.set(objectPitch*Math.PI/180,objectYaw*Math.PI/180,objectRoll*Math.PI/180);device.scale.setScalar(objectScale);
   camera.position.set(targetX+Math.sin(y)*Math.cos(p)*d,targetY+Math.sin(p)*d,Math.cos(y)*Math.cos(p)*d);camera.lookAt(targetX,targetY,0);
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };

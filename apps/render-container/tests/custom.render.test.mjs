@@ -1,6 +1,6 @@
 // Actual author-code execution, only inside the existing separate-uid offline browser container.
 import assert from 'node:assert/strict';
-import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,rmSync} from 'node:fs';
 import {chromium} from 'playwright-core';
 import {execFileSync} from 'node:child_process';
 import {canonical} from '@promobento/contracts/canonical';
@@ -8,8 +8,8 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
 import {renderShard} from '../src/shard.mjs';
-import {extractVideo} from '../../../research/evals/approved-video.mjs';
-import {renderArtwork} from '../../../research/evals/approved-artwork.mjs';
+import {captureApprovedLocalVideo,verifyVideoSelections} from '../../../research/evals/approved-video.mjs';
+import {captureApprovedArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
 import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -68,14 +68,21 @@ try{
   }finally{await hiddenText.close();}report.nestedText='transparent_bound_glyphs_blocked_by_actual_cdp';
   for(const [attack,expected]of [
    ["heading.firstChild.firstChild.nodeValue='Unconfirmed claim';",/CUSTOM_TEXT_MISMATCH/],
-   ["heading.append('Unbound claim');",/CUSTOM_TEXT_UNBOUND/]
+   ["heading.append('Unbound claim');",/CUSTOM_TEXT_UNBOUND/],
+   ["const x=document.createElement('div');x['text'+'Content']='Escaped claim';ctx.root.parentNode.append(x);",/CUSTOM_TEXT_UNBOUND/],
+   ["const x=document.createElement('div');x['text'+'Content']='Escaped claim';ctx.root.parentNode.parentNode.append(x);",/CUSTOM_TEXT_UNBOUND/],
+   ["const x=document.createElement('div');x['text'+'Content']='Escaped claim';ctx.root.parentNode.lastElementChild.append(x);",/CUSTOM_TEXT_UNBOUND/]
   ]){
    const attackSource=source.replace("wrap.style.opacity=t<2?'0':'1';",`if(t>0){${attack}}wrap.style.opacity=t<2?'0':'1';`);
    const attackOptions={...options,customSources:{'scenes/product/index.js':attackSource}};
    const attackSession=await filmSession({raw:JSON.stringify(film),options:attackOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{await assert.rejects(attackSession.frame(45,{format:'png'}),expected);}finally{await attackSession.close().catch(()=>{});}
   }
-  report.everyFrameText='changed_and_unbound_dom_text_blocked_before_capture';
+  const crossTextSource=source.replace("wrap.style.opacity=t<2?'0':'1';",
+   "if(t>0){ctx.root.parentNode.lastElementChild.querySelector('span').firstChild.nodeValue='Cross-scene claim';}wrap.style.opacity=t<2?'0':'1';");
+  const crossText=await filmSession({raw:JSON.stringify(film),options:{...options,customSources:{'scenes/product/index.js':crossTextSource}},browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await assert.rejects(crossText.frame(236,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await crossText.close().catch(()=>{});}
+  report.everyFrameText='changed_unbound_escaped_and_cross_scene_dom_text_blocked_before_capture';
   // Approved JPEG and WebP bytes must decode through the same asset broker as PNG.
   const jpeg=Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAADAAIDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAL/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABgf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCAA5IH/9k=','base64'),webp=Buffer.from('UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoCAAMAAUAmJaACdLoB+AADsAD+rhf/NgVzXPv9/+8+fufP3Pn/CAAA','base64');
   const tiff=Buffer.alloc(26);tiff.write('II');tiff.writeUInt16LE(42,2);tiff.writeUInt32LE(8,4);tiff.writeUInt16LE(1,8);
@@ -378,6 +385,23 @@ try{
     writeFileSync(`${output}/custom-studio-${aspect}-15.png`,first);writeFileSync(`${output}/custom-studio-${aspect}-60.png`,later);
    }finally{await authored.close();}
   }
+  // v2 moves the real screen object independently from its fixed camera, while
+  // v1 continues rejecting those additional view fields.
+  const movingFilm=structuredClone(customStudioFilm);movingFilm.scenes[0].runtime3D='om3-studio-v2';
+  const movingSource=customStudioSource.replace('studio.render({yaw:view.yaw})','studio.render({yaw:0,objectYaw:view.yaw,objectRoll:8,objectScale:1.1})');
+  const movingOptions=pageOptions('landscape',rules.aspectLayouts.landscape);movingOptions.fonts=multiOptions.fonts;movingOptions.resources[0].width=64;movingOptions.resources[0].height=64;
+  movingOptions.customSources={'scenes/custom-studio/index.js':movingSource};movingOptions.initTimeoutMs=60000;movingOptions.frameTimeoutMs=10000;
+  const moving=await filmSession({raw:JSON.stringify(movingFilm),options:movingOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{const first=await moving.frame(15,{format:'png'}),later=await moving.frame(60,{format:'png'}),reverse=await moving.frame(15,{format:'png'});
+   assert.ok(compareSeam(first,later).diffPixelPct>.1,'screen object moves while camera stays fixed');
+   assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');writeFileSync(`${output}/object-motion-15.png`,first);writeFileSync(`${output}/object-motion-60.png`,later);
+  }finally{await moving.close();}
+  const v1Object=await filmSession({raw:JSON.stringify(customStudioFilm),options:movingOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{await assert.rejects(v1Object.frame(15),/STUDIO_VIEW_INVALID/);}finally{await v1Object.close();}
+  const invalidOptions={...movingOptions,customSources:{'scenes/custom-studio/index.js':movingSource.replace('objectYaw:view.yaw','objectYaw:181')}};
+  const invalid=await filmSession({raw:JSON.stringify(movingFilm),options:invalidOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{await assert.rejects(invalid.frame(15),/STUDIO_VIEW_INVALID/);}finally{await invalid.close();}
+  report.studioObjectMotion='independent_rotation_scale_reverse_and_v1_compatibility';
   // A previous 2D scene cannot poison the 3D scene's admitted asset or dimensions.
   const crossFilm=structuredClone(customStudioFilm),customScene=crossFilm.scenes[0];customScene.start=225;customScene.params.readingHolds=[{start:30,end:225,visibleTextSlots:[]}];
   crossFilm.scenes.unshift({id:'poison',kind:'custom',module:'scenes/poison/index.js',start:0,end:225,params:{textSlots:[],assetKeys:['dashboard'],events:[],readingHolds:[{start:0,end:225,visibleTextSlots:[]}]},purpose:'Check scene isolation.',brief:'Alter only an author-visible handle.'});
@@ -413,26 +437,38 @@ try{
   try{const frame=pngPixels(await legacyStudio.frame(30,{format:'png'}));let green=0;for(let i=0;i<frame.pixels.length;i+=4)if(frame.pixels[i]<60&&frame.pixels[i+1]>150&&frame.pixels[i+2]<60)green++;assert.ok(green>frame.width*frame.height*.02,'existing device-3d still renders its cleared screen');}
   finally{await legacyStudio.close();}
   report.webglGuard='aliased_onscreen_offscreen_and_studio_context_blocked_legacy_device_retained';
-  // Decode an original, synthetic QuickTime source in the same isolated Chrome
-  // used for media intake. Its source identity remains QuickTime, not MP4.
-  const movPath=`${output}/synthetic-intake.mov`;
-  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=96x64:r=30:d=2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart','-y',movPath]);
-  const mov=readFileSync(movPath),browser=await chromium.connectOverCDP('http://127.0.0.1:9222'),videoContext=await browser.newContext({viewport:{width:16,height:16},deviceScaleFactor:1,acceptDownloads:false});
+  // Exercise the real approval, decode, review and rebuild paths in the
+  // separate-uid browser, using only original synthetic files.
+  const previousCwd=process.cwd(),mediaTest=mkdtempSync(`${output}/media-test-`);process.chdir(mediaTest);
   try{
-   await videoContext.route('**/*',route=>route.abort('blockedbyclient'));const page=await videoContext.newPage();
-   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);
-   const result=await extractVideo({page,version:lock.browser.version},mov,'video/quicktime');
-   assert.equal(result.manifest.source.mediaType,'video/quicktime');assert.equal(result.manifest.source.sha256,sha256Bytes(mov));
-   assert.equal(result.manifest.frames.length,60);const pixels=pngPixels(result.poster),at=(32*pixels.width+48)*4;
+   mkdirSync('artifacts/source',{recursive:true});const sourceDir=`${mediaTest}/artifacts/source`;
+   const movPath=`${sourceDir}/demo.mov`,animatedPath=`${sourceDir}/animated.gif`,avifPath=`${sourceDir}/still.avif`;
+   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=96x64:r=30:d=2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart','-y',movPath]);
+   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','testsrc=size=32x32:rate=2:duration=1','-y',animatedPath]);
+   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=32x32','-frames:v','1','-c:v','libaom-av1','-still-picture','1','-y',avifPath]);
+   const rgba=Uint8Array.from({length:4*4*4},(_,i)=>i%4===3?255:i%4===1?200:20),iconImage=Buffer.from(pngRgba(4,4,rgba));
+   const icns=Buffer.alloc(16+iconImage.length);icns.write('icns');icns.writeUInt32BE(icns.length,4);icns.write('ic07',8);icns.writeUInt32BE(iconImage.length+8,12);iconImage.copy(icns,16);
+   writeFileSync(`${sourceDir}/icon.icns`,icns);writeFileSync(`${sourceDir}/still.gif`,Buffer.from('R0lGODlhAQABAPAAAP8AAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==','base64'));
+   const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],materialApprovals:{}};
+   const makeEntry=(id,sourceFile)=>{const sourceUrl='local://fixture',bytes=readFileSync(`${sourceDir}/${sourceFile}`);
+    card.materialApprovals[id]={status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Original synthetic fixture.',sourceFile,sourceUrl,sha256:sha256Bytes(bytes)};
+    return{id,sourceFile,sourceUrl,description:'Original synthetic fixture.',approvalRef:`research/evals/fact-cards/fixture.json#/materialApprovals/${id}`};};
+   const videoEntry=makeEntry('fixture-video','demo.mov'),artEntries=[makeEntry('fixture-icon','icon.icns'),makeEntry('fixture-gif','still.gif'),makeEntry('fixture-avif','still.avif')],animated=makeEntry('fixture-animation','animated.gif');
+   const videoOut=`${mediaTest}/artifacts/video`,video=await captureApprovedLocalVideo({sourceDir,outputDir:videoOut,card,entries:[videoEntry]});
+   const artOut=`${mediaTest}/artifacts/art`,art=await captureApprovedArtwork({sourceDir,outputDir:artOut,card,entries:artEntries});
+   await assert.rejects(captureApprovedArtwork({sourceDir,outputDir:`${mediaTest}/artifacts/animated`,card,entries:[animated]}),/ARTWORK_ANIMATION_UNSUPPORTED/);
+   for(const asset of [...video.assets,...art.assets]){asset.review='approved_for_internal_eval_by_codex';asset.reviewedAt='2026-10-31';}
+   const cardPath=`${mediaTest}/artifacts/card.json`;writeFileSync(cardPath,canonical(card));const topics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:cardPath}]};
+   const verifiedVideo=(await verifyVideoSelections(videoOut,video,topics)).get('fixture-video');
+   assert.equal(verifiedVideo.manifest.source.mediaType,'video/quicktime');assert.equal(verifiedVideo.manifest.source.sha256,sha256Bytes(readFileSync(movPath)));
+   assert.equal(verifiedVideo.manifest.frames.length,60);const pixels=pngPixels(verifiedVideo.poster),at=(32*pixels.width+48)*4;
    assert.ok(pixels.pixels[at+1]>150&&pixels.pixels[at+2]<100,'QuickTime poster preserves the decoded source image');
-   const artworkPage=await videoContext.newPage();await artworkPage.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>html,body{margin:0;padding:0}img{display:block}</style><img id="art">`);
-   const rgba=Uint8Array.from({length:4*4*4},(_,i)=>i%4===3?255:i%4===1?200:20),image=Buffer.from(pngRgba(4,4,rgba));
-   const icns=Buffer.alloc(16+image.length);icns.write('icns');icns.writeUInt32BE(icns.length,4);icns.write('ic07',8);icns.writeUInt32BE(image.length+8,12);image.copy(icns,16);
-   const artwork=await renderArtwork({page:artworkPage},icns,'image/icns'),decoded=pngPixels(artwork.png);
-   assert.deepEqual([artwork.width,artwork.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60,'ICNS PNG payload is actually decoded');
-  }finally{await videoContext.close();await browser.close();}
+   const verifiedArt=await verifyArtworkSelections(artOut,art,topics);assert.equal(verifiedArt.size,3);
+   const decoded=pngPixels(readFileSync(`${artOut}/fixture-icon.png`));assert.deepEqual([decoded.width,decoded.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60);
+  }finally{process.chdir(previousCwd);rmSync(mediaTest,{recursive:true,force:true});}
   report.quicktimeIntake='isolated_actual_mov_decode_source_identity_and_30fps_frame_pack';
   report.icnsIntake='isolated_actual_png_icon_payload_decode';
+  report.staticArtworkIntake='isolated_gif_avif_and_animated_gif_rejected';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

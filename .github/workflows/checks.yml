@@ -133,6 +133,16 @@ jobs:
             -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
             promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs
           test -s artifacts/film-runtime/asset-check.json
+      - name: Retain the changed title and 3D frames for visual inspection
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: changed-browser-frames
+          if-no-files-found: ignore
+          path: |
+            artifacts/film-runtime/canvas-title-*.png
+            artifacts/film-runtime/object-motion-*.png
+            artifacts/film-runtime/asset-check.json
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
         shell: bash

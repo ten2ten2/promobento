@@ -1,8 +1,10 @@
 import {digest} from './digest.mjs';
 import {validate} from '../generated/render-job.mjs';
+import {isStudioRuntime} from './studio-runtime.mjs';
+export {isStudioRuntime} from './studio-runtime.mjs';
 
 export const WEBGL_BLOCKS=Object.freeze(['object-studio@1','device-3d@1']);
-export const filmUsesWebgl=spec=>spec.scenes.some(scene=>scene.kind==='block'&&WEBGL_BLOCKS.includes(scene.block)||scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1');
+export const filmUsesWebgl=spec=>spec.scenes.some(scene=>scene.kind==='block'&&WEBGL_BLOCKS.includes(scene.block)||scene.kind==='custom'&&isStudioRuntime(scene.runtime3D));
 export const renderPageTiming=(spec,policy)=>({initTimeoutMs:filmUsesWebgl(spec)?policy.startupWebglMs:policy.startupMs,
   frameTimeoutMs:filmUsesWebgl(spec)?policy.frameTimeoutWebglMs:policy.frameTimeoutMs});
 export function renderDeadlineMs(job,partition,policy){
@@ -24,7 +26,7 @@ export function planShards(job, spec, {seed, maxShards = 6, webglBlocks = WEBGL_
   assertRenderJob(job);
   if (job.quality === 'still' || spec.totalFrames !== job.totalFrames || typeof seed !== 'string' || !seed.length) throw Error('SHARD_PLAN_INPUT_INVALID');
   if (![maxShards, webglMaxShards].every(value => Number.isInteger(value) && value >= 1 && value <= 64)) throw Error('SHARD_LIMIT_INVALID');
-  const webgl = new Set(webglBlocks), usesWebgl = scene => scene.kind === 'block' && webgl.has(scene.block) || scene.kind === 'custom' && scene.runtime3D === 'om3-studio-v1';
+  const webgl = new Set(webglBlocks), usesWebgl = scene => scene.kind === 'block' && webgl.has(scene.block) || scene.kind === 'custom' && isStudioRuntime(scene.runtime3D);
   const hasWebgl = spec.scenes.some(usesWebgl), unitFrames = job.quality === 'review' ? 30 : 15, units = job.totalFrames / unitFrames;
   const desired = hasWebgl ? webglMaxShards : 6;
   // Short 2D films also use the existing six-shard allowance: their moving panel must not

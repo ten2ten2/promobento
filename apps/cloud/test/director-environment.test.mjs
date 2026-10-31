@@ -64,7 +64,9 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
   async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
    const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
-   if(film.scenes[0].block==='object-studio@1'||film.scenes[0].runtime3D==='om3-studio-v1'){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
+   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
+    if(film.scenes[0].runtime3D==='om3-studio-v2'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/objectYaw:15,objectScale:1/);}
+    return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
    assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},async closeStudio(){closes++;}
  };}}};
@@ -72,8 +74,10 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  await check();await check();assert.equal(probes,1);assert.equal(closes,1);
  const custom=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,true);
  await custom();await custom();assert.equal(probes,2);assert.equal(cache.size,2);
+ const motion=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v2');
+ await motion();await motion();assert.equal(probes,3);assert.equal(cache.size,3);
  cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
- await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,4,'an unsupported new studio does not disable old scenes');
+ await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,5,'an unsupported new studio does not disable old scenes');
 });
 
 test('Canvas title preflight requires an actual readable observation for the exact font and text',async t=>{

@@ -2,7 +2,7 @@ import { canonical, parseCanonicalJson } from '@promobento/contracts/canonical';
 import { digest } from '@promobento/contracts/digest';
 import {assertCustomSources,extractCustomSfx,customStudioAsset} from '@promobento/contracts/custom-source';
 import {filmSourceHash} from '@promobento/contracts/film-source';
-import {filmUsesWebgl} from '@promobento/contracts/render';
+import {filmUsesWebgl,isStudioRuntime} from '@promobento/contracts/render';
 import { filmSpecErrors } from '@promobento/contracts/film';
 import { validate as validateBlockParams } from '@promobento/contracts/validators/block-params';
 import { validate } from '@promobento/contracts/validators/film';
@@ -47,7 +47,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     if (scene.layout && Object.keys(scene.layout).length) throw Error('LAYOUT_OVERRIDES_NOT_IMPLEMENTED');
     if (scene.transitionIn && !['cut', 'crossfade', 'fade-through', 'push', 'whip'].includes(scene.transitionIn.type)) throw Error('TRANSITION_NOT_IMPLEMENTED');
     if (scene.kind === 'custom') {
-      if(scene.runtime3D==='om3-studio-v1'){const key=customStudioAsset(scene,options.customSources![scene.module]!)!;
+      if(isStudioRuntime(scene.runtime3D)){const key=customStudioAsset(scene,options.customSources![scene.module]!)!;
         if(!['image','svg'].includes(resources.get(spec.assets[key]!.resourceId)?.kind??''))throw Error('CUSTOM_3D_IMAGE_REQUIRED');}
       continue;
     }

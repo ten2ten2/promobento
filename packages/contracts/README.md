@@ -17,7 +17,7 @@ if (!validate(spec)) {
 
 ## 构建覆盖全部 Schema
 
-入口名为 `film`、`block`、`render-job`、`frame-observation`、`direction`、`audio-plan`、`audio-admission`、`asset-insight`、`director-analysis`、`agent-tools`、`model-config`、`model-spend`、`production`、`unit-economics`。每个入口由 [`build-validators.mjs`](scripts/build-validators.mjs) 生成 ESM 和 `.d.mts`，输出在被 Git 忽略的 `generated/`。新增 Schema 时同步构建清单和[结构用例](test/schema-vectors.json)；测试检查清单是否完整。
+入口名为 `film`、`block`、`render-job`、`frame-observation`、`direction`、`audio-plan`、`audio-admission`、`asset-insight`、`director-analysis`、`video-frame-manifest`、`agent-tools`、`model-config`、`model-spend`、`production`、`unit-economics`。每个入口由 [`build-validators.mjs`](scripts/build-validators.mjs) 生成 ESM 和 `.d.mts`，输出在被 Git 忽略的 `generated/`。新增 Schema 时同步构建清单和[结构用例](test/schema-vectors.json)；测试检查清单是否完整。
 
 另从可信 `blockCatalog` 在构建时生成 `block-params` 验证器，Node 页面与 Worker 共用，不在运行时编译参数 Schema。
 
@@ -40,5 +40,7 @@ if (!validate(spec)) {
 v2 视频指纹按画幅、固定布局/编码、源、资源、声音、运行环境和标记共享；平台 mapping 仍含业务 targetId，QA/权益关联仍逐目标授权。帧协议新包络用 `aspectId`；Schema 保留旧 `targetId` 包络读取，两者不能混用，回执必须匹配原包络。渲染器和产品 Worker 的接入进度见[实施状态](../../docs/implementation-status.md)。
 
 内部渲染入口为 `./film-source`（规范 FilmSpec 文件身份）、`./render`（任务/分段语义）及 `./seams`（可信 CDP PNG 解析、受限 RGBA 编码与原像素容差）；产品 Composition 使用 `./film-composition`。私有任务结构也由 `render-job` 预编译验证器覆盖；单个 filmSourceHash 只是产品身份的一部分，不替代完整 Composition/订单身份。
+
+`./canvas-text` 按冻结 FilmSpec 检查受限 Canvas 标题的逐编码帧文字轨迹；可见性仍须由渲染器检查实际阅读帧。`./studio-runtime` 识别受限 3D 舞台版本，供页面和渲染资源规划共用；它不授予素材或执行权限。
 
 自写镜头另传 `customSources: Record<modulePath, sourceText>` 给 `createFilmComposition`/`filmBuildReceipt` 和对应检查 context。`./custom-source` 仅以 Acorn 解析源码，检查注册、引用和明确禁用项，按词法作用域区分受限全局与同名局部变量，不执行作者代码；真实执行与隔离见[运行时](../film-runtime/README.md)。完整源身份覆盖 `film.json` 与全部声明模块的原始字节，纯积木调用方式和既有身份不变。

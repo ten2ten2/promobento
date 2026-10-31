@@ -1,4 +1,5 @@
 import {parse} from 'acorn';
+import {isStudioRuntime} from './studio-runtime.mjs';
 
 export const CUSTOM_SOURCE_MAX_BYTES = 65536;
 const id = /^[a-z][a-z0-9-]{0,47}$/;
@@ -33,7 +34,7 @@ const studioCall=(node,ctx)=>node?.type==='CallExpression'&&node.callee?.type===
   &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM3'&&node.callee.object.object?.name===ctx;
 /** Read the sole declared studio asset as inert syntax, never as executable source. */
 export function customStudioAsset(scene,source){
-  if(scene.runtime3D!=='om3-studio-v1')return null;
+  if(!isStudioRuntime(scene.runtime3D))return null;
   let tree;try{tree=parse(source,{ecmaVersion:2024,sourceType:'module'});}catch{throw Error('CUSTOM_SOURCE_SYNTAX');}
   const call=tree.body.length===1&&tree.body[0].type==='ExpressionStatement'?tree.body[0].expression:null, factory=call?.arguments?.[1],ctx=factory?.params?.[0]?.name;
   if(call?.type!=='CallExpression'||call.callee?.object?.name!=='PB'||memberName(call.callee)!=='scene'||call.arguments[0]?.value!==scene.id||!ctx)throw Error('CUSTOM_REGISTRATION_INVALID');
@@ -164,7 +165,7 @@ export function customSourceErrors(scene,source,spec) {
       }
       if(studioCall(node,ctx)){
         studioCalls++;const name=args[0]?.value;
-        if(scene.runtime3D!=='om3-studio-v1')fail('CUSTOM_3D_NOT_DECLARED',node);
+        if(!isStudioRuntime(scene.runtime3D))fail('CUSTOM_3D_NOT_DECLARED',node);
         if(args.length!==1||typeof name!=='string'||!plan.assetKeys.includes(name)||!Object.hasOwn(spec.assets,name))fail('CUSTOM_SLOT_UNDECLARED',node);
         else used.asset.add(name);
       }
@@ -179,7 +180,7 @@ export function customSourceErrors(scene,source,spec) {
     if(scoped)scopes.pop();
   }
   walk(factory);
-  if(scene.runtime3D==='om3-studio-v1'&&studioCalls!==1)fail('CUSTOM_3D_ONE_STUDIO_REQUIRED',factory);
+  if(isStudioRuntime(scene.runtime3D)&&studioCalls!==1)fail('CUSTOM_3D_ONE_STUDIO_REQUIRED',factory);
   if(scene.params?.sourceSfx===true)try{extractCustomSfx(scene,source,spec);}catch(error){fail(error.message,factory);}
   if(plan.textSlots.some(key=>!used.text.has(key))||plan.assetKeys.some(key=>!used.asset.has(key)))fail('CUSTOM_DECLARATION_UNUSED',factory);
   return errors;
