@@ -21,12 +21,14 @@ function studioSky(){
  const texture=new CanvasTexture(canvas);texture.mapping=EquirectangularReflectionMapping;texture.colorSpace=SRGBColorSpace;return texture;
 }
 function sweepGeometry(){
- const width=60,depth=30,radius=8,wall=30,length=depth+Math.PI*radius/2+wall,geo=new PlaneGeometry(width,length,1,120),p=geo.attributes.position!;
+ // Extend the foreground without moving the original curved backdrop. At
+ // portrait aspect and longer camera distances, the old floor ended in frame.
+ const width=300,front=130,depth=front+15,radius=8,wall=60,length=depth+Math.PI*radius/2+wall,geo=new PlaneGeometry(width,length,1,600),p=geo.attributes.position!;
  for(let i=0;i<p.count;i++){
   const s=p.getY(i)+length/2;let y,z;
-  if(s<=depth){y=0;z=depth/2-s;}
-  else if(s<=depth+Math.PI*radius/2){const a=(s-depth)/radius;y=radius-radius*Math.cos(a);z=-depth/2-radius*Math.sin(a);}
-  else{y=radius+s-depth-Math.PI*radius/2;z=-depth/2-radius;}
+  if(s<=depth){y=0;z=front-s;}
+  else if(s<=depth+Math.PI*radius/2){const a=(s-depth)/radius;y=radius-radius*Math.cos(a);z=-15-radius*Math.sin(a);}
+  else{y=radius+s-depth-Math.PI*radius/2;z=-15-radius;}
   p.setXYZ(i,p.getX(i),y-2.4,z-2);
  }
  geo.computeVertexNormals();return geo;

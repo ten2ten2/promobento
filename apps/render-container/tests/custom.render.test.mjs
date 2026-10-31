@@ -572,6 +572,10 @@ try{
      if(p.pixels[i]<60&&p.pixels[i+1]>150&&p.pixels[i+2]<60)green++;
     }return{red,green};};
     const visible=count(first),absent=count(hidden);assert.ok(visible.red>1000&&visible.green>1000,`${aspect} both separately cleared screen pixels are visible`);
+    if(aspect==='portrait'){
+     const frame=pngPixels(first),at=(Math.floor(frame.height*.9)*frame.width+Math.floor(frame.width*.5))*4;
+     assert.ok(frame.pixels[at]>30&&frame.pixels[at+1]>30, 'the portrait studio floor extends to the bottom rather than ending in frame');
+    }
     assert.equal(absent.red,0,`${aspect} hidden panel does not carry into the next state`);assert.ok(absent.green>1000);
     assert.ok(compareSeam(first,later).diffPixelPct>.05,'independent panel moves');
     const reverse=await session.frame(15,{format:'png'});assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
