@@ -38,13 +38,13 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',version:'1.0.0',build(ctx,params){
+window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',version:'1.0.1',build(ctx,params){
  const asset=ctx.asset(params.assetKey);if(asset.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
  const safe=document.createElement('div'),inset=ctx.target.safeInsets,wide=ctx.target.aspect==='landscape',hasText=Boolean(params.textSlot);
- Object.assign(safe.style,{position:'absolute',left:inset.left*100+'%',right:inset.right*100+'%',top:inset.top*100+'%',bottom:inset.bottom*100+'%'});ctx.root.append(safe);
- const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',left:wide&&hasText?'39%':'0',top:!wide&&hasText?'29%':'0',width:wide&&hasText?'61%':'100%',height:!wide&&hasText?'71%':'100%'});safe.append(stage);
+ const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',inset:'0'});ctx.root.append(stage);
  const canvas=document.createElement('canvas');canvas.dataset.pbWebgl='object-studio';Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});stage.append(canvas);
- if(params.textSlot){const title=document.createElement('div');Object.assign(title.style,{position:'absolute',left:'0',top:wide?'22%':'0',width:wide?'36%':'100%',height:wide?'65%':'25%'});safe.append(title);ctx.text(params.textSlot).mount(title,{maxLines:4});}
+ Object.assign(safe.style,{position:'absolute',left:inset.left*100+'%',right:inset.right*100+'%',top:inset.top*100+'%',bottom:inset.bottom*100+'%',pointerEvents:'none'});ctx.root.append(safe);
+ if(params.textSlot){const title=document.createElement('div');Object.assign(title.style,{position:'absolute',left:'0',top:'0',width:wide?'44%':'100%',height:wide?'28%':'18%',padding:'16px',background:ctx.style.palette.bg});safe.append(title);ctx.text(params.textSlot).mount(title,{maxLines:3,maxFontSize:72});}
  const renderer=new WebGLRenderer({canvas,alpha:false,antialias:true,preserveDrawingBuffer:true});
  renderer.setPixelRatio(1);renderer.setSize(Math.round(stage.clientWidth),Math.round(stage.clientHeight),false);renderer.outputColorSpace=SRGBColorSpace;
  renderer.toneMapping=ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;
@@ -64,12 +64,13 @@ window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',ve
  const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
  const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
  const camera=new PerspectiveCamera(30,stage.clientWidth/stage.clientHeight,.05,400);
- const distance=Math.max((height+2*bezel)/2,((width+2*bezel)/2)/camera.aspect)/Math.tan(30*Math.PI/360)*1.6;
+ const distance=Math.max((height+2*bezel)/2,((width+2*bezel)/2)/camera.aspect)/Math.tan(30*Math.PI/360)*1.25;
  const duration=(ctx.frames.end-ctx.frames.start)/30;
  const draw=(time:number)=>{
   if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');
   const p=Math.min(1,Math.max(0,time/Math.min(1.8,duration))),e=1-Math.pow(1-p,3),yaw=(-30+18*e+Math.sin(time*.3)*3)*Math.PI/180;
-  camera.position.set(Math.sin(yaw)*distance,Math.sin(.1)*distance,Math.cos(yaw)*distance);camera.lookAt(0,0,0);
+  const targetX=wide&&hasText?-width*.42:0,targetY=!wide&&hasText?height*.28:0;
+  camera.position.set(targetX+Math.sin(yaw)*distance,targetY+Math.sin(.1)*distance,Math.cos(yaw)*distance);camera.lookAt(targetX,targetY,0);
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };
  const dispose=()=>{if(disposed)return;disposed=true;canvas.removeEventListener('webglcontextlost',onLost);
