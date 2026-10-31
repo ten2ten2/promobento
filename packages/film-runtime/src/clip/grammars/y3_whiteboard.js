@@ -65,7 +65,10 @@ function layout(ctx, f) {
   const hasDraw = cues.some(q => q.kind === 'draw'), hasImg = cues.some(q => q.kind === 'image' && ctx.IMG[q.image]);
   // 栏：横屏有图就左文右图；竖屏有 draw 时图标排在右侧窄栏、和它说的那条字并排（截图仍整宽）
   const S = (ctx.portrait ? 250 : 210) * u * f, gap = 70 * u * f;
-  const two = ctx.portrait ? hasDraw : (hasDraw || hasImg);
+  // The trusted single-image adapter reserves its own fact-bound DOM title and
+  // opts into a centred hero. Upstream and multi-cue layouts remain unchanged.
+  const imageHero = ctx.data.imageHero === true && hasImg && !hasDraw && cues.every(q => q.kind === 'image');
+  const two = imageHero ? false : ctx.portrait ? hasDraw : (hasDraw || hasImg);
   const colP = !two ? null : ctx.portrait ? { x: W - pad - S, w: S } : { x: W * 0.55, w: W * 0.45 - pad };
   const nPt = cues.filter(q => q.kind === 'point').length, split = !ctx.portrait && !two && nPt >= 5 ? Math.ceil(nPt / 2) : 0;   // 横屏纯文字、要点 ≥5 条：分左右两栏写
   const colT = { x: pad, w: split ? W / 2 - pad - 40 * u : !two ? W - 2 * pad : ctx.portrait ? colP.x - gap - pad : W * 0.5 - pad };
@@ -131,8 +134,9 @@ function layout(ctx, f) {
     } else if (q.kind === 'image') {
       const im = ctx.IMG[q.image]; if (!im) continue;
       // 右栏的图只用剩下的高度，不让相机为右栏往下走、把左栏的字推出画
-      const inCol = two && !ctx.portrait, y = (inCol ? yP : Math.max(yT, yP)) + 30 * u, box = inCol ? colP : { x: pad, w: W - 2 * pad };
-      const f2 = CLIP.fit(im.width, im.height, box.x, y, box.w, inCol ? Math.max(H * 0.2, Math.min(H * 0.5 * Math.max(0.8, f), H - safe.bottom - 80 * u - y)) : H * (ctx.portrait ? 0.32 : 0.45) * Math.max(0.8, f)), it = { q, kind: 'image', x: f2.x, y0: f2.y, w: f2.w, y1: f2.y + f2.h };
+      const inCol = two && !ctx.portrait, y = (inCol ? yP : Math.max(yT, yP)) + 30 * u,
+        box = inCol ? colP : imageHero ? { x: Math.max(pad, safe.left + 24 * u), w: W - Math.max(pad, safe.left + 24 * u) - Math.max(pad, safe.right + 24 * u) } : { x: pad, w: W - 2 * pad };
+      const f2 = CLIP.fit(im.width, im.height, box.x, y, box.w, inCol ? Math.max(H * 0.2, Math.min(H * 0.5 * Math.max(0.8, f), H - safe.bottom - 80 * u - y)) : H * (imageHero ? (ctx.portrait ? 0.46 : 0.60) : (ctx.portrait ? 0.32 : 0.45)) * Math.max(0.8, f)), it = { q, kind: 'image', x: f2.x, y0: f2.y, w: f2.w, y1: f2.y + f2.h };
       const zz = DG.zigzag(f2.x - 20 * u, f2.y - 10 * u, f2.w + 40 * u, f2.h + 20 * u, 7), cum = DG.cum(zz), rowH = (f2.h + 20 * u) / 7;
       start(q);
       const s = B.push({ kind: 'custom', t0: B.cur, t1: B.cur + Math.min(1.0, Math.max(0.4, next(q) - q.at - 0.5)), col: INK,

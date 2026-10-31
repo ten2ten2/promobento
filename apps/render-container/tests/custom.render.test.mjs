@@ -292,8 +292,10 @@ try{
    const board=await filmSession({raw:JSON.stringify(boardFilm),options,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{const early=await board.frame(15,{format:'png'}),frame=await board.frame(105,{format:'png'}),pixels=pngPixels(frame);let green=0;
     writeFileSync(`${output}/whiteboard-clip-${aspect}-reveal.png`,early);writeFileSync(`${output}/whiteboard-clip-${aspect}.png`,frame);
-    for(let i=0;i<pixels.pixels.length;i+=4)if(pixels.pixels[i]<100&&pixels.pixels[i+1]>120&&pixels.pixels[i+2]<100)green++;
-    assert.ok(green>pixels.width*pixels.height*.01,'the real image is visibly revealed');
+    let minX=pixels.width,minY=pixels.height,maxX=0,maxY=0;
+    for(let y=0;y<pixels.height;y++)for(let x=0;x<pixels.width;x++){const i=(y*pixels.width+x)*4;if(pixels.pixels[i]<100&&pixels.pixels[i+1]>120&&pixels.pixels[i+2]<100){green++;minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}}
+    assert.ok(green>pixels.width*pixels.height*.05,'the real image is a visible, substantial subject');
+    const safe=options.target.safeInsets;assert.ok(minX>=pixels.width*safe.left-2&&minY>=pixels.height*safe.top-2&&maxX<=pixels.width*(1-safe.right)+2&&maxY<=pixels.height*(1-safe.bottom)+2,'the real image stays within platform safe insets');
     const observation=await board.observe('whiteboard-check',105),headline=observation.texts.find(text=>text.slotId==='headline'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed);
     assert.ok(headline);assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
     const box=headline.box;let overlap=0;
