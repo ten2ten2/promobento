@@ -95,3 +95,12 @@ test('frame layers are history-free, half-open and carry scene-local time and tr
     assert.equal(layers[1].x-layers[0].x,1);assert.equal(layers[0].blur>0,type==='whip');}
   assert.deepEqual(frameLayers(spec.scenes,450),[]);
 });
+
+test('Canvas sequence requires confirmed facts and a reading hold for each page',()=>{
+ const film=filmFixture();film.assets={};film.texts={a:{text:'HELLO',role:'headline',factIds:['a']},b:{text:'WORLD',role:'headline',factIds:['b']}};
+ film.scenes=[{id:'title',start:0,end:450,kind:'block',block:'canvas-sequence@1',params:{items:[{textSlot:'a',startFrame:0},{textSlot:'b',startFrame:120}]},purpose:'Two bound titles.'}];
+ const opts=options();opts.resources=[];opts.confirmedFactIds=['a','b'];assert.doesNotThrow(()=>make(film,opts));
+ const noFact=structuredClone(film);noFact.texts.b.factIds=[];assert.throws(()=>make(noFact,opts),/CANVAS_SEQUENCE_FACT_REQUIRED/);
+ const short=structuredClone(film);short.scenes[0].params.items[1].startFrame=119;assert.throws(()=>make(short,opts),/CANVAS_SEQUENCE_READING_HOLD_MISSING/);
+ const missing=structuredClone(film);missing.scenes[0].params.items[1].textSlot='missing';assert.throws(()=>make(missing,opts),/TEXT_SLOT_UNKNOWN/);
+});

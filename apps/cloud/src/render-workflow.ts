@@ -1,3 +1,4 @@
+import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudflare:workers';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {planShards, assertRenderJob,renderDeadlineMs} from '@promobento/contracts/render';
@@ -71,7 +72,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport, peakMemory,
           observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/'))),
           motionFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/motion-frames/'))),
-          ...(film.scenes.some((scene:Json)=>scene.kind==='block'&&scene.block==='canvas-title@1')?{canvasTextTraces:shards.map(result=>output(result,'/frame-digests.json'))}:{})};
+          ...(film.scenes.some((scene:Json)=>isCanvasTextScene(scene))?{canvasTextTraces:shards.map(result=>output(result,'/frame-digests.json'))}:{})};
         let resultJson: string;
         try { resultJson=canonical(result); }
         catch {

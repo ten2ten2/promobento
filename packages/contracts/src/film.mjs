@@ -27,6 +27,8 @@ export function filmTextBindings(spec) {
   return spec.scenes.flatMap(scene => {
     const slots = scene.kind==='custom'?(scene.params?.textSlots??[]).map(slotId=>({slotId,start:scene.start,end:scene.end})):scene.block === 'captions@1'
       ? scene.params.cues.map(cue => ({slotId:cue.textSlot,start:scene.start+cue.start,end:scene.start+cue.end}))
+      : scene.block==='canvas-sequence@1' ? scene.params.items.map((item,index)=>({slotId:item.textSlot,start:scene.start+item.startFrame,
+        end:scene.start+(scene.params.items[index+1]?.startFrame??scene.end-scene.start)}))
       : blockReferences(scene.params).texts.map(slotId => ({slotId,start:scene.start,end:scene.end}));
     return slots.map(({slotId,start,end}) => {
       const slot=spec.texts[slotId]; if (!slot) throw Error('TEXT_SLOT_UNKNOWN');

@@ -91,9 +91,9 @@ test('Canvas title preflight requires an actual readable observation for the exa
  const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,confirmedFactIds:['confirmed-number']};
  let probes=0,closes=0,taskId,film,blocked=false;
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
-  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.equal(film.scenes[0].block,'canvas-title@1');generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.ok(['canvas-title@1','canvas-sequence@1'].includes(film.scenes[0].block));if(film.scenes[0].block==='canvas-sequence@1')assert.deepEqual(task.job.frames,[45,165]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
-  async checkFrame(_id,frame){const text={slotId:'headline',sceneId:'health',text:film.texts.headline.text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:blocked,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:blocked?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
+  async checkFrame(_id,frame){const slotId=film.scenes[0].block==='canvas-sequence@1'?(frame<120?'headline-0':'headline-1'):'headline';const text={slotId,sceneId:'health',text:film.texts[slotId].text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:blocked,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:blocked?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
   async closeStudio(){closes++;}
  };}}};
  const check=(text,factIds=[])=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],text,factIds});
@@ -101,6 +101,11 @@ test('Canvas title preflight requires an actual readable observation for the exa
  blocked=true;await assert.rejects(check('WORLD'),/RENDER_CANVAS_TEXT_UNAVAILABLE/);assert.equal(cache.size,1);
  blocked=false;await check('WORLD');assert.equal(probes,3);assert.equal(closes,3);assert.equal(cache.size,2);
  await check('Model 2',['confirmed-number']);assert.equal(probes,4,'numeric text retains its confirmed fact binding');
+ const pages=[{text:'HELLO',factIds:['confirmed-number']},{text:'WORLD',factIds:['confirmed-number']}];
+ const sequence=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],...pages[0],pages});
+ await sequence();await sequence();assert.equal(probes,5,'sequence preflights each actual page once per exact input');
+ blocked=true;pages[1]={...pages[1],text:'OTHER'};await assert.rejects(sequence(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);
+
 });
 
 test('studio ownership is persisted before execute; cancelled or failed startup cannot lose its cleanup handle',async t=>{

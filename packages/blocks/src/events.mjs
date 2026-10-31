@@ -5,6 +5,12 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='canvas-sequence'){
+    const items=params.items;
+    if(items[0]?.startFrame!==0||items.some((item,index)=>index>0&&item.startFrame-items[index-1].startFrame<120)
+      ||duration-items.at(-1).startFrame<120)throw Error('CANVAS_SEQUENCE_READING_HOLD_MISSING');
+    return items.map((item,index)=>({name:'title-land-'+(index+1),frame:item.startFrame+30}));
+  }
   if(id==='vox-clip'){
     const landings=params.items.map((_,index)=>index*params.intervalFrames+18);
     if(landings.at(-1)+30>duration)throw Error('VOX_CLIP_READING_HOLD_MISSING');
@@ -58,6 +64,8 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
+  if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
+   .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
@@ -82,6 +90,9 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
     .map(frame=>Math.floor(frame/stride)*stride);
   }
+  if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
+   .flatMap(event=>[event.frame-30,event.frame-9,event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
    .flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);

@@ -259,6 +259,29 @@ try{
    }finally{await canvasSession.close();}
   }
   report.canvasTitle='bound_original_canvas_text_checked_against_actual_frame_landscape_portrait_reverse';
+  // Original y5's wipe changes pages; each captured frame and hold must bind
+  // the actual active title, including cold and reverse seeks across the cut.
+  const sequenceFilm=structuredClone(canvasFilm);
+  sequenceFilm.texts={first:{text:'HELLO',role:'headline',factIds:['first']},second:{text:'WORLD',role:'headline',factIds:['second']}};
+  sequenceFilm.scenes[0].block='canvas-sequence@1';sequenceFilm.scenes[0].params={items:[{textSlot:'first',startFrame:0},{textSlot:'second',startFrame:120}]};
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.resources=[];options.fonts=multiOptions.fonts;options.confirmedFactIds=['first','second'];
+   const sequence=await filmSession({raw:JSON.stringify(sequenceFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    const first=await sequence.frame(45,{format:'png'});let observation=await sequence.observe('sequence-check',45);
+    assert.ok(observation.texts.some(text=>text.slotId==='first'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    for(const frame of [110,119,120,121,165]){await sequence.frame(frame,{format:'png'});
+     assert.equal(sequence.canvasTextTrace(frame)[0].slotId,frame<120?'first':'second');}
+    observation=await sequence.observe('sequence-check',165);
+    assert.ok(observation.texts.some(text=>text.slotId==='second'&&text.text==='WORLD'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    writeFileSync(`${output}/canvas-sequence-${aspect}.png`,await sequence.capturePng(165));
+    const reverse=await sequence.frame(45,{format:'png'});assert.equal(compareSeam(first,reverse).verdict,'pass');
+   }finally{await sequence.close();}
+  }
+  report.canvasSequence='two_fact_bound_pages_actual_frames_and_reverse_landscape_portrait';
+
   // Exercise the production encoder path, not just the in-browser trace: every
   // encoded frame must survive in the receipt-bound trace file.
   const shardOptions=pageOptions('landscape',rules.aspectLayouts.landscape);shardOptions.resources=[];shardOptions.fonts=multiOptions.fonts;
@@ -273,6 +296,17 @@ try{
   assert.ok(shardObservations.some(item=>item.frame===45&&item.texts.some(text=>text.text==='HELLO')));
   assert.ok(shardObservations.every(item=>!item.findings.some(finding=>finding.severity==='BLOCK')));
   report.canvasTitleShard='receipt_bound_trace_for_every_encoded_frame_and_actual_reading_hold';
+
+  const seqOptions=pageOptions('landscape',rules.aspectLayouts.landscape);seqOptions.resources=[];seqOptions.fonts=multiOptions.fonts;seqOptions.confirmedFactIds=['first','second'];
+  const seqShard={index:0,start:105,end:135},seqDir=`${output}/canvas-sequence-shard`;
+  const seqReceipt=await renderShard({job:shardJob,shard:seqShard,raw:JSON.stringify(sequenceFilm),options:seqOptions,font,
+   resource:()=>{throw Error('UNEXPECTED_RESOURCE');},directory:seqDir,browserVersion:lock.browser.version,
+   imageDigest:process.env.PROMOBENTO_TEST_IMAGE_DIGEST,encoding:rules.encodingProfiles.mp4_h264_1080_v1,threads:2,killBrowser});
+  const seqBytes=readFileSync(`${seqDir}/frame-digests.json`),seqRecords=JSON.parse(seqBytes);
+  assert.equal(sha256Bytes(seqBytes),seqReceipt.outputs.frameDigests);assertCanvasTextFrameDigests(sequenceFilm,seqShard,'final',seqRecords);
+  assert.ok(seqRecords.every(record=>record.canvasText[0].slotId===(record.frame<120?'first':'second')));
+  report.canvasSequenceShard='receipt_bound_traces_across_original_wipe';
+
   const rigFilm=filmFixture(),rigOptions=pageOptions('portrait',rules.aspectLayouts.portrait);
   rigFilm.assets={};rigFilm.scenes=[{id:'rig',kind:'custom',module:'scenes/rig/index.js',start:0,end:450,
    purpose:'Absolute-time camera path.',brief:'Move a real staged shape with the upstream camera rig.',

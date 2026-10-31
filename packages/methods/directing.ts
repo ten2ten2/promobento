@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.34.0',
+  id: 'product-directing', version: '1.35.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -38,6 +38,7 @@ export const directingMethodPack = {
       'vox-clip is the original Vox image choreography, restricted to cleared static images without Canvas captions. Choose distinct, causally related real states and allow enough time to read them; it does not carry an extracted detail into another exercise. Use separate fact-bound text scenes where copy is needed. The direction preview repeats the same primary image and does not establish a real page handoff.',
       'For vox-clip, an item may set focus to roi:n only when that exact box appears in the observation for that same source image. It draws the original highlighter and circle without zooming away from the full page. Leave at least 120 frames before the next image or scene end for a focused item.',
       'canvas-title executes the original y5 single-line headline with a fact-bound text slot and an admitted normal display font. Use only simple Latin, CJK and common characters without combining marks; keep it short. It cannot appear in the same film as a custom scene. Keep its settled reading holds free of overlapping scenes and overlays. Treat it as one expressive title shot, not a substitute for the product or a page handoff.',
+      'canvas-sequence runs two or three original y5 title pages with the original color-band wipe. Every page needs its own exact confirmed headline slot; startFrame begins at 0, and leave at least 120 frames per page. Keep reading holds free of overlays and never mix this block with custom scenes. Use it for a meaningful typographic progression, not product proof.',
       'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. Choose om3-studio-v2 when the screen object itself must rotate or scale independently of the camera; choose distanceScale to keep the real screen within the frame unless a purposeful crop is warranted. The bounded studio does not synthesize product interactions or open arbitrary Three.js.',
       'For a lit product-object reveal, object-studio uses a cleared real screenshot on a rounded screen in the adapted huashu-motion studio, with a continuous moving camera and full-frame stage. Prefer a short optional textSlot, or omit it to give the product maximum scale. It is a hero reveal, not an invented product action or a substitute for showing an actual workflow.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',

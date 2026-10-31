@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero,supportsVoxClip,supportsCanvasTitle} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -69,4 +69,9 @@ test('original Canvas title is gated to the new method and receives a short boun
  assert.equal(film.scenes[0].block,'canvas-title@1');assert.equal(film.texts.headline.text,context.product);
  const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
  assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
+ const sequenceContext={...context,facts:[{id:'modes',text:'Real progress'}],confirmedFactIds:['modes']};
+ assert.equal(supportsCanvasSequence(method('1.34.0'),sequenceContext),false);assert.equal(supportsCanvasSequence(method('1.35.0'),sequenceContext),true);
+ const sequence=directionHero({...card,skeleton:[{approach:'block:canvas-sequence'}]},sequenceContext,0);
+ assert.equal(sequence.scenes[0].block,'canvas-sequence@1');assert.deepEqual(sequence.scenes[0].params.items.map(item=>item.startFrame),[0,120]);
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(sequence),options));
 });

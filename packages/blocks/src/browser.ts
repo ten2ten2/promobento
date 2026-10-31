@@ -62,9 +62,11 @@ window.PB.defineBlock<{items:Array<{assetKey:string;focus?:string}>;intervalFram
 
 // One short, fact-bound title through the original y5 Canvas grammar. This
 // narrowly audited path has no custom scenes, nested clips, captions or numbers.
-window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',build(ctx,params){
-  const slot=ctx.text(params.textSlot),font=ctx.style.type.display,text=slot.text;
-  assertCanvasTitle(text,slot.role,font.style);
+function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence'){
+  const font=ctx.style.type.display,slots=items.map(item=>ctx.text(item.textSlot));
+  for(const slot of slots)assertCanvasTitle(slot.text,slot.role,font.style);
+  const selected=(time:number)=>Math.max(0,items.findLastIndex(item=>item.startFrame<=time*30+1e-6));
+  let text=slots[0]!.text,currentSlot=items[0]!.textSlot;
   const family=`PBC-${font.fontId}-${font.weight}`,canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
   Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
   // This hidden span is solely a platform-font probe; actual text visibility
@@ -74,28 +76,30 @@ window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',buil
   const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   const without=document.createElement('canvas');without.width=canvas.width;without.height=canvas.height;const clean=without.getContext('2d');if(!clean)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   let stage:ReturnType<typeof createClipStage>|undefined,trace:CanvasTitleTrace|undefined,lastTime:number|undefined;
-  const ready=document.fonts.load(`normal 400 36px "${family}"`,text).then(faces=>{
+  const ready=document.fonts.load(`normal 400 36px "${family}"`,slots.map(slot=>slot.text).join('')).then(faces=>{
     if(!faces.length||faces.some(face=>face.status!=='loaded'))throw Error('CANVAS_TITLE_FONT_UNAVAILABLE');
     const inset=ctx.target.safeInsets;
     stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,
       safe:{left:inset.left*canvas.width,right:inset.right*canvas.width,top:inset.top*canvas.height,bottom:inset.bottom*canvas.height},
       data:{safeText:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
-      cues:[{kind:'title',at:0,text}]},{width:canvas.width,height:canvas.height,fontFamily:family});
+      cues:items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text}))},{width:canvas.width,height:canvas.height,fontFamily:family});
   });
   const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
-    return{slotId:params.textSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
-  return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
+    return{slotId:currentSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
+  return{ready,render(time:number){if(!stage)throw Error('CLIP_NOT_READY');const index=selected(time);text=slots[index]!.text;currentSlot=items[index]!.textSlot;fontProbe.textContent=text;trace={boxes:[],fontSize:0,alpha:0,draws:0,font:'',letterSpacing:'0px'};
     stage.draw(boundCanvasTitle(paint,text,trace),time);if(trace.draws!==1||!trace.boxes.length)throw Error('CANVAS_TEXT_NOT_DRAWN');
     fontProbe.style.font=trace.font;fontProbe.style.letterSpacing=trace.letterSpacing;lastTime=time;
   },canvasTextTrace:currentTrace,canvasTextProof(){if(!stage||!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
     stage.draw(boundCanvasTitle(clean,text,null),lastTime);
     return{...currentTrace(),withText:canvas.toDataURL('image/png'),withoutText:without.toDataURL('image/png')};
-  },events:blockEvents('canvas-title',ctx.frames,params),regions:[{regionId:'headline',boxAt(){
+  },events:blockEvents(id,ctx.frames,id==='canvas-title'?{textSlot:currentSlot}:{items}),regions:[{regionId:'headline',boxAt(){
     if(!trace?.boxes.length)return null;const left=Math.min(...trace.boxes.map(box=>box.x)),top=Math.min(...trace.boxes.map(box=>box.y)),
       right=Math.max(...trace.boxes.map(box=>box.x+box.width)),bottom=Math.max(...trace.boxes.map(box=>box.y+box.height));
     return{x:left,y:top,width:right-left,height:bottom-top};
   }}]};
-}});
+}
+window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,[{textSlot:params.textSlot,startFrame:0}],'canvas-title')});
+window.PB.defineBlock<{items:Array<{textSlot:string;startFrame:number}>}>({id:'canvas-sequence',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,params.items,'canvas-sequence')});
 
 function cpuSurface(ctx:SceneContext){
   const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;

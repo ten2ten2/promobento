@@ -1,3 +1,4 @@
+import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import { randomSequence } from '@promobento/contracts/random';
 import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
 import {customScenePlan} from '@promobento/contracts/custom-source';
@@ -290,7 +291,7 @@ const engine: FilmEngine = {
     check(input, 'seek');
     if ('previewEpoch' in input) throw Error('INVALID_SESSION');
     await draw(input.frameIndex);
-    const current=requiredPlan(),usesCanvas=current.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+    const current=requiredPlan(),usesCanvas=current.spec.scenes.some(scene=>isCanvasTextScene(scene));
     const canvasTextTrace=usesCanvas?frameLayers(current.spec.scenes,input.frameIndex).flatMap(layer=>{
       const value=instances.get(layer.id)!;return value.instance.canvasTextTrace?[{...value.instance.canvasTextTrace(),sceneId:layer.id}]:[];
     }):undefined;

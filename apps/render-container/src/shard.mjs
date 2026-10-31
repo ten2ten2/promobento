@@ -1,3 +1,4 @@
+import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {canonical} from '@promobento/contracts/canonical';
@@ -26,7 +27,7 @@ export async function renderShard({job, shard, options, raw, resource, videoFram
   const rendered = performance.now();
   const encoder = shardEncoder(join(directory, 'shard.h264'), {width: options.target.width * captureScale, height: options.target.height * captureScale, encoding, threads}, signal);
   const frameDigests = [], frameCaptureMs = [], seamFrames = [], observations = [];
-  const hasCanvasText=session.plan.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+  const hasCanvasText=session.plan.spec.scenes.some(scene=>isCanvasTextScene(scene));
   // Settled reading holds. Dynamic/transition coverage is the separate S2 temporal QA pass.
   const observeFrames = new Set(filmObservationFrames(session.plan.spec,job.quality));
   const motionFrames = new Set(filmMotionFrames(session.plan.spec,job.quality));

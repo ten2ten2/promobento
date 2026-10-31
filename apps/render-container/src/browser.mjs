@@ -9,7 +9,7 @@ import {pageIsolation} from './isolation.mjs';
 import {inRenderPhase} from './failure.mjs';
 import {waitForRuntimeReady} from './readiness.mjs';
 import {pageCaller} from './page-call.mjs';
-import {assertCanvasTextTrace} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene} from '@promobento/contracts/canvas-text';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -87,7 +87,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
     })(), options.initTimeoutMs, 'INIT_TIMEOUT', cancel);
     const scope = {protocolVersion: '3.0.0', sessionId: crypto.randomUUID(), revisionId: crypto.randomUUID(), aspectId: plan.target.aspect};
     let sequence = 0, closed = false, currentFrame = -1, currentCanvasTextTrace;
-    const hasCanvasText=plan.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+    const hasCanvasText=plan.spec.scenes.some(scene=>isCanvasTextScene(scene));
     const envelope = command => ({...scope, command, sequence: ++sequence, requestId: crypto.randomUUID()});
     await inRenderPhase({phase:'runtime_init'},()=>evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
       manifestHash: plan.manifestHash, frameCount: plan.spec.totalFrames, width: plan.target.width, height: plan.target.height,
@@ -120,10 +120,10 @@ export async function filmSession({raw, options, browserVersion, resource, video
       async observe(renderId, frame) {
         if (closed || currentFrame !== frame) throw Error('FRAME_NOT_READY');
         const observation=await observe(cdp,plan,renderId,frame);
-        if(!plan.spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1'&&scene.start<=frame&&frame<scene.end))return observation;
+        if(!plan.spec.scenes.some(scene=>isCanvasTextScene(scene)&&scene.start<=frame&&frame<scene.end))return observation;
         const proofs=await evaluate(()=>window.__omEngine.canvasTextProof());
         const {root}=await cdp.send('DOM.getDocument'),fontsByScene=new Map();
-        for(const scene of plan.spec.scenes.filter(item=>item.kind==='block'&&item.block==='canvas-title@1'&&item.start<=frame&&frame<item.end)){
+        for(const scene of plan.spec.scenes.filter(item=>isCanvasTextScene(item)&&item.start<=frame&&frame<item.end)){
           const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector:`[data-scene="${scene.id}"] [data-pb-canvas-font="1"]`});
           const fonts=nodeId?(await cdp.send('CSS.getPlatformFontsForNode',{nodeId})).fonts:[];fontsByScene.set(scene.id,fonts);
         }

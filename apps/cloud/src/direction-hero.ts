@@ -16,12 +16,19 @@ export function supportsCanvasTitle(method:Json|null,context:Json):boolean{
  try{assertCanvasTitle(text,'headline',font.style);return true;}catch{return false;}
 }
 
+/** Sequence pages must be exact confirmed text, not a product label attached to an unrelated fact. */
+export function supportsCanvasSequence(method:Json|null,context:Json):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number);
+ if(!supportsCanvasTitle(method,context)||!(major>1||major===1&&minor>=35))return false;
+ return (context.facts??[]).some((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',context.fonts[0].style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
+}
+
 /** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
 export function directionHero(card:Json,context:Json,index:number):Json{
  const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','feature-grid','curriculum','drawn-steps','canvas-title','hook-title','kinetic-title','cta-endcard','captions'];
+ const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','hook-title','kinetic-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':'ui-journey'):
   proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus','vox-clip'].includes(id))??
@@ -44,6 +51,11 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  else if(['feature-grid','curriculum','drawn-steps'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
  else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
  else if(block==='canvas-title')params={textSlot:text('headline',caption)};
+ else if(block==='canvas-sequence'){
+  const admissible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
+  if(!admissible.length)throw Error('CANVAS_SEQUENCE_FACT_REQUIRED');
+  params={items:[0,1].map(index=>({textSlot:text('headline-'+index,admissible[index%admissible.length]),startFrame:index*120}))};
+ }
  else if(block==='cta-endcard'){
   texts.cta={text:context.cta?.text??first.text,role:'cta',factIds:[first.id]};params={textSlot:'cta'};
   if(context.cta?.urlLabel){texts.url={text:context.cta.urlLabel,role:'label',factIds:[first.id]};params.subtitleSlot='url';}

@@ -1,6 +1,6 @@
 import {pngPixels} from '@promobento/contracts/seams';
 import {canonical} from '@promobento/contracts/canonical';
-import {assertCanvasTextTrace} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotAt} from '@promobento/contracts/canvas-text';
 
 /**
  * Check a trusted, full-frame Canvas text layer against the actual screenshot.
@@ -40,7 +40,7 @@ export function compareCanvasTextFrame({actual,withText,withoutText,boxes,safeIn
 export function appendCanvasTextObservations({plan,frame,observation,proofs,traces,fontsByScene,actual}){
  if(!Array.isArray(proofs))throw Error('CANVAS_TEXT_PROOF_INVALID');
  assertCanvasTextTrace(plan.spec,frame,traces);
- const scenes=plan.spec.scenes.filter(scene=>scene.kind==='block'&&scene.block==='canvas-title@1'&&scene.start<=frame&&frame<scene.end);
+ const scenes=plan.spec.scenes.filter(scene=>isCanvasTextScene(scene)&&scene.start<=frame&&frame<scene.end);
  if(proofs.length!==scenes.length||new Set(proofs.map(proof=>proof?.sceneId)).size!==proofs.length)throw Error('CANVAS_TEXT_PROOF_MISSING');
  const limit=Math.min(30<<20,plan.target.width*plan.target.height*6+65536);
  const png=value=>{
@@ -48,7 +48,7 @@ export function appendCanvasTextObservations({plan,frame,observation,proofs,trac
   return Buffer.from(value.slice('data:image/png;base64,'.length),'base64');
  };
  for(const scene of scenes){
-  const proof=proofs.find(item=>item?.sceneId===scene.id),slotId=scene.params.textSlot,slot=plan.spec.texts[slotId],font=plan.spec.style.type.display;
+  const proof=proofs.find(item=>item?.sceneId===scene.id),slotId=canvasTextSlotAt(scene,frame),slot=plan.spec.texts[slotId],font=plan.spec.style.type.display;
   if(!proof||!slot||proof.slotId!==slotId||proof.text!==slot.text||proof.fontId!==font.fontId||proof.weight!==font.weight||proof.style!==(font.style??'normal')
    ||!Number.isFinite(proof.fontSize)||proof.fontSize<=0||!Number.isFinite(proof.alpha)||proof.alpha<0||proof.alpha>1
    ||!Array.isArray(proof.boxes)||proof.boxes.length!==[...slot.text].filter(ch=>ch.trim()).length)throw Error('CANVAS_TEXT_PROOF_INVALID');

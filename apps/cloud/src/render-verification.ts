@@ -1,7 +1,7 @@
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {filmUsesWebgl} from '@promobento/contracts/render';
 import {compareSeam} from '@promobento/contracts/seams';
-import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextFrameDigests,isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import {validate as renderValid} from '@promobento/contracts/validators/render-job';
 import {checkShardObservations} from './render-observations.ts';
 import type {BlobRef,Json} from './pipeline-types.ts';
@@ -18,7 +18,7 @@ export async function verifyRenderShards({job,film,partition,shards,imageDigest,
     if(!renderValid(result.report)||result.report.kind!=='shard_receipt'||result.report.imageDigest!==imageDigest
      ||result.report.renderId!==job.renderId||result.report.shardIndex!==index||result.report.start!==shard.start||result.report.end!==shard.end)throw Error('SHARD_RECEIPT_INVALID');
     if(webgl&&!result.report.webgl?.length)throw Error('SHARD_WEBGL_REPORT_MISSING');
-    if(film.scenes.some((scene:Json)=>scene.kind==='block'&&scene.block==='canvas-title@1')){
+    if(film.scenes.some((scene:Json)=>isCanvasTextScene(scene))){
      const traceBlob=output(result,'/frame-digests.json');if(traceBlob.sha256!==result.report.outputs.frameDigests)throw Error('SHARD_RECEIPT_INVALID');
      assertCanvasTextFrameDigests(film,shard,job.quality,parseCanonicalJson(await read(traceBlob)));
     }

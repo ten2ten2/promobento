@@ -1,3 +1,4 @@
+import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import { canonical, parseCanonicalJson } from '@promobento/contracts/canonical';
 import { digest } from '@promobento/contracts/digest';
 import {assertCustomSources,extractCustomSfx,customStudioAsset} from '@promobento/contracts/custom-source';
@@ -35,7 +36,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
   });
   if (result.errors.length) throw Error(result.errors.map(issue => issue.code + ':' + issue.path).join('; '));
   const target = {...options.target, safeInsets: {...options.target.safeInsets}};
-  const hasCanvasTitle=spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='canvas-title@1');
+  const hasCanvasTitle=spec.scenes.some(scene=>isCanvasTextScene(scene));
   if(hasCanvasTitle&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED');
   if (!['landscape', 'portrait', 'feed', 'square'].includes(target.aspect) || target.fps !== 30 || target.totalFrames !== spec.totalFrames
     || !Number.isSafeInteger(target.width) || target.width < 1 || !Number.isSafeInteger(target.height) || target.height < 1
@@ -56,6 +57,12 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     for (const id of references.assets) if (!Object.hasOwn(spec.assets, id)) throw Error('ASSET_SLOT_UNKNOWN');
     if(scene.block==='canvas-title@1'){
       const slot=spec.texts[String(scene.params.textSlot)]!;assertCanvasTitle(slot.text,slot.role,spec.style.type.display.style);
+    }
+    if(scene.block==='canvas-sequence@1'){
+      const items=scene.params.items as Array<{textSlot:string;startFrame:number}>;
+      blockEvents('canvas-sequence',scene,scene.params);
+      for(const item of items){const slot=spec.texts[item.textSlot]!;assertCanvasTitle(slot.text,slot.role,spec.style.type.display.style);
+        if(!slot.factIds.length)throw Error('CANVAS_SEQUENCE_FACT_REQUIRED');}
     }
     if (scene.block === 'captions@1') {
       let end = -1;
