@@ -6,6 +6,7 @@ import {createClipHelpers} from './clip/helpers.js';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import {parseMetricText,metricTextAt} from './metric-text.ts';
+import {segmentText} from './grapheme-segments.ts';
 import {createTextIntegrity} from './text-integrity.ts';
 import {isStudioRuntime} from '@promobento/contracts/studio-runtime';
 import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
@@ -60,9 +61,10 @@ function textSlot(slotId: string, sceneStyle?: FilmSpec['style'], splitGraphemes
     mount(parent, options = {}) {
       const el = document.createElement('span');
       if(splitGraphemes&&options.split==='graphemes'){
-        const words=new Intl.Segmenter(undefined,{granularity:'word'}),graphemes=new Intl.Segmenter(undefined,{granularity:'grapheme'});
+        const words=segmentText(slot.text,slot.lang,'word');
         let previousWord:HTMLElement|undefined;
-        for(const {segment} of words.segment(slot.text)){
+        for(let wordIndex=0;wordIndex<words.length;wordIndex++){
+          const segment=words[wordIndex]!;
           if(/^\s+$/u.test(segment)){el.append(document.createTextNode(segment));previousWord=undefined;continue;}
           // Keep words together when they wrap, while retaining separate glyphs
           // for the original per-character entrance. Closing punctuation stays
@@ -70,12 +72,13 @@ function textSlot(slotId: string, sceneStyle?: FilmSpec['style'], splitGraphemes
           const closing=/^[,.;:!?%…)\]}，。！？；：、）》」』】]+$/u.test(segment);
           const word=closing&&previousWord?previousWord:document.createElement('span');
           if(word!==previousWord){word.className='pb-word';Object.assign(word.style,{display:'inline-block',whiteSpace:'nowrap'});el.append(word);}
-          for(const piece of graphemes.segment(segment)){
+          const pieces=segmentText(segment,slot.lang,'grapheme');
+          for(let pieceIndex=0;pieceIndex<pieces.length;pieceIndex++){
             const mask=document.createElement('span'),character=document.createElement('span');
             // Tracking can make glyphs overhang their advance; leave room in
             // the mask without changing the surrounding word's advance.
             Object.assign(mask.style,{display:'inline-block',overflow:'hidden',verticalAlign:'top',padding:'.12em .08em',margin:'-.12em -.08em'});
-            character.className='pb-grapheme';character.style.display='inline-block';character.textContent=piece.segment;mask.append(character);word.append(mask);
+            character.className='pb-grapheme';character.style.display='inline-block';character.textContent=pieces[pieceIndex]!;mask.append(character);word.append(mask);
           }
           previousWord=word;
         }

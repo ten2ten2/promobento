@@ -56,7 +56,7 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 源码中的 `om3-studio-v4` 可在 `params.panelFocus` 中将面板键绑定到该面板素材的 `roi:n`，以原图区域构成独立细节屏；导演要求坐标与同一素材的观察结果完全一致，生成页面也检查区域有效。未指定裁切的面板仍显示完整图片，逐帧可见性与 v3 相同。方法 1.45 使用前探测 v4 固定镜像；它仍不是任意 Three.js、模型或加载器。该版本尚未部署。
 
-源码中的自写镜头可声明 `runtimeText: 'grapheme-v1'`，再以 `ctx.text('headline').mount(parent, {split:'graphemes'})` 由可信宿主按文字簇生成 `.pb-grapheme` 子元素，供原版逐字遮罩入场使用。文字仍由同一个槽位绑定，每帧检查原文和归属，阅读点检查实际字体及每段文字的可见性；空白和组合字符保持原文，换行不拆分识别出的词。方法 1.46 使用前探测固定镜像；该能力尚未部署，也不等于原版整套模板已执行。
+源码中的自写镜头可声明 `runtimeText: 'grapheme-v1'`，再以 `ctx.text('headline').mount(parent, {split:'graphemes'})` 由可信宿主按文字簇生成 `.pb-grapheme` 子元素，供原版逐字遮罩入场使用。文字仍由同一个槽位绑定，每帧检查原文和归属，阅读点检查实际字体及每段文字的可见性；空白和组合字符保持原文，按槽位的 `lang` 识词并避免词中换行；未指定时使用固定英语规则，不读取网站语言。方法 1.46 使用前探测固定镜像；该能力尚未部署，也不等于原版整套模板已执行。
 
 ```js
 const studio = ctx.OM3.studio('product');

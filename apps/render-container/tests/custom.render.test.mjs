@@ -84,6 +84,13 @@ try{
   const combinedOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelectorAll('.pb-grapheme').length!==2)throw Error('GRAPHEME_SPLIT_INVALID');")}};
   const combined=await filmSession({raw:JSON.stringify(combinedFilm),options:combinedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
   try{await combined.frame(45,{format:'png'});}finally{await combined.close();}
+  const isolatedWords=structuredClone(splitFilm),later=isolatedWords.scenes[0];later.start=150;later.end=450;later.params.readingHolds=[{start:30,end:250}];
+  isolatedWords.scenes=[{id:'poison',kind:'custom',module:'scenes/poison/index.js',start:0,end:150,purpose:'Check private segmentation.',brief:'Show an approved title.',params:{textSlots:['headline'],assetKeys:[],events:[],readingHolds:[{start:30,end:140}]}},later];
+  const segmentPoisonSource=`PB.scene('poison',ctx=>{const heading=document.createElement('div');Object.assign(heading.style,{position:'absolute',left:'10%',top:'20%',width:'80%',height:'40%'});ctx.root.append(heading);ctx.text('headline').mount(heading);
+   const S=Intl.Segmenter;S['proto'+'type'].segment=()=>{throw Error('SEGMENTER_POISONED');};Intl.Segmenter=()=>{throw Error('SEGMENTER_POISONED');};const timeline=gsap.timeline({paused:true});timeline.to({},{duration:5});return {timeline};});`;
+  const isolatedOptions={...options,customSources:{'scenes/poison/index.js':segmentPoisonSource,'scenes/product/index.js':splitSource}};
+  const isolated=await filmSession({raw:JSON.stringify(isolatedWords),options:isolatedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
+  try{await isolated.frame(195,{format:'png'});}finally{await isolated.close();}
   const legacySplitFilm=structuredClone(splitFilm);delete legacySplitFilm.scenes[0].runtimeText;
   const legacySplitOptions={...options,customSources:{'scenes/product/index.js':source.replace("ctx.text('product').mount(heading);", "const title=ctx.text('product').mount(heading,{split:'graphemes'});if(title.querySelector('.pb-grapheme'))throw Error('LEGACY_TEXT_CHANGED');")}};
   const legacySplit=await filmSession({raw:JSON.stringify(legacySplitFilm),options:legacySplitOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
