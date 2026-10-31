@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {segmentText} from '../packages/film-runtime/src/grapheme-segments.ts';
+import {segmentText,isTextWhitespace,isClosingPunctuation} from '../packages/film-runtime/src/grapheme-segments.ts';
 
 test('segmentation preserves words, combining characters and source whitespace',()=>{
  assert.deepEqual(segmentText('Keep the product\nin the picture.','en','word'),['Keep',' ','the',' ','product','\n','in',' ','the',' ','picture','.']);
@@ -9,9 +9,9 @@ test('segmentation preserves words, combining characters and source whitespace',
  assert.deepEqual(segmentText('Plain words',undefined,'word'),['Plain',' ','words']);
 });
 test('earlier custom scenes cannot replace the segmenter or iterator used by trusted text',()=>{
- const original=Intl.Segmenter,segment=original.prototype.segment;
+ const original=Intl.Segmenter,segment=original.prototype.segment,exec=RegExp.prototype.exec;
  const sample=segment.call(new original('en',{granularity:'grapheme'}),'a'),partsProto=Object.getPrototypeOf(sample),iterate=partsProto[Symbol.iterator],iteratorProto=Object.getPrototypeOf(iterate.call(sample)),next=iteratorProto.next;
- try{Intl.Segmenter=function(){throw Error('poisoned');};original.prototype.segment=function(){throw Error('poisoned');};partsProto[Symbol.iterator]=()=>{throw Error('poisoned');};iteratorProto.next=()=>{throw Error('poisoned');};
-  assert.deepEqual(segmentText('A\u0301 B','en','grapheme'),['A\u0301',' ','B']);}
- finally{Intl.Segmenter=original;original.prototype.segment=segment;partsProto[Symbol.iterator]=iterate;iteratorProto.next=next;}
+ try{Intl.Segmenter=function(){throw Error('poisoned');};original.prototype.segment=function(){throw Error('poisoned');};partsProto[Symbol.iterator]=()=>{throw Error('poisoned');};iteratorProto.next=()=>{throw Error('poisoned');};RegExp.prototype.exec=()=>{throw Error('poisoned');};
+  assert.deepEqual(segmentText('A\u0301 B','en','grapheme'),['A\u0301',' ','B']);assert.equal(isTextWhitespace(' '),true);assert.equal(isClosingPunctuation('.'),true);assert.equal(isClosingPunctuation('word'),false);}
+ finally{Intl.Segmenter=original;original.prototype.segment=segment;partsProto[Symbol.iterator]=iterate;iteratorProto.next=next;RegExp.prototype.exec=exec;}
 });

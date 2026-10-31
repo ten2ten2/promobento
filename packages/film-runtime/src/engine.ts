@@ -6,7 +6,7 @@ import {createClipHelpers} from './clip/helpers.js';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import {parseMetricText,metricTextAt} from './metric-text.ts';
-import {segmentText} from './grapheme-segments.ts';
+import {segmentText,isTextWhitespace,isClosingPunctuation} from './grapheme-segments.ts';
 import {createTextIntegrity} from './text-integrity.ts';
 import {isStudioRuntime} from '@promobento/contracts/studio-runtime';
 import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
@@ -65,11 +65,11 @@ function textSlot(slotId: string, sceneStyle?: FilmSpec['style'], splitGraphemes
         let previousWord:HTMLElement|undefined;
         for(let wordIndex=0;wordIndex<words.length;wordIndex++){
           const segment=words[wordIndex]!;
-          if(/^\s+$/u.test(segment)){el.append(document.createTextNode(segment));previousWord=undefined;continue;}
+          if(isTextWhitespace(segment)){el.append(document.createTextNode(segment));previousWord=undefined;continue;}
           // Keep words together when they wrap, while retaining separate glyphs
           // for the original per-character entrance. Closing punctuation stays
           // with the word it follows.
-          const closing=/^[,.;:!?%…)\]}，。！？；：、）》」』】]+$/u.test(segment);
+          const closing=isClosingPunctuation(segment);
           const word=closing&&previousWord?previousWord:document.createElement('span');
           if(word!==previousWord){word.className='pb-word';Object.assign(word.style,{display:'inline-block',whiteSpace:'nowrap'});el.append(word);}
           const pieces=segmentText(segment,slot.lang,'grapheme');
