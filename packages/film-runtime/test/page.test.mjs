@@ -52,6 +52,13 @@ test('parameters and referenced text/assets are checked, and unfinished capabili
   delete custom.scenes[0].block;delete custom.scenes[0].params;assert.throws(()=>make(custom),/CUSTOM_SOURCE_MISSING/);
   const layout=filmFixture();layout.scenes[0].layout={portrait:{x:1}};assert.throws(()=>make(layout),/LAYOUT_OVERRIDES_NOT_IMPLEMENTED/);
 });
+test('original Vox template accepts only cleared stills and preserves a final reading hold',()=>{
+ const film=filmFixture();film.scenes=[{id:'vox',start:0,end:450,kind:'block',block:'vox-clip@1',
+  params:{intervalFrames:90,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]},purpose:'Two real source states.'}];
+ assert.doesNotThrow(()=>make(film));
+ const video=options();video.resources[0].kind='video';assert.throws(()=>make(film,video),/VOX_CLIP_IMAGE_REQUIRED/);
+ film.scenes[0].params.items[1].assetKey='missing';assert.throws(()=>make(film),/ASSET_SLOT_UNKNOWN|ASSET_UNKNOWN/);
+});
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{
   const spec=filmFixture();assert.deepEqual(frameLayers(spec.scenes,0).map(x=>x.id),['hook']);
   assert.deepEqual(frameLayers(spec.scenes,120).map(x=>x.id),['hook','product']);

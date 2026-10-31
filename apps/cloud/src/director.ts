@@ -40,7 +40,7 @@ import {directorProgress,commitCandidate,commitReviewDraft,failDirector,director
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet,selectCustomMotionFrames,auditSheetReferences} from './director-sheets.mjs';
-import {directionHero} from './direction-hero.ts';
+import {directionHero,supportsVoxClip} from './direction-hero.ts';
 import {workflowStarted} from './workflow-state.ts';
 import type {PipelineEnv,Json,BlobRef,Operation} from './pipeline-types.ts';
 
@@ -162,9 +162,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const separateQaSeekRepair=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=19);
     const customStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=28);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
+    const voxClipMethod=supportsVoxClip(methods,context.resources);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1'));
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -328,6 +329,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
+      if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
@@ -563,6 +565,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
           const film=card.keyframeFilm;
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
+          if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];

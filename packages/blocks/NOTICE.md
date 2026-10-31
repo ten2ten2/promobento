@@ -5,6 +5,10 @@
 Copyright © 2026 Huashu, MIT; the complete license is in [LICENSE.huashu](../film-runtime/src/LICENSE.huashu).
 The port uses PromoBento's own fact-bound text slots and does not include upstream fonts, characters or demo assets.
 
+`vox-clip` executes the upstream `y2_vox` image choreography through a scene-local clip stage.
+It admits only separately cleared still images and deliberately omits upstream text, fonts and demo media;
+the seven imported clip grammars and their license are described in [clip/NOTICE.md](../film-runtime/src/clip/NOTICE.md).
+
 `device-3d` and `object-studio` use **Three.js 0.186.1**, MIT, copyright © 2010–2026 three.js authors.
 The exact package and integrity are pinned in `pnpm-lock.yaml`; the distributed renderer image includes
 `node_modules/.pnpm/three@0.186.1/node_modules/three/LICENSE` with the full notice.

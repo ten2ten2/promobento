@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.30.0',
+  id: 'product-directing', version: '1.31.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -34,6 +34,7 @@ export const directingMethodPack = {
       'Write the treatment before animation: message, route (continuous, montage or hybrid), energy contrast, readable windows, sound landings and a continuity chain. Every scene needs a visible verb. Choose shot count and timings from this brief and material, never from a sample film or host-prescribed slide schedule.',
       'Before assigning blocks, resolve the causal sequence and its visual carrier. Put the visible handoff in treatment.continuity and scene focusFrom/focusTo; notes alone do not implement it.',
       'A cleared video provides a first-frame image plus source-timed 30 fps frames. The image alone does not establish later actions: inspect actual rendered frames and never fabricate actions. Keep each video use inside its available duration; its source audio is not automatically admitted.',
+      'vox-clip is the original Vox image choreography, restricted to cleared static images without Canvas captions. Choose distinct, causally related real states and allow enough time to read them; it does not carry an extracted detail into another exercise. Use separate fact-bound text scenes where copy is needed. The direction preview repeats the same primary image and does not establish a real page handoff.',
       'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. The bounded studio supports one scene-local camera; it does not synthesize product interactions or open arbitrary Three.js.',
       'For a lit product-object reveal, object-studio uses a cleared real screenshot on a rounded screen in the adapted huashu-motion studio, with a continuous moving camera and full-frame stage. Prefer a short optional textSlot, or omit it to give the product maximum scale. It is a hero reveal, not an invented product action or a substitute for showing an actual workflow.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',

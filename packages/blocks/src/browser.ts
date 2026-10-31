@@ -7,6 +7,7 @@ import {brandRelayPose} from './brand-relay.ts';
 import {journeyPose} from './journey-motion.ts';
 import {focusPose,focusViewport,type FocusPoint} from './focus-motion.ts';
 import {carriedPose,componentPose,readingPose,relayFit,relayPageOffset,relayPageOpacity,relayVisible,returnPose} from './component-relay.ts';
+import {createClipStage} from '../../film-runtime/src/clip/stage.js';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;
@@ -31,6 +32,27 @@ const text = (ctx: SceneContext, value: unknown, parent: HTMLElement, maxLines =
   if (typeof value !== 'string') throw Error('TEXT_SLOT_UNKNOWN');
   return ctx.text(value).mount(parent, {maxLines, ...(maxFontSize === undefined ? {} : {maxFontSize})});
 };
+
+// Original Vox image-only grammar. Text-bearing cues stay unavailable until
+// Canvas text has trusted fact binding and actual-frame observation.
+window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({id:'vox-clip',version:'1.0.0',build(ctx,params){
+  const events=blockEvents('vox-clip',ctx.frames,params),images:Record<string,HTMLImageElement>=Object.create(null);
+  const ready=Promise.all(params.items.map(async item=>{
+    const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('VOX_CLIP_IMAGE_REQUIRED');
+    const image=new Image();image.src=asset.url;await image.decode();images[item.assetKey]=image;
+  })).then(()=>{});
+  const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+  Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+  const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  let stage:ReturnType<typeof createClipStage>|undefined;
+  const prepared=ready.then(()=>{const {width,height,safeInsets}=ctx.target;
+    stage=createClipStage({grammar:'y2_vox',duration:(ctx.frames.end-ctx.frames.start)/30,data:{accent:ctx.style.palette.accent},
+      safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+      cues:params.items.map((item,index)=>({kind:'image',at:index*params.intervalFrames/30,image:item.assetKey}))},{width,height,images});
+  });
+  return{ready:prepared,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);},events,
+    regions:[region('product',canvas,ctx.root)]};
+}});
 
 function cpuSurface(ctx:SceneContext){
   const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;

@@ -18,7 +18,7 @@ on:
       runtime_case:
         description: Narrow only a known failed runtime case; all keeps normal coverage
         type: choice
-        options: [all, review, showcase, layout, typography, opening, relay, journey-beats, focus-port, component-relay, custom, custom-assets]
+        options: [all, review, showcase, layout, typography, opening, relay, journey-beats, focus-port, component-relay, vox-clip, custom, custom-assets]
         default: all
       staging_inspect_run:
         description: Read-only diagnosis of this prior staging run; no deployment, keys or render

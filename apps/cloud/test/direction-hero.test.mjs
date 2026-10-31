@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -38,4 +38,23 @@ test('a direction explicitly choosing original studio receives a real 3D hero wi
  const film=directionHero({...card,usesDepth:true,skeleton:[{approach:'block:object-studio'}]},context,0);
  assert.equal(film.scenes[0].block,'object-studio@1');assert.equal(film.assets.hero.resourceId,'res_fixture_dashboard');
  assert.equal(generateFilmPage(JSON.stringify(film),options).plan.usesWebgl,true);
+});
+
+test('the original Vox direction preview repeats only the same cleared primary image',()=>{
+ const ctx={...context,resources:context.resources.map(item=>({...item,kind:'image'}))};
+ const film=directionHero({...card,skeleton:[{approach:'block:vox-clip'}]},ctx,0);
+ assert.equal(film.scenes[0].block,'vox-clip@1');assert.deepEqual(film.scenes[0].params.items,[{assetKey:'hero'},{assetKey:'hero'}]);
+ assert.deepEqual(Object.keys(film.assets),['hero']);assert.equal(film.assets.hero.resourceId,'res_fixture_dashboard');
+ const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
+ assert.throws(()=>directionHero({...card,skeleton:[{approach:'block:vox-clip'}]},{...ctx,resources:[{...ctx.resources[0],kind:'video'}]},0),/VOX_CLIP_IMAGE_REQUIRED/);
+});
+
+test('original Vox capability does not change frozen methods or video-led directions',()=>{
+ const resources=[{kind:'image'},{kind:'svg'}],method=version=>({id:'product-directing',version});
+ assert.equal(supportsVoxClip(method('1.30.0'),resources),false);
+ assert.equal(supportsVoxClip(method('1.31.0'),resources),true);
+ assert.equal(supportsVoxClip(method('1.31.0'),resources.slice(0,1)),false);
+ assert.equal(supportsVoxClip(method('1.31.0'),[{kind:'video'},...resources]),false);
+ assert.equal(supportsVoxClip(null,resources),false);
 });

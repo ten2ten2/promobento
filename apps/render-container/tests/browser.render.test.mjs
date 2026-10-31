@@ -29,7 +29,8 @@ const relayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='relay';
 const journeyBeatsOnly=process.env.PROMOBENTO_RUNTIME_CASE==='journey-beats';
 const focusPortOnly=process.env.PROMOBENTO_RUNTIME_CASE==='focus-port';
 const componentRelayOnly=process.env.PROMOBENTO_RUNTIME_CASE==='component-relay';
-const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly;
+const voxOnly=process.env.PROMOBENTO_RUNTIME_CASE==='vox-clip';
+const focusedRuntime=journeyOnly||reviewOnly||showcaseOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly||voxOnly;
 const report={status:'running',scope:journeyOnly?'trusted_css_3d_journey_seek_history_only':runtimeOnly?'trusted_2d_four_aspect_seek_layout_bridge_only':'trusted_block_runtime_not_G1_or_product_qa',browser:lock.browser.version,controllerUid:process.getuid(),aspects:{},checks:[]};
 if(reviewOnly)report.scope='four_aspect_review_capture_only';
 if(showcaseOnly)report.scope='four_aspect_showcase_seek_history_only';
@@ -40,7 +41,16 @@ if(relayOnly)report.scope='four_aspect_brand_relay_motion_and_beat_landings_only
 if(journeyBeatsOnly)report.scope='four_aspect_beat_journey_handoffs_and_reading_only';
 if(focusPortOnly)report.scope='four_aspect_ported_blocks_and_real_frame_timing_only';
 if(componentRelayOnly)report.scope='four_aspect_component_relay_seek_and_layout_only';
+if(voxOnly)report.scope='four_aspect_original_vox_images_and_seek_only';
 const pages=new Map();
+if(voxOnly||!focusedRuntime){
+ const film=filmFixture();film.assets.mark={resourceId:'res_fixture_mark'};
+ film.scenes=[{id:'vox',start:0,end:450,kind:'block',block:'vox-clip@1',params:{intervalFrames:90,items:[{assetKey:'dashboard'},{assetKey:'mark'}]},purpose:'Original Vox image handoff with licensed test fixtures.'}];
+ for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
+  const options=pageOptions(aspect,layout);options.resources.push({resourceId:'res_fixture_mark',kind:'image',width:168,height:168,licenseRef:'fixture-original-mark',rightsCleared:true});
+  pages.set('/vox-'+aspect+'.html',generateFilmPage(JSON.stringify(film),options));
+ }
+}
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts))pages.set('/'+aspect+'.html',generateFilmPage(JSON.stringify(filmFixture()),pageOptions(aspect,layout)));
 for(const [aspect,layout]of Object.entries(rules.aspectLayouts)){
   const film=filmFixture();film.scenes.at(-1).params.logoKey='dashboard';
@@ -289,7 +299,7 @@ try{
     report.aspects[aspect]={status:'passed',frames:frames.length,comparisons:checks,clock:true,forbiddenApis:true,textSafeAreaAndCustomFont:true,hitTest:true,dispose:true};
     await handle.page.close();
   }
-  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly&&!journeyBeatsOnly&&!focusPortOnly&&!componentRelayOnly){
+  if(!journeyOnly&&!reviewOnly&&!showcaseOnly&&!relayOnly&&!journeyBeatsOnly&&!focusPortOnly&&!componentRelayOnly&&!voxOnly){
     report.typography=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
       const path='/typography-'+aspect+'.html',handle=await open(aspect,path),frames=openingOnly?[0,12]:[0,12,45,165,375],baseline=new Map(),states=new Map(),comparisons=[];
@@ -408,6 +418,22 @@ try{
       report.focusPort.push({aspect,comparisons,realPtsAndSourceOffset:true,textSafeAreaAndCustomFont:true});
     }
   }
+  if(voxOnly||!focusedRuntime){
+    report.voxClip=[];
+    for(const aspect of Object.keys(rules.aspectLayouts)){
+      const path='/vox-'+aspect+'.html',handle=await open(aspect,path),frames=[0,45,90,135,225],baseline=new Map(),states=new Map(),comparisons=[];
+      for(const frame of frames){await handle.seek(frame);const png=await handle.capture();baseline.set(frame,png);states.set(frame,await textPaintState(handle));
+        if(frame===45||frame===135)writeFileSync(`${output}/vox-${aspect}-${frame}.png`,png);}
+      const a=rgba(baseline.get(45)),b=rgba(baseline.get(135));let changed=0;
+      for(let i=0;i<a.length;i+=4)if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>30)changed++;
+      assert.ok(changed>a.length/4*.05,`${aspect}: the two cleared source images must visibly differ`);
+      for(const frame of [...frames].reverse()){await handle.seek(frame);comparisons.push({frame,mode:'reverse',...await compareFrame(handle,baseline,states,frame,`vox-${aspect}-${frame}-reverse`)});}
+      await handle.page.close();
+      for(const frame of [45,135]){const cold=await open(aspect,path);await cold.seek(frame);
+        comparisons.push({frame,mode:'cold',...await compareFrame(cold,baseline,states,frame,`vox-${aspect}-${frame}-cold`)});await cold.page.close();}
+      report.voxClip.push({aspect,comparisons,distinctRealSourceFixtures:true});
+    }
+  }
   if(componentRelayOnly||!focusedRuntime){
     report.componentRelay=[];
     for(const aspect of Object.keys(rules.aspectLayouts)){
@@ -456,7 +482,7 @@ try{
       report.componentRelay.at(-1).returned={comparisons:returnedComparisons,unrelatedDetailAbsent:true};
     }
   }
-  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
+  for(const name of layoutOnly||typographyOnly||openingOnly||relayOnly||journeyBeatsOnly||focusPortOnly||componentRelayOnly||voxOnly?[]:showcaseOnly?['showcase']:journeyOnly?['journey']:['journey','showcase']){
   report[name]={scope:'push_boundary_and_moving_3d_panel_forward_reverse_cold_at_final_and_review_scale',comparisons:[]};
   for(const aspect of Object.keys(rules.aspectLayouts))for(const scale of reviewOnly?[.5]:[1,.5]){
     const path='/'+name+'-'+aspect+'.html',handle=await open(aspect,path),layout=rules.aspectLayouts[aspect];
@@ -517,6 +543,7 @@ try{
   if(report.relay)report.checks.push('four-aspect brand relay forward/reverse/cold seeks and exact beat landings');
   if(report.journeyBeats)report.checks.push('four-aspect beat journey continuous/reverse/cold seeks and all reading states');
   if(report.componentRelay)report.checks.push('four-aspect component lift and page relay reverse/cold seeks');
+  if(report.voxClip)report.checks.push('four-aspect original Vox source handoff and reverse/cold seeks');
   if(!focusedRuntime)report.checks.push('four-aspect forward/reverse/cold seeks','virtual clock/random reset','protocol frame bounds and disposal','oversized text fails');
   report.status='passed';
   writeFileSync(output+'/report.json',JSON.stringify(report,null,2)+'\n');

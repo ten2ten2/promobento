@@ -1,6 +1,6 @@
 # FilmSpec 到可信逐帧页面
 
-源码支持九个核心积木、device-3d、object-studio 和四个新增镜头、四画幅和cut／crossfade／fade-through／push／whip。`fade-through` 在画面背景上先淡出上一镜头、再淡入下一镜头，不改变既有crossfade。页面由可信生成器组装，绘制按镜头时间确定；实际部署、验收和未实现能力见[实施状态](../../docs/implementation-status.md)。积木／自写API以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准，不包含上游作者形象。
+源码支持九个核心积木、device-3d、object-studio 和五个新增镜头、四画幅和cut／crossfade／fade-through／push／whip。`fade-through` 在画面背景上先淡出上一镜头、再淡入下一镜头，不改变既有crossfade。页面由可信生成器组装，绘制按镜头时间确定；实际部署、验收和未实现能力见[实施状态](../../docs/implementation-status.md)。积木／自写API以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准，不包含上游作者形象。
 
 ## 构建和调用
 
@@ -22,6 +22,7 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 - hook-title、纯文字feature-grid／curriculum按实际文字高度成组居中，去掉空图片外框；带图卡的下方文案区分标题／间隔／副标题，避免盒子重叠。
 - cta-endcard将CTA／URL与可选Logo成组居中，保留点选。ui-showcase的focus仅高亮ROI，不放大／裁剪；密集界面可省textSlot扩大真实图，必要文案仍走可读槽位。
 - ui-showcase／ui-journey用固定Canvas的CPU逆透视取样，保留DOM文字／点选。showcase端点纹理预合成、只融合差异像素；停稳图片／ROI复用像素，回跳运动重新采样，视频仍逐帧。避免CSS3D图片栅格受seek历史影响。
+- `vox-clip` 以原版 Vox 语法布置 2–4 张已清权静态图，按 `intervalFrames` 交接；原始界面始终留在各自图片中，不抽离细节跨练习携带。每个镜头使用独立语法实例，结尾需至少保留 48 帧。它不画原版 Canvas 文字、不接收视频或原版样片素材；实际取景和交接仍须看帧。
 - feature-grid可选beatFrames（6–60源帧），首项局部15帧停稳、末项在镜头内；音效跟随落点。可选清权logoKey按项移动，此时只配文字项，不混重复截图。不传新参数保留原行为。
 - ui-journey可选beatFrames：首落点一拍，后每三拍交接，一拍移动／两拍阅读，过程中只显示一个真实状态、标题先退后进，阅读缓慢推近；横屏交替左右，其他上文下图，无装饰ROI。末落点后至少一拍，不传仍用原连续横移。声音事件product-step-1…3／末次product-land，观测覆盖各阅读点，动作另取交接中点／落点。
 - `continuous-focus` 保持一段已清权图像或视频连续，按时间纯函数平滑取景，不生成鼠标或操作。`sourceStartFrame` 是叠加资源起点的 30 fps 源帧偏移；`focusTrack` 与可选 `aspectTracks` 用镜头局部帧和源画面归一化中心 `x/y`、`zoom` 定位，首帧须为 0、后续严格递增并在镜头内。未指定取景为画面中心。视频必须由调用方提供已清权 PTS 帧图；该镜头不负责上传、抽帧或自动追踪鼠标；源码中的内部导演方法 1.29 可传递已批准的本地／网页视频帧包，真实 staging 使用尚待验收。

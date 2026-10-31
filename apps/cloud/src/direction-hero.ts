@@ -1,14 +1,21 @@
 import type {Json} from './pipeline-types.ts';
 
+/** Keep new template choices out of older frozen methods and video-led previews. */
+export function supportsVoxClip(method:Json|null,resources:Json[]):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number);
+ return method?.id==='product-directing'&&(major>1||major===1&&minor>=31)
+  &&['image','svg'].includes(resources[0]?.kind)&&resources.filter(asset=>['image','svg'].includes(asset.kind)).length>=2;
+}
+
 /** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
 export function directionHero(card:Json,context:Json,index:number):Json{
  const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','feature-grid','curriculum','drawn-steps','hook-title','kinetic-title','cta-endcard','captions'];
+ const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','feature-grid','curriculum','drawn-steps','hook-title','kinetic-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':'ui-journey'):
-  proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus'].includes(id))??
+  proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus','vox-clip'].includes(id))??
   proposals.find((id:string)=>supported.includes(id)&&!['hook-title','kinetic-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id))??(proposals.includes('custom')?'ui-showcase':undefined);
  if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
  // Compare palette/depth on the same primary cleared image, not an auxiliary logo or a random catalog item.
@@ -19,6 +26,12 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  let params:Json;
  if(['ui-showcase','device-3d','object-studio','continuous-focus'].includes(block))params={assetKey:image(),textSlot:text('headline',caption)};
  else if(block==='ui-journey')params={items:[0,1].map(i=>({assetKey:image(),textSlot:text('fact-'+i,facts[i%facts.length])}))};
+ else if(block==='vox-clip'){
+  if(!['image','svg'].includes(asset.kind))throw Error('VOX_CLIP_IMAGE_REQUIRED');
+  // Direction cards compare the same primary image; only the final director
+  // chooses distinct, semantically related source states for a real handoff.
+  params={intervalFrames:90,items:[{assetKey:image()},{assetKey:image()}]};
+ }
  else if(['feature-grid','curriculum','drawn-steps'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
  else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
  else if(block==='cta-endcard'){

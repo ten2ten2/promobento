@@ -5,6 +5,11 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='vox-clip'){
+    const landings=params.items.map((_,index)=>index*params.intervalFrames+18);
+    if(landings.at(-1)+30>duration)throw Error('VOX_CLIP_READING_HOLD_MISSING');
+    return landings.map((frame,index)=>({name:index===params.items.length-1?'product-land':'product-step-'+(index+1),frame}));
+  }
   if(id==='component-relay'){
     const landings=relayLandings(params.items.length,params.beatFrames);
     if(landings.at(-1)+params.beatFrames>duration)throw Error('RELAY_READING_HOLD_MISSING');
@@ -48,6 +53,8 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
+  if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
+   .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+Math.floor(scene.params.beatFrames/2))/stride)*stride);
   if(scene.block==='ui-journey@1'&&scene.params.beatFrames!==undefined)
@@ -72,6 +79,9 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
   }
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
    .flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
+   .flatMap(event=>[event.frame-18,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(['continuous-focus@1','kinetic-title@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;

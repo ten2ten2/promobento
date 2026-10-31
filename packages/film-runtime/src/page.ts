@@ -65,6 +65,11 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if (slot?.role !== 'number' || !match || !Number.isFinite(Number(match[2]!.replace(',', '.')))) throw Error('METRIC_NUMBER_INVALID');
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
+    if(scene.block==='vox-clip@1'){
+      for(const item of scene.params.items as Array<{assetKey:string}>)
+        if(!['image','svg'].includes(resources.get(spec.assets[item.assetKey]!.resourceId)?.kind??''))throw Error('VOX_CLIP_IMAGE_REQUIRED');
+      blockEvents('vox-clip',scene,scene.params);
+    }
     if(['device-3d@1','object-studio@1'].includes(scene.block)&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
     if (scene.block === 'ui-showcase@1' && typeof scene.params.focus === 'string') {
       const asset = spec.assets[String(scene.params.assetKey)];
