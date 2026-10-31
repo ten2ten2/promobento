@@ -19,9 +19,12 @@ const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
  const web=derived?.sourceOrigin==='web';
+ const webPathType=web?kindFor(approvedWebUrl(asset.videoUrl).pathname):undefined;
  if(!decision.explicit||derived?.kind!=='approved_video_frame_pack'||decision.explicit.sourceUrl!==asset.sourceUrl
   ||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??'')||derived.sourceSha256!==decision.explicit.sha256
-  ||(web?(decision.source.kind==='local_project_media'||decision.explicit.videoUrl!==asset.videoUrl||derived.videoUrl!==asset.videoUrl||kindFor(approvedWebUrl(asset.videoUrl).pathname)!==derived.sourceMediaType)
+  ||(web?(decision.source.kind==='local_project_media'||decision.explicit.videoUrl!==asset.videoUrl||derived.videoUrl!==asset.videoUrl
+     ||!extension(derived.sourceMediaType)||(webPathType?webPathType!==derived.sourceMediaType:decision.explicit.sourceMediaType!==derived.sourceMediaType)
+     ||decision.explicit.sourceMediaType!==undefined&&decision.explicit.sourceMediaType!==derived.sourceMediaType)
    :(decision.source.kind!=='local_project_media'||decision.explicit.sourceFile!==derived.sourceFile||kindFor(derived.sourceFile)!==derived.sourceMediaType)))throw Error('VIDEO_APPROVAL_IDENTITY_REQUIRED');
  return decision;
 }
@@ -111,7 +114,8 @@ export async function captureApprovedWebVideo({outputDir,card,entries,download=d
  if(!Array.isArray(entries)||!entries.length||entries.length>12||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('VIDEO_SELECTION_INVALID');
  const accepted=entries.map(entry=>{
   if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim())throw Error('VIDEO_SELECTION_INVALID');
-  approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.videoUrl),mediaType=kindFor(url.pathname);if(!mediaType)throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+  approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.videoUrl),mediaType=kindFor(url.pathname)??entry.sourceMediaType;
+  if(!extension(mediaType)||entry.sourceMediaType!==undefined&&entry.sourceMediaType!==mediaType)throw Error('VIDEO_SOURCE_FORMAT_INVALID');
   const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,videoUrl:entry.videoUrl,approvalRef:entry.approvalRef,
    derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
   approved(card,asset);return{entry,asset};

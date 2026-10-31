@@ -231,7 +231,7 @@ mise exec -- node research/evals/approved-video.mjs \
   artifacts/example-video <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-网页 MP4／MOV／WebM 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 路径须以 `.mp4`／`.mov`／`.webm` 结尾。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
+网页 MP4／MOV／WebM 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 不以 `.mp4`／`.mov`／`.webm` 结尾时，事实卡和清单还须给出并批准相同的 `sourceMediaType`（`video/mp4`、`video/quicktime` 或 `video/webm`）。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
 
 ```sh
 mise exec -- node research/evals/approved-video.mjs \

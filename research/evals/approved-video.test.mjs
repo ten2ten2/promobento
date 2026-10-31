@@ -23,6 +23,22 @@ test('QuickTime intake checks exact approval and bytes before decoding or downlo
   await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'web'),card:web,entries:[{...movEntry,sourceUrl,videoUrl}],download}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);assert.equal(calls,1);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+test('extensionless web video requires an explicitly approved type before download',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.web-video-type-test-'));let calls=0;
+ try{
+  const sourceUrl='https://example.com/product',videoUrl='https://cdn.example.com/demo',sourceMediaType='video/quicktime';
+  const asset={...entry,sourceFile:undefined,sourceUrl,videoUrl,sourceMediaType};
+  const approval={status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic footage.',sourceUrl,videoUrl,sha256:'a'.repeat(64)};
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'official_product_page',url:sourceUrl}],materialApprovals:{'fixture-video':approval}};
+  const download=async()=>{calls++;return Buffer.from('different bytes');};
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'no-type'),card,entries:[{...asset,sourceMediaType:undefined}],download}),/VIDEO_SOURCE_FORMAT_INVALID/);
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'no-approval'),card,entries:[asset],download}),/VIDEO_APPROVAL_IDENTITY_REQUIRED/);
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'wrong-extension'),card,entries:[{...asset,videoUrl:videoUrl+'.mp4'}],download}),/VIDEO_SOURCE_FORMAT_INVALID/);
+  approval.sourceMediaType='video/mp4';await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'wrong-approval'),card,entries:[asset],download}),/VIDEO_APPROVAL_IDENTITY_REQUIRED/);
+  assert.equal(calls,0);approval.sourceMediaType=sourceMediaType;
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'wrong-bytes'),card,entries:[asset],download}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);assert.equal(calls,1);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
 test('approved video becomes reproducible 30 fps frames and a source-bound manifest',async()=>{
  const root=mkdtempSync(resolve('artifacts/.approved-video-test-'));
  try{const sourceDir=join(root,'source');mkdirSync(sourceDir);const source=await syntheticVideo();writeFileSync(join(sourceDir,'test.webm'),source);

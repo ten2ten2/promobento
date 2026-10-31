@@ -28,7 +28,8 @@ return selected.assets.map(asset=>{
  if(asset.derivation?.kind==='approved_video_frame_pack'){
   const web=asset.derivation.sourceOrigin==='web';
   if(!video||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
-   ||(web?(approval.source.kind==='local_project_media'||approval.explicit.videoUrl!==asset.videoUrl||asset.derivation.videoUrl!==asset.videoUrl)
+   ||(web?(approval.source.kind==='local_project_media'||approval.explicit.videoUrl!==asset.videoUrl||asset.derivation.videoUrl!==asset.videoUrl
+      ||approval.explicit.sourceMediaType!==undefined&&approval.explicit.sourceMediaType!==asset.derivation.sourceMediaType)
     :(approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile))
    ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(video.source)!==approval.explicit.sha256
    ||video.manifest.source.sha256!==approval.explicit.sha256||video.manifest.source.mediaType!==asset.derivation.sourceMediaType

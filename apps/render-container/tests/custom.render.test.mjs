@@ -8,7 +8,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
 import {renderShard} from '../src/shard.mjs';
-import {captureApprovedLocalVideo,verifyVideoSelections} from '../../../research/evals/approved-video.mjs';
+import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections} from '../../../research/evals/approved-video.mjs';
 import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
 import {prepareMaterialSelection} from '../../../research/evals/prepare-material-selection.mjs';
 import {observeProduct} from '../../../research/evals/product-observation.mjs';
@@ -747,12 +747,21 @@ try{
    const webCardPath=`${mediaTest}/artifacts/web-card.json`;writeFileSync(webCardPath,canonical(webCard));const webTopics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:webCardPath}]};
    const verifiedWeb=await verifyArtworkSelections(webOut,web,webTopics);
    assert.equal(prepareMaterialSelection(webOut,web,webTopics,{verifiedArtwork:verifiedWeb})[0].asset.derivation.sourceMediaType,sourceMediaType);
+   const videoUrl='https://example.com/recording',videoMediaType='video/quicktime',webVideoCard={...card,assetSources:[{kind:'official_product_page',url:pageUrl}],materialApprovals:{
+    'fixture-video':{...card.materialApprovals['fixture-video'],sourceUrl:pageUrl,videoUrl,sourceMediaType:videoMediaType}}};
+   const webVideoEntry={...videoEntry,sourceFile:undefined,sourceUrl:pageUrl,videoUrl,sourceMediaType:videoMediaType};
+   const webVideoOut=`${mediaTest}/artifacts/web-video`,webVideo=await captureApprovedWebVideo({outputDir:webVideoOut,card:webVideoCard,entries:[webVideoEntry],download:async(url)=>{assert.equal(url,videoUrl);return readFileSync(movPath);}});
+   webVideo.assets[0].review='approved_for_internal_eval_by_codex';webVideo.assets[0].reviewedAt='2026-10-31';
+   const webVideoCardPath=`${mediaTest}/artifacts/web-video-card.json`;writeFileSync(webVideoCardPath,canonical(webVideoCard));const webVideoTopics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:webVideoCardPath}]};
+   const webVideoVerified=await verifyVideoSelections(webVideoOut,webVideo,webVideoTopics);
+   assert.equal(prepareMaterialSelection(webVideoOut,webVideo,webVideoTopics,{verifiedVideos:webVideoVerified})[0].video.manifest.source.mediaType,videoMediaType);
   }finally{process.chdir(previousCwd);rmSync(mediaTest,{recursive:true,force:true});}
   report.quicktimeIntake='isolated_actual_mov_decode_source_identity_and_30fps_frame_pack';
   report.icnsIntake='isolated_actual_png_icon_payload_decode';
   report.staticArtworkIntake='isolated_gif_avif_and_animated_gif_rejected';
   report.inlineSvgIntake='approved_static_page_selector_exact_source_bytes_and_rebuild';
   report.extensionlessArtwork='explicit_media_type_source_identity_and_rebuild';
+  report.extensionlessVideo='explicit_media_type_source_identity_and_rebuilt_frames';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

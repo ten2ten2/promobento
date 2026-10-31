@@ -60,7 +60,7 @@ try{
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
    &&(!(artwork||video)||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256)
    &&(!artwork||item.derivation?.sourceOrigin===asset.derivation.sourceOrigin)
-   &&(!artwork||item.derivation?.sourceMediaType===asset.derivation.sourceMediaType)
+   &&(!(artwork||video)||item.derivation?.sourceMediaType===asset.derivation.sourceMediaType)
    &&(!artwork||asset.derivation.sourceOrigin!=='inline-svg'||item.derivation?.selector===asset.derivation.selector)
    &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl)
    &&(!video||asset.derivation.sourceOrigin!=='web'||item.videoUrl===asset.videoUrl));
