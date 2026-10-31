@@ -16,6 +16,7 @@ import {assertCanvasTextFrameDigests,canvasNumberText} from '@promobento/contrac
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 import {customFixture} from '../../../packages/film-runtime/test/custom-fixture.mjs';
+import {parseMetricText,metricTextAt} from '../../../packages/film-runtime/src/metric-text.ts';
 if(process.platform!=='linux'||process.getuid()!==10001||process.env.PROMOBENTO_BROWSER_TEST_CONTAINER!=='1')throw Error('BROWSER_TEST_REQUIRES_ISOLATED_CI_CONTAINER');
 const rules=JSON.parse(readFileSync('config/platform-presets.json')),lock=JSON.parse(readFileSync('apps/render-container/environment.lock.json')),catalog=JSON.parse(readFileSync('/opt/fonts/catalog.json'));
 const output='/work/film-runtime';mkdirSync(output,{recursive:true});
@@ -103,6 +104,11 @@ try{
   const repeatedMetric=structuredClone(mixedMetric);repeatedMetric.scenes[0].params.subtitleSlot='metric';
   const repeated=await filmSession({raw:JSON.stringify(repeatedMetric),options:metricOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
   try{await repeated.frame(10,{format:'png'});}finally{await repeated.close();}
+  const poisonedSource=metricSource.replace('const timeline=',"Number['proto'+'type']['to'+'Fixed']=()=> '999';const timeline=").replace('ATTACK','');
+  const poisoned=await filmSession({raw:JSON.stringify(mixedMetric),options:{...metricOptions,customSources:{'scenes/product/index.js':poisonedSource}},browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await poisoned.frame(10,{format:'png'});const observation=await poisoned.observe('metric-prototype',10);
+   assert.equal(observation.texts.find(item=>item.slotId==='metric')?.text,metricTextAt(parseMetricText('100'),10/30).text);
+  }finally{await poisoned.close();}
   const attack="const stage=ctx.root['parent'+'Node'],victim=stage.querySelector('[data-scene=metric] [data-pb-slot=metric]');if(victim)victim['text'+'Content']='999';";
   const attackMetric=await filmSession({raw:JSON.stringify(mixedMetric),options:{...metricOptions,customSources:{'scenes/product/index.js':metricSource.replace('ATTACK',attack)}},browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
   try{await assert.rejects(attackMetric.frame(234,{format:'png'}),/CUSTOM_TEXT_MISMATCH/);}finally{await attackMetric.close();}

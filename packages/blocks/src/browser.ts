@@ -612,7 +612,7 @@ window.PB.defineBlock<Record<string, unknown>>({id:'component-relay',version:'1.
 
 window.PB.defineBlock<Record<string, unknown>>({id: 'metric', version: '1.0.0', build(ctx, params) {
   const safe = inSafe(ctx), title = node(safe, {position: 'absolute', top: '20%', width: '100%', height: '44%'});
-  const handle = ctx.text(String(params.textSlot)), element = handle.mount(title, {maxLines: 2});
+  const handle = ctx.text(params.textSlot as string), element = handle.mount(title, {maxLines: 2});
   const metric=parseMetricText(handle.text);
   element.dataset.pbFinalText = handle.text;
   if (params.subtitleSlot) text(ctx, params.subtitleSlot, node(safe, {position: 'absolute', top: '72%', width: '100%', height: '22%'}), 3);

@@ -18,7 +18,7 @@ test('metric display keeps the existing cubic count and exact settled text',()=>
 
 test('a custom scene cannot change the trusted metric arithmetic through shared prototypes',()=>{
  const metric=parseMetricText('30 fps'),expected=metricTextAt(metric,.6).text;
- const fixed=Number.prototype.toFixed,originalMax=Math.max,originalReplace=String.prototype.replace;
- try{Number.prototype.toFixed=()=>"999";Math.max=()=>1;String.prototype.replace=()=>"999";assert.equal(metricTextAt(metric,.6).text,expected);assert.equal(parseMetricText('30 fps').number,30);}
- finally{Number.prototype.toFixed=fixed;Math.max=originalMax;String.prototype.replace=originalReplace;}
+ const fixed=Number.prototype.toFixed,originalMax=Math.max,originalReplace=String.prototype.replace,originalSplit=RegExp.prototype[Symbol.split],symbolReplace=String.prototype[Symbol.replace];
+ try{Number.prototype.toFixed=()=>"999";Math.max=()=>1;String.prototype.replace=()=>"999";RegExp.prototype[Symbol.split]=()=>['999'];String.prototype[Symbol.replace]=()=>"999";assert.equal(metricTextAt(metric,.6).text,expected);assert.equal(parseMetricText('30 fps').number,30);assert.equal(parseMetricText('1,25').decimals,2);assert.equal(parseMetricText('1,25').number,1.25);}
+ finally{Number.prototype.toFixed=fixed;Math.max=originalMax;String.prototype.replace=originalReplace;RegExp.prototype[Symbol.split]=originalSplit;if(symbolReplace===undefined)delete String.prototype[Symbol.replace];else String.prototype[Symbol.replace]=symbolReplace;}
 });

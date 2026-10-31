@@ -157,7 +157,7 @@ async function draw(frameIndex: number): Promise<void> {
     for(const layer of layers){const instance=instances.get(layer.id)!;
       if(instance.scene.kind==='custom'||hasCustom&&instance.scene.kind==='block'){
         const scene=instance.scene;
-        const metricSlot=scene.kind==='block'&&scene.block==='metric@1'?String(scene.params.textSlot):undefined;
+        const metricSlot=scene.kind==='block'&&scene.block==='metric@1'?scene.params.textSlot as string:undefined;
         const metricElement=(instance.instance as BlockInstance & {metricTextElement?:HTMLElement}).metricTextElement;
         if(metricSlot&&!metricElement)throw Error('METRIC_TEXT_HANDOFF_MISSING');
         const override=metricSlot?{element:metricElement!,expected:metricTextAt(parseMetricText(current.spec.texts[metricSlot]!.text),layer.seconds).text}:undefined;
