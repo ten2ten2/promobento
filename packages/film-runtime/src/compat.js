@@ -1,4 +1,5 @@
 import {createOM} from './om.js';
+import * as ClipCues from './clip/cues.js';
 import './clip/util.js';
 import './clip/motion.js';
 import './clip/camera.js';
@@ -15,4 +16,4 @@ window.gsap.ticker.lagSmoothing(0);
 window.gsap.ticker.remove(window.gsap.updateRoot);
 window.gsap.ticker.sleep();
 Object.defineProperty(window, '__pbCreateOM', {value: createOM, writable: false, configurable: false});
-Object.defineProperty(window, 'CLIP', {value: Object.freeze({U, MO, CAM, PAINT, KIT, DG, TY, CH, UI, CL, TOON}), writable: false, configurable: false});
+Object.defineProperty(window, 'CLIP', {value: Object.freeze({U, MO, CAM, PAINT, KIT, DG, TY, CH, UI, CL, TOON, cues: Object.freeze({findWord:ClipCues.findWord,prepare:ClipCues.prepare})}), writable: false, configurable: false});

@@ -68,6 +68,13 @@ try{
    }finally{await encodedSession.close();}
   }
   report.originalImageFormats='jpeg_webp_and_exif_orientation_broker_decode_and_visibility';
+  // The original clip cue resolver is exposed inside the sandbox, not evaluated by the Worker.
+  const cueFixture=customFixture(),cueOptions=pageOptions('landscape',rules.aspectLayouts.landscape);
+  cueOptions.fonts=options.fonts;cueOptions.customSources=cueFixture.sources;
+  cueOptions.customSources['scenes/product/index.js']=cueOptions.customSources['scenes/product/index.js'].replace('const w=',`const cue=ctx.CLIP.cues.prepare({duration:15,cues:[{at:1,kind:'point',word:'缓存'}]}, {words:[{word:'缓',start:.4,end:.7},{word:'存',start:.7,end:1}]});if(cue.spec.cues[0].at!==.4)throw Error('CLIP_CUE_BINDING_FAILED');const w=`);
+  const cueSession=await filmSession({raw:JSON.stringify(cueFixture.film),options:cueOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await cueSession.frame(45,{format:'png'});}finally{await cueSession.close();}report.clipCues='original_narration_anchor_inside_sandbox';
+
   // Packed video crosses the same broker-facing admission as the controller and is
   // decoded by the real isolated Chromium runtime in forward and reverse order.
   const solidPng=(red,green,blue)=>{const pixels=new Uint8Array(64*64*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=red;pixels[i+1]=green;pixels[i+2]=blue;pixels[i+3]=255;}return pngRgba(64,64,pixels);};

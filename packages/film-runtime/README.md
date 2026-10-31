@@ -50,6 +50,8 @@ ctx.OM.clockAfter(timeline, () => studio.render({yaw: view.yaw}), 15);
 return {timeline};
 ```
 
+`ctx.CLIP.cues.prepare(spec, {pace, words, voiceEnd})` 提供原版 clip 的 cue 时间准备：无旁白词时间时缩放原始时间；提供已确认词时间时按文本、出现次数和起止边缘定位，并在找不到词时返回 `problems`。`ctx.CLIP.cues.findWord(words, text, nth, edge)` 可单独查找。输入的词时间必须来自已批准的旁白及转写；此工具不生成转写、不核验音频，也不开放 Canvas 文字绘制。
+
 场景构建时可用 `ctx.OM.ready(promise)` 登记首帧前必须完成的异步准备；宿主等待已登记任务及其中登记的后续任务，失败或超时则停止初始化。准备结束后不接受新的登记。素材仍只能使用已授权的 `ctx.asset`，此接口不开放网络或任意依赖。
 
 `ctx.OM.beat(n)` 在已冻结程序配乐明确设置 BPM 时返回 `n` 拍的秒数；也可用 `ctx.OM.beat(n, bpm)` 显式指定，未提供 BPM 时会报错。它计算长度，不自动把局部时点对齐全片节拍；全片节拍帧可读取 `ctx.beats`。

@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.29.0',
+  id: 'product-directing', version: '1.30.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -52,6 +52,7 @@ export const directingMethodPack = {
       'When this scene declares params.gsapScope="scene", GSAP string selectors used while building it and OM camera string selectors refer to this scene, allowing template IDs to be reused across scenes. Otherwise preserve the existing document-wide GSAP behavior. Use actual element references inside draw(t), which runs later.',
       'Use ctx.OM.ready(promise) during scene construction when setup must finish before the first frame. The renderer waits for registered setup, including setup registered by an earlier ready promise; a rejection fails preparation. Do not register new setup during a seek or use it to access unapproved material.',
       'For a Canvas frame that depends on values tweened elsewhere on the same GSAP timeline, use ctx.OM.clockAfter(timeline, draw, duration): draw runs after all timeline values reach the requested time. Use the ordinary ctx.OM.clock for a draw that depends only on its time argument. Both require pure, synchronous drawing.',
+      'ctx.CLIP.cues.prepare can resolve original clip timing against provided, approved narration-word timestamps; without them it scales supplied cue times. It is a timing helper only: never invent a transcript, assume alignment or bypass text and audio admission.',
       'ctx.OM.beat(n) converts n beats to a duration in seconds using the frozen procedural music bpm when specified. Otherwise pass an explicit bpm. A beat duration alone does not align a scene-local event to the film-wide beat grid; use ctx.beats for the frozen film frame positions.',
       'With params.sourceSfx=true, ctx.OM.sfx(id, seconds, {gain}) returns seconds for use in a timeline and freezes the matching effect into the sound plan. Call once during construction, with a literal supported ID, scene-local seconds from numeric arithmetic or ctx.OM.beat, and optional positive linear gain. Audio is placed at the nearest 48 kHz sample. Unsupported options and dynamic or late calls fail. Preserve scene event timing when editing.',
       'For a continuous 3D camera path, ctx.OM.cameraRig.create(shots) provides the original absolute-time rig. Each shot has id, start, end and keys; times are seconds, shots are contiguous from zero, and keys begin at local at:0 with position, target and fov. In ctx.OM.clock use camera.set({...rig.sample(t)}) on a scene-local ctx.OM.space camera. Optional cameraRig.track(pose,{position,forward},options) follows a real staged subject. It moves the film camera, not the product interface.',

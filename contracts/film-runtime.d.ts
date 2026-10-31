@@ -140,6 +140,12 @@ export interface MotionHelpers {
 export interface ClipHelpers {
   U: {setStage(width: number, height: number): void};
   MO: Record<string, (...args: number[]) => number>;
+  /** Original clip timing: local seconds, with optional previously approved narration-word timestamps. */
+  cues: {
+    findWord(words: Array<{word:string;start:number;end:number}> | null, term:string, nth?:number, edge?:'start'|'end'):number|null;
+    prepare<T extends {duration:number;cues:Array<{at:number;kind:string;word?:string;nth?:number;edge?:'start'|'end';offset?:number;data?:Record<string,unknown>}>}>(spec:T, options?:{pace?:number;words?:Array<{word:string;start:number;end:number}>|null;voiceEnd?:number|null;cue?:(term:string,nth:number,edge:'start'|'end')=>number;tail?:number}):{spec:T;duration:number;problems:string[];anchored:Array<{kind:string;word:string;at:number}>};
+  };
+
   CAM: object; PAINT: object; KIT: object; DG: object; TY: object; CH: object; UI: object; CL: object; TOON: object;
 }
 
