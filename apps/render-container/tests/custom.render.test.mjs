@@ -271,8 +271,9 @@ try{
     const first=await sequence.frame(45,{format:'png'});let observation=await sequence.observe('sequence-check',45);
     assert.ok(observation.texts.some(text=>text.slotId==='first'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed));
     assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
-    for(const frame of [110,119,120,121,165]){await sequence.frame(frame,{format:'png'});
-     assert.equal(sequence.canvasTextTrace(frame)[0].slotId,frame<120?'first':'second');}
+    for(const frame of [110,115,119,120,121,165]){const png=await sequence.frame(frame,{format:'png'});
+     assert.equal(sequence.canvasTextTrace(frame)[0].slotId,frame<120?'first':'second');
+     if(frame===115)writeFileSync(`${output}/canvas-sequence-${aspect}-wipe.png`,png);}
     observation=await sequence.observe('sequence-check',165);
     assert.ok(observation.texts.some(text=>text.slotId==='second'&&text.text==='WORLD'&&!text.clipped&&!text.fallbackUsed));
     assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
@@ -301,6 +302,7 @@ try{
     assert.equal(overlap,0,'the actual source image must not cover its headline');
     assert.notEqual(compareSeam(early,frame).verdict,'pass','original reveal must actually move');
     const reverse=await board.frame(15,{format:'png'});assert.equal(compareSeam(early,reverse).verdict,'pass');
+    writeFileSync(`${output}/whiteboard-clip-${aspect}-reveal.png`,early);
     writeFileSync(`${output}/whiteboard-clip-${aspect}.png`,frame);
    }finally{await board.close();}
   }
