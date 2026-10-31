@@ -7,6 +7,7 @@ export interface FontRecord {
 }
 export interface AssetRecord {
   resourceId: string; kind: 'image' | 'svg' | 'video'; width: number; height: number; licenseRef: string; rightsCleared: boolean;
+  videoFramePacking?: 'webp-pack-v1';
   videoFrames?: Array<{pts: number; duration: number; index: number}>;
   videoStartSeconds?: number;
 }

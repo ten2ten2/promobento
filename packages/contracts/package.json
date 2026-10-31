@@ -46,6 +46,10 @@
       "types": "./src/film-composition.d.mts",
       "default": "./src/film-composition.mjs"
     },
+    "./video-frames": {
+      "types": "./src/video-frames.d.mts",
+      "default": "./src/video-frames.mjs"
+    },
     "./custom-source": {
       "types": "./src/custom-source.d.mts",
       "default": "./src/custom-source.mjs"

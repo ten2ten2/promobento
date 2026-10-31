@@ -2,6 +2,10 @@
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {chromium} from 'playwright-core';
+import {execFileSync} from 'node:child_process';
+import {canonical} from '@promobento/contracts/canonical';
+import {sha256Bytes} from '@promobento/contracts/digest';
+import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -64,6 +68,29 @@ try{
    }finally{await encodedSession.close();}
   }
   report.originalImageFormats='jpeg_webp_and_exif_orientation_broker_decode_and_visibility';
+  // Packed video crosses the same broker-facing admission as the controller and is
+  // decoded by the real isolated Chromium runtime in forward and reverse order.
+  const solidPng=(red,green,blue)=>{const pixels=new Uint8Array(64*64*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=red;pixels[i+1]=green;pixels[i+2]=blue;pixels[i+3]=255;}return pngRgba(64,64,pixels);};
+  const greenPng=solidPng(10,220,20),bluePng=solidPng(10,30,220),webpFromPng=png=>execFileSync('ffmpeg',['-v','error','-i','pipe:0','-c:v','libwebp','-lossless','1','-f','webp','pipe:1'],{input:png});
+  const greenWebp=webpFromPng(greenPng),blueWebp=webpFromPng(bluePng),parts=[],frames=[];let offset=0;
+  for(let i=0;i<60;i++){const frame=i<30?greenWebp:blueWebp;frames.push({index:i,pts:i/30,duration:1/30,pack:0,offset,byteLength:frame.length});parts.push(frame);offset+=frame.length;}
+  const pack=Buffer.concat(parts),ref=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
+  const packedManifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',source:{...ref(Buffer.from('synthetic-video')),mediaType:'video/webm'},browserVersion:lock.browser.version,width:64,height:64,poster:ref(greenPng),packs:[ref(pack)],frames};
+  const manifest=Buffer.from(canonical(packedManifest)),id='res_fixture_dashboard',data=new Map([['resource:'+id,manifest],['poster:'+id,greenPng],['framepack:'+id+':0',pack]]);
+  const objects=new Map([...data].map(([name,bytes])=>[name,{name,...ref(bytes)}]));
+  const packedFilm=filmFixture();packedFilm.scenes=[{id:'focus',start:0,end:450,kind:'block',block:'continuous-focus@1',params:{assetKey:'dashboard'},purpose:'Check source video frames in the real renderer.'}];
+  for(const aspect of ['landscape','portrait']){
+   const packedOptions=pageOptions(aspect,rules.aspectLayouts[aspect]);packedOptions.fonts=options.fonts;packedOptions.resources=[{...packedOptions.resources[0],kind:'video',width:64,height:64,videoFramePacking:'webp-pack-v1',videoFrames:frames.map(({index,pts,duration})=>({index,pts,duration}))}];
+   const readers=await admitPackedVideos({job:{resources:[{resourceId:id,kind:'video',sha256:sha256Bytes(manifest)}]},options:packedOptions},objects,async name=>data.get(name));
+   const packedSession=await filmSession({raw:JSON.stringify(packedFilm),options:packedOptions,browserVersion:lock.browser.version,font,resource:()=>readers.get(id).poster(),videoFrame:(_,index)=>readers.get(id).frame(index),killBrowser});
+   try{const first=await packedSession.frame(0,{format:'png'}),later=await packedSession.frame(45,{format:'png'}),reverse=await packedSession.frame(0,{format:'png'});
+    const a=pngPixels(first),b=pngPixels(later),at=((Math.floor(a.height/2)*a.width)+Math.floor(a.width/2))*4;
+    assert.ok(a.pixels[at+1]>150&&a.pixels[at+2]<100,`${aspect} first source frame is green`);assert.ok(b.pixels[at+2]>150&&b.pixels[at+1]<100,`${aspect} later source frame is blue`);
+    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');writeFileSync(`${output}/packed-video-${aspect}-0.png`,first);writeFileSync(`${output}/packed-video-${aspect}-45.png`,later);
+   }finally{await packedSession.close();}
+  }
+  report.packedVideo='source_bound_webp_frames_landscape_portrait_forward_and_reverse';
+
   // Reproduce the 3D aisle's zero-sized perspective origin and full-frame transparent
   // pointer-free overlay with original synthetic pixels, never real user footage.
   const perspectiveFilm=filmFixture(),perspectiveOptions=pageOptions('landscape',rules.aspectLayouts.landscape);

@@ -841,6 +841,7 @@
                   "rightsCleared": {
                     "const": true
                   },
+                  "videoFramePacking": {"const": "webp-pack-v1"},
                   "videoStartSeconds": {
                     "type": "number",
                     "minimum": 0,

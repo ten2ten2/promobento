@@ -1,3 +1,4 @@
+import {directorResourceOptions,directorResourceInputs} from './director-video.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
@@ -74,7 +75,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
         options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:film.totalFrames},seed:context.seed,fonts:context.fonts,
           resources:context.resources.map((asset:Json)=>({...asset,rightsCleared:true})),confirmedFactIds:context.confirmedFactIds,...renderPageTiming(film,policy.render),
           ...(assetFrames.length?{observeAssets:true}:{})},
-        inputs:[{...source,name:'film'},...modules,...context.resources.map((asset:Json)=>({name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}))]};
+        inputs:[{...source,name:'film'},...modules,...directorResourceInputs(context.resources)]};
       // Reproduce the real 2D review/final shard cuts, including the preceding warm
       // frame: cold seek of a reading hold alone missed a history-dependent shadow.
       // WebGL's adaptive partition needs its own bounded check; its final seam gate remains unchanged.
@@ -99,7 +100,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
         task.job.frames=[...new Set([...frames,...boundaries,...boundaries.map(frame=>frame-1).filter(frame=>frame>=scene.start&&eligible(frame))])].sort((a,b)=>a-b);
       }
       // Resource transport uses the same narrow private contract as ordinary render jobs.
-      task.options.resources=context.resources.map((asset:Json)=>({resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true}));
+      task.options.resources=directorResourceOptions(context.resources);
       const owner=env.OPERATIONS.getByName(op.id);let failed=false,repairable:CustomSceneCheckError|undefined;
       const images:Json[]=[],observations:Json[]=[],comparisons:Json[]=[];
       let phase='init',currentFrame:number|null=null,expectation:Json|undefined;

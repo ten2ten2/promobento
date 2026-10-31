@@ -16,6 +16,7 @@ import {inRenderPhase,renderFailureDiagnostic} from './failure.mjs';
 import {savePrivateFailure} from './private-failure.mjs';
 import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
 import {hostIsolation,collectIsolation} from './isolation.mjs';
+import {admitPackedVideos} from './video-input.mjs';
 
 if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
 const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
@@ -40,6 +41,7 @@ async function execute(input) {
     if (!stored.has(name)) stored.set(name, await broker.read(objects.get(name), maxBytes));
     return stored.get(name);
   };
+  const packedVideos=input.options?await admitPackedVideos(input,objects,bytes):new Map();
   const font = face => {
     const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
     if (!installed) throw Error('FONT_FACE_UNAVAILABLE');
@@ -49,7 +51,7 @@ async function execute(input) {
   const resource = async resourceId => {
     const expected = input.job.resources.find(resource => resource.resourceId === resourceId), actual = objects.get('resource:' + resourceId);
     if (!expected || !actual || expected.sha256 !== actual.sha256) throw Error('RESOURCE_SCOPE_MISMATCH');
-    return bytes('resource:' + resourceId);
+    return packedVideos.has(resourceId)?packedVideos.get(resourceId).poster():bytes('resource:' + resourceId);
   };
   const config = {width: rules.aspectLayouts[input.job.aspectId].width, height: rules.aspectLayouts[input.job.aspectId].height,
     encoding: rules.encodingProfiles.mp4_h264_1080_v1, threads: input.mode === 'audio' ? 1 : input.instance === 'standard-4' ? 4 : input.instance === 'standard-3' ? 2 : 1};
@@ -72,7 +74,7 @@ async function execute(input) {
       return {...face, codePoints: installed.codePoints};
     });
     if (input.options.target.width !== config.width || input.options.target.height !== config.height) throw Error('TARGET_SCOPE_MISMATCH');
-    const shared = {raw, options: input.options, resource, font, videoFrame: (id, index) => bytes('frame:' + id + ':' + index, 12 << 20),
+    const shared = {raw, options: input.options, resource, font, videoFrame: (id, index) => packedVideos.has(id)?packedVideos.get(id).frame(index):bytes('frame:' + id + ':' + index, 12 << 20),
       signal: abort.signal, browserVersion: lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,killBrowser: () => launch('kill')};
     if (input.mode === 'shard') report = await renderShard({...shared, job: input.job, shard: input.shard, directory: workDirectory,
       imageDigest: process.env.RENDER_IMAGE_DIGEST, encoding: config.encoding, threads: config.threads});

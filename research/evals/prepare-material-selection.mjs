@@ -6,7 +6,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {materialApproval,assertLocalMaterialIdentity,assertRemoteMaterialIdentity} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 
-export function prepareMaterialSelection(directory,selected,topics,{readCard=path=>parseCanonicalJson(readFileSync(path)),verifiedArtwork=new Map()}={}){
+export function prepareMaterialSelection(directory,selected,topics,{readCard=path=>parseCanonicalJson(readFileSync(path)),verifiedArtwork=new Map(),verifiedVideos=new Map()}={}){
 if(!Array.isArray(selected.assets)||!selected.assets.length||new Set(selected.assets.map(asset=>asset.id)).size!==selected.assets.length)throw Error('MATERIAL_SELECTION_INVALID');
 if(selected.scope!=='internal_eval_only'||selected.publicUseCleared!==false||topics.factConfirmation.confirmedBy!=='owner')throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
 return selected.assets.map(asset=>{
@@ -24,7 +24,14 @@ return selected.assets.map(asset=>{
  const bytes=readFileSync(join(directory,asset.file));if(bytes.length>8<<20)throw Error('MATERIAL_IDENTITY_INVALID');
  const {width,height,extension,mediaType}=imageHeader(bytes);
  if(!asset.file.endsWith('.'+extension)||width!==asset.width||height!==asset.height||extension!=='png'&&asset.mediaType&&asset.mediaType!==mediaType)throw Error('MATERIAL_IDENTITY_INVALID');
- const sha256=sha256Bytes(bytes),artwork=asset.derivation?.kind==='approved_artwork_rasterization'?verifiedArtwork.get(asset.id):undefined;
+ const sha256=sha256Bytes(bytes),artwork=asset.derivation?.kind==='approved_artwork_rasterization'?verifiedArtwork.get(asset.id):undefined,video=asset.derivation?.kind==='approved_video_frame_pack'?verifiedVideos.get(asset.id):undefined;
+ if(asset.derivation?.kind==='approved_video_frame_pack'){
+  if(!video||!approval.explicit||approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile
+   ||approval.explicit.sourceUrl!==asset.sourceUrl||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(video.source)!==approval.explicit.sha256
+   ||video.manifest.source.sha256!==approval.explicit.sha256||video.manifest.source.mediaType!==asset.derivation.sourceMediaType
+   ||video.manifest.poster.sha256!==sha256||!video.poster.equals(bytes))throw Error('VIDEO_VERIFICATION_REQUIRED');
+  return{asset,bytes:video.manifestBytes,sha256:sha256Bytes(video.manifestBytes),mediaType:'application/json',extension:'json',original:approval.original,explicit:approval.explicit,video};
+ }
  if(asset.derivation?.kind==='approved_artwork_rasterization'){
   if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.source.kind!=='local_project_media'
    ||approval.explicit.sourceFile!==asset.derivation.sourceFile||approval.explicit.sourceUrl!==asset.sourceUrl

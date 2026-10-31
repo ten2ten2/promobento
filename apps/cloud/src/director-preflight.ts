@@ -1,3 +1,4 @@
+import {directorResourceOptions,directorResourceInputs} from './director-video.ts';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {filmSourceHash} from '@promobento/contracts/film-source';
@@ -8,12 +9,14 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio=false){
- if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio=false,packedVideo=false){
+ if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  await operation(env,op.id,op.generation);await rights(env,op,resources);
+ const packedAsset=packedVideo?context.resources.find((item:Json)=>item.videoFramePacking==='webp-pack-v1'):undefined;
+ if(packedVideo&&!packedAsset)throw Error('RENDER_VIDEO_ASSET_UNAVAILABLE');
  const release=await env.DB.prepare("SELECT * FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>();
  if(!release||release.runtime_version!==context.runtimeVersion||release.image_digest!==await env.SHARDS.getByName('release-metadata').imageDigest())throw Error('RENDER_ENVIRONMENT_MISMATCH');
- const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio:true}:{})});
+ const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio:true}:{}),...(packedVideo?{packedVideo:packedAsset.sha256}: {})});
  const cached=parseCanonicalJson(await coordinator.rendererHealth(cacheKey)) as Json|null;
  if(cached&&cached.checkedAt<=Date.now()&&Date.now()-cached.checkedAt<cacheMs)return;
  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -25,7 +28,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   audio:{music:{kind:'none'},sfx:[],captions:'off',mute:true},assets:{},texts:{headline:{text:'Render health check',role:'headline',factIds:[]}},
   scenes:[{id:'health',start:0,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},purpose:'Private renderer health probe.'}],
   treatment:{message:'Private renderer health probe.',hook:'Readiness only.',energyCurve:[{frame:0,level:1},{frame:449,level:1}],continuity:'Single trusted block.'}};
- const sources:Record<string,string>={},asset=assetScopedObservation||componentRelay||objectStudio||customStudio?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
+ const sources:Record<string,string>={},asset=packedVideo?packedAsset:assetScopedObservation||componentRelay||objectStudio||customStudio?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
  if(assetScopedObservation&&!asset)throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
  if(componentRelay&&!asset)throw Error('RENDER_COMPONENT_RELAY_UNAVAILABLE');
  if((objectStudio||customStudio)&&!asset)throw Error('RENDER_STUDIO_ASSET_UNAVAILABLE');
@@ -53,32 +56,36 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    params:{textSlots:[],assetKeys:['health'],events:[],readingHolds:[{start:30,end:450,visibleTextSlots:[]}]}}];
   sources['scenes/health/index.js']='PB.scene("health",ctx=>{const studio=ctx.OM3.studio("health");const timeline=gsap.timeline({paused:true});ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,pitch:0,distanceScale:1}),15);return {timeline};});';
  }
+ if(packedVideo){
+  film.assets.health={resourceId:asset.resourceId};
+  film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'continuous-focus@1',params:{assetKey:'health'},purpose:'Probe packed source video.'}];
+ }
  if(fadeThrough){film.scenes[0].end=healthEnd;film.scenes.push({id:'health-end',start:healthEnd-8,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},
   transitionIn:{type:'fade-through',frames:8},purpose:'Check the supported fade-through transition.'});}
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
- const aspect='landscape',layout=platform.aspectLayouts.landscape;
+ const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):45;
  const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:objectStudio||customStudio?'standard-4':'standard-3',taskId,generation:op.generation,
   deadlineAt:Math.min(deadlineAt,Date.now()+90000),imageDigest:release.image_digest,
   job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash:filmSourceHash(canonical(film),sources),
-   runtimeVersion:context.runtimeVersion,rendererRelease:release.id,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[45],
+   runtimeVersion:context.runtimeVersion,rendererRelease:release.id,aspectId:aspect,durationSeconds:15,totalFrames:450,quality:'still',frames:[probeFrame],
    renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources},
   options:{target:{aspect,width:layout.width,height:layout.height,safeInsets:layout.safeInsets,fps:30,totalFrames:450},seed:context.seed,
-   fonts:context.fonts,resources:asset?[{resourceId:asset.resourceId,kind:asset.kind,width:asset.width,height:asset.height,licenseRef:asset.licenseRef,rightsCleared:true}]:[],
+   fonts:context.fonts,resources:asset?directorResourceOptions([asset]):[],
    confirmedFactIds:[],initTimeoutMs:objectStudio||customStudio?60000:30000,frameTimeoutMs:objectStudio||customStudio?10000:5000,...(assetScopedObservation?{observeAssets:true}:{})},
-  inputs:[{...source,name:'film'},...modules,...(asset?[{name:'resource:'+asset.resourceId,key:asset.key,sha256:asset.sha256,byteLength:asset.byteLength}]:[])]};
+  inputs:[{...source,name:'film'},...modules,...(asset?directorResourceInputs([asset]):[])]};
  const owner=env.OPERATIONS.getByName(op.id);
  let failed=false;
  try{
   const ready=parseCanonicalJson(await owner.studio(op.id,canonical(task))) as Json;
   if(ready.status!=='ready'||(objectStudio||customStudio)&&(!Array.isArray(ready.webgl)||!ready.webgl.length))throw Error('RENDER_PREFLIGHT_FAILED');
-  const frame=await owner.frame(op.id,45);if(!frame.ok)throw Error('RENDER_PREFLIGHT_FAILED');
+  const frame=await owner.frame(op.id,probeFrame);if(!frame.ok)throw Error('RENDER_PREFLIGHT_FAILED');
   const bytes=new Uint8Array(await frame.arrayBuffer());
   if(bytes.length<8||![137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value))throw Error('RENDER_PREFLIGHT_FAILED');
   if(sceneScopedObservation){
-   const response=await owner.checkFrame(op.id,45);if(!response.ok)throw Error('RENDER_PREFLIGHT_FAILED');
+   const response=await owner.checkFrame(op.id,probeFrame);if(!response.ok)throw Error('RENDER_PREFLIGHT_FAILED');
    const checked=parseCanonicalJson(await response.text()) as Json,observation=checked.observation;
-   if(!validObservation(observation)||observation.renderId!==taskId||observation.aspectId!==aspect||observation.frame!==45
+   if(!validObservation(observation)||observation.renderId!==taskId||observation.aspectId!==aspect||observation.frame!==probeFrame
      ||!observation.texts.some((text:Json)=>text.sceneId==='health'&&text.slotId==='headline'))throw Error('RENDER_OBSERVATION_SCOPE_UNAVAILABLE');
    if(assetScopedObservation&&(!Array.isArray(observation.assets)||!observation.assets.some((item:Json)=>item.sceneId==='health'&&item.resourceId===asset.resourceId&&item.visibility==='visible')))
     throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');

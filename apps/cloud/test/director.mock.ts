@@ -12,7 +12,7 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes,digest} from '@promobento/contracts/digest';
 import {assertRenderTask} from '@promobento/contracts/render';
 import {pngRgba} from '../src/director-sheets.mjs';
-import {immutableJson,settle} from '../src/store.ts';
+import {immutableJson,immutableBytes,settle} from '../src/store.ts';
 import {directingMethodPack} from '../../../packages/methods/directing.ts';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -25,7 +25,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,sourceSfx=false,sourceSfxEdit=false,sourceSfxInvalid=false,sourceSfxConflict=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,custom3D=false,studioOnly=false,lateCustom3D=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,custom3D=false,studioOnly=false,lateCustom3D=false,packedVideo=false,oldVideoRenderer=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -84,6 +84,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
     const filmBlob=task.inputs?.find((blob:any)=>blob.name==='film');
     if(filmBlob&&task.taskId.startsWith('health-')){
       const film=parseCanonicalJson(objects.get(filmBlob.key).bytes);
+      if(task.options.resources?.some((asset:any)=>asset.videoFramePacking==='webp-pack-v1')){trace.push('video-preflight');if(oldVideoRenderer)throw Error('MOCK_VIDEO_UNAVAILABLE');}
       if(film.scenes.some((scene:any)=>scene.block==='object-studio@1'||scene.runtime3D==='om3-studio-v1')){trace.push('studio-preflight');assert.equal(task.instance,'standard-4');if(oldStudioRenderer)throw Error('MOCK_STUDIO_UNAVAILABLE');}
       if(film.scenes.some((scene:any)=>scene.block==='component-relay@1')){trace.push('relay-preflight');if(oldRelayRenderer)throw Error('MOCK_RELAY_UNAVAILABLE');
        if(oldScopedRelayRenderer&&film.scenes.some((scene:any)=>scene.params?.componentBehavior))throw Error('MOCK_SCOPED_RELAY_UNAVAILABLE');}
@@ -104,6 +105,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   OUTBOX:{async send(item:any){if(item.kind!=='render')throw Error('MOCK_UNEXPECTED_OUTBOX');
    const input=await(await MEDIA.get(db.prepare('SELECT job_key FROM pipeline_renders WHERE id=?').get(item.payloadJson?parseCanonicalJson(item.payloadJson).renderId:item.id.slice(7)).job_key))!.arrayBuffer();
    const request=parseCanonicalJson(new Uint8Array(input)),frame=await immutableJson(env,`renders/${request.job.renderId}/mock/observation-frames/45.png`,{mock:'not rendered'});
+   if(packedVideo){assert.equal(request.options.resources[0].videoFramePacking,'webp-pack-v1');assert.equal(request.options.resources[0].videoFrames.length,60);assert.ok(request.inputs.some((blob:any)=>blob.name==='poster:'+options.resources[0].resourceId));assert.ok(request.inputs.some((blob:any)=>blob.name==='framepack:'+options.resources[0].resourceId+':0'));}
    if(customScene){const modules=Object.fromEntries(request.inputs.filter((blob:any)=>blob.name.startsWith('scenes/')).map((blob:any)=>[blob.name,new TextDecoder().decode(objects.get(blob.key).bytes)]));assert.equal(request.job.sourceHash,filmSourceHash(objects.get(request.inputs.find((blob:any)=>blob.name==='film').key).bytes,modules));}
    assertRenderTask({schemaVersion:'3.0.0',kind:'render_task',mode:'audio',instance:AUDIO_INSTANCE,taskId:'mock-audio-task',brokerToken:'fixture-non-secret-token',job:request.job,inputs:request.audioInputsBlobs,audioInputs:request.audioInputs});
    if(sourceSfx){const blob=request.audioInputsBlobs.find((item:any)=>item.name==='audio-plan'),plan=parseCanonicalJson(objects.get(blob.key).bytes);
@@ -127,11 +129,19 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   approvedBy:'owner',totalUsdMicros:0,basis:'Explicit offline simulation, not a real opening attestation.',source:'offline fixture'});
  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('mock-operation','mock-workspace','mock-project',0,'evaluation','active','fixture',10000000,clock,null,null);
  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('fixture-release','sha256:'+'a'.repeat(64),'film-runtime-v1','fixture-environment','active');
- const resource=await immutableJson(env,'evals/mock/original.json',{original:'fixture image'});
+ let resource=await immutableJson(env,'evals/mock/original.json',{original:'fixture image'});
  objects.set(resource.key,{bytes:png,customMetadata:{sha256:sha256Bytes(png)}});resource.sha256=sha256Bytes(png);resource.byteLength=png.length;resource.mediaType='image/png';
- context.resources=[{...resource,...options.resources[0]}];
+ let evidence:any={basis:'Original synthetic test fixture; not real third-party clearance.'};
+ if(packedVideo){
+  const source=await immutableBytes(env,'evals/mock/video-source.webm',new TextEncoder().encode('synthetic-video'),'video/webm');
+  const preview=await immutableBytes(env,'evals/mock/video-poster.png',png,'image/png'),pack=await immutableBytes(env,'evals/mock/video-pack-0.bin',new Uint8Array(60).fill(1),'application/octet-stream');
+  const manifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',source:{sha256:source.sha256,byteLength:source.byteLength,mediaType:'video/webm'},browserVersion:'156.0.8078.74',width:1,height:1,
+   poster:{sha256:preview.sha256,byteLength:preview.byteLength},packs:[{sha256:pack.sha256,byteLength:pack.byteLength}],frames:Array.from({length:60},(_,index)=>({index,pts:index/30,duration:1/30,pack:0,offset:index,byteLength:1}))};
+  resource=await immutableJson(env,'evals/mock/video.json',manifest);evidence={...evidence,resourceId:options.resources[0].resourceId,sha256:resource.sha256,licenseRef:options.resources[0].licenseRef,scope:'internal_eval_only',videoSource:source,preview,framePacks:[pack]};
+ }
+ context.resources=[{...resource,...options.resources[0],...(packedVideo?{kind:'video',width:1,height:1,videoFramePacking:'webp-pack-v1'}:{})}];
  if(oversizedResource)context.resources[0].height=5064;
- await immutableJson(env,'evals/mock/rights.json',{basis:'Original synthetic test fixture; not real third-party clearance.'});
+ await immutableJson(env,'evals/mock/rights.json',evidence);
  if(!noRights)db.prepare('INSERT INTO pipeline_rights VALUES(?,?,?,?,?,?,?)').run('mock-operation',options.resources[0].resourceId,resource.sha256,options.resources[0].licenseRef,'evals/mock/rights.json','internal_eval_only',null);
  if(audio){
   const text='X:1\nT:Original fixture\nM:4/4\nL:1/4\nQ:1/4=100\nK:C\nC E G c | G E D C |',bytes=new TextEncoder().encode(text),sha256=sha256Bytes(bytes),key='evals/mock/original.abc';
@@ -163,7 +173,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    const version=legacyCustomMethod?'1.1.0':frozenMethodVersion||directingMethodPack.version,[major,minor]=version.split('.').map(Number);
    assert.equal(body.max_tokens,(customScene||methodWithoutCustom)&&(major>1||major===1&&minor>=12)?32768:16384);
    value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map(key=>({key,language:visualLanguage,palette:[{color:'#101712',role:'bg',source:'fixture'},{color:'#f4f8ee',role:'ink',source:'fixture'}],logline:'Original mock direction.',feel:{route:'continuous',bpm:100,eventsPerBar:2},sound:'Silent fixture.',risk:'Fixture only.',usesDepth:key==='amplify',skeleton:spec.scenes.map(scene=>({purpose:scene.purpose,approach:scene.kind==='custom'?'custom':'block:'+scene.block.split('@')[0]})),keyframeFilm:clone(keyframeFilm)}))};}
-  else if(input.task.startsWith('Write')){stage='spec';specRequests++;specInputs.push(input);assert.deepEqual(input.context,context);
+  else if(input.task.startsWith('Write')){stage='spec';specRequests++;specInputs.push(input);if(packedVideo){assert.equal(input.context.resources[0].durationFrames,60);assert.equal(input.context.resources[0].framePacks,undefined);assert.equal(input.context.resources[0].videoFrames,undefined);}else assert.deepEqual(input.context,context);
    assert.match(input.mediaLayoutGuidance,/omit textSlot/);assert.match(input.mediaLayoutGuidance,/does not crop or magnify/);
    if(specTransportFailure)throw Error('MOCK_SPEC_TRANSPORT_FAILURE');
    if(specRequests>1&&!input.coldReviewFeedback){assert.ok(input.validationFeedback?.issues?.length);validationFeedback.push(input.validationFeedback);}
@@ -686,6 +696,12 @@ test('original studio is offered only to the new method and probes the frozen re
  assert.equal(unsupported.error.message,'MOCK_STUDIO_UNAVAILABLE');assert.ok(!unsupported.models.includes('spec'));
 });
 
+
+test('the director admits a rights-bound video poster and forwards packed frames without exposing transport to prompts',async()=>{
+ const r=await fixture({methodWithoutCustom:true,packedVideo:true});assert.ifError(r.error);assert.equal(r.state.status,'succeeded');assert.ok(r.renders.length>=2);assert.ok(r.trace.includes('video-preflight'));
+ const unsupported=await fixture({methodWithoutCustom:true,packedVideo:true,oldVideoRenderer:true});assert.equal(unsupported.error.message,'MOCK_VIDEO_UNAVAILABLE');assert.equal(unsupported.models.length,0);
+ const old=await fixture({methodWithoutCustom:true,packedVideo:true,frozenMethodVersion:'1.28.0'});assert.equal(old.error.message,'VIDEO_METHOD_UNAVAILABLE');assert.equal(old.models.length,0);
+});
 
 test('custom 3D choreography is advertised only in the new method and its frozen renderer is probed',async()=>{
  const r=await fixture({customScene:true,custom3D:true});assert.ifError(r.error);assert.ok(r.trace.includes('studio-preflight'));
