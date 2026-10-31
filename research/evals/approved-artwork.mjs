@@ -50,15 +50,28 @@ async function renderArtwork({page},bytes,mediaType){
   const valid=await bounded(page.evaluate(text=>{
    const doc=new DOMParser().parseFromString(text,'image/svg+xml'),root=doc.documentElement;
    if(root.localName!=='svg'||root.namespaceURI!=='http://www.w3.org/2000/svg'||doc.querySelector('parsererror'))return false;
-   const allowed=new Set(['svg','g','path','circle','ellipse','rect','line','polyline','polygon','defs','linearGradient','radialGradient','stop','clipPath','mask','title','desc']);
+   const allowed=new Set(['svg','g','symbol','use','path','circle','ellipse','rect','line','polyline','polygon','defs','linearGradient','radialGradient','stop','clipPath','mask','title','desc']);
    const nodes=[root,...root.querySelectorAll('*')];if(nodes.length>5000)return false;
+   // Local symbols are common in real brand icons. Resolve them ourselves before
+   // decoding: no external reference, duplicate ID, cycle or recursive expansion.
+   const ids=new Map(),uses=[];
+   for(const node of nodes){const id=node.getAttribute('id');if(id)ids.set(id,ids.has(id)?null:node);}
    for(const node of nodes){
     if(node.namespaceURI!=='http://www.w3.org/2000/svg'||!allowed.has(node.localName))return false;
+    let hrefs=0;
     for(const attr of node.attributes){const name=attr.localName.toLowerCase(),value=attr.value;
-     if(name.startsWith('on')||name==='href'||name==='src'||value.length>200000||/[\\]/.test(value)||/@import|expression\s*\(/i.test(value))return false;
+     if(name==='href'){
+      if(node.localName!=='use'||++hrefs>1||!/^#[a-zA-Z_][\w:.-]*$/.test(value))return false;
+      uses.push(value.slice(1));continue;
+     }
+     if(name.startsWith('on')||name==='src'||value.length>200000||/[\\]/.test(value)||/@import|expression\s*\(/i.test(value))return false;
      if(/url\s*\(/i.test(value)&&!(/^(fill|stroke|clip-path|mask)$/.test(name)&&/^url\(\s*#[a-zA-Z_][\w:.-]*\s*\)$/.test(value)))return false;
     }
+    if(node.localName==='use'&&hrefs!==1)return false;
    }
+   let expanded=nodes.length;
+   for(const id of uses){const target=ids.get(id);if(!target||!['symbol','g','path','circle','ellipse','rect','line','polyline','polygon'].includes(target.localName)||target.querySelector('use'))return false;
+    expanded+=1+target.querySelectorAll('*').length;if(expanded>10000)return false;}
    return true;
   },source));
   if(!valid)throw Error('ARTWORK_SVG_UNSUPPORTED');

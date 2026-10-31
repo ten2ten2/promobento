@@ -204,7 +204,7 @@ mise exec -- node research/evals/approved-artwork.mjs \
   artifacts/example-artwork <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-采集前核对全部许可和原始字节，在隔离 Chrome 中离线解码；只接受静态安全 SVG 基本图形及 ICO，拒绝脚本、外部引用、内嵌图片、字体文字和不支持的 SVG 结构。保留原文件及透明 PNG，二者都待实际查看。入库前会用同一 Chrome 版本重新生成 PNG、逐字节核对，并将原文件和原始许可一并存入私有 R2；Chrome 版本变化或源图／PNG 改动时停止，须重新生成并审看。网页文件则在事实卡逐项绑定 `sourceUrl`、无查询参数且路径以 `.svg`／`.ico` 结尾的 HTTPS `imageUrl` 与原始 `sha256`；清单使用网页图片的 `imageUrl` 字段，并以 `--web` 代替本地目录：
+采集前核对全部许可和原始字节，在隔离 Chrome 中离线解码；只接受静态安全 SVG 基本图形及 ICO。SVG 可使用指向本文件内静态图形或 `symbol` 的 `use`，拒绝嵌套引用、重复目标和过大的展开；脚本、外部引用、内嵌图片、字体文字和不支持的 SVG 结构仍被拒绝。保留原文件及透明 PNG，二者都待实际查看。入库前会用同一 Chrome 版本重新生成 PNG、逐字节核对，并将原文件和原始许可一并存入私有 R2；Chrome 版本变化或源图／PNG 改动时停止，须重新生成并审看。网页文件则在事实卡逐项绑定 `sourceUrl`、无查询参数且路径以 `.svg`／`.ico` 结尾的 HTTPS `imageUrl` 与原始 `sha256`；清单使用网页图片的 `imageUrl` 字段，并以 `--web` 代替本地目录：
 
 ```sh
 mise exec -- node research/evals/approved-artwork.mjs \

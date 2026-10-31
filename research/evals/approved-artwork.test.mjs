@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';
 import {join,resolve} from 'node:path';
-import {pngRgba} from '@promobento/contracts/seams';
+import {pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedArtwork,captureApprovedWebArtwork,verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
@@ -48,6 +48,28 @@ test('approved SVG must still reject active and externally linked markup',async(
    const bytes=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'+bad+'</svg>');writeFileSync(join(source,'bad.svg'),bytes);card.materialApprovals['fixture-bad']=approval('bad.svg',bytes);
    await assert.rejects(captureApprovedArtwork({sourceDir:source,outputDir:join(root,'output'),card,entries:[entry('fixture-bad','bad.svg')]}),/ARTWORK_SVG_UNSUPPORTED/);assert.equal(existsSync(join(root,'output')),false);
   }
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('approved SVG uses bounded local symbols, never external or recursive references',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.artwork-symbol-test-'));
+ try{const source=join(root,'source');mkdirSync(source);
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],materialApprovals:{}};
+  const render=async(inner,output)=>{const bytes=Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="40" height="30">${inner}</svg>`);
+   writeFileSync(join(source,'mark.svg'),bytes);card.materialApprovals['fixture-mark']=approval('mark.svg',bytes);
+   return captureApprovedArtwork({sourceDir:source,outputDir:join(root,output),card,entries:[entry('fixture-mark','mark.svg')]});};
+  await render('<defs><symbol id="mark" viewBox="0 0 10 10"><rect width="10" height="10" fill="#22aa44"/></symbol></defs><use xlink:href="#mark" width="20" height="20"/>','ok');
+  const {width,pixels}=pngPixels(readFileSync(join(root,'ok','fixture-mark.png'))),offset=(5*width+5)*4;
+  assert.deepEqual([...pixels.slice(offset,offset+4)],[34,170,68,255]);
+  for(const [i,inner] of [
+   '<use href="https://example.com/icon.svg#mark"/>',
+   '<use href="#missing"/>',
+   '<defs><g id="loop"><use href="#loop"/></g></defs><use href="#loop"/>',
+   '<defs><g id="mark"/><g id="mark"/></defs><use href="#mark"/>',
+   '<defs><g id="mark"/></defs><use href="#mark" xlink:href="#mark"/>',
+   '<defs><g id="mark"><use href="#other"/></g><g id="other"/></defs><use href="#mark"/>',
+   '<defs><g id="mark">'+'<path d="M0 0"/>'.repeat(100)+'</g></defs>'+'<use href="#mark"/>'.repeat(100)
+  ].entries())await assert.rejects(render(inner,'bad-'+i),/ARTWORK_SVG_UNSUPPORTED/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
 
