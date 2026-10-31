@@ -17,6 +17,9 @@ test('frame packs bind source, timings and every byte',()=>{const {manifest,pack
 test('QuickTime source identity remains distinct from MP4 and WebM',()=>{
  const {manifest}=fixture();manifest.source.mediaType='video/quicktime';assert.equal(parse(manifest).source.mediaType,'video/quicktime');
 });
+test('animated GIF frame packs retain their original source MIME identity',()=>{
+ const {manifest}=fixture();manifest.source.mediaType='image/gif';assert.equal(parse(manifest).source.mediaType,'image/gif');
+});
 test('reject timing changes, skipped packs, overlaps and hidden bytes',()=>{for(const mutate of [m=>m.frames[1].pts=.5,m=>m.frames[1].offset=2,m=>m.frames[2].pack=0,m=>m.packs[1].byteLength++,m=>m.frames[0].extra=true,m=>m.source.mediaType='text/html']){
  const {manifest}=fixture();mutate(manifest);assert.throws(()=>parse(manifest),/VIDEO_FRAME_MANIFEST_INVALID/);
 }});

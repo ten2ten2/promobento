@@ -12,8 +12,8 @@ import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
-const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm'})[extname(file).toLowerCase()];
-const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm'})[type];
+const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif'})[extname(file).toLowerCase()];
+const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif'})[type];
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
@@ -33,7 +33,8 @@ function sourceSignature(bytes,mediaType){
  const box=bytes.toString('ascii',4,8);
  if(mediaType==='video/mp4'&&(bytes.length<12||box!=='ftyp')
   ||mediaType==='video/quicktime'&&(bytes.length<12||!['ftyp','moov','mdat','free','wide'].includes(box))
-  ||mediaType==='video/webm'&&(bytes.length<4||bytes.subarray(0,4).toString('hex')!=='1a45dfa3')||!extension(mediaType))throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+  ||mediaType==='video/webm'&&(bytes.length<4||bytes.subarray(0,4).toString('hex')!=='1a45dfa3')
+  ||mediaType==='image/gif'&&(bytes.length<14||!['GIF87a','GIF89a'].includes(bytes.toString('ascii',0,6))||bytes.readUInt16LE(6)<1||bytes.readUInt16LE(8)<1||bytes.readUInt16LE(6)>4096||bytes.readUInt16LE(8)>4096)||!extension(mediaType))throw Error('VIDEO_SOURCE_FORMAT_INVALID');
 }
 async function bounded(work,ms=15000){let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('VIDEO_DECODE_TIMEOUT')),ms);})]);}finally{clearTimeout(timer);}}
 async function openBrowser(){
@@ -49,6 +50,22 @@ async function extractVideo({page,version},source,mediaType){
  sourceSignature(source,mediaType);
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
+  if(window.__pbAnimatedDecoder){window.__pbAnimatedDecoder.close();window.__pbAnimatedDecoder=null;}
+  if(mediaType==='image/gif'){
+   if(typeof ImageDecoder!=='function'||!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_DECODER_UNAVAILABLE');
+   const decoder=new ImageDecoder({data:buffer,type:mediaType,preferAnimation:true});await decoder.completed;await decoder.tracks.ready;const track=decoder.tracks.selectedTrack;
+   if(!track?.animated||track.frameCount<2||track.frameCount>1800){decoder.close();throw Error('ANIMATED_FRAME_COUNT_UNSUPPORTED');}
+   const ends=[];let duration=0,width=0,height=0;
+   try{for(let index=0;index<track.frameCount;index++){
+    const result=await decoder.decode({frameIndex:index,completeFramesOnly:true}),frame=result.image;
+    try{if(!result.complete||!Number.isSafeInteger(frame.duration)||frame.duration<=0)throw Error('ANIMATED_FRAME_DURATION_INVALID');
+     if(index===0){width=frame.displayWidth;height=frame.displayHeight;if(width<1||height<1||width>4096||height>4096)throw Error('VIDEO_FORMAT_UNSUPPORTED');}
+     if(frame.displayWidth!==width||frame.displayHeight!==height)throw Error('ANIMATED_FRAME_DIMENSIONS_INVALID');
+     duration+=frame.duration;if(duration>60000000)throw Error('VIDEO_DURATION_UNSUPPORTED');ends.push(duration);
+    }finally{frame.close();}
+   }}catch(error){decoder.close();throw error;}
+   window.__pbAnimatedDecoder=decoder;window.__pbAnimatedEnds=ends;return{duration:duration/1000000,width,height};
+  }
   // Chromium demuxes compatible QuickTime containers through its MP4 media
   // path; the manifest and retained original still say video/quicktime.
   const v=document.querySelector('video');if(v.src.startsWith('blob:'))URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(new Blob([buffer],{type:mediaType==='video/quicktime'?'video/mp4':mediaType}));
@@ -63,15 +80,20 @@ async function extractVideo({page,version},source,mediaType){
  const frames=[],packs=[],parts=[];let size=0,total=0,poster;
  const flush=()=>{if(size){packs.push(Buffer.concat(parts,size));parts.length=0;size=0;}};
  for(let index=0;index<count;index++){
-  const result=await bounded(page.evaluate(async({index})=>{
+  const result=await bounded(page.evaluate(async({index,mediaType,width,height})=>{
    const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=index/30;
-   if(Math.abs(v.currentTime-time)>1e-7){await new Promise((resolve,reject)=>{const done=()=>{v.removeEventListener('error',bad);resolve();},bad=()=>{v.removeEventListener('seeked',done);reject(Error('VIDEO_SEEK_FAILED'));};v.addEventListener('seeked',done,{once:true});v.addEventListener('error',bad,{once:true});v.currentTime=time;});}
-   if(Math.abs(v.currentTime-time)>.001||v.readyState<2)throw Error('VIDEO_SEEK_FAILED');
-   canvas.width=v.videoWidth;canvas.height=v.videoHeight;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');ctx.drawImage(v,0,0);
+   canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');
+   if(mediaType==='image/gif'){
+    const frameIndex=window.__pbAnimatedEnds.findIndex(end=>time*1000000<end);if(frameIndex<0)throw Error('VIDEO_SEEK_FAILED');
+    const decoded=await window.__pbAnimatedDecoder.decode({frameIndex,completeFramesOnly:true});try{if(!decoded.complete)throw Error('VIDEO_DECODE_FAILED');ctx.drawImage(decoded.image,0,0);}finally{decoded.image.close();}
+   }else{
+    if(Math.abs(v.currentTime-time)>1e-7){await new Promise((resolve,reject)=>{const done=()=>{v.removeEventListener('error',bad);resolve();},bad=()=>{v.removeEventListener('seeked',done);reject(Error('VIDEO_SEEK_FAILED'));};v.addEventListener('seeked',done,{once:true});v.addEventListener('error',bad,{once:true});v.currentTime=time;});}
+    if(Math.abs(v.currentTime-time)>.001||v.readyState<2)throw Error('VIDEO_SEEK_FAILED');ctx.drawImage(v,0,0);
+   }
    const webp=canvas.toDataURL('image/webp',1),poster=index===0?canvas.toDataURL('image/png'):null;
    if(!webp.startsWith('data:image/webp;base64,')||poster&&!poster.startsWith('data:image/png;base64,'))throw Error('VIDEO_FRAME_ENCODING_UNAVAILABLE');
    return{webp:webp.slice('data:image/webp;base64,'.length),poster:poster?.slice('data:image/png;base64,'.length)};
-  },{index}));
+  },{index,mediaType,width:info.width,height:info.height}));
   const image=Buffer.from(result.webp,'base64'),header=imageHeader(image);if(header.mediaType!=='image/webp'||header.width!==info.width||header.height!==info.height||image.length>maxPack)throw Error('VIDEO_FRAME_ENCODING_INVALID');
   if(index===0){poster=Buffer.from(result.poster,'base64');const p=imageHeader(poster);if(p.width!==info.width||p.height!==info.height||poster.length>1<<20)throw Error('VIDEO_POSTER_INVALID');}
   if(size+image.length>maxPack)flush();frames.push({index,pts:index/30,duration:1/30,pack:packs.length,offset:size,byteLength:image.length});parts.push(image);size+=image.length;total+=image.length;if(total>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
@@ -120,7 +142,7 @@ export async function captureApprovedWebVideo({outputDir,card,entries,download=d
    derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
   approved(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm,image/gif',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeVideo(output,artifacts,inputs);
 }
 

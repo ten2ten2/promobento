@@ -12,6 +12,7 @@ import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections}
 import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
 import {prepareMaterialSelection} from '../../../research/evals/prepare-material-selection.mjs';
 import {observeProduct,mergeProductObservations} from '../../../research/evals/product-observation.mjs';
+import {openVideoFramePack} from '@promobento/contracts/video-frames';
 import {assertCanvasTextFrameDigests,canvasNumberText} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -921,6 +922,17 @@ try{
    assert.equal(verifiedVideo.manifest.source.mediaType,'video/quicktime');assert.equal(verifiedVideo.manifest.source.sha256,sha256Bytes(readFileSync(movPath)));
    assert.equal(verifiedVideo.manifest.frames.length,60);const pixels=pngPixels(verifiedVideo.poster),at=(32*pixels.width+48)*4;
    assert.ok(pixels.pixels[at+1]>150&&pixels.pixels[at+2]<100,'QuickTime poster preserves the decoded source image');
+   const gifOut=`${mediaTest}/artifacts/animated-video`,gif=await captureApprovedLocalVideo({sourceDir,outputDir:gifOut,card,entries:[animated]});
+   gif.assets[0].review='approved_for_internal_eval_by_codex';gif.assets[0].reviewedAt='2026-10-31';
+   const verifiedGif=(await verifyVideoSelections(gifOut,gif,topics)).get('fixture-animation');
+   assert.equal(verifiedGif.manifest.source.mediaType,'image/gif');assert.equal(verifiedGif.manifest.source.sha256,sha256Bytes(readFileSync(animatedPath)));
+   assert.equal(verifiedGif.manifest.frames.length,30,'one original GIF iteration is sampled at 30 fps');
+   const gifFrames=verifiedGif.manifest.frames,gifFrame=index=>{const frame=gifFrames[index];return openVideoFramePack(verifiedGif.manifest,frame.pack,verifiedGif.packs[frame.pack]).frame(index);};
+   assert.deepEqual(gifFrame(0),gifFrame(14),'the first 0.5 second source frame is held');
+   assert.deepEqual(gifFrame(15),gifFrame(29),'the second 0.5 second source frame is held');
+   assert.notDeepEqual(gifFrame(14),gifFrame(15),'the animation changes at the source frame boundary');
+   assert.equal(prepareMaterialSelection(gifOut,gif,topics,{verifiedVideos:new Map([['fixture-animation',verifiedGif]])})[0].video.manifest.source.mediaType,'image/gif');
+   await assert.rejects(captureApprovedLocalVideo({sourceDir,outputDir:`${mediaTest}/artifacts/not-animated`,card,entries:[artEntries[1]]}),/ANIMATED_FRAME_COUNT_UNSUPPORTED/);
    const verifiedArt=await verifyArtworkSelections(artOut,art,topics);assert.equal(verifiedArt.size,3);
    const decoded=pngPixels(readFileSync(`${artOut}/fixture-icon.png`));assert.deepEqual([decoded.width,decoded.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60);
    const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');

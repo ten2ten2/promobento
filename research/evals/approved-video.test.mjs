@@ -23,6 +23,18 @@ test('QuickTime intake checks exact approval and bytes before decoding or downlo
   await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'web'),card:web,entries:[{...movEntry,sourceUrl,videoUrl}],download}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);assert.equal(calls,1);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
+test('animated GIF collection checks the exact authorization before any download',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.gif-video-approval-test-'));let calls=0;
+ try{
+  const sourceUrl='https://example.com/product',videoUrl='https://cdn.example.com/demo.gif';
+  const asset={id:'fixture-video',sourceUrl,videoUrl,description:'Synthetic animation.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-video'};
+  const approval={status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Synthetic fixture.',sourceUrl,videoUrl,sha256:'a'.repeat(64)};
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'official_product_page',url:sourceUrl}],materialApprovals:{'fixture-video':approval}};
+  const download=async()=>{calls++;return Buffer.from('changed');};
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'denied'),card:{...card,materialApprovals:{}},entries:[asset],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(calls,0);
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'changed'),card,entries:[asset],download}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);assert.equal(calls,1);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
 test('extensionless web video requires an explicitly approved type before download',async()=>{
  const root=mkdtempSync(resolve('artifacts/.web-video-type-test-'));let calls=0;
  try{
