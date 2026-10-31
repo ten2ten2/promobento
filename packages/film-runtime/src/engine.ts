@@ -144,7 +144,7 @@ const engine: FilmEngine = {
   canvasTextProof(){
     if(frame<0||busy||disposed)throw Error('FRAME_NOT_READY');
     return frameLayers(requiredPlan().spec.scenes,frame).flatMap(layer=>{
-      const value=instances.get(layer.id)!;return value.instance.canvasTextProof?[{...value.instance.canvasTextProof(),sceneId:layer.id}]:[];
+      const value=instances.get(layer.id)!,proof=value.instance.canvasTextProof?.();return proof?(Array.isArray(proof)?proof:[proof]).map(item=>({...item,sceneId:layer.id})):[];
     });
   },
   async prepare(input) {
@@ -303,7 +303,7 @@ const engine: FilmEngine = {
     await draw(input.frameIndex);
     const current=requiredPlan(),usesCanvas=current.spec.scenes.some(scene=>isCanvasTextScene(scene));
     const canvasTextTrace=usesCanvas?frameLayers(current.spec.scenes,input.frameIndex).flatMap(layer=>{
-      const value=instances.get(layer.id)!;return value.instance.canvasTextTrace?[{...value.instance.canvasTextTrace(),sceneId:layer.id}]:[];
+      const value=instances.get(layer.id)!,trace=value.instance.canvasTextTrace?.();return trace?(Array.isArray(trace)?trace:[trace]).map(item=>({...item,sceneId:layer.id})):[];
     }):undefined;
     return {...input, event: 'frame-ready' as const, manifestHash: current.manifestHash,...(canvasTextTrace?{canvasTextTrace}:{})};
   },

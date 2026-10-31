@@ -44,7 +44,7 @@ return {
       let f = TY.fit(g, text, titleWidth, S0, family, { maxLines: 1, min: 0.55, soft: true });   // 先缩字号放一行，再不行折两行；单个长英文词再缩也要放得下
       if (!f.ok) f = num ? TY.fit(g, text, titleWidth, S0, family, { maxLines: 1 })   // 数字不折行（滚动时逐字变宽，折开会跳）：只缩字号
                      : TY.fit(g, text, titleWidth, S0, family, { maxLines: 2, min: 0.3, balance: true });
-      const sf = q.sub ? TY.fit(g, q.sub, W * 0.86, (ctx.portrait ? 64 : 80) * u, 'PuHui-Heavy', { maxLines: 2, min: 0.6, balance: true }) : null;   // 辅句：放不下先缩、再折两行
+      const sf = q.sub ? TY.fit(g, q.sub, ctx.data.safeSubtitle?(W-ctx.safe.left-ctx.safe.right)*.86:W * 0.86, (ctx.portrait ? 64 : 80) * u, ctx.subtitleFontFamily || 'PuHui-Heavy', { maxLines: 2, min: 0.6, balance: true }) : null;   // 辅句：放不下先缩、再折两行
       const show = num ? q.at - 0.7 : q.at;
       return { q, i, num, nd, text, f, sf, show, col: pal[i % pal.length] };
     });
@@ -114,7 +114,8 @@ function drawPage(c, P, t, ctx) {
   lines.forEach((ln, i) => {
     let s = ln; if (P.num) { const k = MO.expoOut(clamp(lt / 0.7)); s = ctx.data.safeNumber ? canvasNumberText(P.text,Math.round(t*30)) : (P.nd.prefix || '') + TY.fmt((P.nd.value || 0) * k, P.nd.decimals ?? 0) + (P.nd.suffix || ''); }
     const w = TY.width(c, s, size, ctx.fontFamily || 'PuHui-Black'), x = textCenter - w / 2, y = y0 + i * lh;
-    TY.slam(c, s, x, y, lt - (ctx.data.boundTogether ? 0 : i * 0.08), { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
+    const slam=()=>TY.slam(c, s, x, y, lt - (ctx.data.boundTogether ? 0 : i * 0.08), { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
+    if(ctx.textPart)ctx.textPart('title',slam);else slam();
     if (lt - i * 0.08 > 0) CLIP.mark(c, CLIP.rid('word', pi), x, y - size * 0.88, w, size * 1.0);
     for (const k of (knock || []).filter(k => k.i === i)) {             // 只在荧光笔那块平行四边形里，用底色再砸一遍同一行（和 TY.marker 同一形状）
       const [mx, my, mw, mh, mp] = k.mr, ww = mw * MO.expoOut(clamp(mp)), sk = mh * 0.18;
@@ -123,10 +124,11 @@ function drawPage(c, P, t, ctx) {
     }
   });
   if (sub) subL.forEach((ln, k) => {                                      // 辅句（可两行）；data.key 那个词用强调色
-    const sw = TY.width(c, ln, subSz, 'PuHui-Heavy'), sy = y0 + (lines.length - 1) * lh + subSz * (1.7 + k * 1.15), sp = MO.at(lt, 0.35 + k * 0.08, 0.35), so = { size: subSz, fam: 'PuHui-Heavy', color: fg, ...(ctx.alpha ? { stroke: '#111', strokeW: subSz * 0.08 } : {}) };
-    const key = q.data && q.data.key, ki = key ? ln.indexOf(key) : -1, x0 = W / 2 - sw / 2;
+    const family=ctx.subtitleFontFamily || 'PuHui-Heavy';
+    const sw = TY.width(c, ln, subSz, family), sy = y0 + (lines.length - 1) * lh + subSz * (1.7 + k * 1.15), sp = MO.at(lt, 0.35 + k * 0.08, 0.35), so = { size: subSz, fam: family, color: fg, ...(ctx.alpha ? { stroke: '#111', strokeW: subSz * 0.08 } : {}) };
+    const key = q.data && q.data.key, ki = key ? ln.indexOf(key) : -1, x0 = (ctx.data.safeSubtitle?textCenter:W / 2) - sw / 2;
     if (sp > 0) CLIP.mark(c, CLIP.rid('sub', pi), x0, sy - subSz * 0.9, sw, subSz * 1.15);
-    if (ki < 0) return TY.rise(c, ln, x0, sy, sp, so);
+    if (ki < 0) {const rise=()=>TY.rise(c, ln, x0, sy, sp, so);return ctx.textPart?ctx.textPart('subtitle',rise):rise();}
     const pre = ln.slice(0, ki), post = ln.slice(ki + key.length), wp = TY.width(c, pre, subSz, 'PuHui-Heavy'), wk = TY.width(c, key, subSz, 'PuHui-Heavy');
     if (pre) TY.rise(c, pre, x0, sy, sp, so); TY.rise(c, key, x0 + wp, sy, sp, { ...so, color: ctx.alpha ? '#FFD23F' : accentOf(P.col) }); if (post) TY.rise(c, post, x0 + wp + wk, sy, sp, so);
   });

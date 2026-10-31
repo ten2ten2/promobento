@@ -5,7 +5,7 @@ import {assertCanvasNumber} from '../src/canvas-title-validate.ts';
 
 const calls=[];
 globalThis.window={__pbTakeCanvasText:()=>function(text,x,y){calls.push({text,x,y});}};
-const {boundCanvasTitle}=await import('../src/canvas-title.ts');
+const {boundCanvasTitle,boundCanvasPair}=await import('../src/canvas-title.ts');
 delete globalThis.window;
 
 const context=()=>({textAlign:'left',textBaseline:'alphabetic',font:'40px "Fixture"',letterSpacing:'0px',globalAlpha:1,
@@ -28,6 +28,18 @@ test('wrapped Canvas text cannot reorder, omit or add words or change line typog
  }
  const ctx=context(),bound=boundCanvasTitle(ctx,'LEARN A LITTLE',trace());bound.canvas.fillText('LEARN A',0,0);ctx.font='41px "Fixture"';
  assert.throws(()=>bound.canvas.fillText('LITTLE',0,50),/CANVAS_TEXT_LAYOUT_UNSUPPORTED/);
+});
+
+test('two Canvas slots cannot exchange text or draw outside the fixed grammar boundary',()=>{
+ calls.length=0;const a=trace(),b=trace(),pair=boundCanvasPair(context(),{title:'AB',subtitle:'CD'},{title:a,subtitle:b});
+ pair.tag('title',()=>pair.canvas.fillText('AB',0,40));pair.tag('subtitle',()=>pair.canvas.fillText('CD',0,90));pair.finish();
+ assert.deepEqual(calls.map(call=>call.text),['AB','CD']);assert.equal(a.boxes.length,2);assert.equal(b.boxes.length,2);
+ const masked=boundCanvasPair(context(),{title:'AB',subtitle:'CD'},{title:null,subtitle:trace()});
+ masked.tag('title',()=>masked.canvas.fillText('AB',0,40));masked.tag('subtitle',()=>masked.canvas.fillText('CD',0,90));masked.finish();
+ assert.deepEqual(calls.map(call=>call.text),['AB','CD','CD']);
+ const bad=boundCanvasPair(context(),{title:'AB',subtitle:'CD'},{title:trace(),subtitle:trace()});
+ assert.throws(()=>bad.canvas.fillText('AB',0,40),/CANVAS_TEXT_BINDING_MISMATCH/);
+ assert.throws(()=>bad.tag('subtitle',()=>bad.canvas.fillText('AB',0,40)),/CANVAS_TEXT_BINDING_MISMATCH/);
 });
 
 test('a title highlight has an explicit readable hold and leaves old title timing unchanged',()=>{

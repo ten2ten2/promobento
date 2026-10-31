@@ -61,3 +61,18 @@ test('only plan-bound, actual-frame Canvas proof can become a readable text obse
  const fallback=run(withText,[proof],plan,new Map([['title',[{familyName:'Fallback',isCustomFont:false,glyphCount:2}]]]));
  assert.ok(fallback.findings.some(item=>item.code==='FONT_FALLBACK_USED'&&item.severity==='BLOCK'));
 });
+
+test('two Canvas slots in one scene require independent actual-pixel and font evidence',()=>{
+ const width=12,height=8,base=new Uint8Array(width*height*4).fill(255),ink=new Uint8Array(base),titleless=new Uint8Array(base),subless=new Uint8Array(base);
+ const paint=(data,x,y)=>{const i=(y*width+x)*4;data[i]=data[i+1]=data[i+2]=0;};
+ for(const x of [2,6]){paint(ink,x,2);paint(ink,x,5);paint(titleless,x,5);paint(subless,x,2);}
+ const png=bytes=>Buffer.from(pngRgba(width,height,bytes)),actual=png(ink),url=bytes=>'data:image/png;base64,'+png(bytes).toString('base64');
+ const plan={target:{width,height,aspect:'landscape',safeInsets:{left:0,right:0,top:0,bottom:0}},fonts:[{fontId:'display',weight:700,style:'normal',codePoints:[65,66]},{fontId:'body',weight:400,style:'normal',codePoints:[67,68]}],
+  spec:{totalFrames:450,scenes:[{id:'intro',kind:'block',block:'canvas-subtitle@1',start:0,end:450,params:{textSlot:'title',subtitleSlot:'sub'}}],texts:{title:{text:'AB',role:'headline',factIds:['first']},sub:{text:'CD',role:'body',factIds:['second']}},style:{type:{display:{fontId:'display',weight:700},text:{fontId:'body',weight:400}}}}};
+ const proof=(slotId,text,fontId,weight,y,without)=>({sceneId:'intro',slotId,text,fontId,weight,style:'normal',fontSize:40,alpha:1,boxes:[{x:2,y,width:1,height:1},{x:6,y,width:1,height:1}],withText:url(ink),withoutText:url(without)});
+ const proofs=[proof('title','AB','display',700,2,titleless),proof('sub','CD','body',400,5,subless)],traces=proofs.map(({withText,withoutText,...trace})=>trace);
+ const fontsByScene=new Map([['intro\0title',[{familyName:'Display',isCustomFont:true,glyphCount:2}]],['intro\0sub',[{familyName:'Body',isCustomFont:true,glyphCount:2}]]]);
+ const input={plan,frame:45,proofs,traces,fontsByScene,actual,observation:{texts:[],regions:[],findings:[]}},result=appendCanvasTextObservations(input);
+ assert.deepEqual(result.texts.map(text=>[text.slotId,text.text,text.fonts[0].family]),[['title','AB','Display'],['sub','CD','Body']]);assert.deepEqual(result.findings,[]);
+ assert.throws(()=>appendCanvasTextObservations({...input,proofs:[proofs[0]],observation:{texts:[],regions:[],findings:[]}}),/CANVAS_TEXT_PROOF_MISSING/);
+});

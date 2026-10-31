@@ -4,7 +4,7 @@
 import {createGrammar} from './grammars/index.js';
 import {createClipHelpers} from './helpers.js';
 
-export function createClipStage(spec,{width:W,height:H,images={},fontFamily}){
+export function createClipStage(spec,{width:W,height:H,images={},fontFamily,subtitleFontFamily,textPart}){
  if(!spec||typeof spec!=='object'||!Number.isFinite(spec.duration)||spec.duration<=0||spec.duration>30
   ||spec.fps!==undefined&&spec.fps!==30||![W,H].every(n=>Number.isInteger(n)&&n>0&&n<=4096)
   ||!Array.isArray(spec.cues)||!spec.data||typeof spec.data!=='object'||Array.isArray(spec.data))throw Error('CLIP_SPEC_INVALID');
@@ -38,7 +38,7 @@ export function createClipStage(spec,{width:W,height:H,images={},fontFamily}){
    if(old){x0=Math.min(x0,old[0]);y0=Math.min(y0,old[1]);x1=Math.max(x1,old[0]+old[2]);y1=Math.max(y1,old[1]+old[3]);}
    hits.set(id,[x0,y0,x1-x0,y1-y0]);}
  };
- const ctx={spec,data:spec.data,theme:spec.theme||{},cues,W,H,FPS:30,u:Math.min(W,H)/1080,portrait:H>W,alpha:!!spec.alpha,IMG:images,...(fontFamily?{fontFamily}:{}),
+ const ctx={spec,data:spec.data,theme:spec.theme||{},cues,W,H,FPS:30,u:Math.min(W,H)/1080,portrait:H>W,alpha:!!spec.alpha,IMG:images,...(fontFamily?{fontFamily}:{}),...(subtitleFontFamily?{subtitleFontFamily}:{}),...(textPart?{textPart}:{}),
   dur:spec.duration,safe,box:{x:safe.left,y:safe.top,w:W-safe.left-safe.right,h:H-safe.top-safe.bottom},
   of:(...kinds)=>cues.filter(q=>kinds.includes(q.kind)),lt:(t,at)=>clip.lt(t,at,30),p:(t,at,d)=>clip.p(t,at,d,30)};
  const grammar=createGrammar(spec.grammar,clip);

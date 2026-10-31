@@ -143,6 +143,7 @@ jobs:
             artifacts/film-runtime/canvas-title-*.png
             artifacts/film-runtime/canvas-highlight-*.png
             artifacts/film-runtime/canvas-number-*.png
+            artifacts/film-runtime/canvas-subtitle-*.png
             artifacts/film-runtime/canvas-wrapped-*.png
             artifacts/film-runtime/canvas-sequence-*.png
             artifacts/film-runtime/whiteboard-clip-*.png
@@ -154,6 +155,15 @@ jobs:
             artifacts/film-runtime/vox-focus-*.png
             artifacts/film-runtime/vox-plain-*.png
             artifacts/film-runtime/asset-check.json
+      - name: Retain compact Canvas frames for visual inspection
+        if: always() && (github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: canvas-text-review
+          if-no-files-found: ignore
+          path: |
+            artifacts/film-runtime/canvas-number-*.png
+            artifacts/film-runtime/canvas-subtitle-*.png
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
         shell: bash

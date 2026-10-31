@@ -1,5 +1,5 @@
 import type {Json} from './pipeline-types.ts';
-import {assertCanvasTitle,assertCanvasNumber} from '../../../packages/blocks/src/canvas-title-validate.ts';
+import {assertCanvasTitle,assertCanvasNumber,assertCanvasSubtitle} from '../../../packages/blocks/src/canvas-title-validate.ts';
 
 /** Keep new template choices out of older frozen methods and video-led previews. */
 export function supportsVoxClip(method:Json|null,resources:Json[]):boolean{
@@ -27,13 +27,19 @@ export function supportsCanvasNumber(method:Json|null,context:Json):boolean{
  if(method?.id!=='product-directing'||!(major>1||major===1&&minor>=43)||!font)return false;
  return (context.facts??[]).some((fact:Json)=>{try{assertCanvasNumber(fact.text,'number',font.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
 }
+export function supportsCanvasSubtitle(method:Json|null,context:Json):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number),font=context.fonts?.[0];
+ if(method?.id!=='product-directing'||!(major>1||major===1&&minor>=44)||!font)return false;
+ const facts=(context.facts??[]).filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',font.style);assertCanvasSubtitle(fact.text,'body',font.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
+ return new Set(facts.map((fact:Json)=>fact.id)).size>=2;
+}
 
 /** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
 export function directionHero(card:Json,context:Json,index:number):Json{
  const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','hook-title','kinetic-title','cta-endcard','captions'];
+ const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','canvas-subtitle','hook-title','kinetic-title','cta-endcard','captions'];
  const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
  const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':'ui-journey'):
   proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip'].includes(id))??
@@ -61,6 +67,11 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  else if(block==='canvas-number'){
   const fact=facts.find((item:Json)=>{try{assertCanvasNumber(item.text,'number',face.style);return context.confirmedFactIds?.includes(item.id);}catch{return false;}});
   if(!fact)throw Error('CANVAS_NUMBER_FACT_REQUIRED');params={textSlot:text('number',fact,'number')};
+ }
+ else if(block==='canvas-subtitle'){
+  const eligible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);assertCanvasSubtitle(fact.text,'body',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});
+  const second=eligible.find((fact:Json)=>fact.id!==eligible[0]?.id);if(!second)throw Error('CANVAS_SUBTITLE_FACT_REQUIRED');
+  params={textSlot:text('headline',eligible[0]),subtitleSlot:text('supporting',second,'body')};
  }
  else if(block==='canvas-sequence'){
   const admissible=facts.filter((fact:Json)=>{try{assertCanvasTitle(fact.text,'headline',face.style);return context.confirmedFactIds?.includes(fact.id);}catch{return false;}});

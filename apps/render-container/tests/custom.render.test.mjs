@@ -277,6 +277,25 @@ try{
    }finally{await session.close();}
   }
   report.canvasNumber='original_y5_count_bound_each_frame_to_confirmed_number_landscape_portrait';
+  const pairFilm=structuredClone(canvasFilm);pairFilm.texts={title:{text:'HELLO',role:'headline',factIds:['first']},sub:{text:'WORLD',role:'body',factIds:['second']}};
+  pairFilm.style.type.text={fontId:'geist-mono',weight:400};pairFilm.scenes[0].block='canvas-subtitle@1';pairFilm.scenes[0].params={textSlot:'title',subtitleSlot:'sub'};
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]),installed=catalog.fonts.find(item=>item.fontId==='geist-mono'&&item.weight===400);
+   options.resources=[];options.fonts=[...multiOptions.fonts,{fontId:'geist-mono',weight:400,style:'normal',licenseRef:installed.licenseRef,rightsCleared:true,codePoints:installed.codePoints}];options.confirmedFactIds=['first','second'];
+   const session=await filmSession({raw:JSON.stringify(pairFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    for(const frame of [0,10,20,45]){await session.frame(frame,{format:'png'});const traces=session.canvasTextTrace(frame);
+     assert.deepEqual(traces.map(trace=>[trace.slotId,trace.text,trace.fontId]),[['title','HELLO','geist-sans'],['sub','WORLD','geist-mono']]);}
+    const settled=await session.capturePng(45),observation=await session.observe('canvas-pair-check',45);
+    assert.ok(observation.texts.some(text=>text.slotId==='title'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(observation.texts.some(text=>text.slotId==='sub'&&text.text==='WORLD'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(observation.regions.some(region=>region.regionId==='title')&&observation.regions.some(region=>region.regionId==='sub'));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    await session.frame(80,{format:'png'});assert.equal(compareSeam(settled,await session.frame(45,{format:'png'})).verdict,'pass');
+    writeFileSync(`${output}/canvas-subtitle-${aspect}.png`,settled);
+   }finally{await session.close();}
+  }
+  report.canvasSubtitle='independent_exact_slots_fonts_and_actual_pixel_proofs_landscape_portrait';
   const markedFilm=structuredClone(canvasFilm);markedFilm.scenes[0].params.highlightFrame=45;
   const unmarkedFilm=structuredClone(markedFilm);delete unmarkedFilm.scenes[0].params.highlightFrame;
   for(const aspect of ['landscape','portrait']){
@@ -476,6 +495,30 @@ try{
   assert.equal(sha256Bytes(seqBytes),seqReceipt.outputs.frameDigests);assertCanvasTextFrameDigests(sequenceFilm,seqShard,'final',seqRecords);
   assert.ok(seqRecords.every(record=>record.canvasText[0].slotId===(record.frame<120?'first':'second')));
   report.canvasSequenceShard='receipt_bound_traces_across_original_wipe';
+
+  const numberOptions=pageOptions('landscape',rules.aspectLayouts.landscape);numberOptions.resources=[];numberOptions.fonts=multiOptions.fonts;numberOptions.confirmedFactIds=['confirmed-number'];
+  const numberShard={index:0,start:0,end:30},numberDir=`${output}/canvas-number-shard`;
+  const numberReceipt=await renderShard({job:shardJob,shard:numberShard,raw:JSON.stringify(numberFilm),options:numberOptions,font,
+   resource:()=>{throw Error('UNEXPECTED_RESOURCE');},directory:numberDir,browserVersion:lock.browser.version,
+   imageDigest:process.env.PROMOBENTO_TEST_IMAGE_DIGEST,encoding:rules.encodingProfiles.mp4_h264_1080_v1,threads:2,killBrowser});
+  const numberBytes=readFileSync(`${numberDir}/frame-digests.json`),numberRecords=JSON.parse(numberBytes);
+  assert.equal(sha256Bytes(numberBytes),numberReceipt.outputs.frameDigests);assertCanvasTextFrameDigests(numberFilm,numberShard,'final',numberRecords);
+  assert.ok(numberRecords.every(record=>record.canvasText[0].text===canvasNumberText(numberFilm.texts.number.text,record.frame)));
+  report.canvasNumberShard='receipt_bound_exact_count_value_at_each_encoded_frame';
+
+  const pairOptions=pageOptions('landscape',rules.aspectLayouts.landscape),bodyFont=catalog.fonts.find(item=>item.fontId==='geist-mono'&&item.weight===400);
+  pairOptions.resources=[];pairOptions.fonts=[...multiOptions.fonts,{fontId:'geist-mono',weight:400,style:'normal',licenseRef:bodyFont.licenseRef,rightsCleared:true,codePoints:bodyFont.codePoints}];pairOptions.confirmedFactIds=['first','second'];
+  const pairDir=`${output}/canvas-subtitle-shard`;
+  const pairReceipt=await renderShard({job:shardJob,shard,raw:JSON.stringify(pairFilm),options:pairOptions,font,
+   resource:()=>{throw Error('UNEXPECTED_RESOURCE');},directory:pairDir,browserVersion:lock.browser.version,
+   imageDigest:process.env.PROMOBENTO_TEST_IMAGE_DIGEST,encoding:rules.encodingProfiles.mp4_h264_1080_v1,threads:2,killBrowser});
+  const pairBytes=readFileSync(`${pairDir}/frame-digests.json`),pairRecords=JSON.parse(pairBytes);
+  assert.equal(sha256Bytes(pairBytes),pairReceipt.outputs.frameDigests);assertCanvasTextFrameDigests(pairFilm,shard,'final',pairRecords);
+  assert.ok(pairRecords.every(record=>record.canvasText.length===2));
+  const pairObservations=JSON.parse(readFileSync(`${pairDir}/observations.json`));
+  assert.ok(pairObservations.some(item=>item.frame===45&&item.texts.some(text=>text.text==='HELLO')&&item.texts.some(text=>text.text==='WORLD')));
+  assert.ok(pairObservations.every(item=>!item.findings.some(finding=>finding.severity==='BLOCK')));
+  report.canvasSubtitleShard='receipt_bound_two_slots_and_independent_actual_pixel_proofs';
 
   const rigFilm=filmFixture(),rigOptions=pageOptions('portrait',rules.aspectLayouts.portrait);
   rigFilm.assets={};rigFilm.scenes=[{id:'rig',kind:'custom',module:'scenes/rig/index.js',start:0,end:450,

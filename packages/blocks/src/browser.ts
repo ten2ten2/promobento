@@ -11,6 +11,7 @@ import {createClipStage} from '../../film-runtime/src/clip/stage.js';
 import {boundCanvasTitle,type CanvasTitleTrace} from './canvas-title.ts';
 import {assertCanvasTitle,assertCanvasNumber} from './canvas-title-validate.ts';
 import {canvasNumberText,parseCanvasNumber} from '@promobento/contracts/canvas-text';
+import './canvas-subtitle.ts';
 
 const node = (parent: HTMLElement, css: Partial<CSSStyleDeclaration>): HTMLDivElement => {
   const element = document.createElement('div'); Object.assign(element.style, css); parent.append(element); return element;

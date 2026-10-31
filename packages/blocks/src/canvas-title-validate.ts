@@ -7,6 +7,10 @@ export function assertCanvasTitle(text:string,role:string,style?:string):void{
   ||/[\p{M}\p{Cf}\p{Cc}\u1100-\u11ff\ua960-\ua97f\ud7b0-\ud7ff\u{1f1e6}-\u{1f1ff}\u{1f3fb}-\u{1f3ff}]/u.test(text))throw Error('CANVAS_TITLE_TEXT_UNSUPPORTED');
  if((style??'normal')!=='normal')throw Error('CANVAS_TITLE_FONT_UNSUPPORTED');
 }
+export function assertCanvasSubtitle(text:string,role:string,style?:string):void{
+ if(role!=='body')throw Error('CANVAS_SUBTITLE_TEXT_UNSUPPORTED');
+ assertCanvasTitle(text,'headline',style);
+}
 
 /** A count can only animate one confirmed, exactly formatted value. */
 export function assertCanvasNumber(text:string,role:string,style?:string):void{

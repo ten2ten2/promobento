@@ -9,6 +9,10 @@ export function blockEvents(id, frames, params) {
     if(duration<90)throw Error('CANVAS_NUMBER_READING_HOLD_MISSING');
     return [{name:'number-land',frame:30}];
   }
+  if(id==='canvas-subtitle'){
+    if(duration<120)throw Error('CANVAS_SUBTITLE_READING_HOLD_MISSING');
+    return [{name:'title-land',frame:30}];
+  }
   if(id==='canvas-title'&&params.highlightFrame!==undefined){
     if(!Number.isInteger(params.highlightFrame)||params.highlightFrame<36||params.highlightFrame>360||params.highlightFrame+30>=duration)throw Error('CANVAS_HIGHLIGHT_READING_HOLD_MISSING');
     return [{name:'title-land',frame:30},{name:'highlight-land',frame:params.highlightFrame+18}];
@@ -125,7 +129,7 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='canvas-title@1'&&scene.params.highlightFrame!==undefined)return [0,scene.params.highlightFrame,scene.params.highlightFrame+18,scene.end-scene.start-1]
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
-  if(['continuous-focus@1','kinetic-title@1','canvas-title@1','canvas-number@1','drawn-steps@1'].includes(scene.block)){
+  if(['continuous-focus@1','kinetic-title@1','canvas-title@1','canvas-number@1','canvas-subtitle@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;
    return [0,6,Math.floor(span/4),Math.floor(span/2),Math.floor(span*3/4),span-1]
     .map(frame=>Math.floor((scene.start+Math.min(span-1,frame))/stride)*stride);

@@ -41,6 +41,6 @@ v2 视频指纹按画幅、固定布局/编码、源、资源、声音、运行�
 
 内部渲染入口为 `./film-source`（规范 FilmSpec 文件身份）、`./render`（任务/分段语义）及 `./seams`（可信 CDP PNG 解析、受限 RGBA 编码与原像素容差）；产品 Composition 使用 `./film-composition`。私有任务结构也由 `render-job` 预编译验证器覆盖；单个 filmSourceHash 只是产品身份的一部分，不替代完整 Composition/订单身份。
 
-`./canvas-text` 按冻结 FilmSpec 检查受限 Canvas 标题和数字的逐编码帧文字轨迹；数字过渡帧由冻结数值和帧号计算，可见性仍须由渲染器检查实际阅读帧。`./studio-runtime` 识别受限 3D 舞台版本，供页面和渲染资源规划共用；它不授予素材或执行权限。
+`./canvas-text` 按冻结 FilmSpec 检查受限 Canvas 标题、辅句和数字的逐编码帧文字轨迹；数字过渡帧由冻结数值和帧号计算，可见性仍须由渲染器检查实际阅读帧。`./studio-runtime` 识别受限 3D 舞台版本，供页面和渲染资源规划共用；它不授予素材或执行权限。
 
 自写镜头另传 `customSources: Record<modulePath, sourceText>` 给 `createFilmComposition`/`filmBuildReceipt` 和对应检查 context。`./custom-source` 仅以 Acorn 解析源码，检查注册、引用和明确禁用项，按词法作用域区分受限全局与同名局部变量，不执行作者代码；真实执行与隔离见[运行时](../film-runtime/README.md)。完整源身份覆盖 `film.json` 与全部声明模块的原始字节，纯积木调用方式和既有身份不变。

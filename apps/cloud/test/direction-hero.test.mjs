@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -19,6 +19,15 @@ test('a number hero uses the exact confirmed numeric fact, not a decorated or in
  assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),opts));
  assert.equal(supportsCanvasNumber(method,{...numeric,facts:[{id:'count',text:'123%'}]}),true);
  assert.equal(supportsCanvasNumber(method,{...numeric,facts:[{id:'count',text:'+123%'}]}),false);
+});
+
+test('a two-slot Canvas hero uses two exact confirmed facts',()=>{
+ const confirmed={...context,facts:[{id:'first',text:'HELLO'},{id:'second',text:'WORLD'}],confirmedFactIds:['first','second']},method={id:'product-directing',version:'1.44.0'};
+ assert.equal(supportsCanvasSubtitle(method,confirmed),true);assert.equal(supportsCanvasSubtitle({...method,version:'1.43.0'},confirmed),false);
+ const film=directionHero({...card,skeleton:[{approach:'block:canvas-subtitle'}]},confirmed,0);
+ assert.equal(film.scenes[0].block,'canvas-subtitle@1');assert.deepEqual(film.texts.supporting,{text:'WORLD',role:'body',factIds:['second']});
+ const opts=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});opts.resources=[];opts.confirmedFactIds=['first','second'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),opts));
 });
 
 test('compact direction heroes prefer the proposed product shot over a paragraph grid and keep the real primary image',()=>{

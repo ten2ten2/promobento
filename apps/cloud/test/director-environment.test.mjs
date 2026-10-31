@@ -92,11 +92,13 @@ test('Canvas title preflight requires an actual readable observation for the exa
  const op={id:'health-operation',generation:0};db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
  const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,confirmedFactIds:['confirmed-number']};
- let probes=0,closes=0,taskId,film,blocked=false,blockedFrame=-1;
+ let probes=0,closes=0,taskId,film,blocked=false,blockedFrame=-1,missingSupport=false;
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
-  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.ok(['canvas-title@1','canvas-sequence@1','canvas-number@1'].includes(film.scenes[0].block));if(film.scenes[0].block==='canvas-sequence@1')assert.deepEqual(task.job.frames,[45,165]);if(film.scenes[0].block==='canvas-number@1')assert.deepEqual(task.job.frames,[0,45]);if(film.scenes[0].params.highlightFrame!==undefined)assert.deepEqual(task.job.frames,[45,film.scenes[0].params.highlightFrame+24]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.ok(['canvas-title@1','canvas-sequence@1','canvas-number@1','canvas-subtitle@1'].includes(film.scenes[0].block));if(film.scenes[0].block==='canvas-sequence@1')assert.deepEqual(task.job.frames,[45,165]);if(film.scenes[0].block==='canvas-number@1')assert.deepEqual(task.job.frames,[0,45]);if(film.scenes[0].params.highlightFrame!==undefined)assert.deepEqual(task.job.frames,[45,film.scenes[0].params.highlightFrame+24]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
-  async checkFrame(_id,frame){const slotId=film.scenes[0].block==='canvas-sequence@1'?(frame<120?'headline-0':'headline-1'):'headline',bad=blocked||frame===blockedFrame;const text={slotId,sceneId:'health',text:film.texts[slotId].text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:bad,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:bad?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
+  async checkFrame(_id,frame){const slotId=film.scenes[0].block==='canvas-sequence@1'?(frame<120?'headline-0':'headline-1'):'headline',bad=blocked||frame===blockedFrame;const text={slotId,sceneId:'health',text:film.texts[slotId].text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:bad,covered:false};
+   const supporting=film.scenes[0].block==='canvas-subtitle@1'&&!missingSupport?[{...text,slotId:'supporting',text:film.texts.supporting.text}]:[];
+   return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text,...supporting],regions:[],findings:bad?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
   async closeStudio(){closes++;}
  };}}};
  const check=(text,factIds=[])=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],text,factIds});
@@ -115,6 +117,9 @@ test('Canvas title preflight requires an actual readable observation for the exa
  const sequence=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],...pages[0],pages});
  await sequence();await sequence();assert.equal(probes,9,'sequence preflights each actual page once per exact input');
  blocked=true;pages[1]={...pages[1],text:'OTHER'};await assert.rejects(sequence(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);
+ blocked=false;context.fonts.push({fontId:'body-fixture',weight:400,style:'normal',licenseRef:'fixture-body',rightsCleared:true});
+ const subtitle=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],text:'HELLO',factIds:['confirmed-number'],subtitle:{...context.fonts[1],text:'WORLD',factIds:['confirmed-number']}});
+ missingSupport=true;await assert.rejects(subtitle(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);missingSupport=false;await subtitle();assert.equal(film.texts.supporting.text,'WORLD');assert.equal(film.style.type.text.fontId,'body-fixture');
 
 });
 

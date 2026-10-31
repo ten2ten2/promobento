@@ -3,7 +3,7 @@ import {fillBoundCanvasText} from './private-canvas-text.ts';
 export interface GlyphBox {x:number;y:number;width:number;height:number}
 export interface CanvasTitleTrace {boxes:GlyphBox[];fontSize:number;alpha:number;draws:number;font:string;letterSpacing:string}
 
-/** Only the fixed original y5 title and bound-number paths receive this proxy. */
+/** Only fixed original y5 text paths receive this proxy. */
 export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:string,trace:CanvasTitleTrace|null){
  let remaining=expected,draws=0;
  const canvas=new Proxy(context,{
@@ -42,4 +42,21 @@ export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:strin
   set(target,key,value){return Reflect.set(target,key,value,target);}
  });
  return{canvas,finish(){if(!draws||remaining.trim())throw Error('CANVAS_TEXT_BINDING_MISMATCH');}};
+}
+
+/** Routes fixed grammar text calls to their own declared slot; all other drawing stays shared. */
+export function boundCanvasPair(context:CanvasRenderingContext2D,expected:{title:string;subtitle:string},traces:{title:CanvasTitleTrace|null;subtitle:CanvasTitleTrace|null}){
+ const parts={title:boundCanvasTitle(context,expected.title,traces.title),subtitle:boundCanvasTitle(context,expected.subtitle,traces.subtitle)};
+ let current:'title'|'subtitle'|undefined;
+ const canvas=new Proxy(context,{
+  get(target,key){
+   if(key==='fillText')return (...args:Parameters<CanvasRenderingContext2D['fillText']>)=>{
+    if(!current)throw Error('CANVAS_TEXT_BINDING_MISMATCH');return parts[current].canvas.fillText(...args);
+   };
+   const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
+  },
+  set(target,key,value){return Reflect.set(target,key,value,target);}
+ });
+ return{canvas,tag(part:'title'|'subtitle',draw:()=>void){if(current||!Object.hasOwn(parts,part))throw Error('CANVAS_TEXT_BINDING_MISMATCH');current=part;try{draw();}finally{current=undefined;}},
+  finish(){parts.title.finish();parts.subtitle.finish();}};
 }

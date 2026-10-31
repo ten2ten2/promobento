@@ -46,3 +46,17 @@ test('sequence traces and bindings switch exactly on each declared page',async()
  assert.deepEqual(filmTextBindings(spec).map(({slotId,frameStart,frameEndExclusive})=>({slotId,frameStart,frameEndExclusive})),
   [{slotId:'a',frameStart:10,frameEndExclusive:130},{slotId:'b',frameStart:130,frameEndExclusive:310}]);
 });
+
+test('a single Canvas scene binds headline and subtitle separately to their own fonts',()=>{
+ const scene={id:'intro',kind:'block',block:'canvas-subtitle@1',start:0,end:150,params:{textSlot:'title',subtitleSlot:'sub'}};
+ const spec={totalFrames:450,scenes:[scene],texts:{title:{text:'AB',role:'headline',factIds:['first']},sub:{text:'CD',role:'body',factIds:['second']}},style:{type:{display:{fontId:'display',weight:700},text:{fontId:'body',weight:400}}}};
+ const trace=(slotId,text,fontId,weight)=>({sceneId:'intro',slotId,text,fontId,weight,style:'normal',boxes:[{x:1,y:1,width:2,height:3},{x:4,y:1,width:2,height:3}],fontSize:40,alpha:1});
+ const title=trace('title','AB','display',700),sub=trace('sub','CD','body',400);
+ assert.doesNotThrow(()=>assertCanvasTextTrace(spec,45,[title,sub]));
+ assert.throws(()=>assertCanvasTextTrace(spec,45,[title]),/CANVAS_TEXT_TRACE_MISSING/);
+ assert.throws(()=>assertCanvasTextTrace(spec,45,[title,{...sub,fontId:'display'}]),/CANVAS_TEXT_TRACE_INVALID/);
+ assert.throws(()=>assertCanvasTextTrace(spec,45,[title,{...sub,slotId:'title'}]),/CANVAS_TEXT_TRACE_MISSING/);
+ const records=[{frame:0,sha256:'a'.repeat(64),canvasText:[title,sub]},{frame:2,sha256:'b'.repeat(64),canvasText:[title,sub]}];
+ assert.doesNotThrow(()=>assertCanvasTextFrameDigests(spec,{start:0,end:4},'review',records));
+ assert.throws(()=>assertCanvasTextFrameDigests(spec,{start:0,end:4},'review',[records[0],{...records[1],canvasText:[title]}]),/CANVAS_TEXT_TRACE_MISSING/);
+});

@@ -174,8 +174,8 @@ export interface BlockInstance {
   timeline?: GsapTimelineLike;
   events: ReadonlyArray<SceneEvent>;
   regions: ReadonlyArray<SceneRegion>;
-  canvasTextProof?(): CanvasTextProof;
-  canvasTextTrace?(): CanvasTextTrace;
+  canvasTextProof?(): CanvasTextProof | CanvasTextProof[];
+  canvasTextTrace?(): CanvasTextTrace | CanvasTextTrace[];
   /** Release scene-owned textures, geometries, contexts and other resources. */
   dispose?(): void | Promise<void>;
 }

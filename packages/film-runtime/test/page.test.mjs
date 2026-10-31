@@ -90,6 +90,15 @@ test('the original Canvas counter requires a confirmed bounded number and comple
  const mixedOpts=options();mixedOpts.resources=[];mixedOpts.customSources=mixed.sources;
  assert.throws(()=>make(mixed.film,mixedOpts),/CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED/);
 });
+test('an original Canvas title and subtitle have separate confirmed slots and font faces',()=>{
+ const film=filmFixture();film.assets={};film.texts={title:{text:'HELLO',role:'headline',factIds:['fixture-cta']},sub:{text:'Real product',role:'body',factIds:['fixture-cta']}};
+ film.style.type.text={fontId:'body-fixture',weight:400};film.scenes=[{id:'intro',start:0,end:450,kind:'block',block:'canvas-subtitle@1',params:{textSlot:'title',subtitleSlot:'sub'},purpose:'Two confirmed text slots.'}];
+ const opts=options();opts.resources=[];opts.fonts.push({fontId:'body-fixture',weight:400,style:'normal',licenseRef:'fixture-body',rightsCleared:true});
+ const page=make(film,opts);assert.match(page.html,/PBC-geist-sans-600/);assert.match(page.html,/PBC-body-fixture-400/);
+ const same=structuredClone(film);same.scenes[0].params.subtitleSlot='title';assert.throws(()=>make(same,opts),/CANVAS_SUBTITLE_SLOTS_INVALID/);
+ const role=structuredClone(film);role.texts.sub.role='headline';assert.throws(()=>make(role,opts),/CANVAS_SUBTITLE_TEXT_UNSUPPORTED/);
+ const unbound=structuredClone(film);unbound.texts.sub.factIds=[];assert.throws(()=>make(unbound,opts),/CANVAS_SUBTITLE_FACT_REQUIRED/);
+});
 test('frame layers are history-free, half-open and carry scene-local time and transition state',()=>{
   const spec=filmFixture();assert.deepEqual(frameLayers(spec.scenes,0).map(x=>x.id),['hook']);
   assert.deepEqual(frameLayers(spec.scenes,120).map(x=>x.id),['hook','product']);

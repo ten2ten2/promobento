@@ -9,7 +9,7 @@ import {pageIsolation} from './isolation.mjs';
 import {inRenderPhase} from './failure.mjs';
 import {waitForRuntimeReady} from './readiness.mjs';
 import {pageCaller} from './page-call.mjs';
-import {assertCanvasTextTrace,isCanvasTextScene} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotsAt} from '@promobento/contracts/canvas-text';
 
 /** Checked before loading any film. Failing this is a platform error, never a no-sandbox fallback. */
 export function sandboxState() {
@@ -128,8 +128,11 @@ export async function filmSession({raw, options, browserVersion, resource, video
         const proofs=await evaluate(()=>window.__omEngine.canvasTextProof());
         const {root}=await cdp.send('DOM.getDocument'),fontsByScene=new Map();
         for(const scene of plan.spec.scenes.filter(item=>isCanvasTextScene(item)&&item.start<=frame&&frame<item.end)){
-          const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector:`[data-scene="${scene.id}"] [data-pb-canvas-font="1"]`});
-          const fonts=nodeId?(await cdp.send('CSS.getPlatformFontsForNode',{nodeId})).fonts:[];fontsByScene.set(scene.id,fonts);
+          for(const slotId of canvasTextSlotsAt(scene,frame)){
+            const selector=scene.block==='canvas-subtitle@1'?`[data-scene="${scene.id}"] [data-pb-canvas-slot="${slotId}"]`:`[data-scene="${scene.id}"] [data-pb-canvas-font="1"]`;
+            const {nodeId}=await cdp.send('DOM.querySelector',{nodeId:root.nodeId,selector});
+            const fonts=nodeId?(await cdp.send('CSS.getPlatformFontsForNode',{nodeId})).fonts:[];fontsByScene.set(scene.id+'\0'+slotId,fonts);
+          }
         }
         const screenshot=await cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true,fromSurface:true,captureBeyondViewport:false,
           clip:{x:0,y:0,width:plan.target.width,height:plan.target.height,scale:1}});

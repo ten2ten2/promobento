@@ -1,6 +1,6 @@
 import {pngPixels} from '@promobento/contracts/seams';
 import {canonical} from '@promobento/contracts/canonical';
-import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotAt,canvasNumberText} from '@promobento/contracts/canvas-text';
+import {assertCanvasTextTrace,isCanvasTextScene,canvasTextSlotsAt,canvasNumberText} from '@promobento/contracts/canvas-text';
 
 /**
  * Check a trusted, full-frame Canvas text layer against the actual screenshot.
@@ -40,25 +40,25 @@ export function compareCanvasTextFrame({actual,withText,withoutText,boxes,safeIn
 export function appendCanvasTextObservations({plan,frame,observation,proofs,traces,fontsByScene,actual}){
  if(!Array.isArray(proofs))throw Error('CANVAS_TEXT_PROOF_INVALID');
  assertCanvasTextTrace(plan.spec,frame,traces);
- const scenes=plan.spec.scenes.filter(scene=>isCanvasTextScene(scene)&&scene.start<=frame&&frame<scene.end);
- if(proofs.length!==scenes.length||new Set(proofs.map(proof=>proof?.sceneId)).size!==proofs.length)throw Error('CANVAS_TEXT_PROOF_MISSING');
+ const scenes=plan.spec.scenes.filter(scene=>isCanvasTextScene(scene)&&scene.start<=frame&&frame<scene.end),bindings=scenes.flatMap(scene=>canvasTextSlotsAt(scene,frame).map(slotId=>({scene,slotId})));
+ if(proofs.length!==bindings.length||new Set(proofs.map(proof=>proof?.sceneId+'\0'+proof?.slotId)).size!==proofs.length)throw Error('CANVAS_TEXT_PROOF_MISSING');
  const limit=Math.min(30<<20,plan.target.width*plan.target.height*6+65536);
  const png=value=>{
   if(typeof value!=='string'||value.length>limit||!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value))throw Error('CANVAS_TEXT_PROOF_INVALID');
   return Buffer.from(value.slice('data:image/png;base64,'.length),'base64');
  };
- for(const scene of scenes){
-  const proof=proofs.find(item=>item?.sceneId===scene.id),slotId=canvasTextSlotAt(scene,frame),slot=plan.spec.texts[slotId],font=plan.spec.style.type.display;
+ for(const {scene,slotId}of bindings){
+  const proof=proofs.find(item=>item?.sceneId===scene.id&&item?.slotId===slotId),slot=plan.spec.texts[slotId],font=scene.block==='canvas-subtitle@1'&&slotId===scene.params.subtitleSlot?plan.spec.style.type.text:plan.spec.style.type.display;
   const displayed=scene.block==='canvas-number@1'&&slot?canvasNumberText(slot.text,frame-scene.start):slot?.text;
   if(!proof||!slot||proof.slotId!==slotId||proof.text!==displayed||proof.fontId!==font.fontId||proof.weight!==font.weight||proof.style!==(font.style??'normal')
    ||!Number.isFinite(proof.fontSize)||proof.fontSize<=0||!Number.isFinite(proof.alpha)||proof.alpha<0||proof.alpha>1
    ||!Array.isArray(proof.boxes)||proof.boxes.length!==[...displayed].filter(ch=>ch.trim()).length)throw Error('CANVAS_TEXT_PROOF_INVALID');
   const {withText:_withText,withoutText:_withoutText,...metadata}=proof;
-  if(canonical(metadata)!==canonical(traces.find(item=>item.sceneId===scene.id)))throw Error('CANVAS_TEXT_TRACE_MISMATCH');
+  if(canonical(metadata)!==canonical(traces.find(item=>item.sceneId===scene.id&&item.slotId===slotId)))throw Error('CANVAS_TEXT_TRACE_MISMATCH');
   const face=plan.fonts.find(item=>item.fontId===font.fontId&&item.weight===font.weight&&item.style===(font.style??'normal'));
   if(!face?.codePoints)throw Error('FONT_CMAP_UNAVAILABLE');
   const cmap=new Set(face.codePoints),missingGlyphs=[...displayed].filter(ch=>ch.trim()&&!cmap.has(ch.codePointAt(0))).length;
-  const platformFonts=fontsByScene?.get(scene.id);
+  const platformFonts=fontsByScene?.get(scene.id+'\0'+slotId)??fontsByScene?.get(scene.id);
   if(!Array.isArray(platformFonts)||platformFonts.length>8||platformFonts.some(item=>typeof item.familyName!=='string'||item.familyName.length>120
    ||typeof item.isCustomFont!=='boolean'||!Number.isSafeInteger(item.glyphCount)||item.glyphCount<0))throw Error('CANVAS_FONT_OBSERVATION_UNAVAILABLE');
   const fallbackUsed=!platformFonts.length||platformFonts.some(item=>!item.isCustomFont)||missingGlyphs>0;
