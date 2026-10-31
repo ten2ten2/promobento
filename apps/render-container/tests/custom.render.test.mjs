@@ -63,10 +63,11 @@ try{
   // the blank template's masked entrance; author code never creates text.
   const splitFilm=structuredClone(film);splitFilm.scenes[0].runtimeText='grapheme-v1';
   const splitSource=source.replace("ctx.text('product').mount(heading);", "const title=ctx.text('product').mount(heading,{split:'graphemes'});")
-   .replace("const timeline=gsap.timeline({paused:true});", "const timeline=gsap.timeline({paused:true});timeline.fromTo(title.querySelectorAll('.pb-grapheme'),{yPercent:110},{yPercent:0,duration:.5,stagger:.01},0);")
-   .replace("ctx.OM.clock(timeline,t=>{", "ctx.OM.clock(timeline,t=>{if(t>=1)for(const word of title.querySelectorAll('.pb-word')){const chars=word.querySelectorAll('.pb-grapheme');for(const ch of chars)if(Math.abs(ch.getBoundingClientRect().top-chars[0].getBoundingClientRect().top)>1)throw Error('WORD_SPLIT');}");
+   .replace("const timeline=gsap.timeline({paused:true});", "const timeline=gsap.timeline({paused:true});timeline.fromTo(title.querySelectorAll('.pb-grapheme'),{yPercent:110},{yPercent:0,duration:.5,stagger:.01},0);");
   for(const aspect of ['landscape','portrait']){
-   const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':splitSource.replace('const timeline=gsap.timeline({paused:true});',"if(title.querySelectorAll('.pb-word').length!==6)throw Error('WORD_GROUPING_INVALID');const timeline=gsap.timeline({paused:true});")};
+   const checkedSource=splitSource.replace('const timeline=gsap.timeline({paused:true});',"if(title.querySelectorAll('.pb-word').length!==6)throw Error('WORD_GROUPING_INVALID');const timeline=gsap.timeline({paused:true});")
+    .replace("ctx.OM.clock(timeline,t=>{", "ctx.OM.clock(timeline,t=>{if(t>=1)for(const word of title.querySelectorAll('.pb-word')){const chars=word.querySelectorAll('.pb-grapheme');for(const ch of chars)if(Math.abs(ch.getBoundingClientRect().top-chars[0].getBoundingClientRect().top)>1)throw Error('WORD_SPLIT');}");
+   const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':checkedSource};
    const split=await filmSession({raw:JSON.stringify(splitFilm),options:opts,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{const start=await split.frame(0,{format:'png'}),settled=await split.frame(45,{format:'png'}),observation=await split.observe('grapheme-test',45),reverse=await split.frame(0,{format:'png'});
     writeFileSync(`${output}/grapheme-title-${aspect}.png`,settled);
