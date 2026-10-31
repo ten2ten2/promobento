@@ -15,6 +15,7 @@ const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
 const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns','.gif':'image/gif','.avif':'image/avif'})[extname(path).toLowerCase()];
 const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns','image/gif':'gif','image/avif':'avif'})[type];
+const inlineSelector=value=>typeof value==='string'&&value.length<=256&&/^(?:#[a-z_][a-z0-9_-]*|html(?: > [a-z][a-z0-9-]*:nth-of-type\([1-9][0-9]{0,4}\)){1,32})$/i.test(value);
 export function artworkSourceObjectName(asset){
  const ext=extension(asset.derivation?.sourceMediaType);
  if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||!ext)throw Error('ARTWORK_SOURCE_INVALID');
@@ -46,10 +47,12 @@ export function extractIcnsPng(source){
 function validCard(card){return card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;}
 function checkApproval(card,asset){
  const decision=materialApproval(card,asset),original=asset.derivation;
- const web=original?.sourceOrigin==='web';
+ const web=original?.sourceOrigin==='web',inline=original?.sourceOrigin==='inline-svg';
  if(!decision.explicit||original?.kind!=='approved_artwork_rasterization'||decision.explicit.sourceUrl!==asset.sourceUrl
   ||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??'')||original.sourceSha256!==decision.explicit.sha256
-  ||(web?(decision.source.kind==='local_project_media'||decision.explicit.imageUrl!==asset.imageUrl||original.imageUrl!==asset.imageUrl||kindFor(approvedWebUrl(asset.imageUrl).pathname)!==original.sourceMediaType)
+  ||(inline?(decision.source.kind==='local_project_media'||original.sourceMediaType!=='image/svg+xml'||!inlineSelector(original.selector)
+    ||decision.explicit.selector!==original.selector||asset.imageUrl!==undefined||!approvedWebUrl(asset.sourceUrl))
+   :web?(decision.source.kind==='local_project_media'||decision.explicit.imageUrl!==asset.imageUrl||original.imageUrl!==asset.imageUrl||kindFor(approvedWebUrl(asset.imageUrl).pathname)!==original.sourceMediaType)
    :(decision.source.kind!=='local_project_media'||decision.explicit.sourceFile!==original.sourceFile||kindFor(original.sourceFile)!==original.sourceMediaType)))throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');
  return decision;
 }
@@ -164,6 +167,42 @@ export async function captureApprovedWebArtwork({outputDir,card,entries,download
  const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon,image/icns,image/gif,image/avif'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeArtwork(output,artifacts,inputs);
 }
+/** Capture an explicitly approved, byte-bound inline SVG from static page HTML.
+ * Website scripts are never run; dynamically generated SVG must be supplied by
+ * another approved source rather than silently substituting a different mark. */
+export async function captureApprovedInlineArtwork({outputDir,card,entries,download=downloadApprovedImage}){
+ const artifacts=realpathSync('artifacts'),output=resolve(outputDir);if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
+ const parentReal=realpathSync(parent);if(parentReal!==artifacts&&!within(artifacts,parentReal))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
+ if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('ARTWORK_SELECTION_INVALID');
+ const accepted=entries.map(entry=>{
+  if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim()
+   ||!inlineSelector(entry.selector))throw Error('ARTWORK_SELECTION_INVALID');
+  approvedWebUrl(entry.sourceUrl);
+  const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,approvalRef:entry.approvalRef,
+   derivation:{kind:'approved_artwork_rasterization',sourceOrigin:'inline-svg',selector:entry.selector,sourceMediaType:'image/svg+xml',
+    sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+'.source.svg'}};
+  checkApproval(card,asset);return{entry,asset};
+ });
+ const pages=new Map();let total=0;for(const {entry}of accepted)if(!pages.has(entry.sourceUrl)){
+  const bytes=Buffer.from(await download(entry.sourceUrl,{accept:'text/html',maxBytes:4<<20}));
+  total+=bytes.length;if(!bytes.length||bytes.length>4<<20||total>16<<20)throw Error('ARTWORK_PAGE_SIZE_INVALID');
+  try{pages.set(entry.sourceUrl,new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw Error('ARTWORK_PAGE_ENCODING_UNSUPPORTED');}
+ }
+ let runner;const inputs=[];
+ try{runner=await openBrowser();for(const item of accepted){
+  const svg=await bounded(runner.page.evaluate(({html,selector})=>{
+   const doc=new DOMParser().parseFromString(html,'text/html');let matches;
+   try{matches=doc.querySelectorAll(selector);}catch{return null;}
+   if(matches.length!==1||matches[0].localName!=='svg'||matches[0].namespaceURI!=='http://www.w3.org/2000/svg')return null;
+   return new XMLSerializer().serializeToString(matches[0]);
+  },{html:pages.get(item.entry.sourceUrl),selector:item.entry.selector}));
+  if(typeof svg!=='string')throw Error('ARTWORK_INLINE_SELECTOR_INVALID');
+  const bytes=Buffer.from(svg);if(!bytes.length||bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});
+ }}finally{await runner?.close();}
+ return materializeArtwork(output,artifacts,inputs);
+}
 /** Independently rebuild artwork previews before any remote side effect; bytes must match. */
 export async function verifyArtworkSelections(directory,selected,topics){
  const artwork=(selected.assets??[]).filter(asset=>asset.derivation?.kind==='approved_artwork_rasterization');if(!artwork.length)return new Map();
@@ -191,11 +230,11 @@ export async function verifyArtworkSelections(directory,selected,topics){
  }}finally{await runner?.close();}return verified;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const [outputDir,topicId,sourceArg,manifestArg,...extra]=process.argv.slice(2),web=sourceArg==='--web',manifestFile=manifestArg;
+ const [outputDir,topicId,sourceArg,manifestArg,...extra]=process.argv.slice(2),web=sourceArg==='--web',inline=sourceArg==='--inline',manifestFile=manifestArg;
  if(!outputDir||!topicId||!sourceArg||!manifestFile||extra.length)throw Error('ARTWORK_CAPTURE_ARGUMENTS_REQUIRED');
  const root=realpathSync('artifacts'),manifestPath=realpathSync(manifestFile);if(!within(root,manifestPath))throw Error('PRIVATE_MANIFEST_REQUIRED');
  const topics=parseCanonicalJson(readFileSync('research/evals/topics.json')),topic=topics.topics.find(item=>item.id===topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
  const card=parseCanonicalJson(readFileSync(topic.factCard)),manifest=parseCanonicalJson(readFileSync(manifestPath));
- const result=web?await captureApprovedWebArtwork({outputDir,card,entries:manifest.files}):await captureApprovedArtwork({sourceDir:sourceArg,outputDir,card,entries:manifest.files});
+ const result=inline?await captureApprovedInlineArtwork({outputDir,card,entries:manifest.files}):web?await captureApprovedWebArtwork({outputDir,card,entries:manifest.files}):await captureApprovedArtwork({sourceDir:sourceArg,outputDir,card,entries:manifest.files});
  console.log(canonical({scope:result.scope,assets:result.assets.length,review:'pending_visual_selection'}));
 }

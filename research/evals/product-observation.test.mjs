@@ -17,7 +17,8 @@ test('approved page observation records real logo, images, colours and type with
   const result=await observeProduct(page);
   assert.ok(result.logos.some(item=>item.src==='https://example.test/favicon.png'));
   assert.ok(result.logos.some(item=>item.src==='https://example.test/logo.png'));
-  assert.ok(result.logos.some(item=>item.kind==='inline-svg'));
+  const inline=result.logos.find(item=>item.kind==='inline-svg');assert.ok(inline?.selector);
+  assert.equal(await page.locator(inline.selector).count(),1);
   assert.ok(result.videos.some(item=>item.src==='https://example.test/product.mp4'));
   assert.ok(result.images.some(item=>item.src==='https://example.test/exercise.png'&&item.alt==='Exercise'));
   assert.ok(result.colours.some(item=>item.role==='ground'&&item.value==='rgb(10, 20, 30)'));

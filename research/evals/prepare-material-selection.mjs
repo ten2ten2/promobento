@@ -36,9 +36,11 @@ return selected.assets.map(asset=>{
   return{asset,bytes:video.manifestBytes,sha256:sha256Bytes(video.manifestBytes),mediaType:'application/json',extension:'json',original:approval.original,explicit:approval.explicit,video};
  }
  if(asset.derivation?.kind==='approved_artwork_rasterization'){
-  const web=asset.derivation.sourceOrigin==='web';
+  const web=asset.derivation.sourceOrigin==='web',inline=asset.derivation.sourceOrigin==='inline-svg';
   if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
-   ||(web?(approval.source.kind==='local_project_media'||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl)
+   ||(inline?(approval.source.kind==='local_project_media'||!asset.derivation.selector||approval.explicit.selector!==asset.derivation.selector
+      ||asset.derivation.sourceMediaType!=='image/svg+xml'||asset.imageUrl!==undefined)
+    :web?(approval.source.kind==='local_project_media'||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl)
     :(approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile))
    ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(artwork.original)!==approval.explicit.sha256
    ||artwork.sourceMediaType!==asset.derivation.sourceMediaType)throw Error('ARTWORK_VERIFICATION_REQUIRED');

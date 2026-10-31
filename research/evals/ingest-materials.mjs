@@ -59,6 +59,8 @@ try{
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
    &&(!(artwork||video)||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256)
+   &&(!artwork||item.derivation?.sourceOrigin===asset.derivation.sourceOrigin)
+   &&(!artwork||asset.derivation.sourceOrigin!=='inline-svg'||item.derivation?.selector===asset.derivation.selector)
    &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl)
    &&(!video||asset.derivation.sourceOrigin!=='web'||item.videoUrl===asset.videoUrl));
   if(reused){

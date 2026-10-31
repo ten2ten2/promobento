@@ -159,7 +159,7 @@ mise exec -- node research/evals/run-case.mjs \
 
 这些脚本只为已批准题目准备首轮内部输入，不是客户网址抓取或 AssetWorkflow：
 
-在指定已批准题目后追加 `--grab`，例如 `node research/evals/capture-materials.mjs <私有输出目录> duolingo --grab`，可在原 capture 流程中额外保留最多八屏页面截图，并观察图片／logo／视频候选 URL、可见颜色和字体；不自动下载候选素材；内联 SVG 只记录候选存在，不复制 SVG 字节。输出仍为内部评测候选，须逐项查看并按既有 `select-materials`／`ingest-materials` 审核及登记；观察到的网址或样式不是素材许可，也没有接入客户素材处理。页面采集方法参考 huashu-motion `cli/lib/grab.js`（MIT；来源见[方法通知](../../packages/methods/NOTICE.md)）。
+在指定已批准题目后追加 `--grab`，例如 `node research/evals/capture-materials.mjs <私有输出目录> duolingo --grab`，可在原 capture 流程中额外保留最多八屏页面截图，并观察图片／logo／视频候选 URL、可见颜色和字体；不自动下载候选素材。内联 SVG 记录用于定位的选择器，不复制 SVG 字节。输出仍为内部评测候选，须逐项查看并按既有 `select-materials`／`ingest-materials` 审核及登记；观察到的网址或样式不是素材许可，也没有接入客户素材处理。页面采集方法参考 huashu-motion `cli/lib/grab.js`（MIT；来源见[方法通知](../../packages/methods/NOTICE.md)）。
 
 ```sh
 mise exec -- node research/evals/capture-materials.mjs artifacts/eval-materials-2026-10-24
@@ -214,6 +214,13 @@ mise exec -- node research/evals/approved-artwork.mjs \
 ```
 
 网页下载先核对全部许可，不跟随重定向、拒绝私网地址；原文件和转换结果同样须查看并重建核对。此入口不是任意客户上传。 本机有 Chrome 时，可用 `mise exec -- node --test research/evals/approved-artwork.test.mjs` 验证隔离解码和重建；该专项不替代 staging 真实素材验收。
+
+网页源码中的内联 SVG 可使用 `--inline`：事实卡逐项批准 `sourceUrl`、选择器 `selector` 和该 SVG 经浏览器 `XMLSerializer` 序列化后的字节 `sha256`；清单提供同一 `selector`、`sourceUrl`、`approvalRef` 和 `description`。选择器只接受简单 ID 或观察结果提供的结构路径，必须恰好命中一个 SVG。工具先核对全部批准，再获取静态 UTF-8 HTML 并在离线浏览器中解析，不执行网页脚本；单页上限 4 MiB、同批网页合计上限 16 MiB。动态插入的 SVG 不会被自动替代。命中的源字节须与批准身份一致，之后沿用上述安全 SVG、审看、重建和权利登记流程。
+
+```sh
+mise exec -- node research/evals/approved-artwork.mjs \
+  artifacts/example-inline-artwork <已批准题目ID> --inline artifacts/example-approved-inline-files.json
+```
 
 已逐项批准的本地 MP4／MOV／WebM 可用同一私有清单收集，事实卡批准须绑定 `sourceFile`、`sourceUrl` 和原文件 `sha256`：
 

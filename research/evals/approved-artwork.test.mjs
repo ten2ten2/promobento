@@ -4,13 +4,27 @@ import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from
 import {join,resolve} from 'node:path';
 import {pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {captureApprovedArtwork,captureApprovedWebArtwork,verifyArtworkSelections,artworkSourceObjectName,extractIcnsPng} from './approved-artwork.mjs';
+import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections,artworkSourceObjectName,extractIcnsPng} from './approved-artwork.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 
 const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30" viewBox="0 0 40 30"><rect width="40" height="30" fill="#22aa44"/><circle cx="20" cy="15" r="8" fill="#ffcc22"/></svg>');
 function icon(){const png=pngRgba(2,3,Uint8Array.from({length:24},(_,i)=>i%4===3?255:60));const head=Buffer.alloc(22);head.writeUInt16LE(1,2);head.writeUInt16LE(1,4);head[6]=2;head[7]=3;head.writeUInt16LE(1,10);head.writeUInt16LE(32,12);head.writeUInt32LE(png.length,14);head.writeUInt32LE(22,18);return Buffer.concat([head,png]);}
 const approval=(sourceFile,bytes)=>({status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic artwork.',sourceFile,sourceUrl:'local://fixture',sha256:sha256Bytes(bytes)});
 const entry=(id,sourceFile)=>({id,sourceFile,sourceUrl:'local://fixture',description:'Synthetic cleared artwork.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/'+id});
+
+test('inline SVG requires exact source and selector approval before any page request',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.inline-approval-test-'));let calls=0;
+ try{
+  const sourceUrl='https://example.com/product',selector='#mark',asset={id:'fixture-inline',sourceUrl,selector,description:'Synthetic logo.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-inline'};
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'official_product_page',url:sourceUrl}],materialApprovals:{}};
+  const download=async()=>{calls++;throw Error('UNEXPECTED_DOWNLOAD');};
+  await assert.rejects(captureApprovedInlineArtwork({outputDir:join(root,'denied'),card,entries:[asset],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);
+  card.materialApprovals[asset.id]={status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic logo.',sourceUrl,selector,sha256:'a'.repeat(64)};
+  await assert.rejects(captureApprovedInlineArtwork({outputDir:join(root,'wrong'),card,entries:[{...asset,selector:'#other'}],download}),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+  await assert.rejects(captureApprovedInlineArtwork({outputDir:join(root,'complex'),card,entries:[{...asset,selector:'svg:has(rect)'}],download}),/ARTWORK_SELECTION_INVALID/);
+  assert.equal(calls,0);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
 
 test('ICNS keeps the largest static embedded PNG and rejects malformed containers',()=>{
  const png=(size,color)=>Buffer.from(pngRgba(size,size,Uint8Array.from({length:size*size*4},(_,i)=>i%4===3?255:color)));

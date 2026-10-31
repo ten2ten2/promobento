@@ -9,7 +9,9 @@ import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
 import {renderShard} from '../src/shard.mjs';
 import {captureApprovedLocalVideo,verifyVideoSelections} from '../../../research/evals/approved-video.mjs';
-import {captureApprovedArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
+import {captureApprovedArtwork,captureApprovedInlineArtwork,verifyArtworkSelections} from '../../../research/evals/approved-artwork.mjs';
+import {prepareMaterialSelection} from '../../../research/evals/prepare-material-selection.mjs';
+import {observeProduct} from '../../../research/evals/product-observation.mjs';
 import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -678,10 +680,34 @@ try{
    assert.ok(pixels.pixels[at+1]>150&&pixels.pixels[at+2]<100,'QuickTime poster preserves the decoded source image');
    const verifiedArt=await verifyArtworkSelections(artOut,art,topics);assert.equal(verifiedArt.size,3);
    const decoded=pngPixels(readFileSync(`${artOut}/fixture-icon.png`));assert.deepEqual([decoded.width,decoded.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60);
+   const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');
+   const observationBrowser=await chromium.connectOverCDP('http://127.0.0.1:9222');let selector;
+   try{const context=await observationBrowser.newContext();try{await context.route('**/*',route=>route.abort());const page=await context.newPage();
+     await page.setContent(`<header class="brand">${svg}</header>`);selector=(await observeProduct(page)).logos.find(item=>item.kind==='inline-svg')?.selector;
+     assert.ok(selector);assert.equal(await page.locator(selector).count(),1);
+    }finally{await context.close();}}finally{await observationBrowser.close();}
+   const html=Buffer.from(`<!doctype html><html><body><header class="brand">${svg}</header><script>document.querySelector('#mark').setAttribute('width','999')</script></body></html>`);
+   const inlineCard={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},
+    assetSources:[{kind:'official_product_page',url:pageUrl}],materialApprovals:{'fixture-inline':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,
+     approvedOn:'2026-10-31',basis:'Approved synthetic inline icon.',sourceUrl:pageUrl,selector,sha256:sha256Bytes(svg)}}};
+   const inlineEntry={id:'fixture-inline',sourceUrl:pageUrl,selector,description:'Synthetic inline icon.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-inline'};let downloads=0;
+   const download=async(url,options)=>{downloads++;assert.equal(url,pageUrl);assert.equal(options.accept,'text/html');return html;};
+   await assert.rejects(captureApprovedInlineArtwork({outputDir:`${mediaTest}/artifacts/inline-denied`,card:inlineCard,entries:[inlineEntry,{...inlineEntry,id:'unapproved',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/unapproved'}],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);
+   assert.equal(downloads,0,'all rights are checked before the first page request');
+   await assert.rejects(captureApprovedInlineArtwork({outputDir:`${mediaTest}/artifacts/inline-changed`,card:inlineCard,entries:[inlineEntry],download:async()=>Buffer.from(html.toString().replace('width="10"','width="11"'))}),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+   const inlineOut=`${mediaTest}/artifacts/inline`,inline=await captureApprovedInlineArtwork({outputDir:inlineOut,card:inlineCard,entries:[inlineEntry],download});
+   assert.equal(downloads,1);assert.deepEqual(readFileSync(`${inlineOut}/fixture-inline.source.svg`),svg);
+   inline.assets[0].review='approved_for_internal_eval_by_codex';inline.assets[0].reviewedAt='2026-10-31';
+   const inlineCardPath=`${mediaTest}/artifacts/inline-card.json`;writeFileSync(inlineCardPath,canonical(inlineCard));const inlineTopics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:inlineCardPath}]};
+   const verifiedInline=await verifyArtworkSelections(inlineOut,inline,inlineTopics);
+   assert.equal(prepareMaterialSelection(inlineOut,inline,inlineTopics,{verifiedArtwork:verifiedInline})[0].asset.derivation.selector,selector);
+   const tampered=structuredClone(inline);tampered.assets[0].derivation.selector='#other';
+   assert.throws(()=>prepareMaterialSelection(inlineOut,tampered,inlineTopics,{verifiedArtwork:verifiedInline}),/ARTWORK_VERIFICATION_REQUIRED/);
   }finally{process.chdir(previousCwd);rmSync(mediaTest,{recursive:true,force:true});}
   report.quicktimeIntake='isolated_actual_mov_decode_source_identity_and_30fps_frame_pack';
   report.icnsIntake='isolated_actual_png_icon_payload_decode';
   report.staticArtworkIntake='isolated_gif_avif_and_animated_gif_rejected';
+  report.inlineSvgIntake='approved_static_page_selector_exact_source_bytes_and_rebuild';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);
