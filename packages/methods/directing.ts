@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.37.0',
+  id: 'product-directing', version: '1.38.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -42,6 +42,7 @@ export const directingMethodPack = {
       'whiteboard-clip uses the original y3 marker and hand-drawn reveal for one cleared product image, with a separately bound headline. Reserve at least 135 frames and use it when a whiteboard explanation fits the story, not as a fabricated interface interaction.',
       'The drawn-steps icon options include the original y3 person, cat, network, bulb, cross, stack, gear, clock and chart motifs. Select an icon only when it helps explain the confirmed step; these are illustrative marks, not evidence of a product interaction.',
       'When a custom scene needs its own camera choreography around one real screen, it may declare runtime3D: om3-studio-v1 and a cleared image in assetKeys. Choose om3-studio-v2 when the screen object itself must rotate or scale independently of the camera; choose distanceScale to keep the real screen within the frame unless a purposeful crop is warranted. The bounded studio does not synthesize product interactions or open arbitrary Three.js.',
+      'For a genuinely related spatial composition, om3-studio-v3 adds one or two separately declared, cleared image panels to a primary screen. Explicitly control each panel on every frame; omitted visibility is off, so a detail does not follow into an unrelated exercise. Inspect the actual framing and do not invent interactions.',
       'For a lit product-object reveal, object-studio uses a cleared real screenshot on a rounded screen in the adapted huashu-motion studio, with a continuous moving camera and full-frame stage. Prefer a short optional textSlot, or omit it to give the product maximum scale. It is a hero reveal, not an invented product action or a substitute for showing an actual workflow.',
       'Use purposeful changes in scale, composition, visual density and tempo. A quiet anticipation can make a payoff stronger. Do not mechanically fill every beat or replace all reading time with movement.',
       'For each boundary, the outgoing subject, location or shape must motivate the next view. Use a continuous trusted story block when it expresses this better than independent entrances and exits.',

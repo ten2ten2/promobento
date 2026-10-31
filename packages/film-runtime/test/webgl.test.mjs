@@ -77,3 +77,14 @@ test('an explicit custom studio loads the isolated WebGL runtime and uses 3D res
  const legacy=structuredClone(film);delete legacy.scenes[0].runtime3D;
  assert.throws(()=>generateFilmPage(JSON.stringify(legacy),options),/CUSTOM_3D_NOT_DECLARED/);
 });
+
+test('v3 studio checks the declared kind and rights for every screen',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v3';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};film.assets.other={resourceId:'res_fixture_other'};scene.params.assetKeys=['dashboard','other'];
+ sources[scene.module]=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard',['other']);const timeline=");
+ const options=pageOptions('landscape',rules.aspectLayouts.landscape);options.customSources=sources;
+ options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});
+ assert.equal(generateFilmPage(JSON.stringify(film),options).plan.usesWebgl,true);
+ options.resources[1].kind='video';assert.throws(()=>generateFilmPage(JSON.stringify(film),options),/CUSTOM_3D_IMAGE_REQUIRED/);
+ options.resources[1].kind='image';options.resources[1].rightsCleared=false;assert.throws(()=>generateFilmPage(JSON.stringify(film),options),/ASSET_RIGHTS_PENDING/);
+});

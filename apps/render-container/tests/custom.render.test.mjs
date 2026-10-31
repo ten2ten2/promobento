@@ -499,6 +499,45 @@ try{
   const invalid=await filmSession({raw:JSON.stringify(movingFilm),options:invalidOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
   try{await assert.rejects(invalid.frame(15),/STUDIO_VIEW_INVALID/);}finally{await invalid.close();}
   report.studioObjectMotion='independent_rotation_scale_reverse_and_v1_compatibility';
+
+  // v3 controls independently declared screens. A panel must disappear as soon
+  // as its frame-local visibility says so, and reverse seeks restore it exactly.
+  const panelsFilm=structuredClone(customStudioFilm);panelsFilm.scenes[0].runtime3D='om3-studio-v3';
+  panelsFilm.assets.other={resourceId:'res_fixture_other'};panelsFilm.scenes[0].params.assetKeys=['dashboard','other'];
+  const panelsSource=`PB.scene('custom-studio',ctx=>{
+   const studio=ctx.OM3.studio('dashboard',['other']),view={x:2},timeline=gsap.timeline({paused:true});
+   timeline.to(view,{x:-2,duration:2,ease:'none'},0);
+   ctx.OM.clockAfter(timeline,t=>studio.render(t<3?{yaw:0,distanceScale:2,panels:[{x:view.x,z:1,scale:.55,visible:true}]}:{yaw:0,distanceScale:2}),15);return {timeline};});`;
+  const other=solidPng(220,10,10);
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
+   options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});options.customSources={'scenes/custom-studio/index.js':panelsSource};options.initTimeoutMs=60000;options.frameTimeoutMs=10000;
+   const session=await filmSession({raw:JSON.stringify(panelsFilm),options,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,
+    resource:id=>id==='res_fixture_other'?other:image,killBrowser});
+   try{const first=await session.frame(15,{format:'png'}),later=await session.frame(60,{format:'png'}),hidden=await session.frame(120,{format:'png'});
+    writeFileSync(`${output}/om3-panels-${aspect}-15.png`,first);writeFileSync(`${output}/om3-panels-${aspect}-60.png`,later);writeFileSync(`${output}/om3-panels-${aspect}-hidden.png`,hidden);
+    const count=png=>{const p=pngPixels(png);let red=0,green=0;for(let i=0;i<p.pixels.length;i+=4){
+     if(p.pixels[i]>150&&p.pixels[i+1]<60&&p.pixels[i+2]<60)red++;
+     if(p.pixels[i]<60&&p.pixels[i+1]>150&&p.pixels[i+2]<60)green++;
+    }return{red,green};};
+    const visible=count(first),absent=count(hidden);assert.ok(visible.red>1000&&visible.green>1000,`${aspect} both separately cleared screen pixels are visible`);
+    assert.equal(absent.red,0,`${aspect} hidden panel does not carry into the next state`);assert.ok(absent.green>1000);
+    assert.ok(compareSeam(first,later).diffPixelPct>.05,'independent panel moves');
+    const reverse=await session.frame(15,{format:'png'});assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
+   }finally{await session.close();}
+  }
+  const badPanels={...movingOptions,resources:[...movingOptions.resources,{...movingOptions.resources[0],resourceId:'res_fixture_other'}],
+   customSources:{'scenes/custom-studio/index.js':panelsSource.replace('scale:.55','scale:2')}};
+  const invalidPanels=await filmSession({raw:JSON.stringify(panelsFilm),options:badPanels,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?other:image,killBrowser});
+  try{await assert.rejects(invalidPanels.frame(15),/STUDIO_VIEW_INVALID/);}finally{await invalidPanels.close();}
+  const nullPanelsOptions={...badPanels,customSources:{'scenes/custom-studio/index.js':panelsSource.replace('panels:[{x:view.x,z:1,scale:.55,visible:true}]','panels:[null]')}};
+  const nullPanels=await filmSession({raw:JSON.stringify(panelsFilm),options:nullPanelsOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:id=>id==='res_fixture_other'?other:image,killBrowser});
+  try{await assert.rejects(nullPanels.frame(15),/STUDIO_VIEW_INVALID/);}finally{await nullPanels.close();}
+  const oldPanelOptions={...movingOptions,customSources:{'scenes/custom-studio/index.js':movingSource.replace('objectYaw:view.yaw','panels:[],objectYaw:view.yaw')}};
+  const oldPanel=await filmSession({raw:JSON.stringify(movingFilm),options:oldPanelOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{await assert.rejects(oldPanel.frame(15),/STUDIO_VIEW_INVALID/);}finally{await oldPanel.close();}
+  report.studioPanels='v3_independent_bound_screens_hide_and_reverse_landscape_portrait';
+
   // A previous 2D scene cannot poison the 3D scene's admitted asset or dimensions.
   const crossFilm=structuredClone(customStudioFilm),customScene=crossFilm.scenes[0];customScene.start=225;customScene.params.readingHolds=[{start:30,end:225,visibleTextSlots:[]}];
   crossFilm.scenes.unshift({id:'poison',kind:'custom',module:'scenes/poison/index.js',start:0,end:225,params:{textSlots:[],assetKeys:['dashboard'],events:[],readingHolds:[{start:0,end:225,visibleTextSlots:[]}]},purpose:'Check scene isolation.',brief:'Alter only an author-visible handle.'});

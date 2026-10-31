@@ -32,16 +32,27 @@ const memberName=node=>node.computed?node.property.type==='Literal'?node.propert
 const isFunction=node=>['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
 const studioCall=(node,ctx)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)==='studio'
   &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM3'&&node.callee.object.object?.name===ctx;
-/** Read the sole declared studio asset as inert syntax, never as executable source. */
-export function customStudioAsset(scene,source){
+/** Static literal studio bindings; v3 admits one primary and one or two separate panels. */
+function studioKeys(node,scene){
+ const args=node.arguments??[],primary=args[0]?.value;
+ if(typeof primary!=='string')return null;
+ if(scene.runtime3D!=='om3-studio-v3')return args.length===1?[primary]:null;
+ const array=args[1];if(args.length!==2||array?.type!=='ArrayExpression'||array.elements.length<1||array.elements.length>2)return null;
+ const keys=[primary,...array.elements.map(item=>item?.type==='Literal'?item.value:undefined)];
+ return keys.every(key=>typeof key==='string')&&new Set(keys).size===keys.length?keys:null;
+}
+/** Read declared studio assets as inert syntax, never as executable source. */
+export function customStudioAssets(scene,source){
   if(!isStudioRuntime(scene.runtime3D))return null;
   let tree;try{tree=parse(source,{ecmaVersion:2024,sourceType:'module'});}catch{throw Error('CUSTOM_SOURCE_SYNTAX');}
   const call=tree.body.length===1&&tree.body[0].type==='ExpressionStatement'?tree.body[0].expression:null, factory=call?.arguments?.[1],ctx=factory?.params?.[0]?.name;
   if(call?.type!=='CallExpression'||call.callee?.object?.name!=='PB'||memberName(call.callee)!=='scene'||call.arguments[0]?.value!==scene.id||!ctx)throw Error('CUSTOM_REGISTRATION_INVALID');
-  const assets=[];const walk=node=>{if(!node||typeof node!=='object')return;if(studioCall(node,ctx))assets.push(node.arguments[0]?.value);
+  const calls=[];const walk=node=>{if(!node||typeof node!=='object')return;if(studioCall(node,ctx))calls.push(studioKeys(node,scene));
     for(const [key,value]of Object.entries(node))if(!['start','end'].includes(key)){if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);}};
-  walk(factory.body);if(assets.length!==1||typeof assets[0]!=='string'||!scene.params?.assetKeys?.includes(assets[0]))throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');return assets[0];
+  walk(factory.body);const assets=calls[0];if(calls.length!==1||!assets||assets.some(key=>!scene.params?.assetKeys?.includes(key)))throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');return assets;
 }
+/** Compatibility: existing v1/v2 callers still receive their primary key. */
+export function customStudioAsset(scene,source){return customStudioAssets(scene,source)?.[0]??null;}
 const omCall=(node,ctx,name)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)===name
   &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM'&&node.callee.object.object?.name===ctx;
 
@@ -164,10 +175,10 @@ export function customSourceErrors(scene,source,spec) {
         else used[key].add(name);
       }
       if(studioCall(node,ctx)){
-        studioCalls++;const name=args[0]?.value;
+        studioCalls++;const keys=studioKeys(node,scene);
         if(!isStudioRuntime(scene.runtime3D))fail('CUSTOM_3D_NOT_DECLARED',node);
-        if(args.length!==1||typeof name!=='string'||!plan.assetKeys.includes(name)||!Object.hasOwn(spec.assets,name))fail('CUSTOM_SLOT_UNDECLARED',node);
-        else used.asset.add(name);
+        if(!keys||keys.some(name=>!plan.assetKeys.includes(name)||!Object.hasOwn(spec.assets,name)))fail('CUSTOM_SLOT_UNDECLARED',node);
+        else keys.forEach(name=>used.asset.add(name));
       }
       if(key==='createElement'&&(!['div','span','img','canvas','section'].includes(args[0]?.value)))fail('CUSTOM_ELEMENT_FORBIDDEN',node);
       if(key==='createElementNS'&&(args[0]?.value!=='http://www.w3.org/2000/svg'||!['svg','g','path','rect','circle','ellipse','line','polyline','polygon','defs','clipPath','mask','linearGradient','stop'].includes(args[1]?.value)))fail('CUSTOM_ELEMENT_FORBIDDEN',node);

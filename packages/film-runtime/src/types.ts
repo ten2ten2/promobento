@@ -41,7 +41,7 @@ declare global {
     __pbTakeClock?: () => PrivateClock;
     __pbTakeWebGLFactory?:()=>PrivateWebglFactory;
     __pbTakeWebGLInspector?:()=>()=>WebglInfo[];
-    __pbTakeStudioFactory?: () => (ctx:SceneContext, params:{assetKey:string;objectMotion?:boolean}) => StudioInstance;
+    __pbTakeStudioFactory?: () => (ctx:SceneContext, params:{assetKey:string;objectMotion?:boolean;panelKeys?:readonly string[]}) => StudioInstance;
     __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean; bpm?: number}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[], readiness: SceneReadiness, sounds: SceneSounds, postSeek: Map<(time:number)=>void, number>) => SceneContext['OM'];
     CLIP: SceneContext['CLIP'];
     gsap: {timeline(options: {paused: boolean}): MotionTimeline;

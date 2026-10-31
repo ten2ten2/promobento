@@ -145,6 +145,7 @@ jobs:
             artifacts/film-runtime/whiteboard-clip-*.png
             artifacts/film-runtime/drawn-icons-*.png
             artifacts/film-runtime/object-motion-*.png
+            artifacts/film-runtime/om3-panels-*.png
             artifacts/film-runtime/vox-focus-*.png
             artifacts/film-runtime/vox-plain-*.png
             artifacts/film-runtime/asset-check.json

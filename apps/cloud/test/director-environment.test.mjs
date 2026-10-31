@@ -65,8 +65,9 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
   async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
    const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
    if(film.scenes[0].block==='vox-clip@1'&&film.scenes[0].params.items[0].focus){assert.deepEqual(task.job.frames,[84]);assert.equal(film.scenes[0].params.intervalFrames,120);assert.deepEqual(film.assets.health.roi,[{x:.2,y:.2,width:.4,height:.4}]);}
-   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
+   if(film.scenes[0].block==='object-studio@1'||['om3-studio-v1','om3-studio-v2','om3-studio-v3'].includes(film.scenes[0].runtime3D)){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);
     if(film.scenes[0].runtime3D==='om3-studio-v2'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/objectYaw:15,objectScale:1/);}
+    if(film.scenes[0].runtime3D==='om3-studio-v3'){const module=task.inputs.find(item=>item.name==='scenes/health/index.js');assert.match(new TextDecoder().decode(objects.get(module.key).bytes),/panels:\[\{x:2,scale:\.5,visible:true\}\]/);assert.deepEqual(film.scenes[0].params.assetKeys,['health','health-panel']);}
     return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
    assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},async closeStudio(){closes++;}
@@ -77,11 +78,13 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  await custom();await custom();assert.equal(probes,2);assert.equal(cache.size,2);
  const motion=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v2');
  await motion();await motion();assert.equal(probes,3);assert.equal(cache.size,3);
+ const panels=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,'v3');
+ await panels();await panels();assert.equal(probes,4);assert.equal(cache.size,4);
  const vox=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,true);
  const marked=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,'highlight');
- await vox();await marked();await marked();assert.equal(probes,5);assert.equal(cache.size,5);
+ await vox();await marked();await marked();assert.equal(probes,6);assert.equal(cache.size,6);
  cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
- await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,7,'an unsupported new studio does not disable old scenes');
+ await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,8,'an unsupported new studio does not disable old scenes');
 });
 
 test('Canvas title preflight requires an actual readable observation for the exact font and text',async t=>{

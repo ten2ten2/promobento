@@ -40,8 +40,9 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean}){
- const asset=ctx.asset(params.assetKey);if(asset.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[]}){
+ const asset=ctx.asset(params.assetKey),panelAssets=(params.panelKeys??[]).map(key=>ctx.asset(key));
+ if([asset,...panelAssets].some(item=>item.kind==='video'))throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
  const safe=document.createElement('div'),inset=ctx.target.safeInsets,wide=ctx.target.aspect==='landscape',hasText=Boolean(params.textSlot);
  const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',inset:'0'});ctx.root.append(stage);
  const canvas=document.createElement('canvas');canvas.dataset.pbWebgl='object-studio';Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});stage.append(canvas);
@@ -52,7 +53,7 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
  catch(error){releaseTrustedWebGL(canvas);context.getExtension('WEBGL_lose_context')?.loseContext();throw error;}
  renderer.setPixelRatio(1);renderer.setSize(Math.round(stage.clientWidth),Math.round(stage.clientHeight),false);renderer.outputColorSpace=SRGBColorSpace;
  renderer.toneMapping=ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;
- const gl=renderer.getContext();if(asset.width>gl.getParameter(gl.MAX_TEXTURE_SIZE)||asset.height>gl.getParameter(gl.MAX_TEXTURE_SIZE)){renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw Error('DEVICE_TEXTURE_TOO_LARGE');}
+ const gl=renderer.getContext();if([asset,...panelAssets].some(item=>item.width>gl.getParameter(gl.MAX_TEXTURE_SIZE)||item.height>gl.getParameter(gl.MAX_TEXTURE_SIZE))){renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw Error('DEVICE_TEXTURE_TOO_LARGE');}
  let disposed=false,lost=false,shaderFailed=false;const onLost=(event:Event)=>{event.preventDefault();lost=true;};canvas.addEventListener('webglcontextlost',onLost);renderer.debug.onShaderError=()=>{shaderFailed=true;};
  try{
  const scene=new Scene();scene.background=new Color(ctx.style.palette.bg??'#19211b');
@@ -60,13 +61,19 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
  const sweep=new Mesh(sweepGeometry(),new MeshStandardMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.85,side:DoubleSide}));sweep.receiveShadow=true;scene.add(sweep);
  const key=new DirectionalLight('#ffffff',2.2);key.position.set(4.8,8,5.6);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:48});key.shadow.bias=-.0004;key.shadow.normalBias=.02;
  const rim=new DirectionalLight('#ffffff',1.2);rim.position.set(-6.4,4,-8);scene.add(key,rim);
- const width=3.8*Math.min(1,asset.width/asset.height),height=width*asset.height/asset.width,bezel=.08,depth=.12,radius=Math.min(.12,(Math.min(width,height)+2*bezel)/2-.001);
- const device=new Group(),bodyGeometry=new RoundedBoxGeometry(width+2*bezel,height+2*bezel,depth,6,Math.min(radius,depth/2-.001));
- const bodyMaterial=new MeshPhysicalMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.35,metalness:.7,clearcoat:1,clearcoatRoughness:.15});
- const body=new Mesh(bodyGeometry,bodyMaterial);body.castShadow=true;body.receiveShadow=true;device.add(body);
- const image=document.createElement('img');image.src=asset.url;image.alt='';const texture=new Texture(image);texture.colorSpace=SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
- const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
- const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
+ const makeDevice=(screen:typeof asset)=>{
+  const width=3.8*Math.min(1,screen.width/screen.height),height=width*screen.height/screen.width,bezel=.08,depth=.12,radius=Math.min(.12,(Math.min(width,height)+2*bezel)/2-.001);
+  const device=new Group(),bodyGeometry=new RoundedBoxGeometry(width+2*bezel,height+2*bezel,depth,6,Math.min(radius,depth/2-.001));
+  const bodyMaterial=new MeshPhysicalMaterial({color:ctx.style.palette.bg??'#19211b',roughness:.35,metalness:.7,clearcoat:1,clearcoatRoughness:.15});
+  const body=new Mesh(bodyGeometry,bodyMaterial);body.castShadow=true;body.receiveShadow=true;device.add(body);
+  const image=document.createElement('img');image.src=screen.url;image.alt='';const texture=new Texture(image);texture.colorSpace=SRGBColorSpace;texture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  const faceGeometry=roundedPlane(width,height,Math.max(0,radius-bezel)),faceMaterial=new MeshBasicMaterial({map:texture,toneMapped:false});
+  const face=new Mesh(faceGeometry,faceMaterial);face.position.z=depth/2+.002;device.add(face);scene.add(device);
+  return{screen,device,width,height,bezel,image,texture,bodyGeometry,bodyMaterial,faceGeometry,faceMaterial};
+ };
+ const main=makeDevice(asset),panels=panelAssets.map(makeDevice),devices=[main,...panels],{device,width,height,bezel}=main;
+ // Additional screens start hidden; each seek must state exactly which belong in this shot.
+ for(const panel of panels)panel.device.visible=false;
  const camera=new PerspectiveCamera(30,stage.clientWidth/stage.clientHeight,.05,400);
  const distance=Math.max((height+2*bezel)/2,((width+2*bezel)/2)/camera.aspect)/Math.tan(30*Math.PI/360)*1.25;
  const duration=(ctx.frames.end-ctx.frames.start)/30;
@@ -79,11 +86,22 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
  };
  const renderView=(view:StudioView)=>{
   const objectKeys=['objectYaw','objectPitch','objectRoll','objectScale'];
-  if(!view||typeof view!=='object'||Array.isArray(view)||Object.keys(view).some(key=>!['yaw','pitch','distanceScale','targetX','targetY',...(params.objectMotion?objectKeys:[])].includes(key)))throw Error('STUDIO_VIEW_INVALID');
+  if(!view||typeof view!=='object'||Array.isArray(view)||Object.keys(view).some(key=>!['yaw','pitch','distanceScale','targetX','targetY',...(params.objectMotion?objectKeys:[]),...(params.panelKeys?['panels']:[])].includes(key)))throw Error('STUDIO_VIEW_INVALID');
   const yaw=view.yaw??0,pitch=view.pitch??0,scale=view.distanceScale??1,targetX=view.targetX??0,targetY=view.targetY??0;
   const objectYaw=view.objectYaw??0,objectPitch=view.objectPitch??0,objectRoll=view.objectRoll??0,objectScale=view.objectScale??1;
   if(![yaw,pitch,scale,targetX,targetY,objectYaw,objectPitch,objectRoll,objectScale].every(Number.isFinite)||Math.abs(yaw)>70||Math.abs(pitch)>45||scale<.8||scale>3||Math.abs(targetX)>4||Math.abs(targetY)>4
    ||Math.abs(objectYaw)>180||Math.abs(objectPitch)>180||Math.abs(objectRoll)>180||objectScale<.5||objectScale>1.5)throw Error('STUDIO_VIEW_INVALID');
+  if(params.panelKeys){
+   if(view.panels!==undefined&&(!Array.isArray(view.panels)||view.panels.length!==panels.length))throw Error('STUDIO_VIEW_INVALID');
+   for(const [index,panel]of panels.entries()){
+    const pose=view.panels===undefined?{}:view.panels[index];
+    if(!pose||typeof pose!=='object'||Array.isArray(pose)||Object.keys(pose).some(key=>!['x','y','z','yaw','pitch','roll','scale','visible'].includes(key)))throw Error('STUDIO_VIEW_INVALID');
+    const x=pose.x??0,y=pose.y??0,z=pose.z??0,py=pose.yaw??0,pp=pose.pitch??0,pr=pose.roll??0,ps=pose.scale??.5,visible=pose.visible??false;
+    if(![x,y,z,py,pp,pr,ps].every(Number.isFinite)||Math.abs(x)>4||Math.abs(y)>4||Math.abs(z)>4||Math.abs(py)>180||Math.abs(pp)>180||Math.abs(pr)>180
+      ||ps<.25||ps>1.5||typeof visible!=='boolean')throw Error('STUDIO_VIEW_INVALID');
+    panel.device.position.set(x,y,z);panel.device.rotation.set(pp*Math.PI/180,py*Math.PI/180,pr*Math.PI/180);panel.device.scale.setScalar(ps);panel.device.visible=visible;
+   }
+  }
   if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');
   const y=yaw*Math.PI/180,p=pitch*Math.PI/180,d=distance*scale;
   device.rotation.set(objectPitch*Math.PI/180,objectYaw*Math.PI/180,objectRoll*Math.PI/180);device.scale.setScalar(objectScale);
@@ -91,8 +109,9 @@ function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:s
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };
  const dispose=()=>{if(disposed)return;disposed=true;canvas.removeEventListener('webglcontextlost',onLost);
-  bodyGeometry.dispose();bodyMaterial.dispose();faceGeometry.dispose();faceMaterial.dispose();texture.dispose();sweep.geometry.dispose();sweep.material.dispose();environment.dispose();sky.dispose();pmrem.dispose();key.dispose();rim.dispose();renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);};
- const ready=image.decode().then(()=>{if(disposed)return;if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');texture.needsUpdate=true;draw(0);}).catch(error=>{dispose();throw error;});
+  for(const part of devices){part.bodyGeometry.dispose();part.bodyMaterial.dispose();part.faceGeometry.dispose();part.faceMaterial.dispose();part.texture.dispose();}
+  sweep.geometry.dispose();sweep.material.dispose();environment.dispose();sky.dispose();pmrem.dispose();key.dispose();rim.dispose();renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);};
+ const ready=Promise.all(devices.map(async part=>{await part.image.decode();if(part.image.naturalWidth!==part.screen.width||part.image.naturalHeight!==part.screen.height)throw Error('ASSET_DIMENSIONS_MISMATCH');part.texture.needsUpdate=true;})).then(()=>{if(!disposed)draw(0);}).catch(error=>{dispose();throw error;});
  return{ready,render:draw,renderView,dispose,events:blockEvents('object-studio',ctx.frames,params),regions:[{regionId:'product',boxAt(){const box=stage.getBoundingClientRect(),root=ctx.root.getBoundingClientRect();return{x:box.x-root.x,y:box.y-root.y,width:box.width,height:box.height};}}]};
  }catch(error){canvas.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw error;}
 }

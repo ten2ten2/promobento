@@ -9,7 +9,7 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];pages?:Array<{text:string;factIds:string[]}>},whiteboard=false){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];pages?:Array<{text:string;factIds:string[]}>},whiteboard=false){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(whiteboard&&(canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
@@ -57,10 +57,10 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'object-studio@1',params:{assetKey:'health'},purpose:'Probe original studio support.'}];
  }
  if(customStudio){
-  film.assets.health={resourceId:asset.resourceId};
-  film.scenes=[{id:'health',start:0,end:450,kind:'custom',runtime3D:customStudio==='v2'?'om3-studio-v2':'om3-studio-v1',module:'scenes/health/index.js',brief:'Private 3D runtime probe.',purpose:'Probe custom studio support.',
-   params:{textSlots:[],assetKeys:['health'],events:[],readingHolds:[{start:30,end:450,visibleTextSlots:[]}]}}];
-  sources['scenes/health/index.js']=`PB.scene("health",ctx=>{const studio=ctx.OM3.studio("health");const timeline=gsap.timeline({paused:true});ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,pitch:0,distanceScale:1${customStudio==='v2'?',objectYaw:15,objectScale:1':''}}),15);return {timeline};});`;
+  film.assets.health={resourceId:asset.resourceId};if(customStudio==='v3')film.assets['health-panel']={resourceId:asset.resourceId};
+  film.scenes=[{id:'health',start:0,end:450,kind:'custom',runtime3D:customStudio==='v3'?'om3-studio-v3':customStudio==='v2'?'om3-studio-v2':'om3-studio-v1',module:'scenes/health/index.js',brief:'Private 3D runtime probe.',purpose:'Probe custom studio support.',
+   params:{textSlots:[],assetKeys:customStudio==='v3'?['health','health-panel']:['health'],events:[],readingHolds:[{start:30,end:450,visibleTextSlots:[]}]}}];
+  sources['scenes/health/index.js']=`PB.scene("health",ctx=>{const studio=ctx.OM3.studio("health"${customStudio==='v3'?', ["health-panel"]':''});const timeline=gsap.timeline({paused:true});ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0,pitch:0,distanceScale:1${customStudio==='v2'||customStudio==='v3'?',objectYaw:15,objectScale:1':''}${customStudio==='v3'?',panels:[{x:2,scale:.5,visible:true}]':''}}),15);return {timeline};});`;
  }
  if(packedVideo){
   film.assets.health={resourceId:asset.resourceId};

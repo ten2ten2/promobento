@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonical} from '../src/canonical.mjs';
-import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx,filmCustomSfx} from '../src/custom-source.mjs';
+import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx,filmCustomSfx,customStudioAssets} from '../src/custom-source.mjs';
 import {filmSourceHash,filmSourceIdentity} from '../src/film-source.mjs';
 import {filmBuildReceipt} from '../src/film-composition.mjs';
 import {filmFixture} from '../../film-runtime/test/fixture.mjs';
@@ -105,4 +105,17 @@ test('custom 3D studio requires one literal, declared asset and explicit profile
  }
  assert.ok(customSourceErrors(scene,source.replace("const stage=ctx.OM3.studio('dashboard');",''),film).some(issue=>issue.code==='CUSTOM_3D_ONE_STUDIO_REQUIRED'));
  assert.ok(customSourceErrors(scene,source.replace("ctx.OM3.studio('dashboard')","ctx.OM3.studio('dashboard');ctx.OM3.studio('dashboard')"),film).some(issue=>issue.code==='CUSTOM_3D_ONE_STUDIO_REQUIRED'));
+});
+
+test('v3 studio binds every panel as a distinct declared literal and rejects dynamic or extra assets',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v3';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};film.assets.other={resourceId:'res_fixture_other'};scene.params.assetKeys=['dashboard','other'];
+ const source=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard',['other']);const timeline=");
+ assert.deepEqual(customSourceErrors(scene,source,film),[]);assert.deepEqual(customStudioAssets(scene,source),['dashboard','other']);
+ for(const bad of ["ctx.OM3.studio('dashboard')","ctx.OM3.studio('dashboard',[])","ctx.OM3.studio('dashboard',['dashboard'])",
+  "ctx.OM3.studio('dashboard',['missing'])","ctx.OM3.studio('dashboard',[ctx.random()])","ctx.OM3.studio('dashboard',['other','other','other'])"]){
+  assert.ok(customSourceErrors(scene,source.replace("ctx.OM3.studio('dashboard',['other'])",bad),film).some(issue=>issue.code==='CUSTOM_SLOT_UNDECLARED'));
+ }
+ const old=structuredClone(scene);old.runtime3D='om3-studio-v2';
+ assert.ok(customSourceErrors(old,source,film).some(issue=>issue.code==='CUSTOM_SLOT_UNDECLARED'));
 });

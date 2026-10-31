@@ -49,6 +49,7 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 自写镜头可显式声明 `runtime3D: 'om3-studio-v1'`，并在构建时调用一次 `ctx.OM3.studio('assetKey')`。素材须为该镜头声明且已清权的静态图片；舞台在首帧前完成解码，按 3D 资源规格渲染并在销毁时释放。返回对象仅提供 `render({yaw, pitch, distanceScale, targetX, targetY})`：角度分别为 ±70°／±45°，距离比例为 0.8–3，目标坐标为 ±4；省略项使用默认值。通过 `ctx.OM.clockAfter` 在时间线更新后同步绘制，逆序 seek 仍由当前时间决定。导演方法 1.28 才选择此能力，实际使用时先探测固定镜像。该接口不暴露 Three.js、WebGL 上下文、任意模型或着色器，也不替代产品画面与文字的审片。
 
 `om3-studio-v2` 在同一 API 上增加独立的主体旋转 `objectYaw`／`objectPitch`／`objectRoll`（各 ±180°）和 `objectScale`（0.5–1.5），可与相机运动分别编排；每次绘制省略的值回到默认位置，逆序 seek 不依赖上一帧。v1 继续拒绝这些字段。源码中的导演方法 1.33 才选择 v2，并在使用前以该版本检查固定镜像；仍只有一张已清权静态图构成的设备，不加载任意 3D 模型或素材。
+`om3-studio-v3` 允许 `ctx.OM3.studio('主图', ['面板一', '面板二'])` 增加一至两张独立声明、逐项清权的静态图。`render({panels:[...]})` 按顺序设置每张面板的 `x/y/z`（±4）、`yaw/pitch/roll`（±180°）、`scale`（0.25–1.5）和 `visible`；不提供 `visible:true` 的面板在该帧隐藏，不沿用上一帧状态。面板必须有真实的叙事关系，不能把某道练习的细节带到不相干的画面。每帧重新设置，正逆序 seek 一致；v1/v2 不接收该新参数。源码中的方法 1.38 使用前先探测 v3 固定镜像；该能力不是任意 GLB、加载器或 WebGL。
 
 ```js
 const studio = ctx.OM3.studio('product');

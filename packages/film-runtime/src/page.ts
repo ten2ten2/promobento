@@ -1,7 +1,7 @@
 import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import { canonical, parseCanonicalJson } from '@promobento/contracts/canonical';
 import { digest } from '@promobento/contracts/digest';
-import {assertCustomSources,extractCustomSfx,customStudioAsset} from '@promobento/contracts/custom-source';
+import {assertCustomSources,extractCustomSfx,customStudioAssets} from '@promobento/contracts/custom-source';
 import {filmSourceHash} from '@promobento/contracts/film-source';
 import {filmUsesWebgl,isStudioRuntime} from '@promobento/contracts/render';
 import { filmSpecErrors } from '@promobento/contracts/film';
@@ -48,7 +48,7 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     if (scene.layout && Object.keys(scene.layout).length) throw Error('LAYOUT_OVERRIDES_NOT_IMPLEMENTED');
     if (scene.transitionIn && !['cut', 'crossfade', 'fade-through', 'push', 'whip'].includes(scene.transitionIn.type)) throw Error('TRANSITION_NOT_IMPLEMENTED');
     if (scene.kind === 'custom') {
-      if(isStudioRuntime(scene.runtime3D)){const key=customStudioAsset(scene,options.customSources![scene.module]!)!;
+      if(isStudioRuntime(scene.runtime3D))for(const key of customStudioAssets(scene,options.customSources![scene.module]!)!){
         if(!['image','svg'].includes(resources.get(spec.assets[key]!.resourceId)?.kind??''))throw Error('CUSTOM_3D_IMAGE_REQUIRED');}
       continue;
     }
