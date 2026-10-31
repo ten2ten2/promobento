@@ -1,5 +1,5 @@
 export interface VideoFrameManifest {
- schemaVersion:'3.0.0';kind:'video_frame_manifest';source:{sha256:string;byteLength:number;mediaType:'video/mp4'|'video/webm'};
+ schemaVersion:'3.0.0';kind:'video_frame_manifest';source:{sha256:string;byteLength:number;mediaType:'video/mp4'|'video/quicktime'|'video/webm'};
  browserVersion:string;width:number;height:number;poster:{sha256:string;byteLength:number};
  packs:Array<{sha256:string;byteLength:number}>;
  frames:Array<{index:number;pts:number;duration:number;pack:number;offset:number;byteLength:number}>;

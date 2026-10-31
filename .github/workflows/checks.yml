@@ -119,6 +119,20 @@ jobs:
           docker run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user 10001:10001 \
             --cpus 2 --memory 2g --pids-limit 128 -e PROMOBENTO_MEDIA_TEST_CONTAINER=1 --entrypoint node \
             promobento-film-runtime-tests:ci --test apps/render-container/tests/motion-audit.render.test.mjs apps/render-container/tests/audit-images.test.mjs
+      - name: Check declared custom assets and non-overlapping CTA handoff
+        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser'
+        shell: bash
+        run: |
+          mkdir -p artifacts/film-runtime
+          chmod 0777 artifacts/film-runtime
+          sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
+          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
+            -e PROMOBENTO_RUNTIME_CASE=custom-assets \
+            -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
+            --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
+            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
+            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs
+          test -s artifacts/film-runtime/asset-check.json
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
         shell: bash
@@ -140,17 +154,6 @@ jobs:
           else
             test -s artifacts/film-runtime/report.json
           fi
-      - name: Check declared custom assets and non-overlapping CTA handoff
-        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser'
-        shell: bash
-        run: |
-          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
-            -e PROMOBENTO_RUNTIME_CASE=custom-assets \
-            -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
-            --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
-            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs
-          test -s artifacts/film-runtime/asset-check.json
       - name: Bound custom source CPU and memory faults
         if: inputs.suite == 'runtime' && inputs.runtime_case == 'custom'
         shell: bash

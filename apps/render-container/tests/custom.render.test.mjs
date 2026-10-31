@@ -8,6 +8,8 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {admitPackedVideos} from '../src/video-input.mjs';
 import {filmSession} from '../src/browser.mjs';
 import {renderShard} from '../src/shard.mjs';
+import {extractVideo} from '../../../research/evals/approved-video.mjs';
+import {renderArtwork} from '../../../research/evals/approved-artwork.mjs';
 import {assertCanvasTextFrameDigests} from '@promobento/contracts/canvas-text';
 import {compareSeam,pngPixels,pngRgba} from '@promobento/contracts/seams';
 import {filmFixture,pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
@@ -411,6 +413,26 @@ try{
   try{const frame=pngPixels(await legacyStudio.frame(30,{format:'png'}));let green=0;for(let i=0;i<frame.pixels.length;i+=4)if(frame.pixels[i]<60&&frame.pixels[i+1]>150&&frame.pixels[i+2]<60)green++;assert.ok(green>frame.width*frame.height*.02,'existing device-3d still renders its cleared screen');}
   finally{await legacyStudio.close();}
   report.webglGuard='aliased_onscreen_offscreen_and_studio_context_blocked_legacy_device_retained';
+  // Decode an original, synthetic QuickTime source in the same isolated Chrome
+  // used for media intake. Its source identity remains QuickTime, not MP4.
+  const movPath=`${output}/synthetic-intake.mov`;
+  execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=96x64:r=30:d=2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart','-y',movPath]);
+  const mov=readFileSync(movPath),browser=await chromium.connectOverCDP('http://127.0.0.1:9222'),videoContext=await browser.newContext({viewport:{width:16,height:16},deviceScaleFactor:1,acceptDownloads:false});
+  try{
+   await videoContext.route('**/*',route=>route.abort('blockedbyclient'));const page=await videoContext.newPage();
+   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);
+   const result=await extractVideo({page,version:lock.browser.version},mov,'video/quicktime');
+   assert.equal(result.manifest.source.mediaType,'video/quicktime');assert.equal(result.manifest.source.sha256,sha256Bytes(mov));
+   assert.equal(result.manifest.frames.length,60);const pixels=pngPixels(result.poster),at=(32*pixels.width+48)*4;
+   assert.ok(pixels.pixels[at+1]>150&&pixels.pixels[at+2]<100,'QuickTime poster preserves the decoded source image');
+   const artworkPage=await videoContext.newPage();await artworkPage.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>html,body{margin:0;padding:0}img{display:block}</style><img id="art">`);
+   const rgba=Uint8Array.from({length:4*4*4},(_,i)=>i%4===3?255:i%4===1?200:20),image=Buffer.from(pngRgba(4,4,rgba));
+   const icns=Buffer.alloc(16+image.length);icns.write('icns');icns.writeUInt32BE(icns.length,4);icns.write('ic07',8);icns.writeUInt32BE(image.length+8,12);image.copy(icns,16);
+   const artwork=await renderArtwork({page:artworkPage},icns,'image/icns'),decoded=pngPixels(artwork.png);
+   assert.deepEqual([artwork.width,artwork.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60,'ICNS PNG payload is actually decoded');
+  }finally{await videoContext.close();await browser.close();}
+  report.quicktimeIntake='isolated_actual_mov_decode_source_identity_and_30fps_frame_pack';
+  report.icnsIntake='isolated_actual_png_icon_payload_decode';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {directionHero,supportsVoxClip} from '../src/direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle} from '../src/direction-hero.ts';
 import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
 
@@ -57,4 +57,16 @@ test('original Vox capability does not change frozen methods or video-led direct
  assert.equal(supportsVoxClip(method('1.31.0'),resources.slice(0,1)),false);
  assert.equal(supportsVoxClip(method('1.31.0'),[{kind:'video'},...resources]),false);
  assert.equal(supportsVoxClip(null,resources),false);
+});
+
+test('original Canvas title is gated to the new method and receives a short bound product headline',()=>{
+ const method=version=>({id:'product-directing',version});
+ assert.equal(supportsCanvasTitle(method('1.31.0'),context),false);
+ assert.equal(supportsCanvasTitle(method('1.32.0'),context),true);
+ assert.equal(supportsCanvasTitle(method('1.32.0'),{...context,product:'العربية'}),false);
+ assert.equal(supportsCanvasTitle(method('1.32.0'),{...context,fonts:[{...context.fonts[0],style:'italic'}]}),false);
+ const film=directionHero({...card,skeleton:[{approach:'block:canvas-title'}]},context,0);
+ assert.equal(film.scenes[0].block,'canvas-title@1');assert.equal(film.texts.headline.text,context.product);
+ const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
 });

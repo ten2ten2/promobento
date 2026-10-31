@@ -40,7 +40,7 @@ import {directorProgress,commitCandidate,commitReviewDraft,failDirector,director
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet,selectCustomMotionFrames,auditSheetReferences} from './director-sheets.mjs';
-import {directionHero,supportsVoxClip} from './direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle} from './direction-hero.ts';
 import {workflowStarted} from './workflow-state.ts';
 import type {PipelineEnv,Json,BlobRef,Operation} from './pipeline-types.ts';
 
@@ -163,9 +163,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const customStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=28);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
     const voxClipMethod=supportsVoxClip(methods,context.resources);
+    const canvasTitleMethod=supportsCanvasTitle(methods,context);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>block.id!=='canvas-title'&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1'));
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -195,6 +196,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if((preview||!methods)&&value.scenes.some((scene:Json)=>scene.kind!=='block'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'S1_BLOCKS_ONLY',path:'/scenes'}],value);
       if(!relayMethod&&value.scenes.some((scene:Json)=>scene.block==='component-relay@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
+      const canvasTitles=value.scenes.filter((scene:Json)=>scene.block==='canvas-title@1');
+      if(canvasTitles.length&&!canvasTitleMethod)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(canvasTitles.length&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
         if(scene.runtime3D&&!customStudioMethod)throw Error('CUSTOM_3D_NOT_AVAILABLE');
@@ -319,6 +323,12 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(correction>=1)throw Error(value.code);validationFeedback=value;
       }
     };
+    const preflightCanvasTitles=async(film:Json)=>{
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='canvas-title@1')){
+        const face=film.style.type.display,{text,factIds}=film.texts[scene.params.textSlot];
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,{...face,text,factIds});
+      }
+    };
     const prepareScenes=async(film:Json)=>{
       const custom=film.scenes.filter((scene:Json)=>scene.kind==='custom').sort((a:Json,b:Json)=>Number(b.params.hardest===true)-Number(a.params.hardest===true));
       // Extend the original absolute window only for newly frozen internal custom evaluations.
@@ -330,6 +340,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
+      await preflightCanvasTitles(film);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
@@ -566,6 +577,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           const film=card.keyframeFilm;
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
+          await preflightCanvasTitles(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];

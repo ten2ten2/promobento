@@ -29,9 +29,12 @@ return {
       const text = num ? (nd.prefix || '') + TY.fmt(nd.value || 0, nd.decimals ?? 0) + (nd.suffix || '') : (q.text || '');
       const S0 = (ctx.portrait ? 250 : 300) * u;
       const family=ctx.fontFamily || 'PuHui-Black';
-      let f = TY.fit(g, text, W * 0.86, S0, family, { maxLines: 1, min: 0.55, soft: true });   // 先缩字号放一行，再不行折两行；单个长英文词再缩也要放得下
-      if (!f.ok) f = num ? TY.fit(g, text, W * 0.86, S0, family, { maxLines: 1 })   // 数字不折行（滚动时逐字变宽，折开会跳）：只缩字号
-                     : TY.fit(g, text, W * 0.86, S0, family, { maxLines: 2, min: 0.3, balance: true });
+      // The bound-title host opts into platform safe areas; other upstream
+      // grammar users retain the original full-width layout.
+      const titleWidth=ctx.data.safeText?(W-ctx.safe.left-ctx.safe.right)*.9:W*.86;
+      let f = TY.fit(g, text, titleWidth, S0, family, { maxLines: 1, min: 0.55, soft: true });   // 先缩字号放一行，再不行折两行；单个长英文词再缩也要放得下
+      if (!f.ok) f = num ? TY.fit(g, text, titleWidth, S0, family, { maxLines: 1 })   // 数字不折行（滚动时逐字变宽，折开会跳）：只缩字号
+                     : TY.fit(g, text, titleWidth, S0, family, { maxLines: 2, min: 0.3, balance: true });
       const sf = q.sub ? TY.fit(g, q.sub, W * 0.86, (ctx.portrait ? 64 : 80) * u, 'PuHui-Heavy', { maxLines: 2, min: 0.6, balance: true }) : null;   // 辅句：放不下先缩、再折两行
       const show = num ? q.at - 0.7 : q.at;
       return { q, i, num, nd, text, f, sf, show, col: pal[i % pal.length] };
@@ -70,6 +73,7 @@ return {
 function dots(c, t, col, a, u, W, H) { const g = 64 * u, ox = (t * 36 * u) % g, oy = (t * 18 * u) % g; c.save(); c.globalAlpha = a; c.fillStyle = col; for (let y = -g; y < H + g; y += g) for (let x = -g; x < W + g; x += g) { c.beginPath(); c.arc(x + ox, y + oy, 4 * u, 0, Math.PI * 2); c.fill(); } c.restore(); }
 function drawPage(c, P, t, ctx) {
   const { W, H, u } = ctx, q = P.q, fg = ctx.alpha ? '#FFFFFF' : P.col[1], lt = ctx.lt(t, P.num ? P.show : q.at);
+  const textCenter=ctx.data.safeText?ctx.safe.left+(W-ctx.safe.left-ctx.safe.right)/2:W/2;
   const stroke = ctx.alpha ? { stroke: '#111', strokeW: P.f.size * 0.06 } : {};
   const lines = P.num ? [P.text] : P.f.lines, size = P.f.size, lh = size * 1.08;
   const sub = q.sub, subSz = P.sf ? P.sf.size : 0, subL = P.sf ? P.sf.lines : [];
@@ -97,8 +101,8 @@ function drawPage(c, P, t, ctx) {
   // 主词：每行在 at（+0.08s/行）砸进来；数字页从 0 滚到落定
   lines.forEach((ln, i) => {
     let s = ln; if (P.num) { const k = MO.expoOut(clamp(lt / 0.7)); s = (P.nd.prefix || '') + TY.fmt((P.nd.value || 0) * k, P.nd.decimals ?? 0) + (P.nd.suffix || ''); }
-    const w = TY.width(c, s, size, ctx.fontFamily || 'PuHui-Black'), x = W / 2 - w / 2, y = y0 + i * lh;
-    TY.slam(c, s, x, y, lt - i * 0.08, { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: W / 2, oy: y - size * 0.36, ...stroke });
+    const w = TY.width(c, s, size, ctx.fontFamily || 'PuHui-Black'), x = textCenter - w / 2, y = y0 + i * lh;
+    TY.slam(c, s, x, y, lt - i * 0.08, { size, fam:ctx.fontFamily || 'PuHui-Black', color: fg, scale: hiScale, ox: textCenter, oy: y - size * 0.36, ...stroke });
     if (lt - i * 0.08 > 0) CLIP.mark(c, CLIP.rid('word', pi), x, y - size * 0.88, w, size * 1.0);
     for (const k of (knock || []).filter(k => k.i === i)) {             // 只在荧光笔那块平行四边形里，用底色再砸一遍同一行（和 TY.marker 同一形状）
       const [mx, my, mw, mh, mp] = k.mr, ww = mw * MO.expoOut(clamp(mp)), sk = mh * 0.18;

@@ -5,7 +5,7 @@
  "properties":{
   "schemaVersion":{"const":"3.0.0"}, "kind":{"const":"video_frame_manifest"},
   "source":{"type":"object","additionalProperties":false,"required":["sha256","byteLength","mediaType"],"properties":{
-   "sha256":{"$ref":"#/$defs/sha256"},"byteLength":{"type":"integer","minimum":1,"maximum":52428800},"mediaType":{"enum":["video/mp4","video/webm"]}}},
+   "sha256":{"$ref":"#/$defs/sha256"},"byteLength":{"type":"integer","minimum":1,"maximum":52428800},"mediaType":{"enum":["video/mp4","video/quicktime","video/webm"]}}},
   "browserVersion":{"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$","maxLength":40},
   "width":{"type":"integer","minimum":1,"maximum":4096},"height":{"type":"integer","minimum":1,"maximum":4096},
   "poster":{"$ref":"#/$defs/poster"},"packs":{"type":"array","minItems":1,"maxItems":180,"items":{"$ref":"#/$defs/pack"}},

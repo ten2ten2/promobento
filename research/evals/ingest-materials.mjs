@@ -77,7 +77,7 @@ try{
   }
   const sourceObject=originalSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.svg`,originalSource,'image/svg+xml')
    :artwork?await upload(`${prefix}/${asset.topicId}/${artworkSourceObjectName(asset)}`,artwork.original,artwork.sourceMediaType)
-   :video?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.${asset.derivation.sourceMediaType==='video/mp4'?'mp4':'webm'}`,video.source,asset.derivation.sourceMediaType):null;
+   :video?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.${({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm'})[asset.derivation.sourceMediaType]}`,video.source,asset.derivation.sourceMediaType):null;
   if((artwork||video)&&sourceObject.sha256!==asset.derivation.sourceSha256)throw Error('MATERIAL_UPLOAD_IDENTITY_MISMATCH');
   const preview=video?await upload(`${prefix}/${asset.topicId}/${asset.id}-poster.png`,video.poster,'image/png'):null,framePacks=[];
   if(video){

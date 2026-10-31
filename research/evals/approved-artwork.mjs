@@ -12,10 +12,35 @@ import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-image
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
 const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon'})[extname(path).toLowerCase()];
+const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns'})[extname(path).toLowerCase()];
+const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns'})[type];
 export function artworkSourceObjectName(asset){
- if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||!['image/svg+xml','image/x-icon'].includes(asset.derivation?.sourceMediaType))throw Error('ARTWORK_SOURCE_INVALID');
- return asset.id+'-source.'+(asset.derivation.sourceMediaType==='image/svg+xml'?'svg':'ico');
+ const ext=extension(asset.derivation?.sourceMediaType);
+ if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||!ext)throw Error('ARTWORK_SOURCE_INVALID');
+ return asset.id+'-source.'+ext;
+}
+/** Pick the largest static PNG image from a bounded ICNS file; never run project code. */
+export function extractIcnsPng(source){
+ const bytes=Buffer.from(source);if(bytes.length<16||bytes.length>limit||bytes.toString('ascii',0,4)!=='icns'||bytes.readUInt32BE(4)!==bytes.length)throw Error('ARTWORK_ICNS_INVALID');
+ const types=new Set(['ic04','ic05','ic07','ic08','ic09','ic10','ic11','ic12','ic13','ic14','icp4','icp5','icp6']);let best,area=0,count=0;
+ for(let offset=8;offset<bytes.length;){
+  if(offset+8>bytes.length||++count>1024)throw Error('ARTWORK_ICNS_INVALID');
+  const type=bytes.toString('ascii',offset,offset+4),size=bytes.readUInt32BE(offset+4);if(size<8||offset+size>bytes.length)throw Error('ARTWORK_ICNS_INVALID');
+  const image=bytes.subarray(offset+8,offset+size);
+  if(types.has(type)&&image.subarray(0,8).toString('hex')==='89504e470d0a1a0a'){
+   let position=8,end=false;
+   while(position<image.length){
+    if(position+12>image.length)throw Error('ARTWORK_ICNS_INVALID');const length=image.readUInt32BE(position),name=image.toString('ascii',position+4,position+8);
+    if(position+12+length>image.length||name==='acTL')throw Error('ARTWORK_ICNS_INVALID');position+=12+length;
+    if(name==='IEND'){if(length||position!==image.length)throw Error('ARTWORK_ICNS_INVALID');end=true;break;}
+   }
+   if(!end)throw Error('ARTWORK_ICNS_INVALID');const {width,height,mediaType}=imageHeader(image);
+   if(mediaType!=='image/png'||width>4096||height>4096)throw Error('ARTWORK_ICNS_INVALID');
+   if(width*height>area){best=image;area=width*height;}
+  }
+  offset+=size;
+ }
+ if(!best)throw Error('ARTWORK_ICNS_UNSUPPORTED');return Buffer.from(best);
 }
 function validCard(card){return card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;}
 function checkApproval(card,asset){
@@ -42,7 +67,7 @@ async function openBrowser(){
 async function bounded(work){
  let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('ARTWORK_RENDER_TIMEOUT')),15000);})]);}finally{clearTimeout(timer);}
 }
-async function renderArtwork({page},bytes,mediaType){
+export async function renderArtwork({page},bytes,mediaType){
  if(!bytes.length||bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');
  if(mediaType==='image/svg+xml'){
   let source;try{source=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error('ARTWORK_SVG_INVALID');}
@@ -76,11 +101,12 @@ async function renderArtwork({page},bytes,mediaType){
   },source));
   if(!valid)throw Error('ARTWORK_SVG_UNSUPPORTED');
  }
+ const renderBytes=mediaType==='image/icns'?extractIcnsPng(bytes):bytes,renderType=mediaType==='image/icns'?'image/png':mediaType;
  const dims=await bounded(page.evaluate(async({mediaType,base64})=>{
   const img=document.querySelector('#art');img.src=`data:${mediaType};base64,${base64}`;
   try{await img.decode();}catch{throw Error('ARTWORK_DECODE_FAILED');}
   return{width:img.naturalWidth,height:img.naturalHeight};
- },{mediaType,base64:bytes.toString('base64')}));
+ },{mediaType:renderType,base64:renderBytes.toString('base64')}));
  if(![dims.width,dims.height].every(value=>Number.isSafeInteger(value)&&value>0&&value<=4096))throw Error('ARTWORK_DIMENSIONS_INVALID');
  const png=await page.locator('#art').screenshot({type:'png',omitBackground:true,timeout:15000});
  if(png.length>limit)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
@@ -99,7 +125,7 @@ export async function captureApprovedArtwork({sourceDir,outputDir,card,entries})
   if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.sourceFile!=='string'||!entry.sourceFile||typeof entry.description!=='string'||!entry.description.trim())throw Error('ARTWORK_SELECTION_INVALID');
   const mediaType=kindFor(entry.sourceFile);if(!mediaType)throw Error('ARTWORK_KIND_UNSUPPORTED');
   const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,approvalRef:entry.approvalRef,
-   derivation:{kind:'approved_artwork_rasterization',sourceFile:entry.sourceFile,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+(mediaType==='image/svg+xml'?'.source.svg':'.source.ico')}};
+   derivation:{kind:'approved_artwork_rasterization',sourceFile:entry.sourceFile,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+'.source.'+extension(mediaType)}};
   const decision=materialApproval(card,asset);if(!decision.explicit||decision.source.kind!=='local_project_media'||decision.explicit.sourceFile!==entry.sourceFile||decision.explicit.sourceUrl!==entry.sourceUrl||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??''))throw Error('ARTWORK_APPROVAL_IDENTITY_REQUIRED');
   const path=resolve(source,entry.sourceFile);if(!within(source,path)||relative(source,path).split(sep).join('/')!==entry.sourceFile||!within(source,realpathSync(path))||lstatSync(path).isSymbolicLink()||!statSync(path).isFile())throw Error('LOCAL_MATERIAL_PATH_INVALID');
   if(statSync(path).size>limit)throw Error('ARTWORK_SIZE_INVALID');return{entry,asset,path};
@@ -127,10 +153,10 @@ export async function captureApprovedWebArtwork({outputDir,card,entries,download
   if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim())throw Error('ARTWORK_SELECTION_INVALID');
   approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.imageUrl),mediaType=kindFor(url.pathname);if(!mediaType)throw Error('ARTWORK_KIND_UNSUPPORTED');
   const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,imageUrl:entry.imageUrl,approvalRef:entry.approvalRef,
-   derivation:{kind:'approved_artwork_rasterization',sourceOrigin:'web',imageUrl:entry.imageUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+(mediaType==='image/svg+xml'?'.source.svg':'.source.ico')}};
+   derivation:{kind:'approved_artwork_rasterization',sourceOrigin:'web',imageUrl:entry.imageUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256,originalFile:entry.id+'.source.'+extension(mediaType)}};
   checkApproval(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon,image/icns'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeArtwork(output,artifacts,inputs);
 }
 /** Independently rebuild artwork previews before any remote side effect; bytes must match. */
@@ -143,7 +169,8 @@ export async function verifyArtworkSelections(directory,selected,topics){
   const topic=topics.topics.find(item=>item.id===asset.topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
   const card=parseCanonicalJson(readFileSync(topic.factCard));if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
   checkApproval(card,asset);
-  const original=asset.derivation.originalFile,expected=asset.id+(asset.derivation.sourceMediaType==='image/svg+xml'?'.source.svg':'.source.ico');
+  const ext=extension(asset.derivation.sourceMediaType);if(!ext)throw Error('ARTWORK_SOURCE_INVALID');
+  const original=asset.derivation.originalFile,expected=asset.id+'.source.'+ext;
   if(original!==expected||asset.file!==asset.id+'.png')throw Error('ARTWORK_SOURCE_INVALID');
   const sourcePath=join(root,original),pngPath=join(root,asset.file);
   for(const path of [sourcePath,pngPath])if(lstatSync(path).isSymbolicLink()||!within(root,realpathSync(path))||!statSync(path).isFile())throw Error('ARTWORK_SOURCE_INVALID');

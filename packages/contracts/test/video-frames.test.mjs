@@ -14,6 +14,9 @@ test('frame packs bind source, timings and every byte',()=>{const {manifest,pack
  assert.throws(()=>opened.frame(2),/VIDEO_FRAME_UNAVAILABLE/);assert.throws(()=>videoFrameBytes(valid,0,bytes('xyzabc')),/VIDEO_FRAME_PACK_IDENTITY/);assert.throws(()=>videoFrameBytes(valid,3,packs[1]),/VIDEO_FRAME_UNAVAILABLE/);
  const raw=canonical(manifest);assert.throws(()=>parseVideoFrameManifest(raw,'0'.repeat(64)),/VIDEO_FRAME_MANIFEST_IDENTITY/);
 });
+test('QuickTime source identity remains distinct from MP4 and WebM',()=>{
+ const {manifest}=fixture();manifest.source.mediaType='video/quicktime';assert.equal(parse(manifest).source.mediaType,'video/quicktime');
+});
 test('reject timing changes, skipped packs, overlaps and hidden bytes',()=>{for(const mutate of [m=>m.frames[1].pts=.5,m=>m.frames[1].offset=2,m=>m.frames[2].pack=0,m=>m.packs[1].byteLength++,m=>m.frames[0].extra=true,m=>m.source.mediaType='text/html']){
  const {manifest}=fixture();mutate(manifest);assert.throws(()=>parse(manifest),/VIDEO_FRAME_MANIFEST_INVALID/);
 }});

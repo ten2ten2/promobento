@@ -182,7 +182,9 @@ mise exec -- node research/evals/discover-local-materials.mjs \
   artifacts/example-local-candidates <已批准题目ID> <本地项目目录> <登记的local来源URL>
 ```
 
-`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；后续收集支持逐项批准的 PNG、JPEG、静态 WebP，以及下述受限 SVG、ICO 和 MP4／WebM；其他格式仍需接入。
+`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；后续收集支持逐项批准的 PNG、JPEG、静态 WebP，以及下述受限 SVG、ICO／ICNS 和 MP4／MOV／WebM；其他格式仍需接入。
+
+需要参考项目样式时，可在命令末尾显式追加 `--styles`：工具只读取受限数量和大小的 `.css`，提取直接声明的十六进制颜色及首选字体名，并记录相对来源；超出上限记入遗漏。结果不是实际页面样式、字体许可或素材授权，仍须核对后才能用于方向；不加该参数保持原先只列文件的行为。
 
 已有逐项批准的本地项目 PNG、JPEG 和静态 WebP 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
 
@@ -197,14 +199,14 @@ mise exec -- node research/evals/capture-local-materials.mjs \
 
 只读取清单中已逐项批准、位于项目目录内的 PNG、JPEG 或静态 WebP，保留原字节并输出待人工查看的 `selected.json`；不运行项目代码、不扫描或复制其他文件，也不自动批准素材。当前导演输入上限为单图 1 MiB 和 4096×4096；不合格须先按获准范围处理。此入口是内部评测，不是客户文件上传或任意网站采集。
 
-已逐项批准的**SVG 和 ICO** 可转成 PNG 进入同一流程。本地文件在事实卡的 `materialApprovals` 仍绑定原始 `sourceFile`、`sourceUrl` 和原文件 `sha256`，私有清单结构与上面的本地图片一致。
+已逐项批准的**SVG、ICO 和 ICNS** 可转成 PNG 进入同一流程。本地文件在事实卡的 `materialApprovals` 仍绑定原始 `sourceFile`、`sourceUrl` 和原文件 `sha256`，私有清单结构与上面的本地图片一致。
 
 ```sh
 mise exec -- node research/evals/approved-artwork.mjs \
   artifacts/example-artwork <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-采集前核对全部许可和原始字节，在隔离 Chrome 中离线解码；只接受静态安全 SVG 基本图形及 ICO。SVG 可使用指向本文件内静态图形或 `symbol` 的 `use`，拒绝嵌套引用、重复目标和过大的展开；脚本、外部引用、内嵌图片、字体文字和不支持的 SVG 结构仍被拒绝。保留原文件及透明 PNG，二者都待实际查看。入库前会用同一 Chrome 版本重新生成 PNG、逐字节核对，并将原文件和原始许可一并存入私有 R2；Chrome 版本变化或源图／PNG 改动时停止，须重新生成并审看。网页文件则在事实卡逐项绑定 `sourceUrl`、无查询参数且路径以 `.svg`／`.ico` 结尾的 HTTPS `imageUrl` 与原始 `sha256`；清单使用网页图片的 `imageUrl` 字段，并以 `--web` 代替本地目录：
+采集前核对全部许可和原始字节，在隔离 Chrome 中离线解码；SVG 只接受静态安全基本图形。SVG 可使用指向本文件内静态图形或 `symbol` 的 `use`，拒绝嵌套引用、重复目标和过大的展开；脚本、外部引用、内嵌图片、字体文字和不支持的 SVG 结构仍被拒绝。ICNS 提取其中面积最大的受支持静态 PNG；仅含其他编码的 ICNS 明确拒绝。保留原文件及透明 PNG，二者都待实际查看。入库前会用同一 Chrome 版本重新生成 PNG、逐字节核对，并将原文件和原始许可一并存入私有 R2；Chrome 版本变化或源图／PNG 改动时停止，须重新生成并审看。网页文件则在事实卡逐项绑定 `sourceUrl`、无查询参数且路径以 `.svg`／`.ico`／`.icns` 结尾的 HTTPS `imageUrl` 与原始 `sha256`；清单使用网页图片的 `imageUrl` 字段，并以 `--web` 代替本地目录：
 
 ```sh
 mise exec -- node research/evals/approved-artwork.mjs \
@@ -213,14 +215,14 @@ mise exec -- node research/evals/approved-artwork.mjs \
 
 网页下载先核对全部许可，不跟随重定向、拒绝私网地址；原文件和转换结果同样须查看并重建核对。此入口不是任意客户上传。 本机有 Chrome 时，可用 `mise exec -- node --test research/evals/approved-artwork.test.mjs` 验证隔离解码和重建；该专项不替代 staging 真实素材验收。
 
-已逐项批准的本地 MP4／WebM 可用同一私有清单收集，事实卡批准须绑定 `sourceFile`、`sourceUrl` 和原文件 `sha256`：
+已逐项批准的本地 MP4／MOV／WebM 可用同一私有清单收集，事实卡批准须绑定 `sourceFile`、`sourceUrl` 和原文件 `sha256`：
 
 ```sh
 mise exec -- node research/evals/approved-video.mjs \
   artifacts/example-video <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-网页 MP4／WebM 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 路径须以 `.mp4`／`.webm` 结尾。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
+网页 MP4／MOV／WebM 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 路径须以 `.mp4`／`.mov`／`.webm` 结尾。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
 
 ```sh
 mise exec -- node research/evals/approved-video.mjs \
@@ -229,7 +231,7 @@ mise exec -- node research/evals/approved-video.mjs \
 
 网页下载先核对全部许可，不跟随重定向，拒绝私网地址并限制 50 MiB；观察到的页面视频地址不构成许可。
 
-隔离且断网的 Chrome 按源时间每秒 30 次提取画面，保留原视频、首帧 PNG 和身份绑定的 WebP 帧包；最长 60 秒，单源至多 50 MiB，全部帧包合计至多 175 MiB。它不导入原视频声音；音频须另走既有授权流程。须实际查看视频及海报并标记内部审核，入库前以相同 Chrome 版本重建并逐字节核对，然后一并登记原视频和所有帧包。导演只从海报观察到首帧，不得推断后续动作；实际镜头应覆盖在源视频时长之内。首个素材为视频时须至少 46 帧以供方向预览。该入口不处理任意客户上传或未经批准的视频；实际 staging 和整片效果另行验证。
+隔离且断网的 Chrome 按源时间每秒 30 次提取画面，保留原视频、首帧 PNG 和身份绑定的 WebP 帧包；最长 60 秒，单源至多 50 MiB，全部帧包合计至多 175 MiB。MOV 只接受当前 Chrome 可解码的 QuickTime 编码，保留 `video/quicktime` 原始身份；无法解码时停止，不改标为 MP4。它不导入原视频声音；音频须另走既有授权流程。须实际查看视频及海报并标记内部审核，入库前以相同 Chrome 版本重建并逐字节核对，然后一并登记原视频和所有帧包。导演只从海报观察到首帧，不得推断后续动作；实际镜头应覆盖在源视频时长之内。首个素材为视频时须至少 46 帧以供方向预览。该入口不处理任意客户上传或未经批准的视频；实际 staging 和整片效果另行验证。
 
 采集使用独立临时 Chrome 配置，不登录、不下载应用。`selected.json` 初始为 `pending_visual_selection`；**查看实际图片**，排除人物肖像、私人内容、未确认业绩和不完整/源码画面后，记录 `approved_for_internal_eval_by_codex` 与 `reviewedAt`，再入库。不能把截图文件存在当作通过。全量采集拒绝覆盖旧文件；需要补某一题时用新目录或题目参数，避免重做已选图片。
 

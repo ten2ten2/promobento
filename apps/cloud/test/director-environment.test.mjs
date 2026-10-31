@@ -7,6 +7,7 @@ import {validate as validFilm} from '@promobento/contracts/validators/film';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {pageOptions} from '../../../packages/film-runtime/test/fixture.mjs';
+import {generateFilmPage} from '../../../packages/film-runtime/src/page.ts';
 import platform from '../../../config/platform-presets.json' with {type:'json'};
 const preflight=await build({entryPoints:['apps/cloud/src/director-preflight.ts'],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
 const{directorEnvironment}=await import('data:text/javascript;base64,'+Buffer.from(preflight.outputFiles[0].text).toString('base64'));
@@ -73,6 +74,25 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  await custom();await custom();assert.equal(probes,2);assert.equal(cache.size,2);
  cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
  await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,4,'an unsupported new studio does not disable old scenes');
+});
+
+test('Canvas title preflight requires an actual readable observation for the exact font and text',async t=>{
+ const{db,DB}=sqliteD1();t.after(()=>db.close());const{objects,MEDIA}=memoryMedia(),image='sha256:'+'a'.repeat(64),cache=new Map();
+ const op={id:'health-operation',generation:0};db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
+ db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
+ const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,confirmedFactIds:['confirmed-number']};
+ let probes=0,closes=0,taskId,film,blocked=false;
+ const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);probes++;assert.equal(film.scenes[0].block,'canvas-title@1');generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
+  async checkFrame(_id,frame){const text={slotId:'headline',sceneId:'health',text:film.texts.headline.text,box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:1}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:blocked,covered:false};return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[text],regions:[],findings:blocked?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
+  async closeStudio(){closes++;}
+ };}}};
+ const check=(text,factIds=[])=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,{...context.fonts[0],text,factIds});
+ await check('HELLO');await check('HELLO');assert.equal(probes,1);
+ blocked=true;await assert.rejects(check('WORLD'),/RENDER_CANVAS_TEXT_UNAVAILABLE/);assert.equal(cache.size,1);
+ blocked=false;await check('WORLD');assert.equal(probes,3);assert.equal(closes,3);assert.equal(cache.size,2);
+ await check('Model 2',['confirmed-number']);assert.equal(probes,4,'numeric text retains its confirmed fact binding');
 });
 
 test('studio ownership is persisted before execute; cancelled or failed startup cannot lose its cleanup handle',async t=>{

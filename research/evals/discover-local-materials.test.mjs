@@ -10,6 +10,7 @@ test('local media discovery lists private candidates without copying bytes or gr
  try{
   const source=join(local,'project');mkdirSync(source);mkdirSync(join(source,'screens'));mkdirSync(join(source,'node_modules'));mkdirSync(join(source,'.private'));
   writeFileSync(join(source,'screens','first.png'),'unread media');writeFileSync(join(source,'screens','demo.MP4'),'unread video');
+  writeFileSync(join(source,'screens','style.css'),'/* #000000 */ .thing { color: #AABBCC; font-family: "Fixture Sans", sans-serif; } .other { background: #abc; font-family: "Fixture Sans"; }');
   writeFileSync(join(source,'node_modules','skip.png'),'ignored');writeFileSync(join(source,'.private','skip.svg'),'ignored');
   writeFileSync(join(local,'outside.png'),'outside');symlinkSync(join(local,'outside.png'),join(source,'escape.png'));
   const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}]};
@@ -17,7 +18,11 @@ test('local media discovery lists private candidates without copying bytes or gr
   const out=join(outputs,'approved'),result=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:out,card});
   assert.deepEqual(result.candidates.map(item=>[item.sourceFile,item.kind]),[['screens/demo.MP4','video'],['screens/first.png','image']]);
   assert.ok(result.candidates.every(item=>item.review==='pending_rights_and_visual_review'));assert.equal(result.skippedSymlinks,1);
+  assert.equal(result.styleObservations,undefined,'existing discovery does not read styles unless requested');
   assert.deepEqual(JSON.parse(readFileSync(join(out,'candidates.json'))),result);assert.equal(existsSync(join(out,'first.png')),false);
+  const styles=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'styles'),card,observeStyles:true}).styleObservations;
+  assert.deepEqual(styles.colours.map(item=>item.value),['#aabbcc','#abc']);assert.deepEqual(styles.fonts,[{value:'Fixture Sans',count:2,sources:['screens/style.css']}]);
+  assert.equal(styles.filesRead,1);assert.match(styles.scope,/not_font_or_asset_permission/);
   assert.throws(()=>discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:out,card}),/NEW_PRIVATE_OUTPUT_REQUIRED/);
  }finally{rmSync(local,{recursive:true,force:true});rmSync(outputs,{recursive:true,force:true});}
 });

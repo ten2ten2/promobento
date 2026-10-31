@@ -74,7 +74,10 @@ window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',buil
   let stage:ReturnType<typeof createClipStage>|undefined,trace:CanvasTitleTrace|undefined,lastTime:number|undefined;
   const ready=document.fonts.load(`normal 400 36px "${family}"`,text).then(faces=>{
     if(!faces.length||faces.some(face=>face.status!=='loaded'))throw Error('CANVAS_TITLE_FONT_UNAVAILABLE');
-    stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,data:{palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
+    const inset=ctx.target.safeInsets;
+    stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,
+      safe:{left:inset.left*canvas.width,right:inset.right*canvas.width,top:inset.top*canvas.height,bottom:inset.bottom*canvas.height},
+      data:{safeText:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
       cues:[{kind:'title',at:0,text}]},{width:canvas.width,height:canvas.height,fontFamily:family});
   });
   const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');

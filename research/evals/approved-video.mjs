@@ -12,7 +12,8 @@ import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
-const kindFor=file=>({'.mp4':'video/mp4','.webm':'video/webm'})[extname(file).toLowerCase()];
+const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm'})[extname(file).toLowerCase()];
+const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm'})[type];
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
@@ -26,7 +27,10 @@ function approved(card,asset){
 }
 function checkBytes(card,asset,bytes){const decision=approved(card,asset);if(!bytes.length||bytes.length>maxSource||sha256Bytes(bytes)!==decision.explicit.sha256)throw Error('VIDEO_SOURCE_IDENTITY_MISMATCH');}
 function sourceSignature(bytes,mediaType){
- if(mediaType==='video/mp4'&&(bytes.length<12||bytes.toString('ascii',4,8)!=='ftyp')||mediaType==='video/webm'&&(bytes.length<4||bytes.subarray(0,4).toString('hex')!=='1a45dfa3'))throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+ const box=bytes.toString('ascii',4,8);
+ if(mediaType==='video/mp4'&&(bytes.length<12||box!=='ftyp')
+  ||mediaType==='video/quicktime'&&(bytes.length<12||!['ftyp','moov','mdat','free','wide'].includes(box))
+  ||mediaType==='video/webm'&&(bytes.length<4||bytes.subarray(0,4).toString('hex')!=='1a45dfa3')||!extension(mediaType))throw Error('VIDEO_SOURCE_FORMAT_INVALID');
 }
 async function bounded(work,ms=15000){let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('VIDEO_DECODE_TIMEOUT')),ms);})]);}finally{clearTimeout(timer);}}
 async function openBrowser(){
@@ -35,11 +39,13 @@ async function openBrowser(){
   const page=await context.newPage();await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);return{browser,page,version:browser.version()};
  }catch(error){await browser.close();throw error;}
 }
-async function extractVideo({page,version},source,mediaType){
+export async function extractVideo({page,version},source,mediaType){
  sourceSignature(source,mediaType);
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
-  const v=document.querySelector('video');if(v.src.startsWith('blob:'))URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(new Blob([buffer],{type:mediaType}));
+  // Chromium demuxes compatible QuickTime containers through its MP4 media
+  // path; the manifest and retained original still say video/quicktime.
+  const v=document.querySelector('video');if(v.src.startsWith('blob:'))URL.revokeObjectURL(v.src);v.src=URL.createObjectURL(new Blob([buffer],{type:mediaType==='video/quicktime'?'video/mp4':mediaType}));
   const wait=event=>new Promise((resolve,reject)=>{const done=()=>{v.removeEventListener('error',bad);resolve();},bad=()=>{v.removeEventListener(event,done);reject(Error('VIDEO_DECODE_FAILED'));};v.addEventListener(event,done,{once:true});v.addEventListener('error',bad,{once:true});});
   await wait('loadedmetadata');let duration=v.duration;
   if(!Number.isFinite(duration)){v.currentTime=1e10;await wait('seeked');duration=v.duration;}
@@ -87,7 +93,7 @@ async function materializeVideo(output,artifacts,inputs){
  let runner;const collected=[];let totalPackBytes=0;
  try{runner=await openBrowser();for(const input of inputs){const out=await extractVideo(runner,input.bytes,input.asset.derivation.sourceMediaType);
   totalPackBytes+=out.packs.reduce((sum,pack)=>sum+pack.length,0);if(totalPackBytes>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
-  const ext=input.asset.derivation.sourceMediaType==='video/mp4'?'mp4':'webm';const derivation={...input.asset.derivation,originalFile:input.entry.id+'.source.'+ext,manifestFile:input.entry.id+'.video.json',packFiles:out.packs.map((_,i)=>input.entry.id+'.pack-'+i+'.bin'),browserVersion:runner.version};
+  const ext=extension(input.asset.derivation.sourceMediaType);if(!ext)throw Error('VIDEO_SOURCE_FORMAT_INVALID');const derivation={...input.asset.derivation,originalFile:input.entry.id+'.source.'+ext,manifestFile:input.entry.id+'.video.json',packFiles:out.packs.map((_,i)=>input.entry.id+'.pack-'+i+'.bin'),browserVersion:runner.version};
   collected.push({source:input.bytes,...out,asset:{...input.asset,derivation,file:input.entry.id+'.png',width:out.manifest.width,height:out.manifest.height,mediaType:'image/png',description:input.entry.description,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}});
  }}finally{await runner?.browser.close();}
  mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
@@ -107,7 +113,7 @@ export async function captureApprovedWebVideo({outputDir,card,entries,download=d
    derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
   approved(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/webm',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeVideo(output,artifacts,inputs);
 }
 
@@ -120,7 +126,7 @@ export async function verifyVideoSelections(directory,selected,topics){
   if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||asset.review!=='approved_for_internal_eval_by_codex'||!asset.reviewedAt)throw Error('MATERIAL_REVIEW_REQUIRED');
   const topic=topics.topics.find(item=>item.id===asset.topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
   const card=parseCanonicalJson(readFileSync(topic.factCard));if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');approved(card,asset);
-  const ext=asset.derivation.sourceMediaType==='video/mp4'?'mp4':'webm';
+  const ext=extension(asset.derivation.sourceMediaType);if(!ext)throw Error('VIDEO_SOURCE_INVALID');
   if(asset.file!==asset.id+'.png'||asset.derivation.originalFile!==asset.id+'.source.'+ext||asset.derivation.manifestFile!==asset.id+'.video.json'
    ||!Array.isArray(asset.derivation.packFiles)||!asset.derivation.packFiles.length||asset.derivation.packFiles.length>180
    ||asset.derivation.packFiles.some((file,i)=>file!==asset.id+'.pack-'+i+'.bin'))throw Error('VIDEO_SOURCE_INVALID');
