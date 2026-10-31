@@ -63,7 +63,10 @@ function textSlot(slotId: string, sceneStyle?: FilmSpec['style'], splitGraphemes
         for(const {segment} of new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(slot.text)){
           if(/^\s+$/u.test(segment)){el.append(document.createTextNode(segment));continue;}
           const mask=document.createElement('span'),character=document.createElement('span');
-          Object.assign(mask.style,{display:'inline-block',overflow:'hidden',verticalAlign:'top'});
+          // Negative tracking can let glyph bounds overhang their advance. Give
+          // the masked glyph room without changing its advance or clipping the
+          // original blank template's rising entrance.
+          Object.assign(mask.style,{display:'inline-block',overflow:'hidden',verticalAlign:'top',padding:'.12em .08em',margin:'-.12em -.08em'});
           character.className='pb-grapheme';character.style.display='inline-block';character.textContent=segment;mask.append(character);el.append(mask);
         }
       }else el.textContent = slot.text;

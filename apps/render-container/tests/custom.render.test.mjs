@@ -67,9 +67,9 @@ try{
    const opts=pageOptions(aspect,rules.aspectLayouts[aspect]);opts.fonts=options.fonts;opts.customSources={'scenes/product/index.js':splitSource};
    const split=await filmSession({raw:JSON.stringify(splitFilm),options:opts,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{const start=await split.frame(0,{format:'png'}),settled=await split.frame(45,{format:'png'}),observation=await split.observe('grapheme-test',45),reverse=await split.frame(0,{format:'png'});
-    const text=observation.texts.find(item=>item.sceneId==='product'&&item.slotId==='product');assert.equal(text?.text,splitFilm.texts.product.text);assert.equal(text.clipped,false);assert.equal(text.fallbackUsed,false);
-    assert.ok(compareSeam(start,settled).diffPixelPct>.01,`${aspect} title actually moves`);assert.notEqual(compareSeam(start,reverse).verdict,'RENDER_SEAM_BLOCK');
     writeFileSync(`${output}/grapheme-title-${aspect}.png`,settled);
+    const text=observation.texts.find(item=>item.sceneId==='product'&&item.slotId==='product');assert.equal(text?.text,splitFilm.texts.product.text);assert.equal(text.clipped,false,JSON.stringify(observation.findings));assert.equal(text.fallbackUsed,false,JSON.stringify(observation.findings));
+    assert.ok(compareSeam(start,settled).diffPixelPct>.01,`${aspect} title actually moves`);assert.notEqual(compareSeam(start,reverse).verdict,'RENDER_SEAM_BLOCK');
    }finally{await split.close();}
   }
   const styleOptions={...options,customSources:{'scenes/product/index.js':splitSource.replace("const title=ctx.text('product').mount(heading,{split:'graphemes'});", "const title=ctx.text('product').mount(heading,{split:'graphemes'}),piece=title.querySelector('.pb-grapheme');piece.style.fontFamily='serif';piece.style.color=ctx.style.palette.bg;")}};

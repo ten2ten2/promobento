@@ -68,6 +68,7 @@ test('a nested glyph that is transparent, clipped or translated out of frame can
   const result=await nestedTextObservation(options);assert.equal(result.texts[0].clipped,true,JSON.stringify(options));
   assert.ok(result.findings.some(f=>f.code==='text-clipped'&&f.severity==='BLOCK'));
  }
+ const boundsFailure=await nestedTextObservation({clippedByChild:true});assert.match(boundsFailure.findings.find(f=>f.code==='text-clipped').detail,/Nested text.*clipping ancestor/);
  for(const options of [{nestedFallback:true},{nestedMissingFont:true}]){
   const result=await nestedTextObservation(options);assert.equal(result.texts[0].fallbackUsed,true);assert.ok(result.findings.some(f=>f.code==='FONT_FALLBACK_USED'));
  }

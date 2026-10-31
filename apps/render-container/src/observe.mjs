@@ -60,11 +60,14 @@ export async function observe(cdp, plan, renderId, frame) {
     let ratio = contrast(foreground.rgb, background);const safe = plan.target.safeInsets;
     let insideSafeArea = x >= plan.target.width * safe.left - 2 && y >= plan.target.height * safe.top - 2
       && x + width <= plan.target.width * (1 - safe.right) + 2 && y + height <= plan.target.height * (1 - safe.bottom) + 2;
-    let clipped = x < 0 || y < 0 || x + width > plan.target.width + 1 || y + height > plan.target.height + 1;
+    let clipped = false,clipDetail;
+    const markClipped=detail=>{clipped=true;clipDetail??=detail;};
+    const rect=value=>value.map(number=>Math.round(number*100)/100).join(',');
+    if(x < 0 || y < 0 || x + width > plan.target.width + 1 || y + height > plan.target.height + 1)markClipped('Slot bounds extend outside the frame.');
     for (let current = parent(node); current >= 0; current = parent(current)) {
       const parentRow = rowFor.get(current); if (parentRow === undefined || !['hidden', 'clip'].includes(style(current, 'overflow'))) continue;
       const [a, b, w, h] = layout.bounds[parentRow];
-      if (x < a - 1 || y < b - 1 || x + width > a + w + 1 || y + height > b + h + 1) clipped = true;
+      if (x < a - 1 || y < b - 1 || x + width > a + w + 1 || y + height > b + h + 1)markClipped(`Slot [${rect([x,y,width,height])}] exceeds clipping ancestor [${rect([a,b,w,h])}].`);
     }
     // A slot can contain individually animated spans. The slot's bounding box
     // and concatenated DOM text alone do not prove that every part is painted:
@@ -72,26 +75,26 @@ export async function observe(cdp, plan, renderId, frame) {
     for(const piece of textNodes){
       if(parent(piece.index)===node||!piece.text.trim())continue;
       const pieceRow=rowFor.get(piece.index),bounds=pieceRow===undefined?null:layout.bounds[pieceRow];
-      if(!bounds||bounds[2]<=0||bounds[3]<=0){clipped=true;continue;}
+      if(!bounds||bounds[2]<=0||bounds[3]<=0){markClipped('Nested text has no visible layout bounds.');continue;}
       const [px,py,pw,ph]=bounds;
       const nestedForeground=color(style(parent(piece.index),'color'));let nestedBackground;
       for(let current=parent(piece.index);current>=0;current=parent(current)){const candidate=color(style(current,'background-color'));if(candidate?.alpha===1){nestedBackground=candidate.rgb;break;}}
-      if(!nestedForeground||!nestedBackground)clipped=true;
+      if(!nestedForeground||!nestedBackground)markClipped('Nested text foreground or background is unavailable.');
       else{
-        if(graphemeScene&&nestedForeground.alpha!==1)clipped=true;
+        if(graphemeScene&&nestedForeground.alpha!==1)markClipped('A grapheme has a translucent text color.');
         const rgb=nestedForeground.rgb.map((value,index)=>value*nestedForeground.alpha+nestedBackground[index]*(1-nestedForeground.alpha));
         ratio=Math.min(ratio,contrast(rgb,nestedBackground));
       }
-      if(px<0||py<0||px+pw>plan.target.width+1||py+ph>plan.target.height+1)clipped=true;
+      if(px<0||py<0||px+pw>plan.target.width+1||py+ph>plan.target.height+1)markClipped(`Nested text [${rect(bounds)}] extends outside the frame.`);
       if(px<plan.target.width*safe.left-2||py<plan.target.height*safe.top-2
         ||px+pw>plan.target.width*(1-safe.right)+2||py+ph>plan.target.height*(1-safe.bottom)+2)insideSafeArea=false;
       for(let current=parent(piece.index);current>=0;current=parent(current)){
         const opacity=Number(style(current,'opacity')??1);
-        if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||opacity===0||graphemeScene&&opacity<1)clipped=true;
-        const pieceColor=color(style(current,'color'));if(current!==node&&pieceColor?.alpha===0)clipped=true;
+        if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||opacity===0||graphemeScene&&opacity<1)markClipped('A nested text ancestor is hidden or translucent.');
+        const pieceColor=color(style(current,'color'));if(current!==node&&pieceColor?.alpha===0)markClipped('A nested text ancestor has transparent color.');
         const parentRow=rowFor.get(current);
         if(parentRow!==undefined&&['hidden','clip'].includes(style(current,'overflow'))){
-          const [a,b,w,h]=layout.bounds[parentRow];if(px<a-1||py<b-1||px+pw>a+w+1||py+ph>b+h+1)clipped=true;
+          const [a,b,w,h]=layout.bounds[parentRow];if(px<a-1||py<b-1||px+pw>a+w+1||py+ph>b+h+1)markClipped(`Nested text [${rect(bounds)}] exceeds clipping ancestor [${rect([a,b,w,h])}].`);
         }
         if(current===node)break;
       }
@@ -120,7 +123,7 @@ export async function observe(cdp, plan, renderId, frame) {
     regions.push({regionId: slotId, box});
     for (const [condition, code] of [[fallbackUsed, 'FONT_FALLBACK_USED'], [missingGlyphs > 0, 'FONT_GLYPH_MISSING'],
       [!insideSafeArea, 'outside-safe-area'], [clipped, 'text-clipped'], [covered, 'text-covered'], [ratio < (largeText?3:4.5), 'low-contrast']])
-      if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId});
+      if (condition) findings.push({code, severity: code === 'text-covered' ? 'REVIEW' : 'BLOCK', slotId,...(code==='text-clipped'&&clipDetail?{detail:clipDetail}:{})});
   }
   if(customIds.size)for(const [node,row]of rowFor){
     if(nodes.nodeType[node]!==3||!strings[nodes.nodeValue[node]]?.trim())continue;
