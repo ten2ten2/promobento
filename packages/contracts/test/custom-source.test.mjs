@@ -91,3 +91,17 @@ test('source SFX are extracted without execution and use frozen BPM and sample-a
  const legacy=structuredClone(scene);delete legacy.params.sourceSfx;
  assert.deepEqual(extractCustomSfx(legacy,source,film),[]);
 });
+
+test('custom 3D studio requires one literal, declared asset and explicit profile',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v1';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};scene.params.assetKeys=['dashboard'];
+ const source=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard');const timeline=");
+ assert.deepEqual(customSourceErrors(scene,source,film),[]);
+ const noProfile=structuredClone(scene);delete noProfile.runtime3D;
+ assert.ok(customSourceErrors(noProfile,source,film).some(issue=>issue.code==='CUSTOM_3D_NOT_DECLARED'));
+ for(const bad of ["ctx.OM3.studio('other')","ctx.OM3.studio(ctx.random())"]){
+  assert.ok(customSourceErrors(scene,source.replace("ctx.OM3.studio('dashboard')",bad),film).some(issue=>issue.code==='CUSTOM_SLOT_UNDECLARED'));
+ }
+ assert.ok(customSourceErrors(scene,source.replace("const stage=ctx.OM3.studio('dashboard');",''),film).some(issue=>issue.code==='CUSTOM_3D_ONE_STUDIO_REQUIRED'));
+ assert.ok(customSourceErrors(scene,source.replace("ctx.OM3.studio('dashboard')","ctx.OM3.studio('dashboard');ctx.OM3.studio('dashboard')"),film).some(issue=>issue.code==='CUSTOM_3D_ONE_STUDIO_REQUIRED'));
+});

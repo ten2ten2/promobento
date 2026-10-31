@@ -1,3 +1,4 @@
+import {createTrustedWebGL,releaseTrustedWebGL} from './private-webgl.ts';
 import './object-studio.ts';
 import {AmbientLight,BoxGeometry,Color,DirectionalLight,Group,Mesh,MeshBasicMaterial,MeshStandardMaterial,
   PerspectiveCamera,PlaneGeometry,Scene,SRGBColorSpace,Texture,WebGLRenderer} from 'three';
@@ -17,10 +18,12 @@ window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'device-3d',versio
  }
  const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',left:wide&&hasText?'39%':'0',top:!wide&&hasText?'29%':'0',width:wide&&hasText?'61%':'100%',height:!wide&&hasText?'71%':'100%'});safe.append(stage);
  const canvas=document.createElement('canvas');canvas.dataset.pbWebgl='device-3d';Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});stage.append(canvas);
- const renderer=new WebGLRenderer({canvas,alpha:true,antialias:true,preserveDrawingBuffer:true});
+ const context=createTrustedWebGL(canvas);let renderer:WebGLRenderer;
+ try{renderer=new WebGLRenderer({canvas,context,alpha:true,antialias:true,preserveDrawingBuffer:true});}
+ catch(error){releaseTrustedWebGL(canvas);context.getExtension('WEBGL_lose_context')?.loseContext();throw error;}
  renderer.setPixelRatio(1);renderer.setSize(Math.round(stage.clientWidth),Math.round(stage.clientHeight),false);renderer.outputColorSpace=SRGBColorSpace;
  const gl=renderer.getContext();if(asset.width>gl.getParameter(gl.MAX_TEXTURE_SIZE)||asset.height>gl.getParameter(gl.MAX_TEXTURE_SIZE)){
-  renderer.dispose();throw Error('DEVICE_TEXTURE_TOO_LARGE');
+  renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw Error('DEVICE_TEXTURE_TOO_LARGE');
  }
  let disposed=false,lost=false,shaderFailed=false;
  const onLost=(event:Event)=>{event.preventDefault();lost=true;};canvas.addEventListener('webglcontextlost',onLost);
@@ -54,7 +57,7 @@ window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'device-3d',versio
  const dispose=()=>{
   if(disposed)return;disposed=true;canvas.removeEventListener('webglcontextlost',onLost);
   for(const geometry of[bodyGeometry,screenGeometry,stemGeometry,footGeometry])geometry.dispose();
-  for(const material of[bodyMaterial,edgeMaterial,screenMaterial])material.dispose();texture.dispose();renderer.dispose();renderer.forceContextLoss();
+  for(const material of[bodyMaterial,edgeMaterial,screenMaterial])material.dispose();texture.dispose();renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);
  };
  const ready=image.decode().then(()=>{if(disposed)return;texture.needsUpdate=true;draw(0);}).catch(error=>{dispose();throw error;});
  return{ready,render:draw,dispose,events:blockEvents('device-3d',ctx.frames,params),regions:[{regionId:'product',boxAt(){

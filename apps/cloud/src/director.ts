@@ -2,7 +2,7 @@ import {directorBlockParamIssues} from './director-block-feedback.ts';
 import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflare:workers';
 import {directingMethodRef,recallDirecting,type DirectingMethodPack} from '../../../packages/methods/directing.ts';
 import {customSceneInstructions} from '../../../packages/methods/custom-scene.ts';
-import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx} from '@promobento/contracts/custom-source';
+import {customScenePlan,customSourceErrors,assertCustomSources,applyCustomEdit,extractCustomSfx,customStudioAsset} from '@promobento/contracts/custom-source';
 import {checkCustomScenes,probeCustomSources,CustomSceneCheckError,hasPriorVisibleAssets,hasClearedQaBeforeSeek} from './director-scenes.ts';
 import agentToolsSchema from '../../../contracts/agent-tools.schema.json';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -77,14 +77,23 @@ const customLiteralGuidance=(scene:FilmSpec['scenes'][number])=>{
     +(p.textSlots.length?`Likewise pass ctx.text(${canonical(p.textSlots[0])}) to a layout helper, or mount that literal call directly. `:'This scene declares no text slots. ')
     +'Keep a literal ctx.text/ctx.asset access for every declared slot/asset; do not delete a declaration to hide an invalid access.';
 };
-const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>scene.kind==='custom'&&scene.params?.sourceSfx===true
+const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>{
+ let instructions=scene.kind==='custom'&&scene.params?.sourceSfx===true
   ?customSceneInstructions.replace('sound events are frozen in scene.params.events, not evaluated from source.',
     `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be scene-local seconds written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM; audio is placed at the nearest 48 kHz sample. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and time in FilmSpec audio.sfx.`)
   :customSceneInstructions;
-const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec)=>{
+ if(scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1')instructions=instructions.replace('custom WebGL/Three.js is not yet admitted.',
+  `this scene has the bounded 3D studio. Construct exactly one ctx.OM3.studio('literal-asset-key') during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
+ return instructions;
+};
+const customSourceIssues=(scene:FilmSpec['scenes'][number],source:string,film:FilmSpec,resources:Json[])=>{
   const lines=source.split('\n');
   const issues=customSourceErrors(scene,source,film).map(issue=>({code:issue.code,path:'/source/'+issue.line,sourceLine:(lines[issue.line-1]??'').slice(0,400),
     ...(['CUSTOM_SLOT_UNDECLARED','CUSTOM_DECLARATION_UNUSED'].includes(issue.code)?{hint:customLiteralGuidance(scene)}:{})}));
+  if(!issues.length&&scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'){
+    const key=customStudioAsset(scene,source)!,kind=resources.find(asset=>asset.resourceId===film.assets[key]!.resourceId)?.kind;
+    if(!['image','svg'].includes(kind))issues.push({code:'CUSTOM_3D_IMAGE_REQUIRED',path:'/source',sourceLine:'',hint:'Use a declared, cleared still image or SVG for the 3D screen.'});
+  }
   if(!issues.length&&scene.kind==='custom'&&scene.params?.sourceSfx===true){
     const sounds=extractCustomSfx(scene,source,film);
     for(const sound of sounds)if(!SFX_IDS.includes(sound.id))
@@ -150,6 +159,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const detailedBlockFeedback=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=16);
     const reviewShardHistory=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=18);
     const separateQaSeekRepair=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=19);
+    const customStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=28);
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
     const availableBlocks=blockCatalog.filter(block=>(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod));
     let relayInsights:Json[]=[],chosenVisualLanguage='';
@@ -168,6 +178,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     // Model hints must expose the same block identities and fact-binding rules as admission.
     // A catalog implementation patch (e.g. 1.0.1) is not a FilmSpec block reference (@1).
     s1FilmSchema.$defs.scene.oneOf[0].properties.block.enum=availableBlocks.map(block=>block.id+'@'+block.version.split('.')[0]);
+    if(!customStudioMethod)delete s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D;
     s1FilmSchema.$defs.textSlot.properties.factIds.items.enum=context.confirmedFactIds;
     s1FilmSchema.$defs.textSlot.properties.factIds.description='Use only these confirmed fact ids. Every cta, number or quote slot, and every slot containing a digit, percent or currency symbol, must bind at least one genuinely relevant confirmed fact. Preserve existing bindings when editing. Do not invent ids or attach unrelated facts to unsupported claims.';
     delete s1FilmSchema.$defs.assetSlot.properties.crop;
@@ -181,6 +192,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
+        if(scene.runtime3D&&!customStudioMethod)throw Error('CUSTOM_3D_NOT_AVAILABLE');
         const declared=customScenePlan(scene,{validateVisibleTextSlots:Boolean(checkedHoldMethod),validateAssetChecks:Boolean(checkedAssetsMethod&&!preview)});
         if(declared.textSlots.some(key=>!Object.hasOwn(value.texts,key))||declared.assetKeys.some(key=>!Object.hasOwn(value.assets,key)))throw Error('CUSTOM_SLOT_UNDECLARED');
         if(checkedHoldMethod&&declared.readingHolds.some(hold=>!Array.isArray(hold.visibleTextSlots)))throw Error('CUSTOM_HOLD_TEXT_REQUIRED');
@@ -218,7 +230,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         // D separately admits the exact source bytes and checks real custom frames before rendering.
         const checking=custom.length?{...value,scenes:value.scenes.map((scene:Json)=>{
           if(scene.kind!=='custom')return scene;
-          const {module,brief,params,kind,...common}=scene;
+          const {module,brief,params,kind,runtime3D,...common}=scene;
           return{...common,kind:'block',block:'hook-title@1',params:{textSlot:Object.keys(value.texts)[0]}};
         })}:value;
         generateFilmPage(canonical(checking),{target:{...layout,aspect:context.aspects[0],fps:30,totalFrames:value.totalFrames},seed:context.seed,
@@ -312,6 +324,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
+      if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
         relayScenes.some((scene:Json)=>Object.hasOwn(scene.params,'componentBehavior')));
@@ -375,7 +388,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'&&providers.steps.scenes.includes('/deepseek-')?{toolChoice:'edit_file'}:{}),maxOutputTokens:32768},value=>{
           const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
           if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input})||calls[0].input.path!==scene.module||calls[0].input.command==='create')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/toolCalls/0/input'}],value);
-          try{const next=applyCustomEdit(currentSource,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);if(next===currentSource)throw Error('CUSTOM_REPAIR_UNCHANGED');}
+          try{const next=applyCustomEdit(currentSource,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec,context.resources);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);if(next===currentSource)throw Error('CUSTOM_REPAIR_UNCHANGED');}
           catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
         },true,scene.id);
         if(value.kind==='s1_model_validation_failure')throw Error(value.code);
@@ -412,7 +425,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
                 ...((providers.providers as Json)[providers.steps.scenes.split('/')[0]!].kind==='openai-compatible'&&providers.steps.scenes.includes('/deepseek-')?{toolChoice:'edit_file'}:{}),maxOutputTokens:32768},value=>{
                 const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
                 if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input})||calls[0].input.path!==scene.module||calls[0].input.command==='create')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/toolCalls/0/input'}],value);
-                try{const next=applyCustomEdit(currentSource,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);if(next===currentSource)throw Error('CUSTOM_REPAIR_UNCHANGED');}
+                try{const next=applyCustomEdit(currentSource,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec,context.resources);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);if(next===currentSource)throw Error('CUSTOM_REPAIR_UNCHANGED');}
                 catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
               },true,scene.id);
               if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
@@ -437,7 +450,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
                 const calls=value?.toolCalls;if(calls?.length!==1||calls[0].name!=='edit_file')throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'ONE_SCOPED_EDIT_REQUIRED',path:'/toolCalls'}],value);
                 if(typeof calls[0].input?.path!=='string'||calls[0].input.path!==scene.module)throw new DirectorValidationError('CUSTOM_TOOL_INVALID',[{code:'CUSTOM_EDIT_PATH_STRING_REQUIRED',path:'/toolCalls/0/input/path'}],value);
                 if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:'edit_file',input:calls[0].input}))throw new DirectorValidationError('CUSTOM_TOOL_INVALID',schemaIssues(validTool.errors),value);
-                try{const next=applyCustomEdit(source,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);}
+                try{const next=applyCustomEdit(source,calls[0].input,scene.module),issues=customSourceIssues(scene,next,film as FilmSpec,context.resources);if(issues.length)throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',issues,value);}
                 catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('CUSTOM_SOURCE_INVALID',[{code:(error as Error).message,path:'/input'}],value);}
               },true,scene.id);
               if(value.kind==='s1_model_validation_failure'){if(attempt>=1)throw Error(value.code);feedback=value;continue;}
@@ -447,7 +460,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           cached={key,source:source!,plan};sceneCache.set(scene.module,cached);
         }
         sceneSources[scene.module]=cached!.source;
-        if(earlySceneProbe&&custom.length>1&&sceneIndex===0){
+        if(earlySceneProbe&&custom.length>1&&sceneIndex===0&&custom.slice(1).every((item:Json)=>!item.runtime3D)){
           const probe=probeCustomSources(film,scene.id,sceneSources);
           await verifyScenes(probe,scene.id);
         }
@@ -543,6 +556,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
           const film=card.keyframeFilm;
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
+          if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
           const taskId='still-'+digest({operationId:op.id,direction:card.key}).slice(0,48),frame=45;
@@ -609,7 +623,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
               if(!['write_spec','submit_candidate',...(sceneModules.length?['edit_file']:[])].includes(call?.name))throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'ALLOWED_TOOL_REQUIRED',path:'/toolCalls/0/name'}],value);
               if(!validTool({schemaVersion:'3.0.0',kind:'tool_call',tool:call.name,input:call.input}))throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',schemaIssues(validTool.errors?.filter(error=>error.schemaPath.startsWith('#/$defs/call_'+call.name+'/'))),value);
               if(call.name==='write_spec')validateSpec(call.input.film);
-              if(call.name==='edit_file'){const scene=film.scenes.find((scene:Json)=>scene.kind==='custom'&&scene.module===call.input.path);if(!scene)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/input/path'}],value);try{const source=applyCustomEdit(sceneSources[scene.module],call.input,scene.module);const issues=customSourceIssues(scene,source,film as FilmSpec);if(issues.length)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',issues,value);}catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:(error as Error).message,path:'/input'}],value);}}
+              if(call.name==='edit_file'){const scene=film.scenes.find((scene:Json)=>scene.kind==='custom'&&scene.module===call.input.path);if(!scene)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:'CUSTOM_EDIT_SCOPE',path:'/input/path'}],value);try{const source=applyCustomEdit(sceneSources[scene.module],call.input,scene.module);const issues=customSourceIssues(scene,source,film as FilmSpec,context.resources);if(issues.length)throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',issues,value);}catch(error){if(error instanceof DirectorValidationError)throw error;throw new DirectorValidationError('DIRECTOR_TOOL_INVALID',[{code:(error as Error).message,path:'/input'}],value);}}
             });
             const call=review.toolCalls[0];if(call.name==='submit_candidate')break;
             if(internalRepairs>=policy.limits.maxInternalRepairs)return reviewDraft('DIRECTOR_REPAIR_LIMIT',

@@ -89,11 +89,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
     await inRenderPhase({phase:'runtime_init'},()=>evaluate(input => window.__omEngine.init(input), {...envelope('init'), mode: 'trusted_render', pixelScale: 1,
       manifestHash: plan.manifestHash, frameCount: plan.spec.totalFrames, width: plan.target.width, height: plan.target.height,
       fps: 30, seed: plan.seed, renderProfile: {sampleCount: 1, shutterAngle: 0, sampling: 'centered-box-v1', edgePolicy: 'clamp-v1'}}));
-    const webgl=await evaluate(()=>[...document.querySelectorAll('canvas[data-pb-webgl]')].map(canvas=>{
-      const gl=canvas.getContext('webgl2');if(!gl||gl.isContextLost())throw Error('WEBGL_CONTEXT_UNAVAILABLE');
-      const extension=gl.getExtension('WEBGL_debug_renderer_info');
-      return{renderer:gl.getParameter(extension?extension.UNMASKED_RENDERER_WEBGL:gl.RENDERER),vendor:gl.getParameter(extension?extension.UNMASKED_VENDOR_WEBGL:gl.VENDOR),version:gl.getParameter(gl.VERSION)};
-    }));
+    const webgl=await evaluate(()=>window.__omEngine.webglInfo());
     if(plan.usesWebgl&&!webgl.length)throw Error('WEBGL_CONTEXT_UNAVAILABLE');
     if(plan.usesWebgl&&(!expectedWebglRenderer||webgl.some(value=>value.renderer!==expectedWebglRenderer||!/^WebGL 2/.test(value.version))))throw Error('RENDER_ENVIRONMENT_MISMATCH');
     return {

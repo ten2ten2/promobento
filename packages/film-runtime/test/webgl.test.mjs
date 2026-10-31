@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {generateFilmPage} from '../src/page.ts';
 import {filmFixture,pageOptions} from './fixture.mjs';
 import {webglFixture} from './webgl-fixture.mjs';
+import {customFixture} from './custom-fixture.mjs';
 import {planShards,WEBGL_BLOCKS,renderPageTiming,renderDeadlineMs} from '../../contracts/src/render.mjs';
 import {blockCatalog} from '../../blocks/src/catalog.ts';
 import {parseCanonicalJson} from '../../contracts/src/canonical.mjs';
@@ -59,4 +60,17 @@ test('original object studio is a real admitted image-only WebGL block and recei
  const job={schemaVersion:'3.0.0',kind:'render_job',renderId:'studio-test',operationId:'studio-test',candidateId:'studio-test',sourceHash:filmSourceHash(JSON.stringify(film)),runtimeVersion:'film-runtime-v1',rendererRelease:'test-release',aspectId:'portrait',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:[]};
  assert.ok(planShards(job,film,{seed:'seed'}).shards.every(shard=>shard.instance==='standard-4'));
  assert.deepEqual(renderPageTiming(film,policy),{initTimeoutMs:60000,frameTimeoutMs:10000});
+});
+
+test('an explicit custom studio loads the isolated WebGL runtime and uses 3D resources without changing legacy scenes',()=>{
+ const {film,sources}=customFixture(),scene=film.scenes[0];scene.runtime3D='om3-studio-v1';
+ film.assets.dashboard={resourceId:'res_fixture_dashboard'};scene.params.assetKeys=['dashboard'];
+ sources[scene.module]=sources[scene.module].replace('const timeline=',"const stage=ctx.OM3.studio('dashboard');const timeline=");
+ const options=pageOptions('landscape',rules.aspectLayouts.landscape);options.customSources=sources;
+ const page=generateFilmPage(JSON.stringify(film),options);assert.equal(page.plan.usesWebgl,true);assert.match(page.html,/blocks-3d\.js/);
+ assert.deepEqual(renderPageTiming(film,policy),{initTimeoutMs:60000,frameTimeoutMs:10000});
+ const job={schemaVersion:'3.0.0',kind:'render_job',renderId:'studio-test',operationId:'studio-test',candidateId:'studio-test',sourceHash:filmSourceHash(JSON.stringify(film),sources),runtimeVersion:'film-runtime-v1',rendererRelease:'test-release',aspectId:'portrait',durationSeconds:15,totalFrames:450,quality:'final',renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:[]};
+ assert.ok(planShards(job,film,{seed:'seed'}).shards.every(shard=>shard.instance==='standard-4'));
+ const legacy=structuredClone(film);delete legacy.scenes[0].runtime3D;
+ assert.throws(()=>generateFilmPage(JSON.stringify(legacy),options),/CUSTOM_3D_NOT_DECLARED/);
 });

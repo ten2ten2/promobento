@@ -30,7 +30,7 @@ CDP先在任何脚本前注入shim，再导航；ready后依 [RenderProtocol](..
 - device-3d用Three.js0.186.1将清权静态图贴原创设备几何，不接视频纹理；仅3D页加载bundle。姿态是时间纯函数，无自主循环；ready等纹理／首帧，dispose释放资源和context。BlockInstance.ready/dispose可选，旧积木不需新增前置。[许可](../blocks/NOTICE.md)。
 - `object-studio@1` 将一张已清权静态图贴到原版圆角设备，使用移植的柔光环境、弧形背景和连续相机，画面为全幅舞台；可选 `textSlot` 作为简短的事实绑定 DOM 文字覆盖，主体仍占据主要画面。首帧等待原始图片解码并核对尺寸，渲染结束释放几何、纹理与 WebGL context。它是产品主体展示，不模拟产品操作；不接视频纹理或原版 GLB／SVG／HDR 加载器。[许可](../blocks/NOTICE.md)。
 
-全局纹理、布局覆盖、客户本地值覆盖预览、自写WebGL尚未开放，不能因Schema保留字段就执行。页面不播音轨；可信阅读／动作采样不是完整动态Q1/Q2或负责人视听。
+全局纹理、布局覆盖、客户本地值覆盖预览、任意自写 WebGL 尚未开放，不能因Schema保留字段就执行。页面不播音轨；可信阅读／动作采样不是完整动态Q1/Q2或负责人视听。
 
 ## 自写镜头：源码与规格分开
 
@@ -38,7 +38,17 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 `OM.camera` 和 `OM.space` 的字符串选择器先查当前镜头，再沿用文档范围回退；多个镜头复用原版模板的同名 ID 时，各自镜头优先。显式元素引用不变。连续 `OM.space.to` 只替换该镜头的相机驱动 tween，不终止作者时间线或保留重复驱动。
 
-当 Canvas 绘制依赖同一 GSAP 时间线中其他 tween 的值时，用 `ctx.OM.clockAfter(timeline, draw, duration)`。它沿用原版 `OM3.film` 的顺序：先完成该时点的全部 tween，再同步调用 `draw`，之后才捕获帧；同一次 seek 的重复更新只绘制最后时点，异常会使帧失败。`draw` 不支持异步任务，也不因此开放 WebGL。仅依赖时间参数的既有 `ctx.OM.clock` 不变。
+当 Canvas 绘制依赖同一 GSAP 时间线中其他 tween 的值时，用 `ctx.OM.clockAfter(timeline, draw, duration)`。它沿用原版 `OM3.film` 的顺序：先完成该时点的全部 tween，再同步调用 `draw`，之后才捕获帧；同一次 seek 的重复更新只绘制最后时点，异常会使帧失败。`draw` 不支持异步任务；受限 3D 舞台可在此回调中绘制。仅依赖时间参数的既有 `ctx.OM.clock` 不变。
+
+自写镜头可显式声明 `runtime3D: 'om3-studio-v1'`，并在构建时调用一次 `ctx.OM3.studio('assetKey')`。素材须为该镜头声明且已清权的静态图片；舞台在首帧前完成解码，按 3D 资源规格渲染并在销毁时释放。返回对象仅提供 `render({yaw, pitch, distanceScale, targetX, targetY})`：角度分别为 ±70°／±45°，距离比例为 0.8–3，目标坐标为 ±4；省略项使用默认值。通过 `ctx.OM.clockAfter` 在时间线更新后同步绘制，逆序 seek 仍由当前时间决定。导演方法 1.28 才选择此能力，实际使用时先探测固定镜像。该接口不暴露 Three.js、WebGL 上下文、任意模型或着色器，也不替代产品画面与文字的审片。
+
+```js
+const studio = ctx.OM3.studio('product');
+const view = {yaw: -30}, timeline = gsap.timeline({paused: true});
+timeline.to(view, {yaw: 20, duration: 2}, 0);
+ctx.OM.clockAfter(timeline, () => studio.render({yaw: view.yaw}), 15);
+return {timeline};
+```
 
 场景构建时可用 `ctx.OM.ready(promise)` 登记首帧前必须完成的异步准备；宿主等待已登记任务及其中登记的后续任务，失败或超时则停止初始化。准备结束后不接受新的登记。素材仍只能使用已授权的 `ctx.asset`，此接口不开放网络或任意依赖。
 

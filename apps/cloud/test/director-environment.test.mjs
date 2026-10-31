@@ -63,14 +63,16 @@ test('original 3D studio is probed only when requested, on a WebGL instance, bef
  const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
   async studio(_id,text){const{generation,imageDigest,deadlineAt,...task}=parseCanonicalJson(text);probes++;assertRenderTask({...task,brokerToken:'fixture-non-secret-token'});
    const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
-   if(film.scenes[0].block==='object-studio@1'){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
+   if(film.scenes[0].block==='object-studio@1'||film.scenes[0].runtime3D==='om3-studio-v1'){assert.equal(task.instance,'standard-4');assert.equal(task.options.initTimeoutMs,60000);return canonical({status:'ready',webgl:oldRenderer?[]:[{renderer:'fixture'}]});}
    assert.equal(task.instance,'standard-3');return canonical({status:'ready'});},
   async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},async closeStudio(){closes++;}
  };}}};
  const check=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,true);
  await check();await check();assert.equal(probes,1);assert.equal(closes,1);
- cache.clear();oldRenderer=true;await assert.rejects(check(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
- await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,3,'an unsupported new studio does not disable old scenes');
+ const custom=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,true);
+ await custom();await custom();assert.equal(probes,2);assert.equal(cache.size,2);
+ cache.clear();oldRenderer=true;await assert.rejects(custom(),/RENDER_PREFLIGHT_FAILED/);assert.equal(cache.size,0);
+ await directorEnvironment(env,op,context,[],Date.now()+60000);assert.equal(probes,4,'an unsupported new studio does not disable old scenes');
 });
 
 test('studio ownership is persisted before execute; cancelled or failed startup cannot lose its cleanup handle',async t=>{

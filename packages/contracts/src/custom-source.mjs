@@ -29,6 +29,18 @@ const forbiddenMembers=new Set(['constructor','prototype','__proto__','ownerDocu
   'insertAdjacentHTML','insertAdjacentText','createTextNode','write','writeln','fillText','strokeText','defineBlock','ticker','cssText','getRandomValues','randomUUID']);
 const memberName=node=>node.computed?node.property.type==='Literal'?node.property.value:null:node.property.name;
 const isFunction=node=>['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(node.type);
+const studioCall=(node,ctx)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)==='studio'
+  &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM3'&&node.callee.object.object?.name===ctx;
+/** Read the sole declared studio asset as inert syntax, never as executable source. */
+export function customStudioAsset(scene,source){
+  if(scene.runtime3D!=='om3-studio-v1')return null;
+  let tree;try{tree=parse(source,{ecmaVersion:2024,sourceType:'module'});}catch{throw Error('CUSTOM_SOURCE_SYNTAX');}
+  const call=tree.body.length===1&&tree.body[0].type==='ExpressionStatement'?tree.body[0].expression:null, factory=call?.arguments?.[1],ctx=factory?.params?.[0]?.name;
+  if(call?.type!=='CallExpression'||call.callee?.object?.name!=='PB'||memberName(call.callee)!=='scene'||call.arguments[0]?.value!==scene.id||!ctx)throw Error('CUSTOM_REGISTRATION_INVALID');
+  const assets=[];const walk=node=>{if(!node||typeof node!=='object')return;if(studioCall(node,ctx))assets.push(node.arguments[0]?.value);
+    for(const [key,value]of Object.entries(node))if(!['start','end'].includes(key)){if(Array.isArray(value))value.forEach(walk);else if(value&&typeof value==='object')walk(value);}};
+  walk(factory.body);if(assets.length!==1||typeof assets[0]!=='string'||!scene.params?.assetKeys?.includes(assets[0]))throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');return assets[0];
+}
 const omCall=(node,ctx,name)=>node?.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&memberName(node.callee)===name
   &&node.callee.object?.type==='MemberExpression'&&memberName(node.callee.object)==='OM'&&node.callee.object.object?.name===ctx;
 
@@ -129,7 +141,7 @@ export function customSourceErrors(scene,source,spec) {
     ||call.arguments.length!==2||call.arguments[0].value!==scene.id||!['ArrowFunctionExpression','FunctionExpression'].includes(factory?.type)
     ||factory.async||factory.generator||factory.params.length!==1||factory.params[0].type!=='Identifier')return[{code:'CUSTOM_REGISTRATION_INVALID',line:1}];
   let plan;try{plan=customScenePlan(scene);}catch(error){return[{code:error.message,line:1}];}
-  const used={text:new Set(),asset:new Set()},scopes=[];
+  const used={text:new Set(),asset:new Set()},scopes=[];let studioCalls=0;
   function walk(node,parent){
     if(!node||typeof node!=='object')return;
     const scoped=isFunction(node)||['BlockStatement','CatchClause','ForStatement','ForInStatement','ForOfStatement'].includes(node.type);
@@ -150,6 +162,12 @@ export function customSourceErrors(scene,source,spec) {
         if(typeof name!=='string'||!allowed.includes(name)||!Object.hasOwn(key==='text'?spec.texts:spec.assets,name))fail('CUSTOM_SLOT_UNDECLARED',node);
         else used[key].add(name);
       }
+      if(studioCall(node,ctx)){
+        studioCalls++;const name=args[0]?.value;
+        if(scene.runtime3D!=='om3-studio-v1')fail('CUSTOM_3D_NOT_DECLARED',node);
+        if(args.length!==1||typeof name!=='string'||!plan.assetKeys.includes(name)||!Object.hasOwn(spec.assets,name))fail('CUSTOM_SLOT_UNDECLARED',node);
+        else used.asset.add(name);
+      }
       if(key==='createElement'&&(!['div','span','img','canvas','section'].includes(args[0]?.value)))fail('CUSTOM_ELEMENT_FORBIDDEN',node);
       if(key==='createElementNS'&&(args[0]?.value!=='http://www.w3.org/2000/svg'||!['svg','g','path','rect','circle','ellipse','line','polyline','polygon','defs','clipPath','mask','linearGradient','stop'].includes(args[1]?.value)))fail('CUSTOM_ELEMENT_FORBIDDEN',node);
       if(key==='getContext'&&args[0]?.value!=='2d')fail('CUSTOM_CONTEXT_UNSUPPORTED',node);
@@ -161,6 +179,7 @@ export function customSourceErrors(scene,source,spec) {
     if(scoped)scopes.pop();
   }
   walk(factory);
+  if(scene.runtime3D==='om3-studio-v1'&&studioCalls!==1)fail('CUSTOM_3D_ONE_STUDIO_REQUIRED',factory);
   if(scene.params?.sourceSfx===true)try{extractCustomSfx(scene,source,spec);}catch(error){fail(error.message,factory);}
   if(plan.textSlots.some(key=>!used.text.has(key))||plan.assetKeys.some(key=>!used.asset.has(key)))fail('CUSTOM_DECLARATION_UNUSED',factory);
   return errors;

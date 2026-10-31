@@ -271,6 +271,61 @@ try{
    }finally{await session.close();}
   }
   report.originalStudio='landscape_portrait_real_texture_camera_and_reverse_seek';
+  // Custom scene receives a bounded stage handle, never raw Three.js. The asset
+  // handle is deliberately poisoned after setup: the stage must retain trusted bytes.
+  const customStudioFilm=filmFixture();customStudioFilm.scenes=[{id:'custom-studio',kind:'custom',runtime3D:'om3-studio-v1',module:'scenes/custom-studio/index.js',start:0,end:450,
+   params:{textSlots:[],assetKeys:['dashboard'],events:[],readingHolds:[{start:30,end:450,visibleTextSlots:[]}]},purpose:'Test bounded authored studio.',brief:'Move the camera around the admitted product image.'}];
+  const customStudioSource=`PB.scene('custom-studio',ctx=>{
+   const exposed=ctx.asset('dashboard');exposed.url='/r/res_forged';exposed.width=1;
+   const studio=ctx.OM3.studio('dashboard'),view={yaw:-40},timeline=gsap.timeline({paused:true});
+   timeline.to(view,{yaw:40,duration:2,ease:'none'},0);ctx.OM.clockAfter(timeline,t=>studio.render({yaw:view.yaw}),15);return {timeline};});`;
+  for(const aspect of ['landscape','portrait']){
+   const studioOptions=pageOptions(aspect,rules.aspectLayouts[aspect]);studioOptions.fonts=multiOptions.fonts;studioOptions.resources[0].width=64;studioOptions.resources[0].height=64;
+   studioOptions.customSources={'scenes/custom-studio/index.js':customStudioSource};studioOptions.initTimeoutMs=60000;studioOptions.frameTimeoutMs=10000;
+   const authored=await filmSession({raw:JSON.stringify(customStudioFilm),options:studioOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+   try{const first=await authored.frame(15,{format:'png'}),later=await authored.frame(60,{format:'png'}),reverse=await authored.frame(15,{format:'png'});
+    const pixels=pngPixels(later);let green=0;for(let i=0;i<pixels.pixels.length;i+=4)if(pixels.pixels[i]<60&&pixels.pixels[i+1]>150&&pixels.pixels[i+2]<60)green++;
+    assert.ok(green>pixels.width*pixels.height*.02,`${aspect} trusted texture survives poisoned author handle`);
+    assert.ok(compareSeam(first,later).diffPixelPct>.1,`${aspect} authored camera moves`);
+    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK',`${aspect} authored reverse seek`);
+    writeFileSync(`${output}/custom-studio-${aspect}-15.png`,first);writeFileSync(`${output}/custom-studio-${aspect}-60.png`,later);
+   }finally{await authored.close();}
+  }
+  // A previous 2D scene cannot poison the 3D scene's admitted asset or dimensions.
+  const crossFilm=structuredClone(customStudioFilm),customScene=crossFilm.scenes[0];customScene.start=225;customScene.params.readingHolds=[{start:30,end:225,visibleTextSlots:[]}];
+  crossFilm.scenes.unshift({id:'poison',kind:'custom',module:'scenes/poison/index.js',start:0,end:225,params:{textSlots:[],assetKeys:['dashboard'],events:[],readingHolds:[{start:0,end:225,visibleTextSlots:[]}]},purpose:'Check scene isolation.',brief:'Alter only an author-visible handle.'});
+  const crossOptions=pageOptions('landscape',rules.aspectLayouts.landscape);crossOptions.fonts=multiOptions.fonts;crossOptions.resources[0].width=64;crossOptions.resources[0].height=64;crossOptions.initTimeoutMs=60000;crossOptions.frameTimeoutMs=10000;
+  crossOptions.customSources={'scenes/poison/index.js':`PB.scene('poison',ctx=>{const a=ctx.asset('dashboard');a.url='/r/res_forged';a.width=1;const timeline=gsap.timeline({paused:true});timeline.to({},{duration:7.5});return {timeline};});`,
+   'scenes/custom-studio/index.js':customStudioSource.replace('),15);return', '),7.5);return')};
+  const cross=await filmSession({raw:JSON.stringify(crossFilm),options:crossOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{const pixels=pngPixels(await cross.frame(285,{format:'png'}));let green=0;for(let i=0;i<pixels.pixels.length;i+=4)if(pixels.pixels[i]<60&&pixels.pixels[i+1]>150&&pixels.pixels[i+2]<60)green++;
+   assert.ok(green>pixels.width*pixels.height*.02,'previous scene cannot replace the admitted 3D image');
+  }finally{await cross.close();}
+  for(const [draw,expected]of [['studio.render({yaw:90})',/STUDIO_VIEW_INVALID/],['again(\'dashboard\')',/CUSTOM_3D_STUDIO_CLOSED/]]){
+   const studioOptions=pageOptions('landscape',rules.aspectLayouts.landscape);studioOptions.fonts=multiOptions.fonts;studioOptions.resources[0].width=64;studioOptions.resources[0].height=64;
+   studioOptions.initTimeoutMs=60000;studioOptions.frameTimeoutMs=10000;studioOptions.customSources={'scenes/custom-studio/index.js':`PB.scene('custom-studio',ctx=>{
+    const studio=ctx.OM3.studio('dashboard'),again=ctx.OM3.studio,timeline=gsap.timeline({paused:true});
+    ctx.OM.clockAfter(timeline,t=>{${draw};},15);return {timeline};});`};
+   const rejected=await filmSession({raw:JSON.stringify(customStudioFilm),options:studioOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+   try{await assert.rejects(rejected.frame(30),expected);}finally{await rejected.close().catch(()=>{});}
+  }
+  report.customStudio='bounded_camera_cleared_texture_poison_resistance_reverse_and_failure';
+  // A computed/aliased getContext call must not expose a raw WebGL context,
+  // including the private canvas of an otherwise authorized studio.
+  for(const attack of [
+   "const c=document.createElement('canvas');const get=c.getContext;get.call(c,'webgl2')",
+   "const c=new OffscreenCanvas(8,8);const get=c.getContext;get.call(c,'webgl2')"
+  ])await assert.rejects(open('landscape',attack,true),/RUNTIME_WEBGL_FORBIDDEN/);
+  const rawOptions=pageOptions('landscape',rules.aspectLayouts.landscape);rawOptions.fonts=multiOptions.fonts;rawOptions.resources[0].width=64;rawOptions.resources[0].height=64;rawOptions.initTimeoutMs=60000;rawOptions.frameTimeoutMs=10000;
+  rawOptions.customSources={'scenes/custom-studio/index.js':`PB.scene('custom-studio',ctx=>{const studio=ctx.OM3.studio('dashboard');
+   const c=ctx.root.querySelector('canvas'),get=c.getContext;get.call(c,'webgl2');const timeline=gsap.timeline({paused:true});timeline.to({},{duration:15});return {timeline};});`};
+  let rawSession;try{await assert.rejects(async()=>{rawSession=await filmSession({raw:JSON.stringify(customStudioFilm),options:rawOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});},/RUNTIME_WEBGL_FORBIDDEN/);}finally{await rawSession?.close();}
+  const legacyFilm=filmFixture();legacyFilm.scenes=[{id:'legacy-device',kind:'block',block:'device-3d@1',start:0,end:450,params:{assetKey:'dashboard'},purpose:'Check the existing trusted 3D entry point.'}];
+  const legacyOptions=pageOptions('landscape',rules.aspectLayouts.landscape);legacyOptions.fonts=multiOptions.fonts;legacyOptions.resources[0].width=64;legacyOptions.resources[0].height=64;legacyOptions.initTimeoutMs=60000;legacyOptions.frameTimeoutMs=10000;
+  const legacyStudio=await filmSession({raw:JSON.stringify(legacyFilm),options:legacyOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
+  try{const frame=pngPixels(await legacyStudio.frame(30,{format:'png'}));let green=0;for(let i=0;i<frame.pixels.length;i+=4)if(frame.pixels[i]<60&&frame.pixels[i+1]>150&&frame.pixels[i+2]<60)green++;assert.ok(green>frame.width*frame.height*.02,'existing device-3d still renders its cleared screen');}
+  finally{await legacyStudio.close();}
+  report.webglGuard='aliased_onscreen_offscreen_and_studio_context_blocked_legacy_device_retained';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);

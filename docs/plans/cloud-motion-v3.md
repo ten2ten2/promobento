@@ -129,7 +129,7 @@ GSAP 3.14.2 只随镜像分发，不进 Git；Three.js 0.186.1 按需加载；�
 
 ### 4.4 自写镜头
 
-当前入口 `PB.scene(id,ctx=>({timeline}))`，API 以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准。D 只写本镜头模块；通过字面量 `ctx.text('id')`、`ctx.asset('key')` 获取已声明 handle。当前开放 DOM、SVG 图形、Canvas2D、暂停 GSAP／OM.clock；自写 WebGL/Three.js、CSS 原生动画时钟接管、扩展 clip/OM3 是完整阶段目标，未准入前拒绝。
+当前入口 `PB.scene(id,ctx=>({timeline}))`，API 以 [film-runtime.d.ts](../../contracts/film-runtime.d.ts) 为准。D 只写本镜头模块；通过字面量 `ctx.text('id')`、`ctx.asset('key')` 获取已声明 handle。当前开放 DOM、SVG 图形、Canvas2D、暂停 GSAP／OM.clock，以及显式声明的受限 OM3 产品舞台；任意 WebGL/Three.js、CSS 原生动画时钟接管及其余 clip/OM3 能力未准入。
 
 Q0 静态解析 Acorn，不执行作品；完整模块通过身份与安全准入后，只在渲染容器独立 uid 的 Chromium 沙箱运行。每镜头事件／首尾／阅读点去重最多 24 帧。自写可见文字只能由文字槽位挂载，当前禁用 Canvas/SVG 文字绘制。详细限制和使用方式见[运行时说明](../../packages/film-runtime/README.md#自写镜头源码与规格分开)。
 
@@ -146,7 +146,7 @@ Q0 静态解析 Acorn，不执行作品；完整模块通过身份与安全准�
 
 按锁定 SwiftShader 的 CPU 路线实现，真实 context 的 renderer/vendor/version 每次与环境锁核对；不匹配报 `RENDER_ENVIRONMENT_MISMATCH`。只有 3D 页面加载 bundle，ready 等待资源与首帧，dispose 释放纹理／几何／context，context 丢失明确失败。
 
-WebGL 帧默认占比 ≤30%，超出需说明并按 3D 时间目标验收；分段初始代价为 2D 的 6 倍、最多 24 段，使用 standard-4。不采用前置探针无收益的 renderScale、着色器磁盘缓存和文件系统快照加速；未来变更须有对应负载证据。现有 device-3d／object-studio 不等于自写 WebGL 已开放。
+WebGL 帧默认占比 ≤30%，超出需说明并按 3D 时间目标验收；分段初始代价为 2D 的 6 倍、最多 24 段，使用 standard-4。不采用前置探针无收益的 renderScale、着色器磁盘缓存和文件系统快照加速；未来变更须有对应负载证据。自写镜头仅能通过受限舞台接口控制固定产品舞台的相机；任意自写 WebGL 尚未开放。
 
 ## 5. 渲染管线
 

@@ -59,6 +59,36 @@ for (const context of [window.CanvasRenderingContext2D, window.OffscreenCanvasRe
   if (!context) continue;
   for (const key of ['fillText', 'strokeText']) replace(context.prototype, key, deny('RUNTIME_TEXT_FORBIDDEN'));
 }
+// Only the bundled trusted 3D implementation may create a WebGL context.
+// This closes indirect getContext aliases as well as direct author calls.
+const nativeCanvasContext=HTMLCanvasElement.prototype.getContext,webglContexts=new Map<HTMLCanvasElement,WebGL2RenderingContext>();
+replace(HTMLCanvasElement.prototype,'getContext',function(this:HTMLCanvasElement,type:string,...args:unknown[]){
+  if(type!=='2d')throw Error('RUNTIME_WEBGL_FORBIDDEN');
+  return Reflect.apply(nativeCanvasContext,this,[type,...args]);
+});
+if(window.OffscreenCanvas){
+  const nativeOffscreenContext=OffscreenCanvas.prototype.getContext;
+  replace(OffscreenCanvas.prototype,'getContext',function(this:OffscreenCanvas,type:string,...args:unknown[]){
+    if(type!=='2d')throw Error('RUNTIME_WEBGL_FORBIDDEN');
+    return Reflect.apply(nativeOffscreenContext,this,[type,...args]);
+  });
+}
+const webglFactory=Object.freeze({
+  create(canvas:HTMLCanvasElement){
+    if(webglContexts.has(canvas))throw Error('WEBGL_CONTEXT_DUPLICATE');
+    const gl=Reflect.apply(nativeCanvasContext,canvas,['webgl2',{alpha:true,depth:true,stencil:false,antialias:true,premultipliedAlpha:true,preserveDrawingBuffer:true,powerPreference:'default',failIfMajorPerformanceCaveat:false}]) as WebGL2RenderingContext|null;
+    if(!gl)throw Error('WEBGL_CONTEXT_UNAVAILABLE');webglContexts.set(canvas,gl);return gl;
+  },
+  release(canvas:HTMLCanvasElement){webglContexts.delete(canvas);}
+});
+Object.defineProperty(window,'__pbTakeWebGLFactory',{configurable:true,value:()=>{delete window.__pbTakeWebGLFactory;return webglFactory;}});
+Object.defineProperty(window,'__pbTakeWebGLInspector',{configurable:true,value:()=>{
+  delete window.__pbTakeWebGLInspector;
+  return ()=>[...webglContexts].filter(([canvas])=>canvas.isConnected).map(([,gl])=>{
+    if(gl.isContextLost())throw Error('WEBGL_CONTEXT_UNAVAILABLE');const extension=gl.getExtension('WEBGL_debug_renderer_info');
+    return{renderer:gl.getParameter(extension?extension.UNMASKED_RENDERER_WEBGL:gl.RENDERER),vendor:gl.getParameter(extension?extension.UNMASKED_VENDOR_WEBGL:gl.VENDOR),version:gl.getParameter(gl.VERSION)};
+  });
+}});
 const createElement = document.createElement.bind(document);
 document.createElement = ((tag: string, options?: ElementCreationOptions) => {
   if (['iframe', 'frame', 'object', 'embed'].includes(tag.toLowerCase())) throw Error('RUNTIME_IFRAME_FORBIDDEN');

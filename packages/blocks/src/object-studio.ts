@@ -1,3 +1,4 @@
+import {createTrustedWebGL,releaseTrustedWebGL} from './private-webgl.ts';
 // Adapted from huashu-motion@52467f99 runtime/three/om-three.js and templates/object-3d.
 // Copyright (c) 2026 Huashu, MIT; see ../NOTICE.md. Product pixels come only from ctx.asset.
 import {ACESFilmicToneMapping,CanvasTexture,Color,DirectionalLight,DoubleSide,EquirectangularReflectionMapping,
@@ -5,6 +6,7 @@ import {ACESFilmicToneMapping,CanvasTexture,Color,DirectionalLight,DoubleSide,Eq
   PMREMGenerator,Scene,Shape,ShapeGeometry,SRGBColorSpace,Texture,WebGLRenderer} from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {blockEvents} from './events.mjs';
+import type {SceneContext} from '../../../contracts/film-runtime.d.ts';
 import '../../film-runtime/src/types.ts';
 
 function studioSky(){
@@ -38,17 +40,20 @@ function roundedPlane(width:number,height:number,radius:number){
  for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-x)/width,(p.getY(i)-y)/height);
  return geometry;
 }
-window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',version:'1.0.1',build(ctx,params){
+type StudioView={yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number};
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string}){
  const asset=ctx.asset(params.assetKey);if(asset.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
  const safe=document.createElement('div'),inset=ctx.target.safeInsets,wide=ctx.target.aspect==='landscape',hasText=Boolean(params.textSlot);
  const stage=document.createElement('div');Object.assign(stage.style,{position:'absolute',inset:'0'});ctx.root.append(stage);
  const canvas=document.createElement('canvas');canvas.dataset.pbWebgl='object-studio';Object.assign(canvas.style,{display:'block',width:'100%',height:'100%'});stage.append(canvas);
  Object.assign(safe.style,{position:'absolute',left:inset.left*100+'%',right:inset.right*100+'%',top:inset.top*100+'%',bottom:inset.bottom*100+'%',pointerEvents:'none'});ctx.root.append(safe);
  if(params.textSlot){const title=document.createElement('div');Object.assign(title.style,{position:'absolute',left:'0',top:'0',width:wide?'44%':'100%',height:wide?'28%':'18%',padding:'16px',background:ctx.style.palette.bg});safe.append(title);ctx.text(params.textSlot).mount(title,{maxLines:3,maxFontSize:72});}
- const renderer=new WebGLRenderer({canvas,alpha:false,antialias:true,preserveDrawingBuffer:true});
+ const context=createTrustedWebGL(canvas);let renderer:WebGLRenderer;
+ try{renderer=new WebGLRenderer({canvas,context,alpha:false,antialias:true,preserveDrawingBuffer:true});}
+ catch(error){releaseTrustedWebGL(canvas);context.getExtension('WEBGL_lose_context')?.loseContext();throw error;}
  renderer.setPixelRatio(1);renderer.setSize(Math.round(stage.clientWidth),Math.round(stage.clientHeight),false);renderer.outputColorSpace=SRGBColorSpace;
  renderer.toneMapping=ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;renderer.shadowMap.enabled=true;
- const gl=renderer.getContext();if(asset.width>gl.getParameter(gl.MAX_TEXTURE_SIZE)||asset.height>gl.getParameter(gl.MAX_TEXTURE_SIZE)){renderer.dispose();renderer.forceContextLoss();throw Error('DEVICE_TEXTURE_TOO_LARGE');}
+ const gl=renderer.getContext();if(asset.width>gl.getParameter(gl.MAX_TEXTURE_SIZE)||asset.height>gl.getParameter(gl.MAX_TEXTURE_SIZE)){renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw Error('DEVICE_TEXTURE_TOO_LARGE');}
  let disposed=false,lost=false,shaderFailed=false;const onLost=(event:Event)=>{event.preventDefault();lost=true;};canvas.addEventListener('webglcontextlost',onLost);renderer.debug.onShaderError=()=>{shaderFailed=true;};
  try{
  const scene=new Scene();scene.background=new Color(ctx.style.palette.bg??'#19211b');
@@ -73,9 +78,23 @@ window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',ve
   camera.position.set(targetX+Math.sin(yaw)*distance,targetY+Math.sin(.1)*distance,Math.cos(yaw)*distance);camera.lookAt(targetX,targetY,0);
   renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
  };
+ const renderView=(view:StudioView)=>{
+  if(!view||typeof view!=='object'||Array.isArray(view)||Object.keys(view).some(key=>!['yaw','pitch','distanceScale','targetX','targetY'].includes(key)))throw Error('STUDIO_VIEW_INVALID');
+  const yaw=view.yaw??0,pitch=view.pitch??0,scale=view.distanceScale??1,targetX=view.targetX??0,targetY=view.targetY??0;
+  if(![yaw,pitch,scale,targetX,targetY].every(Number.isFinite)||Math.abs(yaw)>70||Math.abs(pitch)>45||scale<.8||scale>3||Math.abs(targetX)>4||Math.abs(targetY)>4)throw Error('STUDIO_VIEW_INVALID');
+  if(disposed)throw Error('WEBGL_DISPOSED');if(lost||gl.isContextLost())throw Error('WEBGL_CONTEXT_LOST');
+  const y=yaw*Math.PI/180,p=pitch*Math.PI/180,d=distance*scale;
+  camera.position.set(targetX+Math.sin(y)*Math.cos(p)*d,targetY+Math.sin(p)*d,Math.cos(y)*Math.cos(p)*d);camera.lookAt(targetX,targetY,0);
+  renderer.render(scene,camera);if(shaderFailed)throw Error('WEBGL_SHADER_COMPILE_FAILED');
+ };
  const dispose=()=>{if(disposed)return;disposed=true;canvas.removeEventListener('webglcontextlost',onLost);
-  bodyGeometry.dispose();bodyMaterial.dispose();faceGeometry.dispose();faceMaterial.dispose();texture.dispose();sweep.geometry.dispose();sweep.material.dispose();environment.dispose();sky.dispose();pmrem.dispose();key.dispose();rim.dispose();renderer.dispose();renderer.forceContextLoss();};
+  bodyGeometry.dispose();bodyMaterial.dispose();faceGeometry.dispose();faceMaterial.dispose();texture.dispose();sweep.geometry.dispose();sweep.material.dispose();environment.dispose();sky.dispose();pmrem.dispose();key.dispose();rim.dispose();renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);};
  const ready=image.decode().then(()=>{if(disposed)return;if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');texture.needsUpdate=true;draw(0);}).catch(error=>{dispose();throw error;});
- return{ready,render:draw,dispose,events:blockEvents('object-studio',ctx.frames,params),regions:[{regionId:'product',boxAt(){const box=stage.getBoundingClientRect(),root=ctx.root.getBoundingClientRect();return{x:box.x-root.x,y:box.y-root.y,width:box.width,height:box.height};}}]};
- }catch(error){canvas.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.forceContextLoss();throw error;}
+ return{ready,render:draw,renderView,dispose,events:blockEvents('object-studio',ctx.frames,params),regions:[{regionId:'product',boxAt(){const box=stage.getBoundingClientRect(),root=ctx.root.getBoundingClientRect();return{x:box.x-root.x,y:box.y-root.y,width:box.width,height:box.height};}}]};
+ }catch(error){canvas.removeEventListener('webglcontextlost',onLost);renderer.dispose();renderer.forceContextLoss();releaseTrustedWebGL(canvas);throw error;}
+}
+window.PB.defineBlock<{assetKey:string;textSlot?:string}>({id:'object-studio',version:'1.0.1',build:createObjectStudio});
+// One-time handoff to the trusted engine; custom scene code never receives the factory.
+Object.defineProperty(window,'__pbTakeStudioFactory',{configurable:true,value:()=>{
+ delete window.__pbTakeStudioFactory;return createObjectStudio;
 }});

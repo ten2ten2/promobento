@@ -51,7 +51,7 @@ export type FilmScene = {
 } & (
   | { kind: 'block'; block: string; params: Record<string, unknown> }
   /** params.gsapScope='scene' scopes selectors; params.sourceSfx=true enables frozen source sound declarations. */
-  | { kind: 'custom'; module: string; brief: string; params?: Record<string, unknown> }
+  | { kind: 'custom'; module: string; brief: string; runtime3D?: 'om3-studio-v1'; params?: Record<string, unknown> }
 );
 
 /** A frozen asset as the page sees it; video frames come from the runtime, never a <video> element. */
@@ -85,6 +85,8 @@ export interface SceneContext {
   random(): number;
   OM: MotionHelpers;
   CLIP: ClipHelpers;
+  /** Available only to a scene that declares runtime3D: 'om3-studio-v1'. */
+  OM3?: {studio(assetKey: string): {render(view: {yaw?:number;pitch?:number;distanceScale?:number;targetX?:number;targetY?:number}): void}};
 }
 
 export interface MotionTimeline extends GsapTimelineLike {

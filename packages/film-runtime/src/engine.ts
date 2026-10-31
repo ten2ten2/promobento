@@ -3,10 +3,12 @@ import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, SceneConte
 import {customScenePlan} from '@promobento/contracts/custom-source';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
-import type { PagePlan, FilmEngine } from './types.ts';
+import type { PagePlan, FilmEngine, StudioInstance } from './types.ts';
 
 const clock = window.__pbTakeClock?.();
 if (!clock) throw Error('RUNTIME_CLOCK_HANDOFF_MISSING');
+const inspectWebgl=window.__pbTakeWebGLInspector?.();
+if(!inspectWebgl)throw Error('RUNTIME_WEBGL_HANDOFF_MISSING');
 const blocks = new Map<string, BlockDefinition>();
 const customScenes = new Map<string,(ctx:SceneContext)=>CustomScene>();
 const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>; postSeek: Map<(time: number) => void, number>}>();
@@ -123,10 +125,17 @@ async function draw(frameIndex: number): Promise<void> {
 }
 
 const engine: FilmEngine = {
+  webglInfo(){return inspectWebgl!();},
   async prepare(input) {
     try { await clock!.wait((async () => {
     if (plan || disposed) throw Error('INVALID_SESSION');
     plan = input;
+    const studioFactory = window.__pbTakeStudioFactory?.();
+    // If no 3D bundle consumed it, discard the creation capability before author code runs.
+    window.__pbTakeWebGLFactory?.();
+    // Ordinary scene asset handles are mutable; retain the admitted values before any factory runs.
+    const admittedStudioAssets=new Map(Object.entries(input.assets).map(([key,asset])=>[key,{...asset}]));
+    const admittedStudioPalette={...input.spec.style.palette.roles};
     Object.defineProperty(window, '__omTarget', {value: Object.freeze({...input.target, safeInsets: Object.freeze({...input.target.safeInsets})}), writable: false});
     window.CLIP.U.setStage(input.target.width, input.target.height);
     const stage = document.getElementById('film');
@@ -182,17 +191,36 @@ const engine: FilmEngine = {
       };
       let instance:BlockInstance;
       if(scene.kind==='custom'){
-        const declared=customScenePlan(scene);
+        const declared=customScenePlan(scene),studios: StudioInstance[]=[];
+        let studioOpen=true;
+        if(scene.runtime3D==='om3-studio-v1'){
+          if(!studioFactory)throw Error('CUSTOM_3D_RUNTIME_UNAVAILABLE');
+          // Freeze the trusted inputs before author code can mutate its ordinary ctx handles.
+          const studioAssets=new Map(declared.assetKeys.map(key=>[key,{...admittedStudioAssets.get(key)!}]));
+          const studioCtx:SceneContext={...ctx,root,frames:{start:scene.start,end:scene.end},
+            style:{...ctx.style,palette:{...admittedStudioPalette}},asset(key){const asset=studioAssets.get(key);if(!asset)throw Error('CUSTOM_SLOT_UNDECLARED');return asset;}};
+          ctx.OM3=Object.freeze({studio(assetKey:string){
+            if(!studioOpen||studios.length)throw Error('CUSTOM_3D_STUDIO_CLOSED');
+            if(typeof assetKey!=='string'||!declared.assetKeys.includes(assetKey))throw Error('CUSTOM_SLOT_UNDECLARED');
+            const studio=studioFactory(studioCtx,{assetKey});studios.push(studio);
+            void studio.ready.catch(()=>{});readiness.pending.push(studio.ready);
+            return Object.freeze({render:(view:Parameters<typeof studio.renderView>[0])=>{if(studioOpen)throw Error('CUSTOM_3D_EARLY_DRAW');studio.renderView(view);}});
+          }});
+        }
+
         let built:CustomScene|undefined,gsapScope:{kill():void}|undefined;
         // Opt in for original compositions that address their own elements by selector.
         // Older custom scenes keep their original document-wide GSAP semantics.
-        if(scene.params?.gsapScope==='scene')gsapScope=window.gsap.context(()=>{built=factory!(ctx);},root);
-        else built=factory!(ctx);
-        const timeline=built?.timeline;
-        if(!built||!timeline||!['pause','seek','duration'].every(key=>typeof (timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
-        if(Math.abs(built.timeline.duration()-(scene.end-scene.start)/30)>1/30)throw Error('CUSTOM_TIMELINE_DURATION');
-        if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
-        instance={timeline:built.timeline,events:declared.events,regions:built.regions??[],...(gsapScope?{dispose:()=>gsapScope.kill()}:{})};
+        try{
+          if(scene.params?.gsapScope==='scene')gsapScope=window.gsap.context(()=>{built=factory!(ctx);},root);
+          else built=factory!(ctx);
+          const timeline=built?.timeline;
+          if(!built||!timeline||!['pause','seek','duration'].every(key=>typeof (timeline as unknown as Record<string,unknown>)[key]==='function'))throw Error('CUSTOM_TIMELINE_REQUIRED');
+          if(Math.abs(built.timeline.duration()-(scene.end-scene.start)/30)>1/30)throw Error('CUSTOM_TIMELINE_DURATION');
+          if(built.events&&(!Array.isArray(built.events)||built.events.length!==declared.events.length||built.events.some((event,index)=>event.name!==declared.events[index]!.name||event.frame!==declared.events[index]!.frame)))throw Error('CUSTOM_EVENT_MISMATCH');
+          if(scene.runtime3D==='om3-studio-v1'&&studios.length!==1)throw Error('CUSTOM_3D_ONE_STUDIO_REQUIRED');
+          instance={timeline:built.timeline,events:declared.events,regions:built.regions??[],...((gsapScope||studios.length)?{dispose:()=>{try{gsapScope?.kill();}finally{studios.forEach(studio=>studio.dispose());}}}:{})};
+        }catch(error){try{gsapScope?.kill();}finally{studios.forEach(studio=>studio.dispose());}throw error;}finally{studioOpen=false;}
       }else instance=definition!.build(ctx,scene.params);
       sounds.open=false;
       if(sounds.used.size!==sounds.declarations.length)throw Error('CUSTOM_SFX_NOT_EXECUTED');

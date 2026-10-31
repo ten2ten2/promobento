@@ -67,7 +67,7 @@ export async function checkCustomScenes(env:PipelineEnv,op:Operation,context:Jso
       if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
       await operation(env,op.id,op.generation);await rights(env,op,resourceRefs);
       const layout=(platform.aspectLayouts as Json)[aspect],taskId='custom-'+digest({operationId:op.id,sourceHash,scene:scene.id,aspect,...(probeSceneId?{probeSceneId}:{})}).slice(0,48);
-      const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:'standard-3',taskId,generation:op.generation,deadlineAt,imageDigest:release.image_digest,
+      const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:film.scenes.some((item:Json)=>item.kind==='custom'&&item.runtime3D==='om3-studio-v1')?'standard-4':'standard-3',taskId,generation:op.generation,deadlineAt,imageDigest:release.image_digest,
         job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash,runtimeVersion:context.runtimeVersion,rendererRelease:context.rendererRelease,
           aspectId:aspect,durationSeconds:film.durationSeconds,totalFrames:film.totalFrames,quality:'still',frames,
           renderProfile:{sampleCount:1,shutterAngle:0,sampling:'centered-box-v1',edgePolicy:'clamp-v1'},resources:resourceRefs.map((asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:context.audioSources?.some((audio:Json)=>audio.resourceId===asset.resourceId)?'audio':asset.kind}))},
