@@ -1,7 +1,7 @@
 import huashuSource from './huashu-motion/source.mjs';
 import {digest} from '@promobento/contracts/digest';
 export const directingMethodPack = {
-  id: 'product-directing', version: '1.41.0',
+  id: 'product-directing', version: '1.42.0',
   // Freeze upstream source with the method so historical operations never change.
   huashuSource,
   sources: [
@@ -38,6 +38,7 @@ export const directingMethodPack = {
       'vox-clip is the original Vox image choreography, restricted to cleared static images without Canvas captions. Choose distinct, causally related real states and allow enough time to read them; it does not carry an extracted detail into another exercise. Use separate fact-bound text scenes where copy is needed. The direction preview repeats the same primary image and does not establish a real page handoff.',
       'For vox-clip, an item may set focus to roi:n only when that exact box appears in the observation for that same source image. It draws the original highlighter and circle without zooming away from the full page. Leave at least 120 frames before the next image or scene end for a focused item.',
       'canvas-title executes the original y5 headline with a fact-bound text slot and an admitted normal display font. It may wrap the original text into up to two lines; both lines enter together. Use only simple Latin, CJK and common characters without combining marks; keep it concise. It cannot appear in the same film as a custom scene. Keep its settled reading holds free of overlapping scenes and overlays. Treat it as one expressive title shot, not a substitute for the product or a page handoff.',
+      'For canvas-title, an optional highlightFrame adds the original animated marker behind the whole confirmed headline, without adding new copy. Start at or after frame 36 and leave at least 30 frames after the cue. Inspect contrast at the reading hold.',
       'canvas-sequence runs two or three original y5 title pages with the original color-band wipe. Every page needs its own exact confirmed headline slot; startFrame begins at 0, and leave at least 120 frames per page. Keep reading holds free of overlays and never mix this block with custom scenes. Use it for a meaningful typographic progression, not product proof.',
       'keynote-clip uses the original t2 screenshot-card motion for two or three distinct, cleared and causally related source states, without numbered badges or unbound Canvas text. Allow at least 120 frames per state and never carry a detail from one exercise onto another. The direction preview repeats a single image; only the final source establishes a real handoff.',
       'A keynote-clip item may use focus:roi:n only for the exact observed region on that same source image. It adds the original animated emphasis while keeping the full page visible. Never reuse a previous exercise’s region on a different page; the visual observation is not independent proof of the interaction.',

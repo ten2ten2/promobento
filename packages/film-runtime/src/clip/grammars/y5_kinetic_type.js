@@ -7,6 +7,14 @@
 //       number 的说明写 text 或 sub 都行（clip.js 已统一）；data.label 照样有
 // 两个以上的 point 页 = 一份清单：画进度轨（01/02/03，告诉观众第几个、一共几个；横屏右上、竖屏在下方）和背景巨型序号（低对比、斜向慢漂，data.num 可指定）。
 // data.palette = [[底色, 字色], ...] 换配色。alpha 模式不画底，字白色带深色描边。safe：主词块在 top..H−bottom 之间居中，进度轨也在这一带里。
+// For an admitted six-digit RGB palette, preserve readable foreground contrast
+// and keep the marker different from the page; sampled pixels still decide QA.
+export function safeMarker(foreground,background){
+ const luminance=hex=>{const rgb=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;};
+ const ink=luminance(foreground),contrast=col=>{const value=luminance(col);return (Math.max(value,ink)+.05)/(Math.min(value,ink)+.05);};
+ return ['#FFD23F','#FF5A36','#3A86FF'].filter(col=>col.toLowerCase()!==background.toLowerCase()&&col.toLowerCase()!==foreground.toLowerCase())
+  .sort((a,b)=>contrast(b)-contrast(a))[0];
+}
 export function create(CLIP) { const {U, MO, CAM, TY} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 const PAL = [['#FFD23F', '#111111'], ['#FF5A36', '#FFFFFF'], ['#14213D', '#FFD23F'], ['#F4EFE6', '#111111']];
@@ -92,8 +100,11 @@ function drawPage(c, P, t, ctx) {
     hiScale = hl > 0 && found ? 1 + 0.06 * MO.settle(hl, 1, 2.5, 6) : 1;                     // 词不在主词里：不刷也不放大（init 里已告警）
     if (hl > 0) lines.forEach((ln, i) => {
       const word = wd || ln, at = ln.indexOf(word); if (at < 0) return;
-      const wPre = TY.width(c, ln.slice(0, at), size), wW = TY.width(c, word, size), wl = TY.width(c, ln, size), x = W / 2 - wl / 2 + wPre, y = y0 + i * lh;
-      const mc = ctx.alpha ? '#FF5A36' : (P.col[0] === '#FFD23F' ? '#FF5A36' : '#FFD23F'), mr = [x - 12 * u, y - size * 0.86, wW + 24 * u, size * 1.0, MO.at(hl, 0, 0.3)];
+      const family=ctx.data.safeText?ctx.fontFamily:undefined;
+      const wPre = TY.width(c, ln.slice(0, at), size, family), wW = TY.width(c, word, size, family), wl = TY.width(c, ln, size, family), x = (ctx.data.safeText?textCenter:W / 2) - wl / 2 + wPre, y = y0 + i * lh;
+      // The audited title is drawn exactly once. Pick a different marker from
+      // its foreground so the legacy knockout path cannot redraw hidden text.
+      const mc = ctx.data.safeText ? safeMarker(fg,P.col[0]) : ctx.alpha ? '#FF5A36' : (P.col[0] === '#FFD23F' ? '#FF5A36' : '#FFD23F'), mr = [x - 12 * u, y - size * 0.86, wW + 24 * u, size * 1.0, MO.at(hl, 0, 0.3)];
       TY.marker(c, ...mr, mc); CLIP.mark(c, 'marker', mr[0], mr[1], mr[2], mr[3]);
       if (mc.toLowerCase() === fg.toLowerCase()) (knock = knock || []).push({ i, mr });   // 荧光笔和字同色（深蓝页黄字）：笔下面的字反白成底色，不然整个词被涂没
     });

@@ -168,6 +168,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const voxClipMethod=supportsVoxClip(methods,context.resources);
     const voxHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=34);
     const canvasTitleMethod=supportsCanvasTitle(methods,context);
+    const canvasHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=42);
     const canvasSequenceMethod=supportsCanvasSequence(methods,context);
     const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
     const extendedDrawnIcons=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=37);
@@ -177,6 +178,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
     const availableBlocks=blockCatalog.filter(block=>(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
+        if(block.id==='canvas-title'&&!canvasHighlightMethod){const legacy=structuredClone(block) as Json;legacy.version='1.0.0';delete legacy.params.properties.highlightFrame;
+          legacy.events=legacy.events.filter((event:Json)=>event.name!=='highlight-land');return legacy;}
         if(block.id==='keynote-clip'&&!keynoteHighlightMethod){const legacy=structuredClone(block) as Json;legacy.version='1.0.0';delete legacy.params.properties.items.items.properties.focus;
           legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;}
         if(block.id==='vox-clip'&&!voxHighlightMethod){const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
@@ -215,6 +218,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if((preview||!methods)&&value.scenes.some((scene:Json)=>scene.kind!=='block'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'S1_BLOCKS_ONLY',path:'/scenes'}],value);
       if(!relayMethod&&value.scenes.some((scene:Json)=>scene.block==='component-relay@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
+      if(!canvasHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-title@1'&&scene.params.highlightFrame!==undefined))
+        throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
       if(!voxHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items?.some((item:Json)=>item.focus)))
         throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'VOX_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
       if(!extendedDrawnIcons&&value.scenes.some((scene:Json)=>scene.block==='drawn-steps@1'&&scene.params.items?.some((item:Json)=>item.icon&&!['circle','document','screen','chat','check','target'].includes(item.icon))))
@@ -363,7 +368,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const preflightCanvasTitles=async(film:Json)=>{
       for(const scene of film.scenes.filter((item:Json)=>item.block==='canvas-title@1')){
         const face=film.style.type.display,{text,factIds}=film.texts[scene.params.textSlot];
-        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,{...face,text,factIds});
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,{...face,text,factIds,...(scene.params.highlightFrame===undefined?{}:{highlightFrame:scene.params.highlightFrame,palette:film.style.palette.roles})});
       }
       for(const scene of film.scenes.filter((item:Json)=>item.block==='canvas-sequence@1')){
         const face=film.style.type.display,pages=scene.params.items.map((item:Json)=>{const {text,factIds}=film.texts[item.textSlot];return{text,factIds};});

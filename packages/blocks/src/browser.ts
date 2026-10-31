@@ -105,7 +105,8 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
 
 // One fact-bound title, on up to two lines, through the original y5 grammar. This
 // narrowly audited path has no custom scenes, nested clips, captions or numbers.
-function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence'){
+function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFrame:number}>,id:'canvas-title'|'canvas-sequence',highlightFrame?:number){
+  const events=blockEvents(id,ctx.frames,id==='canvas-title'?{highlightFrame}:{items});
   const font=ctx.style.type.display,slots=items.map(item=>ctx.text(item.textSlot));
   for(const slot of slots)assertCanvasTitle(slot.text,slot.role,font.style);
   const selected=(time:number)=>Math.max(0,items.findLastIndex(item=>item.startFrame<=time*30+1e-6));
@@ -125,7 +126,8 @@ function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFr
     stage=createClipStage({grammar:'y5_kinetic_type',duration:(ctx.frames.end-ctx.frames.start)/30,
       safe:{left:inset.left*canvas.width,right:inset.right*canvas.width,top:inset.top*canvas.height,bottom:inset.bottom*canvas.height},
       data:{safeText:true,boundTogether:true,palette:[[ctx.style.palette.bg!,ctx.style.palette.ink!]]},
-      cues:items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text}))},{width:canvas.width,height:canvas.height,fontFamily:family});
+      cues:[...items.map((item,index)=>({kind:'title',at:item.startFrame/30,text:slots[index]!.text})),
+        ...(highlightFrame===undefined?[]:[{kind:'highlight',at:highlightFrame/30}])]},{width:canvas.width,height:canvas.height,fontFamily:family});
   });
   const currentTrace=()=>{if(!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
     return{slotId:currentSlot,text,fontId:font.fontId,weight:font.weight,style:'normal' as const,boxes:trace.boxes.map(box=>({...box})),fontSize:trace.fontSize,alpha:trace.alpha};};
@@ -135,13 +137,13 @@ function buildCanvasTitles(ctx:SceneContext,items:Array<{textSlot:string;startFr
   },canvasTextTrace:currentTrace,canvasTextProof(){if(!stage||!trace||lastTime===undefined)throw Error('CANVAS_TEXT_PROOF_UNAVAILABLE');
     const bound=boundCanvasTitle(clean,text,null);stage.draw(bound.canvas,lastTime);bound.finish();
     return{...currentTrace(),withText:canvas.toDataURL('image/png'),withoutText:without.toDataURL('image/png')};
-  },events:blockEvents(id,ctx.frames,id==='canvas-title'?{textSlot:currentSlot}:{items}),regions:[{regionId:'headline',boxAt(){
+  },events,regions:[{regionId:'headline',boxAt(){
     if(!trace?.boxes.length)return null;const left=Math.min(...trace.boxes.map(box=>box.x)),top=Math.min(...trace.boxes.map(box=>box.y)),
       right=Math.max(...trace.boxes.map(box=>box.x+box.width)),bottom=Math.max(...trace.boxes.map(box=>box.y+box.height));
     return{x:left,y:top,width:right-left,height:bottom-top};
   }}]};
 }
-window.PB.defineBlock<{textSlot:string}>({id:'canvas-title',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,[{textSlot:params.textSlot,startFrame:0}],'canvas-title')});
+window.PB.defineBlock<{textSlot:string;highlightFrame?:number}>({id:'canvas-title',version:'1.1.0',build:(ctx,params)=>buildCanvasTitles(ctx,[{textSlot:params.textSlot,startFrame:0}],'canvas-title',params.highlightFrame)});
 window.PB.defineBlock<{items:Array<{textSlot:string;startFrame:number}>}>({id:'canvas-sequence',version:'1.0.0',build:(ctx,params)=>buildCanvasTitles(ctx,params.items,'canvas-sequence')});
 
 function cpuSurface(ctx:SceneContext){

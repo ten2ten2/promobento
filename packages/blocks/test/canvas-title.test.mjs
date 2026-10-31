@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {blockEvents,filmObservationFrames,filmMotionFrames} from '../src/events.mjs';
 
 const calls=[];
 globalThis.window={__pbTakeCanvasText:()=>function(text,x,y){calls.push({text,x,y});}};
@@ -26,4 +27,13 @@ test('wrapped Canvas text cannot reorder, omit or add words or change line typog
  }
  const ctx=context(),bound=boundCanvasTitle(ctx,'LEARN A LITTLE',trace());bound.canvas.fillText('LEARN A',0,0);ctx.font='41px "Fixture"';
  assert.throws(()=>bound.canvas.fillText('LITTLE',0,50),/CANVAS_TEXT_LAYOUT_UNSUPPORTED/);
+});
+
+test('a title highlight has an explicit readable hold and leaves old title timing unchanged',()=>{
+ const scene={kind:'block',block:'canvas-title@1',start:0,end:150,params:{textSlot:'headline',highlightFrame:45}};
+ assert.deepEqual(blockEvents('canvas-title',scene,scene.params),[{name:'title-land',frame:30},{name:'highlight-land',frame:63}]);
+ assert.deepEqual(filmObservationFrames({scenes:[scene]},'final'),[69,75]);
+ assert.deepEqual(filmMotionFrames({scenes:[scene]},'final'),[0,45,63,149]);
+ assert.throws(()=>blockEvents('canvas-title',{start:0,end:75},scene.params),/CANVAS_HIGHLIGHT_READING_HOLD_MISSING/);
+ assert.deepEqual(blockEvents('canvas-title',{start:0,end:150},{textSlot:'headline'}),[{name:'title-land',frame:30}]);
 });

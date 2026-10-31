@@ -5,6 +5,10 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='canvas-title'&&params.highlightFrame!==undefined){
+    if(!Number.isInteger(params.highlightFrame)||params.highlightFrame<36||params.highlightFrame>360||params.highlightFrame+30>=duration)throw Error('CANVAS_HIGHLIGHT_READING_HOLD_MISSING');
+    return [{name:'title-land',frame:30},{name:'highlight-land',frame:params.highlightFrame+18}];
+  }
   if(id==='keynote-clip'){
     const landings=params.items.map((_,index)=>index*params.intervalFrames+30);
     if(params.intervalFrames<120||duration-(params.items.length-1)*params.intervalFrames<120)throw Error('KEYNOTE_READING_HOLD_MISSING');
@@ -114,6 +118,8 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .flatMap(event=>[event.frame-18,event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='canvas-title@1'&&scene.params.highlightFrame!==undefined)return [0,scene.params.highlightFrame,scene.params.highlightFrame+18,scene.end-scene.start-1]
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(['continuous-focus@1','kinetic-title@1','canvas-title@1','drawn-steps@1'].includes(scene.block)){
    const span=scene.end-scene.start;

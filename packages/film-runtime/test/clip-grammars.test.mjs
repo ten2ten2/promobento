@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {createGrammar,grammarNames} from '../src/clip/grammars/index.js';
 import {createClipStage} from '../src/clip/stage.js';
 import {createClipHelpers} from '../src/clip/helpers.js';
+import {safeMarker} from '../src/clip/grammars/y5_kinetic_type.js';
+
+test('the bound title marker favors foreground contrast without duplicating the page color',()=>{
+ assert.equal(safeMarker('#101010','#f9f9f9'),'#FFD23F');
+ assert.equal(safeMarker('#ffffff','#101010'),'#3A86FF');
+ assert.notEqual(safeMarker('#ffffff','#3a86ff'),'#3A86FF');
+});
 
 test('original grammars are allowlisted and create independent scene state',()=>{
  const previous={U:globalThis.U,TY:globalThis.TY,document:globalThis.document};

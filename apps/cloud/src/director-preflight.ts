@@ -9,7 +9,7 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];pages?:Array<{text:string;factIds:string[]}>},whiteboard=false,keynote:boolean|'highlight'=false){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];highlightFrame?:number;palette?:Record<string,string>;pages?:Array<{text:string;factIds:string[]}>},whiteboard=false,keynote:boolean|'highlight'=false){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(whiteboard&&(canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
@@ -37,6 +37,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   audio:{music:{kind:'none'},sfx:[],captions:'off',mute:true},assets:{},texts:{headline:{text:'Render health check',role:'headline',factIds:[]}},
   scenes:[{id:'health',start:0,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},purpose:'Private renderer health probe.'}],
   treatment:{message:'Private renderer health probe.',hook:'Readiness only.',energyCurve:[{frame:0,level:1},{frame:449,level:1}],continuity:'Single trusted block.'}};
+ if(canvasTitle?.palette)film.style.palette.roles=canvasTitle.palette;
  const sources:Record<string,string>={},asset=packedVideo?packedAsset:voxClip?voxAsset:whiteboard?boardAsset:keynote?keynoteAsset:assetScopedObservation||componentRelay||objectStudio||customStudio?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
  if(assetScopedObservation&&!asset)throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
  if(componentRelay&&!asset)throw Error('RENDER_COMPONENT_RELAY_UNAVAILABLE');
@@ -88,7 +89,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
    film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-sequence@1',params:{items:canvasTitle.pages.map((_,index)=>({textSlot:'headline-'+index,startFrame:index*120}))},purpose:'Probe each bound Canvas title page and font.'}];
   }else{
    film.texts.headline={text:canvasTitle.text,role:'headline',factIds:canvasTitle.factIds};
-   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-title@1',params:{textSlot:'headline'},purpose:'Probe actual bound Canvas title and font.'}];
+   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'canvas-title@1',params:{textSlot:'headline',...(canvasTitle.highlightFrame===undefined?{}:{highlightFrame:canvasTitle.highlightFrame})},purpose:'Probe actual bound Canvas title and font.'}];
   }
  }
  if(fadeThrough){film.scenes[0].end=healthEnd;film.scenes.push({id:'health-end',start:healthEnd-8,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},
@@ -96,7 +97,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
  const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):voxClip==='highlight'?84:voxClip?135:whiteboard?105:keynote==='highlight'?84:keynote?165:45;
- const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):[probeFrame];
+ const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):canvasTitle?.highlightFrame!==undefined?[45,canvasTitle.highlightFrame+24]:[probeFrame];
  const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:objectStudio||customStudio?'standard-4':'standard-3',taskId,generation:op.generation,
   deadlineAt:Math.min(deadlineAt,Date.now()+90000),imageDigest:release.image_digest,
   job:{schemaVersion:'3.0.0',kind:'render_job',renderId:taskId,operationId:op.id,candidateId:taskId,sourceHash:filmSourceHash(canonical(film),sources),

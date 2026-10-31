@@ -261,6 +261,24 @@ try{
    }finally{await canvasSession.close();}
   }
   report.canvasTitle='bound_original_canvas_text_checked_against_actual_frame_landscape_portrait_reverse';
+  const markedFilm=structuredClone(canvasFilm);markedFilm.scenes[0].params.highlightFrame=45;
+  const unmarkedFilm=structuredClone(markedFilm);delete unmarkedFilm.scenes[0].params.highlightFrame;
+  for(const aspect of ['landscape','portrait']){
+   const roles=aspect==='landscape'?{bg:'#f9f9f9',ink:'#101010',accent:'#ff5a36'}:{bg:'#101010',ink:'#ffffff',accent:'#ff5a36'};
+   markedFilm.style.palette.roles=roles;unmarkedFilm.style.palette.roles=roles;
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.resources=[];options.fonts=multiOptions.fonts;
+   const marked=await filmSession({raw:JSON.stringify(markedFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   const plain=await filmSession({raw:JSON.stringify(unmarkedFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{
+    const actual=await marked.frame(75,{format:'png'}),without=await plain.frame(75,{format:'png'}),observation=await marked.observe('canvas-marker-check',75);
+    assert.equal(compareSeam(actual,without).verdict,'RENDER_SEAM_BLOCK','original marker must visibly change the title frame');
+    assert.ok(observation.texts.some(text=>text.slotId==='headline'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed));
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    await marked.frame(120,{format:'png'});assert.equal(compareSeam(actual,await marked.frame(75,{format:'png'})).verdict,'pass');
+    writeFileSync(`${output}/canvas-highlight-${aspect}.png`,actual);
+   }finally{await marked.close();await plain.close();}
+  }
+  report.canvasHighlight='original_marker_with_exact_fact_bound_text_and_readable_actual_frames';
   // A wrapped title still consists only of the frozen text, including on the
   // first encoded frame and after a reverse seek; inspect both real line boxes.
   const wrappedFilm=structuredClone(canvasFilm);wrappedFilm.texts.headline.text='LEARN A LITTLE EVERY DAY';
