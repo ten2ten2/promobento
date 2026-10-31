@@ -291,6 +291,7 @@ try{
    const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=2;options.resources[0].height=2;
    const board=await filmSession({raw:JSON.stringify(boardFilm),options,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
    try{const early=await board.frame(15,{format:'png'}),frame=await board.frame(105,{format:'png'}),pixels=pngPixels(frame);let green=0;
+    writeFileSync(`${output}/whiteboard-clip-${aspect}-reveal.png`,early);writeFileSync(`${output}/whiteboard-clip-${aspect}.png`,frame);
     for(let i=0;i<pixels.pixels.length;i+=4)if(pixels.pixels[i]<100&&pixels.pixels[i+1]>120&&pixels.pixels[i+2]<100)green++;
     assert.ok(green>pixels.width*pixels.height*.01,'the real image is visibly revealed');
     const observation=await board.observe('whiteboard-check',105),headline=observation.texts.find(text=>text.slotId==='headline'&&text.text==='HELLO'&&!text.clipped&&!text.fallbackUsed);
@@ -302,8 +303,6 @@ try{
     assert.equal(overlap,0,'the actual source image must not cover its headline');
     assert.notEqual(compareSeam(early,frame).verdict,'pass','original reveal must actually move');
     const reverse=await board.frame(15,{format:'png'});assert.equal(compareSeam(early,reverse).verdict,'pass');
-    writeFileSync(`${output}/whiteboard-clip-${aspect}-reveal.png`,early);
-    writeFileSync(`${output}/whiteboard-clip-${aspect}.png`,frame);
    }finally{await board.close();}
   }
   report.whiteboardClip='original_y3_image_reveal_bound_dom_text_four_aspects_reverse';

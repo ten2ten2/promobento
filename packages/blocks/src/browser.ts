@@ -67,8 +67,9 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
   const image=new Image(),canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
   Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
   const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
-  const box=safeBox(ctx),wide=ctx.target.width>=ctx.target.height,heading=node(ctx.root,{position:'absolute',
-   left:box.x+'px',top:(box.y+box.height*(wide?.22:.02))+'px',width:box.width*(wide?.43:.96)+'px',height:box.height*(wide?.35:.12)+'px'});
+  const box=safeBox(ctx),wide=ctx.target.width>=ctx.target.height,titleBox={x:box.x,y:box.y+box.height*(wide?.22:.02),
+   width:box.width*(wide?.43:.96),height:box.height*(wide?.35:.12)};
+  const heading=node(ctx.root,{position:'absolute',left:titleBox.x+'px',top:titleBox.y+'px',width:titleBox.width+'px',height:titleBox.height+'px',backgroundColor:'#FBFBFB'});
   text(ctx,params.textSlot,heading,3).style.color='#0A0503';
   let stage:ReturnType<typeof createClipStage>|undefined;
   const ready=(async()=>{image.src=asset.url;await image.decode();if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');
@@ -76,7 +77,11 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
     data:{accent:ctx.style.palette.accent},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
     cues:[{kind:'image',at:0,image:params.assetKey}]},{width,height,images:{[params.assetKey]:image}});
   })();
-  return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);},events:blockEvents('whiteboard-clip',ctx.frames,params),
+  return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);
+   const imageBox=stage.hit('image-0');
+   if(imageBox&&imageBox[0]<titleBox.x+titleBox.width&&imageBox[0]+imageBox[2]>titleBox.x
+     &&imageBox[1]<titleBox.y+titleBox.height&&imageBox[1]+imageBox[3]>titleBox.y)throw Error('WHITEBOARD_LAYOUT_OVERLAP:'+JSON.stringify({imageBox,titleBox}));
+  },events:blockEvents('whiteboard-clip',ctx.frames,params),
    regions:[region('product',canvas,ctx.root),region('headline',heading,ctx.root)]};
 }});
 
