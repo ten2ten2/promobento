@@ -309,6 +309,35 @@ try{
   }
   report.whiteboardClip='original_y3_image_reveal_bound_dom_text_four_aspects_reverse';
 
+  // Each original t2 screenshot card uses its own admitted image; an outgoing
+  // exercise must actually disappear rather than follow the next screen.
+  const keynoteFilm=filmFixture();keynoteFilm.assets.other={resourceId:'res_fixture_other'};
+  keynoteFilm.scenes=[{id:'keynote',start:0,end:450,kind:'block',block:'keynote-clip@1',params:{items:[{assetKey:'dashboard'},{assetKey:'other'}],intervalFrames:120},purpose:'Two real screenshot states.'}];
+  const magenta=solidPng(235,10,235),keynoteGreen=solidPng(10,220,10);
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.fonts=multiOptions.fonts;options.resources[0].width=64;options.resources[0].height=64;
+   options.resources.push({...options.resources[0],resourceId:'res_fixture_other'});
+   const keynote=await filmSession({raw:JSON.stringify(keynoteFilm),options,browserVersion:lock.browser.version,font,resource:id=>id==='res_fixture_other'?keynoteGreen:magenta,killBrowser});let settled;
+   try{const first=await keynote.frame(60,{format:'png'}),transition=await keynote.frame(126,{format:'png'}),second=await keynote.frame(165,{format:'png'});
+    writeFileSync(`${output}/keynote-clip-${aspect}-first.png`,first);writeFileSync(`${output}/keynote-clip-${aspect}-handoff.png`,transition);writeFileSync(`${output}/keynote-clip-${aspect}-second.png`,second);
+    const count=png=>{const p=pngPixels(png);let magentaPixels=0,greenPixels=0;for(let i=0;i<p.pixels.length;i+=4){
+     if(p.pixels[i]>180&&p.pixels[i+1]<80&&p.pixels[i+2]>180)magentaPixels++;
+     if(p.pixels[i]<80&&p.pixels[i+1]>180&&p.pixels[i+2]<80)greenPixels++;
+    }return{magentaPixels,greenPixels};};
+    const a=count(first),b=count(second);assert.ok(a.magentaPixels>1000,`${aspect} first original state is visible`);
+    assert.ok(b.greenPixels>1000,`${aspect} second original state is visible`);
+    assert.ok(compareSeam(first,second).diffPixelPct>.1);const reverse=await keynote.frame(60,{format:'png'});
+    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
+    settled=second;
+   }finally{await keynote.close();}
+   const blue=solidPng(10,10,235),changed=await filmSession({raw:JSON.stringify(keynoteFilm),options,browserVersion:lock.browser.version,font,resource:id=>id==='res_fixture_other'?keynoteGreen:blue,killBrowser});
+   try{const changedSecond=await changed.frame(165,{format:'png'});
+    assert.equal(compareSeam(settled,changedSecond).diffPixelPct,0,`${aspect} replacing the previous exercise cannot change the settled next screen`);
+   }finally{await changed.close();}
+  }
+  report.keynoteClip='two_separate_original_screens_handoff_reverse_landscape_portrait';
+
+
   const iconFilm=filmFixture();iconFilm.assets={};iconFilm.texts={one:{text:'ONE',role:'headline',factIds:[]},two:{text:'TWO',role:'headline',factIds:[]},three:{text:'THREE',role:'headline',factIds:[]}};
   const iconGroups=[['person','cat','network'],['bulb','cross','stack'],['gear','clock','chart']];
   iconFilm.scenes=iconGroups.map((group,index)=>({id:'icons-'+index,start:index*150,end:(index+1)*150,kind:'block',block:'drawn-steps@1',

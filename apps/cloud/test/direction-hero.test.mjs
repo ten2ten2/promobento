@@ -50,6 +50,14 @@ test('the original Vox direction preview repeats only the same cleared primary i
  assert.throws(()=>directionHero({...card,skeleton:[{approach:'block:vox-clip'}]},{...ctx,resources:[{...ctx.resources[0],kind:'video'}]},0),/VOX_CLIP_IMAGE_REQUIRED/);
 });
 
+test('keynote direction preview repeats the same cleared screen rather than inventing a second state',()=>{
+ const ctx={...context,resources:context.resources.map(item=>({...item,kind:'image'}))};
+ const film=directionHero({...card,skeleton:[{approach:'block:keynote-clip'}]},ctx,0);
+ assert.equal(film.scenes[0].block,'keynote-clip@1');assert.deepEqual(film.scenes[0].params.items,[{assetKey:'hero'},{assetKey:'hero'}]);
+ const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
+ assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
+});
+
 test('original Vox capability does not change frozen methods or video-led directions',()=>{
  const resources=[{kind:'image'},{kind:'svg'}],method=version=>({id:'product-directing',version});
  assert.equal(supportsVoxClip(method('1.30.0'),resources),false);

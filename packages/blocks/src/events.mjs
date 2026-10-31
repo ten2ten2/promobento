@@ -5,6 +5,11 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='keynote-clip'){
+    const landings=params.items.map((_,index)=>index*params.intervalFrames+30);
+    if(params.intervalFrames<120||duration-(params.items.length-1)*params.intervalFrames<120)throw Error('KEYNOTE_READING_HOLD_MISSING');
+    return landings.map((frame,index)=>({name:index===landings.length-1?'product-land':'product-step-'+(index+1),frame}));
+  }
   if(id==='whiteboard-clip'){
     if(duration<135)throw Error('WHITEBOARD_READING_HOLD_MISSING');
     return [{name:'product-land',frame:90}];
@@ -68,6 +73,8 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
+  if(scene.block==='keynote-clip@1')return blockEvents('keynote-clip',scene,scene.params)
+   .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
@@ -94,6 +101,9 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
     .map(frame=>Math.floor(frame/stride)*stride);
   }
+  if(scene.block==='keynote-clip@1')return blockEvents('keynote-clip',scene,scene.params)
+   .flatMap(event=>[Math.max(0,event.frame-36),event.frame-30,event.frame-6,event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='whiteboard-clip@1')return [0,15,30,60,90].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
    .flatMap(event=>[event.frame-30,event.frame-9,event.frame])

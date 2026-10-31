@@ -80,7 +80,13 @@ return {
     const maxW = W * (ctx.portrait ? 0.9 : 0.8), maxH = G.bh * (ctx.portrait ? 0.92 : 0.86), head = (ctx.portrait ? 230 : 130) * u, pad = 36 * u;
     for (const s of slides) if (s.type === 'img') {
       const cd = s.cards[0], ar = cd.im.width / cd.im.height;
-      if (!ctx.portrait && ar < 0.9) {                                         // 横屏放竖图：左字右图，图撑满卡高
+      // The trusted image-only adapter has no unbound badge or Canvas labels;
+      // use the safe area for the actual image instead of reserving empty copy.
+      if (ctx.data.imageOnly) {
+        const sw = ctx.box.w * 0.9; let iw = sw - 2 * pad, ih = iw / ar;
+        if (ih > maxH - 2 * pad) { ih = maxH - 2 * pad; iw = ih * ar; }
+        cd.box = { w: iw + 2 * pad, h: ih + 2 * pad, img: { x: pad, y: pad, w: iw, h: ih } };
+      } else if (!ctx.portrait && ar < 0.9) {                                         // 横屏放竖图：左字右图，图撑满卡高
         const ih = maxH - 2 * pad, iw = ih * ar, tw = 560 * u;
         cd.box = { w: tw + iw + 3 * pad, h: maxH, img: { x: tw + 2 * pad, y: pad, w: iw, h: ih }, side: tw };
       } else {
@@ -143,7 +149,7 @@ return {
   },
 };
 // 截图卡的屏幕几何
-function cardGeoImg(cd, ctx) { return { cx: ctx.W / 2, cy: G.cy, w: cd.box.w, h: cd.box.h, focus: 1 }; }
+function cardGeoImg(cd, ctx) { return { cx: ctx.data.imageOnly ? ctx.box.x + ctx.box.w / 2 : ctx.W / 2, cy: G.cy, w: cd.box.w, h: cd.box.h, focus: 1 }; }
 // 无图卡：横屏排一行（1 张时宽一点），竖屏叠成一列；total = 这一屏最终有几张（排版按当前张数，但尺寸上限按最终张数，挪位时不忽大忽小）
 function rowGeo(j, n, ctx, total) {
   const { W, u } = ctx, gap = 44 * u;
@@ -181,6 +187,7 @@ function badge(g, x, y, s, n, acc, u) { g.fillStyle = acc; g.beginPath(); g.roun
 // 截图卡的内容：步骤号＋标题＋说明，截图 contain；highlight 框出一块
 function imgContent(g, cd, Bw, Bh, t, ctx, acc) {
   const { u } = ctx, q = cd.q, B = cd.box, I = B.img, hp = 40 * u, bs = 70 * u;
+  if (!ctx.data.imageOnly) {
   badge(g, hp, hp, bs, cd.n, acc, u);
   if (B.side) {                                                           // 左字右图：标题、说明在左栏往下排
     const tw = B.side - hp, tl = fitB(g, q.text || '', tw, 58 * u, 'PuHui-Bold', { maxLines: 3, weight: '600 ' });
@@ -200,6 +207,7 @@ function imgContent(g, cd, Bw, Bh, t, ctx, acc) {
     g.font = `600 ${tl.size}px ${ZHB}`; g.fillStyle = '#f5f5f7'; g.fillText(tl.lines[0] || '', tx, hp + (q.sub ? 32 * u : 48 * u));
     if (q.sub) { const sl = TY.fit(g, q.sub, tw, 28 * u, 'PuHui-Medium', { maxLines: 1 }); g.font = `400 ${sl.size}px ${ZH}`; g.fillStyle = 'rgba(235,235,245,0.62)'; g.fillText(sl.lines[0] || '', tx, hp + 74 * u); }
     }
+  }
   }
   const f = CLIP.fit(cd.im.width, cd.im.height, I.x, I.y, I.w, I.h);
   g.save(); g.shadowColor = 'rgba(0,0,0,.45)'; g.shadowBlur = 30 * u; g.shadowOffsetY = 12 * u; g.fillStyle = '#000'; g.beginPath(); g.roundRect(f.x, f.y, f.w, f.h, 10 * u); g.fill(); g.restore();

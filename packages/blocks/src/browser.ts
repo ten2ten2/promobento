@@ -60,6 +60,21 @@ window.PB.defineBlock<{items:Array<{assetKey:string;focus?:string}>;intervalFram
     regions:[region('product',canvas,ctx.root)]};
 }});
 
+// Original t2 slide choreography with only cleared images, no unbound Canvas text.
+window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({id:'keynote-clip',version:'1.0.0',build(ctx,params){
+  const images:Record<string,HTMLImageElement>=Object.create(null),canvas=document.createElement('canvas');
+  canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+  Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+  const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  let stage:ReturnType<typeof createClipStage>|undefined;
+  const ready=Promise.all(params.items.map(async item=>{const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('KEYNOTE_IMAGE_REQUIRED');
+   const image=new Image();image.src=asset.url;await image.decode();if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');images[item.assetKey]=image;
+  })).then(()=>{const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'t2_keynote_ui',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{accent:ctx.style.palette.accent,imageOnly:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+   cues:params.items.map((item,index)=>({kind:'image',at:index*params.intervalFrames/30,image:item.assetKey}))},{width,height,images});});
+  return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);},events:blockEvents('keynote-clip',ctx.frames,params),regions:[region('product',canvas,ctx.root)]};
+}});
+
 // Original y3 image reveal, paired with a separately fact-bound DOM headline.
 // The grammar never receives text; authored Canvas text stays prohibited.
 window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',version:'1.0.0',build(ctx,params){

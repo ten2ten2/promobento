@@ -150,3 +150,19 @@ test('original whiteboard preflight uses the exact cleared image and readable ac
  await check();await check();assert.equal(probes,1);
  resource.sha256='b'.repeat(64);blocked=true;await assert.rejects(check(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);assert.equal(probes,2);
 });
+
+test('keynote preflight binds the cleared image and probes the second slide before use',async t=>{
+ const{db,DB}=sqliteD1();t.after(()=>db.close());const{objects,MEDIA}=memoryMedia(),image='sha256:'+'a'.repeat(64),cache=new Map();
+ const op={id:'keynote-operation',generation:0};db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
+ db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
+ const resource={resourceId:'res_fixture_dashboard',kind:'image',width:64,height:64,licenseRef:'fixture',key:'evals/fixture/image.png',sha256:'a'.repeat(64),byteLength:123};
+ const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,resources:[resource]};
+ let probes=0;
+ const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
+  async studio(_id,text){const task=parseCanonicalJson(text);probes++;const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
+   assert.equal(film.scenes[0].block,'keynote-clip@1');assert.equal(film.assets.health.resourceId,resource.resourceId);assert.deepEqual(task.job.frames,[165]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async frame(_id,frame){assert.equal(frame,165);return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},async closeStudio(){}
+ };}}};
+ const check=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,undefined,false,true);
+ await check();await check();assert.equal(probes,1);resource.sha256='b'.repeat(64);await check();assert.equal(probes,2);
+});

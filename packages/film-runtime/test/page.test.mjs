@@ -118,3 +118,13 @@ test('original y3 icon motifs are accepted by drawn steps and unknown marks are 
  for(const icon of ['person','cat','network','bulb','cross','stack','gear','clock','chart']){film.scenes[0].params.items[0].icon=icon;assert.doesNotThrow(()=>make(film));}
  film.scenes[0].params.items[0].icon='bean-huashu';assert.throws(()=>make(film),/BLOCK_PARAMS_INVALID/);
 });
+
+test('original keynote image sequence requires cleared stills and full per-screen reading windows',()=>{
+ const film=filmFixture();film.assets.other={resourceId:'res_fixture_other'};
+ film.scenes=[{id:'keynote',start:0,end:450,kind:'block',block:'keynote-clip@1',params:{items:[{assetKey:'dashboard'},{assetKey:'other'}],intervalFrames:120},purpose:'Real source screens.'}];
+ const opts=options();opts.resources.push({...opts.resources[0],resourceId:'res_fixture_other'});assert.doesNotThrow(()=>make(film,opts));
+ const video=structuredClone(opts);video.resources[1].kind='video';assert.throws(()=>make(film,video),/KEYNOTE_IMAGE_REQUIRED/);
+ const bad=structuredClone(film);bad.scenes[0].params.items[1].assetKey='missing';assert.throws(()=>make(bad,opts),/ASSET_SLOT_UNKNOWN/);
+ const short=structuredClone(film);short.scenes[0].end=225;short.scenes.push({...filmFixture().scenes[2],start:225,transitionIn:{type:'cut',frames:0}});
+ assert.throws(()=>make(short,opts),/KEYNOTE_READING_HOLD_MISSING/);
+});

@@ -9,10 +9,11 @@ import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 const cacheMs=10*60000;
 /** Probe the actual image, Chromium sandbox and broker/R2 before a paid model request. */
-export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];pages?:Array<{text:string;factIds:string[]}>},whiteboard=false){
+export async function directorEnvironment(env:PipelineEnv,op:Operation,context:Json,resources:Json[],deadlineAt:number,customScenes=false,sceneScopedObservation=false,assetScopedObservation=false,fadeThrough=false,componentRelay=false,componentBehavior=false,objectStudio=false,customStudio:boolean|'v2'|'v3'=false,packedVideo=false,voxClip:boolean|'highlight'=false,canvasTitle?:{fontId:string;weight:number;style?:string;text:string;factIds:string[];pages?:Array<{text:string;factIds:string[]}>},whiteboard=false,keynote=false){
  if(sceneScopedObservation&&!customScenes||assetScopedObservation&&!sceneScopedObservation||componentRelay&&(customScenes||fadeThrough)||componentBehavior&&!componentRelay||objectStudio&&(customScenes||componentRelay||fadeThrough||customStudio)||customStudio&&(customScenes||componentRelay||fadeThrough)||packedVideo&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio)||voxClip&&(customScenes||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(canvasTitle&&(customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  if(whiteboard&&(canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
+ if(keynote&&(whiteboard||canvasTitle||customScenes||sceneScopedObservation||assetScopedObservation||fadeThrough||componentRelay||objectStudio||customStudio||packedVideo||voxClip))throw Error('DIRECTOR_PREFLIGHT_SCOPE_INVALID');
  await operation(env,op.id,op.generation);await rights(env,op,resources);
  const packedAsset=packedVideo?context.resources.find((item:Json)=>item.videoFramePacking==='webp-pack-v1'):undefined;
  if(packedVideo&&!packedAsset)throw Error('RENDER_VIDEO_ASSET_UNAVAILABLE');
@@ -20,9 +21,11 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
  if(voxClip&&!voxAsset)throw Error('RENDER_VOX_ASSET_UNAVAILABLE');
  const boardAsset=whiteboard?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
  if(whiteboard&&!boardAsset)throw Error('RENDER_WHITEBOARD_ASSET_UNAVAILABLE');
+ const keynoteAsset=keynote?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
+ if(keynote&&!keynoteAsset)throw Error('RENDER_KEYNOTE_ASSET_UNAVAILABLE');
  const release=await env.DB.prepare("SELECT * FROM renderer_releases WHERE id=? AND status='active'").bind(context.rendererRelease).first<Json>();
  if(!release||release.runtime_version!==context.runtimeVersion||release.image_digest!==await env.SHARDS.getByName('release-metadata').imageDigest())throw Error('RENDER_ENVIRONMENT_MISMATCH');
- const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio}:{}),...(packedVideo?{packedVideo:packedAsset.sha256}: {}),...(voxClip?{voxClip:voxAsset.sha256,...(voxClip==='highlight'?{voxHighlight:true}:{})}:{}),...(canvasTitle?{canvasTitle}:{}),...(whiteboard?{whiteboard:boardAsset.sha256}:{})});
+ const coordinator=env.COORDINATOR.getByName('global-v1'),cacheKey=digest({release:release.id,image:release.image_digest,runtime:release.runtime_version,environment:release.environment_key,...(customScenes?{customScenes:true}:{}),...(sceneScopedObservation?{sceneScopedObservation:true}:{}),...(assetScopedObservation?{assetScopedObservation:true}:{}),...(fadeThrough?{fadeThrough:true}:{}),...(componentRelay?{componentRelay:true}:{}),...(componentBehavior?{componentBehavior:true}:{}),...(objectStudio?{objectStudio:true}:{}),...(customStudio?{customStudio}:{}),...(packedVideo?{packedVideo:packedAsset.sha256}: {}),...(voxClip?{voxClip:voxAsset.sha256,...(voxClip==='highlight'?{voxHighlight:true}:{})}:{}),...(canvasTitle?{canvasTitle}:{}),...(whiteboard?{whiteboard:boardAsset.sha256}:{}),...(keynote?{keynote:keynoteAsset.sha256}:{})});
  const cached=parseCanonicalJson(await coordinator.rendererHealth(cacheKey)) as Json|null;
  if(cached&&cached.checkedAt<=Date.now()&&Date.now()-cached.checkedAt<cacheMs)return;
  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
@@ -34,7 +37,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   audio:{music:{kind:'none'},sfx:[],captions:'off',mute:true},assets:{},texts:{headline:{text:'Render health check',role:'headline',factIds:[]}},
   scenes:[{id:'health',start:0,end:450,kind:'block',block:'hook-title@1',params:{textSlot:'headline'},purpose:'Private renderer health probe.'}],
   treatment:{message:'Private renderer health probe.',hook:'Readiness only.',energyCurve:[{frame:0,level:1},{frame:449,level:1}],continuity:'Single trusted block.'}};
- const sources:Record<string,string>={},asset=packedVideo?packedAsset:voxClip?voxAsset:whiteboard?boardAsset:assetScopedObservation||componentRelay||objectStudio||customStudio?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
+ const sources:Record<string,string>={},asset=packedVideo?packedAsset:voxClip?voxAsset:whiteboard?boardAsset:keynote?keynoteAsset:assetScopedObservation||componentRelay||objectStudio||customStudio?context.resources.find((item:Json)=>['image','svg'].includes(item.kind)):undefined;
  if(assetScopedObservation&&!asset)throw Error('RENDER_ASSET_OBSERVATION_UNAVAILABLE');
  if(componentRelay&&!asset)throw Error('RENDER_COMPONENT_RELAY_UNAVAILABLE');
  if((objectStudio||customStudio)&&!asset)throw Error('RENDER_STUDIO_ASSET_UNAVAILABLE');
@@ -70,6 +73,10 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   film.assets.health={resourceId:asset.resourceId,...(voxClip==='highlight'?{roi:[{x:.2,y:.2,width:.4,height:.4}]}:{})};
   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'vox-clip@1',params:{intervalFrames:voxClip==='highlight'?120:90,items:[{assetKey:'health',...(voxClip==='highlight'?{focus:'roi:0'}:{})},{assetKey:'health'}]},purpose:'Probe original Vox image choreography.'}];
  }
+ if(keynote){
+  film.assets.health={resourceId:asset.resourceId};
+  film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'keynote-clip@1',params:{items:[{assetKey:'health'},{assetKey:'health'}],intervalFrames:120},purpose:'Probe original screenshot slide choreography.'}];
+ }
  if(whiteboard){
   film.assets.health={resourceId:asset.resourceId};
   film.scenes=[{id:'health',start:0,end:450,kind:'block',block:'whiteboard-clip@1',params:{assetKey:'health',textSlot:'headline'},purpose:'Probe original whiteboard image reveal.'}];
@@ -88,7 +95,7 @@ export async function directorEnvironment(env:PipelineEnv,op:Operation,context:J
   transitionIn:{type:'fade-through',frames:8},purpose:'Check the supported fade-through transition.'});}
  const taskId='health-'+crypto.randomUUID(),source=await immutableJson(env,`operations/${op.id}/health/${taskId}/film.json`,film),modules=[];
  for(const [path,text]of Object.entries(sources))modules.push({...await immutableBytes(env,`operations/${op.id}/health/${taskId}/${path}`,new TextEncoder().encode(text),'text/javascript'),name:path});
- const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):voxClip==='highlight'?84:voxClip?135:whiteboard?105:45;
+ const aspect='landscape',layout=platform.aspectLayouts.landscape,probeFrame=packedVideo?Math.min(45,asset.videoFrames.length-1):voxClip==='highlight'?84:voxClip?135:whiteboard?105:keynote?165:45;
  const probeFrames=canvasTitle?.pages?canvasTitle.pages.map((_,index)=>45+index*120):[probeFrame];
  const task={schemaVersion:'3.0.0',kind:'render_task',mode:'studio',instance:objectStudio||customStudio?'standard-4':'standard-3',taskId,generation:op.generation,
   deadlineAt:Math.min(deadlineAt,Date.now()+90000),imageDigest:release.image_digest,
