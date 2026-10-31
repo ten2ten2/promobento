@@ -168,13 +168,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const canvasTitleMethod=supportsCanvasTitle(methods,context);
     const canvasSequenceMethod=supportsCanvasSequence(methods,context);
     const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
+    const extendedDrawnIcons=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=37);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
     const availableBlocks=blockCatalog.filter(block=>(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
-        if(block.id!=='vox-clip'||voxHighlightMethod)return block;
-        const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
-        legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;
+        if(block.id==='vox-clip'&&!voxHighlightMethod){const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
+          legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;}
+        if(block.id==='drawn-steps'&&!extendedDrawnIcons){const legacy=structuredClone(block) as Json;
+          legacy.params.properties.items.items.properties.icon.enum=['circle','document','screen','chat','check','target'];return legacy;}
+        return block;
       });
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
@@ -207,6 +210,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
       if(!voxHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items?.some((item:Json)=>item.focus)))
         throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'VOX_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
+      if(!extendedDrawnIcons&&value.scenes.some((scene:Json)=>scene.block==='drawn-steps@1'&&scene.params.items?.some((item:Json)=>item.icon&&!['circle','document','screen','chat','check','target'].includes(item.icon))))
+        throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'DRAWN_ICON_NOT_AVAILABLE',path:'/scenes'}],value);
       if(!whiteboardMethod&&value.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasSequenceMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-sequence@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       for(const scene of value.scenes.filter((item:Json)=>item.block==='canvas-sequence@1'))for(const item of scene.params.items??[]){

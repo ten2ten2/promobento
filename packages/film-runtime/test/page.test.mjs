@@ -112,3 +112,9 @@ test('original whiteboard image reveal requires a cleared still and a settled re
  const short=structuredClone(film);short.scenes[0].end=120;short.scenes.push({...filmFixture().scenes[2],start:120,transitionIn:{type:'cut',frames:0}});
  assert.throws(()=>make(short),/WHITEBOARD_READING_HOLD_MISSING/);
 });
+
+test('original y3 icon motifs are accepted by drawn steps and unknown marks are rejected',()=>{
+ const film=filmFixture();film.scenes=[{id:'drawn',start:0,end:450,kind:'block',block:'drawn-steps@1',params:{items:[{textSlot:'headline',icon:'person'},{textSlot:'product',icon:'cat'}]},purpose:'Confirmed steps.'}];
+ for(const icon of ['person','cat','network','bulb','cross','stack','gear','clock','chart']){film.scenes[0].params.items[0].icon=icon;assert.doesNotThrow(()=>make(film));}
+ film.scenes[0].params.items[0].icon='bean-huashu';assert.throws(()=>make(film),/BLOCK_PARAMS_INVALID/);
+});

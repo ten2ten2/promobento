@@ -85,7 +85,7 @@ export const blockCatalog = [
     events:[{name:'step-land',description:'The final step and connecting stroke are revealed.'}],
     params:{type:'object',additionalProperties:false,required:['items'],properties:{textSlot:slot,
       items:{type:'array',minItems:2,maxItems:3,items:{type:'object',additionalProperties:false,required:['textSlot'],properties:{textSlot:slot,subtitleSlot:slot,
-        icon:{type:'string',enum:['circle','document','screen','chat','check','target'],description:'Optional hand-drawn icon relevant to this real step; omit for a neutral mark.'}}}}}}},
+        icon:{type:'string',enum:['circle','document','screen','chat','check','target','person','cat','network','bulb','cross','stack','gear','clock','chart'],description:'Optional hand-drawn icon relevant to this real step; omit for a neutral mark.'}}}}}}},
   { ...common, id: 'metric', category: 'data', regions: ['metric'],
     events: [{name: 'metric-land', description: 'The fact-bound number reaches its final value.'}],
     params: {type: 'object', additionalProperties: false, required: ['textSlot'], properties: {textSlot: slot, subtitleSlot: slot}}},

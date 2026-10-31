@@ -306,6 +306,23 @@ try{
   }
   report.whiteboardClip='original_y3_image_reveal_bound_dom_text_four_aspects_reverse';
 
+  const iconFilm=filmFixture();iconFilm.assets={};iconFilm.texts={one:{text:'ONE',role:'headline',factIds:[]},two:{text:'TWO',role:'headline',factIds:[]},three:{text:'THREE',role:'headline',factIds:[]}};
+  const iconGroups=[['person','cat','network'],['bulb','cross','stack'],['gear','clock','chart']];
+  iconFilm.scenes=iconGroups.map((group,index)=>({id:'icons-'+index,start:index*150,end:(index+1)*150,kind:'block',block:'drawn-steps@1',
+   params:{items:group.map((icon,i)=>({icon,textSlot:['one','two','three'][i]}))},purpose:'Original hand-drawn icon fixture.'}));
+  for(const aspect of ['landscape','portrait']){
+   const options=pageOptions(aspect,rules.aspectLayouts[aspect]);options.resources=[];options.fonts=multiOptions.fonts;
+   const icons=await filmSession({raw:JSON.stringify(iconFilm),options,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+   try{for(const [index,frame] of [90,240,390].entries()){
+    const png=await icons.frame(frame,{format:'png'}),observation=await icons.observe('drawn-icon-check',frame);
+    assert.ok(!observation.findings.some(finding=>finding.severity==='BLOCK'),JSON.stringify(observation));
+    assert.ok(['one','two','three'].every(slot=>observation.texts.some(text=>text.slotId===slot&&!text.clipped)));
+    writeFileSync(`${output}/drawn-icons-${aspect}-${index}.png`,png);
+   }}finally{await icons.close();}
+  }
+  report.drawnIcons='nine_original_y3_motifs_actual_landscape_and_portrait';
+
+
 
   // Exercise the production encoder path, not just the in-browser trace: every
   // encoded frame must survive in the receipt-bound trace file.

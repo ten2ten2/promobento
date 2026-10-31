@@ -143,6 +143,7 @@ jobs:
             artifacts/film-runtime/canvas-title-*.png
             artifacts/film-runtime/canvas-sequence-*.png
             artifacts/film-runtime/whiteboard-clip-*.png
+            artifacts/film-runtime/drawn-icons-*.png
             artifacts/film-runtime/object-motion-*.png
             artifacts/film-runtime/vox-focus-*.png
             artifacts/film-runtime/vox-plain-*.png

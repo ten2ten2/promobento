@@ -344,7 +344,16 @@ window.PB.defineBlock<Record<string,unknown>>({id:'drawn-steps',version:'1.0.0',
       document:'M 14 -42 L -30 -42 L -30 42 L 30 42 L 30 -26 L 14 -42 L 14 -26 L 30 -26 M -18 -12 L 18 -12 M -18 4 L 18 4 M -18 20 L 6 20',
       screen:'M -44 -36 L 44 -36 L 44 20 L -44 20 Z M 0 20 L 0 34 M -20 36 L 20 36 M -32 -22 L 6 -22 M -24 -10 L 24 -10 M -24 2 L 12 2',
       chat:'M -30 -36 L 30 -36 L 42 -24 L 42 10 L 30 22 L -6 22 L -24 40 L -20 22 L -30 22 L -42 10 L -42 -24 Z M -18 -7 L -17 -7 M 0 -7 L 1 -7 M 18 -7 L 19 -7',
-      check:'M -32 0 L -8 26 L 36 -32',target:'M 0 -36 A 40 40 0 1 1 -1 -36 M 0 -21 A 25 25 0 1 1 -1 -21 M 0 -5 A 9 9 0 1 1 -1 -5 M 46 -42 L 2 2 M 30 -42 L 46 -42 L 46 -26'};
+      check:'M -32 0 L -8 26 L 36 -32',target:'M 0 -36 A 40 40 0 1 1 -1 -36 M 0 -21 A 25 25 0 1 1 -1 -21 M 0 -5 A 9 9 0 1 1 -1 -5 M 46 -42 L 2 2 M 30 -42 L 46 -42 L 46 -26',
+      person:'M 0 -43 A 13 13 0 1 1 -1 -43 M 0 -17 L 0 14 M -24 -4 L 0 -10 L 24 -4 M -17 44 L 0 14 L 17 44',
+      cat:'M -16 -22 L -24 -43 L -8 -35 L 8 -35 L 24 -43 L 16 -22 M -22 -20 Q -27 -4 -20 0 M 22 -20 Q 27 -4 20 0 M -21 0 Q -30 22 -29 42 L 29 42 Q 30 22 21 0 M 29 37 Q 50 33 48 10 Q 44 -2 37 -6 M -10 -19 L -9 -19 M 10 -19 L 11 -19 M -8 -7 L -30 -10 M 8 -7 L 30 -10',
+      network:'M -38 -28 A 6 6 0 1 1 -39 -28 M -38 0 A 6 6 0 1 1 -39 0 M -38 28 A 6 6 0 1 1 -39 28 M 0 -33 A 6 6 0 1 1 -1 -33 M 0 -11 A 6 6 0 1 1 -1 -11 M 0 11 A 6 6 0 1 1 -1 11 M 0 33 A 6 6 0 1 1 -1 33 M 38 -14 A 6 6 0 1 1 37 -14 M 38 14 A 6 6 0 1 1 37 14 M -32 -28 L -6 -33 M -32 -28 L -6 -11 M -32 0 L -6 -11 M -32 0 L -6 11 M -32 28 L -6 11 M -32 28 L -6 33 M 6 -33 L 32 -14 M 6 -11 L 32 -14 M 6 11 L 32 14 M 6 33 L 32 14',
+      bulb:'M -18 6 A 26 26 0 1 1 18 6 M -11 12 L -11 27 L 11 27 L 11 12 M -8 36 L 8 36 M -31 -36 L -39 -44 M 0 -43 L 0 -50 M 31 -36 L 39 -44',
+      cross:'M -28 -28 L 28 28 M 28 -28 L -28 28',
+      stack:'M -22 -40 L 38 -40 L 38 12 M -31 -31 L 29 -31 L 29 21 M -40 -22 L 20 -22 L 20 30 L -40 30 Z M -30 20 L -14 2 L 0 14 L 10 6 L 20 20',
+      gear:'M 0 -40 L 8 -39 L 11 -31 L 18 -28 L 25 -32 L 32 -25 L 28 -18 L 31 -11 L 39 -8 L 40 0 L 39 8 L 31 11 L 28 18 L 32 25 L 25 32 L 18 28 L 11 31 L 8 39 L 0 40 L -8 39 L -11 31 L -18 28 L -25 32 L -32 25 L -28 18 L -31 11 L -39 8 L -40 0 L -39 -8 L -31 -11 L -28 -18 L -32 -25 L -25 -32 L -18 -28 L -11 -31 L -8 -39 Z M 0 -12 A 12 12 0 1 1 -1 -12',
+      clock:'M 0 -40 A 40 40 0 1 1 -1 -40 M 0 -26 L 0 0 L 18 10',
+      chart:'M -42 -42 L -42 38 L 44 38 M -32 22 L -12 4 L 6 12 L 34 -26 M 18 -26 L 34 -26 L 34 -10'};
     const mark=document.createElementNS('http://www.w3.org/2000/svg','svg');mark.setAttribute('viewBox','-50 -50 100 100');
     Object.assign(mark.style,{position:'absolute',left:'0',top:wide?'12%':'32%',width:wide?'120px':'64px',height:wide?'120px':'64px',overflow:'visible'});
     const stroke=document.createElementNS('http://www.w3.org/2000/svg','path');stroke.setAttribute('d',paths[item.icon??'circle']!);
