@@ -25,7 +25,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,sourceSfx=false,sourceSfxEdit=false,sourceSfxInvalid=false,sourceSfxConflict=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,custom3D=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,custom3D=false,studioOnly=false,lateCustom3D=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -60,9 +60,10 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  if(sourceSfx){spec.scenes[1].params.sourceSfx=true;spec.audio={music:{kind:'none'},sfx:sourceSfxConflict?[{id:'whoosh',at:{frame:135}}]:[],captions:'off',mute:false};}
  if(twoCustom)spec.scenes[2]={id:'cta',kind:'custom',module:'scenes/cta/index.js',start:330,end:450,purpose:'Hold the call to action.',brief:'A readable fictional closing.',transitionIn:{type:'crossfade',frames:6},
   params:{textSlots:['cta'],assetKeys:[],events:[{name:'cta-land',frame:20}],readingHolds:[{start:30,end:110,visibleTextSlots:['cta']}]}};
+ if(lateCustom3D){spec.scenes[2].runtime3D='om3-studio-v1';spec.scenes[2].params.assetKeys=['dashboard'];}
  const modern=(customScene||methodWithoutCustom)&&!legacyCustomMethod&&(!frozenMethodVersion||Number(frozenMethodVersion.split('.')[0])>1||Number(frozenMethodVersion.split('.')[1])>=6);
  if(modern){spec.scenes[2].transitionIn.type='fade-through';if(customScene&&!noAssetPlan)spec.scenes[1].params.assetChecks=[{frame:70,assetKeys:['dashboard']}];}
- const fixtureSource=`PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);${sourceSfx?'ctx.OM.sfx("whoosh",.5,{gain:.5});':''}${custom3D?'const studio=ctx.OM3.studio("dashboard");':''}const timeline=gsap.timeline({paused:true});${custom3D?'ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0}),7.2);':''}timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});`;
+ const fixtureSource=`PB.scene("product",ctx=>{const panel=document.createElement("div");ctx.root.append(panel);ctx.text("product").mount(panel);${studioOnly?'':'const image=document.createElement("img");image.src=ctx.asset("dashboard").url;panel.append(image);'}${sourceSfx?'ctx.OM.sfx("whoosh",.5,{gain:.5});':''}${custom3D?'const studio=ctx.OM3.studio("dashboard");':''}const timeline=gsap.timeline({paused:true});${custom3D?'ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0}),7.2);':''}timeline.to(panel,{duration:7.2,opacity:1,ease:"power2.out"});return {timeline};});`;
  const authoredScene=reviewToCustom?clone(spec.scenes[1]):null;
  if(reviewToCustom)spec.scenes[1]=filmFixture().scenes[1];
  const fixed=clone(spec);fixed.texts.headline.text='Make your next launch\nworth watching.';
@@ -187,7 +188,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
   else if(input.task.startsWith('Implement')){stage='scenes';const prompt=provider.kind==='anthropic'?body.system[0].text:body.messages[0].content;
    if(input.scene.id==='cta'){
     trace.push('author-cta');
-    const source='PB.scene("cta",ctx=>{ctx.text("cta");const timeline=gsap.timeline({paused:true});timeline.to({},{duration:4});return {timeline};});';
+    const source='PB.scene("cta",ctx=>{ctx.text("cta");'+(lateCustom3D?'const studio=ctx.OM3.studio("dashboard");':'')+'const timeline=gsap.timeline({paused:true});'+(lateCustom3D?'ctx.OM.clockAfter(timeline,t=>studio.render({yaw:0}),4);':'timeline.to({},{duration:4});')+'return {timeline};});';
     value={toolCalls:[{id:'mock-cta',name:'edit_file',arguments:'',input:input.phase==='layout'?{command:'create',path:'scenes/cta/index.js',fileText:source}:{command:'str_replace',path:'scenes/cta/index.js',oldStr:'return {timeline}',newStr:'/* '+input.phase+' */ return {timeline}'}}]};
    }else{
    const isFallback=scene502&&body.model==='deepseek-v4.1-flash-1017';if(isFallback)trace.push('deepseek-scene-fallback');
@@ -587,6 +588,8 @@ test('hardest custom scene is checked before the second is authored, without rep
  const stopped=await fixture({customScene:true,twoCustom:true,customTextMissing:true});
  assert.equal(stopped.error.message,'CUSTOM_HOLD_TEXT_MISSING');assert.ok(stopped.trace.includes('probe-studio'));assert.ok(!stopped.trace.includes('author-cta'));
  assert.equal(stopped.frameRepairs,1);assert.equal(stopped.renders.length,0);assert.equal(stopped.activeStudio,null);
+ const late=await fixture({customScene:true,twoCustom:true,lateCustom3D:true});assert.ifError(late.error);
+ assert.ok(late.trace.includes('author-cta'));assert.ok(!late.trace.includes('probe-studio'));assert.equal(late.result.sceneModules.length,2);assert.match(late.result.sceneProofKey,/custom-check/);
  const frozen=await fixture({customScene:true,twoCustom:true,frozenMethodVersion:'1.2.0'});assert.ifError(frozen.error);
  assert.ok(frozen.trace.includes('author-cta'));assert.ok(!frozen.trace.includes('probe-studio'));assert.equal(frozen.result.directingMethod.version,'1.2.0');
 });
@@ -688,6 +691,8 @@ test('custom 3D choreography is advertised only in the new method and its frozen
  const r=await fixture({customScene:true,custom3D:true});assert.ifError(r.error);assert.ok(r.trace.includes('studio-preflight'));
  assert.ok(r.trace.filter((value:string)=>value==='webgl-studio').length>=2);
  assert.ok(r.moduleSources.some((source:string)=>source.includes('ctx.OM3.studio("dashboard")')));
+ const studioOnly=await fixture({customScene:true,custom3D:true,studioOnly:true,noAssetPlan:true});assert.ifError(studioOnly.error);
+ assert.ok(studioOnly.moduleSources.some((source:string)=>source.includes('ctx.OM3.studio("dashboard")')&&!source.includes('document.createElement("img")')));
  const old=await fixture({customScene:true,frozenMethodVersion:'1.27.0'});assert.ifError(old.error);
  assert.equal(old.specInputs[0].schema.$defs.scene.oneOf[1].properties.runtime3D,undefined);assert.ok(!old.trace.includes('studio-preflight'));
  const unavailable=await fixture({customScene:true,custom3D:true,oldStudioRenderer:true});
