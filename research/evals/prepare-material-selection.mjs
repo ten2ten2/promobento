@@ -33,8 +33,10 @@ return selected.assets.map(asset=>{
   return{asset,bytes:video.manifestBytes,sha256:sha256Bytes(video.manifestBytes),mediaType:'application/json',extension:'json',original:approval.original,explicit:approval.explicit,video};
  }
  if(asset.derivation?.kind==='approved_artwork_rasterization'){
-  if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.source.kind!=='local_project_media'
-   ||approval.explicit.sourceFile!==asset.derivation.sourceFile||approval.explicit.sourceUrl!==asset.sourceUrl
+  const web=asset.derivation.sourceOrigin==='web';
+  if(!artwork||artwork.sha256!==sha256||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
+   ||(web?(approval.source.kind==='local_project_media'||approval.explicit.imageUrl!==asset.imageUrl||asset.derivation.imageUrl!==asset.imageUrl)
+    :(approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile))
    ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(artwork.original)!==approval.explicit.sha256
    ||artwork.sourceMediaType!==asset.derivation.sourceMediaType)throw Error('ARTWORK_VERIFICATION_REQUIRED');
  }

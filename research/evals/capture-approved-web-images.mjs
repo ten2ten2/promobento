@@ -15,20 +15,20 @@ const MAX_BYTES=1<<20,within=(root,path)=>path.startsWith(root+sep),blocked=new 
 for(const [ip,bits] of [['0.0.0.0',8],['10.0.0.0',8],['100.64.0.0',10],['127.0.0.0',8],['169.254.0.0',16],['172.16.0.0',12],['192.0.0.0',24],['192.0.2.0',24],['192.168.0.0',16],['198.18.0.0',15],['198.51.100.0',24],['203.0.113.0',24],['224.0.0.0',4],['240.0.0.0',4]])blocked.addSubnet(ip,bits,'ipv4');
 for(const [ip,bits] of [['2001::',32],['2001:db8::',32],['2002::',16],['3fff::',20]])blocked.addSubnet(ip,bits,'ipv6');
 const globalV6=new BlockList();globalV6.addSubnet('2000::',3,'ipv6');
-function approvedUrl(value){
+export function approvedWebUrl(value){
  let url;try{url=new URL(value);}catch{throw Error('WEB_MATERIAL_URL_INVALID');}
  if(url.protocol!=='https:'||url.username||url.password||url.hash||url.search||url.href!==value||value.length>2048||isIP(url.hostname.replace(/^\[|\]$/g,''))||!url.hostname.includes('.')||url.hostname.endsWith('.local'))throw Error('WEB_MATERIAL_URL_INVALID');
  return url;
 }
 function publicAddress(item){return item.family===4?!blocked.check(item.address,'ipv4'):item.family===6&&globalV6.check(item.address,'ipv6')&&!blocked.check(item.address,'ipv6');}
-export async function downloadApprovedImage(value,{resolveAddress=lookup,makeRequest=request}={}){
- const url=approvedUrl(value);let timer,addresses;
+export async function downloadApprovedImage(value,{resolveAddress=lookup,makeRequest=request,accept='image/png,image/jpeg,image/webp'}={}){
+ const url=approvedWebUrl(value);let timer,addresses;
  try{addresses=await Promise.race([resolveAddress(url.hostname,{all:true,verbatim:true}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('WEB_MATERIAL_TIMEOUT')),15000);})]);}
  finally{clearTimeout(timer);}
  if(!addresses.length||addresses.some(item=>!publicAddress(item)))throw Error('WEB_MATERIAL_ADDRESS_INVALID');
  const selected=addresses[0];
  return new Promise((done,fail)=>{
-  const req=makeRequest(url,{method:'GET',headers:{accept:'image/png,image/jpeg,image/webp'},timeout:15000,
+  const req=makeRequest(url,{method:'GET',headers:{accept},timeout:15000,
    lookup(_host,options,callback){if(options.all)callback(null,[selected]);else callback(null,selected.address,selected.family);}},response=>{
    response.on('error',fail);response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));
    if(response.statusCode!==200){response.destroy();fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));return;}
@@ -52,7 +52,7 @@ export async function captureApprovedWebImages({outputDir,card,entries,download=
  // Validate every license, source and exact approved URL before any network request.
  const approved=entries.map(entry=>{
   if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim())throw Error('WEB_MATERIAL_SELECTION_INVALID');
-  approvedUrl(entry.sourceUrl);approvedUrl(entry.imageUrl);
+  approvedWebUrl(entry.sourceUrl);approvedWebUrl(entry.imageUrl);
   const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,imageUrl:entry.imageUrl,approvalRef:entry.approvalRef,
    derivation:{kind:'approved_web_image',imageUrl:entry.imageUrl}};
   const decision=materialApproval(card,asset);

@@ -4,7 +4,7 @@ import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from
 import {join,resolve} from 'node:path';
 import {pngRgba} from '@promobento/contracts/seams';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {captureApprovedArtwork,verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
+import {captureApprovedArtwork,captureApprovedWebArtwork,verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 
 const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30" viewBox="0 0 40 30"><rect width="40" height="30" fill="#22aa44"/><circle cx="20" cy="15" r="8" fill="#ffcc22"/></svg>');
@@ -48,5 +48,24 @@ test('approved SVG must still reject active and externally linked markup',async(
    const bytes=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'+bad+'</svg>');writeFileSync(join(source,'bad.svg'),bytes);card.materialApprovals['fixture-bad']=approval('bad.svg',bytes);
    await assert.rejects(captureApprovedArtwork({sourceDir:source,outputDir:join(root,'output'),card,entries:[entry('fixture-bad','bad.svg')]}),/ARTWORK_SVG_UNSUPPORTED/);assert.equal(existsSync(join(root,'output')),false);
   }
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+
+test('web SVG is fetched only after exact source approval and revalidated before ingestion',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.web-artwork-test-'));let calls=0;
+ try{const sourceUrl='https://example.com/product',imageUrl='https://cdn.example.com/logo.svg';
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'official_product_page',url:sourceUrl}],materialApprovals:{'fixture-mark':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Approved synthetic web artwork.',sourceUrl,imageUrl,sha256:sha256Bytes(svg)}}};
+  const item={id:'fixture-mark',sourceUrl,imageUrl,description:'Approved synthetic SVG.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-mark'};
+  const iconUrl='https://cdn.example.com/favicon.ico',ico=icon(),iconItem={...item,id:'fixture-icon',imageUrl:iconUrl,description:'Approved synthetic icon.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-icon'};
+  card.materialApprovals['fixture-icon']={...card.materialApprovals['fixture-mark'],imageUrl:iconUrl,sha256:sha256Bytes(ico)};
+  const download=async(url,options)=>{calls++;assert.match(options.accept,/svg/);if(url===imageUrl)return svg;assert.equal(url,iconUrl);return ico;};
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'denied'),card,entries:[item,{...item,id:'unapproved',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/unapproved'}],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(calls,0);
+  await assert.rejects(captureApprovedWebArtwork({outputDir:join(root,'bad'),card,entries:[item],download:async()=>Buffer.from('changed')}),/ARTWORK_APPROVAL_IDENTITY_MISMATCH/);
+  const out=join(root,'out'),selected=await captureApprovedWebArtwork({outputDir:out,card,entries:[item,iconItem],download});assert.equal(calls,2);assert.deepEqual(selected.assets.map(asset=>asset.review),['pending_visual_selection','pending_visual_selection']);
+  const cardPath=join(root,'card.json');writeFileSync(cardPath,JSON.stringify(card));const topics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:cardPath}]},reviewed=structuredClone(selected);
+  for(const asset of reviewed.assets){asset.review='approved_for_internal_eval_by_codex';asset.reviewedAt='2026-10-31';}const verified=await verifyArtworkSelections(out,reviewed,topics);
+  assert.deepEqual(prepareMaterialSelection(out,reviewed,topics,{readCard:()=>card,verifiedArtwork:verified}).map(item=>item.artwork.sourceMediaType),['image/svg+xml','image/x-icon']);
+  const changed=structuredClone(reviewed);changed.assets[0].imageUrl='https://cdn.example.com/other.svg';assert.throws(()=>prepareMaterialSelection(out,changed,topics,{readCard:()=>card,verifiedArtwork:verified}),/ARTWORK_VERIFICATION_REQUIRED/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });

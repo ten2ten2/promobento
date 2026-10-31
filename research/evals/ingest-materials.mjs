@@ -58,7 +58,8 @@ try{
   const reused=previous?.assets.find(item=>item.id===asset.id&&item.topicId===asset.topicId&&item.sha256===sha256&&item.byteLength===bytes.length
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
-   &&(!(artwork||video)||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256));
+   &&(!(artwork||video)||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256)
+   &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl));
   if(reused){
    // Re-admit the exact existing evidence for this operation; do not upload passed material again.
    await call('rights',{method:'POST',body:{operationId,resourceId:reused.resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:reused.evidenceKey}});
