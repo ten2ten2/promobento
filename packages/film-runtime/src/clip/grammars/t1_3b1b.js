@@ -11,7 +11,7 @@
 // 公式太宽就整体缩字号（所有公式同一字号，Transform 时不跳），竖屏长公式不出画。
 // 字形：CMU 斜体把 θ 画成 ϑ，θ 改用 EB Garamond 斜体（闭合的 θ）；连续两个以上的字母（softmax、ReLU）按正体单词排，单个字母才是斜体变量。
 // alpha：透明底时字外面描一圈深色边，压在亮画面上也看得见。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, DG, TY} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 let M, L;
 const col = v => !v ? null : M[v] || v;

@@ -1,9 +1,10 @@
 // 文字动效 TY：逐字/逐词弹入、遮罩升起、弹入、打字、从模糊浮出、荧光笔、下划线、主词砸入、关键词强调、数字计数与等宽数字。
 // 约定：p 是 0..1 进度；lt/t 是秒。字体用 CSS 字体串或 family 名（中文默认 PuHui-*，开源版是思源黑体，见 lib/fonts.js）。
 // 可读性底线（y5/y1 卡片）：主词 : 辅句 : 标签 ≈ 3.4 : 1 : 0.4；一句辅句在屏 ≥1.2s；入场慢（0.3–0.4s）、退场快（≈0.18s）。
-(() => {
+export function install(env) {
+const {U, MO} = env;
 const { clamp, lerp } = U;
-const TY = window.TY = {};
+const TY = env.TY = {};
 
 // ---------- 基础 ----------
 TY.font = (size, fam = 'PuHui-Black') => `${size}px "${fam}"`;
@@ -119,4 +120,4 @@ TY.tabular = (c, str, x, y, { align = 'left', digitW } = {}) => {
   [...str].forEach((ch, i) => { c.fillText(ch, cx + ws[i] / 2, y); cx += ws[i]; });
   c.textAlign = ta; return total;
 };
-})();
+}

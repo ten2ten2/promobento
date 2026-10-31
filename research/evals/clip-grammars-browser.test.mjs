@@ -7,9 +7,7 @@ import {chromium} from 'playwright-core';
 import {compareSeam,pngPixels} from '@promobento/contracts/seams';
 
 test('original Vox image choreography is seek-stable and Canvas text remains blocked',async()=>{
- const libs=['util','motion','camera','paint','kit','diagram','typo','chart','ui','collage','toon'];
- const contents=libs.map(name=>`import './packages/film-runtime/src/clip/${name}.js';`).join('\n')
-  +`\nimport {createClipStage} from './packages/film-runtime/src/clip/stage.js';window.createClipStage=createClipStage;`;
+ const contents=`import {createClipStage} from './packages/film-runtime/src/clip/stage.js';window.createClipStage=createClipStage;`;
  const bundle=await build({stdin:{contents,resolveDir:process.cwd(),sourcefile:'clip-stage-fixture.js'},bundle:true,write:false,format:'iife',platform:'browser',target:'chrome151'});
  const shim=await build({entryPoints:['packages/film-runtime/src/shim.ts'],bundle:true,write:false,format:'iife',platform:'browser',target:'chrome151'});
  const browser=await chromium.launch({executablePath:process.env.PROMOBENTO_OBSERVATION_CHROME??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true});
@@ -17,7 +15,7 @@ test('original Vox image choreography is seek-stable and Canvas text remains blo
   const context=await browser.newContext({viewport:{width,height},deviceScaleFactor:1});
   try{const page=await context.newPage();await page.route('**/*',route=>route.abort());
    await page.setContent(`<style>html,body{margin:0}</style><canvas width="${width}" height="${height}"></canvas>`);
-   const bootstrap=`U.setStage(${width},${height});const image=color=>{const c=document.createElement('canvas');c.width=160;c.height=100;const g=c.getContext('2d');g.fillStyle=color;g.fillRect(0,0,160,100);return c;};
+   const bootstrap=`const image=color=>{const c=document.createElement('canvas');c.width=160;c.height=100;const g=c.getContext('2d');g.fillStyle=color;g.fillRect(0,0,160,100);return c;};
     const images={a:image('#20cd42'),b:image('#3648e8')},spec={grammar:'y2_vox',duration:8,data:{},cues:[{at:0,kind:'image',image:'a'},{at:3,kind:'image',image:'b'}]};
     window.fixtureStage=createClipStage(spec,{width:${width},height:${height},images});window.paint=t=>fixtureStage.draw(document.querySelector('canvas').getContext('2d'),t);`;
    await page.addScriptTag({content:shim.outputFiles[0].text+'\n'+bundle.outputFiles[0].text+'\n'+bootstrap});

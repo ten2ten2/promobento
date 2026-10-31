@@ -2,17 +2,18 @@
 // 来源：YouTube 解说动画语法 8 支示范片（references/09-视频动画语法.md）。约定：p 是 0..1 的进度，t/lt 是秒。
 //   选缓动的一句话：讲解（3b1b/白板）用 smooth/sineInOut 两端都停稳；发布会用 appleOut/弹簧；动态文字用 expoOut＋弹簧；
 //   拼贴（Vox）相机用 sineInOut 或长尾 longTail，纸片按 12fps 步进；Kurzgesagt 动作用 k75，循环用 easyEase。
-(() => {
+export function install(env) {
+const {U} = env;
 const { clamp, lerp } = U;
-const MO = window.MO = {};
+const MO = env.MO = {};
 
 // ---------- 画布尺寸（片段渲染用） ----------
 // 引擎和全部示范片是 1920×1080。clip.html（口播管线的参数化片段）可能是竖屏 1080×1920：
 // 用到屏幕尺寸的库（CAM / UI / CH / DG / CL）用 U.onStage 登记，clip.js 启动时 U.setStage(w, h) 一次性改掉。
 const stageHooks = [];
-window.STAGE = { W: 1920, H: 1080 };
+env.STAGE = { W: 1920, H: 1080 };
 U.onStage = f => { stageHooks.push(f); };
-U.setStage = (w, h) => { window.STAGE = { W: w, H: h }; stageHooks.forEach(f => f(w, h)); };
+U.setStage = (w, h) => { env.STAGE = { W: w, H: h }; stageHooks.forEach(f => f(w, h)); };
 
 // ---------- 时间片 ----------
 MO.seg = (t, a, b) => clamp((t - a) / (b - a));                          // [a,b] → 0..1
@@ -100,4 +101,4 @@ MO.invert = (ease, y, iters = 30) => { let a = 0, b = 1; for (let i = 0; i < ite
 MO.beat = (n, bpm = 120) => n * 60 / bpm;
 // 揭开那一帧落在拍上：段起点 = 小节线 − 揭开点 × 转场时长（y5：zoom 揭开点 .55、色带 .6、push 到 90% 位移在 .58）
 MO.onBeat = (barTime, revealP, trDur) => barTime - revealP * trDur;
-})();
+}

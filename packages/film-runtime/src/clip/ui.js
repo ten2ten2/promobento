@@ -3,12 +3,14 @@
 // 卡片展开成全屏、模糊推进是转场（transitions.js 的 expandRect / blurPush）。
 // 坑：blur 会从画布外拉进透明像素——画进不清空的离屏会逐帧累积（qa 确定性 ✗），所以先铺原图再叠模糊版；
 //     切片透视的条带取整像素首尾相接，别用「重叠 0.75px 防缝」，半透明下重叠处出竖纹。
-(() => {
+export function install(env) {
+const {U, PAINT} = env;
 let W = 1920, H = 1080; U.onStage((w, h) => { W = w; H = h; });   // 画布尺寸跟 U.setStage 走（默认 1920×1080）
 const { clamp, lerp } = U;
-const UI = window.UI = {};
+const UI = env.UI = {};
 const cvs = {};
-const scratch = (k, w, h) => { let c = cvs[k]; if (!c || c.width !== w || c.height !== h) { c = cvs[k] = document.createElement('canvas'); c.width = w; c.height = h; } return c; };
+const scratch = (k, w, h) => { let c = cvs[k]; if (!c || c.width !== w || c.height !== h) { c = cvs[k] = document.createElement('canvas'); c.width = w; c.height = h;
+  if (env.forceCpuCanvas) c.getContext('2d', {willReadFrequently:true}); } return c; };
 UI.scratch = scratch;
 
 UI.rr = (c, x, y, w, h, r) => { c.beginPath(); c.roundRect(x, y, w, h, r); };
@@ -138,4 +140,4 @@ UI.icon = (c, kind, x, y, s, col, t = 0, lw = 0.075) => {
   }
   c.restore();
 };
-})();
+}

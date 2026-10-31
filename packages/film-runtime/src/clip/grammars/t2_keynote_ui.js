@@ -11,7 +11,7 @@
 //               上一屏这时开始退场，不叠在卡片上；说明写 text 或 sub 都认）
 // 竖屏：第一张卡进来时标题缩成页眉留在顶上（不让上下大片空着）；卡片按剩余高度放大。safe：版面只排在 top..H−bottom 之间。
 // alpha：不画光斑底；卡片垫一层深色、字带投影，压在亮画面上也看得清。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, TY, UI} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 const SANS = '"Inter", "PuHui-Medium"', SANSB = '"Inter", "PuHui-Bold"', ZH = '"PuHui-Medium"', ZHB = '"PuHui-Bold"';
 let BL, slides, scr = {}, G;
@@ -164,7 +164,7 @@ function drawCard(c, cd, i, t, leave, ctx, bd, geo, key) {
   const Bw = geo.w, Bh = geo.h, cx = geo.cx - leave * ctx.W * 0.35, cy = geo.cy + (1 - sp) * 170 * u + MO.float(t, 5 * u, 3.6, i);
   const sc = (0.9 + 0.1 * sp) * (1 - 0.12 * leave) * lerp(0.97, 1, geo.focus), ry = (1 - sp) * -0.45 + 0.03 * Math.sin(t * 0.9 + i) - 0.35 * leave, a = clamp(lt / 0.2) * (1 - leave) * lerp(0.6, 1, geo.focus);
   const pad = 60, tex = scr[key] || (scr[key] = document.createElement('canvas')); tex.width = Math.ceil(Bw + 2 * pad); tex.height = Math.ceil(Bh + 2 * pad);
-  const g = tex.getContext('2d'); g.reset();
+  const g = tex.getContext('2d', ctx.data.imageOnly ? {willReadFrequently:true} : undefined); g.reset();
   const sw = Bw * sc, sh = Bh * sc;
   if (ctx.alpha) { g.fillStyle = 'rgba(12,12,22,0.62)'; g.beginPath(); g.roundRect(pad, pad, Bw, Bh, 34 * u); g.fill(); }
   UI.glass(g, { x: pad, y: pad, w: Bw, h: Bh, r: 34 * u, bd, sample: { x: cx - sw / 2, y: cy - sh / 2, w: sw, h: sh }, tint: ctx.alpha ? 0.08 : 0.075, stroke: 0.22, light: 0.14, shadow: false });

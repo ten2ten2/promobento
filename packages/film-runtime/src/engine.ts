@@ -2,6 +2,7 @@ import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import { randomSequence } from '@promobento/contracts/random';
 import type { BlockDefinition, BlockInstance, CustomScene, FilmScene, FilmSpec, SceneContext, SceneRegion, TextSlotHandle } from '../../../contracts/film-runtime.d.ts';
 import {customScenePlan} from '@promobento/contracts/custom-source';
+import {createClipHelpers} from './clip/helpers.js';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
 import {createTextIntegrity} from './text-integrity.ts';
@@ -184,6 +185,8 @@ const engine: FilmEngine = {
       stage.append(root);
       const random = randomSequence(input.seed + '\0' + scene.id);
       const sceneAssets=cloneSceneData(admittedAssets),sceneStyle=cloneSceneData(admittedStyle);
+      const sceneClip=scene.kind==='block'?createClipHelpers():window.CLIP;
+      if(scene.kind==='block')sceneClip.U.setStage(input.target.width,input.target.height);
       const helperRegions: SceneRegion[] = [];
       const readiness = {open:true, pending:[] as Promise<unknown>[]};
       const postSeek = new Map<(time: number) => void, number>();
@@ -192,7 +195,7 @@ const engine: FilmEngine = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
-          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: window.CLIP,
+          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: sceneClip,
         style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle),
         asset(key) {
           const asset = sceneAssets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');

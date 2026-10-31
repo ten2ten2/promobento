@@ -65,7 +65,7 @@ window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({i
   const images:Record<string,HTMLImageElement>=Object.create(null),canvas=document.createElement('canvas');
   canvas.width=ctx.target.width;canvas.height=ctx.target.height;
   Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
-  const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+  const paint=canvas.getContext('2d',{willReadFrequently:true});if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   let stage:ReturnType<typeof createClipStage>|undefined;
   const ready=Promise.all(params.items.map(async item=>{const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('KEYNOTE_IMAGE_REQUIRED');
    const image=new Image();image.src=asset.url;await image.decode();if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');images[item.assetKey]=image;

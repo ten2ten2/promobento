@@ -2,10 +2,11 @@
 // 铁律：相机只由全片时间（或本段时间）算出来，场景每帧按相机矢量重画——缩放转场永远清楚，不会把 1920 的位图放大 20 倍糊掉；
 //       引擎在转场窗口里会把上一段继续按 t 画进 A 缓冲，所以「上一镜的相机继续推」天然成立（live 推进）。
 // cam = { x, y, z, r }：世界点 (x,y) 落在画面中心，缩放 z（>1 推近），绕中心旋转 r（弧度）。缺省 x=960,y=540,z=1,r=0。
-(() => {
+export function install(env) {
+const {U, MO} = env;
 let W = 1920, H = 1080; U.onStage((w, h) => { W = w; H = h; });   // 画布尺寸跟 U.setStage 走（默认 1920×1080）
 const { clamp, lerp } = U;
-const CAM = window.CAM = {};
+const CAM = env.CAM = {};
 const n = cam => ({ x: cam.x ?? W / 2, y: cam.y ?? H / 2, z: cam.z ?? 1, r: cam.r || 0 });
 
 // 把相机变换作用到 c 上（不 save/restore，调用方负责）
@@ -58,4 +59,4 @@ CAM.motionBlur = (c, src, vx, vy, k = 7) => {
 };
 // 手持感微漂：两路不同周期的正弦（连续时间，不闪），返回 [dx, dy] 像素
 CAM.drift = (t, amp = 6, seed = 0) => [amp * Math.sin(t * 0.9 + seed) + amp * 0.4 * Math.sin(t * 2.3 + seed * 2), amp * 0.7 * Math.sin(t * 1.1 + seed * 3)];
-})();
+}

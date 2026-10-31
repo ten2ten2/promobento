@@ -2,10 +2,11 @@
 // 标注（点→引线→文字）、经济学人式版式（顶红线＋红色小旗＋标题＋单位副标题＋来源注＋「示意数据」角标）。
 // 顺序铁律（准确性＋可读性）：坐标系先出 → 数据后出 → 标注最后、一镜只标一件事；柱状图基线必须是 0（纵轴不从 0 开始要在副标题写明）；
 // 动画只改「怎么出现」，不改数值；单位写在副标题；虚构/示意数据每一镜角落都标。
-(() => {
+export function install(env) {
+const {U, PAINT, MO, TY} = env;
 let W = 1920, H = 1080; U.onStage((w, h) => { W = w; H = h; });   // 画布尺寸跟 U.setStage 走（默认 1920×1080）
 const { clamp, lerp } = U;
-const CH = window.CH = {};
+const CH = env.CH = {};
 const seg = (t, a, b) => clamp((t - a) / (b - a));
 
 // 线性比例尺：值 → 屏幕；f.inv 反查
@@ -149,4 +150,4 @@ CH.frame = (c, lt, { title, sub, source = '来源：示意数据', badge = '示�
   c.restore();
   if (badge) CH.demoBadge(c, badge, { x: W - 60, y: 1030, font: `700 28px ${font}`, col: red, box: 'rgba(227,18,11,0.06)' });
 };
-})();
+}

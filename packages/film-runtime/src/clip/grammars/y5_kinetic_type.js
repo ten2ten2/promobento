@@ -7,7 +7,7 @@
 //       number 的说明写 text 或 sub 都行（clip.js 已统一）；data.label 照样有
 // 两个以上的 point 页 = 一份清单：画进度轨（01/02/03，告诉观众第几个、一共几个；横屏右上、竖屏在下方）和背景巨型序号（低对比、斜向慢漂，data.num 可指定）。
 // data.palette = [[底色, 字色], ...] 换配色。alpha 模式不画底，字白色带深色描边。safe：主词块在 top..H−bottom 之间居中，进度轨也在这一带里。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, CAM, TY} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 const PAL = [['#FFD23F', '#111111'], ['#FF5A36', '#FFFFFF'], ['#14213D', '#FFD23F'], ['#F4EFE6', '#111111']];
 let pages, LIST;

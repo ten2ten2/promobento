@@ -1,12 +1,14 @@
 // 纯代码绘画工具库：噪声、纹理、手绘线、风格渲染器（笔触/色点/马赛克/网点/像素/切面）、共享编舞。
 // 约定：所有随机都用种子；「抖动线条」按 boilFps 换种子（手绘动画的 boiling line），其余保持帧间稳定。
-(() => {
+export function install(env) {
+const {U} = env;
 const W = 1920, H = 1080;
-const P = window.PAINT = {};
+const P = env.PAINT = {};
 const { clamp, lerp, ease, rng } = U;
 
 // ---------- 画布 ----------
-P.canvas = (w = W, h = H) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+P.canvas = (w = W, h = H) => { const c = document.createElement('canvas'); c.width = w; c.height = h;
+  if (env.forceCpuCanvas) c.getContext('2d', {willReadFrequently:true}); return c; };
 const CACHE = {};
 P.cached = (key, w, h, fn) => { if (!CACHE[key]) { const c = P.canvas(w, h); fn(c.getContext('2d'), c); CACHE[key] = c; } return CACHE[key]; };
 P.scratch = (key) => { if (!CACHE['s_' + key]) CACHE['s_' + key] = P.canvas(); return CACHE['s_' + key]; };
@@ -197,4 +199,4 @@ P.particles = (n, seed, t, { x0 = 0, x1 = W, y0 = -40, y1 = H + 40, speed = 80, 
     out.push({ x: bx + Math.sin((t + ph) * 1.7 + i) * drift, y: lerp(y0, y1, q), a: r() * Math.PI * 2 + t * (r() - .5) * 3, s: 0.6 + r() * 0.8, q, i }); }
   return out;
 };
-})();
+}

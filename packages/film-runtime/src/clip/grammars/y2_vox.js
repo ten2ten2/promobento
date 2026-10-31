@@ -4,7 +4,7 @@
 //       title（Borders 式黑底白字标签条，打字 13 字/秒）· point（横线索引卡，打字）
 //       highlight（当前这张图上 data.rect=[x,y,w,h]（0..1，相对图片）：at 起荧光笔扫过 → 红笔圈住 → 相机推近那一块）
 // 截图等比放（不裁），只加纸白边和胶带；横屏素材左→右排、竖屏上→下排，相机沿红线追（长尾缓动＋短运动模糊）。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, CAM, PAINT, DG, TY, UI, CL} = CLIP.helpers; return (() => {
 const { clamp, lerp, rng } = U;
 const C = { desk: '#e4ddcf', ink: '#171716', red: '#b8433f', paper: '#eeedeb', card: '#f6f4ee' };
 const BOLD = '"PuHui-Heavy"', TXT = '"PuHui-Bold"';

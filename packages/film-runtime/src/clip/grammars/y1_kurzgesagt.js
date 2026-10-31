@@ -7,7 +7,7 @@
 //              之后的 point 都是新这一层的卫星；dur 默认 1.6s，at 这一帧开始推）
 // data.center：第一层中心星球的名字。data.flow:true：节点按顺序串成一条链（中心→1→2→3），信号依次流过，节点带序号——讲「先后」时用。
 // 节点排法横竖屏一致：≤3 个排在上半圈（从左到右），≥4 个绕一整圈（从左边起顺时针）。safe：版面只排在 top..H−bottom 之间。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, CAM, PAINT, TY, UI, TOON} = CLIP.helpers; return (() => {
 const { clamp, lerp, rng } = U;
 const P = { sky: ['#05020F', '#0E0631', '#2a1a6e'], star: '#F9FCFB', planet: '#F48301', line: 'rgba(125,211,220,.35)', pulse: '#32BAEE' };
 const ACC = ['#32BAEE', '#FACC12', '#BE3A95', '#5CD0B3', '#FC6255', '#8A6CF0'];

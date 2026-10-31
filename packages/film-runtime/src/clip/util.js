@@ -1,7 +1,7 @@
 // 通用工具（最先加载，转场库与引擎共用）
-(() => {
+export function install(env) {
 // ---------- 工具 ----------
-window.U = {
+env.U = {
   TAU: Math.PI * 2,
   clamp: (x, a = 0, b = 1) => Math.max(a, Math.min(b, x)),
   lerp: (a, b, p) => a + (b - a) * p,
@@ -27,4 +27,4 @@ window.U = {
 };
 
 
-})();
+}

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGrammar,grammarNames} from '../src/clip/grammars/index.js';
 import {createClipStage} from '../src/clip/stage.js';
+import {createClipHelpers} from '../src/clip/helpers.js';
 
 test('original grammars are allowlisted and create independent scene state',()=>{
  const previous={U:globalThis.U,TY:globalThis.TY,document:globalThis.document};
@@ -9,7 +10,8 @@ test('original grammars are allowlisted and create independent scene state',()=>
   globalThis.U={clamp:(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),lerp:(a,b,p)=>a+(b-a)*p};
   globalThis.TY={fit:(g,text,width,size)=>({size,lines:[text],ok:true})};
   globalThis.document={createElement:()=>({getContext:()=>({})})};
-  const clip={beats:(cues,name)=>cues.map(cue=>({id:name(cue),at:cue.at})),rid:(base,i)=>`${base}-${i}`,mark:()=>{}};
+  const helpers=createClipHelpers();helpers.TY.fit=globalThis.TY.fit;
+  const clip={helpers,beats:(cues,name)=>cues.map(cue=>({id:name(cue),at:cue.at})),rid:(base,i)=>`${base}-${i}`,mark:()=>{}};
   assert.equal(grammarNames.length,7);assert.ok(!grammarNames.includes('y4_storytime'));
   for(const name of grammarNames){const grammar=createGrammar(name,clip);assert.equal(typeof grammar.draw,'function',name);}
   assert.throws(()=>createGrammar('y4_storytime',clip),/CLIP_GRAMMAR_UNSUPPORTED/);
@@ -29,11 +31,11 @@ test('clip stage fails closed and keeps original grammar instances and frame hit
   globalThis.U={clamp:(x,a=0,b=1)=>Math.max(a,Math.min(b,x)),lerp:(a,b,p)=>a+(b-a)*p};
   globalThis.TY={fit:(g,text,width,size)=>({size,lines:[text],ok:true}),width:()=>12,slam:()=>{throw Error('RUNTIME_TEXT_FORBIDDEN');}};
   globalThis.CAM={drift:()=>[0,0],with:(c,options,draw)=>draw(c)};
-  globalThis.document={createElement:()=>({getContext:()=>({})})};
+  globalThis.document={createElement:()=>({getContext:()=>({save(){},restore(){},measureText:text=>({width:text.length*10})})})};
   const spec=colour=>({grammar:'y5_kinetic_type',duration:15,data:{palette:[[colour,'#ffffff']]},cues:[{kind:'title',at:10,text:'Approved fixture'}]});
   const first=createClipStage(spec('#ff0000'),{width:100,height:100}),second=createClipStage(spec('#0000ff'),{width:100,height:100});
   assert.deepEqual(first.scenes(),[{id:'title',at:10}]);
-  const fills=[];const c=new Proxy({},{get:(object,key)=>key==='fillRect'?()=>fills.push(object.fillStyle):key in object?object[key]:()=>{},set:(object,key,value)=>(object[key]=value,true)});
+  const fills=[];const c=new Proxy({},{get:(object,key)=>key==='fillRect'?()=>fills.push(object.fillStyle):key==='measureText'?text=>({width:text.length*10}):key==='fillText'?()=>{throw Error('RUNTIME_TEXT_FORBIDDEN');}:key in object?object[key]:()=>{},set:(object,key,value)=>(object[key]=value,true)});
   first.draw(c,0);second.draw(c,0);first.draw(c,0);assert.deepEqual(fills,['#ff0000','#0000ff','#ff0000']);
   assert.equal(first.hit('title'),null);assert.throws(()=>first.draw(c,10),/RUNTIME_TEXT_FORBIDDEN/);
   assert.throws(()=>first.draw(c,16),/CLIP_TIME_INVALID/);

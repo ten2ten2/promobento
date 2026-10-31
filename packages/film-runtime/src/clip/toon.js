@@ -1,8 +1,9 @@
 // Generic flat geometry only, adapted from huashu-motion@4236053. No author character or likeness.
-(() => {
+export function install(env) {
+const {U, PAINT} = env;
 const W = 1920, H = 1080;
 const { clamp, lerp } = U;
-const TOON = window.TOON = {};
+const TOON = env.TOON = {};
 
 // ---------- 扁平插画 ----------
 // 双色分面（无描边、靠色块分面）：clip(S) → 整块阴影色 → 往光源方向平移 v 填高光 → 再往回挪 w 填本色：右下留阴影带、左上留细高光边
@@ -21,4 +22,4 @@ TOON.circle = (x, y, r) => { const p = new Path2D(); p.arc(x, y, r, 0, Math.PI *
 TOON.ellipse = (x, y, rx, ry, a = 0) => { const p = new Path2D(); p.ellipse(x, y, rx, ry, a, 0, Math.PI * 2); return p; };
 
 
-})();
+}

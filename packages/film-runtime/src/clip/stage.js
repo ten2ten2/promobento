@@ -2,6 +2,7 @@
 // Internal building block: facts, assets, fonts and the eventual drawn text must
 // be admitted and observed by the caller before any template is delivered.
 import {createGrammar} from './grammars/index.js';
+import {createClipHelpers} from './helpers.js';
 
 export function createClipStage(spec,{width:W,height:H,images={},fontFamily}){
  if(!spec||typeof spec!=='object'||!Number.isFinite(spec.duration)||spec.duration<=0||spec.duration>30
@@ -18,7 +19,11 @@ export function createClipStage(spec,{width:W,height:H,images={},fontFamily}){
   const caption=q.text??q.sub??q.data?.text;if(caption!=null){q.text=caption;q.sub=caption;}
  }
  let hits=new Map();
+ // The image-only keynote uses a fixed CPU Canvas path for cold/forward/reverse
+ // seeks; its glass and gradient layers otherwise differ by one channel level.
+ const helpers=createClipHelpers(spec.grammar==='t2_keynote_ui'&&spec.data.imageOnly?{forceCpuCanvas:true}:{});helpers.U.setStage(W,H);
  const clip={
+  helpers,
   lt:(t,at,fps)=>t-at+1/fps,
   p:(t,at,duration,fps)=>Math.max(0,Math.min(1,(t-at+1/fps)/duration)),
   fit:(iw,ih,bx,by,bw,bh)=>{const s=Math.min(bw/iw,bh/ih),w=iw*s,h=ih*s;return{x:bx+(bw-w)/2,y:by+(bh-h)/2,w,h,s};},

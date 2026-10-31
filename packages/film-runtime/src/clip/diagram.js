@@ -1,10 +1,11 @@
 // 图解与形变 DG：点列、逐笔描出（draw-on）、揭开遮罩、手绘抖动线、manim 式 Transform / Write、白板笔画时间线＋跟随的笔、
 // 神经网络（神经元/连线/信号闪过）、Indicate / Circumscribe / 大括号、3b1b 色板。
 // 约定：点列 pts = [[x,y],...]；cum = DG.cum(pts) 是累计弧长；「画到 d」都按弧长算。确定性：随机全走种子。
-(() => {
+export function install(env) {
+const {U, KIT, PAINT, MO, CAM} = env;
 let W = 1920, H = 1080; U.onStage((w, h) => { W = w; H = h; });   // 画布尺寸跟 U.setStage 走（默认 1920×1080）
 const { clamp, lerp, rng } = U;
-const DG = window.DG = {};
+const DG = env.DG = {};
 
 // ---------- 点列 ----------
 DG.cum = pts => { const L = [0]; for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return L; };
@@ -261,4 +262,4 @@ DG.pen = (c, x, y, col, tilt = 0) => {
   c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.roundRect(60, -12, 140, 7, 4); c.fill();
   c.restore();
 };
-})();
+}

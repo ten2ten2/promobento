@@ -2,10 +2,11 @@
 // 毛边荧光笔（multiply）、轻投影、带倾斜滑入放平、剪纸贴纸白边。
 // 节奏铁律（y2 调研）：相机 60fps 平滑；桌上的纸片/荧光笔/红笔/打字按 12fps「一拍二」步进（MO.step）——stop-motion 手感的一半。
 // 纸纹是贴死的（静态颗粒，不逐帧抖）。素材一次画好走 PAINT.cached，确定性。
-(() => {
+export function install(env) {
+const {U, PAINT, MO, DG} = env;
 let W = 1920, H = 1080; U.onStage((w, h) => { W = w; H = h; });   // 画布尺寸跟 U.setStage 走（默认 1920×1080）
 const { clamp, lerp, rng } = U;
-const CL = window.CL = {};
+const CL = env.CL = {};
 
 // ---------- 纸 ----------
 // 可平铺纸纹 tile：环面取样的 fbm 明暗（无缝）＋纤维短线＋细颗粒。用 c.createPattern(tile, 'repeat') 铺
@@ -94,4 +95,4 @@ CL.stickerEdge = (src, key, border = 12, col = '#f4f2ec', dirs = 16) => {
   sg.globalCompositeOperation = 'source-in'; sg.fillStyle = col; sg.fillRect(0, 0, W, H);
   return sil;
 };
-})();
+}

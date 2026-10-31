@@ -9,7 +9,7 @@
 // 每一笔都在 at 这一帧落下第一点；写字速度＝max(基准速度, 字数 / 到下一个 cue 的间隔)，说到下一句时这句已写完。
 // 笔：两笔之间空档 <0.6s 沿弧线滑过去；更长就 0.35s 退出右下屏外，下一笔前 0.3s 再进来；最后一笔画完一定退场，不留在字上。
 // safe（spec.safe）：内容只排在 top..H−bottom 之间，收尾拉远也只拉进这一带。alpha：墨色外面描一圈白边，叠在深色画面上也看得见。
-export function create(CLIP) { return (() => {
+export function create(CLIP) { const {U, MO, CAM, DG, TY, UI} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 const INK = '#0A0503', BOARD = '#FBFBFB';
 let ORANGE = '#EF7226', WASH = 'rgba(239,114,38,.22)';                  // huashu-motion: data.accent replaces the orange (set in init)

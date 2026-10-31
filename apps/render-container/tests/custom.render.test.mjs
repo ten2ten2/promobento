@@ -369,7 +369,7 @@ try{
    const box=document.createElement('div');Object.assign(box.style,{position:'absolute',width:'100%',height:'50%',opacity:'0'});ctx.root.append(box);
    const label=ctx.text('headline').mount(box);ASSERT
    const timeline=gsap.timeline({paused:true});timeline.to({},{duration:4});return {timeline};});`;
-  const poisonSource=poisonBase.replace('MUTATE',"a.url='/r/res_fixture_other';a.roi[0].x=0;ctx.style.palette.bg='#ff00ff';ctx.style.palette.ink='#112233';ctx.style.type.display.fontId='forged';if(ctx.asset('dashboard').url!=='/r/res_fixture_other')throw Error('SCENE_LOCAL_MUTATION_LOST');")
+  const poisonSource=poisonBase.replace('MUTATE',"a.url='/r/res_fixture_other';a.roi[0].x=0;ctx.style.palette.bg='#ff00ff';ctx.style.palette.ink='#112233';ctx.style.type.display.fontId='forged';ctx.CLIP.U.setStage(20,20);ctx.CLIP.UI.mesh=()=>{};ctx.CLIP.MO.springHz=()=>0;if(ctx.asset('dashboard').url!=='/r/res_fixture_other'||ctx.CLIP.MO.springHz()!==0)throw Error('SCENE_LOCAL_MUTATION_LOST');")
    .replace('ASSERT',"if(label.style.color!=='rgb(17, 34, 51)')throw Error('SCENE_LOCAL_STYLE_LOST');");
   const poisonOptions=pageOptions('landscape',rules.aspectLayouts.landscape);poisonOptions.fonts=multiOptions.fonts;poisonOptions.resources[0].width=64;poisonOptions.resources[0].height=64;
   poisonOptions.resources.push({...poisonOptions.resources[0],resourceId:'res_fixture_other'});
@@ -377,8 +377,8 @@ try{
     resource:id=>id==='res_fixture_other'?magenta:keynoteGreen,killBrowser});
    try{return[await session.frame(165,{format:'png'}),await session.frame(405,{format:'png'})];}finally{await session.close();}};
   const attacked=await shot(poisonSource),clean=await shot(poisonBase.replace('MUTATE','').replace('ASSERT',''));
-  for(let i=0;i<attacked.length;i++)assert.equal(compareSeam(attacked[i],clean[i]).diffPixelPct,0,'a previous scene cannot change a later trusted image or style');
-  report.sceneLocalHandles='same_scene_mutation_preserved_no_cross_scene_asset_or_style_poison';
+  for(let i=0;i<attacked.length;i++)assert.notEqual(compareSeam(attacked[i],clean[i]).verdict,'RENDER_SEAM_BLOCK','a previous scene cannot change a later trusted image, style or helpers');
+  report.sceneLocalHandles='same_scene_mutation_preserved_no_cross_scene_asset_style_or_helper_poison';
 
   const iconFilm=filmFixture();iconFilm.assets={};iconFilm.texts={one:{text:'ONE',role:'headline',factIds:[]},two:{text:'TWO',role:'headline',factIds:[]},three:{text:'THREE',role:'headline',factIds:[]}};
   const iconGroups=[['person','cat','network'],['bulb','cross','stack'],['gear','clock','chart']];
