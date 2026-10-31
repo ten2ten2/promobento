@@ -5,9 +5,10 @@
 Copyright © 2026 Huashu, MIT; the complete license is in [LICENSE.huashu](../film-runtime/src/LICENSE.huashu).
 The port uses PromoBento's own fact-bound text slots and does not include upstream fonts, characters or demo assets.
 
-`canvas-title` executes the upstream `y5_kinetic_type` single-line title drawing
-through a scene-local stage with a separately licensed font and bound text slot;
-it does not include the upstream character, fonts or demo assets.
+`canvas-title`, `canvas-sequence`, `canvas-number` and `canvas-subtitle` execute bounded
+upstream `y5_kinetic_type` title, page transition, count and title/subtitle drawing
+through scene-local stages with separately licensed fonts and bound text slots.
+They do not include the upstream character, fonts or demo assets.
 
 `vox-clip` executes the upstream `y2_vox` image choreography through a scene-local clip stage.
 It admits only separately cleared still images and deliberately omits upstream text, fonts and demo media;
