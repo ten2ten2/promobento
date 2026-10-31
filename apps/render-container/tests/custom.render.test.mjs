@@ -901,18 +901,20 @@ try{
   const previousCwd=process.cwd(),mediaTest=mkdtempSync(`${output}/media-test-`);process.chdir(mediaTest);
   try{
    mkdirSync('artifacts/source',{recursive:true});const sourceDir=`${mediaTest}/artifacts/source`;
-   const movPath=`${sourceDir}/demo.mov`,animatedPath=`${sourceDir}/animated.gif`,avifPath=`${sourceDir}/still.avif`;
+   const movPath=`${sourceDir}/demo.mov`,animatedPath=`${sourceDir}/animated.gif`,apngPath=`${sourceDir}/animated.apng`,animatedWebpPath=`${sourceDir}/animated.webp`,avifPath=`${sourceDir}/still.avif`;
    execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=96x64:r=30:d=2','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart','-y',movPath]);
    execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','testsrc=size=32x32:rate=2:duration=1','-y',animatedPath]);
+   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','testsrc=size=32x32:rate=2:duration=1','-plays','0','-f','apng','-y',apngPath]);
+   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','testsrc=size=32x32:rate=2:duration=1','-c:v','libwebp_anim','-lossless','1','-loop','0','-y',animatedWebpPath]);
    execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=0x16c930:s=32x32','-frames:v','1','-c:v','libaom-av1','-still-picture','1','-y',avifPath]);
    const rgba=Uint8Array.from({length:4*4*4},(_,i)=>i%4===3?255:i%4===1?200:20),iconImage=Buffer.from(pngRgba(4,4,rgba));
    const icns=Buffer.alloc(16+iconImage.length);icns.write('icns');icns.writeUInt32BE(icns.length,4);icns.write('ic07',8);icns.writeUInt32BE(iconImage.length+8,12);iconImage.copy(icns,16);
-   writeFileSync(`${sourceDir}/icon.icns`,icns);writeFileSync(`${sourceDir}/still.gif`,Buffer.from('R0lGODlhAQABAPAAAP8AAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==','base64'));
+   writeFileSync(`${sourceDir}/icon.icns`,icns);writeFileSync(`${sourceDir}/still.png`,iconImage);writeFileSync(`${sourceDir}/still.gif`,Buffer.from('R0lGODlhAQABAPAAAP8AAP///yH5BAAAAAAALAAAAAABAAEAAAICRAEAOw==','base64'));
    const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],materialApprovals:{}};
    const makeEntry=(id,sourceFile)=>{const sourceUrl='local://fixture',bytes=readFileSync(`${sourceDir}/${sourceFile}`);
     card.materialApprovals[id]={status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Original synthetic fixture.',sourceFile,sourceUrl,sha256:sha256Bytes(bytes)};
     return{id,sourceFile,sourceUrl,description:'Original synthetic fixture.',approvalRef:`research/evals/fact-cards/fixture.json#/materialApprovals/${id}`};};
-   const videoEntry=makeEntry('fixture-video','demo.mov'),artEntries=[makeEntry('fixture-icon','icon.icns'),makeEntry('fixture-gif','still.gif'),makeEntry('fixture-avif','still.avif')],animated=makeEntry('fixture-animation','animated.gif');
+   const videoEntry=makeEntry('fixture-video','demo.mov'),artEntries=[makeEntry('fixture-icon','icon.icns'),makeEntry('fixture-gif','still.gif'),makeEntry('fixture-avif','still.avif')],animated=makeEntry('fixture-animation','animated.gif'),apng=makeEntry('fixture-apng','animated.apng'),animatedWebp=makeEntry('fixture-animated-webp','animated.webp'),stillPng=makeEntry('fixture-still-png','still.png');
    const videoOut=`${mediaTest}/artifacts/video`,video=await captureApprovedLocalVideo({sourceDir,outputDir:videoOut,card,entries:[videoEntry]});
    const artOut=`${mediaTest}/artifacts/art`,art=await captureApprovedArtwork({sourceDir,outputDir:artOut,card,entries:artEntries});
    await assert.rejects(captureApprovedArtwork({sourceDir,outputDir:`${mediaTest}/artifacts/animated`,card,entries:[animated]}),/ARTWORK_ANIMATION_UNSUPPORTED/);
@@ -922,17 +924,20 @@ try{
    assert.equal(verifiedVideo.manifest.source.mediaType,'video/quicktime');assert.equal(verifiedVideo.manifest.source.sha256,sha256Bytes(readFileSync(movPath)));
    assert.equal(verifiedVideo.manifest.frames.length,60);const pixels=pngPixels(verifiedVideo.poster),at=(32*pixels.width+48)*4;
    assert.ok(pixels.pixels[at+1]>150&&pixels.pixels[at+2]<100,'QuickTime poster preserves the decoded source image');
-   const gifOut=`${mediaTest}/artifacts/animated-video`,gif=await captureApprovedLocalVideo({sourceDir,outputDir:gifOut,card,entries:[animated]});
-   gif.assets[0].review='approved_for_internal_eval_by_codex';gif.assets[0].reviewedAt='2026-10-31';
-   const verifiedGif=(await verifyVideoSelections(gifOut,gif,topics)).get('fixture-animation');
-   assert.equal(verifiedGif.manifest.source.mediaType,'image/gif');assert.equal(verifiedGif.manifest.source.sha256,sha256Bytes(readFileSync(animatedPath)));
-   assert.equal(verifiedGif.manifest.frames.length,30,'one original GIF iteration is sampled at 30 fps');
-   const gifFrames=verifiedGif.manifest.frames,gifFrame=index=>{const frame=gifFrames[index];return openVideoFramePack(verifiedGif.manifest,frame.pack,verifiedGif.packs[frame.pack]).frame(index);};
-   assert.deepEqual(gifFrame(0),gifFrame(14),'the first 0.5 second source frame is held');
-   assert.deepEqual(gifFrame(15),gifFrame(29),'the second 0.5 second source frame is held');
-   assert.notDeepEqual(gifFrame(14),gifFrame(15),'the animation changes at the source frame boundary');
-   assert.equal(prepareMaterialSelection(gifOut,gif,topics,{verifiedVideos:new Map([['fixture-animation',verifiedGif]])})[0].video.manifest.source.mediaType,'image/gif');
+   for(const [item,path,type]of [[animated,animatedPath,'image/gif'],[apng,apngPath,'image/png'],[animatedWebp,animatedWebpPath,'image/webp']]){
+    const animatedOut=`${mediaTest}/artifacts/${item.id}-video`,selected=await captureApprovedLocalVideo({sourceDir,outputDir:animatedOut,card,entries:[item]});
+    selected.assets[0].review='approved_for_internal_eval_by_codex';selected.assets[0].reviewedAt='2026-10-31';
+    const verified=(await verifyVideoSelections(animatedOut,selected,topics)).get(item.id);
+    assert.equal(verified.manifest.source.mediaType,type);assert.equal(verified.manifest.source.sha256,sha256Bytes(readFileSync(path)));
+    assert.equal(verified.manifest.frames.length,30,`${type}: one original iteration is sampled at 30 fps`);
+    const frames=verified.manifest.frames,frame=index=>{const f=frames[index];return openVideoFramePack(verified.manifest,f.pack,verified.packs[f.pack]).frame(index);};
+    assert.deepEqual(frame(0),frame(14),`${type}: first source frame is held for 0.5 second`);
+    assert.deepEqual(frame(15),frame(29),`${type}: second source frame is held for 0.5 second`);
+    assert.notDeepEqual(frame(14),frame(15),`${type}: image changes at the source frame boundary`);
+    assert.equal(prepareMaterialSelection(animatedOut,selected,topics,{verifiedVideos:new Map([[item.id,verified]])})[0].video.manifest.source.mediaType,type);
+   }
    await assert.rejects(captureApprovedLocalVideo({sourceDir,outputDir:`${mediaTest}/artifacts/not-animated`,card,entries:[artEntries[1]]}),/ANIMATED_FRAME_COUNT_UNSUPPORTED/);
+   await assert.rejects(captureApprovedLocalVideo({sourceDir,outputDir:`${mediaTest}/artifacts/not-animated-png`,card,entries:[stillPng]}),/ANIMATED_FRAME_COUNT_UNSUPPORTED/);
    const verifiedArt=await verifyArtworkSelections(artOut,art,topics);assert.equal(verifiedArt.size,3);
    const decoded=pngPixels(readFileSync(`${artOut}/fixture-icon.png`));assert.deepEqual([decoded.width,decoded.height],[4,4]);assert.ok(decoded.pixels[1]>150&&decoded.pixels[0]<60);
    const pageUrl='https://example.com/product',svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" id="mark" width="10" height="10"><rect width="10" height="10" fill="#22aa44"/></svg>');

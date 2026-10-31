@@ -12,9 +12,10 @@ import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
-const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif'})[extname(file).toLowerCase()];
-const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif'})[type];
+const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif','.png':'image/png','.apng':'image/png','.webp':'image/webp'})[extname(file).toLowerCase()];
+const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif','image/png':'png','image/webp':'webp'})[type];
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
+const isAnimatedSource=type=>['image/gif','image/png','image/webp'].includes(type);
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
@@ -29,8 +30,16 @@ function approved(card,asset){
  return decision;
 }
 function checkBytes(card,asset,bytes){const decision=approved(card,asset);if(!bytes.length||bytes.length>maxSource||sha256Bytes(bytes)!==decision.explicit.sha256)throw Error('VIDEO_SOURCE_IDENTITY_MISMATCH');}
-function sourceSignature(bytes,mediaType){
+export function assertVideoSourceHeader(bytes,mediaType){
  const box=bytes.toString('ascii',4,8);
+ if(mediaType==='image/png'){
+  if(bytes.length<33||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||bytes.readUInt32BE(8)!==13||bytes.toString('ascii',12,16)!=='IHDR'
+   ||bytes.readUInt32BE(16)<1||bytes.readUInt32BE(20)<1||bytes.readUInt32BE(16)>4096||bytes.readUInt32BE(20)>4096)throw Error('VIDEO_SOURCE_FORMAT_INVALID');return;
+ }
+ if(mediaType==='image/webp'){
+  if(bytes.length<30||bytes.toString('ascii',0,4)!=='RIFF'||bytes.readUInt32LE(4)+8!==bytes.length||bytes.toString('ascii',8,16)!=='WEBPVP8X'
+   ||bytes.readUInt32LE(16)!==10||!(bytes[20]&2)||1+bytes.readUIntLE(24,3)>4096||1+bytes.readUIntLE(27,3)>4096)throw Error('VIDEO_SOURCE_FORMAT_INVALID');return;
+ }
  if(mediaType==='video/mp4'&&(bytes.length<12||box!=='ftyp')
   ||mediaType==='video/quicktime'&&(bytes.length<12||!['ftyp','moov','mdat','free','wide'].includes(box))
   ||mediaType==='video/webm'&&(bytes.length<4||bytes.subarray(0,4).toString('hex')!=='1a45dfa3')
@@ -47,8 +56,8 @@ async function openBrowser(){
  }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}
 }
 async function extractVideo({page,version},source,mediaType){
- sourceSignature(source,mediaType);
- if(mediaType==='image/gif'){
+ assertVideoSourceHeader(source,mediaType);
+ if(isAnimatedSource(mediaType)){
   // WebCodecs is secure-context-only. This origin is fulfilled entirely by
   // Playwright; the context-wide route still blocks every real network request.
   const origin='http://127.0.0.1/promobento-animation-decoder';
@@ -58,9 +67,9 @@ async function extractVideo({page,version},source,mediaType){
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
   if(window.__pbAnimatedDecoder){window.__pbAnimatedDecoder.close();window.__pbAnimatedDecoder=null;}
-  if(mediaType==='image/gif'){
+  if(['image/gif','image/png','image/webp'].includes(mediaType)){
    if(typeof ImageDecoder!=='function')throw Error(isSecureContext?'ANIMATED_DECODER_UNAVAILABLE':'ANIMATED_DECODER_INSECURE_CONTEXT');
-   if(!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_GIF_UNSUPPORTED');
+   if(!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_SOURCE_UNSUPPORTED');
    const decoder=new ImageDecoder({data:buffer,type:mediaType,preferAnimation:true});await decoder.completed;await decoder.tracks.ready;const track=decoder.tracks.selectedTrack;
    if(!track?.animated||track.frameCount<2||track.frameCount>1800){decoder.close();throw Error('ANIMATED_FRAME_COUNT_UNSUPPORTED');}
    const ends=[];let duration=0,width=0,height=0;
@@ -91,7 +100,7 @@ async function extractVideo({page,version},source,mediaType){
   const result=await bounded(page.evaluate(async({index,mediaType,width,height})=>{
    const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=index/30;
    canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');
-   if(mediaType==='image/gif'){
+   if(['image/gif','image/png','image/webp'].includes(mediaType)){
     const frameIndex=window.__pbAnimatedEnds.findIndex(end=>time*1000000<end);if(frameIndex<0)throw Error('VIDEO_SEEK_FAILED');
     const decoded=await window.__pbAnimatedDecoder.decode({frameIndex,completeFramesOnly:true});try{if(!decoded.complete)throw Error('VIDEO_DECODE_FAILED');ctx.drawImage(decoded.image,0,0);}finally{decoded.image.close();}
    }else{
@@ -150,7 +159,7 @@ export async function captureApprovedWebVideo({outputDir,card,entries,download=d
    derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
   approved(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm,image/gif',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm,image/gif,image/png,image/webp',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeVideo(output,artifacts,inputs);
 }
 

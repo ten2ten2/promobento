@@ -17,12 +17,14 @@ test('video admission binds source, poster and packs to the operation rights evi
  const ordinary={resourceId:'res_image',kind:'image',key:'evals/test/image.png',sha256:'a'.repeat(64),byteLength:10,width:10,height:10,licenseRef:'x'};
  assert.equal((await admitDirectorVideos(f.env,f.op,[ordinary]))[0],ordinary);assert.equal(directorResourceInputs([ordinary]).length,1);
 });
-test('an approved animated GIF keeps its source identity while using the existing video-frame path',async()=>{
- const f=fixture(),manifest=parseCanonicalJson(f.objects.get(f.asset.key)!) as any;manifest.source.mediaType='image/gif';
- const raw=text(canonical(manifest));f.asset.sha256=hash(raw);f.asset.byteLength=raw.length;f.evidence.sha256=f.asset.sha256;
- const source=f.objects.get(f.evidence.videoSource.key)!;f.objects.delete(f.evidence.videoSource.key);f.evidence.videoSource.key='evals/test/source.gif';f.objects.set(f.evidence.videoSource.key,source);
- f.objects.set(f.asset.key,raw);f.objects.set('evals/test/rights.json',text(canonical(f.evidence)));
- const [asset]=await admitDirectorVideos(f.env,f.op,[f.asset]);assert.equal(asset.videoFrames.length,60);assert.equal(asset.framePacks[0].key,f.packRef.key);
+test('approved animated images keep source identity while using the existing video-frame path',async()=>{
+ for(const [type,ext]of [['image/gif','gif'],['image/png','png'],['image/webp','webp']]){
+  const f=fixture(),manifest=parseCanonicalJson(f.objects.get(f.asset.key)!) as any;manifest.source.mediaType=type;
+  const raw=text(canonical(manifest));f.asset.sha256=hash(raw);f.asset.byteLength=raw.length;f.evidence.sha256=f.asset.sha256;
+  const source=f.objects.get(f.evidence.videoSource.key)!;f.objects.delete(f.evidence.videoSource.key);f.evidence.videoSource.key='evals/test/source.'+ext;f.objects.set(f.evidence.videoSource.key,source);
+  f.objects.set(f.asset.key,raw);f.objects.set('evals/test/rights.json',text(canonical(f.evidence)));
+  const [asset]=await admitDirectorVideos(f.env,f.op,[f.asset]);assert.equal(asset.videoFrames.length,60);assert.equal(asset.framePacks[0].key,f.packRef.key);
+ }
 });
 test('video admission rejects changed provenance and unavailable immutable packs',async()=>{
  let f=fixture();f.evidence.videoSource.sha256='0'.repeat(64);f.objects.set('evals/test/rights.json',text(canonical(f.evidence)));await assert.rejects(admitDirectorVideos(f.env,f.op,[f.asset]),/VIDEO_ADMISSION_INVALID/);

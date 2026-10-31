@@ -9,7 +9,7 @@ test('local media discovery lists private candidates without copying bytes or gr
  const local=mkdtempSync(join(tmpdir(),'pb-discovery-')),outputs=mkdtempSync(resolve('artifacts/.local-discovery-test-'));
  try{
   const source=join(local,'project');mkdirSync(source);mkdirSync(join(source,'screens'));mkdirSync(join(source,'node_modules'));mkdirSync(join(source,'.private'));
-  writeFileSync(join(source,'screens','first.png'),'unread media');writeFileSync(join(source,'screens','demo.MP4'),'unread video');
+  writeFileSync(join(source,'screens','first.png'),'unread media');writeFileSync(join(source,'screens','second.apng'),'unread animation');writeFileSync(join(source,'screens','demo.MP4'),'unread video');
   writeFileSync(join(source,'README.md'),'![Product](screens/first.png)\n<img src="https://example.com/remote.png">\n![Outside](../outside.png)');
   writeFileSync(join(source,'screens','style.css'),'/* #000000 */ .thing { color: #AABBCC; font-family: "Fixture Sans", sans-serif; } .other { background: #abc; font-family: "Fixture Sans"; }');
   writeFileSync(join(source,'node_modules','skip.png'),'ignored');writeFileSync(join(source,'.private','skip.svg'),'ignored');
@@ -17,7 +17,7 @@ test('local media discovery lists private candidates without copying bytes or gr
   const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}]};
   const denied=join(outputs,'denied');assert.throws(()=>discoverLocalMaterials({sourceDir:source,sourceUrl:'local://wrong',outputDir:denied,card}),/LOCAL_SOURCE_APPROVAL_REQUIRED/);assert.equal(existsSync(denied),false);
   const out=join(outputs,'approved'),result=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:out,card});
-  assert.deepEqual(result.candidates.map(item=>[item.sourceFile,item.kind]),[['screens/demo.MP4','video'],['screens/first.png','image']]);
+  assert.deepEqual(result.candidates.map(item=>[item.sourceFile,item.kind]),[['screens/demo.MP4','video'],['screens/first.png','image'],['screens/second.apng','image']]);
   assert.ok(result.candidates.every(item=>item.review==='pending_rights_and_visual_review'));assert.equal(result.skippedSymlinks,1);
   assert.equal(result.styleObservations,undefined,'existing discovery does not read styles unless requested');
   assert.equal(result.readmeObservation,undefined,'existing discovery does not read README unless requested');

@@ -7,7 +7,7 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 
 const within=(root,path)=>path.startsWith(root+sep);
 const skipped=new Set(['node_modules','.git','dist','build','out','.om','_archive','.next','coverage','vendor','Pods','DerivedData','.cache']);
-const kinds=new Map(Object.entries({'.png':'image','.jpg':'image','.jpeg':'image','.webp':'image','.gif':'image','.svg':'vector','.avif':'image',
+const kinds=new Map(Object.entries({'.png':'image','.apng':'image','.jpg':'image','.jpeg':'image','.webp':'image','.gif':'image','.svg':'vector','.avif':'image',
  '.mp4':'video','.mov':'video','.webm':'video','.ico':'icon','.icns':'icon'}));
 
 export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,observeStyles=false,preferReadme=false}){
