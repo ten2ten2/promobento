@@ -93,7 +93,8 @@ try{
   isolatedWords.scenes=[{id:'poison',kind:'custom',module:'scenes/poison/index.js',start:0,end:150,purpose:'Check private segmentation.',brief:'Show an approved title.',params:{textSlots:['headline'],assetKeys:[],events:[],readingHolds:[{start:30,end:140}]}},later];
   const segmentPoisonSource=`PB.scene('poison',ctx=>{const heading=document.createElement('div');Object.assign(heading.style,{position:'absolute',left:'10%',top:'20%',width:'80%',height:'40%'});ctx.root.append(heading);ctx.text('headline').mount(heading);
    const S=Intl.Segmenter;S['proto'+'type'].segment=()=>{throw Error('SEGMENTER_POISONED');};Intl.Segmenter=()=>{throw Error('SEGMENTER_POISONED');};const timeline=gsap.timeline({paused:true});timeline.to({},{duration:5});return {timeline};});`;
-  const isolatedOptions={...options,customSources:{'scenes/poison/index.js':segmentPoisonSource,'scenes/product/index.js':splitSource}};
+  const tenSecondSource=splitSource.replace('},8);return {timeline};','},10);return {timeline};');assert.notEqual(tenSecondSource,splitSource);
+  const isolatedOptions={...options,customSources:{'scenes/poison/index.js':segmentPoisonSource,'scenes/product/index.js':tenSecondSource}};
   const isolated=await filmSession({raw:JSON.stringify(isolatedWords),options:isolatedOptions,browserVersion:lock.browser.version,font,resource:()=>original,killBrowser});
   try{await isolated.frame(195,{format:'png'});}finally{await isolated.close();}
   const legacySplitFilm=structuredClone(splitFilm);delete legacySplitFilm.scenes[0].runtimeText;
