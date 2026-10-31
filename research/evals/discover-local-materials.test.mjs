@@ -10,6 +10,7 @@ test('local media discovery lists private candidates without copying bytes or gr
  try{
   const source=join(local,'project');mkdirSync(source);mkdirSync(join(source,'screens'));mkdirSync(join(source,'node_modules'));mkdirSync(join(source,'.private'));
   writeFileSync(join(source,'screens','first.png'),'unread media');writeFileSync(join(source,'screens','demo.MP4'),'unread video');
+  writeFileSync(join(source,'README.md'),'![Product](screens/first.png)\n<img src="https://example.com/remote.png">\n![Outside](../outside.png)');
   writeFileSync(join(source,'screens','style.css'),'/* #000000 */ .thing { color: #AABBCC; font-family: "Fixture Sans", sans-serif; } .other { background: #abc; font-family: "Fixture Sans"; }');
   writeFileSync(join(source,'node_modules','skip.png'),'ignored');writeFileSync(join(source,'.private','skip.svg'),'ignored');
   writeFileSync(join(local,'outside.png'),'outside');symlinkSync(join(local,'outside.png'),join(source,'escape.png'));
@@ -19,7 +20,12 @@ test('local media discovery lists private candidates without copying bytes or gr
   assert.deepEqual(result.candidates.map(item=>[item.sourceFile,item.kind]),[['screens/demo.MP4','video'],['screens/first.png','image']]);
   assert.ok(result.candidates.every(item=>item.review==='pending_rights_and_visual_review'));assert.equal(result.skippedSymlinks,1);
   assert.equal(result.styleObservations,undefined,'existing discovery does not read styles unless requested');
+  assert.equal(result.readmeObservation,undefined,'existing discovery does not read README unless requested');
   assert.deepEqual(JSON.parse(readFileSync(join(out,'candidates.json'))),result);assert.equal(existsSync(join(out,'first.png')),false);
+  const referenced=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'readme'),card,preferReadme:true});
+  assert.equal(referenced.candidates[0].sourceFile,'screens/first.png');assert.equal(referenced.candidates[0].featuredInReadme,true);
+  assert.deepEqual(referenced.candidates.filter(item=>item.featuredInReadme).map(item=>item.sourceFile),['screens/first.png']);
+  assert.deepEqual(referenced.readmeObservation,{sourceFile:'README.md',scope:'local_references_only_not_asset_permission'});
   const styles=discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,'styles'),card,observeStyles:true}).styleObservations;
   assert.deepEqual(styles.colours.map(item=>item.value),['#aabbcc','#abc']);assert.deepEqual(styles.fonts,[{value:'Fixture Sans',count:2,sources:['screens/style.css']}]);
   assert.equal(styles.filesRead,1);assert.match(styles.scope,/not_font_or_asset_permission/);
