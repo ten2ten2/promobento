@@ -29,6 +29,7 @@ export async function observe(cdp, plan, renderId, frame) {
       const candidate=attributes(current).get('data-scene');if(customIds.has(candidate))sceneId=candidate;
     }
     if (!visible) continue;
+    const graphemeScene=sceneId&&plan.spec.scenes.some(scene=>scene.id===sceneId&&scene.kind==='custom'&&scene.runtimeText==='grapheme-v1');
     const [x, y, width, height] = layout.bounds[row], box = {x, y, width, height};
     if (!width || !height) continue;
     const slot = plan.spec.texts[slotId]; if (!slot) throw Error('OBSERVATION_SLOT_UNKNOWN');
@@ -39,15 +40,24 @@ export async function observe(cdp, plan, renderId, frame) {
     const textNodes=nodes.nodeValue.flatMap((value,index)=>nodes.nodeType[index]===3&&ancestor(index,node)?[{index,text:strings[value]??''}]:[]);
     const descendants=textNodes.map(item=>item.text).join('');
     const missingGlyphs = [...descendants].filter(character => !/[\s\u200d\ufe0e\ufe0f]/u.test(character) && !coverage.has(character.codePointAt(0))).length;
-    const {nodeIds} = await cdp.send('DOM.pushNodesByBackendIdsToFrontend', {backendNodeIds: [nodes.backendNodeId[node]]});
-    const {fonts} = await cdp.send('CSS.getPlatformFontsForNode', {nodeId: nodeIds[0]});
-    const fallbackUsed = fonts.some(font => !font.isCustomFont) || Boolean(descendants.trim() && !fonts.length);
+    const nestedParents=[...new Set(textNodes.filter(piece=>piece.text.trim()&&parent(piece.index)!==node).map(piece=>parent(piece.index)))];
+    const {nodeIds} = await cdp.send('DOM.pushNodesByBackendIdsToFrontend', {backendNodeIds: [node,...nestedParents].map(index=>nodes.backendNodeId[index])});
+    if(nodeIds.length!==nestedParents.length+1||nodeIds.some(id=>!id))throw Error('FONT_OBSERVATION_UNAVAILABLE');
+    const fontResults=await Promise.all(nodeIds.map(nodeId=>cdp.send('CSS.getPlatformFontsForNode',{nodeId})));
+    const fonts=[...fontResults[0].fonts],originalFonts=new Set(fonts.map(font=>font.familyName+'\0'+font.isCustomFont));
+    const extras=new Map();for(const result of fontResults.slice(1))for(const font of result.fonts){
+      const key=font.familyName+'\0'+font.isCustomFont;if(originalFonts.has(key))continue;
+      const previous=extras.get(key);if(previous)previous.glyphCount+=font.glyphCount;else extras.set(key,{...font});
+    }
+    fonts.push(...extras.values());if(fonts.length>8)throw Error('FONT_OBSERVATION_LIMIT');
+    const fallbackUsed = fonts.some(font => !font.isCustomFont) || Boolean(descendants.trim() && !fonts.length)
+      ||fontResults.slice(1).some(result=>!result.fonts.length);
     let background;
     for (let current = node; current >= 0; current = parent(current)) { const candidate = color(style(current, 'background-color'));
       if (candidate?.alpha === 1) { background = candidate.rgb; break; } }
     const foreground = color(style(node, 'color'));
     if (!background || !foreground) throw Error('CONTRAST_OBSERVATION_UNAVAILABLE');
-    const ratio = contrast(foreground.rgb, background), safe = plan.target.safeInsets;
+    let ratio = contrast(foreground.rgb, background);const safe = plan.target.safeInsets;
     let insideSafeArea = x >= plan.target.width * safe.left - 2 && y >= plan.target.height * safe.top - 2
       && x + width <= plan.target.width * (1 - safe.right) + 2 && y + height <= plan.target.height * (1 - safe.bottom) + 2;
     let clipped = x < 0 || y < 0 || x + width > plan.target.width + 1 || y + height > plan.target.height + 1;
@@ -64,11 +74,20 @@ export async function observe(cdp, plan, renderId, frame) {
       const pieceRow=rowFor.get(piece.index),bounds=pieceRow===undefined?null:layout.bounds[pieceRow];
       if(!bounds||bounds[2]<=0||bounds[3]<=0){clipped=true;continue;}
       const [px,py,pw,ph]=bounds;
+      const nestedForeground=color(style(parent(piece.index),'color'));let nestedBackground;
+      for(let current=parent(piece.index);current>=0;current=parent(current)){const candidate=color(style(current,'background-color'));if(candidate?.alpha===1){nestedBackground=candidate.rgb;break;}}
+      if(!nestedForeground||!nestedBackground)clipped=true;
+      else{
+        if(graphemeScene&&nestedForeground.alpha!==1)clipped=true;
+        const rgb=nestedForeground.rgb.map((value,index)=>value*nestedForeground.alpha+nestedBackground[index]*(1-nestedForeground.alpha));
+        ratio=Math.min(ratio,contrast(rgb,nestedBackground));
+      }
       if(px<0||py<0||px+pw>plan.target.width+1||py+ph>plan.target.height+1)clipped=true;
       if(px<plan.target.width*safe.left-2||py<plan.target.height*safe.top-2
         ||px+pw>plan.target.width*(1-safe.right)+2||py+ph>plan.target.height*(1-safe.bottom)+2)insideSafeArea=false;
       for(let current=parent(piece.index);current>=0;current=parent(current)){
-        if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||style(current,'opacity')==='0')clipped=true;
+        const opacity=Number(style(current,'opacity')??1);
+        if(style(current,'visibility')==='hidden'||style(current,'display')==='none'||opacity===0||graphemeScene&&opacity<1)clipped=true;
         const pieceColor=color(style(current,'color'));if(current!==node&&pieceColor?.alpha===0)clipped=true;
         const parentRow=rowFor.get(current);
         if(parentRow!==undefined&&['hidden','clip'].includes(style(current,'overflow'))){
