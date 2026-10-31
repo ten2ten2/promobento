@@ -307,7 +307,7 @@ try{
     const studio=ctx.OM3.studio('dashboard'),again=ctx.OM3.studio,timeline=gsap.timeline({paused:true});
     ctx.OM.clockAfter(timeline,t=>{${draw};},15);return {timeline};});`};
    const rejected=await filmSession({raw:JSON.stringify(customStudioFilm),options:studioOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
-   try{await assert.rejects(rejected.frame(30),expected);}finally{await rejected.close().catch(()=>{});}
+   try{await assert.rejects(rejected.frame(30),expected);}finally{await rejected.close();}
   }
   report.customStudio='bounded_camera_cleared_texture_poison_resistance_reverse_and_failure';
   // A computed/aliased getContext call must not expose a raw WebGL context,

@@ -122,7 +122,7 @@ export async function filmSession({raw, options, browserVersion, resource, video
       },
       async close() {
         if (closed) return; closed = true;
-        try { await deadline(evaluate(input => window.__omEngine.dispose(input), envelope('dispose')), 1000, 'DISPOSE_TIMEOUT', cancel); }
+        try { await deadline(evaluate(input => window.__omEngine.dispose(input), envelope('dispose')), plan.usesWebgl ? 10000 : 1000, 'DISPOSE_TIMEOUT', cancel); }
         finally { signal?.removeEventListener('abort', cancel); await Promise.allSettled([context.close(),browser.close()]);server.closeAllConnections();await new Promise(resolve => server.close(resolve)); }
       }
     };
