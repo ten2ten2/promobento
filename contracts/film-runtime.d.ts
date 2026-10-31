@@ -119,9 +119,11 @@ export interface CameraRigHelpers {
 export interface MotionHelpers {
   /** Register asynchronous scene setup before the first frame; late registrations fail. */
   ready<T>(promise: PromiseLike<T>): PromiseLike<T>;
-  /** With params.sourceSfx=true, register one statically admitted, frame-aligned sound during construction. */
+  /** With params.sourceSfx=true, register one statically admitted sound during construction. */
   sfx(id: string, atSeconds: number, options?: {gain?: number}): number;
   clock(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
+  /** Draw synchronously after all tweens have reached the seek time; exceptions fail the frame. */
+  clockAfter(timeline: MotionTimeline, draw: (seconds: number) => void, duration: number, at?: number): MotionTimeline;
   /** Seconds for n beats. Omitted bpm uses the frozen procedural-music bpm, if present. */
   beat(n: number, bpm?: number): number;
   random(seed: number): () => number;

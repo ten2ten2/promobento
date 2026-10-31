@@ -65,6 +65,12 @@ test('OM cameras prefer the scene with duplicate template IDs and preserve docum
     assert.equal(soundOM.sfx('whoosh',.5,{gain:.5}),.5);assert.equal(sounds.used.size,1);
     assert.throws(()=>soundOM.sfx('whoosh',.5,{gain:.5}),/CUSTOM_SFX_UNDECLARED/);
     sounds.open=false;assert.throws(()=>soundOM.sfx('whoosh',.5,{gain:.5}),/CUSTOM_SFX_CLOSED/);
+    const queued=new Map(), afterOM=createOM({root,target:{width:1000,height:500}},[],readiness,sounds,queued);
+    const tween={fromTo(target,from,to){this.target=target;this.from=from;this.to=to;return this;}};
+    const seen=[],draw=t=>seen.push(t);assert.equal(afterOM.clockAfter(tween,draw,2),tween);
+    assert.deepEqual(seen,[]);assert.equal(queued.get(draw),0);
+    tween.target.t=.5;tween.target.t=1;assert.equal(queued.size,1);assert.equal(queued.get(draw),1);
+    for(const[callback,time]of queued)callback(time);assert.deepEqual(seen,[1]);
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete globalThis[key]; else globalThis[key] = value;

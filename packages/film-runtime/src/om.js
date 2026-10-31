@@ -1,7 +1,7 @@
 // Adapted from huashu-motion@4236053, Copyright (c) 2026 Huashu, MIT (LICENSE.huashu).
 // Scoped to one scene; no legacy vars, parser, sound declarations, signature or page bootstrap.
 import cameraRig from './camera-rig.js';
-export function createOM(ctx, regions, readiness = {open:false, pending:[]}, sounds = {open:false,declarations:[],used:new Set()}) {
+export function createOM(ctx, regions, readiness = {open:false, pending:[]}, sounds = {open:false,declarations:[],used:new Set()}, postSeek = new Map()) {
   const OM = {cameraRig};
   // Original OM.ready waits for asynchronous scene setup before the first frame.
   // The host closes registration once the initial ready queue has settled.
@@ -37,6 +37,11 @@ export function createOM(ctx, regions, readiness = {open:false, pending:[]}, sou
     tl.fromTo(p, { t: 0 }, { t: duration, duration, ease: 'none', immediateRender: false }, at || 0);
     draw(0);
     return tl;
+  };
+  // OM3.film redraws only after all tweens for the seek have set their values.
+  // The host flushes this scene-local queue synchronously before capturing pixels.
+  OM.clockAfter = function (tl, draw, duration, at) {
+    return OM.clock(tl, t => postSeek.set(draw, t), duration, at);
   };
 
   // Springs as closed-form step responses: a pure function of time, so any frame renders alone and

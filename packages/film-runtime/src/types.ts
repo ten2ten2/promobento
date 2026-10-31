@@ -34,7 +34,7 @@ declare global {
   interface Window {
     PB: PB; __omEngine: FilmEngine; __omTarget: Target; __omReady: boolean; __omBootFailed?: string;
     __pbTakeClock?: () => PrivateClock;
-    __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean; bpm?: number}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[], readiness: SceneReadiness, sounds: SceneSounds) => SceneContext['OM'];
+    __pbCreateOM: (ctx: Pick<SceneContext, 'root' | 'target'> & {sceneScoped?: boolean; bpm?: number}, regions: import('../../../contracts/film-runtime.d.ts').SceneRegion[], readiness: SceneReadiness, sounds: SceneSounds, postSeek: Map<(time:number)=>void, number>) => SceneContext['OM'];
     CLIP: SceneContext['CLIP'];
     gsap: {timeline(options: {paused: boolean}): MotionTimeline;
       context(callback: () => void, scope: Element): {kill(): void}};

@@ -37,6 +37,8 @@ custom使用 `module:scenes/<id>/index.js` 和brief；当前单模块 `PB.scene(
 
 `OM.camera` 和 `OM.space` 的字符串选择器先查当前镜头，再沿用文档范围回退；多个镜头复用原版模板的同名 ID 时，各自镜头优先。显式元素引用不变。连续 `OM.space.to` 只替换该镜头的相机驱动 tween，不终止作者时间线或保留重复驱动。
 
+当 Canvas 绘制依赖同一 GSAP 时间线中其他 tween 的值时，用 `ctx.OM.clockAfter(timeline, draw, duration)`。它沿用原版 `OM3.film` 的顺序：先完成该时点的全部 tween，再同步调用 `draw`，之后才捕获帧；同一次 seek 的重复更新只绘制最后时点，异常会使帧失败。`draw` 不支持异步任务，也不因此开放 WebGL。仅依赖时间参数的既有 `ctx.OM.clock` 不变。
+
 场景构建时可用 `ctx.OM.ready(promise)` 登记首帧前必须完成的异步准备；宿主等待已登记任务及其中登记的后续任务，失败或超时则停止初始化。准备结束后不接受新的登记。素材仍只能使用已授权的 `ctx.asset`，此接口不开放网络或任意依赖。
 
 `ctx.OM.beat(n)` 在已冻结程序配乐明确设置 BPM 时返回 `n` 拍的秒数；也可用 `ctx.OM.beat(n, bpm)` 显式指定，未提供 BPM 时会报错。它计算长度，不自动把局部时点对齐全片节拍；全片节拍帧可读取 `ctx.beats`。

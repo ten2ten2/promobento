@@ -9,7 +9,7 @@ const clock = window.__pbTakeClock?.();
 if (!clock) throw Error('RUNTIME_CLOCK_HANDOFF_MISSING');
 const blocks = new Map<string, BlockDefinition>();
 const customScenes = new Map<string,(ctx:SceneContext)=>CustomScene>();
-const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>}>();
+const instances = new Map<string, {scene: FilmScene; root: HTMLElement; instance: BlockInstance; random: ReturnType<typeof randomSequence>; postSeek: Map<(time: number) => void, number>}>();
 const fitters: Array<() => void> = [];
 const textRegions = new Map<string, SceneRegion[]>();
 const requestIds = new Set<string>();
@@ -105,6 +105,11 @@ async function draw(frameIndex: number): Promise<void> {
       value.random.reset();
       value.instance.timeline?.pause();
       value.instance.timeline?.seek(layer.seconds, true);
+      const pending = [...value.postSeek]; value.postSeek.clear();
+      for (const [draw, time] of pending) {
+        const result = draw(time) as unknown;
+        if (result && typeof (result as {then?:unknown}).then === 'function') throw Error('CUSTOM_ASYNC_DRAW_UNSUPPORTED');
+      }
       await value.instance.render?.(layer.seconds);
       value.root.style.visibility = 'visible'; value.root.style.opacity = String(layer.opacity);
       value.root.style.transform = `translateX(${layer.x * current.target.width}px)`;
@@ -140,12 +145,13 @@ const engine: FilmEngine = {
       const random = randomSequence(input.seed + '\0' + scene.id);
       const helperRegions: SceneRegion[] = [];
       const readiness = {open:true, pending:[] as Promise<unknown>[]};
+      const postSeek = new Map<(time: number) => void, number>();
       const sounds = {open:scene.kind==='custom'&&scene.params?.sourceSfx===true,declarations:input.customSfx?.[scene.id]??[],used:new Set<number>()};
       const ctx: SceneContext = {
         root, target: window.__omTarget, frames: {start: scene.start, end: scene.end}, beats: input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
-          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds), CLIP: window.CLIP,
+          ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: window.CLIP,
         style: {...input.spec.style, palette: input.spec.style.palette.roles}, random: () => random.next(), text: textSlot,
         asset(key) {
           const asset = input.assets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
@@ -202,7 +208,7 @@ const engine: FilmEngine = {
         })()};
       }else readiness.open=false;
       instance.timeline?.pause();
-      instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...helperRegions, ...(textRegions.get(scene.id) ?? [])]}, random});
+      instances.set(scene.id, {scene, root, instance: {...instance, regions: [...instance.regions, ...helperRegions, ...(textRegions.get(scene.id) ?? [])]}, random, postSeek});
     }
     await Promise.all([...instances.values()].map(value=>value.instance.ready));
     await Promise.all([...document.images].map(image => image.decode()));

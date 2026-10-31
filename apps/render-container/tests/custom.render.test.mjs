@@ -214,6 +214,27 @@ try{
    finally{await unexpectedSound?.close();}
   }
   report.sourceSfx='timeline_anchor_and_unexecuted_or_dynamic_rejected';
+  // The original OM3 film draws after later timeline tweens. Exercise the same
+  // ordering with synthetic Canvas pixels, without granting custom WebGL access.
+  const clockFilm=structuredClone(readyFilm);clockFilm.audio={music:{kind:'none'},sfx:[],captions:'off',mute:true};
+  const clockOptions={...readyOptions,customSources:{'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   const canvas=document.createElement('canvas');canvas.width=400;canvas.height=100;
+   Object.assign(canvas.style,{position:'absolute',left:'0',top:'0',width:'400px',height:'100px'});ctx.root.append(canvas);
+   const g=canvas.getContext('2d'),state={x:0},tl=gsap.timeline({paused:true});
+   ctx.OM.clockAfter(tl,t=>{g.clearRect(0,0,400,100);g.fillStyle='rgb(255,0,0)';g.fillRect(Math.round(state.x),0,20,20);},15);
+   tl.to(state,{x:100,duration:1,ease:'none'},0);return {timeline:tl};});`}};
+  const clock=await filmSession({raw:JSON.stringify(clockFilm),options:clockOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{
+   const red=(p,x)=>{const at=(10*p.width+x)*4;return [...p.pixels.subarray(at,at+3)];};
+   const first=await clock.frame(15,{format:'png'}),half=pngPixels(first);assert.deepEqual(red(half,55),[255,0,0]);assert.notDeepEqual(red(half,5),[255,0,0]);
+   const end=pngPixels(await clock.frame(30,{format:'png'}));assert.deepEqual(red(end,105),[255,0,0]);
+   const reverse=await clock.frame(15,{format:'png'});assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');
+  }finally{await clock.close();}
+  const failingOptions={...clockOptions,customSources:{'scenes/ready/index.js':`PB.scene('ready',ctx=>{
+   const tl=gsap.timeline({paused:true});ctx.OM.clockAfter(tl,t=>{throw Error('CLOCK_DRAW_FAILED');},15);return {timeline:tl};});`}};
+  const failing=await filmSession({raw:JSON.stringify(clockFilm),options:failingOptions,browserVersion:lock.browser.version,font,resource:()=>{throw Error('UNEXPECTED_RESOURCE');},killBrowser});
+  try{await assert.rejects(failing.frame(15),/CLOCK_DRAW_FAILED/);}finally{await failing.close().catch(()=>{});}
+  report.afterSeekClock='all_tweens_before_canvas_draw_reverse_seek_and_failure';
  }else if(mode==='custom-init-loop'){
   const started=performance.now();await assert.rejects(open('landscape','for(;;){}',true),/INIT_TIMEOUT|Timeout|Target.*closed/i);
   report.fault={bounded:true,elapsedMs:Math.round(performance.now()-started),hostDeadlineMs:2000,reason:'INIT_TIMEOUT'};assert.ok(report.fault.elapsedMs<6000);
