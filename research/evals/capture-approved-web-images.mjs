@@ -21,24 +21,25 @@ export function approvedWebUrl(value){
  return url;
 }
 function publicAddress(item){return item.family===4?!blocked.check(item.address,'ipv4'):item.family===6&&globalV6.check(item.address,'ipv6')&&!blocked.check(item.address,'ipv6');}
-export async function downloadApprovedImage(value,{resolveAddress=lookup,makeRequest=request,accept='image/png,image/jpeg,image/webp'}={}){
+export async function downloadApprovedImage(value,{resolveAddress=lookup,makeRequest=request,accept='image/png,image/jpeg,image/webp',maxBytes=MAX_BYTES,timeoutMs=15000}={}){
+ if(!Number.isSafeInteger(maxBytes)||maxBytes<1||maxBytes>50<<20||!Number.isSafeInteger(timeoutMs)||timeoutMs<1||timeoutMs>60000)throw Error('WEB_MATERIAL_LIMIT_INVALID');
  const url=approvedWebUrl(value);let timer,addresses;
  try{addresses=await Promise.race([resolveAddress(url.hostname,{all:true,verbatim:true}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('WEB_MATERIAL_TIMEOUT')),15000);})]);}
  finally{clearTimeout(timer);}
  if(!addresses.length||addresses.some(item=>!publicAddress(item)))throw Error('WEB_MATERIAL_ADDRESS_INVALID');
  const selected=addresses[0];
  return new Promise((done,fail)=>{
-  const req=makeRequest(url,{method:'GET',headers:{accept},timeout:15000,
+  const req=makeRequest(url,{method:'GET',headers:{accept},timeout:timeoutMs,
    lookup(_host,options,callback){if(options.all)callback(null,[selected]);else callback(null,selected.address,selected.family);}},response=>{
    response.on('error',fail);response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));
    if(response.statusCode!==200){response.destroy();fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));return;}
-   const declared=Number(response.headers['content-length']);if(Number.isFinite(declared)&&declared>MAX_BYTES){response.destroy();fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}
+   const declared=Number(response.headers['content-length']);if(Number.isFinite(declared)&&declared>maxBytes){response.destroy();fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}
    let length=0;const parts=[];
-   response.on('data',chunk=>{length+=chunk.length;if(length>MAX_BYTES){response.destroy(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}parts.push(chunk);});
+   response.on('data',chunk=>{length+=chunk.length;if(length>maxBytes){response.destroy(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}parts.push(chunk);});
    response.on('end',()=>done(Buffer.concat(parts)));
   });
   // Limit total wall time as well as socket inactivity; a slow stream cannot hold intake open forever.
-  const deadline=setTimeout(()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')),15000);
+  const deadline=setTimeout(()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')),timeoutMs);
   req.on('close',()=>clearTimeout(deadline));req.on('timeout',()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')));req.on('error',fail);req.end();
  });
 }

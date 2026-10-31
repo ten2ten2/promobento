@@ -59,7 +59,8 @@ try{
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
    &&(!(artwork||video)||item.approvalRef===asset.approvalRef&&item.derivation?.sourceSha256===asset.derivation.sourceSha256)
-   &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl));
+   &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl)
+   &&(!video||asset.derivation.sourceOrigin!=='web'||item.videoUrl===asset.videoUrl));
   if(reused){
    // Re-admit the exact existing evidence for this operation; do not upload passed material again.
    await call('rights',{method:'POST',body:{operationId,resourceId:reused.resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:reused.evidenceKey}});
@@ -88,11 +89,11 @@ try{
    source:asset.sourceUrl,basis:original?'Original self-contained factual diagram created for this project; no copied interface, logo, image, portrait or testimonial.':explicit?explicit.basis:topics.rights.rule,
    decisionRef:original||explicit?asset.approvalRef:manifest.rightsDecision,decidedBy:original?original.approvedBy:explicit?explicit.approvedBy:topics.decidedBy,decidedAt:original?original.approvedAt:explicit?explicit.approvedOn:topics.decidedAt,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(artwork?{originalSource:sourceObject}:{}),...(video?{videoSource:sourceObject,preview,framePacks}:{}),
-   ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
+   ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
    acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),...(asset.derivation?{derivation:asset.derivation}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
   await call('rights',{method:'POST',body:{operationId,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
   manifest.assets.push({id:asset.id,topicId:asset.topicId,resourceId,key:object.key,sha256,byteLength:object.byteLength,kind:video?'video':'image',mediaType,width:asset.width,height:asset.height,
-   sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
+   sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSourceKey:sourceObject.key,approvalRef:asset.approvalRef}:{}),
    ...(explicit?{approvalRef:asset.approvalRef}:{}),
    ...(asset.derivation?{derivation:asset.derivation}:{}),...(artwork?{originalSourceKey:sourceObject.key}:{}),...(video?{originalSourceKey:sourceObject.key,videoFramePacking:'webp-pack-v1',preview,framePacks}:{}),

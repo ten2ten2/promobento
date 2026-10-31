@@ -1,4 +1,4 @@
-// Internal approved local video intake. Browser is offline; the original is retained,
+// Internal approved video intake. Browser is offline; the original is retained,
 // and generated poster/30 fps WebP frame packs are reproducible and identity-bound.
 import {chromium} from 'playwright-core';
 import {existsSync,lstatSync,mkdirSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
@@ -9,6 +9,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {parseVideoFrameManifest} from '@promobento/contracts/video-frames';
 import {materialApproval} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
+import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
 const kindFor=file=>({'.mp4':'video/mp4','.webm':'video/webm'})[extname(file).toLowerCase()];
@@ -16,9 +17,11 @@ const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
- if(!decision.explicit||decision.source.kind!=='local_project_media'||derived?.kind!=='approved_video_frame_pack'||decision.explicit.sourceFile!==derived.sourceFile
-  ||decision.explicit.sourceUrl!==asset.sourceUrl||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??'')||derived.sourceSha256!==decision.explicit.sha256
-  ||kindFor(derived.sourceFile)!==derived.sourceMediaType)throw Error('VIDEO_APPROVAL_IDENTITY_REQUIRED');
+ const web=derived?.sourceOrigin==='web';
+ if(!decision.explicit||derived?.kind!=='approved_video_frame_pack'||decision.explicit.sourceUrl!==asset.sourceUrl
+  ||!/^[a-f0-9]{64}$/.test(decision.explicit.sha256??'')||derived.sourceSha256!==decision.explicit.sha256
+  ||(web?(decision.source.kind==='local_project_media'||decision.explicit.videoUrl!==asset.videoUrl||derived.videoUrl!==asset.videoUrl||kindFor(approvedWebUrl(asset.videoUrl).pathname)!==derived.sourceMediaType)
+   :(decision.source.kind!=='local_project_media'||decision.explicit.sourceFile!==derived.sourceFile||kindFor(derived.sourceFile)!==derived.sourceMediaType)))throw Error('VIDEO_APPROVAL_IDENTITY_REQUIRED');
  return decision;
 }
 function checkBytes(card,asset,bytes){const decision=approved(card,asset);if(!bytes.length||bytes.length>maxSource||sha256Bytes(bytes)!==decision.explicit.sha256)throw Error('VIDEO_SOURCE_IDENTITY_MISMATCH');}
@@ -78,6 +81,9 @@ export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entrie
   if(statSync(path).size>maxSource)throw Error('VIDEO_SOURCE_SIZE_INVALID');return{entry,asset,path};
  });
  const inputs=accepted.map(item=>{const bytes=readFileSync(item.path);checkBytes(card,item.asset,bytes);return{...item,bytes};});
+ return materializeVideo(output,artifacts,inputs);
+}
+async function materializeVideo(output,artifacts,inputs){
  let runner;const collected=[];let totalPackBytes=0;
  try{runner=await openBrowser();for(const input of inputs){const out=await extractVideo(runner,input.bytes,input.asset.derivation.sourceMediaType);
   totalPackBytes+=out.packs.reduce((sum,pack)=>sum+pack.length,0);if(totalPackBytes>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
@@ -88,6 +94,21 @@ export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entrie
  for(const item of collected){writeFileSync(join(output,item.asset.derivation.originalFile),item.source,{flag:'wx'});writeFileSync(join(output,item.asset.file),item.poster,{flag:'wx'});writeFileSync(join(output,item.asset.derivation.manifestFile),item.raw,{flag:'wx'});
   for(const [i,pack]of item.packs.entries())writeFileSync(join(output,item.asset.derivation.packFiles[i]),pack,{flag:'wx'});}
  const result={scope:'internal_eval_only',publicUseCleared:false,assets:collected.map(item=>item.asset)};writeFileSync(join(output,'selected.json'),canonical(result)+'\n',{flag:'wx'});return result;
+}
+export async function captureApprovedWebVideo({outputDir,card,entries,download=downloadApprovedImage}){
+ const artifacts=realpathSync('artifacts'),output=resolve(outputDir);if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);const parentReal=realpathSync(parent);if(parentReal!==artifacts&&!within(artifacts,parentReal))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
+ if(!Array.isArray(entries)||!entries.length||entries.length>12||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('VIDEO_SELECTION_INVALID');
+ const accepted=entries.map(entry=>{
+  if(!/^[a-z0-9-]{4,80}$/.test(entry.id??'')||typeof entry.description!=='string'||!entry.description.trim())throw Error('VIDEO_SELECTION_INVALID');
+  approvedWebUrl(entry.sourceUrl);const url=approvedWebUrl(entry.videoUrl),mediaType=kindFor(url.pathname);if(!mediaType)throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+  const asset={id:entry.id,topicId:card.topicId,sourceUrl:entry.sourceUrl,videoUrl:entry.videoUrl,approvalRef:entry.approvalRef,
+   derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
+  approved(card,asset);return{entry,asset};
+ });
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/webm',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
+ return materializeVideo(output,artifacts,inputs);
 }
 
 /** Before any remote operation, reproduce every approved video's poster and complete frame set. */
@@ -124,9 +145,9 @@ export async function verifyVideoSelections(directory,selected,topics){
  }}finally{await runner?.browser.close();}return verified;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const [outputDir,topicId,sourceDir,manifestFile,...extra]=process.argv.slice(2);if(!outputDir||!topicId||!sourceDir||!manifestFile||extra.length)throw Error('VIDEO_CAPTURE_ARGUMENTS_REQUIRED');
+ const [outputDir,topicId,sourceArg,manifestFile,...extra]=process.argv.slice(2),web=sourceArg==='--web';if(!outputDir||!topicId||!sourceArg||!manifestFile||extra.length)throw Error('VIDEO_CAPTURE_ARGUMENTS_REQUIRED');
  const root=realpathSync('artifacts'),manifestPath=realpathSync(manifestFile);if(!within(root,manifestPath))throw Error('PRIVATE_MANIFEST_REQUIRED');
  const topics=parseCanonicalJson(readFileSync('research/evals/topics.json')),topic=topics.topics.find(item=>item.id===topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
  const card=parseCanonicalJson(readFileSync(topic.factCard)),manifest=parseCanonicalJson(readFileSync(manifestPath));
- const result=await captureApprovedLocalVideo({sourceDir,outputDir,card,entries:manifest.files});console.log(canonical({scope:result.scope,assets:result.assets.length,review:'pending_visual_selection'}));
+ const result=web?await captureApprovedWebVideo({outputDir,card,entries:manifest.files}):await captureApprovedLocalVideo({sourceDir:sourceArg,outputDir,card,entries:manifest.files});console.log(canonical({scope:result.scope,assets:result.assets.length,review:'pending_visual_selection'}));
 }

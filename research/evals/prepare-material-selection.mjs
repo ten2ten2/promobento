@@ -26,8 +26,11 @@ return selected.assets.map(asset=>{
  if(!asset.file.endsWith('.'+extension)||width!==asset.width||height!==asset.height||extension!=='png'&&asset.mediaType&&asset.mediaType!==mediaType)throw Error('MATERIAL_IDENTITY_INVALID');
  const sha256=sha256Bytes(bytes),artwork=asset.derivation?.kind==='approved_artwork_rasterization'?verifiedArtwork.get(asset.id):undefined,video=asset.derivation?.kind==='approved_video_frame_pack'?verifiedVideos.get(asset.id):undefined;
  if(asset.derivation?.kind==='approved_video_frame_pack'){
-  if(!video||!approval.explicit||approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile
-   ||approval.explicit.sourceUrl!==asset.sourceUrl||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(video.source)!==approval.explicit.sha256
+  const web=asset.derivation.sourceOrigin==='web';
+  if(!video||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
+   ||(web?(approval.source.kind==='local_project_media'||approval.explicit.videoUrl!==asset.videoUrl||asset.derivation.videoUrl!==asset.videoUrl)
+    :(approval.source.kind!=='local_project_media'||approval.explicit.sourceFile!==asset.derivation.sourceFile))
+   ||approval.explicit.sha256!==asset.derivation.sourceSha256||sha256Bytes(video.source)!==approval.explicit.sha256
    ||video.manifest.source.sha256!==approval.explicit.sha256||video.manifest.source.mediaType!==asset.derivation.sourceMediaType
    ||video.manifest.poster.sha256!==sha256||!video.poster.equals(bytes))throw Error('VIDEO_VERIFICATION_REQUIRED');
   return{asset,bytes:video.manifestBytes,sha256:sha256Bytes(video.manifestBytes),mediaType:'application/json',extension:'json',original:approval.original,explicit:approval.explicit,video};

@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {chromium} from 'playwright-core';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
-import {captureApprovedLocalVideo,verifyVideoSelections} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 async function syntheticVideo(){let browser;try{
  browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true});const page=await browser.newPage();
  const data=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const ctx=canvas.getContext('2d'),stream=canvas.captureStream(10),chunks=[];
@@ -27,5 +27,15 @@ test('approved video becomes reproducible 30 fps frames and a source-bound manif
   const prepared=prepareMaterialSelection(output,reviewed,topics,{readCard:()=>card,verifiedVideos:verified});assert.equal(prepared[0].sha256,sha256Bytes(video.manifestBytes));assert.equal(prepared[0].video.manifest.source.sha256,sha256Bytes(source));
   const packPath=join(output,reviewed.assets[0].derivation.packFiles[0]),pack=readFileSync(packPath);pack[0]^=1;writeFileSync(packPath,pack);
   await assert.rejects(verifyVideoSelections(output,reviewed,topics),/VIDEO_DERIVATION_MISMATCH/);
+  const sourceUrl='https://example.com/product',videoUrl='https://cdn.example.com/demo.webm',webCard={...card,assetSources:[{kind:'official_product_page',url:sourceUrl}],materialApprovals:{'fixture-video':{...card.materialApprovals['fixture-video'],sourceUrl,videoUrl}}};
+  const webEntry={...entry,sourceFile:undefined,sourceUrl,videoUrl};let calls=0;
+  const download=async(url,options)=>{calls++;assert.equal(url,videoUrl);assert.equal(options.maxBytes,50<<20);assert.match(options.accept,/video/);return source;};
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'web-denied'),card:webCard,entries:[webEntry,{...webEntry,id:'unapproved',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/unapproved'}],download}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(calls,0);
+  await assert.rejects(captureApprovedWebVideo({outputDir:join(root,'web-bad'),card:webCard,entries:[webEntry],download:async()=>Buffer.from('changed')}),/VIDEO_SOURCE_IDENTITY_MISMATCH/);
+  const webOutput=join(root,'web'),webSelected=await captureApprovedWebVideo({outputDir:webOutput,card:webCard,entries:[webEntry],download});assert.equal(calls,1);assert.equal(webSelected.assets[0].review,'pending_visual_selection');
+  writeFileSync(cardPath,JSON.stringify(webCard));webSelected.assets[0].review='approved_for_internal_eval_by_codex';webSelected.assets[0].reviewedAt='2026-10-31';
+  const webVerified=await verifyVideoSelections(webOutput,webSelected,topics),webPrepared=prepareMaterialSelection(webOutput,webSelected,topics,{readCard:()=>webCard,verifiedVideos:webVerified});
+  assert.equal(webPrepared[0].video.manifest.source.sha256,sha256Bytes(source));
+  const changed=structuredClone(webSelected);changed.assets[0].videoUrl='https://cdn.example.com/other.webm';assert.throws(()=>prepareMaterialSelection(webOutput,changed,topics,{readCard:()=>webCard,verifiedVideos:webVerified}),/VIDEO_VERIFICATION_REQUIRED/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
