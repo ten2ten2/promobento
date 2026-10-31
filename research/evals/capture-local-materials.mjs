@@ -1,4 +1,4 @@
-// Collect only explicitly approved PNGs from a local project into the existing S1 selection workflow.
+// Collect only explicitly approved PNG, JPEG and WebP images from a local project into the existing S1 selection workflow.
 // The source directory is read-only; the collector never runs project code or infers usage rights.
 import {existsSync,lstatSync,mkdirSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
 import {resolve,relative,sep,join,dirname} from 'node:path';
@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {materialApproval} from './material-approval.mjs';
+import {imageHeader} from './image-header.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep);
 export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
@@ -29,11 +30,10 @@ export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
  });
  const materials=approved.map(({entry,path,approvedSha})=>{
   const bytes=readFileSync(path);if(bytes.length>1<<20)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
-  if(bytes.length<24||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')throw Error('MATERIAL_IDENTITY_INVALID');
   if(sha256Bytes(bytes)!==approvedSha)throw Error('LOCAL_MATERIAL_IDENTITY_MISMATCH');
-  const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);if(!width||!height)throw Error('MATERIAL_IDENTITY_INVALID');
+  const {width,height,extension,mediaType}=imageHeader(bytes);
   if(width>4096||height>4096)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
-  return{bytes,asset:{id:entry.id,topicId:card.topicId,file:entry.id+'.png',width,height,description:entry.description,sourceUrl:entry.sourceUrl,approvalRef:entry.approvalRef,
+  return{bytes,asset:{id:entry.id,topicId:card.topicId,file:entry.id+'.'+extension,width,height,mediaType,description:entry.description,sourceUrl:entry.sourceUrl,approvalRef:entry.approvalRef,
    derivation:{kind:'approved_local_project_file',sourceFile:relative(source,path).split(sep).join('/')},review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}};
  });
  mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');

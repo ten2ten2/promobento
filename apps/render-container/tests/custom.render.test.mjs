@@ -48,6 +48,22 @@ try{
    }
    report.assetObservation='hidden_then_visible';report.fadeThrough='no_cross_scene_text_overlap';report.sandbox=session.sandbox;
   }finally{await session.close();}
+  // Approved JPEG and WebP bytes must decode through the same asset broker as PNG.
+  const jpeg=Buffer.from('/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAADAAIDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAL/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAABgf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCAA5IH/9k=','base64'),webp=Buffer.from('UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoCAAMAAUAmJaACdLoB+AADsAD+rhf/NgVzXPv9/+8+fufP3Pn/CAAA','base64');
+  const tiff=Buffer.alloc(26);tiff.write('II');tiff.writeUInt16LE(42,2);tiff.writeUInt32LE(8,4);tiff.writeUInt16LE(1,8);
+  tiff.writeUInt16LE(0x112,10);tiff.writeUInt16LE(3,12);tiff.writeUInt32LE(1,14);tiff.writeUInt16LE(6,18);
+  const exif=Buffer.concat([Buffer.from('Exif\0\0'),tiff]),segment=Buffer.alloc(4);segment[0]=255;segment[1]=0xe1;segment.writeUInt16BE(exif.length+2,2);
+  const rotated=Buffer.concat([jpeg.subarray(0,2),segment,exif,jpeg.subarray(2)]);
+  for(const [format,bytes,width,height] of [['jpeg',jpeg,2,3],['webp',webp,2,3],['jpeg-rotated',rotated,3,2]]){
+   const checkedSource=source.replace('img.src=ctx.asset(\'dashboard\').url;',`img.src=ctx.asset('dashboard').url;ctx.OM.ready(img.decode().then(()=>{if(img.naturalWidth!==${width}||img.naturalHeight!==${height})throw Error('IMAGE_ORIENTATION_MISMATCH');}));`);
+   const encodedOptions={...options,resources:options.resources.map(resource=>({...resource,width,height})),customSources:{'scenes/product/index.js':checkedSource}};
+   const encodedSession=await filmSession({raw:JSON.stringify(film),options:encodedOptions,browserVersion:lock.browser.version,font,resource:()=>bytes,killBrowser});
+   try{const frame=pngPixels(await encodedSession.frame(90,{format:'png'}));let green=0;for(let i=0;i<frame.pixels.length;i+=4)if(frame.pixels[i]<100&&frame.pixels[i+1]>120&&frame.pixels[i+2]<100)green++;
+    assert.ok(green>frame.width*frame.height*.01,`${format} actual image pixels visible`);
+    const checked=await encodedSession.observe('format-test',90);assert.equal(checked.assets.find(asset=>asset.resourceId==='res_fixture_dashboard')?.visibility,'visible');
+   }finally{await encodedSession.close();}
+  }
+  report.originalImageFormats='jpeg_webp_and_exif_orientation_broker_decode_and_visibility';
   // Reproduce the 3D aisle's zero-sized perspective origin and full-frame transparent
   // pointer-free overlay with original synthetic pixels, never real user footage.
   const perspectiveFilm=filmFixture(),perspectiveOptions=pageOptions('landscape',rules.aspectLayouts.landscape);

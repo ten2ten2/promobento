@@ -18,7 +18,7 @@ for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false)){
   ||canonical([...card.confirmation.factIds].sort())!==canonical(card.facts.map(fact=>fact.id).sort()))throw Error('EVAL_FACT_CONFIRMATION_REQUIRED');
  const resources=topic.materialIds.map(id=>{
   const asset=materials.assets.find(asset=>asset.id===id&&asset.topicId===topic.id);
-  if(!asset||asset.scope!=='internal_eval_only'||asset.publicUseCleared!==false||asset.mediaType!=='image/png'||asset.byteLength>1<<20
+  if(!asset||asset.scope!=='internal_eval_only'||asset.publicUseCleared!==false||!['image/png','image/jpeg','image/webp'].includes(asset.mediaType)||asset.byteLength>1<<20
    ||!asset.evidenceKey||!asset.licenseRef)throw Error('EVAL_REVIEWED_MATERIAL_REQUIRED');
   if(![asset.width,asset.height].every(size=>Number.isInteger(size)&&size>=1&&size<=4096))throw Error('EVAL_MATERIAL_NORMALIZATION_REQUIRED');
   if(card.materialLicenseReview?.status==='permission_required'&&(asset.origin!=='original_factual_diagram'

@@ -82,3 +82,13 @@ test('complete malformed tool arguments retain raw bytes and late usage in both 
   });assert.equal(requests,1);
  }
 });
+
+test('reviewed JPEG and WebP keep their original media types in both model transports',()=>{
+ for(const mediaType of ['image/jpeg','image/webp']){
+  const input={...base,messages:[{role:'user',text:'Inspect the cleared image.',images:[{mediaType,base64:'YWJj'}]}]};
+  const compatible=providerRequest({...input,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'}}).body;
+  assert.equal(compatible.messages[1].content[1].image_url.url,`data:${mediaType};base64,YWJj`);
+  const anthropic=providerRequest({...input,provider:{kind:'anthropic',baseUrl:'https://provider.invalid'}}).body;
+  assert.equal(anthropic.messages[0].content[1].source.media_type,mediaType);
+ }
+});

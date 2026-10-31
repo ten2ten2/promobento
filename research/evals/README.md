@@ -173,9 +173,9 @@ mise exec -- node research/evals/discover-local-materials.mjs \
   artifacts/example-local-candidates <已批准题目ID> <本地项目目录> <登记的local来源URL>
 ```
 
-`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；当前后续收集／入库只接收逐项批准的 PNG，其他格式仍需各自完成准入与处理。
+`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；当前后续收集／入库接收逐项批准的 PNG、JPEG 和静态 WebP；视频、SVG 和图标仍需各自完成准入与处理。
 
-已有逐项批准的本地项目 PNG 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
+已有逐项批准的本地项目 PNG、JPEG 和静态 WebP 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
 
 ```json
 {"files":[{"id":"example-screen","sourceFile":"screens/example.png","sourceUrl":"local://example-project","approvalRef":"research/evals/fact-cards/example.json#/materialApprovals/example-screen","description":"Owner-approved product screenshot."}]}
@@ -186,9 +186,9 @@ mise exec -- node research/evals/capture-local-materials.mjs \
   artifacts/example-local-capture <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-只读取清单中已逐项批准、位于项目目录内的 PNG，保留原字节并输出待人工查看的 `selected.json`；不运行项目代码、不扫描或复制其他文件，也不自动批准素材。当前导演输入上限为单图 1 MiB 和 4096×4096；不合格须先按获准范围处理。此入口是内部评测，不是客户文件上传或任意网站采集。
+只读取清单中已逐项批准、位于项目目录内的 PNG、JPEG 或静态 WebP，保留原字节并输出待人工查看的 `selected.json`；不运行项目代码、不扫描或复制其他文件，也不自动批准素材。当前导演输入上限为单图 1 MiB 和 4096×4096；不合格须先按获准范围处理。此入口是内部评测，不是客户文件上传或任意网站采集。
 
-采集使用独立临时 Chrome 配置，不登录、不下载应用。`selected.json` 初始为 `pending_visual_selection`；**查看实际 PNG**，排除人物肖像、私人内容、未确认业绩和不完整/源码画面后，记录 `approved_for_internal_eval_by_codex` 与 `reviewedAt`，再入库。不能把截图文件存在当作通过。全量采集拒绝覆盖旧文件；需要补某一题时用新目录或题目参数，避免重做已选图片。
+采集使用独立临时 Chrome 配置，不登录、不下载应用。`selected.json` 初始为 `pending_visual_selection`；**查看实际图片**，排除人物肖像、私人内容、未确认业绩和不完整/源码画面后，记录 `approved_for_internal_eval_by_codex` 与 `reviewedAt`，再入库。不能把截图文件存在当作通过。全量采集拒绝覆盖旧文件；需要补某一题时用新目录或题目参数，避免重做已选图片。
 
 确认 `wrangler whoami` 为项目账户且没有其他 staging 内部会话后执行：
 
