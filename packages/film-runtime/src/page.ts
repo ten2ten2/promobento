@@ -78,6 +78,11 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       if (slot?.role !== 'number' || !match || !Number.isFinite(Number(match[2]!.replace(',', '.')))) throw Error('METRIC_NUMBER_INVALID');
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
+    if(scene.block==='whiteboard-clip@1'){
+      const asset=spec.assets[String(scene.params.assetKey)];
+      if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('WHITEBOARD_IMAGE_REQUIRED');
+      blockEvents('whiteboard-clip',scene,scene.params);
+    }
     if(scene.block==='vox-clip@1'){
       for(const item of scene.params.items as Array<{assetKey:string;focus?:string}>){
         if(!['image','svg'].includes(resources.get(spec.assets[item.assetKey]!.resourceId)?.kind??''))throw Error('VOX_CLIP_IMAGE_REQUIRED');

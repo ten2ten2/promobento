@@ -26,7 +26,7 @@ test('compact direction heroes prefer the proposed product shot over a paragraph
 
 test('new trusted blocks can actually be selected for a direction hero',()=>{
  const options=pageOptions('landscape',{width:1920,height:1080,safeInsets:{top:.05,right:.05,bottom:.05,left:.05}});options.confirmedFactIds=['modes'];
- for(const id of ['continuous-focus','kinetic-title','drawn-steps']){
+ for(const id of ['continuous-focus','kinetic-title','drawn-steps','whiteboard-clip']){
   const film=directionHero({...card,skeleton:[{approach:'block:'+id}]},context,0);
   assert.equal(film.scenes[0].block,id+'@1');assert.doesNotThrow(()=>generateFilmPage(JSON.stringify(film),options));
  }

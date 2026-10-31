@@ -104,3 +104,11 @@ test('Canvas sequence requires confirmed facts and a reading hold for each page'
  const short=structuredClone(film);short.scenes[0].params.items[1].startFrame=119;assert.throws(()=>make(short,opts),/CANVAS_SEQUENCE_READING_HOLD_MISSING/);
  const missing=structuredClone(film);missing.scenes[0].params.items[1].textSlot='missing';assert.throws(()=>make(missing,opts),/TEXT_SLOT_UNKNOWN/);
 });
+
+test('original whiteboard image reveal requires a cleared still and a settled reading window',()=>{
+ const film=filmFixture();film.scenes=[{id:'board',start:0,end:450,kind:'block',block:'whiteboard-clip@1',params:{assetKey:'dashboard',textSlot:'product'},purpose:'Reveal the real source image.'}];
+ assert.doesNotThrow(()=>make(film));
+ const video=options();video.resources[0].kind='video';assert.throws(()=>make(film,video),/WHITEBOARD_IMAGE_REQUIRED/);
+ const short=structuredClone(film);short.scenes[0].end=120;short.scenes.push({...filmFixture().scenes[2],start:120,transitionIn:{type:'cut',frames:0}});
+ assert.throws(()=>make(short),/WHITEBOARD_READING_HOLD_MISSING/);
+});

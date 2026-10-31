@@ -128,3 +128,22 @@ test('studio ownership is persisted before execute; cancelled or failed startup 
  failStop=true;await assert.rejects(owner.studio('studio-operation',task),/START_FAILED/);assert.equal(values.get('studio').taskId,'studio-test');
  failStop=false;await owner.closeStudio();assert.equal(values.has('studio'),false);
 });
+
+test('original whiteboard preflight uses the exact cleared image and readable actual heading',async t=>{
+ const{db,DB}=sqliteD1();t.after(()=>db.close());const{objects,MEDIA}=memoryMedia(),image='sha256:'+'a'.repeat(64),cache=new Map();
+ const op={id:'whiteboard-operation',generation:0};db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(op.id,'workspace','project',0,'evaluation','active','request',1000000,Date.now(),null,null);
+ db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('health-release',image,'film-runtime-v1','evals/health/environment.json','active');
+ const resource={resourceId:'res_fixture_dashboard',kind:'image',width:64,height:64,licenseRef:'fixture',key:'evals/fixture/image.png',sha256:'a'.repeat(64),byteLength:123};
+ const context={audience:'software',runtimeVersion:'film-runtime-v1',rendererRelease:'health-release',seed:'health',fonts:pageOptions('landscape',platform.aspectLayouts.landscape).fonts,resources:[resource]};
+ let taskId,probes=0,blocked=false;
+ const env={DB,MEDIA,SHARDS:{getByName(){return{async imageDigest(){return image;}};}},COORDINATOR:{getByName(){return{async rendererHealth(key){return cache.get(key)??'null';},async rememberRendererHealth(key,value){cache.set(key,value);}};}},OPERATIONS:{getByName(){return{
+  async studio(_id,text){const task=parseCanonicalJson(text);taskId=task.taskId;probes++;const film=parseCanonicalJson(objects.get(task.inputs[0].key).bytes);
+   assert.equal(film.scenes[0].block,'whiteboard-clip@1');assert.equal(film.assets.health.resourceId,resource.resourceId);assert.deepEqual(task.job.frames,[105]);generateFilmPage(canonical(film),task.options);return canonical({status:'ready'});},
+  async frame(){return new Response(new Uint8Array([137,80,78,71,13,10,26,10]));},
+  async checkFrame(_id,frame){return Response.json({observation:{schemaVersion:'3.0.0',kind:'frame_observation',renderId:taskId,aspectId:'landscape',frame,texts:[{slotId:'headline',sceneId:'health',text:'Render health check',box:{x:10,y:10,width:100,height:40},fonts:[{family:'fixture',glyphCount:5}],fallbackUsed:false,missingGlyphs:0,contrastRatio:5,insideSafeArea:true,clipped:blocked,covered:false}],regions:[],findings:blocked?[{code:'text-clipped',severity:'BLOCK',slotId:'headline'}]:[]}});},
+  async closeStudio(){}
+ };}}};
+ const check=()=>directorEnvironment(env,op,context,[],Date.now()+60000,false,false,false,false,false,false,false,false,false,false,undefined,true);
+ await check();await check();assert.equal(probes,1);
+ resource.sha256='b'.repeat(64);blocked=true;await assert.rejects(check(),/RENDER_CANVAS_TEXT_UNAVAILABLE/);assert.equal(probes,2);
+});

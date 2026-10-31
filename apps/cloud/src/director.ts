@@ -167,9 +167,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const voxHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=34);
     const canvasTitleMethod=supportsCanvasTitle(methods,context);
     const canvasSequenceMethod=supportsCanvasSequence(methods,context);
+    const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
         if(block.id!=='vox-clip'||voxHighlightMethod)return block;
         const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
@@ -206,6 +207,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
       if(!voxHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items?.some((item:Json)=>item.focus)))
         throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'VOX_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
+      if(!whiteboardMethod&&value.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasSequenceMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-sequence@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       for(const scene of value.scenes.filter((item:Json)=>item.block==='canvas-sequence@1'))for(const item of scene.params.items??[]){
         const slot=value.texts[item.textSlot];
@@ -288,7 +290,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           const selection=earlySceneProbe?selectCustomMotionFrames(first.movie.motionFrames,film,quality):null;
           const existing=selection?new Set(filmMotionFrames(film as unknown as Parameters<typeof filmMotionFrames>[0],quality,{eventNeighborhoods:false})):null;
           const baseFrames=existing?first.movie.motionFrames.filter((blob:BlobRef)=>existing.has(Number(/\/motion-frames\/(\d+)\.png$/.exec(blob.key)?.[1]))):first.movie.motionFrames;
-          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','drawn-steps@1'].includes(scene.block));
+          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','whiteboard-clip@1','drawn-steps@1'].includes(scene.block));
           const {bytes,...layout}=await reviewContactSheet({aspect:first.aspect,frames:baseFrames,load:blob=>checkedBytes(this.env,blob),sampleKind:selection||generalMotion?'motion_keyposes':'beat_choreography_keyposes'});
           const object=await immutableBytes(this.env,`operations/${op.id}/${name}/contact-sheet-motion.png`,bytes,'image/png');
           motionSheets.push({aspect:first.aspect,renderId:first.movie.renderId,image:object,...layout,...(selection?{selection:{sceneId:selection.sceneId,requested:selection.requested,missing:selection.missing,scope:selection.scope}}:{})});
@@ -358,6 +360,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       assetObservationRequired=Boolean(checkedAssetsMethod&&custom.some((scene:Json)=>(scene.params.assetChecks??[]).length));
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
+      if(film.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,true);
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
         film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
@@ -600,6 +603,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
             film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
+          if(film.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,true);
           await preflightCanvasTitles(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');

@@ -5,6 +5,10 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 /** The same local-frame landmarks are consumed by blocks and the immutable AudioPlan. */
 export function blockEvents(id, frames, params) {
   const duration = frames.end - frames.start;
+  if(id==='whiteboard-clip'){
+    if(duration<135)throw Error('WHITEBOARD_READING_HOLD_MISSING');
+    return [{name:'product-land',frame:90}];
+  }
   if(id==='canvas-sequence'){
     const items=params.items;
     if(items[0]?.startFrame!==0||items.some((item,index)=>index>0&&item.startFrame-items[index-1].startFrame<120)
@@ -90,6 +94,7 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
    return [...new Set([...handoff,...around,...Array.from({length:Math.ceil((scene.end-scene.start)/30)},(_,i)=>scene.start+i*30)])]
     .map(frame=>Math.floor(frame/stride)*stride);
   }
+  if(scene.block==='whiteboard-clip@1')return [0,15,30,60,90].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='canvas-sequence@1')return blockEvents('canvas-sequence',scene,scene.params)
    .flatMap(event=>[event.frame-30,event.frame-9,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
