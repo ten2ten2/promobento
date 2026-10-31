@@ -8,7 +8,12 @@ export function blockEvents(id, frames, params) {
   if(id==='vox-clip'){
     const landings=params.items.map((_,index)=>index*params.intervalFrames+18);
     if(landings.at(-1)+30>duration)throw Error('VOX_CLIP_READING_HOLD_MISSING');
-    return landings.map((frame,index)=>({name:index===params.items.length-1?'product-land':'product-step-'+(index+1),frame}));
+    const highlights=params.items.flatMap((item,index)=>{
+      if(!item.focus)return[];const at=index*params.intervalFrames;
+      if((index+1<params.items.length?params.intervalFrames:duration-at)<120)throw Error('VOX_CLIP_HIGHLIGHT_HOLD_MISSING');
+      return[{name:'highlight-land-'+(index+1),frame:at+69}];
+    });
+    return [...landings.map((frame,index)=>({name:index===params.items.length-1?'product-land':'product-step-'+(index+1),frame})),...highlights].sort((a,b)=>a.frame-b.frame);
   }
   if(id==='component-relay'){
     const landings=relayLandings(params.items.length,params.beatFrames);

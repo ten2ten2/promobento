@@ -164,11 +164,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const objectMotionMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=33);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
     const voxClipMethod=supportsVoxClip(methods,context.resources);
+    const voxHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=34);
     const canvasTitleMethod=supportsCanvasTitle(methods,context);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
     const availableBlocks=blockCatalog.filter(block=>(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
-      &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1'));
+      &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
+        if(block.id!=='vox-clip'||voxHighlightMethod)return block;
+        const legacy=structuredClone(block) as Json;delete legacy.params.properties.items.items.properties.focus;
+        legacy.events=legacy.events.filter((event:Json)=>!event.name.startsWith('highlight-land-'));return legacy;
+      });
     let relayInsights:Json[]=[],chosenVisualLanguage='';
     const methodEvidence=methodRef?{directingMethod:{...methodRef,key:row.directing_method_key}}:{};
     let sceneSources:Record<string,string>={},sceneModules:BlobRef[]=[],sceneProofKey:string|undefined;
@@ -198,6 +203,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if((preview||!methods)&&value.scenes.some((scene:Json)=>scene.kind!=='block'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'S1_BLOCKS_ONLY',path:'/scenes'}],value);
       if(!relayMethod&&value.scenes.some((scene:Json)=>scene.block==='component-relay@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       const custom=value.scenes.filter((scene:Json)=>scene.kind==='custom');
+      if(!voxHighlightMethod&&value.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items?.some((item:Json)=>item.focus)))
+        throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'VOX_HIGHLIGHT_NOT_AVAILABLE',path:'/scenes'}],value);
       const canvasTitles=value.scenes.filter((scene:Json)=>scene.block==='canvas-title@1');
       if(canvasTitles.length&&!canvasTitleMethod)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(canvasTitles.length&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
@@ -341,7 +348,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       fadeThroughRequired=Boolean(checkedAssetsMethod&&film.scenes.some((scene:Json)=>scene.transitionIn?.type==='fade-through'));
       sceneSources={};sceneModules=[];sceneProofKey=undefined;
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
-      if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
+      if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
+        film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
       await preflightCanvasTitles(film);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
@@ -579,7 +587,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           checkDeadline();await operation(this.env,op.id,op.generation);await rights(this.env,op,sourceResources);
           const film=card.keyframeFilm;
           if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
-          if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,true);
+          if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
+            film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
           await preflightCanvasTitles(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');

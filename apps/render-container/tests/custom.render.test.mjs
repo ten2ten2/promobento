@@ -110,6 +110,21 @@ try{
   // decoded by the real isolated Chromium runtime in forward and reverse order.
   const solidPng=(red,green,blue)=>{const pixels=new Uint8Array(64*64*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=red;pixels[i+1]=green;pixels[i+2]=blue;pixels[i+3]=255;}return pngRgba(64,64,pixels);};
   const greenPng=solidPng(10,220,20),bluePng=solidPng(10,30,220),webpFromPng=png=>execFileSync('ffmpeg',['-v','error','-i','pipe:0','-c:v','libwebp','-lossless','1','-f','webp','pipe:1'],{input:png});
+  const voxFilm=filmFixture();voxFilm.assets.dashboard.roi=[{x:.2,y:.2,width:.4,height:.4}];
+  voxFilm.scenes=[{id:'vox',kind:'block',block:'vox-clip@1',start:0,end:450,params:{intervalFrames:120,items:[{assetKey:'dashboard',focus:'roi:0'},{assetKey:'dashboard'}]},purpose:'Mark an observed source region without cropping the page.'}];
+  for(const aspect of ['landscape','portrait']){
+   const voxOptions=pageOptions(aspect,rules.aspectLayouts[aspect]);voxOptions.fonts=options.fonts;voxOptions.resources[0].width=64;voxOptions.resources[0].height=64;
+   const focused=await filmSession({raw:JSON.stringify(voxFilm),options:voxOptions,browserVersion:lock.browser.version,font,resource:()=>greenPng,killBrowser});
+   let marked;try{marked=await focused.frame(84,{format:'png'});await focused.frame(150,{format:'png'});const reverse=await focused.frame(84,{format:'png'});
+    assert.notEqual(compareSeam(marked,reverse).verdict,'RENDER_SEAM_BLOCK');writeFileSync(`${output}/vox-focus-${aspect}.png`,marked);
+   }finally{await focused.close();}
+   const plainFilm=structuredClone(voxFilm);delete plainFilm.scenes[0].params.items[0].focus;
+   const plain=await filmSession({raw:JSON.stringify(plainFilm),options:voxOptions,browserVersion:lock.browser.version,font,resource:()=>greenPng,killBrowser});
+   try{const unmarked=await plain.frame(84,{format:'png'});assert.ok(compareSeam(marked,unmarked).diffPixelPct>.01,'original highlight produces visible pixels');
+    writeFileSync(`${output}/vox-plain-${aspect}.png`,unmarked);
+   }finally{await plain.close();}
+  }
+  report.voxHighlight='observed_source_roi_context_preserved_landscape_portrait_reverse';
   const greenWebp=webpFromPng(greenPng),blueWebp=webpFromPng(bluePng),parts=[],frames=[];let offset=0;
   for(let i=0;i<60;i++){const frame=i<30?greenWebp:blueWebp;frames.push({index:i,pts:i/30,duration:1/30,pack:0,offset,byteLength:frame.length});parts.push(frame);offset+=frame.length;}
   const pack=Buffer.concat(parts),ref=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
@@ -388,12 +403,17 @@ try{
   // v2 moves the real screen object independently from its fixed camera, while
   // v1 continues rejecting those additional view fields.
   const movingFilm=structuredClone(customStudioFilm);movingFilm.scenes[0].runtime3D='om3-studio-v2';
-  const movingSource=customStudioSource.replace('studio.render({yaw:view.yaw})','studio.render({yaw:0,objectYaw:view.yaw,objectRoll:8,objectScale:1.1})');
+  const movingSource=customStudioSource.replace('studio.render({yaw:view.yaw})','studio.render({yaw:0,distanceScale:1.5,objectYaw:view.yaw,objectRoll:8,objectScale:1.1})');
   const movingOptions=pageOptions('landscape',rules.aspectLayouts.landscape);movingOptions.fonts=multiOptions.fonts;movingOptions.resources[0].width=64;movingOptions.resources[0].height=64;
   movingOptions.customSources={'scenes/custom-studio/index.js':movingSource};movingOptions.initTimeoutMs=60000;movingOptions.frameTimeoutMs=10000;
   const moving=await filmSession({raw:JSON.stringify(movingFilm),options:movingOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});
   try{const first=await moving.frame(15,{format:'png'}),later=await moving.frame(60,{format:'png'}),reverse=await moving.frame(15,{format:'png'});
    assert.ok(compareSeam(first,later).diffPixelPct>.1,'screen object moves while camera stays fixed');
+   for(const png of [first,later]){const frame=pngPixels(png);let minX=frame.width,minY=frame.height,maxX=0,maxY=0;
+    for(let y=0;y<frame.height;y++)for(let x=0;x<frame.width;x++){const i=(y*frame.width+x)*4;
+     if(frame.pixels[i]<60&&frame.pixels[i+1]>150&&frame.pixels[i+2]<60){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}}
+    assert.ok(minX>0&&minY>0&&maxX<frame.width-1&&maxY<frame.height-1,'the synthetic product image stays inside the frame');
+   }
    assert.notEqual(compareSeam(first,reverse).verdict,'RENDER_SEAM_BLOCK');writeFileSync(`${output}/object-motion-15.png`,first);writeFileSync(`${output}/object-motion-60.png`,later);
   }finally{await moving.close();}
   const v1Object=await filmSession({raw:JSON.stringify(customStudioFilm),options:movingOptions,browserVersion:lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,font,resource:()=>image,killBrowser});

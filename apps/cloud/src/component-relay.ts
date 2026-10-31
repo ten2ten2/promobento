@@ -3,14 +3,19 @@ import type {Json} from './pipeline-types.ts';
 /** A coordinate is a model observation, not independently verified pixel geometry. */
 export function relayObservationIssues(film:Json,insights:Json[],resources:Json[],{requireBehavior=false}:{requireBehavior?:boolean}={}){
   const issues:Array<{code:string;path:string}>=[];
+  const observedRegion=(key:string,focus:string)=>{
+    const slot=film.assets[key],resource=resources.find(item=>item.resourceId===slot?.resourceId),roi=slot?.roi?.[Number(String(focus).slice(4))];
+    return roi&&insights.find(item=>item.sha256===resource?.sha256)?.regions?.find((region:Json)=>['x','y','width','height'].every(field=>region.box?.[field]===roi[field]));
+  };
   for(const [index,scene] of film.scenes.entries()){
+    if(scene.kind==='block'&&scene.block==='vox-clip@1'){
+      for(const [itemIndex,item]of (scene.params.items??[]).entries())if(item.focus&&!observedRegion(item.assetKey,item.focus))
+        issues.push({code:'VOX_ROI_NOT_OBSERVED',path:`/scenes/${index}/params/items/${itemIndex}/focus`});
+    }
     if(scene.kind!=='block'||scene.block!=='component-relay@1')continue;
     if(requireBehavior&&!scene.params.componentBehavior)
       issues.push({code:'RELAY_COMPONENT_BEHAVIOR_REQUIRED',path:`/scenes/${index}/params/componentBehavior`});
-    const key=scene.params.items?.[0]?.assetKey,slot=film.assets[key],resource=resources.find(item=>item.resourceId===slot?.resourceId);
-    const roi=slot?.roi?.[Number(String(scene.params.focus).slice(4))];
-    const insight=insights.find(item=>item.sha256===resource?.sha256);
-    const observed=roi&&insight?.regions?.find((region:Json)=>['x','y','width','height'].every(field=>region.box?.[field]===roi[field]));
+    const key=scene.params.items?.[0]?.assetKey,observed=observedRegion(key,scene.params.focus);
     if(!observed)
       issues.push({code:'RELAY_ROI_NOT_OBSERVED',path:`/scenes/${index}/params/focus`});
     if(requireBehavior&&scene.params.componentBehavior==='carry'&&observed){

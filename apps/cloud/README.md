@@ -108,6 +108,8 @@ edit_file使用自包含Schema，path必须当前模块字符串，首次仅crea
 
 源码中的方法 1.33 可选择 `om3-studio-v2`，分别编排清权产品设备与相机的旋转、缩放；使用前用相同版本的探针检查冻结镜像。v1 和旧方法保持原来的相机接口，v2 尚未部署 staging。[参数和限制](../../packages/film-runtime/README.md#自写镜头源码与规格分开)。
 
+源码中的方法 1.34 可在 `vox-clip` 的单张真实页面上圈画该页面观察中已有的区域，不移动区域到其他页面，也不为焦点裁切页面。该路径使用前探测固定镜像；观察坐标仍须结合实际画面审查。[节奏和限制](../../packages/film-runtime/README.md#当前积木行为)。
+
 Studio 容器启动失败时，源码会尽力将探针诊断写入操作私有的 `studio-diagnostics/<taskId>.json`，因为 Studio 没有渲染分片的 attempt 行；诊断写入失败不覆盖原始启动错误，也不重试模型。
 
 当前 E 的规格改写是创作过程内的自动审片修复；用户对已生成影片提交批注并创建新候选的改稿入口尚未实现。具体产品改稿和版本规则见[13](../../docs/prd/13-agent-native-production.md#7-定点编辑和协作)与[14](../../docs/prd/14-production-contracts.md)。

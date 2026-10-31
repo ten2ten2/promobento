@@ -45,10 +45,12 @@ export const blockCatalog = [
         required: ['assetKey', 'textSlot'], properties: {textSlot: slot, assetKey: slot}}}}}},
   { ...common, id:'vox-clip', category:'software', cost:'medium', regions:['product'],
     events:[{name:'product-land',description:'The final source image settles.'},
-      ...[1,2,3].map(index=>({name:'product-step-'+index,description:'A preceding source image settles.'}))],
+      ...[1,2,3].map(index=>({name:'product-step-'+index,description:'A preceding source image settles.'})),
+      ...[1,2,3,4].map(index=>({name:'highlight-land-'+index,description:'The observed region on this source image is marked.'}))],
     params:{type:'object',additionalProperties:false,required:['items','intervalFrames'],properties:{
-      intervalFrames:{type:'integer',minimum:45,maximum:180,description:'Frames between real source-image arrivals; reserve 48 frames after the final arrival.'},
-      items:{type:'array',minItems:2,maxItems:4,items:{type:'object',additionalProperties:false,required:['assetKey'],properties:{assetKey:slot}}}}}},
+      intervalFrames:{type:'integer',minimum:45,maximum:180,description:'Frames between real source-image arrivals; reserve 48 frames after the final arrival. A focused image needs 120 frames before the next arrival or scene end.'},
+      items:{type:'array',minItems:2,maxItems:4,items:{type:'object',additionalProperties:false,required:['assetKey'],properties:{assetKey:slot,
+        focus:{type:'string',pattern:'^roi:[0-7]$',description:'Optional observed region in this exact image. The original Vox highlighter and circle mark it without zooming away from the full page.'}}}}}}},
   { ...common, id:'continuous-focus', category:'software', regions:['product'],
     events:[{name:'product-land',description:'The first real source frame is shown.'}],
     params:{type:'object',additionalProperties:false,required:['assetKey'],properties:{

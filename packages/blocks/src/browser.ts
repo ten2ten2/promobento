@@ -37,7 +37,7 @@ const text = (ctx: SceneContext, value: unknown, parent: HTMLElement, maxLines =
 
 // Original Vox image-only grammar. Text-bearing cues stay unavailable until
 // Canvas text has trusted fact binding and actual-frame observation.
-window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({id:'vox-clip',version:'1.0.0',build(ctx,params){
+window.PB.defineBlock<{items:Array<{assetKey:string;focus?:string}>;intervalFrames:number}>({id:'vox-clip',version:'1.0.0',build(ctx,params){
   const events=blockEvents('vox-clip',ctx.frames,params),images:Record<string,HTMLImageElement>=Object.create(null);
   const ready=Promise.all(params.items.map(async item=>{
     const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('VOX_CLIP_IMAGE_REQUIRED');
@@ -50,9 +50,11 @@ window.PB.defineBlock<{items:Array<{assetKey:string}>;intervalFrames:number}>({i
   const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
   let stage:ReturnType<typeof createClipStage>|undefined;
   const prepared=ready.then(()=>{const {width,height,safeInsets}=ctx.target;
-    stage=createClipStage({grammar:'y2_vox',duration:(ctx.frames.end-ctx.frames.start)/30,data:{accent:ctx.style.palette.accent},
+    stage=createClipStage({grammar:'y2_vox',duration:(ctx.frames.end-ctx.frames.start)/30,data:{accent:ctx.style.palette.accent,preserveContext:true},
       safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
-      cues:params.items.map((item,index)=>({kind:'image',at:index*params.intervalFrames/30,image:item.assetKey}))},{width,height,images});
+      cues:params.items.flatMap((item,index)=>{const at=index*params.intervalFrames/30,image={kind:'image',at,image:item.assetKey};
+        if(!item.focus)return[image];const roi=ctx.asset(item.assetKey).roi[Number(item.focus.slice(4))];if(!roi)throw Error('VOX_CLIP_ROI_INVALID');
+        return[image,{kind:'highlight',at:at+36/30,data:{rect:[roi.x,roi.y,roi.width,roi.height]}}];})},{width,height,images});
   });
   return{ready:prepared,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);},events,
     regions:[region('product',canvas,ctx.root)]};

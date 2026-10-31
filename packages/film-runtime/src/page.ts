@@ -72,8 +72,11 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     }
     if (scene.params.logoKey && resources.get(spec.assets[String(scene.params.logoKey)]!.resourceId)?.kind === 'video') throw Error('LOGO_KIND_INVALID');
     if(scene.block==='vox-clip@1'){
-      for(const item of scene.params.items as Array<{assetKey:string}>)
+      for(const item of scene.params.items as Array<{assetKey:string;focus?:string}>){
         if(!['image','svg'].includes(resources.get(spec.assets[item.assetKey]!.resourceId)?.kind??''))throw Error('VOX_CLIP_IMAGE_REQUIRED');
+        if(item.focus){const roi=spec.assets[item.assetKey]!.roi?.[Number(item.focus.slice(4))];
+          if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('VOX_CLIP_ROI_INVALID');}
+      }
       blockEvents('vox-clip',scene,scene.params);
     }
     if(['device-3d@1','object-studio@1'].includes(scene.block)&&resources.get(spec.assets[String(scene.params.assetKey)]!.resourceId)?.kind==='video')throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');

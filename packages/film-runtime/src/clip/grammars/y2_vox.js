@@ -81,7 +81,7 @@ return {
         // 先把镜头移过去、at 前一帧到位，再揭开——否则揭开那一帧在画外，观众晚 0.2s 以上才看到（2026-10 竖屏实测晚 7 帧）
         const x0 = cx - rw / 2, inView = Math.abs(x0 - last.x) * last.z < W / 2 - 20 * u && Math.abs(cy - last.y) * last.z < Hs / 2 - rh * last.z / 2;
         const t0 = inView ? Math.max(last.t + 0.1, e.at + 0.2) : Math.max(last.t + 0.1, e.at - 0.8), t1 = inView ? t0 + 1.0 : Math.max(t0 + 0.35, e.at - 1 / ctx.FPS);
-        keys.push({ t: t0, x: last.x, y: last.y, z: last.z }); keys.push({ t: t1, x: cx, y: cy, z, ease: MO.sineInOut });
+        keys.push({ t: t0, x: last.x, y: last.y, z: last.z }); keys.push(ctx.data.preserveContext?{t:t1,x:last.x,y:last.y,z:last.z,ease:MO.sineInOut}:{ t: t1, x: cx, y: cy, z, ease: MO.sineInOut });
         last = keys[keys.length - 1];
       }
     }

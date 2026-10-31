@@ -25,7 +25,7 @@ const png=pngRgba(1,1,Uint8Array.from([40,80,120,255]));
 const clone=structuredClone;
 async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingKey=false,noRights=false,transportFailure=false,badSpec=false,unverified=false,cancel=false,cancelHandoff=false,
  audio=false,sourceSfx=false,sourceSfxEdit=false,sourceSfxInvalid=false,sourceSfxConflict=false,missingApproval=false,missingContext=false,noticeFailure=false,cleanupFailure=false,healthFailure=false,oversizedResource=false,unconfirmedHistory=false,httpFailure=false,networkStreamFailure=false,
- nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,voxContext=false,voxSpec=false,oldVoxRenderer=false,canvasSpec=false,oldCanvasRenderer=false,custom3D=false,objectMotion=false,studioOnly=false,lateCustom3D=false,packedVideo=false,oldVideoRenderer=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
+ nativeProtocol=false,fixableSpec=false,malformedSpec=false,specTransportFailure=false,fixableCold=false,twoReviewRepairs=false,invalidStage='',alwaysInvalidStage=false,unsupportedDirections=false,unsupportedSpec=false,compactDirections=false,studioDirection=false,oldStudioRenderer=false,voxContext=false,voxSpec=false,voxFocus=false,oldVoxRenderer=false,canvasSpec=false,oldCanvasRenderer=false,custom3D=false,objectMotion=false,studioOnly=false,lateCustom3D=false,packedVideo=false,oldVideoRenderer=false,motionSamples=false,motionAudit=false,customScene=false,reviewToCustom=false,twoCustom=false,revisedScenePlan=false,renderAdmission=false,frozenMethodVersion='',methodWithoutCustom=false,relaySpec=false,relayBehavior='return-to-source',returnRelayRepair=false,omitRelayBehavior=false,oldRelayRenderer=false,oldScopedRelayRenderer=false,badCustom=false,customSourceRepair=false,fixableCustomPath=false,fixableCustomAsset=false,emptyCustomMotion=false,textOnlyScenes=false,scene502=false,sceneInputMode='',customSeekFailure='',customSeekOverlap=false,customQaFailure=false,legacyCustomMethod=false,legacyHoldMetadata=false,customTextMissing=false,customTextWrongScene=false,fixableFrameFailure=false,unchangedFrameRepair=false,repairTransportFailure=false,omitHoldPlanFirst=false,failCustomClose=false,oldScopedObservation=false,oldAssetObservation=false,customAssetMissing=false,customAssetUnverified=false,customAssetWrongScene=false,regressionAfterSeek=false,regressionAfterRevision=false,persistentRegression=false,invalidAssetPlanFirst=false,noAssetPlan=false,unsafeCtaFirst=false,visualLanguage='en',seekAfterQaRepair=false,persistentDistinctSeek=false}={}){
  const db=new DatabaseSync(':memory:');db.exec(readFileSync('apps/cloud/migrations/0001_s1_pipeline.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
@@ -53,7 +53,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
  if(unverified)specModel.capabilities.verified=false;
  const spec=filmFixture(),keyframeFilm=clone(spec),options=pageOptions('landscape',platform.aspectLayouts.landscape);
  if(canvasSpec){spec.texts.headline.text='HELLO';spec.scenes[0]={...spec.scenes[0],block:'canvas-title@1',params:{textSlot:'headline'}};}
- if(voxSpec){spec.assets.other={resourceId:'res_fixture_other'};spec.scenes[1]={...spec.scenes[1],block:'vox-clip@1',params:{intervalFrames:90,items:[{assetKey:'dashboard'},{assetKey:'other'}]}};}
+ if(voxSpec){spec.assets.other={resourceId:'res_fixture_other'};spec.scenes[1]={...spec.scenes[1],block:'vox-clip@1',params:{intervalFrames:voxFocus?120:90,items:[{assetKey:'dashboard',...(voxFocus?{focus:'roi:0'}:{})},{assetKey:'other'}]}};}
  if(relaySpec)spec.scenes[1]={...spec.scenes[1],block:'component-relay@1',params:{textSlot:'product',focus:'roi:0',...(!omitRelayBehavior?{componentBehavior:relayBehavior}:{}),beatFrames:18,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]}};
  if(audio)spec.audio={music:{kind:'score',scoreRef:'audio/original.abc'},sfx:[],captions:'off',mute:false};
  if(customScene)spec.scenes[1]={id:'product',kind:'custom',module:'scenes/product/index.js',start:120,end:336,purpose:'Original custom workflow.',brief:'Preserve one subject through a changing composition.',transitionIn:{type:'push',frames:6},
@@ -88,7 +88,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
       const film=parseCanonicalJson(objects.get(filmBlob.key).bytes);
       if(task.options.resources?.some((asset:any)=>asset.videoFramePacking==='webp-pack-v1')){trace.push('video-preflight');if(oldVideoRenderer)throw Error('MOCK_VIDEO_UNAVAILABLE');}
       if(film.scenes.some((scene:any)=>scene.block==='object-studio@1'||['om3-studio-v1','om3-studio-v2'].includes(scene.runtime3D))){trace.push(film.scenes.some((scene:any)=>scene.runtime3D==='om3-studio-v2')?'studio-v2-preflight':'studio-preflight');assert.equal(task.instance,'standard-4');if(oldStudioRenderer)throw Error('MOCK_STUDIO_UNAVAILABLE');}
-      if(film.scenes.some((scene:any)=>scene.block==='vox-clip@1')){trace.push('vox-preflight');if(oldVoxRenderer)throw Error('MOCK_VOX_UNAVAILABLE');}
+      if(film.scenes.some((scene:any)=>scene.block==='vox-clip@1')){trace.push(film.scenes.some((scene:any)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:any)=>item.focus))?'vox-highlight-preflight':'vox-preflight');if(oldVoxRenderer)throw Error('MOCK_VOX_UNAVAILABLE');}
       if(film.scenes.some((scene:any)=>scene.block==='canvas-title@1')){trace.push('canvas-preflight');if(oldCanvasRenderer)throw Error('MOCK_CANVAS_UNAVAILABLE');}
       if(film.scenes.some((scene:any)=>scene.block==='component-relay@1')){trace.push('relay-preflight');if(oldRelayRenderer)throw Error('MOCK_RELAY_UNAVAILABLE');
        if(oldScopedRelayRenderer&&film.scenes.some((scene:any)=>scene.params?.componentBehavior))throw Error('MOCK_SCOPED_RELAY_UNAVAILABLE');}
@@ -175,7 +175,7 @@ async function fixture({repair=false,alwaysRepair=false,coldBlock=false,missingK
    trace.push('claude-scene-502');return new Response('data: '+canonical({error:{code:502,type:'service_error'}})+'\n\ndata: [DONE]\n\n');
   }
   if(input.task.startsWith('Organize')){stage='facts';assert.match(provider.kind==='anthropic'?body.system[0].text:body.messages[0].content,/fact_analysis/);value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fixture-cta'],summary:'Original fixture CTA.'};}
-  else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
+  else if(input.task.startsWith('Describe')){stage='assets';value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:resource.sha256,promptVersion:'asset-insight-v1',model:providers.steps.assets,assetKind:'illustration',description:'Original fixture.',regions:relaySpec||voxFocus?[{label:'fixture detail',box:spec.assets.dashboard.roi[0]}]:[],dominantColors:[],visibleText:[],suitableBlocks:['ui-showcase']};}
   else if(input.task.startsWith('Propose')){stage='directions';directionInputs.push(input);
    const version=legacyCustomMethod?'1.1.0':frozenMethodVersion||directingMethodPack.version,[major,minor]=version.split('.').map(Number);
    assert.equal(body.max_tokens,(customScene||methodWithoutCustom)&&(major>1||major===1&&minor>=12)?32768:16384);
@@ -710,6 +710,16 @@ test('original Vox template is gated by frozen method and probes the actual rend
  assert.ok(!old.directionInputs[0].blocks.some((block:any)=>block.id==='vox-clip'));assert.ok(!old.trace.includes('vox-preflight'));
  const unsupported=await fixture({methodWithoutCustom:true,voxSpec:true,compactDirections:true,oldVoxRenderer:true});
  assert.equal(unsupported.error.message,'MOCK_VOX_UNAVAILABLE');assert.ok(!unsupported.models.includes('spec'));
+});
+
+test('Vox source highlighting requires the new method and probes the marked image path',async()=>{
+ const current=await fixture({methodWithoutCustom:true,voxSpec:true,voxFocus:true,compactDirections:true});assert.ifError(current.error);
+ assert.ok(current.trace.includes('vox-highlight-preflight'));
+ const block=current.directionInputs[0].blocks.find((value:any)=>value.id==='vox-clip');assert.ok(block.params.properties.items.items.properties.focus);
+ const old=await fixture({methodWithoutCustom:true,voxContext:true,frozenMethodVersion:'1.33.0'});assert.ifError(old.error);
+ assert.equal(old.directionInputs[0].blocks.find((value:any)=>value.id==='vox-clip').params.properties.items.items.properties.focus,undefined);
+ const rejected=await fixture({methodWithoutCustom:true,voxSpec:true,voxFocus:true,frozenMethodVersion:'1.33.0',compactDirections:true});
+ assert.equal(rejected.error.message,'FILM_RUNTIME_UNSUPPORTED');assert.ok(!rejected.trace.includes('vox-highlight-preflight'));
 });
 
 test('original Canvas title is offered only to its frozen method and probes actual text before use',async()=>{

@@ -57,6 +57,10 @@ test('original Vox template accepts only cleared stills and preserves a final re
  const film=filmFixture();film.scenes=[{id:'vox',start:0,end:450,kind:'block',block:'vox-clip@1',
   params:{intervalFrames:90,items:[{assetKey:'dashboard'},{assetKey:'dashboard'}]},purpose:'Two real source states.'}];
  assert.doesNotThrow(()=>make(film));
+ film.scenes[0].params.intervalFrames=120;film.scenes[0].params.items[0].focus='roi:0';assert.doesNotThrow(()=>make(film));
+ film.scenes[0].params.items[0].focus='roi:7';assert.throws(()=>make(film),/VOX_CLIP_ROI_INVALID/);
+ film.scenes[0].params.items[0].focus='roi:0';film.scenes[0].params.intervalFrames=90;assert.throws(()=>make(film),/VOX_CLIP_HIGHLIGHT_HOLD_MISSING/);
+ delete film.scenes[0].params.items[0].focus;film.scenes[0].params.intervalFrames=90;
  const video=options();video.resources[0].kind='video';assert.throws(()=>make(film,video),/VOX_CLIP_IMAGE_REQUIRED/);
  film.scenes[0].params.items[1].assetKey='missing';assert.throws(()=>make(film),/ASSET_SLOT_UNKNOWN|ASSET_UNKNOWN/);
 });

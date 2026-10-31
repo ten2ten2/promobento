@@ -9,6 +9,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {materialApproval} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
+import {assertStaticArtwork} from './artwork-format.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
 const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -72,21 +73,7 @@ async function bounded(work){
 }
 async function renderArtwork({page},bytes,mediaType){
  if(!bytes.length||bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');
- if(mediaType==='image/gif'||mediaType==='image/avif'){
-  const header=bytes.toString('ascii',0,6);
-  if(mediaType==='image/gif'&&!['GIF87a','GIF89a'].includes(header)
-   ||mediaType==='image/avif'&&(bytes.length<16||bytes.toString('ascii',4,8)!=='ftyp'))throw Error('ARTWORK_FORMAT_INVALID');
-  // A still image must not silently become the first frame of an animation.
-  // Decode metadata in the same offline browser that creates the PNG.
-  await bounded(page.evaluate(async({base64,mediaType})=>{
-   if(typeof ImageDecoder!=='function'||!await ImageDecoder.isTypeSupported(mediaType))throw Error('ARTWORK_ANIMATION_CHECK_UNAVAILABLE');
-   const raw=atob(base64),data=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)data[i]=raw.charCodeAt(i);
-   const decoder=new ImageDecoder({data,type:mediaType});
-   try{await decoder.tracks.ready;await decoder.completed;const track=decoder.tracks.selectedTrack;
-    if(!track||track.frameCount!==1)throw Error('ARTWORK_ANIMATION_UNSUPPORTED');
-   }finally{decoder.close();}
-  },{base64:bytes.toString('base64'),mediaType}));
- }
+ if(mediaType==='image/gif'||mediaType==='image/avif')assertStaticArtwork(bytes,mediaType);
  if(mediaType==='image/svg+xml'){
   let source;try{source=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{throw Error('ARTWORK_SVG_INVALID');}
   if(/<!\s*(?:DOCTYPE|ENTITY)/i.test(source))throw Error('ARTWORK_SVG_UNSUPPORTED');

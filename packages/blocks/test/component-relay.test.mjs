@@ -70,3 +70,15 @@ test('director accepts only a component region from the bound source observation
   assert.equal(relayObservationIssues(film,[{sha256:'other',regions:[{box:roi}]}],resources)[0].code,'RELAY_ROI_NOT_OBSERVED');
   assert.equal(relayObservationIssues({...film,assets:{...film.assets,first:{...film.assets.first,roi:[{...roi,x:.21}]}}},insights,resources)[0].code,'RELAY_ROI_NOT_OBSERVED');
 });
+
+test('Vox highlights must belong to the exact source image and preserve reading time',()=>{
+ const vox={id:'vox',kind:'block',block:'vox-clip@1',start:0,end:450,params:{intervalFrames:120,items:[{assetKey:'first',focus:'roi:0'},{assetKey:'second'}]}};
+ const film={scenes:[vox],assets:{first:{resourceId:'res_one',roi:[roi]},second:{resourceId:'res_two'}}};
+ const resources=[{resourceId:'res_one',sha256:'source-one'}],insights=[{sha256:'source-one',regions:[{box:roi,label:'visible detail'}]}];
+ assert.deepEqual(relayObservationIssues(film,insights,resources),[]);
+ assert.equal(relayObservationIssues(film,[{sha256:'other',regions:[{box:roi}]}],resources)[0].code,'VOX_ROI_NOT_OBSERVED');
+ assert.equal(relayObservationIssues({...film,assets:{...film.assets,first:{...film.assets.first,roi:[{...roi,x:.21}]}}},insights,resources)[0].path,'/scenes/0/params/items/0/focus');
+ assert.deepEqual(blockEvents('vox-clip',vox,vox.params).map(event=>event.frame),[18,69,138]);
+ assert.deepEqual(filmObservationFrames(film,'final'),[33,84,153]);
+ assert.throws(()=>blockEvents('vox-clip',vox,{...vox.params,intervalFrames:90}),/VOX_CLIP_HIGHLIGHT_HOLD_MISSING/);
+});

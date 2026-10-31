@@ -142,6 +142,8 @@ jobs:
           path: |
             artifacts/film-runtime/canvas-title-*.png
             artifacts/film-runtime/object-motion-*.png
+            artifacts/film-runtime/vox-focus-*.png
+            artifacts/film-runtime/vox-plain-*.png
             artifacts/film-runtime/asset-check.json
       - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
         if: inputs.suite != 'audio'
