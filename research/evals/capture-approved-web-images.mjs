@@ -30,11 +30,12 @@ export async function downloadApprovedImage(value,{resolveAddress=lookup,makeReq
  return new Promise((done,fail)=>{
   const req=makeRequest(url,{method:'GET',headers:{accept:'image/png,image/jpeg,image/webp'},timeout:15000,
    lookup(_host,options,callback){if(options.all)callback(null,[selected]);else callback(null,selected.address,selected.family);}},response=>{
+   response.on('error',fail);response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));
    if(response.statusCode!==200){response.destroy();fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));return;}
    const declared=Number(response.headers['content-length']);if(Number.isFinite(declared)&&declared>MAX_BYTES){response.destroy();fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}
    let length=0;const parts=[];
    response.on('data',chunk=>{length+=chunk.length;if(length>MAX_BYTES){response.destroy(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}parts.push(chunk);});
-   response.on('end',()=>done(Buffer.concat(parts)));response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));response.on('error',fail);
+   response.on('end',()=>done(Buffer.concat(parts)));
   });
   // Limit total wall time as well as socket inactivity; a slow stream cannot hold intake open forever.
   const deadline=setTimeout(()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')),15000);
