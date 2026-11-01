@@ -25,9 +25,9 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
-渲染与预览共用 [packages/fonts](../../packages/fonts/huashu/LICENSES.md) 的字体：huashu-motion 登记的 OFL WOFF，以及 `@fontsource` 固定 `5.0.3` 归档的 Geist Sans/Mono（未修改字节，保留 OFL 原文）。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
+原生预览与整片渲染从[固定完整上游安装](../../packages/native-motion/upstream.lock.json)取得字体，工程默认补齐 Inter Variable 和 Noto Sans SC 500/900，并保存实际 WOFF 字节及许可；加载方式见[渲染服务说明](../../apps/render-container/README.md)。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
 
-正式与CI镜像均由[build-render-fonts.mjs](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/scripts/build-render-fonts.mjs)核对现有登记的源／许可字节，转换WOFF2、记录输出摘要和cmap，并复制许可。生成字节不写回Git；工具版本随环境锁／构建清单固定。现有字库不保证任意语种无缺字，更广CJK／Emoji覆盖、客户选择／回退及准入服务仍须按实际文字验证。
+字体随固定上游字节一并校验，作品通过 `@font-face` 加载原始 WOFF；系统基础字体及工具版本随[环境锁](../../apps/render-container/environment.lock.json)固定。现有字库不保证任意语种无缺字，更广 CJK／Emoji 覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
 客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）可经负责人决定使用第三方品牌的公开截图、录屏和 Logo，但只限内部评测：素材存放在预发布 R2、不进 Git，成片不发布或对外展示，也不作营销样片。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
 

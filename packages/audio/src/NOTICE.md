@@ -1,30 +1,19 @@
-# 音频移植来源
+# 保留音频辅助与样本来源
+
+当前影片的声音由[完整 huashu 原生运行时](../../native-motion/README.md)生成，调用边界见[渲染服务说明](../../../apps/render-container/README.md)。本目录保留音频目录、采样辅助和原始样本，供既有素材与历史记录使用；旧 AudioPlan 合成、ABC 演奏适配及节拍分析入口已退役。
+
+[试听包装工具](../../../research/evals/prepare-audio-review.mjs)继续读取 `catalog.mjs` 的风格目录，整理已经生成的 13 段试听样本。负责人决定、原作 ABC 与派生 WAV 的依据见[试听决定](../../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)和[原作记录](../../../docs/evidence/2026-10-24-s1-audio-review/original-score-test-clearance.json)。历史作品、冻结输入、来源记录和已发布执行环境继续保留。
+
+## 辅助模块来源
 
 上游为 [huashu-motion@5f2608c2e12abcf518f74dde86093b19f7f88603](https://github.com/alchaincyf/huashu-motion/tree/5f2608c2e12abcf518f74dde86093b19f7f88603)，Copyright (c) 2026 Huashu，保留完整 [MIT 许可](LICENSE.huashu)。
 
 | 本地文件 | 上游路径 | 采用与修改 |
 | --- | --- | --- |
-| `dsp.mjs`、`fx.mjs` | `cli/lib/dsp.js`、`fx.js` | 固定 48 kHz 合成、滤波、混响、延迟、chorus、saturation、宽度及压缩；相对模块路径改为 `.mjs`。 |
-| `composer.mjs` | `cli/lib/composer.js` | ABC 解析和演奏；增加输入、操作、音符、声部及数值限额，修复未闭合字段循环，隔离对象键。 |
-| `score.mjs` | `cli/lib/score.js` | 13 种程序曲式及合成音色；删除环境采样选择、自动换音和未知音色回退，真实采样改显式 ID。 |
-| `composed.mjs` | `cli/lib/composed.js` | 配器、演奏、混响、谱面剪辑；去掉 HTML 读取和自动采样替换。 |
-| `sound.mjs` | `cli/lib/sound.js` 的纯计算部分 | 23 种音效、5 种 kit、音量与混音算法；去掉浏览器、文件读写、FFmpeg、环境变量选择与本地工程命令。最终音量仍由现有可信冻结流程实测。 |
+| `dsp.mjs` | `cli/lib/dsp.js` | 采样辅助共用的固定 48 kHz DSP，保留合成、滤波、包络和插值基础。 |
 | `samples.mjs` | `cli/lib/samples.js` 的插值及音符包络 | 固定小样本目录和有界 PCM 解码；删除目录发现、出网、静默解码失败及 `Math.random` 回退。 |
-| `beats.mjs` | `cli/lib/beats.js` | 谱通量、FFT、节拍及能量分析；去掉无限额外部解码，限于已审 30 秒 PCM，显式 confidence 和 4/4 假设。 |
 
-`index.mjs`、`plan.mjs` 与容器音频入口是 PromoBento 的接入代码，使用不可变 AudioPlan 和可信来源授权；WAV 母带响度由 FFmpeg 实测；母带越界时允许一次补偿增益与 4× 过采样、延迟补偿限幅，仍用相同门槛检查。没有移入旧 HTML、TTS、ASR、本地工程命令、示例和测试。
-
-WAV 合格不代替 AAC 编码后的验收。最终 MP4 的测量、一次有界纠正与失败阻断由[渲染服务 assemble](../../../apps/render-container/README.md)完成，冻结母带不覆盖。
-
-历史音频适配中的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
-
-旧 `ctx.OM.sfx`／场景静态提取适配已经随旧执行器退役。当前主线声音使用完整上游原生 sound 工具；本包保留的音源、ABC 与采样辅助用于既有素材及历史证据，不作为新的影片执行器。
-
-## Lead-in 事件先冻结，再合成
-
-`whoosh`、`whip`、`riser`、`reverse` 的 `at` 是冲击/收束落点，不是波形起点。便携目录保存 48 kHz 样本数，`deriveAudioPlan` 写入每个事件的 `sfxTiming:{anchorFrame,synthesisSamples,durationSamples,leadSamples}`，并计算覆盖实际声音的半开帧区间。`synthesisSamples` 是 DSP 请求时长，`durationSamples` 是实际源波形长度；现有 mix 给 riser/reverse 多一个偏移样本，原样保留，不为此改写已经验收的配乐。源样本零位于 `anchorFrame*1600-leadSamples`；仅在影片首尾裁切，早于片头的源样本不后移到片头。whip 的 6,336 样本前导不是整数帧，仍按样本精确对齐。整个音效都在片头之前时明确拒绝 `SFX_OUTSIDE_FILM`。
-
-合成器核对目录、冻结落点、DSP 实际 lead 和波形长度，不在执行时猜偏移；旧非 lead 事件及其计划字段保持不变。该接入的 PCM 对齐检查不代替新音效的最终母带实测或负责人试听。
+`catalog.mjs` 与类型声明保留旧风格、音效名称及样本时间常量；它们不构成新的影片执行器。
 
 ## 六个真实乐器样本
 
