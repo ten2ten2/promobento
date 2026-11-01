@@ -14,7 +14,7 @@ import {flushOutbox} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
-import {getReviewDraft} from '../src/director-recovery.ts';
+import {getReviewDraft, directorProgress, dispatchDirectorProgress} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -197,6 +197,16 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
   const waitForEvent = fakeAdmission(env);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
   const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalDB = env.DB;
+  let diagnosticWrites = 0;
+  env.DB = {...originalDB, prepare(sql) {
+    const prepared = originalDB.prepare(sql);
+    if (!sql.includes('UPDATE pipeline_attempts SET recovery_code=')) return prepared;
+    return {bind(...args) {prepared.bind(...args); return this;}, async run() {
+      diagnosticWrites++;
+      throw Error('Network connection lost.');
+    }};
+  }};
   let executions = 0, stops = 0;
   env.SHARDS = {getByName(id) {return {
     async recoverCompletedResult() {return null;},
@@ -217,6 +227,8 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
       imageDigest: 'sha256:' + 'a'.repeat(64), operationDeadlineAt: deadlineAt}), /RENDER_ATTEMPT_OUTCOME_UNKNOWN/);
   } finally {Date.now = realNow;}
   assert.equal(executions, 1); assert.ok(stops >= 1, 'reconciliation may repeat stop, but never relaunch compute');
+  assert.equal(diagnosticWrites, 2);
+  assert.equal(db.prepare('SELECT recovery_code FROM pipeline_attempts').get().recovery_code, null);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 0);
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations').get().reserved_micros, 500);
@@ -439,12 +451,25 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
 });
 
-test('replayed preflight recovers a checkpointed transport failure before a second physical attempt', async t => {
+for (const recoveryWriteOutage of [false, true]) {
+test('replayed preflight safely recovers a checkpointed transport failure' +
+  (recoveryWriteOutage ? ' even when both diagnostic writes fail' : ''), async t => {
   const {db, env, op, saved, objects} = await fixture(t);
   const waitForEvent = fakeAdmission(env);
   await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
     mode:'preview',rendererRelease:'native-release'});
   const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalDB = env.DB;
+  let diagnosticWrites = 0;
+  if (recoveryWriteOutage) env.DB = {...originalDB, prepare(sql) {
+    const prepared = originalDB.prepare(sql);
+    if (!sql.includes('UPDATE pipeline_attempts SET recovery_code=')) return prepared;
+    return {bind(...args) {prepared.bind(...args); return this;}, async run() {
+      diagnosticWrites++;
+      if (diagnosticWrites <= 2) throw Error('Network connection lost.');
+      return prepared.run();
+    }};
+  }};
   const cached = new Map();
   let executions = 0, recoveries = 0, stops = 0, interrupted = false, waits = 0;
   env.SHARDS = {getByName() {return {
@@ -475,7 +500,8 @@ test('replayed preflight recovers a checkpointed transport failure before a seco
   await assert.rejects(runNativeRenderTask(env, step, context), /SIMULATED_WORKFLOW_REPLAY/);
   const first = db.prepare('SELECT id,status,recovery_code,result_json FROM pipeline_attempts').get();
   assert.equal(first.status, 'active');
-  assert.equal(first.recovery_code, 'RENDER_RPC_CONNECTION_LOST');
+  assert.equal(diagnosticWrites, recoveryWriteOutage ? 2 : 0);
+  assert.equal(first.recovery_code, recoveryWriteOutage ? null : 'RENDER_RPC_CONNECTION_LOST');
   assert.equal(first.result_json, null, 'Workflow diagnostics never masquerade as authoritative Shard results');
   assert.equal(cached.get('native-project') && parseCanonicalJson(cached.get('native-project')).kind, 'render_outcome_pending');
 
@@ -489,11 +515,12 @@ test('replayed preflight recovers a checkpointed transport failure before a seco
   assert.equal(attempts.length, 2);
   assert.equal(db.prepare('SELECT status FROM pipeline_attempts WHERE id=?').get(first.id).status, 'failed');
   assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(first.id).result_json).code,
-    'RENDER_RPC_CONNECTION_LOST');
+    recoveryWriteOutage ? 'RENDER_ATTEMPT_DIAGNOSTIC_MISSING' : 'RENDER_RPC_CONNECTION_LOST');
   assert.equal(db.prepare("SELECT status FROM pipeline_render_admissions WHERE id=?").get(first.id).status, 'released');
   assert.equal((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId);
   assert.equal(executions, 2, 'durable replay cannot execute a settled attempt twice');
 });
+}
 
 test('a success materialized after the physical deadline and repeated unknown reads remains recoverable', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
@@ -846,6 +873,36 @@ test('Director completion events recover after Queue acknowledgement and exhaust
   assert.equal(received.length, 2, 'acknowledged events are not replayed by later sweeps');
 });
 
+test('a hung SSE progress RPC cannot stall Director hints or durable render events', async t => {
+  const {db,env,op,saved} = await fixture(t);
+  await createNativeRender(env,op,{renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  db.prepare("UPDATE pipeline_renders SET status='passed' WHERE id='native-render'").run();
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('operation',?,?,?,?,?)")
+    .run(op.id,op.id,op.generation,Date.now(),'huashu');
+  const payload=canonical({operationId:op.id,generation:op.generation,renderId:'native-render',status:'passed'});
+  db.prepare("INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)")
+    .run('progress-native-render',op.id,'render_progress',payload);
+  let progressCalls=0;
+  env.OPERATIONS={getByName(){return {async progress(){progressCalls++;return new Promise(()=>{});}};}};
+  const notices=[];
+  env.OPERATION_WORKFLOW={get(){return {async sendEvent(event){notices.push(event);}};}};
+  const originalSetTimeout=globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,ms,...args)=>
+    originalSetTimeout(callback,Math.min(ms,12),...args));
+  await directorProgress(env,op,'previewing');
+  const outboxItem={id:'progress-native-render',kind:'render_progress',operationId:op.id,payloadJson:payload};
+  await deliverDirectorEvent(env,outboxItem);
+  await deliverDirectorEvent(env,outboxItem);
+  assert.equal(progressCalls,2);
+  assert.equal(notices.length,1,'best-effort SSE cannot cause another delivery of an acknowledged Director event');
+  assert.ok(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(outboxItem.id).director_event_done_at);
+
+  db.prepare("UPDATE pipeline_operations SET status='succeeded' WHERE id=?").run(op.id);
+  await assert.rejects(dispatchDirectorProgress(env,{operationId:op.id,payloadJson:canonical({operationId:op.id,generation:op.generation,status:'succeeded'})}),
+    /CONTROL_RPC_TIMEOUT/);
+});
+
 test('concurrent user choices commit one winner and recover its durable Director event after an API outage', async t => {
   const {db,env,op} = await fixture(t);
   const directionsHash = 'd'.repeat(64);
@@ -1080,4 +1137,56 @@ test('a failed native render stays blocked until physical cleanup is confirmed',
   row = db.prepare('SELECT status,result_json FROM pipeline_renders').get();
   assert.equal(parseCanonicalJson(row.result_json).code, 'NATIVE_RENDER_FAILED');
   assert.equal(parseCanonicalJson(row.result_json).stopPending, false);
+});
+
+test('a hung physical stop preserves terminal notification and leaves cleanup retryable', async t => {
+  const {db, env, op, saved, sent} = await fixture(t);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'export',rendererRelease:'native-release'});
+  const token = '11111111-1111-4111-8111-111111111111';
+  db.prepare(`INSERT INTO pipeline_render_admissions
+    (id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,
+      lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,0,'running',?,?,?,?,?)`)
+    .run('stalled-attempt','native-render',op.id,op.generation,op.workspace_id,Date.now()-1,
+      Date.now()+60_000,token,Date.now(),Date.now()+600_000);
+  db.prepare(`INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at)
+    VALUES(?,?,?,?,?,?,?,?)`).run('stalled-attempt','native-render',op.id,op.generation,
+    'native_export','standard-3','active',Date.now());
+  for (const [kind,id] of [['render','native-render'],['operation',op.id]])
+    db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES(?,?,?,?,?,'huashu')")
+      .run(kind,id,op.id,op.generation,Date.now());
+  let stops = 0;
+  env.SHARDS = {getByName() {return {async stopAndSettle() {stops++; return new Promise(() => {});}};}};
+  env.RENDER_WORKFLOW = {get() {return {async status() {return {status:'errored',error:{message:'NATIVE_RENDER_FAILED'}};}};}};
+  const notifications = [];
+  env.OPERATION_WORKFLOW = {get() {return {
+    async status() {return {status:'running'};},
+    async sendEvent(event) {notifications.push(event);},
+  };}};
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,ms,...args)=>
+    originalSetTimeout(callback,Math.min(ms,12),...args));
+
+  await assert.rejects(recordRenderFailure(env,'native-render','NATIVE_RENDER_FAILED'),/COMPUTE_STOP_UNCONFIRMED/);
+  const render = db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get('native-render');
+  assert.equal(render.status,'blocked');
+  assert.equal(parseCanonicalJson(render.result_json).stopPending,true);
+  const terminalId = 'render-terminal-native-render';
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox WHERE id=?').get(terminalId).n,1,
+    'the failure event is durable before physical cleanup');
+  assert.equal(db.prepare('SELECT stopped_at FROM pipeline_attempts WHERE id=?').get('stalled-attempt').stopped_at,null);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get('stalled-attempt').status,'running');
+
+  for (let cycle=0;cycle<2;cycle++) {
+    const rows = await recoverWorkflows(env);
+    assert.ok(rows.some(row=>row.kind==='render'&&row.status==='unconfirmed'));
+    await recoverDirectorEvents(env);
+    await flushOutbox(env,terminalId);
+  }
+  assert.ok(stops>=3,'later recovery attempts cleanup without claiming it succeeded');
+  assert.equal(notifications.length,1,'the Director gets the durable failure only once');
+  assert.equal(notifications[0].payload.status,'blocked');
+  assert.equal(sent.filter(item=>item.id===terminalId).length,1);
+  assert.ok(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(terminalId).director_event_done_at);
+  assert.equal(db.prepare('SELECT stopped_at FROM pipeline_attempts WHERE id=?').get('stalled-attempt').stopped_at,null);
 });

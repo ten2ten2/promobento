@@ -224,6 +224,33 @@ test('admission event can arrive before wait; only then can an attempt start its
   assert.equal(await claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, token), deadlineAt);
 });
 
+test('a hung best-effort progress RPC cannot consume the claimed execution window', async t => {
+  const {db, env, leases, add, addTicket} = fixture(t);
+  const first = add('shared-workspace',{mode:'preview'});
+  const second = add('shared-workspace',{mode:'preview'});
+  const ticket = await requestRenderAdmission(env,first.renderId,first.op,'progress-hung',0);
+  const nextId = addTicket(second);
+  const token = db.prepare('SELECT lease_token FROM pipeline_render_admissions WHERE id=?').get(ticket.id).lease_token;
+  let reports = 0;
+  env.OPERATIONS = {getByName() {return {async progress() {reports++; return new Promise(() => {});}};}};
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,ms,...args)=>
+    originalSetTimeout(callback,Math.min(ms,15),...args));
+
+  const deadline = await claimRenderAdmission(env,first.op,{renderId:first.renderId,mode:'preview'},ticket.id,token);
+  assert.ok(deadline>Date.now());
+  assert.equal(reports,1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_attempts WHERE id=?').get(ticket.id).status,'active');
+  assert.equal(leases.size,1);
+  await env.SHARDS.getByName(ticket.id).stopAndSettle();
+  await env.DB.prepare("UPDATE pipeline_attempts SET status='stopped',stopped_at=? WHERE id=?")
+    .bind(Date.now(),ticket.id).run();
+  await env.COORDINATOR.getByName('global-v1').release(ticket.id,token);
+  await dispatchRenderAdmissions(env);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(nextId).status,'admitted',
+    'a healthy same-workspace ticket is not held by the previous progress RPC');
+});
+
 test('overlapping claims recover the first committed batch after a zero-row retry', async t => {
   const {db, env, add} = fixture(t);
   const pending = add('claim-overlap', {mode: 'preview'});

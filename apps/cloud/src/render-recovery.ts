@@ -11,10 +11,10 @@ export const renderFailureCode=(error:unknown)=>error instanceof Error&&/^[A-Z][
 
 async function stopAttempts(env:PipelineEnv,attempts:Array<{id:string}>){
  const stopped=await Promise.allSettled(attempts.map(async attempt=>{
-  await env.SHARDS.getByName(attempt.id).stopAndSettle();
+  await boundedControl(env.SHARDS.getByName(attempt.id).stopAndSettle());
   // An attempt may have failed before the DO bound taskId. The confirmed stop still belongs to this row.
-  await env.DB.prepare("UPDATE pipeline_attempts SET status=CASE WHEN status='active' THEN 'stopped' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?")
-   .bind(Date.now(),attempt.id).run();
+  await boundedControl(env.DB.prepare("UPDATE pipeline_attempts SET status=CASE WHEN status='active' THEN 'stopped' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?")
+   .bind(Date.now(),attempt.id).run());
  }));
  return stopped.filter(result=>result.status==='rejected').length;
 }
@@ -31,9 +31,14 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
  if(!row)throw Error('RENDER_NOT_FOUND');if(row.status==='passed')return;
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Json>();
  const status=op?.status==='cancelled'||op&&op.generation!==row.generation?'cancelled':'blocked';
- // Fence new attempts before taking the stop inventory. Already-enqueued RPCs are fenced by the DO's stop latch.
- await env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=json_set(COALESCE(result_json,'{}'),'$.status',?,'$.code',COALESCE(json_extract(result_json,'$.code'),?),'$.stopPending',json('true')) WHERE id=? AND status<>'passed'")
-  .bind(status,Date.now(),status,code,renderId).run();
+ // Persist the terminal notification with the failure fence, before any
+ // physical stop RPC. A stuck stop must not hide a known failure from Director.
+ await env.DB.batch([
+  env.DB.prepare("UPDATE pipeline_renders SET status=?,finished_at=COALESCE(finished_at,?),result_json=json_set(COALESCE(result_json,'{}'),'$.status',?,'$.code',COALESCE(json_extract(result_json,'$.code'),?),'$.stopPending',json('true')) WHERE id=? AND status<>'passed'")
+   .bind(status,Date.now(),status,code,renderId),
+  env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.status='blocked' AND o.status='active' AND o.generation=r.generation)")
+   .bind('render-terminal-'+renderId,row.operation_id,'render_terminal',canonical({renderId,operationId:row.operation_id,generation:row.generation,status}),renderId),
+ ]);
  await env.DB.prepare("UPDATE pipeline_render_admissions SET status='cancelled' WHERE render_id=? AND status='queued'")
   .bind(renderId).run();
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE render_id=? AND stopped_at IS NULL').bind(renderId).all<{id:string}>();
@@ -41,8 +46,6 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
  const stopPending=attemptFailures>0||admissionStop;
  await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.stopPending',json(?)) WHERE id=? AND status=?")
   .bind(canonical(stopPending),renderId,status).run();
- await env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.status='blocked' AND o.status='active' AND o.generation=r.generation)")
-  .bind('render-terminal-'+renderId,row.operation_id,'render_terminal',canonical({renderId,operationId:row.operation_id,generation:row.generation,status}),renderId).run();
  if(stopPending)throw Error('COMPUTE_STOP_UNCONFIRMED');
 }
 
@@ -127,7 +130,7 @@ export async function dispatchRenderProgress(env:PipelineEnv,item:Json){
  if(row?.status!=='passed'||row.operation_id!==item.operationId||row.generation!==value.generation
   ||!op||!['active','awaiting_user','succeeded'].includes(op.status)||op.generation!==value.generation)return;
  await notifyDirectorRender(env,item.operationId,value.renderId,value.generation,'passed');
- try{await env.OPERATIONS.getByName(item.operationId).progress(canonical(value));}catch{ /* SSE delivery is not a commit prerequisite. */ }
+ try{await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical(value)),3_000);}catch{ /* SSE delivery is not a commit prerequisite. */ }
 }
 
 async function notifyDirectorRender(env:PipelineEnv,operationId:string,renderId:string,generation:number,status:string){

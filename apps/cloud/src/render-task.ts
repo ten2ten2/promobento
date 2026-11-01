@@ -8,7 +8,7 @@ import type {PipelineEnv, Json, Operation} from './pipeline-types.ts';
 
 const retryable = new Set(['RENDER_CAPACITY_UNAVAILABLE', 'RENDER_STARTUP_CONNECTION_LOST', 'RENDER_DISPATCH_CONNECTION_LOST',
   'RENDER_EXECUTE_CONNECTION_LOST', 'RENDER_RPC_CONNECTION_LOST', 'RENDER_BROKER_CONNECTION_LOST',
-  'RENDER_BROKER_REGISTRATION_TIMEOUT', 'RENDER_STARTUP_TIMEOUT']);
+  'RENDER_BROKER_REGISTRATION_TIMEOUT', 'RENDER_STARTUP_TIMEOUT', 'RENDER_ATTEMPT_DIAGNOSTIC_MISSING']);
 const hardRecoveryErrors = new Set(['RENDER_ATTEMPT_SCOPE_INVALID', 'NATIVE_RENDER_EVIDENCE_INVALID',
   'OPERATION_FENCED', 'RENDER_ADMISSION_CONFLICT', 'RENDER_ATTEMPT_OUTCOME_CONFLICT']);
 const outcomePending = Symbol('render-outcome-pending');
@@ -97,8 +97,9 @@ async function confirmedUnstartedAttempt(env: PipelineEnv, op: Operation, render
   return Boolean(row);
 }
 
-/** A checkpointed transport failure must also be readable by a replayed preflight.
- * This is only fallback evidence; the Shard's result_json always takes priority. */
+/** Persist checkpointed transport diagnostics when D1 is available.
+ * This is only fallback evidence; the Shard's result_json always takes priority,
+ * and recovery without this write still requires every physical stop barrier. */
 async function rememberFailureReason(env: PipelineEnv, op: Operation, renderId: string,
   attemptId: string, index: number, mode: string, leaseToken: string, code: string) {
   for (let tries = 0; tries < 2; tries++) {
@@ -232,7 +233,9 @@ async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: str
       JOIN pipeline_render_admissions a ON a.id=p.id
       JOIN pipeline_renders r ON r.id=p.render_id JOIN pipeline_operations o ON o.id=p.operation_id
       WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=? AND p.mode=?
-        AND p.status IN ('active','stopped') AND a.attempt_index=? AND a.workspace_id=?
+        AND p.status IN ('active','stopped') AND a.render_id=p.render_id
+        AND a.operation_id=p.operation_id AND a.generation=p.generation
+        AND a.attempt_index=? AND a.workspace_id=? AND a.attempt_deadline_at IS NOT NULL
         AND a.status IN ('running','released') AND a.lease_token IS NOT NULL
         AND r.status IN ('rendering','verifying') AND r.generation=p.generation
         AND o.status='active' AND o.generation=p.generation`)
@@ -242,9 +245,10 @@ async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: str
   if (!row) return outcomePending;
   const diagnostic = row.result_json ? parseCanonicalJson(row.result_json) as Json : null;
   const code = diagnostic?.status === 'failed' && typeof diagnostic.code === 'string'
-    ? diagnostic.code : row.recovery_code ?? fallbackCode;
-  // Missing diagnostics from a lost execution coroutine are not proof of failure.
-  if (!code) return outcomePending;
+    ? diagnostic.code : row.recovery_code ?? fallbackCode ?? 'RENDER_ATTEMPT_DIAGNOSTIC_MISSING';
+  // A missing fallback code is not proof that execution failed. Only a Shard
+  // recovery returning no success, confirmed stop, released lease and settled
+  // compute can turn it into this conservative retryable failure.
   const shard = env.SHARDS.getByName(attemptId);
   try {
     await bounded(shard.stopAndSettle());
