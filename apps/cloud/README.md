@@ -16,9 +16,11 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 NativeProject 与 release，形成 R2 中的 `native_render_request`。operation generation 由 D1 渲染记录和内部 `native_render_task` 绑定，不由客户端提交。清单先经预编译 Schema 与共享语义校验，再核对实际文件、画幅和 release；作品不能设置预算、存储权限、编码或付费动作。
 
-`RenderWorkflow` 负责读取、准入、运行一次完整任务、核验回执及提交。平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止和计算结算均确认后，才允许另一个 attempt。原期限、operation generation、累计预算均不重置。
+`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；失败终态通知与渲染失败状态同事务保存，不等待物理停机确认才写入；事件实际送达结果独立记录，定时 sweep 补发。Queue、Workflow/Director 恢复、停机清理、非关键进度上报和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
 
-初始执行上限为全局 4 个容器、每工作区 1 个，`standard-3`，预览 3 分钟、导出 10 分钟，原生渲染并发由容器固定为 1。这些是止损与容量上限，尚不是已测出的性能承诺。
+平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止、计算结算和租约释放均确认后，才允许另一个 attempt。Workflow 观察到的传输失败代码单独保存在 `pipeline_attempts.recovery_code`，供重放预检恢复；Shard 的 `result_json` 仍是更高优先级的执行诊断。若该诊断写入暂时不可用，必须再确认 Shard 无成功结果及全部停机／结算／租约屏障，才允许把缺失诊断归类为可重试失败，未知费用仍禁止重发。claim 前租约失效或预检读取暂时失败时，只有确认同一作用域没有物理执行或费用，才允许复用原 ticket 的剩余排队窗口；不消耗物理重试次数。排队过期不产生物理 attempt；取消和晚到事件受 generation/token 拦截。初始持久等待上限 15 分钟、单次预览／导出执行上限 3／10 分钟，单个渲染总上限 30／45 分钟（含排队、重试及验证）；内部评估值尚未经过真实云端标定，不能当作客户 SLA。
+
+初始执行上限为全局 4 个容器、每工作区 1 个，`standard-3`，原生渲染并发由容器固定为 1。这些是止损与容量上限，尚不是已测出的性能承诺。已付交付容量保护和资源分档属于客户账本接入后的工作，当前 `internal_eval` 仅实现公平的内部任务准入。
 
 ## 隔离与回执
 
@@ -26,11 +28,11 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 
-取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。未确认费用继续占用原预留，不写成 0，不自动重发模型。
+取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。费用预留和内部操作创建按完整身份进行并发幂等校验。上传对象按声明字节数边读取边检查，写入后复核 R2 实际摘要，防止竞争写入误报成功。SSE 进度流对慢读者设置缓冲上限与连接数上限，断开后可重新订阅最新进度。
 
 ## 部署标识与账本
 
-迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
+迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；`0005_render_admissions.sql` 添加独立排队记录和排队／单任务总期限，不修改历史费用或成片记录。旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
 
 `SHARDS` / `ShardDO` 是 Cloudflare 已登记的 Durable Object 绑定/类名，**目前承载的是完整 native job**，不能仅凭名称删除。更名须单独规划 DO 迁移，确保执行中的真实容器和费用可结算。旧 `shard_index` 只存在于已应用的数据库迁移/历史行，当前任务与 API 不使用它。
 
@@ -58,7 +60,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 | `POST operations/:id/cancel` | generation fence 与持久清理 |
 | `GET operations/:id/recovery` | Workflow、实际停止状态、已结与未知费用 |
 | `POST operations/:id/reconcile` | 清理已终止操作，不重启创作 |
-| `GET capacity`、`GET model-budget` | 只读容量与共享账本 |
+| `GET capacity`、`GET model-budget` | 只读当前租约、待准入任务数／最久等待和共享账本 |
 | `POST releases`、`GET releases/:id` | 登记或读取固定容器镜像摘要与原生 runtime commit |
 
 注册 release 时 `runtimeVersion` 必须为固定 huashu commit；不提供旧 `/studio`、`/frames` 等入口。公开 `/healthz` 返回 `nativeProjectSchema: "1.0.0"`、`runtime: "huashu-motion"` 和原生 commit；**产品 PRD 协议 3.0.0 与内部文件清单 1.0.0 是不同版本域**。

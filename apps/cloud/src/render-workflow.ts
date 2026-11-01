@@ -5,9 +5,9 @@ import {operation, getJson} from './store.ts';
 import {advanceRenderStage, commitRender, recordRenderFailure, renderFailureCode} from './render-recovery.ts';
 import {verifyNativeResult} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
+import {flushOutbox} from './outbox.ts';
 import {runNativeRenderTask} from './render-task.ts';
 import {verifyNativeInputs, validateFrameTimes, NATIVE_COMMIT} from './native-project.ts';
-import {nativeRenderPolicy} from './native-task.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: string}> {
@@ -31,13 +31,12 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const release = await this.env.DB.prepare('SELECT image_digest,runtime_version FROM renderer_releases WHERE id=? AND status=\'active\'')
         .bind(input.rendererRelease).first<{image_digest: string; runtime_version: string}>();
       if (!release || release.runtime_version !== NATIVE_COMMIT) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-      const deadlineAt = await step.do<number>('native-deadline', async () =>
-        Number(row.created_at) + (input.mode === 'preview' ? nativeRenderPolicy.previewDeadlineMs : nativeRenderPolicy.exportDeadlineMs));
-      await step.do('mark-rendering', async () => {await advanceRenderStage(this.env, row.id, op, 'rendering'); return true;});
-      try {await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId: op.id, renderId: row.id, status: 'rendering'}));} catch {}
-      const rendered = await runNativeRenderTask(this.env, step, {renderId: row.id, op, input, imageDigest: release.image_digest, deadlineAt});
-      return parseCanonicalJson(await step.do('verify-and-commit-native-render', {retries: {limit: 0, delay: '1 second'}}, async () => {
-        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
+      const operationDeadlineAt = Number(row.operation_deadline_at);
+      if (!Number.isSafeInteger(operationDeadlineAt) || operationDeadlineAt <= Date.now()) throw Error('RENDER_OPERATION_DEADLINE');
+      const rendered = await runNativeRenderTask(this.env, step, {renderId: row.id, op, input,
+        imageDigest: release.image_digest, operationDeadlineAt});
+      const result = parseCanonicalJson(await step.do('verify-and-commit-native-render', {retries: {limit: 0, delay: '1 second'}}, async () => {
+        if (Date.now() >= operationDeadlineAt) throw Error('RENDER_OPERATION_DEADLINE');
         await operation(this.env, op.id, op.generation);
         await advanceRenderStage(this.env, row.id, op, 'verifying');
         await verifyNativeResult(this.env, input, rendered);
@@ -46,17 +45,20 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
           attemptId: rendered.attemptId, environmentHealth: rendered.environmentHealth ?? null,
           lifecycleTimings: rendered.lifecycleTimings ?? null};
         const serialized = canonical(result);
-        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
+        if (Date.now() >= operationDeadlineAt) throw Error('RENDER_OPERATION_DEADLINE');
         await operation(this.env, op.id, op.generation);
         await commitRender(this.env, row.id, op, serialized);
         return serialized;
       })) as Json;
+      try {await flushOutbox(this.env,'progress-'+row.id);}catch{ /* The outbox sweep retries delivery. */ }
+      return result;
     } catch (error) {
       const code = renderFailureCode(error);
       await step.do('fail-render', {retries: {limit: 3, delay: '1 second', backoff: 'exponential'}, timeout: '1 minute'}, async () => {
         await recordRenderFailure(this.env, row.id, code);
         return true;
       });
+      try {await flushOutbox(this.env,'render-terminal-'+row.id);}catch{}
       throw error;
     }
   }

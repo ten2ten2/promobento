@@ -19,6 +19,8 @@ import {modelStep,ModelJsonOutputError} from './model-client.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
 import {workflowStarted} from './workflow-state.ts';
+import {renderCompletionEventType} from './render-recovery.ts';
+import {checkpointWaitSeconds} from './workflow-wait.ts';
 import {NATIVE_COMMIT,saveNativeProject,loadNativeProject,createNativeRender,getNativeRender,checkedNativeBytes,type SavedNativeProject} from './native-project.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 
@@ -186,15 +188,17 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    };
    const render=async(name:string,saved:SavedNativeProject,mode:'preview'|'export',frames?:number[])=>{
     const renderId='native-'+digest({operationId:op.id,generation:op.generation,name,revisionId:saved.revisionId,mode}).slice(0,48);
-    return parseCanonicalJson(await step.do<string>('render-'+name,{...noRetry,timeout:'12 minutes'},async()=>{
+    await step.do('render-submit-'+name,noRetry,async()=>{
      await guard();await rights(this.env,op,material.resources);
      await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
-     while(Date.now()<deadline()){
-      await guard();const state=await getNativeRender(this.env,op,renderId);
-      if(state?.status==='passed')return canonical({renderId,result:state.result});
-      if(state&&['blocked','failed','cancelled'].includes(state.status))throw Error(state.result?.code??'NATIVE_RENDER_FAILED');
-      await new Promise(resolve=>setTimeout(resolve,1000));
-     }throw Error('RENDER_DEADLINE');
+     return true;
+    });
+    const seconds=await checkpointWaitSeconds(step,'render-complete-'+name,deadline(),'OPERATION_DEADLINE');
+    await step.waitForEvent('render-complete-'+name,{type:renderCompletionEventType(renderId),timeout:`${seconds} seconds`});
+    return parseCanonicalJson(await step.do<string>('render-receipt-'+name,noRetry,async()=>{
+     await guard();const state=await getNativeRender(this.env,op,renderId);
+     if(state?.status==='passed')return canonical({renderId,result:state.result});
+     throw Error(state?.result?.code??'NATIVE_RENDER_FAILED');
     })) as Json;
    };
    const observe=async(movie:Json)=>{
@@ -240,6 +244,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const choice=await step.waitForEvent<{key:string;directionsHash:string}>('direction-choice',{type:'direction-choice',timeout:'24 hours'});
     direction=directions.cards.find((card:Json)=>card.key===choice.payload.key)??null;
     if(choice.payload.directionsHash!==directionsHash||!direction)throw Error('DIRECTION_CHOICE_INVALID');language=direction.language;
+    await step.do('verify-direction-choice',noRetry,async()=>{
+     const persisted=await this.env.DB.prepare('SELECT choice,choice_hash,directions_hash FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
+     if(persisted?.choice!==choice.payload.key||persisted.choice_hash!==digest(choice.payload)||persisted.directions_hash!==directionsHash)
+      throw Error('DIRECTION_CHOICE_INVALID');
+    });
     const resumed=await step.do('resume-after-choice',noRetry,async()=>{await operation(this.env,op.id,op.generation);await this.env.DB.prepare("UPDATE pipeline_operations SET status='active' WHERE id=? AND generation=? AND status='awaiting_user'").bind(op.id,op.generation).run();return Date.now();});pausedMs=resumed-waitStarted;
     await progress('treatment');treatment=await runTool('treatment','treatment','write_treatment',{task:'Write the selected native film Treatment: creative premise, hook, reveal/payoff, rhythm, actual material selection, music/effects, named hardest shot and complete beat map. Preserve 15/30-second delivery. Choose four key review frames. No implementation DSL.',brief,direction,materials:publicMaterials(material.materials),insights,
      timingEvidence,timingRule:'Only supplied same-source measured alignment may anchor spoken events. Otherwise use explicitly authored time; no fabricated cues.'});

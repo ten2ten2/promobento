@@ -1,13 +1,8 @@
 import {nativeProjectHash} from '@promobento/contracts/native-project';
 import {NATIVE_COMMIT, validateFrameTimes, assertCloudNativeProject} from './native-project.ts';
 import {validId, type Json} from './pipeline-types.ts';
-
-/** Initial bounds are admission limits, not measured performance promises. */
-export const nativeRenderPolicy = {
-  instance: 'standard-3', globalInstances: 4, workspaceInstances: 1,
-  previewDeadlineMs: 180000, exportDeadlineMs: 600000,
-  containerStartupMs: 45000, maxAttempts: 2,
-} as const;
+import {nativeRenderPolicy} from './native-policy.ts';
+export {nativeRenderPolicy} from './native-policy.ts';
 
 export async function assertNativeExecution(task: Json) {
   if (task.schemaVersion !== '1.0.0' || task.kind !== 'native_render_task'
@@ -15,6 +10,7 @@ export async function assertNativeExecution(task: Json) {
     || !validId(task.rendererRelease) || task.runtimeVersion !== NATIVE_COMMIT
     || !Number.isSafeInteger(task.generation) || task.generation < 0
     || !Number.isSafeInteger(task.deadlineAt) || task.deadlineAt <= 0
+    || typeof task.leaseToken !== 'string' || !/^[a-f0-9-]{36}$/.test(task.leaseToken)
     || task.instance !== nativeRenderPolicy.instance || !/^sha256:[a-f0-9]{64}$/.test(task.imageDigest))
     throw Error('NATIVE_TASK_INVALID');
   assertCloudNativeProject(task.project);

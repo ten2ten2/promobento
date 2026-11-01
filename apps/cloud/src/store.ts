@@ -11,6 +11,22 @@ export async function readJson(request: Request, limit = 4 << 20): Promise<Json>
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) {bytes.set(chunk, offset); offset += chunk.length;}
   return parseCanonicalJson(bytes) as Json;
 }
+/** Enforce the declared upload length while streaming; a forged small header must not allocate an unbounded body. */
+export async function readExactBytes(request:Request,length:number):Promise<Uint8Array>{
+  if(!Number.isSafeInteger(length)||length<0||length>50<<20)throw Error('OBJECT_TOO_LARGE');
+  const bytes=new Uint8Array(length),reader=request.body?.getReader();
+  if(!reader){if(length)throw Error('OBJECT_LENGTH_MISMATCH');return bytes;}
+  let offset=0;
+  try{
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;
+      if(value.byteLength>length-offset)throw Error('OBJECT_LENGTH_MISMATCH');
+      bytes.set(value,offset);offset+=value.byteLength;
+    }
+  }finally{await reader.cancel().catch(()=>{});}
+  if(offset!==length)throw Error('OBJECT_LENGTH_MISMATCH');
+  return bytes;
+}
 export async function operation(env: PipelineEnv, id: string, generation?: number): Promise<Operation> {
   const row = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Operation>();
   if (!row || !['active', 'awaiting_user'].includes(row.status) || generation !== undefined && row.generation !== generation) throw Error('OPERATION_FENCED');
@@ -45,11 +61,21 @@ export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,
   max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER, preventPendingReplay = false) {
   if (!Number.isSafeInteger(max) || max < 0) throw Error('COST_RESERVATION_INVALID');
-  const hash = digest(request), existing = await env.DB.prepare('SELECT request_hash FROM cost_reservations WHERE id=?').bind(id).first<{request_hash: string}>();
-  if (existing) { if (existing.request_hash !== hash) throw Error('IDEMPOTENCY_CONFLICT'); return; }
+  const hash = digest(request);
+  const sameReservation = (row: {operation_id: string;request_hash: string;kind: string;stage: string;reserved_micros: number;catalog_version: string}) =>
+    row.operation_id === op.id && row.request_hash === hash && row.kind === kind && row.stage === stage
+      && row.reserved_micros === max && row.catalog_version === catalogVersion;
+  const existing = await env.DB.prepare('SELECT operation_id,request_hash,kind,stage,reserved_micros,catalog_version FROM cost_reservations WHERE id=?')
+    .bind(id).first<{operation_id: string;request_hash: string;kind: string;stage: string;reserved_micros: number;catalog_version: string}>();
+  if (existing) {if (!sameReservation(existing)) throw Error('IDEMPOTENCY_CONFLICT');return;}
   const sum = 'SELECT COALESCE(SUM(COALESCE(s.actual_micros,r.reserved_micros)),0) FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id';
-  const result = await env.DB.prepare(`INSERT INTO cost_reservations(id,operation_id,request_hash,kind,stage,reserved_micros,catalog_version,created_at)
+  const result = await env.DB.prepare(`INSERT OR IGNORE INTO cost_reservations(id,operation_id,request_hash,kind,stage,reserved_micros,catalog_version,created_at)
     SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')
+    AND (?<>'compute' OR EXISTS(SELECT 1 FROM pipeline_attempts p
+      JOIN pipeline_render_admissions a ON a.id=p.id JOIN pipeline_renders r ON r.id=p.render_id
+      WHERE p.id=? AND p.operation_id=? AND p.generation=? AND p.status='active' AND p.stopped_at IS NULL
+        AND a.status='running' AND a.render_id=p.render_id AND a.operation_id=p.operation_id
+        AND a.generation=p.generation AND r.status='rendering' AND r.generation=p.generation))
     AND (${sum} WHERE r.operation_id=?) + ? <= ? AND (${sum} WHERE r.kind=?) + ? <= ?
     AND (${sum} WHERE r.operation_id=? AND r.kind=? AND r.stage=?) + ? <= ?
     AND (SELECT COUNT(*) FROM cost_reservations WHERE operation_id=? AND kind=? AND stage=?) < ?
@@ -57,9 +83,15 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
       AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL))`)
     .bind(id, op.id, hash, kind, stage, max, catalogVersion, Date.now(), op.id, op.generation,
+      kind, id, op.id, op.generation,
       op.id, max, op.max_micros, kind, max, globalLimit, op.id, kind, stage, max, stageLimit, op.id, kind, stage, maxCalls,
       preventPendingReplay?1:0,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).run();
   if (result.meta.changes !== 1) {
+    // Two identical reservations can both miss the preflight read. Only the
+    // exact same cost identity can turn the losing INSERT into a safe replay.
+    const winner = await env.DB.prepare('SELECT operation_id,request_hash,kind,stage,reserved_micros,catalog_version FROM cost_reservations WHERE id=?')
+      .bind(id).first<typeof existing>();
+    if (winner) {if (!sameReservation(winner)) throw Error('IDEMPOTENCY_CONFLICT');return;}
     if(preventPendingReplay&&await env.DB.prepare(`SELECT r.id FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
       AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)

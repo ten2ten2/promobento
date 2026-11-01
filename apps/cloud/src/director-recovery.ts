@@ -1,6 +1,7 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {immutableJson,getJson} from './store.ts';
 import {reconcileOperation} from './render-recovery.ts';
+import {boundedControl} from './control-batch.ts';
 import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
 
 export const directorFailureCode=(error:unknown)=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'DIRECTOR_INTERNAL_ERROR';
@@ -8,7 +9,7 @@ const notice=(op:Operation,status:string)=>({operationId:op.id,generation:op.gen
 
 /** Intermediate UI hints are best-effort; the terminal notice is committed to the outbox below. */
 export async function directorProgress(env:PipelineEnv,op:Operation,status:string){
- try{await env.OPERATIONS.getByName(op.id).progress(canonical(notice(op,status)));}catch{}
+ try{await boundedControl(env.OPERATIONS.getByName(op.id).progress(canonical(notice(op,status))),3_000);}catch{}
 }
 
 export async function commitCandidate(env:PipelineEnv,op:Operation,key:string){
@@ -67,5 +68,5 @@ export async function dispatchDirectorProgress(env:PipelineEnv,item:Json){
  if(value.operationId!==item.operationId)throw Error('OUTBOX_SCOPE_INVALID');
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Json>();
  if(value.status!=='succeeded'||op?.status!=='succeeded'||op.generation!==value.generation)return;
- await env.OPERATIONS.getByName(item.operationId).progress(canonical(value));
+ await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical(value)),3_000);
 }

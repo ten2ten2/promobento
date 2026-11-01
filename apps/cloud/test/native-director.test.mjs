@@ -7,8 +7,16 @@ import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
+import {checkpointWaitSeconds} from '../src/workflow-wait.ts';
 
 const nativeCommit='52467f99c602b76ba86d511d37acdfe93fa1e16e';
+
+test('direction renders replay their checkpointed wait after a 24-hour user-choice pause', async () => {
+ const saved=new Map(),steps={async do(name,_options,action){if(!saved.has(name))saved.set(name,await action());return saved.get(name);}};
+ const before=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()+5000,'OPERATION_DEADLINE');
+ const replay=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()-24*60*60_000,'OPERATION_DEADLINE');
+ assert.equal(replay,before);
+});
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
@@ -72,11 +80,19 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
   db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
   for(const resource of [...context.resources,...(context.audioSources??[])])db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
-  const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(){
+  const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
+   if(options.type.startsWith('native-render-')){
+    const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
+    assert.ok(completed,'render completion must come from a recorded native result');
+    return {payload:{renderId:completed[0],status:completed[1].status}};
+   }
+   assert.equal(options.type,'direction-choice');
    const row=db.prepare('SELECT directions_hash FROM pipeline_contexts WHERE operation_id=?').get(id);
    assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(id).status,'awaiting_user');
    assert.equal(jobs.filter(job=>job.operationId===id&&job.mode==='preview').length,3,'all three native direction frames exist before choosing');
-   return {payload:{key:'fit',directionsHash:row.directions_hash}};
+   const payload={key:'fit',directionsHash:row.directions_hash};
+   db.prepare('UPDATE pipeline_contexts SET choice=?,choice_hash=? WHERE operation_id=?').run(payload.key,digest(payload),id);
+   return {payload};
   }};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };

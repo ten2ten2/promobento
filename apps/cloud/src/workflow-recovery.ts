@@ -2,6 +2,7 @@ import {recordRenderFailure,reconcileOperation} from './render-recovery.ts';
 import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {failDirector} from './director-recovery.ts';
 import {registerWorkflow,createTrackedWorkflow,workflowStatus,stopWorkflow,resolveWorkflow,nativeTerminal,type TrackedWorkflow} from './workflow-state.ts';
+import {boundedControl,settledPool} from './control-batch.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 
 const nativeFailure=(kind:string,status:{status:string;error?:{message?:string}})=>
@@ -27,12 +28,15 @@ export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status
 /** No native restart here: an interrupted paid stage is reconciled, never replayed speculatively. */
 export async function recoverWorkflows(env:PipelineEnv){
  const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE engine=\'huashu\' AND reconciled_at IS NULL ORDER BY COALESCE(last_checked_at,0),registered_at LIMIT 20').all<TrackedWorkflow>();
- const results=[];
- for(const row of rows.results){
-  try{await recoverWorkflow(env,row);results.push({kind:row.kind,id:row.id,status:'inspected'});}
-  catch{results.push({kind:row.kind,id:row.id,status:'unconfirmed'});}
- }
- return results;
+ const results=await settledPool(rows.results,4,row=>boundedControl(recoverWorkflow(env,row),15_000));
+ return Promise.all(results.map(async (result,index)=>{
+  const row=rows.results[index]!;
+  if(result.status==='fulfilled')return {kind:row.kind,id:row.id,status:'inspected'};
+  // An unavailable Workflow/Shard must move behind other rows in the next sweep.
+  await env.DB.prepare("UPDATE pipeline_workflows SET last_checked_at=?,last_error='WORKFLOW_RECOVERY_UNCONFIRMED' WHERE kind=? AND id=? AND reconciled_at IS NULL")
+   .bind(Date.now(),row.kind,row.id).run();
+  return {kind:row.kind,id:row.id,status:'unconfirmed'};
+ }));
 }
 
 export async function dispatchCreative(env:PipelineEnv,item:Json){

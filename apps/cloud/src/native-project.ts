@@ -5,6 +5,7 @@ import {validate as validNativeProject} from '@promobento/contracts/validators/n
 import {getJson, immutableJson, operation} from './store.ts';
 import {flushOutbox} from './outbox.ts';
 import {validId, type PipelineEnv, type Operation, type Json} from './pipeline-types.ts';
+import {nativeRenderPolicy} from './native-policy.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
@@ -107,9 +108,11 @@ export async function createNativeRender(env: PipelineEnv, op: Operation, input:
   }
   const object = await immutableJson(env, 'renders/' + input.renderId + '/input.json', request);
   const payload = canonical({renderId: input.renderId, engine: 'huashu'}), outboxId = 'render-' + input.renderId;
+  const createdAt = Date.now(), queueDeadlineAt = createdAt + nativeRenderPolicy.queueWaitMs;
+  const operationDeadlineAt = createdAt + (input.mode === 'preview' ? nativeRenderPolicy.previewOperationMs : nativeRenderPolicy.exportOperationMs);
   await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status=\'active\')')
-      .bind(input.renderId, op.id, op.generation, hash, object.key, 'queued', Date.now(), op.id, op.generation),
+    env.DB.prepare('INSERT OR IGNORE INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at,queue_deadline_at,operation_deadline_at,mode) SELECT ?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status=\'active\')')
+      .bind(input.renderId, op.id, op.generation, hash, object.key, 'queued', createdAt, queueDeadlineAt, operationDeadlineAt, input.mode, op.id, op.generation),
     env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders WHERE id=? AND operation_id=? AND generation=? AND request_hash=?)')
       .bind(outboxId, op.id, 'render', payload, input.renderId, op.id, op.generation, hash),
   ]);
@@ -123,7 +126,10 @@ export async function createNativeRender(env: PipelineEnv, op: Operation, input:
 export async function getNativeRender(env: PipelineEnv, op: Operation, renderId: string): Promise<Json | null> {
   const row = await env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=? AND operation_id=? AND generation=?')
     .bind(renderId, op.id, op.generation).first<Json>();
-  return row ? {...row, result: row.result_json ? parseCanonicalJson(row.result_json) : null} : null;
+  if (!row) return null;
+  const pending = row.status === 'queued' ? await env.DB.prepare("SELECT status FROM pipeline_render_admissions WHERE render_id=? AND status='admitted' LIMIT 1")
+    .bind(renderId).first<{status: string}>() : null;
+  return {...row, status: pending ? 'admitted' : row.status, result: row.result_json ? parseCanonicalJson(row.result_json) : null};
 }
 
 /** Verify stored bytes. Evidence must be nonempty; ordinary authored files may explicitly allow empty content. */
