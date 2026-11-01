@@ -44,19 +44,27 @@ export function boundCanvasTitle(context:CanvasRenderingContext2D,expected:strin
  return{canvas,finish(){if(!draws||remaining.trim())throw Error('CANVAS_TEXT_BINDING_MISMATCH');}};
 }
 
-/** Routes fixed grammar text calls to their own declared slot; all other drawing stays shared. */
-export function boundCanvasPair(context:CanvasRenderingContext2D,expected:{title:string;subtitle:string},traces:{title:CanvasTitleTrace|null;subtitle:CanvasTitleTrace|null}){
- const parts={title:boundCanvasTitle(context,expected.title,traces.title),subtitle:boundCanvasTitle(context,expected.subtitle,traces.subtitle)};
- let current:'title'|'subtitle'|undefined;
+/** Private multi-slot dispatcher for admitted grammars. Each draw is attributed
+ * to an immutable slot; an untagged draw or a missing slot fails closed. */
+export function boundCanvasSlots<K extends string>(context:CanvasRenderingContext2D,expected:Record<K,string>,traces:Record<K,CanvasTitleTrace|null>){
+ const keys=Object.keys(expected) as K[];
+ if(!keys.length||keys.length>16||keys.some(key=>!Object.hasOwn(traces,key)))throw Error('CANVAS_TEXT_BINDING_MISMATCH');
+ const parts=new Map<K,ReturnType<typeof boundCanvasTitle>>(keys.map(key=>[key,boundCanvasTitle(context,expected[key],traces[key])]));
+ let current:K|undefined;
  const canvas=new Proxy(context,{
   get(target,key){
    if(key==='fillText')return (...args:Parameters<CanvasRenderingContext2D['fillText']>)=>{
-    if(!current)throw Error('CANVAS_TEXT_BINDING_MISMATCH');return parts[current].canvas.fillText(...args);
+    if(current===undefined)throw Error('CANVAS_TEXT_BINDING_MISMATCH');return parts.get(current)!.canvas.fillText(...args);
    };
    const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;
   },
   set(target,key,value){return Reflect.set(target,key,value,target);}
  });
- return{canvas,tag(part:'title'|'subtitle',draw:()=>void){if(current||!Object.hasOwn(parts,part))throw Error('CANVAS_TEXT_BINDING_MISMATCH');current=part;try{draw();}finally{current=undefined;}},
-  finish(){parts.title.finish();parts.subtitle.finish();}};
+ return{canvas,tag(part:K,draw:()=>void){if(current!==undefined||!parts.has(part))throw Error('CANVAS_TEXT_BINDING_MISMATCH');current=part;try{draw();}finally{current=undefined;}},
+  finish(){for(const part of parts.values())part.finish();}};
+}
+
+/** Existing y5 title/subtitle contract remains unchanged. */
+export function boundCanvasPair(context:CanvasRenderingContext2D,expected:{title:string;subtitle:string},traces:{title:CanvasTitleTrace|null;subtitle:CanvasTitleTrace|null}){
+ return boundCanvasSlots<'title'|'subtitle'>(context,expected,traces);
 }

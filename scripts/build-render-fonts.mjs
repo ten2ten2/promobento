@@ -10,7 +10,7 @@ mkdirSync(destination, {recursive: true});
 const registry = parseCanonicalJson(readFileSync('packages/fonts/huashu/registry.json'));
 const fonts = registry.fonts.map(face => {
   // Original licence and source bytes are checked before conversion, including preview-only faces.
-  for (const [path, expected] of [[face.licensePath, face.licenseSha256], [face.sourcePath, face.sha256]])
+  for (const [path, expected] of [[face.licensePath, face.licenseSha256], [face.copyrightPath, face.copyrightSha256], [face.sourcePath, face.sha256]])
     if (sha256Bytes(readFileSync(path)) !== expected) throw Error('FONT_SOURCE_OR_LICENSE_MISMATCH:' + face.fontId);
   return {...face, input: face.sourcePath};
 });
@@ -39,6 +39,9 @@ for (const face of prepared) {
   face.woff2Sha256 = sha256Bytes(readFileSync(join(destination, face.file)));
   copyFileSync(face.licensePath, join(destination, face.fontId + '-LICENSE.txt'));
 }
+// Preserve the upstream per-face copyright notices alongside the OFL text.
+for (const [index,path] of [...new Set(registry.fonts.map(face=>face.copyrightPath))].entries())
+  copyFileSync(path,join(destination,`huashu-COPYRIGHTS-${index+1}.md`));
 writeFileSync(join(destination, 'catalog.json'), canonical({version: 'render-fonts-v1', fonts: prepared}));
 // Stable alias retained for the existing engineering fixture.
 copyFileSync(join(destination, 'geist-sans-600-normal.woff2'), join(destination, 'geist-sans-600.woff2'));

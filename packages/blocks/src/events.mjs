@@ -23,15 +23,59 @@ export function blockEvents(id, frames, params) {
     const highlights=params.items.flatMap((item,index)=>item.focus?[{name:'highlight-land-'+(index+1),frame:index*params.intervalFrames+69}]:[]);
     return [...landings.map((frame,index)=>({name:index===landings.length-1?'product-land':'product-step-'+(index+1),frame})),...highlights].sort((a,b)=>a.frame-b.frame);
   }
+  if(id==='planet-clip'){
+    const last=15+(params.items.length-1)*15+24;
+    if(duration<last+60)throw Error('PLANET_READING_HOLD_MISSING');
+    if(params.focusIndex!==undefined){
+      if(!Number.isInteger(params.focusIndex)||params.focusIndex<0||params.focusIndex>=params.items.length||!Number.isInteger(params.focusFrame)
+        ||params.focusFrame<last+30||duration<params.focusFrame+36+60)throw Error('PLANET_FOCUS_HOLD_INVALID');
+      return [{name:'planet-land',frame:last},{name:'planet-focus-land',frame:params.focusFrame+36}];
+    }
+    if(params.focusFrame!==undefined)throw Error('PLANET_FOCUS_HOLD_INVALID');
+    return [{name:'planet-land',frame:last}];
+  }
+  if(id==='planet-depth'){
+    if(!Number.isInteger(params.enterIndex)||params.enterIndex<0||params.enterIndex>=params.items.length||params.evidenceIds.length!==params.inner.length)throw Error('PLANET_DEPTH_INVALID');
+    const last=180+(params.inner.length-1)*15+24;
+    if(duration<last+60)throw Error('PLANET_DEPTH_HOLD_MISSING');
+    return [{name:'dive-land',frame:last}];
+  }
+  if(id==='blank-clip'){
+    if(duration<270)throw Error('BLANK_READING_HOLD_MISSING');
+    return [{name:'title-land',frame:60},{name:'metric-land',frame:141},{name:'end-land',frame:222}];
+  }
+  if(id==='ui-space-clip'){
+    if(duration<180)throw Error('UI_SPACE_READING_HOLD_MISSING');
+    return [{name:'product-land',frame:120}];
+  }
   if(id==='whiteboard-clip'){
     if(duration<135)throw Error('WHITEBOARD_READING_HOLD_MISSING');
     return [{name:'product-land',frame:90}];
+  }
+  if(id==='whiteboard-notes'){
+    const last=60+(params.items.length-1)*120+75;
+    if(duration<last+60)throw Error('WHITEBOARD_NOTES_HOLD_MISSING');
+    return [{name:'board-land',frame:last}];
+  }
+  if(id==='finance-bars'){
+    if(duration<180)throw Error('FINANCE_BARS_HOLD_MISSING');
+    return [{name:'chart-land',frame:90}];
+  }
+  if(id==='math-notes'){
+    const last=105+(params.items.length-1)*90+54;
+    if(duration<last+60)throw Error('MATH_NOTES_HOLD_MISSING');
+    return [{name:'math-land',frame:last}];
   }
   if(id==='canvas-sequence'||id==='canvas-subtitle-sequence'){
     const items=params.items;
     if(items[0]?.startFrame!==0||items.some((item,index)=>index>0&&item.startFrame-items[index-1].startFrame<120)
       ||duration-items.at(-1).startFrame<120)throw Error('CANVAS_SEQUENCE_READING_HOLD_MISSING');
     return items.map((item,index)=>({name:'title-land-'+(index+1),frame:item.startFrame+30}));
+  }
+  if(id==='vox-story'){
+    const last=165+(params.items.length-1)*180;
+    if(duration<last+90)throw Error('VOX_STORY_READING_HOLD_MISSING');
+    return [{name:'story-land',frame:last+45}];
   }
   if(id==='vox-clip'){
     const landings=params.items.map((_,index)=>index*params.intervalFrames+18);
@@ -86,10 +130,19 @@ export function filmObservationFrames(spec,quality){
  const stride=quality==='review'?2:1;
  return [...new Set(spec.scenes.flatMap(scene=>{
   if(scene.kind==='custom')return customScenePlan(scene).readingHolds.map(hold=>Math.floor((scene.start+Math.floor((hold.start+hold.end-1)/2))/stride)*stride);
+  if(scene.block==='planet-clip@1')return blockEvents('planet-clip',scene,scene.params)
+   .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
+  if(scene.block==='planet-depth@1')return [90,180+(scene.params.inner.length-1)*15+39].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='blank-clip@1')return [75,150,225].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='whiteboard-notes@1')return [45,...scene.params.items.map((_,index)=>60+index*120+90)].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='finance-bars@1')return [120].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='math-notes@1')return [90,...scene.params.items.map((_,index)=>105+90*index+60)].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='keynote-clip@1')return blockEvents('keynote-clip',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(['canvas-sequence@1','canvas-subtitle-sequence@1'].includes(scene.block))return blockEvents(scene.block.split('@')[0],scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
+  if(scene.block==='vox-story@1')return [45,...scene.params.items.flatMap((_,index)=>[135+index*180,210+index*180])]
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .map(event=>Math.floor((scene.start+event.frame+15)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
@@ -117,12 +170,26 @@ export function filmMotionFrames(spec,quality,{eventNeighborhoods=true}={}){
   if(scene.block==='keynote-clip@1')return blockEvents('keynote-clip',scene,scene.params)
    .flatMap(event=>[Math.max(0,event.frame-36),event.frame-30,event.frame-6,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='planet-clip@1')return [0,...scene.params.items.flatMap((_,index)=>[15+index*15,39+index*15]),
+   ...(scene.params.focusFrame===undefined?[]:[scene.params.focusFrame,scene.params.focusFrame+18,scene.params.focusFrame+36])]
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='planet-depth@1')return [0,30,90,120,132,146,168,180,...scene.params.inner.map((_,index)=>204+15*index)]
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='blank-clip@1')return [0,15,45,75,102,120,141,174,189,222].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='ui-space-clip@1')return [0,30,60,90,120].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='whiteboard-clip@1')return [0,15,30,60,90].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='whiteboard-notes@1')return [0,30,60,...scene.params.items.flatMap((_,index)=>[60+index*120,105+index*120,135+index*120])]
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='finance-bars@1')return [0,15,30,45,60,90].map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='math-notes@1')return [0,30,45,75,...scene.params.items.flatMap((_,index)=>[105+90*index,135+90*index,159+90*index])]
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(['canvas-sequence@1','canvas-subtitle-sequence@1'].includes(scene.block))return blockEvents(scene.block.split('@')[0],scene,scene.params)
    .flatMap(event=>[event.frame-30,event.frame-9,event.frame])
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='component-relay@1')return blockEvents('component-relay',scene,scene.params)
    .flatMap(event=>[event.frame-Math.ceil(scene.params.beatFrames/2),event.frame])
+   .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
+  if(scene.block==='vox-story@1')return [0,45,...scene.params.items.flatMap((_,index)=>[90+index*180,135+index*180,165+index*180,210+index*180])]
    .map(frame=>Math.floor((scene.start+frame)/stride)*stride);
   if(scene.block==='vox-clip@1')return blockEvents('vox-clip',scene,scene.params)
    .flatMap(event=>[event.frame-18,event.frame])

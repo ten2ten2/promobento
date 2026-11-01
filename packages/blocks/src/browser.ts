@@ -1,6 +1,6 @@
 import type { Box, SceneContext, SceneRegion } from '../../../contracts/film-runtime.d.ts';
 import { easeOut, clamp01 } from '../../film-runtime/src/motion.ts';
-import {parseMetricText,metricTextAt} from '../../film-runtime/src/metric-text.ts';
+import {parseMetricText,metricTextAt,blankMetricTextAt} from '../../film-runtime/src/metric-text.ts';
 import '../../film-runtime/src/types.ts';
 import {blockEvents} from './events.mjs';
 import {mediaPyramid,blendPyramids,paintProjectedMedia,PANEL_PERSPECTIVE} from './projected-media.ts';
@@ -63,6 +63,43 @@ window.PB.defineBlock<{items:Array<{assetKey:string;focus?:string}>;intervalFram
     regions:[region('product',canvas,ctx.root)]};
 }});
 
+// Vox's desk, connecting strings and camera with all authored words bound to
+// trusted DOM slots. Each image and optional highlight belong to that item.
+window.PB.defineBlock<{textSlot:string;items:Array<{assetKey:string;textSlot:string;subtitleSlot:string;focus?:string}>}>({id:'vox-story',version:'1.0.0',build(ctx,params){
+ const canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const images:Record<string,HTMLImageElement>=Object.create(null),cues:Array<Record<string,unknown>>=[];
+ const labels:Array<{index:number;at:number;box:HTMLElement;element:HTMLElement;value:string}>=[];
+ const add=(kind:string,at:number,slotId:string,extra:Record<string,unknown>={})=>{
+  const value=ctx.text(slotId),index=cues.length;cues.push({kind,at,text:value.text,...extra});
+  const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(600,ctx.target.width*.8)+'px',height:'150px',visibility:'hidden',overflow:'hidden',pointerEvents:'none'});
+  const element=value.mount(box,{maxLines:2});element.style.color=kind==='point'?'#171716':'#eeedeb';element.style.lineHeight='1.3';
+  labels.push({index,at,box,element,value:value.text});
+ };
+ add('title',0,params.textSlot);
+ params.items.forEach((item,index)=>{const at=(90+180*index)/30;add('image',at,item.textSlot,{image:item.assetKey});
+  if(item.focus){const roi=ctx.asset(item.assetKey).roi[Number(item.focus.slice(4))];if(!roi)throw Error('VOX_CLIP_ROI_INVALID');
+   cues.push({kind:'highlight',at:at+.7,data:{rect:[roi.x,roi.y,roi.width,roi.height]}});}
+  add('point',(165+180*index)/30,item.subtitleSlot);
+ });
+ const face=ctx.style.type.text,family=`PB-${face.fontId}`;let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=Promise.all([document.fonts.load(`${face.weight} 44px "${family}"`,labels.map(label=>label.value).join('')).then(loaded=>{
+   if(!loaded.length||loaded.some(item=>item.status!=='loaded'))throw Error('VOX_STORY_FONT_UNAVAILABLE');}),
+  ...params.items.map(async item=>{const asset=ctx.asset(item.assetKey);if(asset.kind==='video')throw Error('VOX_CLIP_IMAGE_REQUIRED');
+   const image=new Image();image.src=asset.url;await image.decode();if(image.naturalWidth!==asset.width||image.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');images[item.assetKey]=image;})
+ ]).then(()=>{const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'y2_vox',duration:(ctx.frames.end-ctx.frames.start)/30,
+  data:{accent:ctx.style.palette.accent,trustedDomLabels:true,preserveContext:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},cues},{width,height,images,fontFamily:family});});
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);
+  for(const entry of labels){const hit=stage.hit('text-'+entry.index);
+   if(!hit||hit[2]<4||hit[3]<4||hit[0]+hit[2]<=0||hit[1]+hit[3]<=0||hit[0]>=ctx.target.width||hit[1]>=ctx.target.height){entry.box.style.visibility='hidden';continue;}
+   const [x,y,width,height]=hit;Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible',
+    clipPath:`inset(0 ${Math.max(0,100*(1-Math.min(1,Math.max(0,(time-entry.at)/1.2))))}% 0 0)`});
+   entry.element.style.fontSize=Math.max(1,Math.floor(Math.min(height*.65,ctx.target.height*.09)))+'px';
+  }
+ },events:blockEvents('vox-story',ctx.frames,params),regions:[region('product',canvas,ctx.root)]};
+}});
+
 // Original t2 slide choreography with only cleared images, no unbound Canvas text.
 window.PB.defineBlock<{items:Array<{assetKey:string;focus?:string}>;intervalFrames:number}>({id:'keynote-clip',version:'1.1.0',build(ctx,params){
   const images:Record<string,HTMLImageElement>=Object.create(null),canvas=document.createElement('canvas');
@@ -104,6 +141,237 @@ window.PB.defineBlock<{assetKey:string;textSlot:string}>({id:'whiteboard-clip',v
      &&imageBox[1]<titleBox.y+titleBox.height&&imageBox[1]+imageBox[3]>titleBox.y)throw Error('WHITEBOARD_LAYOUT_OVERLAP:'+JSON.stringify({imageBox,titleBox}));
   },events:blockEvents('whiteboard-clip',ctx.frames,params),
    regions:[region('product',canvas,ctx.root),region('headline',heading,ctx.root)]};
+}});
+
+// The original ui-space staging, adapted to a real screenshot and its own
+// observed regions. It stages copies of existing pixels; no UI is synthesized.
+window.PB.defineBlock<{assetKey:string;focuses:string[]}>({id:'ui-space-clip',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('ui-space-clip',ctx.frames,params),asset=ctx.asset(params.assetKey);
+ if(asset.kind==='video')throw Error('UI_SPACE_IMAGE_REQUIRED');
+ const safe=safeBox(ctx),page=relayFit({x:safe.x+safe.width*.12,y:safe.y+safe.height*.12,width:safe.width*.76,height:safe.height*.76},asset.width,asset.height);
+ const world=node(ctx.root,{position:'absolute',inset:'0',transformStyle:'preserve-3d',pointerEvents:'none'});
+ const source=document.createElement('img');source.src=asset.url;source.alt='';
+ Object.assign(source.style,{position:'absolute',left:page.x+'px',top:page.y+'px',width:page.width+'px',height:page.height+'px'});world.append(source);
+ const planes=params.focuses.map((focus,index)=>{
+  const roi=asset.roi[Number(focus.slice(4))];if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('UI_SPACE_ROI_INVALID');
+  const shell=node(world,{position:'absolute',left:(page.x+page.width*roi.x)+'px',top:(page.y+page.height*roi.y)+'px',width:(page.width*roi.width)+'px',height:(page.height*roi.height)+'px',transformStyle:'preserve-3d'});
+  const crop=node(shell,{position:'absolute',inset:'0',overflow:'hidden'}),copy=document.createElement('img');copy.src=asset.url;copy.alt='';
+  Object.assign(copy.style,{position:'absolute',left:(-page.width*roi.x)+'px',top:(-page.height*roi.y)+'px',width:page.width+'px',height:page.height+'px'});crop.append(copy);
+  return{shell,index,copy};
+ });
+ const ready=Promise.all([source,...planes.map(plane=>plane.copy)].map(image=>image.decode())).then(()=>{
+  if(source.naturalWidth!==asset.width||source.naturalHeight!==asset.height)throw Error('ASSET_DIMENSIONS_MISMATCH');});
+ const camera=ctx.OM.space(world,{width:ctx.target.width,height:ctx.target.height,fov:35});
+ camera.to(null,0,{yaw:-12,pitch:7,dolly:1.12,duration:1,ease:'power3.inOut'});
+ camera.to(null,3,{flat:true,duration:1,ease:'power3.inOut'});
+ const smooth=(n:number)=>{const x=Math.max(0,Math.min(1,n));return x*x*(3-2*x);};
+ return{ready,render(time){
+  const amount=smooth(time)*(1-smooth(time-3));
+  for(const {shell,index} of planes){const dx=(index-(planes.length-1)/2)*page.width*.11*amount,dy=(index%2?1:-1)*page.height*.07*amount;
+   shell.style.visibility=amount>0?'visible':'hidden';shell.style.transform=`translate3d(${dx}px,${dy}px,${(index+1)*Math.min(page.width,page.height)*.10*amount}px)`;}
+  camera.apply?.(time);
+ },events,regions:[region('product',source,ctx.root)]};
+}});
+
+// Original y3 pen, camera and icon strokes with all words mounted as bound
+// DOM slots. The private proxy suppresses the grammar's Canvas text only.
+window.PB.defineBlock<{textSlot:string;items:Array<{textSlot:string;subtitleSlot?:string;icon:string}>}>({id:'whiteboard-notes',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('whiteboard-notes',ctx.frames,params),canvas=document.createElement('canvas');
+ canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const graphics=new Proxy(paint,{get(target,key){if(key==='fillText'||key==='strokeText')return ()=>{};
+  const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;},set(target,key,value){return Reflect.set(target,key,value,target);}});
+ const cues:Array<Record<string,unknown>>=[],labels:Array<{index:number;at:number;box:HTMLElement;element:HTMLElement;value:string}>=[];
+ const add=(kind:string,at:number,slotId:string|undefined,data?:Record<string,unknown>)=>{
+  const value=slotId?ctx.text(slotId):undefined,index=cues.length;cues.push({kind,at,...(value?{text:value.text}:{}),...(data?{data}:{})});
+  if(value){const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(600,ctx.target.width*.8)+'px',height:'150px',visibility:'hidden',overflow:'hidden',pointerEvents:'none'});
+   const element=value.mount(box,{maxLines:2});element.style.color='#0A0503';element.style.lineHeight='1.15';labels.push({index,at,box,element,value:value.text});}
+ };
+ add('title',0,params.textSlot);
+ params.items.forEach((item,index)=>{const at=(60+index*120)/30;add('point',at,item.textSlot);add('draw',at+1.5,item.subtitleSlot,{icon:item.icon});});
+ const face=ctx.style.type.text,family=`PB-${face.fontId}`;let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=document.fonts.load(`${face.weight} 44px "${family}"`,labels.map(label=>label.value).join('')).then(loaded=>{
+  if(!loaded.length||loaded.some(item=>item.status!=='loaded'))throw Error('WHITEBOARD_FONT_UNAVAILABLE');
+  const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'y3_whiteboard',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{accent:ctx.style.palette.accent,trustedDomLabels:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},cues},{width,height,fontFamily:family});
+ });
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(graphics,time);
+  for(const entry of labels){const hit=stage.hit('text-'+entry.index);
+   if(!hit||hit[2]<4||hit[3]<4){entry.box.style.visibility='hidden';continue;}
+   const [x,y,width,height]=hit;Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible',
+    clipPath:`inset(0 ${Math.max(0,100*(1-Math.min(1,Math.max(0,(time-entry.at)/1.2))))}% 0 0)`});
+   entry.element.style.fontSize=Math.max(1,Math.floor(Math.min(height*.75,ctx.target.height*.09)))+'px';
+  }
+ },events,regions:[region('board',canvas,ctx.root)]};
+}});
+
+// Original t3 chart geometry, restricted to an explicitly confirmed zero-based
+// bar series. Canvas labels are suppressed; each visible word is a DOM slot.
+window.PB.defineBlock<{textSlot:string;subtitleSlot:string;source:{textSlot:string};items:Array<{textSlot:string;value:{textSlot:string}}>}>(
+ {id:'finance-bars',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('finance-bars',ctx.frames,params),canvas=document.createElement('canvas');
+ canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const graphics=new Proxy(paint,{get(target,key){if(key==='fillText'||key==='strokeText')return ()=>{};
+  const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;},set(target,key,value){return Reflect.set(target,key,value,target);}});
+ const entries=[{id:'title',slot:ctx.text(params.textSlot)},{id:'unit',slot:ctx.text(params.subtitleSlot)},{id:'source',slot:ctx.text(params.source.textSlot)},
+  ...params.items.flatMap((item,index)=>[{id:'fact-label-'+index,slot:ctx.text(item.textSlot)},{id:'fact-value-'+index,slot:ctx.text(item.value.textSlot)}])];
+ const labels=entries.map(entry=>{const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(600,ctx.target.width*.8)+'px',height:'150px',visibility:'hidden',overflow:'hidden',pointerEvents:'none'});
+  const element=entry.slot.mount(box,{maxLines:2});element.style.color=entry.id==='source'?'#4F5B61':'#0C0C0C';element.style.lineHeight='1.1';return{...entry,box,element};});
+ const face=ctx.style.type.text,family=`PB-${face.fontId}`;let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=document.fonts.load(`${face.weight} 44px "${family}"`,entries.map(entry=>entry.slot.text).join('')).then(loaded=>{
+  if(!loaded.length||loaded.some(item=>item.status!=='loaded'))throw Error('FINANCE_FONT_UNAVAILABLE');
+  const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'t3_finance_chart',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{trustedDomLabels:true,title:entries[0]!.slot.text,unit:entries[1]!.slot.text,source:entries[2]!.slot.text,chart:'bar',decimals:2,
+    colors:{main:ctx.style.palette.accent},series:params.items.map((item,index)=>({label:entries[3+index*2]!.slot.text,value:Number(entries[4+index*2]!.slot.text)}))},
+   safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+   cues:[{kind:'title',at:0},{kind:'bar',at:1}]},{width,height,fontFamily:family});
+ });
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(graphics,time);
+  for(const entry of labels){const hit=stage.hit(entry.id);
+   if(!hit||hit[2]<4||hit[3]<4){entry.box.style.visibility='hidden';continue;}
+   const [x,y,width,height]=hit;Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible'});
+   entry.element.style.fontSize=Math.max(1,Math.floor(Math.min(height*.72,ctx.target.height*.075)))+'px';
+  }
+ },events,regions:[region('chart',canvas,ctx.root)]};
+}});
+
+// Original t1 Write/Indicate stage with text retained in trusted DOM slots.
+window.PB.defineBlock<{textSlot:string;equation:{textSlot:string};items:Array<{textSlot:string}>}>({id:'math-notes',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('math-notes',ctx.frames,params),canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const graphics=new Proxy(paint,{get(target,key){if(key==='fillText'||key==='strokeText')return ()=>{};
+  const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;},set(target,key,value){return Reflect.set(target,key,value,target);}});
+ const entries=[{id:'title',at:0,slot:ctx.text(params.textSlot)},{id:'equation',at:1.5,slot:ctx.text(params.equation.textSlot)},
+  ...params.items.map((item,index)=>({id:'point-text-'+index,at:(105+90*index)/30,slot:ctx.text(item.textSlot)}))];
+ const labels=entries.map(entry=>{const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(600,ctx.target.width*.8)+'px',height:'150px',visibility:'hidden',overflow:'hidden',pointerEvents:'none'});
+  const element=entry.slot.mount(box,{maxLines:2});element.style.color='#ffffff';element.style.lineHeight='1.1';return{...entry,box,element};});
+ const face=ctx.style.type.text,family=`PB-${face.fontId}`;let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=document.fonts.load(`${face.weight} 44px "${family}"`,entries.map(entry=>entry.slot.text).join('')).then(loaded=>{
+  if(!loaded.length||loaded.some(item=>item.status!=='loaded'))throw Error('MATH_FONT_UNAVAILABLE');
+  const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'t1_3b1b',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{trustedDomLabels:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+   cues:entries.map((entry,index)=>({kind:index===0?'title':index===1?'equation':'point',at:entry.at,text:entry.slot.text}))},{width,height,fontFamily:family});
+ });
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(graphics,time);
+  for(const entry of labels){const hit=stage.hit(entry.id);if(!hit||hit[2]<4||hit[3]<4){entry.box.style.visibility='hidden';continue;}
+   const [x,y,width,height]=hit;Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible',
+    clipPath:`inset(0 ${Math.max(0,100*(1-Math.min(1,Math.max(0,(time-entry.at)/1.2))))}% 0 0)`});
+   entry.element.style.fontSize=Math.max(1,Math.floor(Math.min(height*.72,ctx.target.height*.075)))+'px';
+  }
+ },events,regions:[region('explanation',canvas,ctx.root)]};
+}});
+
+// Original y1 constellation choreography. All visible words remain separate
+// trusted DOM slots; the original Canvas path draws only its graphics.
+window.PB.defineBlock<{textSlot:string;items:Array<{textSlot:string}>;enterIndex:number;inner:Array<{textSlot:string}>;evidenceIds:string[]}>(
+ {id:'planet-depth',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('planet-depth',ctx.frames,params),canvas=document.createElement('canvas');canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d'),measure=document.createElement('canvas').getContext('2d');if(!paint||!measure)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const values=[params.textSlot,...params.items.map(item=>item.textSlot),...params.inner.map(item=>item.textSlot)].map(id=>ctx.text(id));
+ const labels=values.map((value,index)=>{const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(600,ctx.target.width*.8)+'px',height:'150px',visibility:'hidden',overflow:'hidden',pointerEvents:'none'});
+  const element=value.mount(box,{maxLines:index===0?2:1,align:'center'});element.style.lineHeight='1.05';return{value,box,element,face:index===0?ctx.style.type.display:ctx.style.type.text};});
+ let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=(async()=>{const face=ctx.style.type.text,display=ctx.style.type.display,family=`PB-${face.fontId}`;
+  const loaded=await Promise.all([document.fonts.load(`${face.weight} 44px "${family}"`,values.slice(1).map(value=>value.text).join('')),
+   document.fonts.load(`${display.weight} 44px "PB-${display.fontId}"`,values[0]!.text)]);
+  if(loaded.some(faces=>!faces.length||faces.some(item=>item.status!=='loaded')))throw Error('PLANET_FONT_UNAVAILABLE');
+  const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'y1_kurzgesagt',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{center:values[0]!.text,trustedDomLabels:true,trustedDomLevels:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+   cues:[...params.items.map((_,index)=>({kind:'point',at:(15+index*15)/30,text:values[index+1]!.text})),
+    {kind:'enter',at:4,dur:1.6,text:values[params.enterIndex+1]!.text,data:{index:params.enterIndex}},
+    ...params.inner.map((_,index)=>({kind:'point',at:(180+index*15)/30,text:values[params.items.length+1+index]!.text}))]},
+   {width,height,fontFamily:family});})();
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);
+  labels.forEach((entry,index)=>{const entered=time>=4.88,selected=index===params.enterIndex+1;
+   const id=index===0?'center-label-0':selected&&entered?'center-label-1':'node-label-'+(index-1);
+   const hit=index===0&&entered?null:stage!.hit(id);
+   if(!hit||hit[2]<4||hit[3]<4){entry.box.style.visibility='hidden';return;}
+   const [x,y,width,height]=hit,center=index===0||selected&&entered;
+   Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible',
+    opacity:selected&&entered?String(Math.min(1,Math.max(0,(time-5.2)/.35))):'1'});
+   entry.element.style.color=center?'#fff':'#1f1a3a';const maximum=Math.max(1,Math.floor(height*(center ? .46 : .64))),family=`PB-${entry.face.fontId}`;
+   measure.font=`${entry.face.style??'normal'} ${entry.face.weight} ${maximum}px "${family}"`;const measured=measure.measureText(entry.value.text).width;
+   const size=Math.max(1,Math.floor(Math.min(maximum,measured>0?maximum*(width-4)/measured:maximum)));
+   Object.assign(entry.element.style,{fontSize:size+'px',lineHeight:'1.05',marginTop:Math.max(0,(height-size*1.05)/2)+'px'});
+  });
+ },events,regions:[region('planet',canvas,ctx.root)]};
+}});
+
+window.PB.defineBlock<{textSlot:string;items:Array<{textSlot:string}>;focusIndex?:number;focusFrame?:number}>({id:'planet-clip',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('planet-clip',ctx.frames,params),canvas=document.createElement('canvas');
+ canvas.width=ctx.target.width;canvas.height=ctx.target.height;
+ Object.assign(canvas.style,{position:'absolute',inset:'0',width:'100%',height:'100%',pointerEvents:'none'});ctx.root.append(canvas);
+ const paint=canvas.getContext('2d');if(!paint)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ const values=[params.textSlot,...params.items.map(item=>item.textSlot)].map(slotId=>ctx.text(slotId));
+ const boxes=values.map((value,index)=>{
+  const box=node(ctx.root,{position:'absolute',left:'0',top:'0',width:Math.min(ctx.target.width*.8,600)+'px',height:'150px',visibility:'hidden',pointerEvents:'none',overflow:'hidden'});
+  const element=value.mount(box,{maxLines:index?1:2,align:'center'});element.style.color=index?'#1f1a3a':'#fff';
+  element.style.lineHeight='1.05';return{box,element,value,face:index?ctx.style.type.text:ctx.style.type.display};
+ });
+ let stage:ReturnType<typeof createClipStage>|undefined;
+ const ready=(async()=>{const face=ctx.style.type.text,display=ctx.style.type.display,family=`PB-${face.fontId}`;
+  const loaded=await Promise.all([document.fonts.load(`${face.weight} 44px "${family}"`,values.slice(1).map(value=>value.text).join('')),
+   document.fonts.load(`${display.weight} 44px "PB-${display.fontId}"`,values[0]!.text)]);
+  if(loaded.some(faces=>!faces.length||faces.some(item=>item.status!=='loaded')))throw Error('PLANET_FONT_UNAVAILABLE');
+  const {width,height,safeInsets}=ctx.target;stage=createClipStage({grammar:'y1_kurzgesagt',duration:(ctx.frames.end-ctx.frames.start)/30,
+   data:{center:values[0]!.text,trustedDomLabels:true},safe:{top:safeInsets.top*height,bottom:safeInsets.bottom*height,left:safeInsets.left*width,right:safeInsets.right*width},
+   cues:[...values.slice(1).map((value,index)=>({kind:'point',at:(15+index*15)/30,text:value.text})),
+    ...(params.focusFrame===undefined?[]:[{kind:'highlight',at:params.focusFrame/30,data:{index:params.focusIndex}}])]},{width,height,fontFamily:family});})();
+ const measure=document.createElement('canvas').getContext('2d');if(!measure)throw Error('IMAGE_CONTEXT_UNAVAILABLE');
+ return{ready,render(time){if(!stage)throw Error('CLIP_NOT_READY');stage.draw(paint,time);
+  boxes.forEach((entry,index)=>{const hit=stage!.hit(index?'node-label-'+(index-1):'center-label');
+   if(!hit||hit[2]<4||hit[3]<4){entry.box.style.visibility='hidden';return;}
+   const [x,y,width,height]=hit;Object.assign(entry.box.style,{left:x+'px',top:y+'px',width:width+'px',height:height+'px',visibility:'visible'});
+   const maximum=Math.max(1,Math.floor(height*(index ? .64 : .46))),family=`PB-${entry.face.fontId}`;
+   measure.font=`${entry.face.style??'normal'} ${entry.face.weight} ${maximum}px "${family}"`;const measured=measure.measureText(entry.value.text).width;
+   const size=Math.max(1,Math.floor(Math.min(maximum,measured>0?maximum*(width-4)/measured:maximum)));
+   Object.assign(entry.element.style,{fontSize:size+'px',lineHeight:'1.05'});
+   entry.element.style.marginTop=Math.max(0,(height-size*1.05)/2)+'px';
+  });
+ },events,regions:[region('planet',canvas,ctx.root)]};
+}});
+
+// Original blank template's three acts, adapted to target safe areas and
+// separately bound text slots. No upstream demo copy or asset is imported.
+window.PB.defineBlock<{items:Array<{textSlot:string}>}>({id:'blank-clip',version:'1.0.0',build(ctx,params){
+ const events=blockEvents('blank-clip',ctx.frames,params),values=params.items.map(item=>ctx.text(item.textSlot));
+ if(values.length<5||values.length>6||values[0]!.role!=='headline'||values[1]!.role!=='body'||values[2]!.role!=='number'
+   ||values[3]!.role!=='label'||values[4]!.role!=='headline'||values[5]&&values[5].role!=='label')throw Error('BLANK_SLOT_ROLE_INVALID');
+ blankMetricTextAt(values[2]!.text,0);
+ const safe=inSafe(ctx),wide=ctx.target.aspect==='landscape',background=node(ctx.root,{position:'absolute',inset:'0',pointerEvents:'none',
+  background:'radial-gradient(ellipse at 20% 10%,#ffffff30,transparent 60%),radial-gradient(ellipse at 90% 100%,#00000010,transparent 60%)'});
+ ctx.root.insertBefore(background,safe);
+ const titleGroup=node(safe,{position:'absolute',inset:'0'}),metricGroup=node(safe,{position:'absolute',inset:'0'}),endGroup=node(safe,{position:'absolute',inset:'0'});
+ const titleParent=node(titleGroup,{position:'absolute',left:'2%',top:wide?'29%':'23%',width:'96%',height:wide?'24%':'24%'});
+ const headline=values[0]!.mount(titleParent,{maxLines:2,split:'graphemes'}),glyphs=[...headline.querySelectorAll<HTMLElement>('.pb-grapheme')];
+ const subtitleParent=node(titleGroup,{position:'absolute',left:'2%',top:wide?'61%':'57%',width:'96%',height:'16%'});
+ const subtitle=values[1]!.mount(subtitleParent,{maxLines:2});
+ const rule=node(titleGroup,{position:'absolute',left:'2%',top:wide?'57%':'53%',width:'66%',height:'5px',background:ctx.style.palette.accent,transformOrigin:'left center'});
+ let kicker:HTMLElement|undefined;
+ if(values[5]){const parent=node(titleGroup,{position:'absolute',left:'2%',top:wide?'20%':'14%',width:'96%',height:'8%'});kicker=values[5].mount(parent,{maxLines:1});kicker.style.color=ctx.style.palette.accent??'';}
+ const numberParent=node(metricGroup,{position:'absolute',left:'2%',top:wide?'30%':'27%',width:'96%',height:wide?'35%':'28%'}),number=values[2]!.mount(numberParent,{maxLines:1});
+ number.dataset.pbFinalText=values[2]!.text;number.style.color=ctx.style.palette.accent??'';
+ const labelParent=node(metricGroup,{position:'absolute',left:'2%',top:wide?'69%':'60%',width:'96%',height:'15%'}),label=values[3]!.mount(labelParent,{maxLines:2});
+ const endParent=node(endGroup,{position:'absolute',left:'5%',top:'36%',width:'90%',height:'28%'}),ending=values[4]!.mount(endParent,{maxLines:3,align:'center'});
+ const ease=(value:number)=>{const p=Math.max(0,Math.min(1,value));return 1-Math.pow(1-p,3);};
+ return{render(time:number){
+  const titleOut=ease((time-3.1)/.5),titleIn=ease((time-.25)/.9);
+  titleGroup.style.opacity=String(1-titleOut);titleGroup.style.transform=titleOut?`translateY(${-40*titleOut}px)`:'none';
+  glyphs.forEach((glyph,index)=>{const p=ease((time-.25-index*.045)/.9);glyph.style.transform=p>=1?'none':`translateY(${(1-p)*110}%)`;});
+  if(!glyphs.length){headline.style.opacity=String(titleIn);headline.style.transform=titleIn>=1?'none':`translateY(${(1-titleIn)*24}px)`;}
+  if(kicker){const p=ease((time-.15)/.6);kicker.style.opacity=String(p);kicker.style.transform=p>=1?'none':`translateX(${(1-p)*-30}px)`;}
+  rule.style.transform=`scaleX(${ease((time-.9)/.9)})`;
+  const sub=ease((time-1.25)/.7);subtitle.style.opacity=String(sub);subtitle.style.transform=sub>=1?'none':`translateY(${(1-sub)*20}px)`;
+  const metricIn=ease((time-3.4)/.3),metricOut=ease((time-5.8)/.45);metricGroup.style.opacity=String(metricIn*(1-metricOut));
+  metricGroup.style.transform=metricOut?`scale(${1-.04*metricOut})`:'none';number.textContent=blankMetricTextAt(values[2]!.text,time);
+  const labelIn=ease((time-3.7)/.6);label.style.opacity=String(labelIn);label.style.transform=labelIn>=1?'none':`translateX(${(1-labelIn)*-24}px)`;
+  const end=ease((time-6.3)/1.1);endGroup.style.opacity=String(end);ending.style.transform=end>=1?'none':`translateY(${(1-end)*24}px) scale(${.96+.04*end})`;
+ },metricTextElement:number,events,regions:[region('title',titleParent,ctx.root),region('metric',numberParent,ctx.root),region('end',endParent,ctx.root)]};
 }});
 
 // Fact-bound y5 titles and a bounded count. The audited path does not

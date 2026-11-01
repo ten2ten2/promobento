@@ -13,7 +13,7 @@
 // alpha：透明底时字外面描一圈深色边，压在亮画面上也看得见。
 export function create(CLIP) { const {U, MO, DG, TY} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
-let M, L;
+let M, L, trustedFont;
 const col = v => !v ? null : M[v] || v;
 const isZh = ch => ch.codePointAt(0) >= 0x2E80;
 // 一段字 → token：汉字/全角走普惠体；连续 ≥2 个字母是单词（正体）；单个字母斜体；其余（数字、符号、希腊字母）正体
@@ -21,7 +21,7 @@ const toks = text => (String(text).match(/[A-Za-z]{2,}|./gu) || []).flatMap(s =>
   .map(s => ({ s, zh: isZh(s), it: /^[a-zA-Z]$/.test(s), gap: 0 }));
 // θ 用 EB Garamond 斜体画（CMU 的 θ 是 ϑ 字形）。只换这一个 token 的字体：逐 token 调 DG.math，期间临时改 DG.FONT
 const THETA = /[θΘ]/;
-const withFont = (tk, fn) => { if (!THETA.test(tk.s)) return fn(tk); const o = { ...DG.FONT }; DG.FONT.it = DG.FONT.rm = 'EBGaramond-400i';
+const withFont = (tk, fn) => { if (trustedFont||!THETA.test(tk.s)) return fn(tk); const o = { ...DG.FONT }; DG.FONT.it = DG.FONT.rm = 'EBGaramond-400i';
   try { return fn({ ...tk, zh: false, it: true }); } finally { Object.assign(DG.FONT, o); } };
 const layoutT = (c, tokens, size) => { let x = 0; return tokens.map(tk => { const w = withFont(tk, t2 => DG.layout(c, [{ ...t2, gap: 0 }], size)[0].w), sz = (tk.size || 1) * size;
   const r = { x, w }; x += w + (tk.gap != null ? tk.gap : sz * 0.06); return r; }); };
@@ -59,6 +59,7 @@ return {
     ...ctx.of('point').map((q, i) => ({ id: CLIP.rid('point', i), label: `第 ${i + 1} 条要点` }))],
   init(ctx) {
     M = DG.MANIM; DG.FONT.zh = 'PuHui-Medium';                         // 任意中文：普惠体（思源宋子集只有示范片用到的字）
+    if(ctx.data.trustedDomLabels&&ctx.fontFamily){trustedFont=ctx.fontFamily;DG.FONT.zh=DG.FONT.rm=DG.FONT.it=trustedFont;}
     const { W, H, u, safe } = ctx, g = document.createElement('canvas').getContext('2d');
     const pad = (ctx.portrait ? 70 : 140) * u, yTop = safe.top, yBot = H - safe.bottom - (ctx.portrait ? 90 : 70) * u;
     const hasLine = ctx.of('line').length > 0, hasEq = ctx.of('equation').length > 0;
@@ -183,6 +184,7 @@ return {
       let wMax = 0;
       it.lines.forEach((ln, kk) => { const r = writeT(c, toks(ln), L.text.x + 50 * u, it.y + kk * size * 1.35, size, ctx.p(t, q.at + kk * dur / it.lines.length, dur / it.lines.length), { align: 'left', col: colr });
         if (r.length) wMax = Math.max(wMax, r[r.length - 1].x + r[r.length - 1].w - (L.text.x + 50 * u)); });
+      if(ctx.data.trustedDomLabels&&wMax>0)CLIP.mark(c,CLIP.rid('point-text',i),L.text.x+50*u,it.y-size,wMax,it.lines.length*size*1.35);
       c.restore();
       CLIP.mark(c, CLIP.rid('point', i), L.text.x - 16 * u, it.y - size * 1.05, wMax + 90 * u, it.lines.length * size * 1.35 + 18 * u);
       if (h && !hOther) box(c, L.text.x - 16 * u, it.y - size * 1.05, wMax + 90 * u, it.lines.length * size * 1.35 + 18 * u, ctx.lt(t, h.at), u);

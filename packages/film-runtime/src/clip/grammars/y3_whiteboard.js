@@ -13,7 +13,7 @@ export function create(CLIP) { const {U, MO, CAM, DG, TY, UI} = CLIP.helpers; re
 const { clamp, lerp } = U;
 const INK = '#0A0503', BOARD = '#FBFBFB';
 let ORANGE = '#EF7226', WASH = 'rgba(239,114,38,.22)';                  // huashu-motion: data.accent replaces the orange (set in init)
-const FONT = 'LXGWWenKai-500';
+let FONT = 'LXGWWenKai-500';
 // ---------- 手绘图标：单位框 [-0.5,0.5]²（y 朝下）里的笔画；o:1 = 橙色强调，seg:1 = 快速直线（网络连线），fill = 铺浅橙 ----------
 const A = (cx, cy, rx, ry, a0, a1, n = 22) => DG.arcPts(cx, cy, rx, ry, a0, a1, n);
 const box = (x0, y0, x1, y1) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0 + 0.01]];
@@ -126,7 +126,7 @@ function layout(ctx, f) {
       g.font = `${cs}px "${FONT}"`; const cw = q.text ? g.measureText(q.text).width : 0, crate = Math.max(16, capN / Math.max(0.3, room - (B.cur - q.at)));
       const capX = capRight ? x0 + S + 24 * u : clamp(cx, pad + cw / 2, W - pad - cw / 2), capY = capRight ? cy + cs * 0.35 : cy + S / 2 + cs * 1.05;   // 竖屏图标在右侧窄栏：居中的说明字夹回画内
       if (q.text) B.text(q.text, capX, capY, cs, { col: INK, align: capRight ? 'left' : 'center', rate: crate });
-      const it = { q, kind: 'draw', x: x0, w: S, cx, y0: cy - S / 2, y1: cy + S / 2 + (capRight ? 0 : cs * 1.3),
+      const it = { q, kind: 'draw', x: x0, w: S, cx, y0: cy - S / 2, y1: cy + S / 2 + (capRight ? 0 : cs * 1.3), capX,capY,cw,cs,capRight,
         hx: capRight ? x0 : Math.min(x0, capX - cw / 2), hw: capRight ? S + 24 * u + cw : Math.max(x0 + S, capX + cw / 2) - Math.min(x0, capX - cw / 2) };
       items.push(it); lastDraw = it;
       if (two) { yP = it.y1 + gap; if (!ctx.portrait) yT = Math.max(yT, pair ? it.y1 + gap * 0.5 : yT); else yT = Math.max(yT, it.y1 + gap * 0.6); }
@@ -170,6 +170,7 @@ return {
     label: { title: '标题', point: `第 ${ctx.of('point').indexOf(q) + 1} 条要点`, draw: `第 ${ctx.of('draw').indexOf(q) + 1} 个手绘图标`, image: `第 ${ctx.of('image').indexOf(q) + 1} 张图` }[q.kind] })),
   init(ctx) {
     const { W, H, u, safe } = ctx;
+    if(ctx.data.trustedDomLabels&&ctx.fontFamily)FONT=ctx.fontFamily;
     ORANGE = ctx.data.accent || '#EF7226'; WASH = ctx.data.accent ? DG.rgba(ctx.data.accent, 0.22) : 'rgba(239,114,38,.22)';
     band = { y0: safe.top, y1: H - safe.bottom }; band.h = band.y1 - band.y0;
     // 字号系数 f 从 1.2 往下试：内容少就放大撑满版面，内容多就缩（最小 0.72），还放不下才让相机往下走
@@ -200,7 +201,10 @@ return {
     if (!ctx.alpha) { c.fillStyle = BOARD; c.fillRect(0, 0, W, H); }
     g.save(); CAM.apply(g, cam); const { tip, col } = B.draw(g, t);
     for (const it of items) if (t >= it.q.at - 1e-6) { const x0 = it.hx ?? (it.kind === 'point' ? it.x - 70 * u : it.x);
-      CLIP.mark(g, kindId(ctx, it.q), x0 - 12 * u, it.y0 - 12 * u, (it.hx != null ? it.hw : it.w + (it.x - x0)) + 24 * u, it.y1 - it.y0 + 24 * u); }
+      CLIP.mark(g, kindId(ctx, it.q), x0 - 12 * u, it.y0 - 12 * u, (it.hx != null ? it.hw : it.w + (it.x - x0)) + 24 * u, it.y1 - it.y0 + 24 * u);
+      if(ctx.data.trustedDomLabels&&['title','point'].includes(it.kind))CLIP.mark(g,'text-'+it.q.i,it.x,it.y0,Math.max(it.w,1),Math.max(it.y1-it.y0,1));
+      if(ctx.data.trustedDomLabels&&it.kind==='draw'&&it.q.text)CLIP.mark(g,'text-'+it.q.i,it.capRight?it.capX:it.capX-it.cw/2,it.capY-it.cs,Math.max(it.cw,1),it.cs*1.3);
+    }
     g.restore();
     const pen = penAt(t, cam, tip, ctx);
     if (pen) DG.pen(g, pen[0], pen[1], col || B.penColor(t), Math.sin(t * 7) * 0.03);

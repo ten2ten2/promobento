@@ -1,7 +1,7 @@
 // Capture the operations before author scripts run. A neighboring custom scene
 // must not be able to redefine the counter or its independent DOM check.
 const apply=Reflect.apply,exec=RegExp.prototype.exec,toFixed=Number.prototype.toFixed,
- toNumber=Number,finite=Number.isFinite,min=Math.min,max=Math.max;
+ toNumber=Number,finite=Number.isFinite,min=Math.min,max=Math.max,pow=Math.pow,round=Math.round;
 
 /** The existing metric's deterministic intermediate text, independent of DOM state. */
 export function parseMetricText(text:string){
@@ -21,4 +21,11 @@ export function metricTextAt(metric:ReturnType<typeof parseMetricText>,seconds:n
  const value=apply(toFixed,metric.number*progress,[metric.decimals]) as string;
  let formatted='';for(let index=0;index<value.length;index++)formatted+=value[index]==='.'&&metric.comma?',':value[index];
  return{progress,text:metric.prefix+formatted+metric.suffix};
+}
+
+/** The original blank template's bounded, integer-only exponential count. */
+export function blankMetricTextAt(text:string,seconds:number):string{
+ if(!apply(exec,/^(?:0|[1-9]\d{0,3})$/,[text]))throw Error('BLANK_NUMBER_INVALID');
+ const t=min(1,max(0,(seconds-3.4)/1.3)),value=t>=1?toNumber(text):round(toNumber(text)*(1-pow(2,-10*t)));
+ return String(value);
 }

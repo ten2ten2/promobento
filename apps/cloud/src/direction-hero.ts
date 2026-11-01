@@ -38,14 +38,33 @@ export function supportsCanvasSubtitleSequence(method:Json|null,context:Json):bo
  return supportsCanvasSubtitle(method,context)&&(major>1||major===1&&minor>=47);
 }
 
+/** Only offer the original constellation when its preview can bind three short confirmed facts. */
+export function supportsPlanetClip(method:Json|null,context:Json):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number);
+ if(method?.id!=='product-directing'||!(major>1||major===1&&minor>=49)||!context.fonts?.length||context.fonts[0].style==='italic')return false;
+ const facts=(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=30);
+ return facts.some((fact:Json)=>[...fact.text].length<=16)&&new Set(facts.map((fact:Json)=>fact.id)).size>=3;
+}
+
+/** Require enough distinct confirmed facts, including the original integer counter. */
+export function supportsBlankClip(method:Json|null,context:Json):boolean{
+ const [major,minor]=(method?.version??'').split('.').map(Number);
+ if(method?.id!=='product-directing'||!(major>1||major===1&&minor>=53))return false;
+ const facts=(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim());
+ return new Set(facts.map((fact:Json)=>fact.id)).size>=5&&facts.some((fact:Json)=>/^(?:0|[1-9]\d{0,3})$/.test(fact.text));
+}
+
 /** Compact B cards become one silent trusted-block hero, not three model-written full movies. */
 export function directionHero(card:Json,context:Json,index:number):Json{
- const font=context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
+ const font=card.font??context.fonts[0],face={fontId:font.fontId,weight:font.weight,style:font.style};
  const palette=(roles:string[],fallback:number)=>card.palette.find((entry:Json)=>roles.includes(entry.role))??card.palette[fallback%card.palette.length];
  const bg=palette(['bg','background'],0),ink=palette(['ink','foreground','text'],1),accent=palette(['accent','primary'],2);
- const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','canvas-subtitle','canvas-subtitle-sequence','hook-title','kinetic-title','cta-endcard','captions'];
- const proposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
- const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':'ui-journey'):
+ const supported=['ui-showcase','device-3d','object-studio','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip','feature-grid','curriculum','drawn-steps','canvas-title','canvas-sequence','canvas-number','canvas-subtitle','canvas-subtitle-sequence','planet-clip','hook-title','kinetic-title','cta-endcard','captions'];
+ // ROI observations are not available to the compact hero contract; preview
+ // the real image flat and let the final specification bind observed regions.
+ const originalProposals=card.skeleton.map((scene:Json)=>scene.approach.replace(/^block:/,''));
+ const proposals=originalProposals.map((id:string)=>['ui-space-clip','blank-clip','whiteboard-notes','finance-bars','math-notes','planet-depth','vox-story'].includes(id)?'ui-showcase':id);
+ const block=card.usesDepth?(proposals.includes('object-studio')?'object-studio':proposals.includes('device-3d')?'device-3d':originalProposals.includes('ui-space-clip')?'ui-showcase':'ui-journey'):
   proposals.find((id:string)=>['ui-showcase','ui-journey','continuous-focus','vox-clip','keynote-clip','whiteboard-clip'].includes(id))??
   proposals.find((id:string)=>supported.includes(id)&&!['hook-title','kinetic-title','cta-endcard','captions'].includes(id))??proposals.find((id:string)=>supported.includes(id))??(proposals.includes('custom')?'ui-showcase':undefined);
  if(!block)throw Error('DIRECTION_HERO_UNSUPPORTED');
@@ -67,6 +86,12 @@ export function directionHero(card:Json,context:Json,index:number):Json{
  }
  else if(['feature-grid','curriculum','drawn-steps'].includes(block))params={items:[0,1,...(facts.length>2?[2]:[])].map(i=>({textSlot:text('fact-'+i,facts[i%facts.length],'label')}))};
  else if(block==='captions')params={assetKey:image(),cues:[{textSlot:text('headline',first,'caption'),start:0,end:450}]};
+ else if(block==='planet-clip'){
+  const eligible:Json[]=[],seen=new Set<string>();for(const fact of facts){if(context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=30&&!seen.has(fact.id)){eligible.push(fact);seen.add(fact.id);}}
+  const center=eligible.find(fact=>[...fact.text].length<=16),points=eligible.filter(fact=>fact.id!==center?.id).slice(0,2);
+  if(!center||points.length<2)throw Error('PLANET_FACTS_REQUIRED');
+  params={textSlot:text('headline',center),items:points.map((fact,i)=>({textSlot:text('point-'+i,fact,'label')}))};
+ }
  else if(block==='canvas-title')params={textSlot:text('headline',caption)};
  else if(block==='canvas-number'){
   const fact=facts.find((item:Json)=>{try{assertCanvasNumber(item.text,'number',face.style);return context.confirmedFactIds?.includes(item.id);}catch{return false;}});

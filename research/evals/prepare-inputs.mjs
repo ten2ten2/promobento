@@ -4,10 +4,23 @@ import {resolve,join} from 'node:path';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {AUDIO_STYLES} from '../../packages/audio/src/catalog.mjs';
 
-const [directoryArg,rendererRelease]=process.argv.slice(2),directory=resolve(directoryArg??'');
+const [directoryArg,rendererRelease,...flags]=process.argv.slice(2),directory=resolve(directoryArg??'');
 if(!directoryArg||!directory.startsWith(resolve('artifacts')+'/')||!/^renderer-[a-f0-9]{12}$/.test(rendererRelease??''))throw Error('EVAL_PRIVATE_DIRECTORY_AND_PINNED_RENDERER_REQUIRED');
+if(flags.length>1||flags.some(flag=>!flag.startsWith('--huashu-fonts=')))throw Error('EVAL_FONT_ARGUMENT_INVALID');
 if(existsSync(directory))throw Error('EVAL_INPUT_DIRECTORY_EXISTS');
 const read=path=>parseCanonicalJson(readFileSync(path)),topics=read('research/evals/topics.json'),materials=read('research/evals/materials.json');
+const fonts=[{fontId:'geist-sans',weight:600,style:'normal',licenseRef:'geist-ofl-1.1',rightsCleared:true}];
+if(flags.length){
+ const wanted=flags[0].slice('--huashu-fonts='.length).split(',');
+ if(!wanted.length||wanted.length>9||new Set(wanted).size!==wanted.length)throw Error('EVAL_FONT_SELECTION_INVALID');
+ const registry=read('packages/fonts/huashu/registry.json');
+ for(const entry of wanted){
+  const match=/^([a-z][a-z0-9-]{0,63}):([1-9]00):(normal|italic)$/.exec(entry);
+  const face=match&&registry.fonts.find(item=>item.fontId===match[1]&&item.weight===Number(match[2])&&item.style===match[3]);
+  if(!face||face.license!=='OFL-1.1'||face.licenseRef!=='huashu-fonts-ofl-1.1')throw Error('EVAL_FONT_SELECTION_INVALID');
+  fonts.push({fontId:face.fontId,weight:face.weight,style:face.style,licenseRef:face.licenseRef,rightsCleared:true});
+ }
+}
 if(topics.rights.scope!=='internal_eval_only'||topics.factConfirmation.confirmedBy!=='owner'||materials.status!=='ingested_internal_eval'
  ||materials.publicUseCleared!==false||materials.pending.length)throw Error('EVAL_CONFIRMED_INPUTS_REQUIRED');
 const cases=[];
@@ -31,7 +44,7 @@ for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false)){
   const id=topic.id+'-'+durationSeconds,context={audience:topic.segment,targetAudience:card.audience,brand:card.brand,product:card.product,
    videoLanguage:card.videoLanguage,durationSeconds,fps:30,aspects:topics.variants.aspects,seed:'s1-eval-'+id,
    creativeBriefVersion:'director-led-v1',brief:card.brief,notes:card.notes,cta:card.cta,facts:card.facts,sources:card.sources,confirmedFactIds:card.confirmation.factIds,factConfirmation:card.confirmation,
-   runtimeVersion:'film-runtime-v1',rendererRelease,fonts:[{fontId:'geist-sans',weight:600,style:'normal',licenseRef:'geist-ofl-1.1',rightsCleared:true}],
+   runtimeVersion:'film-runtime-v1',rendererRelease,fonts,
    resources,audioSources:[],music:{allowedKinds:['procedural','none'],proceduralStyles:AUDIO_STYLES},scope:'internal_eval_only',publicUseCleared:false};
   cases.push({id,topicId:topic.id,durationSeconds,aspects:context.aspects,contextFile:id+'.json',context,
    rightsAdmissions:resources.map(({resourceId,sha256,licenseRef,evidenceKey})=>({resourceId,sha256,licenseRef,evidenceKey,scope:'internal_eval_only'}))});

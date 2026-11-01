@@ -9,7 +9,7 @@
 export function create(CLIP) { const {U, MO, TY, CH} = CLIP.helpers; return (() => {
 const { clamp, lerp } = U;
 const RED = '#E3120B', INK = '#0C0C0C', SUB = '#4F5B61', GRID = 'rgba(12,12,12,0.13)';
-const CN = '"PuHui-Medium"', CNB = '"PuHui-Bold"', NUM = '"RobotoCondensed", "PuHui-Medium"';
+let CN = '"PuHui-Medium"', CNB = '"PuHui-Bold"', NUM = '"RobotoCondensed", "PuHui-Medium"';
 let L, BUF;
 const fmtv = (d, v) => (d.prefix || '') + TY.fmt(v, d.decimals ?? 1) + (d.suffix || '');
 return {
@@ -28,6 +28,7 @@ return {
   },
   init(ctx) {
     const { W, H, u, data: d } = ctx, m = (ctx.portrait ? 70 : 90) * u, c = document.createElement('canvas').getContext('2d');
+    if(d.trustedDomLabels&&ctx.fontFamily)CN=CNB=NUM=`"${ctx.fontFamily}"`;
     const kind = (ctx.of('bar', 'line', 'candle')[0] || {}).kind || d.chart || 'bar';
     const S = d.series || [];
     const vals = kind === 'candle' ? S.flatMap(r => [r.h, r.l]) : S.map(r => r.value);
@@ -38,12 +39,12 @@ return {
     const step = ticks[1] - ticks[0];                                     // 刻度要把数据整个包住（CH.ticks 只给区间内的整刻度）
     while (ticks[ticks.length - 1] < hi + pad * 0.5) ticks.push(+(ticks[ticks.length - 1] + step).toFixed(10));
     while (ticks[0] > (zeroBased ? lo : lo - pad * 0.5)) ticks.unshift(+(ticks[0] - step).toFixed(10));
-    const titleSz = (ctx.portrait ? 64 : 58) * u, t = TY.fit(c, d.title || '', W - 2 * m, titleSz, 'PuHui-Bold', { maxLines: ctx.portrait ? 3 : 2, weight: '700 ' });
+    const titleSz = (ctx.portrait ? 64 : 58) * u, t = TY.fit(c, d.title || '', W - 2 * m, titleSz, d.trustedDomLabels?ctx.fontFamily:'PuHui-Bold', { maxLines: ctx.portrait ? 3 : 2, weight: '700 ' });
     const sub = (d.unit || '') + (!zeroBased ? (d.unit ? '　' : '') + '纵轴未从 0 开始' : '');
     // 副标题、来源行：放不下先缩一点，再折两行（竖屏长口径会出画）；来源行要让开右下角标
-    const fsz = ctx.portrait ? 1.2 : 1, subF = TY.fit(c, sub, W - 2 * m, 32 * u * fsz, 'PuHui-Medium', { maxLines: 2, min: 0.8 });
+    const fsz = ctx.portrait ? 1.2 : 1, subF = TY.fit(c, sub, W - 2 * m, 32 * u * fsz, d.trustedDomLabels?ctx.fontFamily:'PuHui-Medium', { maxLines: 2, min: 0.8 });
     c.font = `700 ${28 * u}px "PuHui-Medium"`; const badgeW = d.badge ? c.measureText(d.badge).width + 28 + 30 * u : 0;
-    const srcF = TY.fit(c, d.source || '', W - 2 * m - badgeW, 26 * u * fsz, 'PuHui-Medium', { maxLines: 2, min: 0.8 });
+    const srcF = TY.fit(c, d.source || '', W - 2 * m - badgeW, 26 * u * fsz, d.trustedDomLabels?ctx.fontFamily:'PuHui-Medium', { maxLines: 2, min: 0.8 });
     const top = ctx.safe.top + 80 * u + t.lines.length * t.size * 1.25 + 60 * u + (subF.lines.length - 1) * subF.size * 1.3;
     const band = ctx.of('number').length ? 150 * u : 0;                 // 有 number：给大数字单独留一条，不压在图区里（折线一上涨，右上角正好是线头）
     const F = { x: m + 20 * u, y: top + 40 * u + band, w: W - 2 * m - 40 * u, h: H - top - 40 * u - band - (ctx.portrait ? 260 : 190) * u - ctx.safe.bottom - (srcF.lines.length - 1) * srcF.size * 1.3 };   // safe.bottom：字幕带整条让出来，来源行落在它上面
@@ -108,6 +109,11 @@ return {
     // ---- 数据 ----
     const n = S.length, ddur = qd.dur || Math.min(2.2, Math.max(0.9, n * (kind === 'bar' ? 0.22 : 0.06)));
     const dp = ctx.p(t, qd.at, ddur);
+    if(d.trustedDomLabels&&kind==='bar')for(const [i,row]of S.entries()){
+      const labelHeight=40*u*fs,space=L.slot*.9;
+      CLIP.mark(c,CLIP.rid('fact-label',i),xs[i]-space/2,xy-labelHeight,space,labelHeight*1.25);
+      if(dp>=1)CLIP.mark(c,CLIP.rid('fact-value',i),xs[i]-space/2,yS(row.value)-labelHeight*1.2,space,labelHeight);
+    }
     const qh = ctx.of('highlight')[0], hi = qh ? (qh.data && qh.data.index != null ? qh.data.index : (d.highlight && d.highlight.index != null ? d.highlight.index : n - 1)) : -1;
     const hiP = qh ? MO.smooth(ctx.p(t, qh.at, 0.4)) : 0;
     let anchor = null;

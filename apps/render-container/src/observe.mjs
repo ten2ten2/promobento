@@ -1,3 +1,5 @@
+import {blankMetricTextAt} from '../../../packages/film-runtime/src/metric-text.ts';
+
 /** Trusted CDP snapshot and platform-font inspection; no page-supplied QA booleans. */
 export async function observe(cdp, plan, renderId, frame) {
   const names = ['font-size', 'color', 'background-color', 'visibility', 'display', 'opacity', 'overflow', 'font-weight','font-family','font-style',
@@ -139,7 +141,13 @@ export async function observe(cdp, plan, renderId, frame) {
     }
     if(active&&custom&&!slot)throw Error('CUSTOM_TEXT_UNBOUND');
   }
-  for(const text of texts)if(customIds.size&&text.text!==plan.spec.texts[text.slotId].text)throw Error('CUSTOM_TEXT_MISMATCH');
+  for(const text of texts)if(customIds.size&&text.text!==plan.spec.texts[text.slotId].text){
+    // A bound blank-template counter has one deterministic intermediate value;
+    // ordinary slots still have to equal their complete immutable text.
+    const count=plan.spec.scenes.find(scene=>scene.kind==='block'&&scene.block==='blank-clip@1'&&scene.start<=frame&&frame<scene.end
+      &&scene.params.items?.[2]?.textSlot===text.slotId);
+    if(!count||text.text!==blankMetricTextAt(plan.spec.texts[text.slotId].text,(frame-count.start)/30))throw Error('CUSTOM_TEXT_MISMATCH');
+  }
   let assets;
   if(plan.observeAssets){
     assets=[];

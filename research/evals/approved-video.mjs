@@ -12,10 +12,10 @@ import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
-const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif','.png':'image/png','.apng':'image/png','.webp':'image/webp'})[extname(file).toLowerCase()];
-const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif','image/png':'png','image/webp':'webp'})[type];
+const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif','.png':'image/png','.apng':'image/png','.webp':'image/webp','.avif':'image/avif'})[extname(file).toLowerCase()];
+const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif','image/png':'png','image/webp':'webp','image/avif':'avif'})[type];
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
-const isAnimatedSource=type=>['image/gif','image/png','image/webp'].includes(type);
+const isAnimatedSource=type=>['image/gif','image/png','image/webp','image/avif'].includes(type);
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
@@ -39,6 +39,12 @@ export function assertVideoSourceHeader(bytes,mediaType){
  if(mediaType==='image/webp'){
   if(bytes.length<30||bytes.toString('ascii',0,4)!=='RIFF'||bytes.readUInt32LE(4)+8!==bytes.length||bytes.toString('ascii',8,16)!=='WEBPVP8X'
    ||bytes.readUInt32LE(16)!==10||!(bytes[20]&2)||1+bytes.readUIntLE(24,3)>4096||1+bytes.readUIntLE(27,3)>4096)throw Error('VIDEO_SOURCE_FORMAT_INVALID');return;
+ }
+ if(mediaType==='image/avif'){
+  if(bytes.length<16||box!=='ftyp')throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+  const size=bytes.readUInt32BE(0);if(size<16||size>bytes.length||(size-16)%4)throw Error('VIDEO_SOURCE_FORMAT_INVALID');
+  const brands=[bytes.toString('ascii',8,12)];for(let offset=16;offset<size;offset+=4)brands.push(bytes.toString('ascii',offset,offset+4));
+  if(!brands.includes('avis'))throw Error('VIDEO_SOURCE_FORMAT_INVALID');return;
  }
  if(mediaType==='video/mp4'&&(bytes.length<12||box!=='ftyp')
   ||mediaType==='video/quicktime'&&(bytes.length<12||!['ftyp','moov','mdat','free','wide'].includes(box))
@@ -67,7 +73,7 @@ async function extractVideo({page,version},source,mediaType){
  const info=await bounded(page.evaluate(async({base64,mediaType})=>{
   const data=atob(base64),buffer=new Uint8Array(data.length);for(let i=0;i<data.length;i++)buffer[i]=data.charCodeAt(i);
   if(window.__pbAnimatedDecoder){window.__pbAnimatedDecoder.close();window.__pbAnimatedDecoder=null;}
-  if(['image/gif','image/png','image/webp'].includes(mediaType)){
+  if(['image/gif','image/png','image/webp','image/avif'].includes(mediaType)){
    if(typeof ImageDecoder!=='function')throw Error(isSecureContext?'ANIMATED_DECODER_UNAVAILABLE':'ANIMATED_DECODER_INSECURE_CONTEXT');
    if(!await ImageDecoder.isTypeSupported(mediaType))throw Error('ANIMATED_SOURCE_UNSUPPORTED');
    const decoder=new ImageDecoder({data:buffer,type:mediaType,preferAnimation:true});await decoder.completed;await decoder.tracks.ready;const track=decoder.tracks.selectedTrack;
@@ -100,7 +106,7 @@ async function extractVideo({page,version},source,mediaType){
   const result=await bounded(page.evaluate(async({index,mediaType,width,height})=>{
    const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=index/30;
    canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');
-   if(['image/gif','image/png','image/webp'].includes(mediaType)){
+   if(['image/gif','image/png','image/webp','image/avif'].includes(mediaType)){
     const frameIndex=window.__pbAnimatedEnds.findIndex(end=>time*1000000<end);if(frameIndex<0)throw Error('VIDEO_SEEK_FAILED');
     const decoded=await window.__pbAnimatedDecoder.decode({frameIndex,completeFramesOnly:true});try{if(!decoded.complete)throw Error('VIDEO_DECODE_FAILED');ctx.drawImage(decoded.image,0,0);}finally{decoded.image.close();}
    }else{
@@ -159,7 +165,7 @@ export async function captureApprovedWebVideo({outputDir,card,entries,download=d
    derivation:{kind:'approved_video_frame_pack',sourceOrigin:'web',videoUrl:entry.videoUrl,sourceMediaType:mediaType,sourceSha256:card.materialApprovals?.[entry.id]?.sha256}};
   approved(card,asset);return{entry,asset};
  });
- const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm,image/gif,image/png,image/webp',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
+ const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.videoUrl,{accept:'video/mp4,video/quicktime,video/webm,image/gif,image/png,image/webp,image/avif',maxBytes:maxSource,timeoutMs:60000}));checkBytes(card,item.asset,bytes);inputs.push({...item,bytes});}
  return materializeVideo(output,artifacts,inputs);
 }
 

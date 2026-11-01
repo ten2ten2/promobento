@@ -9,8 +9,9 @@ const within=(root,path)=>path.startsWith(root+sep);
 const skipped=new Set(['node_modules','.git','dist','build','out','.om','_archive','.next','coverage','vendor','Pods','DerivedData','.cache']);
 const kinds=new Map(Object.entries({'.png':'image','.apng':'image','.jpg':'image','.jpeg':'image','.webp':'image','.gif':'image','.svg':'vector','.avif':'image',
  '.mp4':'video','.mov':'video','.webm':'video','.ico':'icon','.icns':'icon'}));
+const fontExtensions=new Set(['.ttf','.otf','.woff','.woff2']);
 
-export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,observeStyles=false,preferReadme=false}){
+export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,observeStyles=false,preferReadme=false,observeFonts=false}){
  // Directory discovery has separate approval from a material's later usage rights.
  if(typeof sourceUrl!=='string'||!sourceUrl.trim()||sourceUrl.length>2048||card.status!=='confirmed_for_s1_eval'||card.confirmation?.confirmedBy!=='owner'||card.confirmation.scope!=='s1-first-internal-evaluation'
   ||card.rights?.scope!=='internal_eval_only'||card.rights.publicUseCleared!==false||card.materialLicenseReview?.status==='permission_required'
@@ -19,7 +20,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
  if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
  let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
  const actualParent=realpathSync(parent);if(actualParent!==artifacts&&!within(artifacts,actualParent))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- if(typeof observeStyles!=='boolean'||typeof preferReadme!=='boolean')throw Error('LOCAL_DISCOVERY_MODE_INVALID');
+ if(typeof observeStyles!=='boolean'||typeof preferReadme!=='boolean'||typeof observeFonts!=='boolean')throw Error('LOCAL_DISCOVERY_MODE_INVALID');
  const featured=new Set();let readmeObservation;
  if(preferReadme){
   const name=readdirSync(root,{withFileTypes:true}).filter(item=>item.isFile()&&!item.isSymbolicLink()&&/^readme(?:\.[a-z]+)?\.md$/i.test(item.name))
@@ -47,7 +48,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
     if(depth>=limits.maxDepth){if(!missing.includes('depth_limit'))missing.push('depth_limit');continue;}
     if(!within(root,realpathSync(path)))throw Error('LOCAL_MATERIAL_PATH_INVALID');scan(path,depth+1);continue;
    }
-   const ext=extname(item.name).toLowerCase(),kind=kinds.get(ext);if(!item.isFile())continue;
+   const ext=extname(item.name).toLowerCase(),kind=kinds.get(ext)??(observeFonts&&fontExtensions.has(ext)?'font':undefined);if(!item.isFile())continue;
    if(observeStyles&&['.css','.scss','.less'].includes(ext)){
     const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink()||!within(root,realpathSync(path)))throw Error('LOCAL_MATERIAL_PATH_INVALID');
     if(styleFiles>=100||stat.size>256<<10||styleBytes+stat.size>2<<20){if(!missing.includes('style_limit'))missing.push('style_limit');continue;}
@@ -73,9 +74,9 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceDir,sourceUrl,...extra]=process.argv.slice(2);
- if(!outputDir||!topicId||!sourceDir||!sourceUrl||extra.length>2||new Set(extra).size!==extra.length||extra.some(flag=>!['--styles','--readme'].includes(flag)))throw Error('LOCAL_DISCOVERY_ARGUMENTS_REQUIRED');
+ if(!outputDir||!topicId||!sourceDir||!sourceUrl||extra.length>3||new Set(extra).size!==extra.length||extra.some(flag=>!['--styles','--readme','--fonts'].includes(flag)))throw Error('LOCAL_DISCOVERY_ARGUMENTS_REQUIRED');
  const topics=parseCanonicalJson(readFileSync('research/evals/topics.json')),topic=topics.topics.find(item=>item.id===topicId&&item.countsTowardGate!==false);
  if(!topic)throw Error('TOPIC_NOT_APPROVED');
- const card=parseCanonicalJson(readFileSync(topic.factCard)),result=discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,observeStyles:extra.includes('--styles'),preferReadme:extra.includes('--readme')});
+ const card=parseCanonicalJson(readFileSync(topic.factCard)),result=discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,observeStyles:extra.includes('--styles'),preferReadme:extra.includes('--readme'),observeFonts:extra.includes('--fonts')});
  console.log(canonical({scope:result.scope,candidates:result.candidates.length,missing:result.missing,review:'pending_rights_and_visual_review'}));
 }

@@ -117,7 +117,8 @@ function drawLevel(c, k, t, ctx) {
     g.save(); g.globalAlpha = pull; g.strokeStyle = 'rgba(255,230,190,.55)'; g.lineWidth = 6 * u; g.beginPath(); g.ellipse(cx, cy, R * 1.55, R * 0.35, -0.25, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); g.restore();
     if (L.center) { const f = TY.fit(g, L.center, R * 1.7, 56 * u, 'PuHui-Heavy', { maxLines: 2, min: 0.5, balance: true });   // 名字放进星球里：先缩字号，再折两行
       g.save(); g.globalAlpha = pull; g.font = `${f.size}px "PuHui-Heavy"`; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      f.lines.forEach((ln, i) => g.fillText(ln, cx, cy + fyP + (i - (f.lines.length - 1) / 2) * f.size * 1.1)); g.restore(); }
+      if(ctx.data.trustedDomLabels)CLIP.mark(g, ctx.data.trustedDomLevels?'center-label-'+k:'center-label', cx-R*.85, cy+fyP-R*.36, R*1.7, R*.72);
+      else f.lines.forEach((ln, i) => g.fillText(ln, cx, cy + fyP + (i - (f.lines.length - 1) / 2) * f.size * 1.1)); g.restore(); }
     // 节点＋标签胶囊（弹出 0.5s，过冲 108%）
     for (const nd of L.nodes) {
       const l = ctx.lt(t, nd.q.at); if (l <= 0) continue;
@@ -131,8 +132,8 @@ function drawLevel(c, k, t, ctx) {
       const gone = L.exit ? 1 - clamp((t - L.exit.at) / 0.2) : 1;   // 钻进去时：推进一开始这一层的标签全收掉（不然被放大成半屏白块，邻居的也会）
       const lp = MO.backOut(clamp((l - 0.15) / 0.5), 1.1) * gone; if (lp > 0) {
         const sc = lp * (on ? 1 + 0.18 * dimK : 1);
-        const lf = TY.fit(g, nd.q.text || '', ctx.W * 0.44 - 56 * u, (ctx.portrait ? 44 : 38) * u, 'PuHui-Medium', { maxLines: 1 });   // 长标签先缩字号
-        g.font = `${lf.size}px "PuHui-Medium"`; const tw = g.measureText(nd.q.text || '').width, bw = tw + 56 * u, bh = 70 * u;
+        const lf = TY.fit(g, nd.q.text || '', ctx.W * 0.44 - 56 * u, (ctx.portrait ? 44 : 38) * u, ctx.fontFamily || 'PuHui-Medium', { maxLines: 1 });   // 长标签先缩字号
+        g.font = `${lf.size}px "${ctx.fontFamily || 'PuHui-Medium'}"`; const tw = g.measureText(nd.q.text || '').width, bw = tw + 56 * u, bh = 70 * u;
         const ly = nd.y + fy + (nd.y < cy - R * 0.5 && ctx.portrait ? -nr - 70 * u : nr + 70 * u);   // 标签放节点下方（竖屏上半圈放上方）
         const z = cam.z || 1, vx0 = cam.x - ctx.W / 2 / z, vx1 = cam.x + ctx.W / 2 / z, hw = bw * sc / 2 + 20 * u / z;   // 当前镜头里看得见的世界范围（慢推会把边上的标签推出画）
         const lx = nd.x > vx0 && nd.x < vx1 ? (vx1 - vx0 > 2 * hw ? clamp(nd.x, vx0 + hw, vx1 - hw) : cam.x) : nd.x;   // 节点在画里，标签就夹回画里
@@ -140,7 +141,9 @@ function drawLevel(c, k, t, ctx) {
         g.fillStyle = 'rgba(20,40,20,.25)'; g.beginPath(); g.roundRect(-bw / 2 + 6 * u, -bh / 2 + 8 * u, bw, bh, bh / 2); g.fill();
         g.fillStyle = '#ffffff'; g.beginPath(); g.roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); g.fill();
         if (on) { g.strokeStyle = nd.col; g.lineWidth = 5 * u * dimK; g.stroke(); }
-        g.fillStyle = '#1f1a3a'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(nd.q.text || '', 0, 2 * u);
+        g.fillStyle = '#1f1a3a'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        if(ctx.data.trustedDomLabels)CLIP.mark(g, CLIP.rid('node-label', ctx.of('point').indexOf(nd.q)), -bw / 2 + 8*u, -bh / 2 + 5*u, bw - 16*u, bh - 10*u);
+        else g.fillText(nd.q.text || '', 0, 2 * u);
         CLIP.mark(g, rid, -bw / 2, -bh / 2, bw, bh);
       }
       g.restore();

@@ -78,6 +78,8 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 
 第二个参数必须固定为将要执行的 renderer release；上例固定 `fdb8e4e` 镜像，不自动追随新部署，当前版本见[实施状态](../../docs/implementation-status.md)。镜像更新后须用新发布 SHA 前 12 位（`renderer-<12位SHA>`）重新准备输入，不能把旧 release 改绑新镜像。脚本已用真实卡片和素材实际生成 **12 份** context：每题 15/30 秒各一份，每份含横竖两画幅，共对应 24 部最终影片。保留卡片原语言、CTA、事实 ID、来源、限定条件和确认记录，素材只取本题 `materialIds`，不改变原文字或推导业绩。
 
+需要让导演选择已随镜像安装的 huashu 字体时，源码支持在命令末尾增加 `--huashu-fonts=hm-inter:400:normal,hm-noto-sans-sc:700:normal`，按 `字体 ID:字重:样式` 选择注册表中最多 9 个字体；原有 Geist 保持为首选，旧命令不变。注册表、源字体和各自许可由镜像构建流程固定；所选 release 必须实际包含这些字体，且其字符集必须覆盖成片文字，否则渲染会停止。该输入路径尚未验证或部署。
+
 输出 `manifest.json` 标为 `prepared_not_executed`，每例包含 context 文件与 `rightsAdmissions`。真实执行时，为该例创建内部评测操作，先在 `rights` 入口登记其证据，再上传 context，并向既有 `creative` 入口提交 `{operationId,contextKey}`。模型密钥、能力与历史费用门槛仍由服务端检查；准备脚本不上传、不创建云操作、不调用模型/渲染，不代替六题实际评测。
 
 卡片 `facts` 是确认过的证据，不强制把来源长句逐字做成大标题。C 可忠实压缩未定稿文案，仍须保留产品声明归属、限定条件与 factId；固定名称、CTA/URL 和明确提供的最终上屏文字不改。原事实卡、来源与确认记录保持不变。
@@ -182,11 +184,13 @@ mise exec -- node research/evals/discover-local-materials.mjs \
   artifacts/example-local-candidates <已批准题目ID> <本地项目目录> <登记的local来源URL>
 ```
 
-`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；后续收集支持逐项批准的静态 PNG、JPEG、静态 WebP，以及下述受限 SVG、ICO／ICNS、静态 GIF／AVIF 和 MP4／MOV／WebM／动态 GIF／APNG／WebP；其他格式仍需接入。
+`candidates.json` 只列相对路径、扩展名对应的候选类型和文件大小；不读取或复制媒体字节，不授予使用权。工具跳过隐藏目录、依赖和构建目录与符号链接，并在触及数量／深度上限时记录遗漏。图片、视频、SVG 和图标都可列为候选；后续收集支持逐项批准的静态 PNG、JPEG、静态 WebP，以及下述受限 SVG、ICO／ICNS、静态 GIF／AVIF 和 MP4／MOV／WebM／动态 GIF／APNG／WebP／AVIF；其他格式仍需接入。
 
 如需优先查看 README 里的项目图片，可显式追加 `--readme`：只读取项目根目录中一份受大小限制的 README，标记并前置已列入候选的本地图片引用；不下载外链、不复制媒体、不因此授予许可。数量或深度上限之外的引用仍需单独发现。`--readme` 和下述 `--styles` 可一起使用。
 
 需要参考项目样式时，可在命令末尾显式追加 `--styles`：工具只读取受限数量和大小的 `.css`、`.scss`、`.less`，提取直接声明的十六进制及 RGB／HSL／OKLCH 颜色字面量和首选字体名，并记录相对来源；超出上限记入遗漏，不执行样式、展开变量或处理导入。结果不是实际页面样式、字体许可或素材授权，仍须核对后才能用于方向；不加该参数保持原先只列文件的行为。
+
+源码中另可追加 `--fonts`，将本地 `.ttf`、`.otf`、`.woff`、`.woff2` 列为待审字体文件；它只记录路径和大小，不读取字体、不授予许可，也未接入字体入库或渲染。该选项尚未验证；不加时保留原来的候选范围。
 
 已有逐项批准的本地项目 PNG、JPEG 和静态 WebP 也可接入同一待审清单。先在该题事实卡的 `assetSources` 登记本地来源，并在 `materialApprovals` 为每个素材登记负责人批准，绑定 `sourceFile`、`sourceUrl` 和批准字节的 `sha256`；私有清单逐项给出 `id`、相对 `sourceFile`、与事实卡一致的 `sourceUrl`、`approvalRef` 和 `description`：
 
@@ -226,14 +230,14 @@ mise exec -- node research/evals/approved-artwork.mjs \
   artifacts/example-inline-artwork <已批准题目ID> --inline artifacts/example-approved-inline-files.json
 ```
 
-已逐项批准的本地 MP4／MOV／WebM 或动态 GIF／APNG／WebP 可用同一私有清单收集，事实卡批准须绑定 `sourceFile`、`sourceUrl` 和原文件 `sha256`：
+已逐项批准的本地 MP4／MOV／WebM 或动态 GIF／APNG／WebP／AVIF 可用同一私有清单收集，事实卡批准须绑定 `sourceFile`、`sourceUrl` 和原文件 `sha256`：
 
 ```sh
 mise exec -- node research/evals/approved-video.mjs \
   artifacts/example-video <已批准题目ID> <本地项目目录> artifacts/example-approved-files.json
 ```
 
-网页 MP4／MOV／WebM／动态 GIF／APNG／WebP 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 不以 `.mp4`／`.mov`／`.webm`／`.gif`／`.png`／`.apng`／`.webp` 结尾时，事实卡和清单还须给出并批准相同的 `sourceMediaType`（`video/mp4`、`video/quicktime`、`video/webm`、`image/gif`、`image/png` 或 `image/webp`）。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
+网页 MP4／MOV／WebM／动态 GIF／APNG／WebP／AVIF 须逐项批准无凭据、无查询参数的 HTTPS 来源 `sourceUrl` 与 `videoUrl`，以及源文件 `sha256`；`videoUrl` 不以 `.mp4`／`.mov`／`.webm`／`.gif`／`.png`／`.apng`／`.webp`／`.avif` 结尾时，事实卡和清单还须给出并批准相同的 `sourceMediaType`（`video/mp4`、`video/quicktime`、`video/webm`、`image/gif`、`image/png`、`image/webp` 或 `image/avif`）。私有清单提供 `id`、`sourceUrl`、`videoUrl`、`approvalRef`、`description`，以 `--web` 代替本地目录：
 
 ```sh
 mise exec -- node research/evals/approved-video.mjs \
@@ -242,7 +246,7 @@ mise exec -- node research/evals/approved-video.mjs \
 
 网页下载先核对全部许可，不跟随重定向，拒绝私网地址并限制 50 MiB；观察到的页面视频地址不构成许可。
 
-隔离且断网的 Chrome 按源时间每秒 30 次提取画面，保留原视频、首帧 PNG 和身份绑定的 WebP 帧包；最长 60 秒，单源至多 50 MiB，全部帧包合计至多 175 MiB。动态 GIF／APNG／WebP 按解码后的每帧时长采样一次完整循环，不隐式重复；只有一帧的图片应走静态图片入口。MOV 只接受当前 Chrome 可解码的 QuickTime 编码，保留 `video/quicktime` 原始身份；无法解码时停止，不改标为 MP4。它不导入原视频声音；音频须另走既有授权流程。须实际查看视频及海报并标记内部审核，入库前以相同 Chrome 版本重建并逐字节核对，然后一并登记原视频和所有帧包。导演只从海报观察到首帧，不得推断后续动作；实际镜头应覆盖在源视频时长之内。首个素材为视频时须至少 46 帧以供方向预览。该入口不处理任意客户上传或未经批准的视频；实际 staging 和整片效果另行验证。
+隔离且断网的 Chrome 按源时间每秒 30 次提取画面，保留原视频、首帧 PNG 和身份绑定的 WebP 帧包；最长 60 秒，单源至多 50 MiB，全部帧包合计至多 175 MiB。动态 GIF／APNG／WebP／AVIF 按解码后的每帧时长采样一次完整循环，不隐式重复；动态 AVIF 依赖当前 Chrome 的 ImageDecoder 支持，不支持时明确停止。动态 AVIF 源码路径尚未验证；只有一帧的图片应走静态图片入口。MOV 只接受当前 Chrome 可解码的 QuickTime 编码，保留 `video/quicktime` 原始身份；无法解码时停止，不改标为 MP4。它不导入原视频声音；音频须另走既有授权流程。须实际查看视频及海报并标记内部审核，入库前以相同 Chrome 版本重建并逐字节核对，然后一并登记原视频和所有帧包。导演只从海报观察到首帧，不得推断后续动作；实际镜头应覆盖在源视频时长之内。首个素材为视频时须至少 46 帧以供方向预览。该入口不处理任意客户上传或未经批准的视频；实际 staging 和整片效果另行验证。
 
 采集使用独立临时 Chrome 配置，不登录、不下载应用。`selected.json` 初始为 `pending_visual_selection`；**查看实际图片**，排除人物肖像、私人内容、未确认业绩和不完整/源码画面后，记录 `approved_for_internal_eval_by_codex` 与 `reviewedAt`，再入库。不能把截图文件存在当作通过。全量采集拒绝覆盖旧文件；需要补某一题时用新目录或题目参数，避免重做已选图片。
 

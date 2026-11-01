@@ -38,6 +38,12 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
   const target = {...options.target, safeInsets: {...options.target.safeInsets}};
   const hasCanvasTitle=spec.scenes.some(scene=>isCanvasTextScene(scene));
   if(hasCanvasTitle&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='planet-clip@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('PLANET_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='whiteboard-notes@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('WHITEBOARD_NOTES_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='finance-bars@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('FINANCE_BARS_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='math-notes@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('MATH_NOTES_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='planet-depth@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('PLANET_DEPTH_CUSTOM_MIX_UNSUPPORTED');
+  if(spec.scenes.some(scene=>scene.kind==='block'&&scene.block==='vox-story@1')&&spec.scenes.some(scene=>scene.kind==='custom'))throw Error('VOX_STORY_CUSTOM_MIX_UNSUPPORTED');
   if (!['landscape', 'portrait', 'feed', 'square'].includes(target.aspect) || target.fps !== 30 || target.totalFrames !== spec.totalFrames
     || !Number.isSafeInteger(target.width) || target.width < 1 || !Number.isSafeInteger(target.height) || target.height < 1
     || ![options.initTimeoutMs, options.frameTimeoutMs].every(value => Number.isSafeInteger(value) && value > 0)
@@ -50,7 +56,12 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     if (scene.kind === 'custom') {
       if(isStudioRuntime(scene.runtime3D))for(const key of customStudioAssets(scene,options.customSources![scene.module]!)!){
         if(!['image','svg'].includes(resources.get(spec.assets[key]!.resourceId)?.kind??''))throw Error('CUSTOM_3D_IMAGE_REQUIRED');}
-      if(['om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D??''))for(const [key,focus] of Object.entries(scene.params?.panelFocus as Record<string,string>)){
+      if(scene.runtime3D==='om3-studio-v6'){
+        const keys=customStudioAssets(scene,options.customSources![scene.module]!)!;
+        const pixels=keys.reduce((sum,key)=>{const asset=resources.get(spec.assets[key]!.resourceId);return sum+(asset?.width??0)*(asset?.height??0);},0);
+        if(pixels>24_000_000)throw Error('STUDIO_TEXTURE_BUDGET_EXCEEDED');
+      }
+      if(['om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D??''))for(const [key,focus] of Object.entries(scene.params?.panelFocus as Record<string,string>)){
         const roi=spec.assets[key]?.roi?.[Number(focus.slice(4))];
         if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('CUSTOM_3D_PANEL_ROI_INVALID');
       }
@@ -59,6 +70,31 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
     const references = blockReferences(scene.params);
     for (const id of references.texts) if (!Object.hasOwn(spec.texts, id)) throw Error('TEXT_SLOT_UNKNOWN');
     for (const id of references.assets) if (!Object.hasOwn(spec.assets, id)) throw Error('ASSET_SLOT_UNKNOWN');
+    if(scene.block==='blank-clip@1'){
+      const items=scene.params.items as Array<{textSlot:string}>,roles=['headline','body','number','label','headline','label'];
+      if(new Set(items.map(item=>item.textSlot)).size!==items.length)throw Error('BLANK_SLOT_INVALID');
+      for(const [index,item]of items.entries()){const value=spec.texts[item.textSlot]!;
+        if(value.role!==roles[index]||!value.factIds.length)throw Error('BLANK_FACT_BINDING_REQUIRED');}
+      if(!/^(?:0|[1-9]\d{0,3})$/.test(spec.texts[items[2]!.textSlot]!.text))throw Error('BLANK_NUMBER_INVALID');
+      blockEvents('blank-clip',scene,scene.params);
+    }
+    if(scene.block==='planet-clip@1'){
+      if(spec.style.type.display.style==='italic'||spec.style.type.text.style==='italic')throw Error('PLANET_FONT_STYLE_UNSUPPORTED');
+      const items=scene.params.items as Array<{textSlot:string}>,ids=[String(scene.params.textSlot),...items.map(item=>item.textSlot)];
+      if(new Set(ids).size!==ids.length)throw Error('PLANET_TEXT_SLOTS_INVALID');
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(value.role!==(index?'label':'headline')||!value.factIds.length||[...value.text].length>(index?30:16))throw Error('PLANET_FACT_BINDING_REQUIRED');}
+      blockEvents('planet-clip',scene,scene.params);
+    }
+    if(scene.block==='planet-depth@1'){
+      if(spec.style.type.display.style==='italic'||spec.style.type.text.style==='italic')throw Error('PLANET_FONT_STYLE_UNSUPPORTED');
+      const p=scene.params as {textSlot:string;items:Array<{textSlot:string}>;inner:Array<{textSlot:string}>;evidenceIds:string[]};
+      const ids=[p.textSlot,...p.items.map(item=>item.textSlot),...p.inner.map(item=>item.textSlot)];
+      if(new Set(ids).size!==ids.length||p.evidenceIds.some(id=>!options.confirmedFactIds.includes(id)))throw Error('PLANET_DEPTH_BINDING_INVALID');
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(value.role!==(index?'label':'headline')||!value.factIds.length||[...value.text].length>(index?30:16))throw Error('PLANET_FACT_BINDING_REQUIRED');}
+      blockEvents('planet-depth',scene,scene.params);
+    }
     if(scene.block==='canvas-title@1'){
       const slot=spec.texts[String(scene.params.textSlot)]!;assertCanvasTitle(slot.text,slot.role,spec.style.type.display.style);
     }
@@ -114,6 +150,59 @@ export function generateFilmPage(raw: string | Uint8Array, options: PageOptions)
       const asset=spec.assets[String(scene.params.assetKey)];
       if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('WHITEBOARD_IMAGE_REQUIRED');
       blockEvents('whiteboard-clip',scene,scene.params);
+    }
+    if(scene.block==='whiteboard-notes@1'){
+      const display=spec.style.type.display,body=spec.style.type.text;
+      if(display.fontId!==body.fontId||display.weight!==body.weight||(display.style??'normal')!==(body.style??'normal')||body.style==='italic')throw Error('WHITEBOARD_NOTES_FONT_UNSUPPORTED');
+      const items=scene.params.items as Array<{textSlot:string;subtitleSlot?:string}>,ids=[String(scene.params.textSlot),...items.flatMap(item=>[item.textSlot,...(item.subtitleSlot?[item.subtitleSlot]:[])])];
+      if(new Set(ids).size!==ids.length)throw Error('WHITEBOARD_NOTES_SLOTS_INVALID');
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(!value.factIds.length||(index===0?value.role!=='headline':!['body','label'].includes(value.role))||[...value.text].length>60)throw Error('WHITEBOARD_NOTES_FACT_INVALID');}
+      blockEvents('whiteboard-notes',scene,scene.params);
+    }
+    if(scene.block==='finance-bars@1'){
+      const display=spec.style.type.display,body=spec.style.type.text;
+      if(display.fontId!==body.fontId||display.weight!==body.weight||(display.style??'normal')!==(body.style??'normal')||body.style==='italic')throw Error('FINANCE_BARS_FONT_UNSUPPORTED');
+      const p=scene.params as {textSlot:string;subtitleSlot:string;source:{textSlot:string};items:Array<{textSlot:string;value:{textSlot:string};evidenceId:string}>};
+      const ids=[p.textSlot,p.subtitleSlot,p.source.textSlot,...p.items.flatMap(item=>[item.textSlot,item.value.textSlot])];
+      if(new Set(ids).size!==ids.length)throw Error('FINANCE_BARS_SLOTS_INVALID');
+      const roles=['headline','body','label',...p.items.flatMap(()=>['label','number'])];
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(value.role!==roles[index]||!value.factIds.length||[...value.text].length>60)throw Error('FINANCE_BARS_FACT_INVALID');}
+      const values=p.items.map(item=>spec.texts[item.value.textSlot]!.text);
+      if(p.items.some(item=>!options.confirmedFactIds.includes(item.evidenceId)))throw Error('FINANCE_BARS_RELATIONSHIP_UNCONFIRMED');
+      if(values.some(value=>!/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/.test(value))||values.every(value=>Number(value)===0))throw Error('FINANCE_BARS_NUMBER_INVALID');
+      blockEvents('finance-bars',scene,scene.params);
+    }
+    if(scene.block==='math-notes@1'){
+      const display=spec.style.type.display,body=spec.style.type.text;
+      if(display.fontId!==body.fontId||display.weight!==body.weight||(display.style??'normal')!==(body.style??'normal')||body.style==='italic')throw Error('MATH_NOTES_FONT_UNSUPPORTED');
+      const p=scene.params as {textSlot:string;equation:{textSlot:string};items:Array<{textSlot:string}>};
+      const ids=[p.textSlot,p.equation.textSlot,...p.items.map(item=>item.textSlot)];
+      if(new Set(ids).size!==ids.length)throw Error('MATH_NOTES_SLOTS_INVALID');
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(!value.factIds.length||(index===0?value.role!=='headline':!['body','label'].includes(value.role))||[...value.text].length>60)throw Error('MATH_NOTES_FACT_INVALID');}
+      blockEvents('math-notes',scene,scene.params);
+    }
+    if(scene.block==='ui-space-clip@1'){
+      const asset=spec.assets[String(scene.params.assetKey)];
+      if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('UI_SPACE_IMAGE_REQUIRED');
+      for(const focus of scene.params.focuses as string[]){const roi=asset.roi?.[Number(focus.slice(4))];
+        if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('UI_SPACE_ROI_INVALID');}
+      blockEvents('ui-space-clip',scene,scene.params);
+    }
+    if(scene.block==='vox-story@1'){
+      const display=spec.style.type.display,body=spec.style.type.text;
+      if(display.fontId!==body.fontId||display.weight!==body.weight||(display.style??'normal')!==(body.style??'normal')||body.style==='italic')throw Error('VOX_STORY_FONT_UNSUPPORTED');
+      const items=scene.params.items as Array<{assetKey:string;textSlot:string;subtitleSlot:string;focus?:string}>;
+      const ids=[String(scene.params.textSlot),...items.flatMap(item=>[item.textSlot,item.subtitleSlot])];
+      if(new Set(ids).size!==ids.length)throw Error('VOX_STORY_SLOTS_INVALID');
+      for(const [index,id]of ids.entries()){const value=spec.texts[id]!;
+        if(!value.factIds.length||(index===0?value.role!=='headline':!['body','label'].includes(value.role))||[...value.text].length>60)throw Error('VOX_STORY_FACT_INVALID');}
+      for(const item of items){const asset=spec.assets[item.assetKey];
+        if(!asset||!['image','svg'].includes(resources.get(asset.resourceId)?.kind??''))throw Error('VOX_CLIP_IMAGE_REQUIRED');
+        if(item.focus){const roi=asset.roi?.[Number(item.focus.slice(4))];if(!roi||roi.x+roi.width>1||roi.y+roi.height>1)throw Error('VOX_CLIP_ROI_INVALID');}}
+      blockEvents('vox-story',scene,scene.params);
     }
     if(scene.block==='vox-clip@1'){
       for(const item of scene.params.items as Array<{assetKey:string;focus?:string}>){

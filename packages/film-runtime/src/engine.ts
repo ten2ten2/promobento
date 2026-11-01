@@ -5,7 +5,7 @@ import {customScenePlan} from '@promobento/contracts/custom-source';
 import {createClipHelpers} from './clip/helpers.js';
 import type { Envelope, Init, Seek, Sample, Inspect, Dispose, HitResult } from '../../../contracts/render-protocol.d.ts';
 import { frameLayers } from './motion.ts';
-import {parseMetricText,metricTextAt} from './metric-text.ts';
+import {parseMetricText,metricTextAt,blankMetricTextAt} from './metric-text.ts';
 import {segmentText,isTextWhitespace,isClosingPunctuation} from './grapheme-segments.ts';
 import {createTextIntegrity} from './text-integrity.ts';
 import {isStudioRuntime} from '@promobento/contracts/studio-runtime';
@@ -160,10 +160,11 @@ async function draw(frameIndex: number): Promise<void> {
     for(const layer of layers){const instance=instances.get(layer.id)!;
       if(instance.scene.kind==='custom'||hasCustom&&instance.scene.kind==='block'){
         const scene=instance.scene;
-        const metricSlot=scene.kind==='block'&&scene.block==='metric@1'?scene.params.textSlot as string:undefined;
+        const metricSlot=scene.kind==='block'&&scene.block==='metric@1'?scene.params.textSlot as string:
+          scene.kind==='block'&&scene.block==='blank-clip@1'?(scene.params.items as Array<{textSlot:string}>)[2]?.textSlot:undefined;
         const metricElement=(instance.instance as BlockInstance & {metricTextElement?:HTMLElement}).metricTextElement;
         if(metricSlot&&!metricElement)throw Error('METRIC_TEXT_HANDOFF_MISSING');
-        const override=metricSlot?{element:metricElement!,expected:metricTextAt(parseMetricText(current.spec.texts[metricSlot]!.text),layer.seconds).text}:undefined;
+        const override=metricSlot?{element:metricElement!,expected:scene.kind==='block'&&scene.block==='blank-clip@1'?blankMetricTextAt(current.spec.texts[metricSlot]!.text,layer.seconds):metricTextAt(parseMetricText(current.spec.texts[metricSlot]!.text),layer.seconds).text}:undefined;
         textIntegrity.verify(instance.root,override);
       }}
     if(hasCustom)textIntegrity.verifyBody(filmBody!,filmStage!,filmPlanElement!);
@@ -228,7 +229,7 @@ const engine: FilmEngine = {
           Array.from({length:Math.ceil(input.spec.totalFrames/(1800/input.spec.audio.music.bpm))},(_,i)=>Math.round(i*1800/(input.spec.audio.music as {bpm:number}).bpm)).filter(frame=>frame>=scene.start&&frame<scene.end):[],
         OM: window.__pbCreateOM({root, target: window.__omTarget, sceneScoped:scene.kind==='custom'&&scene.params?.gsapScope==='scene',
           ...(input.spec.audio.music.kind==='procedural'&&input.spec.audio.music.bpm?{bpm:input.spec.audio.music.bpm}:{})}, helperRegions, readiness, sounds, postSeek), CLIP: sceneClip,
-        style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle,scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'),
+        style: {...sceneStyle, palette: sceneStyle.palette.roles}, random: () => random.next(), text: slotId=>textSlot(slotId,sceneStyle,scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'||scene.kind==='block'&&scene.block==='blank-clip@1'),
         asset(key) {
           const asset = sceneAssets[key]; if (!asset) throw Error('ASSET_SLOT_UNKNOWN');
           if (asset.kind !== 'video') return asset;
@@ -269,10 +270,10 @@ const engine: FilmEngine = {
           ctx.OM3=Object.freeze({studio(assetKey:string,panelKeys?:readonly string[]){
             if(!studioOpen||studios.length)throw Error('CUSTOM_3D_STUDIO_CLOSED');
             if(typeof assetKey!=='string'||!declared.assetKeys.includes(assetKey))throw Error('CUSTOM_SLOT_UNDECLARED');
-            const multi=scene.runtime3D==='om3-studio-v3'||scene.runtime3D==='om3-studio-v4'||scene.runtime3D==='om3-studio-v5';
-            if(multi&&(!Array.isArray(panelKeys)||panelKeys.length<1||panelKeys.length>2||new Set([assetKey,...panelKeys]).size!==panelKeys.length+1
+            const multi=['om3-studio-v3','om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D??'');
+            if(multi&&(!Array.isArray(panelKeys)||panelKeys.length<1||panelKeys.length>(scene.runtime3D==='om3-studio-v6'?8:2)||new Set([assetKey,...panelKeys]).size!==panelKeys.length+1
               ||panelKeys.some(key=>typeof key!=='string'||!declared.assetKeys.includes(key))))throw Error('CUSTOM_SLOT_UNDECLARED');
-            const studio=studioFactory(studioCtx,{assetKey,...(scene.runtime3D==='om3-studio-v2'||multi?{objectMotion:true}:{}),...(multi?{panelKeys:[...panelKeys!]}:{}),...(['om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D??'')?{panelFocus:{...scene.params!.panelFocus as Record<string,string>}}:{}),...(scene.runtime3D==='om3-studio-v5'?{panelOpacity:true}:{})});studios.push(studio);
+            const studio=studioFactory(studioCtx,{assetKey,...(scene.runtime3D==='om3-studio-v2'||multi?{objectMotion:true}:{}),...(multi?{panelKeys:[...panelKeys!]}:{}),...(['om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D??'')?{panelFocus:{...scene.params!.panelFocus as Record<string,string>}}:{}),...(['om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D??'')?{panelOpacity:true}:{}),...(scene.runtime3D==='om3-studio-v6'?{texturePixelBudget:24_000_000}:{})});studios.push(studio);
             void studio.ready.catch(()=>{});readiness.pending.push(studio.ready);
             return Object.freeze({render:(view:Parameters<typeof studio.renderView>[0])=>{if(studioOpen)throw Error('CUSTOM_3D_EARLY_DRAW');studio.renderView(view);}});
           }});

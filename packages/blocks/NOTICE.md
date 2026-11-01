@@ -14,6 +14,10 @@ They do not include the upstream character, fonts or demo assets.
 It admits only separately cleared still images and deliberately omits upstream text, fonts and demo media;
 the seven imported clip grammars and their license are described in [clip/NOTICE.md](../film-runtime/src/clip/NOTICE.md).
 
+`blank-clip` adapts the three-act masked title, count and closing choreography from the upstream
+[blank template](https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/templates/blank/index.html).
+The implementation uses fact-bound slots and excludes upstream sample copy and media. Its source has not yet been validated.
+
 `device-3d` and `object-studio` use **Three.js 0.186.1**, MIT, copyright © 2010–2026 three.js authors.
 The exact package and integrity are pinned in `pnpm-lock.yaml`; the distributed renderer image includes
 `node_modules/.pnpm/three@0.186.1/node_modules/three/LICENSE` with the full notice.

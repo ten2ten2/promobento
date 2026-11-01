@@ -7,7 +7,7 @@
 export function create(CLIP) { const {U, MO, CAM, PAINT, DG, TY, UI, CL} = CLIP.helpers; return (() => {
 const { clamp, lerp, rng } = U;
 const C = { desk: '#e4ddcf', ink: '#171716', red: '#b8433f', paper: '#eeedeb', card: '#f6f4ee' };
-const BOLD = '"PuHui-Heavy"', TXT = '"PuHui-Bold"';
+let BOLD = '"PuHui-Heavy"', TXT = '"PuHui-Bold"';
 let items, keys, strings;
 // 一拍二的片内时间：at 这一帧就 >0
 const ls = (t, at) => MO.step(t - at + 1e-6, 12) + 1 / 12;
@@ -23,6 +23,7 @@ return {
     ...ctx.of('highlight').map((q, i) => ({ id: CLIP.rid('highlight', i), label: '荧光笔＋红圈' }))],
   init(ctx) {
     const { W, H, u, portrait } = ctx, r = rng(7), g = document.createElement('canvas').getContext('2d');
+    if(ctx.data.trustedDomLabels&&ctx.fontFamily)BOLD=TXT=`"${ctx.fontFamily}"`;
     C.red = ctx.data.accent || '#b8433f';                                  // huashu-motion: data.accent recolours the red string and circles
     items = []; let cur = 0, prev = null;
     for (const q of ctx.of('image', 'clip', 'title', 'point')) {
@@ -90,7 +91,9 @@ return {
   },
   draw(c, t, ctx) {
     const { W, H, u } = ctx, cam = CAM.at(keys, t);
-    const buf = UI.scratch('clip_vox', W, H), g = buf.getContext('2d'); g.reset();
+    const buf = UI.scratch('clip_vox', W, H), raw = buf.getContext('2d');
+    const g=ctx.data.trustedDomLabels?new Proxy(raw,{get(target,key){if(key==='fillText'||key==='strokeText')return ()=>{};
+      const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;},set(target,key,value){return Reflect.set(target,key,value,target);}}):raw;g.reset();
     g.save(); g.translate(0, (ctx.safe.top - ctx.safe.bottom) / 2); CAM.apply(g, cam);
     if (!ctx.alpha) { g.fillStyle = g.createPattern(CL.paperTile('clipdesk', C.desk, { amt: 12, fibers: 320, fiberCol: [110, 95, 70] }), 'repeat'); const s = 4 / cam.z; g.fillRect(cam.x - W * s, cam.y - H * s, W * 2 * s, H * 2 * s); }
     // 红线：跟着下一件的到场描出（12fps）
@@ -123,8 +126,9 @@ function drawItem(g, it, t, ctx) {
     else g.drawImage(im, -w / 2 + f.x, -h / 2 + f.y, f.w, f.h);
     g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(214,205,185,.18)'; g.fillRect(-w / 2, -h / 2, w, h); g.restore();   // 印在纸上：压一层旧纸色
     CL.tape(g, -w / 2 + 40 * u, -h / 2 + 8 * u, -0.6, 120 * u); CL.tape(g, w / 2 - 40 * u, -h / 2 + 8 * u, 0.5, 120 * u);
-    if (q.text) { const fs = TY.fit(g, q.text, w - 72 * u, 34 * u, 'PuHui-Bold', { maxLines: 1, min: 0.5 }); g.font = `${fs.size}px ${TXT}`;   // 标签条按字宽量，放不下就缩字
+    if (q.text) { const fs = TY.fit(g, q.text, w - 72 * u, 34 * u, ctx.data.trustedDomLabels?ctx.fontFamily:'PuHui-Bold', { maxLines: 1, min: 0.5 }); g.font = `${fs.size}px ${TXT}`;   // 标签条按字宽量，放不下就缩字
       g.fillStyle = C.ink; g.fillRect(-w / 2 + 16 * u, h / 2 - 72 * u, g.measureText(q.text).width + 40 * u, 56 * u); g.fillStyle = C.paper; g.textBaseline = 'middle'; g.fillText(q.text, -w / 2 + 36 * u, h / 2 - 43 * u); }
+    if(ctx.data.trustedDomLabels&&q.text)CLIP.mark(g,'text-'+q.i,-w/2+36*u,h/2-64*u,Math.max(1,g.measureText(q.text).width),42*u);
     // 高亮：荧光笔（multiply，一拍二扫过）→ 红笔圈
     for (const hq of ctx.of('highlight')) {
       if (!hq.data || !hq.data.rect || hq.at < q.at) continue;
@@ -145,6 +149,7 @@ function drawItem(g, it, t, ctx) {
     if (!title) { g.strokeStyle = 'rgba(80,140,200,.3)'; g.lineWidth = 2 * u; for (let y = -h / 2 + 90 * u; y < h / 2; y += it.size * 1.45) { g.beginPath(); g.moveTo(-w / 2, y); g.lineTo(w / 2, y); g.stroke(); }
       g.strokeStyle = 'rgba(184,67,63,.5)'; g.beginPath(); g.moveTo(-w / 2, -h / 2 + 56 * u); g.lineTo(w / 2, -h / 2 + 56 * u); g.stroke(); }
     g.fillStyle = title ? C.paper : C.ink; g.font = `${it.size}px ${title ? BOLD : TXT}`; g.textBaseline = 'alphabetic';
+    if(ctx.data.trustedDomLabels)CLIP.mark(g,'text-'+q.i,-w/2+(title?40:55)*u,-h/2+(title?25:70)*u,Math.max(1,w-(title?80:110)*u),it.lines.length*it.size*1.45);
     let k = 0; it.lines.forEach((ln, li) => { let x = -w / 2 + (title ? 40 : 55) * u; const y = -h / 2 + (title ? 25 * u : 70 * u) + (li + 1) * it.size * 1.3;
       for (const ch of ln) { if (k < n) g.fillText(ch, x, y); x += g.measureText(ch).width; k++; } });
   }

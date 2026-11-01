@@ -52,9 +52,10 @@ function fadingBezel(width:number,height:number,radius:number,bezel:number){
  rounded(outer,width+2*bezel,height+2*bezel,radius);rounded(hole,width,height,Math.max(0,radius-bezel));outer.holes.push(hole);
  return new ShapeGeometry(outer,16);
 }
-function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>;panelOpacity?:boolean}){
+function createObjectStudio(ctx:SceneContext,params:{assetKey:string;textSlot?:string;objectMotion?:boolean;panelKeys?:readonly string[];panelFocus?:Readonly<Record<string,string>>;panelOpacity?:boolean;texturePixelBudget?:number}){
  const asset=ctx.asset(params.assetKey),panelAssets=(params.panelKeys??[]).map(key=>ctx.asset(key));
  if([asset,...panelAssets].some(item=>item.kind==='video'))throw Error('DEVICE_TEXTURE_IMAGE_REQUIRED');
+ if(params.texturePixelBudget!==undefined&&[asset,...panelAssets].reduce((total,item)=>total+item.width*item.height,0)>params.texturePixelBudget)throw Error('STUDIO_TEXTURE_BUDGET_EXCEEDED');
  const panelRois=panelAssets.map((screen,index)=>{
   const focus=params.panelFocus?.[params.panelKeys![index]!];if(!focus)return undefined;
   const roi=screen.roi[Number(focus.slice(4))];

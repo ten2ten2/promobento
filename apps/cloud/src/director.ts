@@ -40,7 +40,7 @@ import {directorProgress,commitCandidate,commitReviewDraft,failDirector,director
 import {directorEnvironment} from './director-preflight.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {reviewContactSheet,selectCustomMotionFrames,auditSheetReferences} from './director-sheets.mjs';
-import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle,supportsCanvasSubtitleSequence} from './direction-hero.ts';
+import {directionHero,supportsVoxClip,supportsCanvasTitle,supportsCanvasSequence,supportsCanvasNumber,supportsCanvasSubtitle,supportsCanvasSubtitleSequence,supportsPlanetClip,supportsBlankClip} from './direction-hero.ts';
 import {workflowStarted} from './workflow-state.ts';
 import type {PipelineEnv,Json,BlobRef,Operation} from './pipeline-types.ts';
 
@@ -85,7 +85,7 @@ const customInstructionsFor=(scene:FilmSpec['scenes'][number])=>{
     `source audio is frozen from inert source declarations: call ctx.OM.sfx('id', seconds, {gain}) exactly once per hit while constructing the timeline, not inside draw(t). IDs: ${SFX_IDS.join(', ')}. Time must be scene-local seconds written as numeric literals, arithmetic, or ctx.OM.beat with a known BPM; audio is placed at the nearest 48 kHz sample. Gain is an optional positive linear amplitude from 0.001 to 3.9810717055349722; unsupported options, dynamic values, duplicate hits, unexecuted or late calls fail. Avoid duplicating the same sound and time in FilmSpec audio.sfx.`)
   :customSceneInstructions;
  if(scene.kind==='custom'&&isStudioRuntime(scene.runtime3D))instructions=instructions.replace('custom WebGL/Three.js is not yet admitted.',
-  `this scene has the bounded 3D studio. Construct exactly one ${['om3-studio-v3','om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D!)?"ctx.OM3.studio('primary',['panel'])":"ctx.OM3.studio('literal-asset-key')"} during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. ${['om3-studio-v2','om3-studio-v3','om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D!)?'The view can also set objectYaw, objectPitch and objectRoll in -180..180 degrees and objectScale in .5..1.5; omitted values reset to defaults. ':''}${['om3-studio-v3','om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D!)?"Use ctx.OM3.studio('primary',['panel']) with one or two additional distinct, declared literal image keys. Set panels:[{x,y,z,yaw,pitch,roll,scale,visible}] on every render: positions -4..4, rotations -180..180 degrees, scale .25..1.5; omitted visibility is false. Never carry a detail into an unrelated exercise. ":''}${['om3-studio-v4','om3-studio-v5'].includes(scene.runtime3D!)?'Panel crops are frozen in params.panelFocus and must name an exact observed ROI on that same panel asset. ':''}${scene.runtime3D==='om3-studio-v5'?'Panels may also set opacity from 0 to 1 for a gradual handoff; omitted opacity resets to 1. ':''}Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
+  `this scene has the bounded 3D studio. Construct exactly one ${['om3-studio-v3','om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D!)?"ctx.OM3.studio('primary',['panel'])":"ctx.OM3.studio('literal-asset-key')"} during setup. Drive studio.render({yaw,pitch,distanceScale,targetX,targetY}) inside ctx.OM.clockAfter after all timeline tweens update. Degrees: yaw -70..70, pitch -45..45; distanceScale .8..3, targets -4..4. ${['om3-studio-v2','om3-studio-v3','om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D!)?'The view can also set objectYaw, objectPitch and objectRoll in -180..180 degrees and objectScale in .5..1.5; omitted values reset to defaults. ':''}${['om3-studio-v3','om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D!)?`Use ctx.OM3.studio('primary',['panel']) with ${scene.runtime3D==='om3-studio-v6'?'one through eight':'one or two'} additional distinct, declared literal image keys. Set panels:[{x,y,z,yaw,pitch,roll,scale,visible}] on every render: positions -4..4, rotations -180..180 degrees, scale .25..1.5; omitted visibility is false. Never carry a detail into an unrelated exercise. `:''}${['om3-studio-v4','om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D!)?'Panel crops are frozen in params.panelFocus and must name an exact observed ROI on that same panel asset. ':''}${['om3-studio-v5','om3-studio-v6'].includes(scene.runtime3D!)?'Panels may also set opacity from 0 to 1 for a gradual handoff; omitted opacity resets to 1. ':''}Use only a declared cleared image or SVG, and keep DOM text fact-bound. Raw WebGL, Three.js, shaders and arbitrary loaders remain unavailable.`);
  if(scene.kind==='custom'&&scene.runtimeText==='grapheme-v1')instructions+=' Mount a text slot with {split:"graphemes"} and animate its .pb-grapheme children. The complete original text stays bound and must be readable at its hold.';
  return instructions;
 };
@@ -168,6 +168,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const graphemeMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=46);
     const studioFocusMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=45);
     const studioOpacityMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=48);
+    const studioManyPanelsMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=52);
     const videoMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=29);
     const voxClipMethod=supportsVoxClip(methods,context.resources);
     const voxHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=34);
@@ -177,13 +178,27 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const canvasNumberMethod=supportsCanvasNumber(methods,context);
     const canvasSubtitleMethod=supportsCanvasSubtitle(methods,context);
     const canvasSubtitleSequenceMethod=supportsCanvasSubtitleSequence(methods,context);
+    const planetMethod=supportsPlanetClip(methods,context);
+    const planetDepthMethod=Boolean(planetMethod&&methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=57)
+      &&new Set((context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=30).map((fact:Json)=>fact.id)).size>=5);
+    const blankMethod=supportsBlankClip(methods,context);
+    const directionFontMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=51);
+    const uiSpaceMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=50)&&['image','svg'].includes(context.resources[0]?.kind);
+    const whiteboardNotesMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=54)
+      &&(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=60).length>=2;
+    const financeBarsMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=55)
+      &&(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/.test(fact.text)).length>=2;
+    const mathNotesMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=56)
+      &&(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=60).length>=3;
+    const voxStoryMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=58)
+      &&supportsVoxClip(methods,context.resources)&&(context.facts??[]).filter((fact:Json)=>context.confirmedFactIds?.includes(fact.id)&&typeof fact.text==='string'&&fact.text.trim()&&[...fact.text].length<=60).length>=5;
     const whiteboardMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=36)&&['image','svg'].includes(context.resources[0]?.kind);
     const extendedDrawnIcons=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=37);
     const keynoteMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=39)&&supportsVoxClip(methods,context.resources);
     const keynoteHighlightMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=41);
     const modelContext=()=>context.resources.some((asset:Json)=>asset.videoFramePacking==='webp-pack-v1')?{...context,resources:context.resources.map(directorModelResource)}:context;
     const objectStudioMethod=methods?.id==='product-directing'&&((methodMajor??0)>1||methodMajor===1&&(methodMinor??0)>=27)&&['image','svg'].includes(context.resources[0]?.kind);
-    const availableBlocks=blockCatalog.filter(block=>(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='canvas-number'||canvasNumberMethod)&&(block.id!=='canvas-subtitle'||canvasSubtitleMethod)&&(block.id!=='canvas-subtitle-sequence'||canvasSubtitleSequenceMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
+    const availableBlocks=blockCatalog.filter(block=>(block.id!=='vox-story'||voxStoryMethod)&&(block.id!=='planet-depth'||planetDepthMethod)&&(block.id!=='math-notes'||mathNotesMethod)&&(block.id!=='finance-bars'||financeBarsMethod)&&(block.id!=='whiteboard-notes'||whiteboardNotesMethod)&&(block.id!=='blank-clip'||blankMethod)&&(block.id!=='ui-space-clip'||uiSpaceMethod)&&(block.id!=='keynote-clip'||keynoteMethod)&&(block.id!=='whiteboard-clip'||whiteboardMethod)&&(block.id!=='planet-clip'||planetMethod)&&(block.id!=='canvas-sequence'||canvasSequenceMethod)&&(block.id!=='canvas-title'||canvasTitleMethod)&&(block.id!=='canvas-number'||canvasNumberMethod)&&(block.id!=='canvas-subtitle'||canvasSubtitleMethod)&&(block.id!=='canvas-subtitle-sequence'||canvasSubtitleSequenceMethod)&&(block.id!=='component-relay'||relayMethod)&&(block.id!=='object-studio'||objectStudioMethod)&&(block.id!=='vox-clip'||voxClipMethod)
       &&(block.id!=='device-3d'||context.resources[0]?.videoFramePacking!=='webp-pack-v1')).map(block=>{
         if(block.id==='canvas-title'&&!canvasHighlightMethod){const legacy=structuredClone(block) as Json;legacy.version='1.0.0';delete legacy.params.properties.highlightFrame;
           legacy.events=legacy.events.filter((event:Json)=>event.name!=='highlight-land');return legacy;}
@@ -216,6 +231,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     else if(!studioPanelsMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2']};
     else if(!studioFocusMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2','om3-studio-v3']};
     else if(!studioOpacityMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2','om3-studio-v3','om3-studio-v4']};
+    else if(!studioManyPanelsMethod)s1FilmSchema.$defs.scene.oneOf[1].properties.runtime3D={enum:['om3-studio-v1','om3-studio-v2','om3-studio-v3','om3-studio-v4','om3-studio-v5']};
     if(!graphemeMethod)delete s1FilmSchema.$defs.scene.oneOf[1].properties.runtimeText;
     s1FilmSchema.$defs.textSlot.properties.factIds.items.enum=context.confirmedFactIds;
     s1FilmSchema.$defs.textSlot.properties.factIds.description='Use only these confirmed fact ids. Every cta, number or quote slot, and every slot containing a digit, percent or currency symbol, must bind at least one genuinely relevant confirmed fact. Preserve existing bindings when editing. Do not invent ids or attach unrelated facts to unsupported claims.';
@@ -223,6 +239,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     s1FilmSchema.$defs.fontRef.enum=context.fonts.flatMap((font:Json)=>[{fontId:font.fontId,weight:font.weight,style:font.style},
       ...(font.style==='normal'?[{fontId:font.fontId,weight:font.weight}]:[])]);
     const compactDirectionSchema:Json=structuredClone(directionSchema);delete compactDirectionSchema.$defs.card.properties.keyframeFilm;
+    if(directionFontMethod)compactDirectionSchema.$defs.card.properties.font.enum=context.fonts.map((font:Json)=>({fontId:font.fontId,weight:font.weight,style:font.style}));
+    else delete compactDirectionSchema.$defs.card.properties.font;
     const validateSpec=(value:Json,preview=false)=>{
       if(!validFilm(value))throw new DirectorValidationError('FILM_SCHEMA_INVALID',(validFilm.errors??[]).slice(0,24).map(error=>({code:'SCHEMA_'+error.keyword.toUpperCase(),path:error.instancePath})),value);
       if((preview||!methods)&&value.scenes.some((scene:Json)=>scene.kind!=='block'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'S1_BLOCKS_ONLY',path:'/scenes'}],value);
@@ -242,6 +260,67 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(identities.every(Boolean)&&new Set(identities).size!==identities.length)throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'KEYNOTE_DISTINCT_SCREENS_REQUIRED',path:'/scenes'}],value);
       }
       if(!whiteboardMethod&&value.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!planetMethod&&value.scenes.some((scene:Json)=>scene.block==='planet-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!blankMethod&&value.scenes.some((scene:Json)=>scene.block==='blank-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!whiteboardNotesMethod&&value.scenes.some((scene:Json)=>scene.block==='whiteboard-notes@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!financeBarsMethod&&value.scenes.some((scene:Json)=>scene.block==='finance-bars@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!mathNotesMethod&&value.scenes.some((scene:Json)=>scene.block==='math-notes@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!planetDepthMethod&&value.scenes.some((scene:Json)=>scene.block==='planet-depth@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      if(!voxStoryMethod&&value.scenes.some((scene:Json)=>scene.block==='vox-story@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='vox-story@1')){
+        for(const slotId of blockReferences(scene.params).texts){const slot=value.texts[slotId];
+          if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+            throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+        }
+        const imageIds=(scene.params.items??[]).map((item:Json)=>value.assets[item.assetKey]?.resourceId);
+        const hashes=imageIds.map((id:string)=>context.resources.find((resource:Json)=>resource.resourceId===id)?.sha256);
+        if(hashes.some((hash:unknown)=>typeof hash!=='string')||new Set(hashes).size!==hashes.length)
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'VOX_STORY_DISTINCT_IMAGES_REQUIRED',path:'/scenes'}],value);
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='planet-depth@1')){
+        for(const slotId of blockReferences(scene.params).texts){const slot=value.texts[slotId];
+          if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+            throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+        }
+        const parent=value.texts[scene.params.items?.[scene.params.enterIndex]?.textSlot]?.text;
+        for(const [index,item]of (scene.params.inner??[]).entries()){
+          const child=value.texts[item.textSlot]?.text,evidence=context.facts.find((fact:Json)=>fact.id===scene.params.evidenceIds?.[index]&&context.confirmedFactIds?.includes(fact.id));
+          if(!parent||!child||typeof evidence?.text!=='string'||!evidence.text.includes(parent)||!evidence.text.includes(child))
+            throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'PLANET_DEPTH_RELATIONSHIP_REQUIRED',path:'/scenes'}],value);
+        }
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='math-notes@1'))for(const slotId of blockReferences(scene.params).texts){
+        const slot=value.texts[slotId];
+        if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='finance-bars@1'))for(const slotId of blockReferences(scene.params).texts){
+        const slot=value.texts[slotId];
+        if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='finance-bars@1'))for(const item of scene.params.items??[]){
+        const fact=context.facts.find((entry:Json)=>entry.id===item.evidenceId&&context.confirmedFactIds?.includes(entry.id));
+        const label=value.texts[item.textSlot]?.text,number=value.texts[item.value?.textSlot]?.text,unit=value.texts[scene.params.subtitleSlot]?.text;
+        if(!fact||typeof fact.text!=='string'||![label,number,unit].every(text=>typeof text==='string'&&text&&fact.text.includes(text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'FINANCE_RELATIONSHIP_FACT_REQUIRED',path:'/scenes'}],value);
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='whiteboard-notes@1'))for(const slotId of [scene.params.textSlot,...(scene.params.items??[]).flatMap((item:Json)=>[item.textSlot,...(item.subtitleSlot?[item.subtitleSlot]:[])])]){
+        const slot=value.texts[slotId];
+        if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+      }
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='blank-clip@1'))for(const item of scene.params.items??[]){
+        const slot=value.texts[item.textSlot];
+        if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+item.textSlot}],value);
+      }
+      if(!uiSpaceMethod&&value.scenes.some((scene:Json)=>scene.block==='ui-space-clip@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
+      for(const scene of value.scenes.filter((item:Json)=>item.block==='planet-clip@1'))for(const slotId of [scene.params.textSlot,...(scene.params.items??[]).map((item:Json)=>item.textSlot)]){
+        const slot=value.texts[slotId];
+        if(!slot||!slot.factIds?.some((id:string)=>context.confirmedFactIds?.includes(id)&&context.facts.some((fact:Json)=>fact.id===id&&fact.text===slot.text)))
+          throw new DirectorValidationError('FILM_SEMANTICS_INVALID',[{code:'UNCONFIRMED_DISPLAY_TEXT',path:'/texts/'+slotId}],value);
+      }
       if(!canvasSequenceMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-sequence@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasNumberMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-number@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if(!canvasSubtitleMethod&&value.scenes.some((scene:Json)=>scene.block==='canvas-subtitle@1'))throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
@@ -264,10 +343,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       const canvasTitles=value.scenes.filter((scene:Json)=>scene.block==='canvas-title@1');
       if(canvasTitles.length&&!canvasTitleMethod)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'BLOCK_UNKNOWN',path:'/scenes'}],value);
       if((canvasTitles.length||value.scenes.some((scene:Json)=>['canvas-sequence@1','canvas-number@1','canvas-subtitle@1','canvas-subtitle-sequence@1'].includes(scene.block)))&&custom.length)throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'CANVAS_TITLE_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='planet-clip@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'PLANET_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='whiteboard-notes@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'WHITEBOARD_NOTES_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='finance-bars@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'FINANCE_BARS_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='math-notes@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'MATH_NOTES_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='planet-depth@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'PLANET_DEPTH_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
+      if(custom.length&&value.scenes.some((scene:Json)=>scene.block==='vox-story@1'))throw new DirectorValidationError('FILM_RUNTIME_UNSUPPORTED',[{code:'VOX_STORY_CUSTOM_MIX_UNSUPPORTED',path:'/scenes'}],value);
       if(custom.length>2)throw new DirectorValidationError('FILM_SCHEMA_INVALID',[{code:'CUSTOM_SCENE_LIMIT',path:'/scenes'}],value);
       for(const scene of custom)try{
         if(scene.runtimeText&&!graphemeMethod)throw Error('CUSTOM_TEXT_RUNTIME_NOT_AVAILABLE');
-        if(scene.runtime3D&&(!customStudioMethod||scene.runtime3D==='om3-studio-v2'&&!objectMotionMethod||scene.runtime3D==='om3-studio-v3'&&!studioPanelsMethod||scene.runtime3D==='om3-studio-v4'&&!studioFocusMethod||scene.runtime3D==='om3-studio-v5'&&!studioOpacityMethod))throw Error('CUSTOM_3D_NOT_AVAILABLE');
+        if(scene.runtime3D&&(!customStudioMethod||scene.runtime3D==='om3-studio-v2'&&!objectMotionMethod||scene.runtime3D==='om3-studio-v3'&&!studioPanelsMethod||scene.runtime3D==='om3-studio-v4'&&!studioFocusMethod||scene.runtime3D==='om3-studio-v5'&&!studioOpacityMethod||scene.runtime3D==='om3-studio-v6'&&!studioManyPanelsMethod))throw Error('CUSTOM_3D_NOT_AVAILABLE');
         const declared=customScenePlan(scene,{validateVisibleTextSlots:Boolean(checkedHoldMethod),validateAssetChecks:Boolean(checkedAssetsMethod&&!preview)});
         if(declared.textSlots.some(key=>!Object.hasOwn(value.texts,key))||declared.assetKeys.some(key=>!Object.hasOwn(value.assets,key)))throw Error('CUSTOM_SLOT_UNDECLARED');
         if(checkedHoldMethod&&declared.readingHolds.some(hold=>!Array.isArray(hold.visibleTextSlots)))throw Error('CUSTOM_HOLD_TEXT_REQUIRED');
@@ -338,7 +423,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           const selection=earlySceneProbe?selectCustomMotionFrames(first.movie.motionFrames,film,quality):null;
           const existing=selection?new Set(filmMotionFrames(film as unknown as Parameters<typeof filmMotionFrames>[0],quality,{eventNeighborhoods:false})):null;
           const baseFrames=existing?first.movie.motionFrames.filter((blob:BlobRef)=>existing.has(Number(/\/motion-frames\/(\d+)\.png$/.exec(blob.key)?.[1]))):first.movie.motionFrames;
-          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','canvas-number@1','canvas-subtitle@1','canvas-subtitle-sequence@1','whiteboard-clip@1','keynote-clip@1','drawn-steps@1'].includes(scene.block));
+          const generalMotion=film.scenes.some((scene:Json)=>['continuous-focus@1','kinetic-title@1','canvas-sequence@1','canvas-number@1','canvas-subtitle@1','canvas-subtitle-sequence@1','whiteboard-clip@1','whiteboard-notes@1','finance-bars@1','math-notes@1','vox-story@1','planet-clip@1','planet-depth@1','blank-clip@1','ui-space-clip@1','keynote-clip@1','drawn-steps@1'].includes(scene.block));
           const {bytes,...layout}=await reviewContactSheet({aspect:first.aspect,frames:baseFrames,load:blob=>checkedBytes(this.env,blob),sampleKind:selection||generalMotion?'motion_keyposes':'beat_choreography_keyposes'});
           const object=await immutableBytes(this.env,`operations/${op.id}/${name}/contact-sheet-motion.png`,bytes,'image/png');
           motionSheets.push({aspect:first.aspect,renderId:first.movie.renderId,image:object,...layout,...(selection?{selection:{sceneId:selection.sceneId,requested:selection.requested,missing:selection.missing,scope:selection.scope}}:{})});
@@ -389,7 +474,47 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(correction>=1)throw Error(value.code);validationFeedback=value;
       }
     };
-    const preflightCanvasTitles=async(film:Json)=>{
+    const preflightTrustedGraphics=async(film:Json)=>{
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='vox-story@1')){
+        const binding=(id:string)=>{const value=film.texts[id];return{text:value.text,role:value.role,factIds:value.factIds};};
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,undefined,undefined,undefined,undefined,undefined,
+          {font:film.style.type.text,title:binding(scene.params.textSlot),items:scene.params.items.map((item:Json)=>({caption:binding(item.textSlot),note:binding(item.subtitleSlot),focus:Boolean(item.focus)}))});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='planet-depth@1')){
+        const binding=(id:string)=>{const value=film.texts[id];return{text:value.text,factIds:value.factIds};};
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,undefined,undefined,undefined,undefined,
+          {display:film.style.type.display,textFace:film.style.type.text,center:binding(scene.params.textSlot),outer:scene.params.items.map((item:Json)=>binding(item.textSlot)),inner:scene.params.inner.map((item:Json)=>binding(item.textSlot)),enterIndex:scene.params.enterIndex,evidenceIds:scene.params.evidenceIds});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='math-notes@1')){
+        const binding=(id:string)=>{const value=film.texts[id];return{text:value.text,role:value.role,factIds:value.factIds};};
+        const title=binding(scene.params.textSlot),equation=binding(scene.params.equation.textSlot),items=scene.params.items.map((item:Json)=>binding(item.textSlot));
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,undefined,undefined,undefined,
+          {font:film.style.type.text,title:{text:title.text,factIds:title.factIds},equation,items});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='finance-bars@1')){
+        const binding=(id:string)=>{const value=film.texts[id];return{text:value.text,factIds:value.factIds};};
+        const items=scene.params.items.map((item:Json)=>({label:binding(item.textSlot),value:binding(item.value.textSlot),evidenceId:item.evidenceId}));
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,undefined,undefined,
+          {font:film.style.type.text,title:binding(scene.params.textSlot),unit:binding(scene.params.subtitleSlot),source:binding(scene.params.source.textSlot),items});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='whiteboard-notes@1')){
+        const title=film.texts[scene.params.textSlot],items=scene.params.items.map((item:Json)=>{
+          const value=film.texts[item.textSlot],subtitle=item.subtitleSlot?film.texts[item.subtitleSlot]:undefined;
+          return{text:value.text,role:value.role,factIds:value.factIds,icon:item.icon,...(subtitle?{subtitle:{text:subtitle.text,role:subtitle.role,factIds:subtitle.factIds}}:{})};
+        });
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,undefined,
+          {font:film.style.type.text,title:{text:title.text,factIds:title.factIds},items});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='blank-clip@1')){
+        const items=scene.params.items.map((item:Json)=>film.texts[item.textSlot]);
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,false,
+          {display:film.style.type.display,textFace:film.style.type.text,items:items.map((value:Json)=>({text:value.text,factIds:value.factIds}))});
+      }
+      for(const scene of film.scenes.filter((item:Json)=>item.block==='planet-clip@1')){
+        const center=film.texts[scene.params.textSlot],items=scene.params.items.map((item:Json)=>film.texts[item.textSlot]);
+        await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,
+          {display:film.style.type.display,textFace:film.style.type.text,center:{text:center.text,factIds:center.factIds},items:items.map((value:Json)=>({text:value.text,factIds:value.factIds}))});
+      }
       for(const scene of film.scenes.filter((item:Json)=>item.block==='canvas-title@1')){
         const face=film.style.type.display,{text,factIds}=film.texts[scene.params.textSlot];
         await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,{...face,text,factIds,...(scene.params.highlightFrame===undefined?{}:{highlightFrame:scene.params.highlightFrame,palette:film.style.palette.roles})});
@@ -431,12 +556,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(film.scenes.some((scene:Json)=>scene.block==='object-studio@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,
         film.scenes.some((scene:Json)=>scene.block==='vox-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
-      await preflightCanvasTitles(film);
+      await preflightTrustedGraphics(film);
+      if(film.scenes.some((scene:Json)=>scene.block==='ui-space-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,false,undefined,true);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v3'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v3');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v4'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v4');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v5'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v5');
+      if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v6'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v6');
       if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),'grapheme',true);
       const relayScenes=film.scenes.filter((scene:Json)=>scene.block==='component-relay@1');
       if(relayScenes.length)await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,true,
@@ -654,8 +781,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(!value.cards.some((card:Json)=>card.usesDepth))throw new DirectorValidationError('DIRECTIONS_INVALID',[{code:'DEPTH_DIRECTION_REQUIRED',path:'/cards'}],value);
         const issues:Array<{code:string;path:string}>=[];
         for(const [index,card]of value.cards.entries()){
+          if(card.font&&(!directionFontMethod||!context.fonts.some((font:Json)=>font.fontId===card.font.fontId&&font.weight===card.font.weight&&font.style===card.font.style))){
+            issues.push({code:'DIRECTION_FONT_NOT_ADMITTED',path:'/cards/'+index+'/font'});continue;
+          }
           try{validateSpec(card.keyframeFilm??directionHero(card,context,index),true);}catch(error){
             if(error instanceof Error&&error.message==='DIRECTION_HERO_UNSUPPORTED'){issues.push({code:error.message,path:'/cards/'+index+'/skeleton'});continue;}
+            if(error instanceof Error&&['CANVAS_TITLE_FONT_UNSUPPORTED','CANVAS_TITLE_TEXT_UNSUPPORTED','CANVAS_SUBTITLE_TEXT_UNSUPPORTED','PLANET_FACTS_REQUIRED'].includes(error.message)){
+              issues.push({code:error.message,path:'/cards/'+index});continue;
+            }
             if(!(error instanceof DirectorValidationError))throw error;
             issues.push(...error.issues.map(issue=>({...issue,path:'/cards/'+index+'/keyframeFilm'+issue.path})));
           }
@@ -677,12 +810,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
           if(film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,false,
             film.scenes.some((scene:Json)=>scene.block==='keynote-clip@1'&&scene.params.items.some((item:Json)=>item.focus))?'highlight':true);
           if(film.scenes.some((scene:Json)=>scene.block==='whiteboard-clip@1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,false,false,false,undefined,true);
-          await preflightCanvasTitles(film);
+          await preflightTrustedGraphics(film);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,true);
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v2'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v2');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v3'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v3');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v4'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v4');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v5'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v5');
+          if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtime3D==='om3-studio-v6'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),false,false,false,false,false,false,false,'v6');
           if(film.scenes.some((scene:Json)=>scene.kind==='custom'&&scene.runtimeText==='grapheme-v1'))await directorEnvironment(this.env,op,context,sourceResources,deadline(),'grapheme',true);
           const source=await immutableJson(this.env,`operations/${op.id}/directions/${card.key}/film.json`,film);
           const aspect=context.aspects[0],layout=(platform.aspectLayouts as Json)[aspect];
