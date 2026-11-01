@@ -50,6 +50,11 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
   const sum = 'SELECT COALESCE(SUM(COALESCE(s.actual_micros,r.reserved_micros)),0) FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id';
   const result = await env.DB.prepare(`INSERT INTO cost_reservations(id,operation_id,request_hash,kind,stage,reserved_micros,catalog_version,created_at)
     SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')
+    AND (?<>'compute' OR EXISTS(SELECT 1 FROM pipeline_attempts p
+      JOIN pipeline_render_admissions a ON a.id=p.id JOIN pipeline_renders r ON r.id=p.render_id
+      WHERE p.id=? AND p.operation_id=? AND p.generation=? AND p.status='active' AND p.stopped_at IS NULL
+        AND a.status='running' AND a.render_id=p.render_id AND a.operation_id=p.operation_id
+        AND a.generation=p.generation AND r.status='rendering' AND r.generation=p.generation))
     AND (${sum} WHERE r.operation_id=?) + ? <= ? AND (${sum} WHERE r.kind=?) + ? <= ?
     AND (${sum} WHERE r.operation_id=? AND r.kind=? AND r.stage=?) + ? <= ?
     AND (SELECT COUNT(*) FROM cost_reservations WHERE operation_id=? AND kind=? AND stage=?) < ?
@@ -57,6 +62,7 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
       AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL))`)
     .bind(id, op.id, hash, kind, stage, max, catalogVersion, Date.now(), op.id, op.generation,
+      kind, id, op.id, op.generation,
       op.id, max, op.max_micros, kind, max, globalLimit, op.id, kind, stage, max, stageLimit, op.id, kind, stage, maxCalls,
       preventPendingReplay?1:0,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).run();
   if (result.meta.changes !== 1) {

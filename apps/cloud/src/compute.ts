@@ -152,7 +152,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         AND NOT EXISTS (SELECT 1 FROM pipeline_attempts p WHERE p.id=a.id)`)
       .bind(id, leaseToken).first();
     if (!safe || this.ctx.container!.running || this.work || this.workHash ||
-      ['requestHash','taskId','taskScope','startedAt','result','costUsage'].some(key => this.ctx.storage.kv.get(key) !== undefined))
+      ['requestHash','taskId','taskScope','startedAt','result','costUsage','usageUnknown'].some(key => this.ctx.storage.kv.get(key) !== undefined))
       throw Error('COMPUTE_ATTEMPT_STOPPED');
     this.ctx.storage.kv.delete('stopRequested');
   }
@@ -176,6 +176,17 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   /** Read a proven successful Shard result without ever dispatching a new container task. */
   async recoverCompletedResult(expected: {attemptId: string; renderId: string; operationId: string;
     generation: number; leaseToken: string}): Promise<string | null> {
+    // The original RPC may have disconnected while its execution coroutine
+    // was still saving the successful result. Its absence is not a failure
+    // until that coroutine has finished; an unresolved outcome stays unknown.
+    if (!await this.ctx.storage.get<Json>('result') && this.work) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const settled = await Promise.race([this.work.then(() => true, () => true),
+          new Promise<boolean>(resolve => {timer = setTimeout(() => resolve(false), 5000);})]);
+        if (!settled) throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
+      } finally {if (timer !== undefined) clearTimeout(timer);}
+    }
     const result = await this.ctx.storage.get<Json>('result');
     if (!result) return null;
     const scope = await this.ctx.storage.get<typeof expected>('taskScope');
@@ -183,9 +194,8 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       || scope.operationId !== expected.operationId || scope.generation !== expected.generation
       || scope.leaseToken !== expected.leaseToken
       || result.status !== 'succeeded') throw Error('RENDER_ATTEMPT_SCOPE_INVALID');
-    // A lost RPC can precede the original finally. Join its completion if it
-    // is still in this DO, then re-confirm stop, cost and lease release.
-    if (this.work) try {await this.work;} catch { /* Cleanup below retries an interrupted finally. */ }
+    // A stored success is already immutable. Independently confirm stop, cost
+    // and lease release even if the original finally is still completing.
     await this.stopAndSettle();
     return canonical(result);
   }
@@ -323,6 +333,10 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   async alarm() { await this.stopAndSettle(); }
   async stopAndSettle(releaseLease = true) {
     const wasRunning = this.ctx.container!.running;
+    // Remember an observed running container before destroying the evidence.
+    // A later alarm must not mistake the now-stopped container for zero usage.
+    if (wasRunning && await this.ctx.storage.get<number>('startedAt') === undefined)
+      await this.ctx.storage.put('usageUnknown', true);
     await this.stop();
     // An alarm or cancellation can race an in-flight reserve write. Keep its
     // lease until the write is known, then settle any committed reservation.
@@ -330,7 +344,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     const id = await this.ctx.storage.get<string>('taskId'), start = await this.ctx.storage.get<number>('startedAt'),
       instance = await this.ctx.storage.get<string>('instance'), token = await this.ctx.storage.get<string>('leaseToken'),
       requestHash = await this.ctx.storage.get<string>('requestHash');
-    if (wasRunning && start === undefined) throw Error('COMPUTE_USAGE_UNKNOWN');
+    if (start === undefined && await this.ctx.storage.get<boolean>('usageUnknown')) throw Error('COMPUTE_USAGE_UNKNOWN');
     if (id) {
       const reservation = await this.env.DB.prepare('SELECT kind,request_hash FROM cost_reservations WHERE id=?')
         .bind(id).first<{kind: string; request_hash: string}>();

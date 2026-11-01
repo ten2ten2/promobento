@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {nativeProjectHash} from '@promobento/contracts/native-project';
-import {sha256Bytes} from '@promobento/contracts/digest';
+import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {NATIVE_COMMIT} from '../src/native-project.ts';
 import {nativeRenderPolicy} from '../src/native-task.ts';
+import {reserve} from '../src/store.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 
 const built = await build({
@@ -104,14 +105,91 @@ test('Shard success recovery validates the durable task scope and never starts a
   assert.equal(stops,1,'an incorrect generation cannot trigger physical cleanup or restore a result');
 });
 
-test('Shard will not settle an observed running container at zero without persisted start evidence', async () => {
+test('a still-running Shard coroutine cannot report an absent result as final', async () => {
+  const expected={attemptId:'attempt-one',renderId:'render-one',operationId:'operation-one',generation:0,
+    leaseToken:'11111111-1111-4111-8111-111111111111'};
+  const outcome={status:'succeeded',outputs:[],report:{fixture:'delayed success'}};
+  let saved=null, finish, stops=0;
+  const running=new Promise(resolve=>{finish=resolve;});
+  const shard=Object.create(ShardDO.prototype);
+  shard.work=running.then(()=>{saved=outcome; return outcome;});
+  shard.ctx={storage:{async get(key) {return key==='result'?saved:key==='taskScope'?expected:undefined;}}};
+  shard.stopAndSettle=async()=>{stops++;};
+  const recovery=shard.recoverCompletedResult(expected);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(stops,0,'the pending coroutine must not be mistaken for a failed attempt');
+  finish();
+  assert.deepEqual(parseCanonicalJson(await recovery).report,outcome.report);
+  assert.equal(stops,1);
+});
+
+test('an observed running container without start time remains unknown across Shard restarts', async t => {
+  const {db, DB} = sqliteD1(); t.after(() => db.close());
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('operation-one','workspace','project',0,'evaluation','active','request',3000000,Date.now(),null,null);
+  db.prepare('INSERT INTO cost_reservations VALUES(?,?,?,?,?,?,?,?)')
+    .run('attempt-one','operation-one','hash','compute','render',100,'fixture',Date.now());
   const memory=new Map([['taskId','attempt-one'],['instance','standard-3'],['requestHash','hash']]);
   const container={running:true,async destroy() {this.running=false;}};
   const shard=Object.create(ShardDO.prototype);
   shard.ctx={container,storage:{kv:{put(key,value) {memory.set(key,value);}},
-    async get(key) {return memory.get(key);}}};
+    async get(key) {return memory.get(key);}, async put(key,value) {memory.set(key,value);}}};
+  shard.env={DB,COORDINATOR:{getByName() {return {async release() {assert.fail('unknown cost cannot release its lease');}};}}};
   await assert.rejects(shard.stopAndSettle(false), /COMPUTE_USAGE_UNKNOWN/);
   assert.equal(container.running,false);
+  assert.equal(memory.get('usageUnknown'),true);
+  const restarted=Object.create(ShardDO.prototype);
+  restarted.ctx=shard.ctx; restarted.env=shard.env;
+  await assert.rejects(restarted.stopAndSettle(), /COMPUTE_USAGE_UNKNOWN/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+});
+
+test('a delayed reserve insert cannot commit after a restarted Shard stopped and released its attempt', async t => {
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const now=Date.now(), id='attempt-late', op={id:'operation-late',workspace_id:'workspace-one',project_id:'project-one',
+    generation:0,purpose:'evaluation',status:'active',max_micros:3000000}, renderId='render-late';
+  const token='11111111-1111-4111-8111-111111111111', request={taskId:id};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(op.id,op.workspace_id,op.project_id,0,'evaluation','active','request',op.max_micros,now,null,null);
+  db.prepare(`INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at)
+    VALUES(?,?,?,?,?,?,?)`).run(renderId,op.id,0,'request','renders/late/input.json','rendering',now);
+  db.prepare(`INSERT INTO pipeline_render_admissions
+    (id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,
+      lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,?,'running',?,?,?,?,?)`)
+    .run(id,renderId,op.id,0,op.workspace_id,0,now,now+60_000,token,now,now+120_000);
+  db.prepare(`INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at)
+    VALUES(?,?,?,?,?,?,?,?)`).run(id,renderId,op.id,0,'native_export',nativeRenderPolicy.instance,'active',now);
+  let letInsertRun, sawInsert;
+  const waiting=new Promise(resolve=>{letInsertRun=resolve;});
+  const insertEntered=new Promise(resolve=>{sawInsert=resolve;});
+  const delayedDB={...DB,prepare(sql) {
+    const prepared=DB.prepare(sql);
+    if (!sql.startsWith('INSERT INTO cost_reservations')) return prepared;
+    return {bind(...args) {
+      const bound=prepared.bind(...args);
+      return {async run() {sawInsert();await waiting;return bound.run();}};
+    }};
+  }};
+  const lateReservation=reserve({DB:delayedDB},op,id,'compute','render',500,request,'fixture',10000000);
+  await insertEntered;
+
+  // A new DO instance has no knowledge of the old instance's in-flight Promise.
+  const memory=new Map([['taskId',id],['instance',nativeRenderPolicy.instance],['requestHash',digest(request)],['leaseToken',token]]);
+  let released=0;
+  const shard=Object.create(ShardDO.prototype);
+  shard.ctx={container:{running:false},storage:{kv:{put(key,value) {memory.set(key,value);}},
+    async get(key) {return memory.get(key);},async deleteAlarm() {}}};
+  shard.env={DB,COORDINATOR:{getByName() {return {async release(attemptId,leaseToken) {
+    assert.equal(attemptId,id);assert.equal(leaseToken,token);released++;
+    await DB.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=? AND lease_token=?")
+      .bind(id,token).run();
+  }};}}};
+  await shard.stopAndSettle();
+  assert.equal(released,1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status,'stopped');
+  letInsertRun();
+  await assert.rejects(lateReservation,/COST_BUDGET_EXHAUSTED/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,0);
 });
 
 test('repeated lease activity never postpones an existing earlier coordinator cleanup alarm', async () => {
