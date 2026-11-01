@@ -45,7 +45,7 @@
 
 一个浏览器页面维护单一串行写队列，最多一在途，只保留最新待写值；最终 Cookie 与最后意图一致。取消 fetch/忽略旧响应不意味着迟到 Set-Cookie 不生效。未知结果标未保存，前一请求收尾后重试最新值；失败保留 UI/草稿并提示重试。Cookie 不可用时当前任务可继续，刷新按 System，不谎称已持久化。
 
-偏好 POST 校验 Origin/CSRF/枚举；匿名只改本浏览器主题，登录用户只改自己已上线 UI 语言，不接受工作区、金额或输出风格。切换主题不调用模型、不保存作品、不编码，也不改账务。离线参考页使用 localStorage，只演示交互。
+偏好 POST 校验 Origin/CSRF/枚举；匿名只改本浏览器主题，登录用户只改自己已上线 UI 语言，不接受工作区、金额或输出风格。切换主题不调用模型、不保存作品、不编码，也不改账务。
 
 ## 5 SSR、缓存与视觉隔离
 
@@ -53,7 +53,7 @@ SSR 输出 data-theme=system/light/dark；System 首屏由 prefers-color-scheme 
 
 匿名无会话/主题/语言 Cookie 的公开英语 HTML 可缓存 System；有相关 Cookie 的个性化 HTML private,no-store 并绕过共享缓存。创建、认证、应用、邀请、审阅、后台、私有授权和 Set-Cookie 一律 no-store。公共内容 hash 静态资源可长缓存；不以 Vary:Cookie 代替实际隔离，需两浏览器验证。
 
-网站 tokens 来自 theme/ui 配置，视觉、响应式和可访问性按 [02](02-ux-and-ui.md)。网站 Latin 字体按 UI tokens 计划自托管；非拉丁字符和离线参考的系统回退字体在不同设备可能字宽不同，需验收混排、换行与 RTL。视频使用独立受控资源。Dark 不全局 invert；对比度须在两种主题的实际前景背景组合中验证。
+网站 tokens 来自 theme/ui 配置，视觉、响应式和可访问性按 [02](02-ux-and-ui.md)。网站 Latin 字体按 UI tokens 计划自托管；非拉丁字符的系统回退字体在不同设备可能字宽不同，需验收混排、换行与 RTL。视频使用独立受控资源。Dark 不全局 invert；对比度须在两种主题的实际前景背景组合中验证。
 
 视频在独立来源运行冻结样式，不读取 UI tokens、Cookie 或设备配色。Light/Dark 网站均可播放任意深浅作品。prefers-reduced-motion 只减少 UI 动画，不改视频时间线。styleLabel 不能用于在冻结后偷偷切换实际渲染风格。
 
@@ -74,4 +74,4 @@ Waffo 新会话的语言、外观和活动会话复用按[05](05-waffo-billing.m
 | THEME-05 | Cookie 无效、快速点击、迟到 Set-Cookie、失败重试和恢复设备设置 |
 | THEME-06 | Waffo 新会话外观与活动会话复用，未重复 checkout |
 
-两个人群分别测明暗主流程；System 独立测试，不机械翻倍视频矩阵。静态颜色、离线参考和契约通过只证明各自范围，真实字形、SSR/Cookie/缓存和外部往返须实际验收。
+两个人群分别测明暗主流程；System 独立测试，不机械翻倍视频矩阵。静态颜色和契约检查只证明各自范围，真实字形、SSR/Cookie/缓存和外部往返须实际验收。

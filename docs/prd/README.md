@@ -40,7 +40,6 @@
 | [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
 | [FilmSpec 示例](../../contracts/film.example.json)、[film-v1 Composition](../../contracts/film-composition.example.json)、[film-v1 ReleaseSnapshot](../../contracts/film-release-snapshot.example.json) | 新建作品的非生产契约示例；旧 [Composition](../../contracts/composition.example.json)/[Snapshot](../../contracts/release-snapshot.example.json)保留历史身份重放 |
 | [资源](../../contracts/resource-manifest.example.json)、[事实](../../contracts/fact-manifest.example.json)、[改稿](../../contracts/edit-request.example.json)、[输出](../../contracts/export-manifest.example.json) | 内容与请求/交付示例 |
-| [Studio参考](../design/agent-studio-reference.html) | 无真实服务的当前设计示意 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |
 
 新环境运行 [agent-setup.sh](../../scripts/agent-setup.sh)，实施顺序见 08，已完成能力见[实施进度](../implementation-status.md)。代码样式路径相对仓库根目录，Markdown 链接相对所在文件。

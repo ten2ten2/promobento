@@ -4,7 +4,7 @@
 
 ## 来源与环境
 
-[探针代码](../../../apps/render-container/probes/g1-pre/)、[工作流](../../../.github/workflows/g1-pre-probe.yml)。[run1报告](run1-report.json)对应c5b9f0b／[39822899286](https://github.com/ten2ten2/promobento/actions/runs/39822899286)；[run2报告](run2-report.json)对应24fd48d／[39824977152 attempt2](https://github.com/ten2ten2/promobento/actions/runs/39824977152)。账户／Worker地址已脱敏。
+[历史探针代码](https://github.com/ten2ten2/promobento/tree/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/apps/render-container/probes/g1-pre/)、[历史工作流](https://github.com/ten2ten2/promobento/blob/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/.github/workflows/g1-pre-probe.yml)。[run1报告](run1-report.json)对应c5b9f0b／[39822899286](https://github.com/ten2ten2/promobento/actions/runs/39822899286)；[run2报告](run2-report.json)对应24fd48d／[39824977152 attempt2](https://github.com/ten2ten2/promobento/actions/runs/39824977152)。账户／Worker地址已脱敏。
 
 当时为Node22 Debian镜像、Chromium151.0.7922.34、Debian FFmpeg、Wrangler4.152.0、compatibility_date2026-10-20，使用上游4236053的kinetic-type／object-3d及加长初始化等待，不等同当前正式媒体环境。每轮Worker／容器应用已删除；一份容器文件系统快照当时无删除接口，按平台30天过期记录，不宣称已主动删掉。
 

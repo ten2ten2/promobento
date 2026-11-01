@@ -247,15 +247,5 @@
     "border": "border",
     "input": "borderControl",
     "ring": "focus"
-  },
-  "reference": {
-    "template": "docs/design/agent-studio-reference.template.html",
-    "output": "docs/design/agent-studio-reference.html",
-    "generator": "scripts/build-agent-reference.mjs",
-    "checker": "scripts/check-agent-reference.mjs",
-    "screens": [
-      "studio"
-    ],
-    "productionFeature": false
   }
 }

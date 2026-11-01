@@ -15,8 +15,6 @@
     "build:film-runtime": "node scripts/build-film-runtime.mjs",
     "test:browser": "node apps/render-container/tests/browser.render.test.mjs",
     "test:cloud-local": "node scripts/run-cloud-mock.mjs",
-    "build:agent-reference": "pnpm run build:validators && node scripts/build-agent-reference.mjs",
-    "check:agent-reference": "pnpm run build:validators && node scripts/check-agent-reference.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
     "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"
   },

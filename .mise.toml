@@ -40,16 +40,6 @@ description = "Replay S1 director stages offline through both SSE adapters, SQLi
 dir = "{{config_root}}"
 run = "node scripts/run-cloud-mock.mjs"
 
-[tasks."build:agent-reference"]
-description = "build:agent-reference: current specifications and references only"
-dir = "{{config_root}}"
-run = "pnpm run build:validators && node scripts/build-agent-reference.mjs"
-
-[tasks."check:agent-reference"]
-description = "check:agent-reference: current specifications and references only"
-dir = "{{config_root}}"
-run = "pnpm run build:validators && node scripts/check-agent-reference.mjs"
-
 [tasks."build:validators"]
 description = "Precompile the v3 contract Schemas into standalone validators for Workers"
 dir = "{{config_root}}"

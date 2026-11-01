@@ -19,7 +19,7 @@
 - [run1](run1.json)：[39904369687](https://github.com/ten2ten2/promobento/actions/runs/39904369687)，fa296fb；[run2](run2.json)：[39904908372](https://github.com/ten2ten2/promobento/actions/runs/39904908372)，805bc4c。
 - [run3](run3.json)：[39919957207](https://github.com/ten2ten2/promobento/actions/runs/39919957207)；[run4](run4.json)：[39920866987](https://github.com/ten2ten2/promobento/actions/runs/39920866987)，用于当前Claude工具／视觉登记。
 - 测试包括命名函数及参数、96×96左右红蓝图片、json_schema/json_object、effort接受、固定约4.5k前缀两次缓存和SSE usage／时延。旧轮Claude看图成功／工具502已经被后续反例更新，原始数据不改。
-- [历史脚本](../../../research/model-probe/archive/probe-2026-10-23.mjs)不经共享账本，Actions入口已停用，只作来源，不继续付费运行。长提示质量／并发和声音模型另需对应授权与真实证据。
+- [历史脚本](https://github.com/ten2ten2/promobento/blob/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/research/model-probe/archive/probe-2026-10-23.mjs)不经共享账本，Actions入口已停用，只作来源，不继续付费运行。长提示质量／并发和声音模型另需对应授权与真实证据。
 
 ## 历史费用：128 次请求，尚未对账
 

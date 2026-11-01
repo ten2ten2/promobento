@@ -1,6 +1,6 @@
 # ASR、抓取与冷启动前置证据
 
-2026-10-23临时探针，不是客户素材管线实现。原始报告：[speech-browser-report](speech-browser-report.json)、[cold-start-report](cold-start-report.json)。代码为 [pre-s1-probe](../../../research/pre-s1-probe/probe.mjs)／[工作流](../../../.github/workflows/pre-s1-probe.yml)和 [G1预探针](../../../apps/render-container/probes/g1-pre/)。当前集成范围只见[实施状态](../../implementation-status.md)。
+2026-10-23临时探针，不是客户素材管线实现。原始报告：[speech-browser-report](speech-browser-report.json)、[cold-start-report](cold-start-report.json)。历史来源为 [pre-s1-probe](https://github.com/ten2ten2/promobento/blob/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/research/pre-s1-probe/probe.mjs)／[工作流](https://github.com/ten2ten2/promobento/blob/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/.github/workflows/pre-s1-probe.yml)和 [G1 预探针](https://github.com/ten2ten2/promobento/tree/f26dc1d60e2f3c42653fc3cb633bb0f4eeb9df2d/apps/render-container/probes/g1-pre/)。当前集成范围只见[实施状态](../../implementation-status.md)。
 
 ## ASR：合成小样本仍需人工确认
 
