@@ -132,6 +132,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   private token: string | undefined;
   private work: Promise<Json> | undefined;
   private workHash: string | undefined;
+  private reservationInFlight: Promise<void> | undefined;
   private async call(path: string, body?: unknown, signal?: AbortSignal) {
     return this.ctx.container!.getTcpPort(8080).fetch('http://container' + path,
       {...(body === undefined ? {} : {method: 'POST', body: canonical(body), headers: {'content-type': 'application/json'}}), ...(signal ? {signal} : {})});
@@ -151,7 +152,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         AND NOT EXISTS (SELECT 1 FROM pipeline_attempts p WHERE p.id=a.id)`)
       .bind(id, leaseToken).first();
     if (!safe || this.ctx.container!.running || this.work || this.workHash ||
-      ['requestHash','taskId','startedAt','result','costUsage'].some(key => this.ctx.storage.kv.get(key) !== undefined))
+      ['requestHash','taskId','taskScope','startedAt','result','costUsage'].some(key => this.ctx.storage.kv.get(key) !== undefined))
       throw Error('COMPUTE_ATTEMPT_STOPPED');
     this.ctx.storage.kv.delete('stopRequested');
   }
@@ -172,6 +173,22 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     this.work = this.executeOnce(task);
     return canonical(await this.work);
   }
+  /** Read a proven successful Shard result without ever dispatching a new container task. */
+  async recoverCompletedResult(expected: {attemptId: string; renderId: string; operationId: string;
+    generation: number; leaseToken: string}): Promise<string | null> {
+    const result = await this.ctx.storage.get<Json>('result');
+    if (!result) return null;
+    const scope = await this.ctx.storage.get<typeof expected>('taskScope');
+    if (!scope || scope.attemptId !== expected.attemptId || scope.renderId !== expected.renderId
+      || scope.operationId !== expected.operationId || scope.generation !== expected.generation
+      || scope.leaseToken !== expected.leaseToken
+      || result.status !== 'succeeded') throw Error('RENDER_ATTEMPT_SCOPE_INVALID');
+    // A lost RPC can precede the original finally. Join its completion if it
+    // is still in this DO, then re-confirm stop, cost and lease release.
+    if (this.work) try {await this.work;} catch { /* Cleanup below retries an interrupted finally. */ }
+    await this.stopAndSettle();
+    return canonical(result);
+  }
   private async executeOnce(task: Json): Promise<Json> {
     await assertNativeExecution(task);
     const hash = digest(task), bound = await this.ctx.storage.get<string>('requestHash');
@@ -191,17 +208,24 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       .bind(task.taskId, task.renderId, task.operationId, task.generation, task.leaseToken, deadlineAt).first<{admitted_at: number}>();
     if (!admission) throw Error('RENDER_LEASE_FENCED');
     await coordinator(this.env).assertLease(task.taskId, op.workspace_id, op.generation, task.leaseToken);
-    let startedAt: number | undefined, reserved = false;
+    let startedAt: number | undefined;
     let failed = false, failure: unknown, phase: 'startup' | 'broker' | 'dispatch' | 'execute' = 'startup';
     try {
       const capacityWaitMs = Number(admission.admitted_at) - Number(task.queuedAt ?? admission.admitted_at);
       await operation(this.env, op.id, op.generation);
       const remaining = deadlineAt - Date.now();
       if (remaining < 1) throw Error('RENDER_DEADLINE');
-      await reserve(this.env, op, task.taskId, 'compute', 'render', computeMicros(task.instance, remaining + 30000),
+      // Bind the identity durably before D1 may commit a reservation. A lost
+      // reserve response must still leave enough state for stopAndSettle.
+      await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance,
+        leaseToken: task.leaseToken, taskScope: {attemptId: task.taskId, renderId: task.renderId,
+          operationId: task.operationId, generation: task.generation, leaseToken: task.leaseToken}});
+      if (this.ctx.storage.kv.get('stopRequested')) throw Error('COMPUTE_ATTEMPT_STOPPED');
+      const reservation = reserve(this.env, op, task.taskId, 'compute', 'render', computeMicros(task.instance, remaining + 30000),
         task, 'cloudflare-containers-2026-10-23-upper-bound', 10000000, op.max_micros);
-      reserved = true;
-      await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance, leaseToken: task.leaseToken});
+      this.reservationInFlight = reservation;
+      try {await reservation;} finally {this.reservationInFlight = undefined;}
+      if (this.ctx.storage.kv.get('stopRequested')) throw Error('COMPUTE_ATTEMPT_STOPPED');
       await this.ctx.storage.setAlarm(deadlineAt);
       this.token = crypto.randomUUID() + crypto.randomUUID();
       const input = nativeContainerInput(task, this.token);
@@ -282,10 +306,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       throw failure;
     } finally {
       try {
-        await this.stop();
-        if (reserved) await this.finishCost(task.taskId, task.instance, startedAt);
-        await coordinator(this.env).release(task.taskId, task.leaseToken);
-        await this.ctx.storage.deleteAlarm();
+        await this.stopAndSettle();
       } catch (error) { if (failed) throw failure; throw error; }
     }
   }
@@ -301,11 +322,26 @@ export class ShardDO extends DurableObject<PipelineEnv> {
   }
   async alarm() { await this.stopAndSettle(); }
   async stopAndSettle(releaseLease = true) {
+    const wasRunning = this.ctx.container!.running;
     await this.stop();
+    // An alarm or cancellation can race an in-flight reserve write. Keep its
+    // lease until the write is known, then settle any committed reservation.
+    if (this.reservationInFlight) try {await this.reservationInFlight;} catch {}
     const id = await this.ctx.storage.get<string>('taskId'), start = await this.ctx.storage.get<number>('startedAt'),
-      instance = await this.ctx.storage.get<string>('instance'), token = await this.ctx.storage.get<string>('leaseToken');
+      instance = await this.ctx.storage.get<string>('instance'), token = await this.ctx.storage.get<string>('leaseToken'),
+      requestHash = await this.ctx.storage.get<string>('requestHash');
+    if (wasRunning && start === undefined) throw Error('COMPUTE_USAGE_UNKNOWN');
     if (id) {
-      if (instance) await this.finishCost(id, instance, start);
+      const reservation = await this.env.DB.prepare('SELECT kind,request_hash FROM cost_reservations WHERE id=?')
+        .bind(id).first<{kind: string; request_hash: string}>();
+      if (reservation) {
+        if (!instance || !requestHash || reservation.kind !== 'compute' || reservation.request_hash !== requestHash)
+          throw Error('COST_RESERVATION_CONFLICT');
+        await this.finishCost(id, instance, start);
+      } else if (start !== undefined) {
+        // A task with startup evidence cannot be assumed to have zero usage.
+        throw Error('COMPUTE_RESERVATION_MISSING');
+      }
       await this.env.DB.prepare('UPDATE pipeline_attempts SET status=CASE WHEN status=\'active\' THEN \'stopped\' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?')
         .bind(Date.now(), id).run();
       if (releaseLease && token) await coordinator(this.env).release(id, token);

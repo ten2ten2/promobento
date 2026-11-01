@@ -35,6 +35,66 @@ async function completedRenderAttempt(env: PipelineEnv, op: Operation, renderId:
   return {...result, attemptId};
 }
 
+/** A lost Shard RPC can leave its durable success ahead of the D1 attempt row. */
+async function reconcileShardSuccess(env: PipelineEnv, op: Operation, renderId: string,
+  attemptId: string, index: number, mode: string): Promise<Json | null> {
+  const row = await env.DB.prepare(`SELECT a.lease_token FROM pipeline_attempts p
+    JOIN pipeline_render_admissions a ON a.id=p.id
+    JOIN pipeline_renders r ON r.id=p.render_id
+    JOIN pipeline_operations o ON o.id=p.operation_id
+    WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=? AND p.mode=?
+      AND p.status IN ('active','stopped') AND a.render_id=p.render_id
+      AND a.operation_id=p.operation_id AND a.generation=p.generation
+      AND a.attempt_index=? AND a.workspace_id=? AND a.status IN ('running','released')
+      AND a.lease_token IS NOT NULL AND a.attempt_deadline_at IS NOT NULL
+      AND r.generation=p.generation AND r.status IN ('rendering','verifying')
+      AND o.generation=p.generation AND o.status='active'`)
+    .bind(attemptId, renderId, op.id, op.generation, 'native_' + mode, index, op.workspace_id)
+    .first<{lease_token: string}>();
+  if (!row) return null;
+  const stored = await env.SHARDS.getByName(attemptId).recoverCompletedResult({attemptId, renderId,
+    operationId: op.id, generation: op.generation, leaseToken: row.lease_token});
+  if (!stored) return null;
+  const result = parseCanonicalJson(stored) as Json;
+  if (!result || typeof result !== 'object' || Array.isArray(result) || result.status !== 'succeeded')
+    throw Error('NATIVE_RENDER_EVIDENCE_INVALID');
+  let changed;
+  try {
+    changed = await env.DB.prepare(`UPDATE pipeline_attempts SET status='succeeded',stopped_at=COALESCE(stopped_at,?),result_json=?
+      WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND mode=? AND status IN ('active','stopped')
+        AND stopped_at IS NOT NULL
+        AND EXISTS(SELECT 1 FROM pipeline_render_admissions a WHERE a.id=pipeline_attempts.id
+          AND a.status='released' AND a.lease_token=? AND a.attempt_index=? AND a.workspace_id=?)
+        AND EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id
+          WHERE r.id=pipeline_attempts.render_id AND r.generation=pipeline_attempts.generation
+          AND r.status IN ('rendering','verifying') AND o.status='active' AND o.generation=r.generation)
+        AND NOT EXISTS(SELECT 1 FROM cost_reservations c LEFT JOIN cost_settlements s ON s.reservation_id=c.id
+          WHERE c.id=pipeline_attempts.id AND s.reservation_id IS NULL)`)
+      .bind(Date.now(), canonical(result), attemptId, renderId, op.id, op.generation,
+        'native_' + mode, row.lease_token, index, op.workspace_id).run();
+  } catch (error) {
+    // The success update itself may have committed even if its response vanished.
+    const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, mode);
+    if (completed) return completed;
+    throw error;
+  }
+  if (!changed.meta.changes) {
+    const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, mode);
+    if (completed) return completed;
+    throw Error('RENDER_ATTEMPT_OUTCOME_CONFLICT');
+  }
+  return {...result, attemptId};
+}
+
+/** A lost D1 batch response is not evidence that its claim transaction rolled back. */
+async function claimWithRecheck(env: PipelineEnv, op: Operation, input: Json, attemptId: string, token: string) {
+  try {return await claimRenderAdmission(env, op, input, attemptId, token);}
+  catch (error) {
+    if (String((error as {message?: unknown})?.message ?? error) !== 'Network connection lost.') throw error;
+    return claimRenderAdmission(env, op, input, attemptId, token);
+  }
+}
+
 /** One movie per physical attempt; a retry requires confirmed stop and settled compute usage. */
 export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, context: {
   renderId: string; op: Operation; input: Json; imageDigest: string;
@@ -52,6 +112,8 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
     // attempt must not request a fresh grant or launch compute a second time.
     const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
     if (completed) return completed;
+    const recovered = await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
+    if (recovered) return recovered;
     const ticket = parseCanonicalJson(await step.do(name + '-queue', {retries: {limit: 3, delay: '1 second'}}, async () =>
       canonical(await requestRenderAdmission(env, renderId, op, attemptId, index)))) as {
         id: string; requestedAt: number; queueDeadlineAt: number; operationDeadlineAt: number;
@@ -66,13 +128,14 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
       const result = parseCanonicalJson(await step.do(roundName, {retries: {limit: 0, delay: '1 second'}, timeout: '15 minutes'}, async () => {
         await operation(env, op.id, op.generation);
         let deadlineAt: number;
-        try {deadlineAt = await claimRenderAdmission(env, op, input, attemptId, leaseToken);}
+        try {deadlineAt = await claimWithRecheck(env, op, input, attemptId, leaseToken);}
         catch (error) {
           const code = String((error as {message?: unknown})?.message ?? error);
           // Another continuation may have finished and released this same
           // attempt between the preflight read and the physical claim.
           if (code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED') {
-            const finished = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
+            const finished = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode)
+              ?? await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
             if (finished) return canonical(finished);
           }
           if ((code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED')
@@ -93,11 +156,23 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
             .bind(attemptId).first();
           if (pending) throw Error('COMPUTE_SETTLEMENT_UNCONFIRMED');
           await env.COORDINATOR.getByName('global-v1').release(attemptId, leaseToken);
-          await env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=? WHERE id=?')
-            .bind('succeeded', Date.now(), canonical(result), attemptId).run();
+          const written = await env.DB.prepare(`UPDATE pipeline_attempts SET status='succeeded',stopped_at=COALESCE(stopped_at,?),result_json=?
+            WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND status IN ('active','stopped')
+              AND EXISTS(SELECT 1 FROM pipeline_render_admissions a WHERE a.id=pipeline_attempts.id AND a.status='released')`)
+            .bind(Date.now(), canonical(result), attemptId, renderId, op.id, op.generation).run();
+          if (!written.meta.changes) {
+            const previous = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
+            if (previous) return canonical(previous);
+            throw Error('RENDER_ATTEMPT_OUTCOME_CONFLICT');
+          }
           return canonical({...result, attemptId});
         } catch (error) {
           const code = String((error as {message?: unknown})?.message ?? error) === 'Network connection lost.' ? 'RENDER_RPC_CONNECTION_LOST' : renderFailureCode(error);
+          // Shard persists success before its RPC return and cleanup. A lost
+          // response must not spend another physical attempt if success exists.
+          const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode)
+            ?? await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
+          if (completed) return canonical(completed);
           let confirmed = false;
           try {
             await compute.stopAndSettle();
@@ -106,10 +181,20 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
             const pending = await env.DB.prepare('SELECT r.id FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.id=? AND s.reservation_id IS NULL')
               .bind(attemptId).first();
             if (pending) throw Error('COMPUTE_SETTLEMENT_UNCONFIRMED');
-            await env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=COALESCE(result_json,?) WHERE id=?')
-              .bind('failed', Date.now(), canonical({status: 'failed', code}), attemptId).run();
+            const afterStop = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode)
+              ?? await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
+            if (afterStop) return canonical(afterStop);
+            const changed = await env.DB.prepare(`UPDATE pipeline_attempts
+              SET status='failed',stopped_at=COALESCE(stopped_at,?),result_json=COALESCE(result_json,?)
+              WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND status IN ('active','stopped')`)
+              .bind(Date.now(), canonical({status: 'failed', code}), attemptId, renderId, op.id, op.generation).run();
+            if (!changed.meta.changes) {
+              const committed = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
+              if (committed) return canonical(committed);
+              throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
+            }
             confirmed = true;
-          } catch { /* Unknown physical stop or cost keeps this attempt reserved and blocks replacement. */ }
+          } catch { /* Unknown stop, cost or outcome blocks a replacement attempt. */ }
           if (!confirmed || !retryable.has(code)) throw code === 'RENDER_RPC_CONNECTION_LOST' ? Error(code) : error;
           return canonical({kind: 'render_platform_retry', code, attemptId});
         }

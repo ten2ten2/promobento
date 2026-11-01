@@ -232,6 +232,30 @@ test('a cached grant that expires before physical claim can be re-admitted on Wo
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
 });
 
+test('a lost queue-step checkpoint reuses the original released no-start ticket', async t => {
+  const {db, env, leases, stoppedShards, add} = fixture(t);
+  const pending = add('queue-step-interrupted', {mode:'preview'}), id = 'attempt-lost-queue-step';
+  const original = await requestRenderAdmission(env, pending.renderId, pending.op, id, 0);
+  const expiredToken = leases.get(id).token;
+  await env.SHARDS.getByName(id).stopAndSettle(false);
+  await env.COORDINATOR.getByName('global-v1').release(id, expiredToken);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(id).status, 'released');
+  const replayed = await requestRenderAdmission(env, pending.renderId, pending.op, id, 0);
+  assert.deepEqual(replayed, original, 'a replay must not extend the original queue window');
+  const newToken = await waitForRenderAdmission(env, {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent() {assert.fail('the restored ticket should grant from durable state');},
+  }, 'lost-queue-checkpoint', replayed, 0);
+  assert.notEqual(newToken, expiredToken);
+  assert.equal(stoppedShards.has(id), false);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+
+  await env.SHARDS.getByName(id).stopAndSettle(false);
+  await env.COORDINATOR.getByName('global-v1').release(id, newToken);
+  db.prepare('UPDATE pipeline_operations SET status=? WHERE id=?').run('cancelled', pending.op.id);
+  await assert.rejects(requestRenderAdmission(env, pending.renderId, pending.op, id, 0), /RENDER_FENCED/);
+});
+
 test('event backoff uses one durable absolute wake time across Workflow replay', async t => {
   const {db, env, add, addTicket} = fixture(t);
   const pending = add('wake-at-replay'), id = addTicket(pending);

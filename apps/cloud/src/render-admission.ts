@@ -33,6 +33,12 @@ export async function requestRenderAdmission(env: PipelineEnv, renderId: string,
       renderId, op.id, op.generation, op.generation).run();
   const row = await env.DB.prepare('SELECT * FROM pipeline_render_admissions WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND attempt_index=?')
     .bind(id, renderId, op.id, op.generation, index).first<Admission>();
+  // The queue step itself can lose its checkpoint. Return the original ticket
+  // for a safe no-start release; the admission wait owns its lease restoration.
+  if (row?.status === 'released' && await canRetryUnstartedAdmission(env, op, renderId,
+    {id, queueDeadlineAt: row.queue_deadline_at, operationDeadlineAt: render.operation_deadline_at}, index))
+    return {id, requestedAt: row.requested_at, queueDeadlineAt: row.queue_deadline_at,
+      operationDeadlineAt: render.operation_deadline_at};
   if (!row || !['queued', 'admitted', 'running'].includes(row.status)) throw Error('RENDER_FENCED');
   await dispatchRenderAdmissions(env);
   return {id, requestedAt: row.requested_at, queueDeadlineAt: row.queue_deadline_at, operationDeadlineAt: render.operation_deadline_at};
@@ -261,6 +267,7 @@ export async function claimRenderAdmission(env: PipelineEnv, op: Operation, inpu
       WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=? AND r.status='rendering'`)
       .bind(attemptId, input.renderId, op.id, op.generation).first();
     if (!attempt) throw Error('RENDER_ADMISSION_CONFLICT');
+    await coordinator(env).assertLease(attemptId, op.workspace_id, op.generation, token);
     return row.attempt_deadline_at;
   }
   const duration = input.mode === 'preview' ? nativeRenderPolicy.previewDeadlineMs : nativeRenderPolicy.exportDeadlineMs;

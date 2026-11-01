@@ -77,14 +77,16 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  const workflowsPromise=Promise.allSettled([stopOperationWorkflows(env,operationId,exceptWorkflow)]);
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(operationId).all<{id:string}>();
  const unconfirmedStops=await stopAttempts(env,attempts.results);
- const workflows=await workflowsPromise;
- if(unconfirmedStops)throw Error('COMPUTE_STOP_UNCONFIRMED');
- if(workflows[0]!.status==='rejected')throw Error('WORKFLOW_STOP_UNCONFIRMED');
  const renders=await env.DB.prepare("SELECT id,status,result_json FROM pipeline_renders WHERE operation_id=? AND status<>'passed'").bind(operationId).all<Json>();
  await env.DB.prepare("UPDATE pipeline_render_admissions SET status='cancelled' WHERE operation_id=? AND status='queued'")
   .bind(operationId).run();
  const stops=await Promise.allSettled(renders.results.map(row=>stopRenderAdmissions(env,row.id)));
- if(stops.some(result=>result.status==='rejected'))throw Error('COMPUTE_STOP_UNCONFIRMED');
+ // A failed Workflow status API must not prevent admitted, never-started
+ // tickets from returning their capacity. Try all physical and admission stops
+ // before reporting any of the independent cleanup failures.
+ const workflows=await workflowsPromise;
+ if(unconfirmedStops||stops.some(result=>result.status==='rejected'))throw Error('COMPUTE_STOP_UNCONFIRMED');
+ if(workflows[0]!.status==='rejected')throw Error('WORKFLOW_STOP_UNCONFIRMED');
  for(const row of renders.results){
   const previous=row.result_json?parseCanonicalJson(row.result_json) as Json:{};
   const status=terminal.has(row.status)?row.status:op.status==='cancelled'?'cancelled':'blocked';
