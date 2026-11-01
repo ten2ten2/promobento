@@ -3,6 +3,7 @@ import {digest} from '@promobento/contracts/digest';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import {registerWorkflow,createTrackedWorkflow,stopWorkflow,stopOperationWorkflows,resolveWorkflow,type WorkflowKind} from './workflow-state.ts';
 import {stopRenderAdmissions} from './render-admission.ts';
+import {boundedControl,settledPool} from './control-batch.ts';
 
 const terminal=new Set(['passed','blocked','cancelled']);
 export const renderCompletionEventType=(renderId:string)=>'native-render-'+digest(renderId).slice(0,32);
@@ -134,9 +135,32 @@ async function notifyDirectorRender(env:PipelineEnv,operationId:string,renderId:
   .bind(operationId,generation).first();
  if(!row)return; // Direct internal renders have no Director Workflow.
  const instance=await env.OPERATION_WORKFLOW.get(operationId);
- try{await instance.sendEvent({type:renderCompletionEventType(renderId),payload:{renderId,status}});}
+ try{await boundedControl(instance.sendEvent({type:renderCompletionEventType(renderId),payload:{renderId,status}}));}
  catch(error){
-  const observed=await instance.status().catch(()=>null);
+  const observed=await boundedControl(instance.status()).catch(()=>null);
+  if(!observed||!['complete','errored','terminated'].includes(observed.status))throw error;
+ }
+}
+
+/** A persisted choice is authoritative; do not deliver a stale generation or losing concurrent choice. */
+async function dispatchDirectionChoice(env:PipelineEnv,item:Json){
+ const value=parseCanonicalJson(item.payloadJson) as Json;
+ if(value.operationId!==item.operationId||!Number.isInteger(value.generation)
+  ||!['fit','amplify','unexpected'].includes(value.key)||typeof value.directionsHash!=='string')
+  throw Error('OUTBOX_SCOPE_INVALID');
+ const context=await env.DB.prepare('SELECT choice,choice_hash,directions_hash FROM pipeline_contexts WHERE operation_id=?')
+  .bind(item.operationId).first<Json>();
+ const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
+  .bind(item.operationId).first<Json>();
+ if(!context||context.choice!==value.key||context.choice_hash!==value.choiceHash
+  ||context.directions_hash!==value.directionsHash||!op||op.generation!==value.generation||op.status!=='awaiting_user')return;
+ const tracked=await env.DB.prepare("SELECT id FROM pipeline_workflows WHERE kind='operation' AND id=? AND generation=? AND engine='huashu' AND reconciled_at IS NULL")
+  .bind(item.operationId,value.generation).first();
+ if(!tracked)throw Error('DIRECTOR_WORKFLOW_UNCONFIRMED');
+ const instance=await env.OPERATION_WORKFLOW.get(item.operationId);
+ try{await boundedControl(instance.sendEvent({type:'direction-choice',payload:{key:value.key,directionsHash:value.directionsHash}}));}
+ catch(error){
+  const observed=await boundedControl(instance.status()).catch(()=>null);
   if(!observed||!['complete','errored','terminated'].includes(observed.status))throw error;
  }
 }
@@ -155,14 +179,15 @@ type DirectorEventOutbox={id:string;operation_id:string;kind:string;payload_json
  director_event_done_at:number|null;director_event_retry_at:number;director_event_failures:number};
 
 /** Queue enqueue is not a Director acknowledgement. Persist the result of the actual event RPC. */
-export async function deliverRenderDirectorEvent(env:PipelineEnv,item:Json){
- const row=await env.DB.prepare('SELECT * FROM pipeline_outbox WHERE id=? AND kind IN (\'render_progress\',\'render_terminal\')')
+export async function deliverDirectorEvent(env:PipelineEnv,item:Json){
+ const row=await env.DB.prepare('SELECT * FROM pipeline_outbox WHERE id=? AND kind IN (\'render_progress\',\'render_terminal\',\'direction_choice\')')
   .bind(item.id).first<DirectorEventOutbox>();
  if(!row||row.kind!==item.kind||row.operation_id!==item.operationId||row.payload_json!==item.payloadJson)throw Error('OUTBOX_SCOPE_INVALID');
  if(row.director_event_done_at!==null||row.director_event_retry_at>Date.now())return;
  try{
   if(row.kind==='render_progress')await dispatchRenderProgress(env,item);
-  else await dispatchRenderTerminal(env,item);
+  else if(row.kind==='render_terminal')await dispatchRenderTerminal(env,item);
+  else await dispatchDirectionChoice(env,item);
   await env.DB.prepare('UPDATE pipeline_outbox SET director_event_done_at=? WHERE id=? AND director_event_done_at IS NULL')
    .bind(Date.now(),row.id).run();
  }catch(error){
@@ -175,12 +200,12 @@ export async function deliverRenderDirectorEvent(env:PipelineEnv,item:Json){
 }
 
 /** Even if a Queue message exhausts retries, its durable outbox row can still wake the Director. */
-export async function recoverRenderDirectorEvents(env:PipelineEnv){
+export async function recoverDirectorEvents(env:PipelineEnv){
  const rows=await env.DB.prepare(`SELECT * FROM pipeline_outbox
-  WHERE kind IN ('render_progress','render_terminal') AND director_event_done_at IS NULL AND director_event_retry_at<=?
+  WHERE kind IN ('render_progress','render_terminal','direction_choice') AND director_event_done_at IS NULL AND director_event_retry_at<=?
   ORDER BY director_event_retry_at,rowid LIMIT 64`).bind(Date.now()).all<DirectorEventOutbox>();
- for(const row of rows.results){
-  try{await deliverRenderDirectorEvent(env,{id:row.id,kind:row.kind,operationId:row.operation_id,payloadJson:row.payload_json});}
+ await settledPool(rows.results,8,async row=>{
+  try{await boundedControl(deliverDirectorEvent(env,{id:row.id,kind:row.kind,operationId:row.operation_id,payloadJson:row.payload_json}),15_000);}
   catch{ /* Individual failures back off; later events still get a chance. */ }
- }
+ });
 }

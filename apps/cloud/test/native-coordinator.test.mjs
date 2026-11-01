@@ -10,14 +10,29 @@ import {reserve} from '../src/store.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 
 const built = await build({
-  stdin: {contents: 'export {CoordinatorDO, ShardDO} from "./apps/cloud/src/compute.ts";', resolveDir: process.cwd()},
+  stdin: {contents: 'export {CoordinatorDO, ShardDO, OperationDO} from "./apps/cloud/src/compute.ts";', resolveDir: process.cwd()},
   bundle: true, write: false, platform: 'node', format: 'esm', target: 'node26',
   plugins: [{name: 'cloudflare-durable-object-fixture', setup(builder) {
     builder.onResolve({filter: /^cloudflare:workers$/}, () => ({path: 'workers', namespace: 'fixture'}));
     builder.onLoad({filter: /.*/, namespace: 'fixture'}, () => ({contents: 'export class DurableObject {} export class WorkerEntrypoint {}', loader: 'js'}));
   }}],
 });
-const {CoordinatorDO, ShardDO} = await import('data:text/javascript;base64,' + Buffer.from(built.outputFiles[0].text).toString('base64'));
+const {CoordinatorDO, ShardDO, OperationDO} = await import('data:text/javascript;base64,' + Buffer.from(built.outputFiles[0].text).toString('base64'));
+
+test('SSE progress drops stalled readers instead of retaining unbounded queued events', async t => {
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('sse-operation','workspace','project',0,'evaluation','active','request',1000,Date.now(),null,null);
+  const memory=new Map(),operation=Object.create(OperationDO.prototype);
+  operation.env={DB};operation.listeners=new Map();
+  operation.ctx={storage:{async put(key,value){memory.set(key,value);},async get(key){return memory.get(key);}}};
+  const response=await operation.watch('sse-operation');
+  assert.equal(response.status,200);
+  assert.equal(operation.listeners.size,1);
+  for(let index=0;index<30;index++)await operation.progress(canonical({operationId:'sse-operation',stage:index}));
+  assert.equal(operation.listeners.size,0,'the unread stream is dropped before its queue can grow past the high-water mark');
+  assert.equal(memory.get('progress').stage,29,'the latest state remains available for reconnect');
+});
 
 test('a D1 reservation committed before its response is lost can be stopped and settled without starting a container', async t => {
   const {db, DB} = sqliteD1(); t.after(() => db.close());
@@ -50,7 +65,7 @@ test('a D1 reservation committed before its response is lost can be stopped and 
   let reserveLost = false, releases = 0, starts = 0;
   const env = {DB: {...DB, prepare(sql) {
     const prepared = DB.prepare(sql);
-    if (!sql.startsWith('INSERT INTO cost_reservations')) return prepared;
+    if (!sql.startsWith('INSERT OR IGNORE INTO cost_reservations')) return prepared;
     return {bind(...args) {
       const bound = prepared.bind(...args);
       return {async run() {const value=await bound.run(); reserveLost=true; throw Error('Network connection lost.');}};
@@ -90,6 +105,48 @@ test('a D1 reservation committed before its response is lost can be stopped and 
   assert.equal(parseCanonicalJson(settlement.usage_json).runningMs,0);
   assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions').get().status,'released');
   assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status,'stopped');
+});
+
+test('a transient Shard cleanup failure still records the finished execution for post-restart reconciliation', async t => {
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const id='attempt-cleanup-failed',renderId='render-cleanup-failed',opId='operation-cleanup-failed';
+  const now=Date.now(),leaseToken='11111111-1111-4111-8111-111111111111',imageDigest='sha256:'+'a'.repeat(64);
+  const bytes=new TextEncoder().encode('<html>Cleanup fixture</html>');
+  const project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',
+    runtime:{name:'huashu-motion',commit:NATIVE_COMMIT},composition:{durationSeconds:15,fps:30,width:1920,height:1080},
+    files:[{path:'index.html',key:'evals/native/cleanup.html',sha256:sha256Bytes(bytes),byteLength:bytes.length,mediaType:'text/html'}],resources:[]};
+  const task={schemaVersion:'1.0.0',kind:'native_render_task',taskId:id,renderId,operationId:opId,generation:0,
+    deadlineAt:now+120_000,leaseToken,queuedAt:now-1000,imageDigest,instance:nativeRenderPolicy.instance,
+    rendererRelease:'native-release',runtimeVersion:NATIVE_COMMIT,revisionId:await nativeProjectHash(project),
+    mode:'preview',frames:[0],project};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(opId,'workspace','project',0,'evaluation','active','request',3000000,now,null,null);
+  db.prepare('INSERT INTO renderer_releases VALUES(?,?,?,?,?)').run('native-release',imageDigest,NATIVE_COMMIT,'env','active');
+  db.prepare('INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,?,?)')
+    .run(renderId,opId,0,'request','renders/'+renderId+'/input.json','rendering',now);
+  db.prepare(`INSERT INTO pipeline_render_admissions
+    (id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at)
+    VALUES(?,?,?,?,?,?,'running',?,?,?,?,?)`).run(id,renderId,opId,0,'workspace',0,now-1000,now+60000,leaseToken,now,task.deadlineAt);
+  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)')
+    .run(id,renderId,opId,0,'native_preview',task.instance,'active',now);
+  const env={DB:{...DB,prepare(sql){
+    if(sql.startsWith('SELECT operation_id,request_hash,kind,stage,reserved_micros,catalog_version FROM cost_reservations'))
+      return {bind(){return {async first(){throw Error('COST_DATABASE_UNAVAILABLE');}};}};
+    return DB.prepare(sql);
+  }},COORDINATOR:{getByName(){return {async assertLease(){}};}}};
+  const memory=new Map(),storage={async get(key){return memory.get(key);},
+    async put(key,value){if(typeof key==='object')for(const [k,v] of Object.entries(key))memory.set(k,v);else memory.set(key,value);},
+    kv:{get(key){return memory.get(key);}}};
+  const shard=Object.create(ShardDO.prototype);
+  shard.env=env;shard.ctx={storage,container:{running:false,images:{render:imageDigest}}};
+  shard.stopAndSettle=async()=>{throw Error('TEMPORARY_CLEANUP_UNAVAILABLE');};
+  await assert.rejects(shard.execute(canonical(task)),/COST_DATABASE_UNAVAILABLE/);
+  assert.equal(memory.get('workFinished'),true,'the finished coroutine is recorded even though cleanup must be retried');
+  // A restarted actor can distinguish a completed failure from an in-flight
+  // unknown result; callers still require confirmed stop and settlement.
+  const restarted=Object.create(ShardDO.prototype);
+  restarted.ctx={storage};
+  assert.equal(await restarted.recoverCompletedResult({attemptId:id,renderId,operationId:opId,generation:0,leaseToken}),null);
 });
 
 test('Shard success recovery validates the durable task scope and never starts a container', async () => {
@@ -177,7 +234,7 @@ test('a delayed reserve insert cannot commit after a restarted Shard stopped and
   const insertEntered=new Promise(resolve=>{sawInsert=resolve;});
   const delayedDB={...DB,prepare(sql) {
     const prepared=DB.prepare(sql);
-    if (!sql.startsWith('INSERT INTO cost_reservations')) return prepared;
+    if (!sql.startsWith('INSERT OR IGNORE INTO cost_reservations')) return prepared;
     return {bind(...args) {
       const bound=prepared.bind(...args);
       return {async run() {sawInsert();await waiting;return bound.run();}};

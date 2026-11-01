@@ -16,7 +16,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 NativeProject 与 release，形成 R2 中的 `native_render_request`。operation generation 由 D1 渲染记录和内部 `native_render_task` 绑定，不由客户端提交。清单先经预编译 Schema 与共享语义校验，再核对实际文件、画幅和 release；作品不能设置预算、存储权限、编码或付费动作。
 
-`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 是与物理 `pipeline_attempts` 分开的排队记录：CoordinatorDO 在全局／工作区限额内授予带 generation/token 的租约，通过 Workflow 事件唤醒，不在容器或 Workflow 内循环抢容量。容量释放用 Queue 通知，定时 sweep 补漏；同级按各工作区最早任务公平选择。导演等待渲染完成也使用 Workflow 事件，不再每秒查询 D1；完成事件的实际投递结果另记在 outbox，Queue 重试耗尽后仍可由定时任务补发。
+`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；事件实际送达结果独立记录，定时 sweep 补发。Queue、Workflow/Director 恢复和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
 
 平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止、计算结算和租约释放均确认后，才允许另一个 attempt。排队过期不产生物理 attempt；取消和晚到事件受 generation/token 拦截。初始持久等待上限 15 分钟、单次预览／导出执行上限 3／10 分钟，单个渲染总上限 30／45 分钟（含排队、重试及验证）；内部评估值尚未经过真实云端标定，不能当作客户 SLA。
 
@@ -28,7 +28,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 
-取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。未确认费用继续占用原预留，不写成 0，不自动重发模型。
+取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。费用预留和内部操作创建按完整身份进行并发幂等校验。上传对象按声明字节数边读取边检查，写入后复核 R2 实际摘要，防止竞争写入误报成功。SSE 进度流对慢读者设置缓冲上限与连接数上限，断开后可重新订阅最新进度。
 
 ## 部署标识与账本
 

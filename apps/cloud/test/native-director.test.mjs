@@ -90,7 +90,9 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
    const row=db.prepare('SELECT directions_hash FROM pipeline_contexts WHERE operation_id=?').get(id);
    assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(id).status,'awaiting_user');
    assert.equal(jobs.filter(job=>job.operationId===id&&job.mode==='preview').length,3,'all three native direction frames exist before choosing');
-   return {payload:{key:'fit',directionsHash:row.directions_hash}};
+   const payload={key:'fit',directionsHash:row.directions_hash};
+   db.prepare('UPDATE pipeline_contexts SET choice=?,choice_hash=? WHERE operation_id=?').run(payload.key,digest(payload),id);
+   return {payload};
   }};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };

@@ -1,9 +1,10 @@
 import {NATIVE_PROJECT_SCHEMA_VERSION} from './version.ts';
 import {directingMethodPack, directingMethodRef} from '../../../packages/methods/directing.ts';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest, sha256Bytes} from '@promobento/contracts/digest';
-import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
-import {reconcileOperation, dispatchRender, deliverRenderDirectorEvent, recoverRenderDirectorEvents} from './render-recovery.ts';
+import {registerOperation,cancelOperation} from './operation-registration.ts';
+import {operation, rights, readJson, readExactBytes, immutableJson, immutableBytes, getJson} from './store.ts';
+import {reconcileOperation, dispatchRender, deliverDirectorEvent, recoverDirectorEvents} from './render-recovery.ts';
+import {chooseDirection} from './director-choice.ts';
 import {dispatchDirectorFailure, dispatchDirectorProgress, getReviewDraft} from './director-recovery.ts';
 import {importModelOpening, confirmModelOpening, modelBudgetStatus} from './model-budget.ts';
 import {workflowInventory} from './workflow-state.ts';
@@ -11,6 +12,7 @@ import {dispatchCreative, recoverWorkflows} from './workflow-recovery.ts';
 import {saveNativeProject, loadNativeProject, createNativeRender, NATIVE_COMMIT} from './native-project.ts';
 import {flushOutbox} from './outbox.ts';
 import {dispatchRenderAdmissions} from './render-admission.ts';
+import {processQueueMessages} from './control-batch.ts';
 import {validId, type PipelineEnv, type Json, type Operation} from './pipeline-types.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
@@ -83,14 +85,7 @@ export default {
       if (path === '/internal/s1/workflows/reconcile' && request.method === 'POST') return Response.json(await recoverWorkflows(env));
       if (request.method === 'GET' && path.startsWith('/internal/s1/artifacts/')) return artifact(env, decodeURIComponent(path.slice('/internal/s1/artifacts/'.length)));
       if (request.method === 'POST' && path === '/internal/s1/operations') {
-        const input = await readJson(request);
-        if (!validId(input.id) || !validId(input.workspaceId) || !validId(input.projectId) || !['evaluation', 'calibration'].includes(input.purpose)
-          || !Number.isSafeInteger(input.maxMicros) || input.maxMicros < 1 || input.maxMicros > 10000000) throw Error('OPERATION_INVALID');
-        const hash = digest(input), existing = await env.DB.prepare('SELECT request_hash FROM pipeline_operations WHERE id=?').bind(input.id).first<Json>();
-        if (existing && existing.request_hash !== hash) throw Error('IDEMPOTENCY_CONFLICT');
-        if (!existing) await env.DB.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)')
-          .bind(input.id, input.workspaceId, input.projectId, 0, input.purpose, 'active', hash, input.maxMicros, Date.now()).run();
-        return Response.json({operationId: input.id});
+        return Response.json(await registerOperation(env,await readJson(request)));
       }
       // Rights evidence is required for native material reads and execution.
       if (request.method === 'POST' && path === '/internal/s1/rights') {
@@ -100,8 +95,12 @@ export default {
         const evidence = await getJson(env, input.evidenceKey);
         if (evidence.resourceId !== input.resourceId || evidence.sha256 !== input.sha256 || evidence.licenseRef !== input.licenseRef
           || evidence.scope !== input.scope || evidence.approvedBy !== 'owner' || !evidence.source || !evidence.basis) throw Error('RIGHTS_EVIDENCE_INVALID');
-        await env.DB.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+        await env.DB.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
           .bind(op.id, input.resourceId, input.sha256, input.licenseRef, input.evidenceKey, input.scope).run();
+        const stored = await env.DB.prepare('SELECT license_ref,evidence_key,scope,revoked_at FROM pipeline_rights WHERE operation_id=? AND resource_id=? AND sha256=?')
+          .bind(op.id,input.resourceId,input.sha256).first<Json>();
+        if (!stored || stored.license_ref !== input.licenseRef || stored.evidence_key !== input.evidenceKey
+          || stored.scope !== input.scope || stored.revoked_at !== null) throw Error('RIGHTS_IDEMPOTENCY_CONFLICT');
         return new Response(null, {status: 201});
       }
       const releaseRoute = /^\/internal\/s1\/releases\/([A-Za-z0-9_-]{4,96})$/.exec(path);
@@ -117,8 +116,11 @@ export default {
         const previous = await env.DB.prepare('SELECT * FROM renderer_releases WHERE id=?').bind(input.id).first<Json>();
         if (previous && (previous.image_digest !== input.imageDigest || previous.runtime_version !== input.runtimeVersion
           || previous.environment_key !== input.environmentKey)) throw Error('IMMUTABLE_RELEASE_CONFLICT');
-        if (!previous) await env.DB.prepare('INSERT INTO renderer_releases(id,image_digest,runtime_version,environment_key,status) VALUES(?,?,?,?,?)')
+        if (!previous) await env.DB.prepare('INSERT OR IGNORE INTO renderer_releases(id,image_digest,runtime_version,environment_key,status) VALUES(?,?,?,?,?)')
           .bind(input.id, input.imageDigest, input.runtimeVersion, input.environmentKey, 'active').run();
+        const persisted = await env.DB.prepare('SELECT image_digest,runtime_version,environment_key FROM renderer_releases WHERE id=?').bind(input.id).first<Json>();
+        if (!persisted || persisted.image_digest !== input.imageDigest || persisted.runtime_version !== input.runtimeVersion
+          || persisted.environment_key !== input.environmentKey) throw Error('IMMUTABLE_RELEASE_CONFLICT');
         return new Response(null, {status: 201});
       }
       if (request.method === 'PUT' && path.startsWith('/internal/s1/objects/')) {
@@ -126,13 +128,10 @@ export default {
         if (!/^evals\/[A-Za-z0-9_/-]{4,240}\.[a-z0-9]{2,8}$/.test(key) || key.split('/').some(part => part === '..')) throw Error('OBJECT_KEY_INVALID');
         const declared = request.headers.get('content-length'), length = Number(declared);
         if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) throw Error('OBJECT_TOO_LARGE');
-        const bytes = new Uint8Array(await request.arrayBuffer());
-        if (bytes.length !== length) throw Error('OBJECT_LENGTH_MISMATCH');
-        const hash = sha256Bytes(bytes), old = await env.MEDIA.head(key), mediaType = request.headers.get('content-type') ?? 'application/octet-stream';
-        if (old && old.customMetadata?.sha256 !== hash) throw Error('IMMUTABLE_OBJECT_CONFLICT');
-        if (!old) await env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}), customMetadata: {sha256: hash},
-          httpMetadata: {contentType: mediaType}});
-        return Response.json({key, sha256: hash, byteLength: bytes.length, mediaType});
+        const bytes = await readExactBytes(request,length);
+        const mediaType = request.headers.get('content-type') ?? 'application/octet-stream';
+        const object = await immutableBytes(env,key,bytes,mediaType);
+        return Response.json({key,sha256:object.sha256,byteLength:object.byteLength,mediaType});
       }
       if (request.method === 'POST' && path === '/internal/s1/native/projects') {
         const input = await readJson(request), op = await operation(env, input.operationId);
@@ -166,14 +165,9 @@ export default {
       const direction = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/direction$/.exec(path);
       if (direction && request.method === 'POST') {
         const id = direction[1]!, input = await readJson(request);
-        await operation(env, id);
-        const row = await env.DB.prepare('SELECT * FROM pipeline_contexts WHERE operation_id=?').bind(id).first<Json>();
-        if (!row || row.directions_hash !== input.directionsHash || !['fit', 'amplify', 'unexpected'].includes(input.key)) throw Error('DIRECTION_CHOICE_INVALID');
-        const hash = digest(input);
-        if (row.choice_hash && row.choice_hash !== hash) throw Error('IDEMPOTENCY_CONFLICT');
-        await env.DB.prepare('UPDATE pipeline_contexts SET choice=?,choice_hash=? WHERE operation_id=? AND (choice_hash IS NULL OR choice_hash=?)').bind(input.key, hash, id, hash).run();
-        await (await env.OPERATION_WORKFLOW.get(id)).sendEvent({type: 'direction-choice', payload: input});
-        return Response.json({operationId: id, key: input.key});
+        const result = await chooseDirection(env, await operation(env, id), input);
+        ctx.waitUntil(flushOutbox(env, result.outboxId));
+        return Response.json({operationId: id, key: result.key});
       }
       const candidateRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/candidate$/.exec(path);
       if (candidateRoute && request.method === 'GET') {
@@ -225,13 +219,9 @@ export default {
       const cancel = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/cancel$/.exec(path);
       if (request.method === 'POST' && cancel) {
         const id = cancel[1]!;
-        await env.DB.batch([
-          env.DB.prepare('UPDATE pipeline_operations SET status=\'cancelled\',generation=generation+1,finished_at=? WHERE id=? AND status IN (\'active\',\'awaiting_user\')').bind(Date.now(), id),
-          env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND status=\'cancelled\')')
-            .bind('cancel-' + id, id, 'cancel', canonical({operationId: id}), id),
-        ]);
+        const result = await cancelOperation(env,id);
         ctx.waitUntil(flushOutbox(env));
-        return Response.json({operationId: id, status: 'cancelling'});
+        return Response.json(result);
       }
       const reconcile = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/reconcile$/.exec(path);
       if (request.method === 'POST' && reconcile) return Response.json(await reconcileOperation(env, reconcile[1]!));
@@ -244,26 +234,23 @@ export default {
   async scheduled(_event: ScheduledController, env: PipelineEnv, ctx: ExecutionContext) {
     if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {
       // Independent recovery lanes: a Queue outage must not stop Director wake-up retries.
-      const results = await Promise.allSettled([flushOutbox(env),dispatchRenderAdmissions(env),recoverRenderDirectorEvents(env),recoverWorkflows(env)]);
+      const results = await Promise.allSettled([flushOutbox(env),dispatchRenderAdmissions(env),recoverDirectorEvents(env),recoverWorkflows(env)]);
       const failed = results.find(result => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
     })());
   },
   async queue(batch: MessageBatch<Json>, env: PipelineEnv) {
-    for (const message of batch.messages) {
-      try {
+    await processQueueMessages(batch.messages, async message => {
         if (env.S1_ENABLED !== 'internal_eval') throw Error('EXECUTION_DISABLED');
         const item = message.body;
         if (item.kind === 'render') await dispatchRender(env, item);
         else if (item.kind === 'admission') await dispatchRenderAdmissions(env);
-        else if (item.kind === 'render_progress' || item.kind === 'render_terminal') await deliverRenderDirectorEvent(env, item);
+        else if (item.kind === 'render_progress' || item.kind === 'render_terminal' || item.kind === 'direction_choice') await deliverDirectorEvent(env, item);
         else if (item.kind === 'operation_progress') await dispatchDirectorProgress(env, item);
         else if (item.kind === 'operation_failure') await dispatchDirectorFailure(env, item);
         else if (item.kind === 'creative') await dispatchCreative(env, item);
         else if (item.kind === 'cancel') await reconcileOperation(env, item.operationId);
         else throw Error('OUTBOX_KIND_INVALID');
-        message.ack();
-      } catch {message.retry();}
-    }
+    });
   },
 } satisfies ExportedHandler<PipelineEnv, Json>;

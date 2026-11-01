@@ -1,4 +1,5 @@
 import type {PipelineEnv,Json} from './pipeline-types.ts';
+import {boundedControl} from './control-batch.ts';
 
 export type WorkflowKind='operation'|'render';
 export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;reconciled_at:number|null;engine:'legacy'|'huashu'};
@@ -27,7 +28,7 @@ export async function workflowStarted(env:PipelineEnv,kind:WorkflowKind,id:strin
 
 export async function workflowStatus(env:PipelineEnv,row:TrackedWorkflow){
  try{
-  const status=await(await binding(env,row.kind).get(row.id)).status();
+  const status=await boundedControl((async()=> (await binding(env,row.kind).get(row.id)).status())());
   if(status.status==='unknown')throw Error('WORKFLOW_STATUS_UNCONFIRMED');
   await env.DB.prepare('UPDATE pipeline_workflows SET native_created_at=COALESCE(native_created_at,?),native_status=?,last_checked_at=?,last_error=NULL WHERE kind=? AND id=?')
    .bind(Date.now(),status.status,Date.now(),row.kind,row.id).run();return status;
@@ -42,7 +43,7 @@ export async function createTrackedWorkflow(env:PipelineEnv,row:TrackedWorkflow)
  if(row.native_created_at===null){
   try{
    const params=row.kind==='render'?{renderId:row.id}:{operationId:row.id};
-   await binding(env,row.kind).create({id:row.id,params} as any);
+   await boundedControl(binding(env,row.kind).create({id:row.id,params} as any));
    await env.DB.prepare('UPDATE pipeline_workflows SET native_created_at=COALESCE(native_created_at,?) WHERE kind=? AND id=?')
     .bind(Date.now(),row.kind,row.id).run();
   }catch(error){
@@ -56,7 +57,7 @@ export async function createTrackedWorkflow(env:PipelineEnv,row:TrackedWorkflow)
 export async function stopWorkflow(env:PipelineEnv,row:TrackedWorkflow){
  let status=await workflowStatus(env,row);
  if(!nativeTerminal(status.status)){
-  try{await(await binding(env,row.kind).get(row.id)).terminate();}
+  try{await boundedControl((async()=> (await binding(env,row.kind).get(row.id)).terminate())());}
   catch(error){status=await workflowStatus(env,row);if(!nativeTerminal(status.status))throw error;}
   status=await workflowStatus(env,row);
  }

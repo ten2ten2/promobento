@@ -244,6 +244,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     const choice=await step.waitForEvent<{key:string;directionsHash:string}>('direction-choice',{type:'direction-choice',timeout:'24 hours'});
     direction=directions.cards.find((card:Json)=>card.key===choice.payload.key)??null;
     if(choice.payload.directionsHash!==directionsHash||!direction)throw Error('DIRECTION_CHOICE_INVALID');language=direction.language;
+    await step.do('verify-direction-choice',noRetry,async()=>{
+     const persisted=await this.env.DB.prepare('SELECT choice,choice_hash,directions_hash FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
+     if(persisted?.choice!==choice.payload.key||persisted.choice_hash!==digest(choice.payload)||persisted.directions_hash!==directionsHash)
+      throw Error('DIRECTION_CHOICE_INVALID');
+    });
     const resumed=await step.do('resume-after-choice',noRetry,async()=>{await operation(this.env,op.id,op.generation);await this.env.DB.prepare("UPDATE pipeline_operations SET status='active' WHERE id=? AND generation=? AND status='awaiting_user'").bind(op.id,op.generation).run();return Date.now();});pausedMs=resumed-waitStarted;
     await progress('treatment');treatment=await runTool('treatment','treatment','write_treatment',{task:'Write the selected native film Treatment: creative premise, hook, reveal/payoff, rhythm, actual material selection, music/effects, named hardest shot and complete beat map. Preserve 15/30-second delivery. Choose four key review frames. No implementation DSL.',brief,direction,materials:publicMaterials(material.materials),insights,
      timingEvidence,timingRule:'Only supplied same-source measured alignment may anchor spoken events. Otherwise use explicitly authored time; no fabricated cues.'});

@@ -3,14 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {sha256Bytes} from '@promobento/contracts/digest';
+import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes, reserve, settle} from '../src/store.ts';
+import {immutableBytes,readExactBytes,reserve,settle} from '../src/store.ts';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
-import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverRenderDirectorEvent, recoverRenderDirectorEvents} from '../src/render-recovery.ts';
+import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverDirectorEvent, recoverDirectorEvents} from '../src/render-recovery.ts';
 import {flushOutbox} from '../src/outbox.ts';
+import {chooseDirection} from '../src/director-choice.ts';
+import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
+import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
 import {getReviewDraft} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
@@ -673,18 +676,210 @@ test('Director completion events recover after Queue acknowledgement and exhaust
   for (const entry of entries) {
     const item = {id: entry.id, kind: entry.kind, operationId: op.id,
       payloadJson: db.prepare('SELECT payload_json FROM pipeline_outbox WHERE id=?').get(entry.id).payload_json};
-    await assert.rejects(deliverRenderDirectorEvent(env, item), /EVENT_API_TEMPORARILY_UNAVAILABLE/);
+    await assert.rejects(deliverDirectorEvent(env, item), /EVENT_API_TEMPORARILY_UNAVAILABLE/);
     assert.equal(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(entry.id).director_event_done_at, null);
   }
   assert.equal(received.length, 0);
   // Simulate a later scheduled sweep; Queue itself never redelivers these messages.
   db.prepare("UPDATE pipeline_outbox SET director_event_retry_at=0 WHERE kind IN ('render_progress','render_terminal')").run();
-  await recoverRenderDirectorEvents(env);
+  await recoverDirectorEvents(env);
   assert.equal(received.length, 2);
   assert.deepEqual(received.map(event => event.payload.status).sort(), ['blocked', 'passed']);
   for (const entry of entries) assert.ok(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(entry.id).director_event_done_at);
-  await recoverRenderDirectorEvents(env);
+  await recoverDirectorEvents(env);
   assert.equal(received.length, 2, 'acknowledged events are not replayed by later sweeps');
+});
+
+test('concurrent user choices commit one winner and recover its durable Director event after an API outage', async t => {
+  const {db,env,op} = await fixture(t);
+  const directionsHash = 'd'.repeat(64);
+  db.prepare("UPDATE pipeline_operations SET status='awaiting_user' WHERE id=?").run(op.id);
+  db.prepare("INSERT INTO pipeline_contexts(operation_id,request_key,engine,directions_hash) VALUES(?,?,'huashu',?)")
+    .run(op.id,'evals/fixture/context.json',directionsHash);
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('operation',?,?,?,?,?)")
+    .run(op.id,op.id,op.generation,Date.now(),'huashu');
+  const choices = [{key:'fit',directionsHash},{key:'unexpected',directionsHash}];
+  const results = await Promise.allSettled(choices.map(choice => chooseDirection(env,op,choice)));
+  assert.equal(results.filter(result => result.status === 'fulfilled').length,1);
+  assert.match(results.find(result => result.status === 'rejected').reason.message,/IDEMPOTENCY_CONFLICT/);
+  const winning = choices[results.findIndex(result => result.status === 'fulfilled')];
+  const saved = db.prepare('SELECT choice,choice_hash FROM pipeline_contexts WHERE operation_id=?').get(op.id);
+  assert.equal(saved.choice,winning.key);
+  assert.equal(saved.choice_hash,digest(winning));
+  const outbox = db.prepare("SELECT * FROM pipeline_outbox WHERE kind='direction_choice'").all();
+  assert.equal(outbox.length,1,'a losing CAS cannot enqueue a conflicting event');
+  assert.equal(parseCanonicalJson(outbox[0].payload_json).key,winning.key);
+  await chooseDirection(env,op,winning);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='direction_choice'").get().n,1);
+  const delivered=[];
+  let fail = true;
+  env.OPERATION_WORKFLOW={get(id){assert.equal(id,op.id);return {
+    async sendEvent(event){if(fail){fail=false;throw Error('CHOICE_EVENT_UNAVAILABLE');}delivered.push(event);},
+    async status(){return {status:'running'};},
+  };}};
+  await flushOutbox(env,outbox[0].id);
+  await assert.rejects(deliverDirectorEvent(env,{id:outbox[0].id,kind:outbox[0].kind,operationId:op.id,payloadJson:outbox[0].payload_json}),/CHOICE_EVENT_UNAVAILABLE/);
+  assert.equal(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(outbox[0].id).director_event_done_at,null);
+  db.prepare('UPDATE pipeline_outbox SET director_event_retry_at=0 WHERE id=?').run(outbox[0].id);
+  await recoverDirectorEvents(env);
+  assert.deepEqual(delivered,[{type:'direction-choice',payload:winning}]);
+  assert.ok(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(outbox[0].id).director_event_done_at);
+  db.prepare('UPDATE pipeline_operations SET status=\'cancelled\',generation=1 WHERE id=?').run(op.id);
+  db.prepare('UPDATE pipeline_outbox SET director_event_done_at=NULL,director_event_retry_at=0 WHERE id=?').run(outbox[0].id);
+  await recoverDirectorEvents(env);
+  assert.equal(delivered.length,1,'a cancelled generation cannot be reawakened by a delayed event');
+});
+
+test('Director event recovery continues past one stalled event without losing either result', async t => {
+  const {db,env,op,saved}=await fixture(t);
+  for(const renderId of ['stalled-render','ready-render']){
+    await createNativeRender(env,op,{renderId,revisionId:saved.revisionId,mode:'preview',rendererRelease:'native-release'});
+    db.prepare("UPDATE pipeline_renders SET status='passed' WHERE id=?").run(renderId);
+    db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)')
+      .run('progress-'+renderId,op.id,'render_progress',canonical({operationId:op.id,generation:0,renderId,status:'passed'}));
+  }
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('operation',?,?,?,?,?)")
+    .run(op.id,op.id,0,Date.now(),'huashu');
+  env.OPERATIONS={getByName(){return {async progress(){}};}};
+  const received=[];
+  let resume;
+  const blocked=new Promise(resolve=>{resume=resolve;});
+  env.OPERATION_WORKFLOW={get(){return {async sendEvent(event){
+    if(event.payload.renderId==='stalled-render')await blocked;
+    received.push(event.payload.renderId);
+  }};}};
+  const sweep=recoverDirectorEvents(env);
+  try{
+    for(let i=0;i<30&&!received.includes('ready-render');i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(received.includes('ready-render'),'the second event is delivered while the first RPC is blocked');
+  }finally{resume();}
+  await sweep;
+  assert.deepEqual(received.sort(),['ready-render','stalled-render']);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='render_progress' AND director_event_done_at IS NOT NULL").get().n,2);
+});
+
+test('Workflow recovery inspects healthy rows despite a stalled status API', async t => {
+  const {db,env,op}=await fixture(t);
+  for(const id of ['stalled-workflow','ready-workflow'])db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,?,?,?)")
+    .run(id,op.id,op.generation,Date.now(),'huashu');
+  let resume;
+  const blocked=new Promise(resolve=>{resume=resolve;});
+  const inspected=[];
+  env.RENDER_WORKFLOW={get(id){return {async status(){
+    if(id==='stalled-workflow')await blocked;
+    inspected.push(id);
+    return {status:'running'};
+  }};}};
+  const sweep=recoverWorkflows(env);
+  try{
+    for(let i=0;i<30&&!inspected.includes('ready-workflow');i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(inspected.includes('ready-workflow'),'a later workflow does not wait for an earlier stalled Workflow API');
+  }finally{resume();}
+  assert.deepEqual((await sweep).map(row=>row.status),['inspected','inspected']);
+});
+
+test('outbox sends in bounded parallelism and retries a failed row without skipping healthy rows', async t => {
+  const {db,env,op}=await fixture(t);
+  for(const id of ['stalled','healthy','failed'])db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)')
+    .run(id,op.id,'creative',canonical({id}));
+  let resume;
+  const blocked=new Promise(resolve=>{resume=resolve;});
+  const sent=[];
+  env.OUTBOX={async send(item){
+    if(item.id==='stalled')await blocked;
+    if(item.id==='failed')throw Error('QUEUE_API_DOWN');
+    sent.push(item.id);
+  }};
+  const flush=flushOutbox(env);
+  try{
+    for(let i=0;i<30&&!sent.includes('healthy');i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(sent.includes('healthy'),'a blocked send cannot prevent delivery of an independent event');
+  }finally{resume();}
+  await assert.rejects(flush,/OUTBOX_DELIVERY_UNCONFIRMED/);
+  assert.deepEqual(sent.sort(),['healthy','stalled']);
+  assert.equal(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='failed'").get().delivered_at,null);
+  assert.ok(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='healthy'").get().delivered_at);
+});
+
+test('Queue batches ACK healthy messages while other handlers hang or fail, and time out an isolated RPC', async () => {
+  const results=[];
+  const messages=['stalled','healthy','failed'].map(kind=>({body:{kind},ack(){results.push(kind+':ack');},retry(){results.push(kind+':retry');}}));
+  let resume;
+  const blocked=new Promise(resolve=>{resume=resolve;});
+  const processing=processQueueMessages(messages,async message=>{
+    if(message.body.kind==='stalled')await blocked;
+    if(message.body.kind==='failed')throw Error('QUEUE_HANDLER_DOWN');
+  });
+  try{
+    for(let i=0;i<30&&!results.includes('healthy:ack');i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(results.includes('healthy:ack'));
+    assert.ok(results.includes('failed:retry'));
+  }finally{resume();}
+  await processing;
+  assert.ok(results.includes('stalled:ack'));
+  await assert.rejects(boundedControl(new Promise(()=>{}),5),/CONTROL_RPC_TIMEOUT/);
+  const expired={ack(){assert.fail('an unconfirmed message must not be ACKed');},retry(){results.push('expired:retry');}};
+  await processQueueMessages([expired],async()=>new Promise(()=>{}),5);
+  assert.ok(results.includes('expired:retry'));
+});
+
+test('simultaneous cost reservations are idempotent only for the same full cost identity', async t => {
+  const {db,env,op}=await fixture(t);
+  const task={operationId:op.id,model:'fixture',stage:'facts'};
+  const reserveSame=()=>reserve(env,op,'reservation-race','model','facts',300,task,'fixture-catalog',100_000);
+  await Promise.all([reserveSame(),reserveSame(),reserveSame()]);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_reservations WHERE id=?').get('reservation-race').n,1);
+  await reserveSame();
+  await assert.rejects(reserve(env,op,'reservation-race','model','facts',301,task,'fixture-catalog',100_000),/IDEMPOTENCY_CONFLICT/);
+  await assert.rejects(reserve(env,op,'reservation-race','model','review',300,task,'fixture-catalog',100_000),/IDEMPOTENCY_CONFLICT/);
+  await assert.rejects(reserve(env,{...op,id:'another-operation'},'reservation-race','model','facts',300,task,'fixture-catalog',100_000),/IDEMPOTENCY_CONFLICT/);
+  assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations WHERE id=?').get('reservation-race').reserved_micros,300);
+});
+
+test('streamed object uploads stop at declared length instead of buffering oversized request bodies', async () => {
+  const request=chunks=>new Request('https://broker.internal/w/output',{method:'PUT',duplex:'half',
+    body:new ReadableStream({start(controller){for(const chunk of chunks)controller.enqueue(new Uint8Array(chunk));controller.close();}})});
+  assert.deepEqual(await readExactBytes(request([[1,2],[3]]),3),new Uint8Array([1,2,3]));
+  await assert.rejects(readExactBytes(request([[1,2,3,4,5,6]]),3),/OBJECT_LENGTH_MISMATCH/);
+  await assert.rejects(readExactBytes(request([[1,2]]),3),/OBJECT_LENGTH_MISMATCH/);
+  await assert.rejects(readExactBytes(request([[1]]),50*(1<<20)+1),/OBJECT_TOO_LARGE/);
+});
+
+test('conditional immutable uploads cannot falsely ACK the losing bytes of a concurrent write', async () => {
+  const {MEDIA,objects}=memoryMedia(),key='evals/native/immutable-race.png';
+  const head=MEDIA.head.bind(MEDIA);
+  let preflight=0;
+  MEDIA.head=async path=>path===key&&preflight++<2?null:head(path);
+  const rows=await Promise.allSettled([
+    immutableBytes({MEDIA},key,new Uint8Array([1,2,3]),'image/png'),
+    immutableBytes({MEDIA},key,new Uint8Array([4,5,6]),'image/png'),
+  ]);
+  assert.equal(rows.filter(row=>row.status==='fulfilled').length,1);
+  assert.match(rows.find(row=>row.status==='rejected').reason.message,/IMMUTABLE_OBJECT_CONFLICT/);
+  const winning=rows.find(row=>row.status==='fulfilled').value;
+  assert.equal(sha256Bytes(objects.get(key).bytes),winning.sha256);
+});
+
+test('concurrent operation creation preserves idempotency and rejects a conflicting body', async t => {
+  const {db,env}=await fixture(t);
+  const input={id:'parallel-operation',workspaceId:'workspace-one',projectId:'project-one',purpose:'evaluation',maxMicros:3000000};
+  const created=await Promise.all([registerOperation(env,input),registerOperation(env,input),registerOperation(env,input)]);
+  assert.ok(created.every(value=>value.operationId===input.id));
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_operations WHERE id=?').get(input.id).n,1);
+  await assert.rejects(registerOperation(env,{...input,maxMicros:2000000}),/IDEMPOTENCY_CONFLICT/);
+});
+
+test('cancellation is idempotent only for a real cancelled operation, not a missing or completed one', async t => {
+  const {db,env,op}=await fixture(t);
+  await assert.rejects(cancelOperation(env,'missing-operation'),/OPERATION_NOT_FOUND/);
+  const finished={...op,id:'finished-operation',status:'succeeded'};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(finished.id,finished.workspace_id,finished.project_id,0,finished.purpose,finished.status,'request',finished.max_micros,Date.now(),Date.now(),null);
+  await assert.rejects(cancelOperation(env,finished.id),/OPERATION_NOT_CANCELLABLE/);
+  assert.deepEqual(await cancelOperation(env,op.id),{operationId:op.id,status:'cancelling'});
+  await cancelOperation(env,op.id);
+  assert.equal(db.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').get(op.id).generation,1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='cancel'").get().n,1);
 });
 
 test('a failed native render stays blocked until physical cleanup is confirmed', async t => {

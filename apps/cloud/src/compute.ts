@@ -1,7 +1,7 @@
 import {DurableObject, WorkerEntrypoint} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
-import {operation, reserve, settle} from './store.ts';
+import {operation, reserve, settle, readExactBytes} from './store.ts';
 import {assertNativeExecution, nativeContainerInput, nativeRenderPolicy} from './native-task.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
@@ -32,8 +32,8 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
       if (request.method !== 'PUT' || !url.pathname.startsWith('/w/') || !key.startsWith(scope.prefix + '/')) return new Response(null, {status: 403});
       const declared = request.headers.get('content-length'), length = Number(declared);
       if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) return new Response(null, {status: 413});
-      const bytes = new Uint8Array(await request.arrayBuffer());
-      if (bytes.length !== length) return new Response(null, {status: 413});
+      let bytes:Uint8Array;
+      try{bytes=await readExactBytes(request,length);}catch{return new Response(null,{status:413});}
       const hash = sha256Bytes(bytes), previous = await this.env.MEDIA.head(key);
       if (previous && previous.customMetadata?.sha256 !== hash) return new Response(null, {status: 409});
       if (!previous) await this.env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}),
@@ -331,12 +331,15 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       } catch { /* Diagnostics never replace the first execution failure. */ }
       throw failure;
     } finally {
+      let cleanupError: unknown;
       try {
         await this.stopAndSettle();
-      } catch (error) { if (failed) throw failure; throw error; }
-      // Persist the coroutine's conclusion across Durable Object restarts.
-      // Missing evidence is unknown, never permission to retry paid compute.
+      } catch (error) {cleanupError = error;}
+      // The coroutine has finished even when an external cleanup RPC failed.
+      // Recovery must still re-confirm stop and settlement before retrying;
+      // otherwise a transient cleanup failure leaves workFinished absent forever.
       await this.ctx.storage.put('workFinished', true);
+      if (cleanupError) {if (failed) throw failure; throw cleanupError;}
     }
   }
   private async finishCost(id: string, instance: string, startedAt?: number) {
@@ -384,26 +387,35 @@ export class ShardDO extends DurableObject<PipelineEnv> {
 }
 
 export class OperationDO extends DurableObject<PipelineEnv> {
-  private listeners = new Set<ReadableStreamDefaultController<Uint8Array>>();
+  private listeners = new Map<ReadableStreamDefaultController<Uint8Array>,ReturnType<typeof setTimeout>>();
   async progress(serialized: string) {
     const value = parseCanonicalJson(serialized) as Json;
     await this.ctx.storage.put('progress', value);
     const bytes = new TextEncoder().encode('data: ' + canonical(value) + '\n\n');
-    for (const listener of this.listeners) {
-      try {listener.enqueue(bytes);} catch {this.listeners.delete(listener);}
+    for (const [listener,timer] of this.listeners) {
+      if (listener.desiredSize === null || listener.desiredSize <= 0) {
+        // A slow or abandoned SSE reader must not accumulate an unbounded
+        // in-memory progress queue. Its next connection gets the latest snapshot.
+        clearTimeout(timer);this.listeners.delete(listener);
+        try{listener.close();}catch{}
+        continue;
+      }
+      try{listener.enqueue(bytes);}catch{clearTimeout(timer);this.listeners.delete(listener);}
     }
   }
   async watch(operationId: string) {
     await operation(this.env, operationId);
+    if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
     const initial = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
     let listener: ReadableStreamDefaultController<Uint8Array>, timer: ReturnType<typeof setTimeout>;
     const body = new ReadableStream<Uint8Array>({
       start: controller => {
-        listener = controller; this.listeners.add(controller);
+        listener = controller;
         controller.enqueue(new TextEncoder().encode('data: ' + canonical(initial) + '\n\n'));
-        timer = setTimeout(() => {this.listeners.delete(controller); controller.close();}, 25000);
+        timer = setTimeout(() => {this.listeners.delete(controller);try{controller.close();}catch{}}, 25000);
+        this.listeners.set(controller,timer);
       }, cancel: () => {clearTimeout(timer); this.listeners.delete(listener);},
-    });
+    },{highWaterMark:8});
     return new Response(body, {headers: {'content-type': 'text/event-stream', 'cache-control': 'no-store'}});
   }
 }
