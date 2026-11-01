@@ -5,7 +5,8 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,readExactBytes,reserve,settle} from '../src/store.ts';
+import {immutableBytes,immutableStream,reserve,settle} from '../src/store.ts';
+import {boundedUploadStream} from '../src/upload-stream.ts';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
@@ -1218,13 +1219,34 @@ test('simultaneous cost reservations are idempotent only for the same full cost 
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations WHERE id=?').get('reservation-race').reserved_micros,300);
 });
 
-test('streamed object uploads stop at declared length instead of buffering oversized request bodies', async () => {
+test('bounded R2 upload streams reject short, oversized and falsely declared object bodies', async () => {
   const request=chunks=>new Request('https://broker.internal/w/output',{method:'PUT',duplex:'half',
     body:new ReadableStream({start(controller){for(const chunk of chunks)controller.enqueue(new Uint8Array(chunk));controller.close();}})});
-  assert.deepEqual(await readExactBytes(request([[1,2],[3]]),3),new Uint8Array([1,2,3]));
-  await assert.rejects(readExactBytes(request([[1,2,3,4,5,6]]),3),/OBJECT_LENGTH_MISMATCH/);
-  await assert.rejects(readExactBytes(request([[1,2]]),3),/OBJECT_LENGTH_MISMATCH/);
-  await assert.rejects(readExactBytes(request([[1]]),50*(1<<20)+1),/OBJECT_TOO_LARGE/);
+  const read=(chunks,length)=>new Response(boundedUploadStream(request(chunks).body,length)).arrayBuffer();
+  assert.deepEqual(new Uint8Array(await read([[1,2],[3]],3)),new Uint8Array([1,2,3]));
+  await assert.rejects(read([[1,2,3,4,5,6]],3),/OBJECT_LENGTH_MISMATCH/);
+  await assert.rejects(read([[1,2]],3),/OBJECT_LENGTH_MISMATCH/);
+  assert.throws(()=>boundedUploadStream(request([[1]]).body,50*(1<<20)+1),/OBJECT_TOO_LARGE/);
+  assert.deepEqual(new Uint8Array(await new Response(boundedUploadStream(null,0)).arrayBuffer()),new Uint8Array());
+});
+
+test('internal eval file ingress verifies SHA-256 in R2 and never trusts an incomplete object', async () => {
+  const {MEDIA,objects}=memoryMedia(),key='evals/native/streamed.mp4';
+  const bytes=new Uint8Array(3<<20).fill(7),sha256=sha256Bytes(bytes);
+  const upload=(data,length,hash)=>immutableStream({MEDIA},key,new ReadableStream({start(controller) {
+    for(let offset=0;offset<data.length;offset+=8192)controller.enqueue(data.subarray(offset,offset+8192));
+    controller.close();
+  }}),length,hash,'video/mp4');
+  await assert.rejects(upload(bytes,bytes.length-1,sha256),/OBJECT_LENGTH_MISMATCH/);
+  assert.equal(objects.size,0);
+  await assert.rejects(upload(bytes,bytes.length,'0'.repeat(64)),/R2_CHECKSUM_MISMATCH/);
+  assert.equal(objects.size,0);
+  const blob=await upload(bytes,bytes.length,sha256);
+  assert.equal(blob.sha256,sha256);
+  assert.equal(objects.get(key).bytes.length,bytes.length);
+  await upload(bytes,bytes.length,sha256);
+  await assert.rejects(upload(new Uint8Array(bytes.length),bytes.length,sha256),/OBJECT_IDENTITY_MISMATCH/);
+  await assert.rejects(upload(bytes,bytes.length,'1'.repeat(64)),/IMMUTABLE_OBJECT_CONFLICT/);
 });
 
 test('conditional immutable uploads cannot falsely ACK the losing bytes of a concurrent write', async () => {

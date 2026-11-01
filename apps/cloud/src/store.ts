@@ -1,5 +1,6 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
+import {boundedUploadStream, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
 import type {PipelineEnv, Operation, BlobRef, Json} from './pipeline-types.ts';
 
 export async function readJson(request: Request, limit = 4 << 20): Promise<Json> {
@@ -10,22 +11,6 @@ export async function readJson(request: Request, limit = 4 << 20): Promise<Json>
   finally { await reader.cancel(); }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) {bytes.set(chunk, offset); offset += chunk.length;}
   return parseCanonicalJson(bytes) as Json;
-}
-/** Enforce the declared upload length while streaming; a forged small header must not allocate an unbounded body. */
-export async function readExactBytes(request:Request,length:number):Promise<Uint8Array>{
-  if(!Number.isSafeInteger(length)||length<0||length>50<<20)throw Error('OBJECT_TOO_LARGE');
-  const bytes=new Uint8Array(length),reader=request.body?.getReader();
-  if(!reader){if(length)throw Error('OBJECT_LENGTH_MISMATCH');return bytes;}
-  let offset=0;
-  try{
-    for(;;){
-      const {done,value}=await reader.read();if(done)break;
-      if(value.byteLength>length-offset)throw Error('OBJECT_LENGTH_MISMATCH');
-      bytes.set(value,offset);offset+=value.byteLength;
-    }
-  }finally{await reader.cancel().catch(()=>{});}
-  if(offset!==length)throw Error('OBJECT_LENGTH_MISMATCH');
-  return bytes;
 }
 export async function operation(env: PipelineEnv, id: string, generation?: number): Promise<Operation> {
   const row = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Operation>();
@@ -50,6 +35,24 @@ export async function immutableBytes(env:PipelineEnv,key:string,bytes:Uint8Array
   const actual = await env.MEDIA.head(key);
   if (actual?.customMetadata?.sha256 !== hash || actual.size !== bytes.length) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   return {name: key.split('/').at(-1)!, key, sha256: hash, byteLength: bytes.length, mediaType};
+}
+/** Internal asset ingress: caller supplies the SHA-256 before transfer; R2 enforces it while streaming. */
+export async function immutableStream(env: PipelineEnv, key: string, body: ReadableStream<Uint8Array> | null,
+  length: number, sha256: string, mediaType: string): Promise<BlobRef> {
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw Error('OBJECT_SHA256_REQUIRED');
+  if (!Number.isSafeInteger(length) || length < 0 || length > 50 << 20) throw Error('OBJECT_TOO_LARGE');
+  const previous = await env.MEDIA.head(key);
+  if (previous && !matchesStoredUpload(previous, length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  if (previous) await verifyUploadStream(body, length, sha256);
+  else {
+    const created = await env.MEDIA.put(key, boundedUploadStream(body, length), {
+      sha256, onlyIf: new Headers({'If-None-Match': '*'}),
+      customMetadata: {sha256}, httpMetadata: {contentType: mediaType},
+    });
+    if (!created) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  }
+  if (!matchesStoredUpload(await env.MEDIA.head(key), length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  return {name: key.split('/').at(-1)!, key, sha256, byteLength: length, mediaType};
 }
 export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
   const object = await env.MEDIA.get(key); if (!object || object.size > 8 << 20) throw Error('SOURCE_UNAVAILABLE');

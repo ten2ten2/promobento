@@ -2,7 +2,7 @@ import {NATIVE_PROJECT_SCHEMA_VERSION} from './version.ts';
 import {directingMethodPack, directingMethodRef} from '../../../packages/methods/directing.ts';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {registerOperation,cancelOperation} from './operation-registration.ts';
-import {operation, rights, readJson, readExactBytes, immutableJson, immutableBytes, getJson} from './store.ts';
+import {operation, rights, readJson, immutableStream, immutableJson, immutableBytes, getJson} from './store.ts';
 import {reconcileOperation, dispatchRender, deliverDirectorEvent, recoverDirectorEvents} from './render-recovery.ts';
 import {chooseDirection} from './director-choice.ts';
 import {dispatchDirectorFailure, dispatchDirectorProgress, getReviewDraft} from './director-recovery.ts';
@@ -128,9 +128,8 @@ export default {
         if (!/^evals\/[A-Za-z0-9_/-]{4,240}\.[a-z0-9]{2,8}$/.test(key) || key.split('/').some(part => part === '..')) throw Error('OBJECT_KEY_INVALID');
         const declared = request.headers.get('content-length'), length = Number(declared);
         if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) throw Error('OBJECT_TOO_LARGE');
-        const bytes = await readExactBytes(request,length);
         const mediaType = request.headers.get('content-type') ?? 'application/octet-stream';
-        const object = await immutableBytes(env,key,bytes,mediaType);
+        const object = await immutableStream(env,key,request.body,length,request.headers.get('x-content-sha256') ?? '',mediaType);
         return Response.json({key,sha256:object.sha256,byteLength:object.byteLength,mediaType});
       }
       if (request.method === 'POST' && path === '/internal/s1/native/projects') {

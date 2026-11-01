@@ -1,9 +1,10 @@
 import {spawn} from 'node:child_process';
 
 /** Four authorized I/O operations at most. Preserve order and drain in-flight work before failure. */
-export async function mapIO(values,work){
+export async function mapIO(values,work,concurrency=4){
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 4) throw Error('IO_CONCURRENCY_INVALID');
   const results=new Array(values.length);let next=0,failed=false,failure;
-  await Promise.all(Array.from({length:Math.min(4,values.length)},async()=>{
+  await Promise.all(Array.from({length:Math.min(concurrency,values.length)},async()=>{
     while(!failed){
       const index=next++;if(index>=values.length)break;
       try{results[index]=await work(values[index],index);}

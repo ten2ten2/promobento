@@ -16,6 +16,8 @@
 
 所有输出写入 `renders/<renderId>/attempts/<taskId>/out/`，以 key、SHA-256、字节数和媒体类型绑定。报告分别记录输入清单 hash、原 `index.html` 摘要、声音刷新后的实际源码摘要，以及 `timelineDurationSeconds` / `timelinePaused`。预览的 `frames` 计数为 0；整片 15/30 秒分别为 **450/900** 帧。`reviewFramesSource` 明确为 `film.mp4`；静帧与拼图不能替代正常速度视听验收。
 
+素材从 Broker 流式落盘并边传边校验长度/SHA-256；输出按固定 64 KiB 文件块计算身份，再从文件流上传，Worker/R2 独立核验。下载与上传各最多两个并行文件，不再为媒体对象生成整文件 Buffer；受限的 JSON、Chromium/CDP 资源交互仍可使用小缓冲。成功报告包含 `resourceUsage`，失败控制器回执也附带同一采样：容器 cgroup 内存峰值/上限、OOM 计数增量、CPU 使用量及控制器 RSS、文件描述符和临时盘采样；缺失指标为 `null`，不能用控制器 RSS 冒充容器峰值。容器尚未在真实 Cloudflare 上取得 G1 所需的实测数据。
+
 导出通过实际 FFprobe/帧时序核验：目标画幅、30 fps、15/30 秒、450/900 帧、H.264 High/YUV420P、BT.709、GOP 15、50 MB 上限和一秒窗口 10 Mbps。存在音频时为 AAC-LC、48 kHz、双声道、128 kbps，并按 -14 LUFS 目标归一。成功的回执仍须由 Worker 复验私有 R2 字节后提交。
 
 ## 原生文件和隔离
