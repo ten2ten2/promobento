@@ -22,6 +22,31 @@ const cases = [
   {name: 'feed-15', width: 1080, height: 1350, durationSeconds: 15, export: false},
   {name: 'square-15', width: 1080, height: 1080, durationSeconds: 15, export: false},
 ];
+// Keep the real native variable/DOM/layout state when an edit changes source but not rendered pixels.
+// This synthetic fixture contains no customer data. Do not replace the preview API or pixel assertion.
+async function writeEditDiagnostics(prepared, name) {
+  writeFileSync(join(artifacts, name + '.html'), readFileSync(prepared.project.index));
+  const film = await prepared.native.capture.openFilm(prepared.project.index, {video: 'seek', chromeArgs: ['--disable-gpu-compositing', '--use-angle=swiftshader']});
+  try {
+    await film.seek(5);
+    const state = await film.evaluate(`(() => {
+      const box = selector => {
+        const element = document.querySelector(selector);
+        if (!element) return null;
+        const style = getComputedStyle(element);
+        return {rect: element.getBoundingClientRect().toJSON(), opacity: style.opacity, transform: style.transform,
+          display: style.display, visibility: style.visibility, font: style.font, color: style.color,
+          backgroundColor: style.backgroundColor, overflow: style.overflow};
+      };
+      return {time: 5, declared: JSON.parse(document.documentElement.getAttribute('data-composition-variables')),
+        variables: OM.vars(), title: document.querySelector('h1')?.textContent,
+        html: box('html'), body: box('body'), root: box('#film'), card: box('#card'), headline: box('h1'),
+        canvas: box('#cube'), progress: box('#bar'), timelineTime: window.__timelines.film.time()};
+    })()`);
+    writeFileSync(join(artifacts, name + '.json'), canonical({...state, pageErrors: film.errors}) + '\n');
+    console.log(canonical({kind: 'native_edit_diagnostic', name, ...state, pageErrors: film.errors}));
+  } finally { await film.close(); }
+}
 const results = [];
 for (const item of cases) {
   const projectDir = join(root, item.name);
@@ -37,6 +62,7 @@ for (const item of cases) {
   const manifest = {schemaVersion: '1.0.0', kind: 'native_project', entry: 'index.html', runtime: {name: 'huashu-motion', commit: NATIVE_COMMIT}, composition, files, resources: []};
   const prepared = await prepareNativeProject(projectDir, manifest);
   if (item.name === 'landscape-15') {
+    await writeEditDiagnostics(prepared, item.name + '-initial');
     const canary = join(root, 'outside-project-canary.txt');
     writeFileSync(canary, 'NON_SECRET_NATIVE_ISOLATION_CANARY');
     let loopbackRequests = 0;
@@ -78,8 +104,9 @@ for (const item of cases) {
     assert.notEqual(edited.token, before);
     await assert.rejects(() => editNativeProject(projectDir, {values: {headline: 'stale edit'}, baseToken: before}), /changed since you read/);
     const changed = await previewNativeProject(prepared, composition, [5]);
-    assert.notEqual(sha256Bytes(changed.shots[0].png), sha256Bytes(preview.shots[1].png));
     writeFileSync(join(artifacts, item.name + '-edited.png'), changed.shots[0].png);
+    await writeEditDiagnostics(prepared, item.name + '-edited');
+    assert.notEqual(sha256Bytes(changed.shots[0].png), sha256Bytes(preview.shots[1].png));
     result.nativeEdit = {optimisticToken: true, renderedChange: true};
     const currentSource = readFileSync(prepared.project.index, 'utf8');
     const tooLong = currentSource.replace('const duration = 15;', 'const duration = 30;');

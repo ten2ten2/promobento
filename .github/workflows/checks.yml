@@ -88,6 +88,13 @@ jobs:
           test -s artifacts/native/native-smoke-report.json
           test -s artifacts/native/landscape-15.mp4
           test -s artifacts/native/portrait-30.mp4
+      - name: Make isolated test artifacts readable by the runner
+        if: always()
+        shell: bash
+        run: |
+          if [ -d artifacts/native ]; then
+            sudo chown -hR "$(id -u):$(id -g)" artifacts/native
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
