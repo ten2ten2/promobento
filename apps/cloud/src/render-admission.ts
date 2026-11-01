@@ -177,22 +177,22 @@ async function restoreUnstartedAdmission(env: PipelineEnv, ticket: AdmissionTick
   if (changed.meta.changes) await dispatchRenderAdmissions(env);
 }
 
-export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
+async function waitForGrantEvent(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
   const heartbeatMs = 60_000;
   const checks = Math.ceil(nativeRenderPolicy.queueWaitMs / heartbeatMs) + 3;
   for (let check = 0; check < checks; check++) {
-    const state = await step.do<{token: string | null; seconds: number}>(name + '-check-' + check,
+    const state = await step.do<{token: string | null; seconds: number; wakeAt: number}>(name + '-check-' + check,
       {retries: {limit: 0, delay: '1 second'}}, async () => {
         await restoreUnstartedAdmission(env, ticket);
         const token = await timelyAdmission(env, ticket);
-        if (token) return {token, seconds: 0};
+        if (token) return {token, seconds: 0, wakeAt: 0};
         const remaining = Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt) - Date.now();
         if (remaining <= 0) throw Error('RENDER_QUEUE_EXPIRED');
-        return {token: null, seconds: Math.max(1, Math.ceil(Math.min(heartbeatMs, remaining) / 1000))};
+        const duration = Math.min(heartbeatMs, remaining);
+        return {token: null, seconds: Math.max(1, Math.ceil(duration / 1000)), wakeAt: Date.now() + duration};
       });
     if (state.token) return state.token;
     let payload: Json | null = null;
-    const startedWaitingAt = Date.now();
     try {
       const event = await step.waitForEvent<Json>(name + '-event-' + check,
         {type: eventType(index), timeout: `${state.seconds} seconds`});
@@ -206,9 +206,29 @@ export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowSte
       });
     if (recovered) return recovered;
     // An immediate API error or a burst of stale events must not exhaust all
-    // recovery checks before the original 15-minute queue window has elapsed.
-    const remaining = state.seconds * 1000 - (Date.now() - startedWaitingAt);
-    if (remaining > 1000) await step.sleep(name + '-event-backoff-' + check, `${Math.ceil(remaining / 1000)} seconds`);
+    // recovery checks. The absolute wake time is checkpointed, so replay never
+    // adds an extra minute after a previously completed event wait.
+    await step.sleepUntil(name + '-event-backoff-' + check, state.wakeAt);
+  }
+  throw Error('RENDER_QUEUE_EXPIRED');
+}
+
+/** Revalidate cached grants on every Workflow replay, before a physical claim. */
+export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
+  const rounds = Math.ceil(nativeRenderPolicy.queueWaitMs / 60_000) + 3;
+  for (let round = 0; round < rounds; round++) {
+    const token = await waitForGrantEvent(env, step, round ? `${name}-regrant-${round}` : name, ticket, index);
+    // A physical attempt may have finished while the Workflow was replaying.
+    // Never requeue it; the execution step itself must return its cached result
+    // or resume the same attempt, never create another physical attempt.
+    const physical = await env.DB.prepare(`SELECT a.lease_token FROM pipeline_attempts p
+      JOIN pipeline_render_admissions a ON a.id=p.id WHERE p.id=?`)
+      .bind(ticket.id).first<{lease_token: string | null}>();
+    if (physical) return physical.lease_token ?? token;
+    if (await timelyAdmission(env, ticket) === token) return token;
+    // The checkpointed token outlived its Coordinator lease before claim.
+    // A new round uses new step names so its restored ticket is not masked by
+    // the earlier step's cached grant token.
   }
   throw Error('RENDER_QUEUE_EXPIRED');
 }

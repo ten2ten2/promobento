@@ -114,8 +114,8 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
         // Do not stop a never-started Shard. In particular, an alarm holding a
         // stale snapshot must not stop a NEW grant reusing this ticket ID.
         const physical = await this.env.DB.prepare(`SELECT p.id FROM pipeline_attempts p
-          JOIN pipeline_render_admissions a ON a.id=p.id
-          WHERE p.id=? AND a.lease_token=?`)
+          LEFT JOIN pipeline_render_admissions a ON a.id=p.id
+          WHERE p.id=? AND (a.id IS NULL OR a.lease_token=?)`)
           .bind(String(lease.id), String(lease.token)).first();
         if (physical) await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false);
         await this.release(String(lease.id), String(lease.token));

@@ -118,7 +118,7 @@ test('admission event can arrive before wait; only then can an attempt start its
   assert.equal(await claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, token), deadlineAt);
 });
 
-test('a completed admission wait replays after its original queue deadline', async t => {
+test('a completed physical attempt replays its admission wait after the queue deadline', async t => {
   const {env, events, add} = fixture(t);
   const {op, renderId} = add();
   const ticket = await requestRenderAdmission(env, renderId, op, 'attempt-replayed', 0);
@@ -134,6 +134,8 @@ test('a completed admission wait replays after its original queue deadline', asy
     },
   };
   const first = await waitForRenderAdmission(env, step, 'native-project-admission', ticket, 0);
+  await claimRenderAdmission(env, op, {renderId, mode: 'export'}, ticket.id, first);
+  await env.COORDINATOR.getByName('global-v1').release(ticket.id, first);
   const replayed = await waitForRenderAdmission(env, step, 'native-project-admission', {...ticket, queueDeadlineAt: Date.now() - 60_000}, 0);
   assert.equal(replayed, first);
   assert.deepEqual(timeouts, [], 'checkpointed grants survive replay without another event wait');
@@ -180,13 +182,14 @@ test('a queue wait timeout recovers an on-time admission whose event delivery wa
       }
       throw Error('EVENT_WAIT_TIMEOUT');
     },
-    async sleep() {},
+    async sleepUntil() {},
   };
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token);
   assert.ok(checkpointed.has('admission-timeout-resolved-0'));
-  db.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=?").run(id);
+  await claimRenderAdmission(env, pending.op, {renderId: pending.renderId, mode: 'export'}, id, token);
+  await env.COORDINATOR.getByName('global-v1').release(id, token);
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token,
-    'Workflow replay must reuse the recovered token even after the lease is released');
+    'a physically claimed attempt must replay without another admission');
 
   const tooLate = add('late-grant');
   const lateId = addTicket(tooLate);
@@ -197,6 +200,66 @@ test('a queue wait timeout recovers an on-time admission whose event delivery wa
     async do(_name, _options, action) {return action();},
     async waitForEvent() {throw Error('EVENT_WAIT_TIMEOUT');},
   }, 'admission-late', {id:lateId,queueDeadlineAt:cutoff,operationDeadlineAt:ticket.operationDeadlineAt}, 0), /RENDER_QUEUE_EXPIRED/);
+});
+
+test('a cached grant that expires before physical claim can be re-admitted on Workflow replay', async t => {
+  const {db, env, leases, stoppedShards, add} = fixture(t);
+  const pending = add('checkpointed-no-start', {mode: 'preview'});
+  const ticket = await requestRenderAdmission(env, pending.renderId, pending.op, 'attempt-checkpointed', 0);
+  const checkpointed = new Map();
+  const step = {
+    async do(name, _options, action) {
+      if (!checkpointed.has(name)) checkpointed.set(name, await action());
+      return checkpointed.get(name);
+    },
+    async waitForEvent() {assert.fail('persisted admission must be available before an event wait');},
+  };
+  const expiredToken = await waitForRenderAdmission(env, step, 'checkpointed', ticket, 0);
+  assert.ok(checkpointed.has('checkpointed-check-0'));
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+  await env.SHARDS.getByName(ticket.id).stopAndSettle(false);
+  await env.COORDINATOR.getByName('global-v1').release(ticket.id, expiredToken);
+  assert.ok(stoppedShards.has(ticket.id));
+
+  const newToken = await waitForRenderAdmission(env, step, 'checkpointed', ticket, 0);
+  assert.notEqual(newToken, expiredToken);
+  assert.ok(checkpointed.has('checkpointed-regrant-1-check-0'));
+  assert.equal(leases.get(ticket.id).token, newToken);
+  assert.equal(stoppedShards.has(ticket.id), false);
+  assert.equal(db.prepare('SELECT queue_deadline_at FROM pipeline_render_admissions WHERE id=?').get(ticket.id).queue_deadline_at,
+    ticket.queueDeadlineAt, 'a resumed grant must not extend the original queue deadline');
+  await claimRenderAdmission(env, pending.op, {renderId: pending.renderId, mode: 'preview'}, ticket.id, newToken);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+});
+
+test('event backoff uses one durable absolute wake time across Workflow replay', async t => {
+  const {db, env, add, addTicket} = fixture(t);
+  const pending = add('wake-at-replay'), id = addTicket(pending);
+  const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId);
+  const ticket = {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at};
+  const checkpointed = new Map(), wakeTimes = [];
+  const step = {
+    async do(name, _options, action) {
+      if (!checkpointed.has(name)) checkpointed.set(name, await action());
+      return checkpointed.get(name);
+    },
+    async waitForEvent() {return {payload: {attemptId:id, leaseToken:'stale-token'}};},
+    async sleepUntil(_name, wakeAt) {
+      wakeTimes.push(wakeAt);
+      if (wakeTimes.length === 1) await dispatchRenderAdmissions(env);
+    },
+  };
+  const first = await waitForRenderAdmission(env, step, 'absolute-backoff', ticket, 0);
+  const realNow = Date.now;
+  let replayed;
+  try {
+    Date.now = () => realNow() + 65_000; // Replay after the original 60-second event wait elapsed.
+    replayed = await waitForRenderAdmission(env, step, 'absolute-backoff', ticket, 0);
+  } finally {Date.now = realNow;}
+  assert.equal(replayed, first);
+  assert.equal(wakeTimes.length, 2);
+  assert.equal(wakeTimes[0], wakeTimes[1], 'replay cannot add an extra minute after a checkpointed event timeout');
+  assert.ok(wakeTimes[0] > Date.now());
 });
 
 test('an undeliverable grant is requeued after no-start lease expiry, without extending its queue window', async t => {
@@ -224,7 +287,7 @@ test('an undeliverable grant is requeued after no-start lease expiry, without ex
       }
       throw Error('EVENT_WAIT_TIMEOUT');
     },
-    async sleep() {},
+    async sleepUntil() {},
   };
   const token = await waitForRenderAdmission(env, step, 'lost-event', ticket, 0);
   assert.notEqual(token, firstLeaseToken, 're-admission requires a fresh lease token');
@@ -260,7 +323,7 @@ test('a stale buffered event and an expired Coordinator lease cannot revive the 
       await env.COORDINATOR.getByName('global-v1').release(id, oldToken);
       return {payload: {attemptId: id, leaseToken: oldToken}};
     },
-    async sleep() {backoffs++;},
+    async sleepUntil() {backoffs++;},
   };
   const recovered = await waitForRenderAdmission(env, step, 'stale-buffered', ticket, 0);
   assert.notEqual(recovered, oldToken);
