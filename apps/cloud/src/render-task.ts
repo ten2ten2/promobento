@@ -64,7 +64,7 @@ async function completedFailedAttempt(env: PipelineEnv, op: Operation, renderId:
       AND a.render_id=p.render_id AND a.operation_id=p.operation_id AND a.generation=p.generation
       AND a.attempt_index=? AND a.workspace_id=? AND a.status='released'
       AND a.lease_token IS NOT NULL AND a.attempt_deadline_at IS NOT NULL
-      AND r.generation=p.generation AND r.status IN ('rendering','queued')
+      AND r.generation=p.generation AND r.status IN ('rendering','queued','verifying')
       AND o.generation=p.generation AND o.status='active'
       AND NOT EXISTS(SELECT 1 FROM cost_reservations c LEFT JOIN cost_settlements s ON s.reservation_id=c.id
         WHERE c.id=p.id AND s.reservation_id IS NULL)`)
@@ -73,6 +73,28 @@ async function completedFailedAttempt(env: PipelineEnv, op: Operation, renderId:
   if (!row) return null;
   const result = parseCanonicalJson(row.result_json) as Json;
   return result?.status === 'failed' && typeof result.code === 'string' ? result.code : null;
+}
+
+/** A failed preflight read is not evidence of a paid attempt. Resume admission
+ * only after D1 confirms the operation is live and no physical claim exists. */
+async function confirmedUnstartedAttempt(env: PipelineEnv, op: Operation, renderId: string,
+  attemptId: string, index: number, mode: string): Promise<boolean> {
+  const row = await bounded(env.DB.prepare(`SELECT r.id FROM pipeline_renders r
+    JOIN pipeline_operations o ON o.id=r.operation_id
+    WHERE r.id=? AND r.operation_id=? AND r.generation=? AND r.mode=? AND r.status='queued'
+      AND r.operation_deadline_at>? AND o.status='active' AND o.generation=r.generation
+      AND o.workspace_id=? AND NOT EXISTS(SELECT 1 FROM pipeline_attempts p WHERE p.id=?)
+      AND NOT EXISTS(SELECT 1 FROM cost_reservations c WHERE c.id=?)
+      AND NOT EXISTS(SELECT 1 FROM pipeline_attempts p
+        LEFT JOIN pipeline_render_admissions a ON a.id=p.id
+        WHERE p.render_id=r.id AND (a.id IS NULL OR a.attempt_index>=?
+          OR p.generation<>r.generation OR p.status<>'failed' OR p.stopped_at IS NULL
+          OR a.status<>'released' OR EXISTS(SELECT 1 FROM cost_reservations c
+            LEFT JOIN cost_settlements s ON s.reservation_id=c.id
+            WHERE c.id=p.id AND s.reservation_id IS NULL)))`)
+    .bind(renderId, op.id, op.generation, mode, Date.now(), op.workspace_id,
+      attemptId, attemptId, index).first());
+  return Boolean(row);
 }
 
 /** A lost Shard RPC can leave its durable success ahead of the D1 attempt row. */
@@ -229,7 +251,7 @@ async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: str
 /** Workflow-level, checkpointed reconciliation survives a Shard outliving its 5s RPC window. */
 async function waitForPendingOutcome(env: PipelineEnv, step: WorkflowStep, name: string, op: Operation,
   renderId: string, attemptId: string, index: number, mode: string, operationDeadlineAt: number,
-  fallbackCode?: string): Promise<Json> {
+  fallbackCode?: string, allowUnstarted = false): Promise<Json> {
   const checks = Math.ceil(nativeRenderPolicy.exportOperationMs / 5_000) + 4;
   for (let check = 0; check < checks; check++) {
     let readable = false, priorFailure: string | null = null;
@@ -247,6 +269,14 @@ async function waitForPendingOutcome(env: PipelineEnv, step: WorkflowStep, name:
       return {kind: 'render_platform_retry', code: priorFailure, attemptId};
     }
     if (readable) {
+      if (allowUnstarted) {
+        try {
+          if (await confirmedUnstartedAttempt(env, op, renderId, attemptId, index, mode))
+            return {kind: 'render_admission_unstarted'};
+        } catch (error) {
+          if (!isUnknownRecovery(error)) throw error;
+        }
+      }
       const recovered = await reconcileShardSuccess(env, op, renderId, attemptId, index, mode);
       if (recovered && recovered !== outcomePending) return recovered;
       if (recovered === null) {
@@ -295,15 +325,19 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
     catch (error) {
       if (!isUnknownRecovery(error)) throw error;
       const pending = await waitForPendingOutcome(env, step, name, op, renderId, attemptId, index,
-        input.mode, operationDeadlineAt);
-      if (pending.kind !== 'render_platform_retry') return pending;
-      lastCode = pending.code;
-      if (index + 1 < nativeRenderPolicy.maxAttempts) {
-        await step.do(name + '-requeue', {retries: {limit: 0, delay: '1 second'}}, async () =>
-          requeueRenderAfterAttempt(env, op, renderId, attemptId));
-        continue;
+        input.mode, operationDeadlineAt, undefined, true);
+      if (pending.kind !== 'render_admission_unstarted') {
+        if (pending.kind !== 'render_platform_retry') return pending;
+        lastCode = pending.code;
+        if (index + 1 < nativeRenderPolicy.maxAttempts) {
+          await step.do(name + '-requeue', {retries: {limit: 0, delay: '1 second'}}, async () =>
+            requeueRenderAfterAttempt(env, op, renderId, attemptId));
+          continue;
+        }
+        throw Error(lastCode);
       }
-      throw Error(lastCode);
+      priorFailure = null;
+      preflightUnknown = false;
     }
     if (priorFailure) {
       if (!retryable.has(priorFailure)) throw Error(priorFailure);
@@ -320,15 +354,17 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
     if (recovered && recovered !== outcomePending) return recovered;
     if (recovered === outcomePending) {
       const pending = await waitForPendingOutcome(env, step, name, op, renderId, attemptId, index,
-        input.mode, operationDeadlineAt);
-      if (pending.kind !== 'render_platform_retry') return pending;
-      lastCode = pending.code;
-      if (index + 1 < nativeRenderPolicy.maxAttempts) {
-        await step.do(name + '-requeue', {retries: {limit: 0, delay: '1 second'}}, async () =>
-          requeueRenderAfterAttempt(env, op, renderId, attemptId));
-        continue;
+        input.mode, operationDeadlineAt, undefined, true);
+      if (pending.kind !== 'render_admission_unstarted') {
+        if (pending.kind !== 'render_platform_retry') return pending;
+        lastCode = pending.code;
+        if (index + 1 < nativeRenderPolicy.maxAttempts) {
+          await step.do(name + '-requeue', {retries: {limit: 0, delay: '1 second'}}, async () =>
+            requeueRenderAfterAttempt(env, op, renderId, attemptId));
+          continue;
+        }
+        throw Error(lastCode);
       }
-      throw Error(lastCode);
     }
     const ticket = parseCanonicalJson(await step.do(name + '-queue', {retries: {limit: 3, delay: '1 second'}}, async () =>
       canonical(await requestRenderAdmission(env, renderId, op, attemptId, index)))) as {

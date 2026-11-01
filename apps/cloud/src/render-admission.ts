@@ -243,7 +243,10 @@ async function waitForGrantEvent(env: PipelineEnv, step: WorkflowStep, name: str
     // may arrive while the original queue/operation deadline is approaching.
     // Re-arm the durable event waiter for the *remaining* checkpointed window.
     let eventIndex = 0;
-    while (Date.now() < state.wakeAt) {
+    // On Workflow replay, wall time may already be past wakeAt while a
+    // previously completed waitForEvent/resolved step still needs replaying.
+    // Probe those named steps before advancing to a new deadline check.
+    while (Date.now() < state.wakeAt || eventIndex < 64) {
       let payload: Json | null = null, unavailable = false;
       try {
         const event = await step.waitForEvent<Json>(name + '-event-' + check + '-' + eventIndex,
@@ -258,9 +261,12 @@ async function waitForGrantEvent(env: PipelineEnv, step: WorkflowStep, name: str
           return timelyAdmission(env, ticket); // Fences any earlier lease's stale token.
         });
       if (recovered) return recovered;
+      // Once the original window has closed, a missing event ends the replay
+      // probe; buffered stale events may precede the cached valid grant.
+      if (unavailable && Date.now() >= state.wakeAt) break;
       // Pace failed APIs and sustained stale-event floods without suppressing
       // the next real event for the rest of the original heartbeat window.
-      if (unavailable || eventIndex % 8 === 7) {
+      if (Date.now() < state.wakeAt && (unavailable || eventIndex % 8 === 7)) {
         await step.sleepUntil(name + '-event-backoff-' + check + '-' + eventIndex,
           Math.min(state.wakeAt, Date.now() + 1_000));
       }
@@ -274,6 +280,21 @@ async function waitForGrantEvent(env: PipelineEnv, step: WorkflowStep, name: str
 export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
   const rounds = Math.ceil(nativeRenderPolicy.queueWaitMs / 60_000) + 3;
   for (let round = 0; round < rounds; round++) {
+    // A completed claim is a stronger checkpoint than a transient event. It
+    // never authorizes new execution by itself: claim/Shard still fence it.
+    const claimed = await env.DB.prepare(`SELECT a.lease_token FROM pipeline_attempts p
+      JOIN pipeline_render_admissions a ON a.id=p.id
+      JOIN pipeline_renders r ON r.id=p.render_id
+      JOIN pipeline_operations o ON o.id=p.operation_id
+      WHERE p.id=? AND a.attempt_index=? AND a.queue_deadline_at=? AND r.operation_deadline_at=?
+        AND a.render_id=p.render_id AND a.operation_id=p.operation_id AND a.generation=p.generation
+        AND a.status IN ('running','released') AND a.lease_token IS NOT NULL
+        AND p.mode='native_' || r.mode AND r.generation=p.generation
+        AND r.status IN ('rendering','verifying')
+        AND o.generation=p.generation AND o.status='active' AND a.workspace_id=o.workspace_id`)
+      .bind(ticket.id, index, ticket.queueDeadlineAt, ticket.operationDeadlineAt)
+      .first<{lease_token: string}>();
+    if (claimed) return claimed.lease_token;
     const token = await waitForGrantEvent(env, step, round ? `${name}-regrant-${round}` : name, ticket, index);
     // A physical attempt may have finished while the Workflow was replaying.
     // Never requeue it; the execution step itself must return its cached result

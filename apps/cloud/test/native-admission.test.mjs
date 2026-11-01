@@ -236,6 +236,43 @@ test('a completed physical attempt replays its admission wait after the queue de
   assert.deepEqual(timeouts, [], 'checkpointed grants survive replay without another event wait');
 });
 
+test('replay after a heartbeat cutoff still consumes its checkpointed admission event', async t => {
+  const {db, env, events, add, addTicket} = fixture(t);
+  const pending = add('checkpointed-event'), id = addTicket(pending);
+  const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?')
+    .get(pending.renderId);
+  const ticket = {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at};
+  const cached = new Map(), received = new Map();
+  let calls = 0;
+  const step = {
+    async do(name, _options, action) {
+      if (!cached.has(name)) cached.set(name, await action());
+      return cached.get(name);
+    },
+    async waitForEvent(name) {
+      calls++;
+      if (!received.has(name)) {
+        await dispatchRenderAdmissions(env);
+        received.set(name,{payload:events.at(-1).payload});
+      }
+      return received.get(name);
+    },
+  };
+  const first = await waitForRenderAdmission(env, step, 'event-replay', ticket, 0);
+  assert.ok(cached.has('event-replay-check-0'));
+  assert.ok(cached.has('event-replay-resolved-0-0'));
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n,0);
+  const realNow = Date.now;
+  let replayed;
+  try {
+    Date.now = () => realNow() + 65_000; // Past the 60s heartbeat, but the grant remains valid.
+    replayed = await waitForRenderAdmission(env, step, 'event-replay', ticket, 0);
+  } finally {Date.now = realNow;}
+  assert.equal(replayed, first);
+  assert.equal(calls,2, 'the cached event step is read even after its original wakeAt');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n,0);
+});
+
 test('first wait after queue cutoff consumes a previously admitted buffered event', async t => {
   const {db, env, events, add} = fixture(t);
   const pending = add('slow-workflow');

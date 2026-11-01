@@ -178,6 +178,16 @@ export async function dispatchRenderTerminal(env:PipelineEnv,item:Json){
 type DirectorEventOutbox={id:string;operation_id:string;kind:string;payload_json:string;
  director_event_done_at:number|null;director_event_retry_at:number;director_event_failures:number};
 
+/** Persist a retry even when the event RPC never returns to the inner catch. */
+async function deferDirectorEvent(env:PipelineEnv,row:DirectorEventOutbox){
+ const now=Date.now(),delay=Math.min(5*60_000,5000*2**Math.min(row.director_event_failures,6));
+ await boundedControl(env.DB.prepare(`UPDATE pipeline_outbox SET director_event_failures=director_event_failures+1,
+   director_event_retry_at=MAX(director_event_retry_at,?)
+   WHERE id=? AND operation_id=? AND kind=? AND payload_json=?
+     AND director_event_done_at IS NULL AND director_event_retry_at<=?`)
+  .bind(now+delay,row.id,row.operation_id,row.kind,row.payload_json,now).run(),3_000);
+}
+
 /** Queue enqueue is not a Director acknowledgement. Persist the result of the actual event RPC. */
 export async function deliverDirectorEvent(env:PipelineEnv,item:Json){
  const row=await env.DB.prepare('SELECT * FROM pipeline_outbox WHERE id=? AND kind IN (\'render_progress\',\'render_terminal\',\'direction_choice\')')
@@ -191,10 +201,7 @@ export async function deliverDirectorEvent(env:PipelineEnv,item:Json){
   await env.DB.prepare('UPDATE pipeline_outbox SET director_event_done_at=? WHERE id=? AND director_event_done_at IS NULL')
    .bind(Date.now(),row.id).run();
  }catch(error){
-  const delay=Math.min(5*60_000,5000*2**Math.min(row.director_event_failures,6));
-  await env.DB.prepare(`UPDATE pipeline_outbox SET director_event_failures=director_event_failures+1,
-    director_event_retry_at=MAX(director_event_retry_at,?) WHERE id=? AND director_event_done_at IS NULL`)
-   .bind(Date.now()+delay,row.id).run();
+  await deferDirectorEvent(env,row);
   throw error;
  }
 }
@@ -206,6 +213,10 @@ export async function recoverDirectorEvents(env:PipelineEnv){
   ORDER BY director_event_retry_at,rowid LIMIT 64`).bind(Date.now()).all<DirectorEventOutbox>();
  await settledPool(rows.results,8,async row=>{
   try{await boundedControl(deliverDirectorEvent(env,{id:row.id,kind:row.kind,operationId:row.operation_id,payloadJson:row.payload_json}),15_000);}
-  catch{ /* Individual failures back off; later events still get a chance. */ }
+  catch{
+   // The inner delivery might be stuck at Workflow.get()/D1 before its catch.
+   // The CAS also avoids double backoff if it already recorded the failure.
+   try{await deferDirectorEvent(env,row);}catch{ /* An unavailable D1 remains retryable. */ }
+  }
  });
 }

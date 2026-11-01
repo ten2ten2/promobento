@@ -142,6 +142,38 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
 });
 
+test('a transient preflight D1 read failure resumes a confirmed unstarted render', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalDB = env.DB;
+  let failed = false, executions = 0, queued = 0;
+  env.DB = {...originalDB, prepare(sql) {
+    const prepared = originalDB.prepare(sql);
+    if (!sql.includes('SELECT p.result_json FROM pipeline_attempts p')) return prepared;
+    return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+      if (!failed) {failed = true; throw Error('Network connection lost.');}
+      return prepared.first();
+    }};
+  }};
+  env.SHARDS = {getByName() {return {
+    async recoverCompletedResult() {return null;},
+    async execute() {executions++; return canonical({status:'succeeded',outputs:[],report:{}});},
+    async isStopped() {return true;},
+  };}};
+  const step = {async do(name, ...args) {if (name === 'native-project-queue') queued++; return args.at(-1)();},
+    waitForEvent, async sleepUntil() {assert.fail('an absent physical attempt does not require outcome polling');}};
+  const result = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,
+    imageDigest:'sha256:'+'a'.repeat(64)});
+  assert.equal(result.status, 'succeeded');
+  assert.equal(failed, true);
+  assert.equal(queued, 1);
+  assert.equal(executions, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+});
+
 test('native render admission stores one job/outbox, preserves idempotency, and rejects cancelled generations', async t => {
   const {db, env, op, saved, sent} = await fixture(t);
   const request = {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'};
@@ -570,6 +602,14 @@ test('a settled platform failure retries with a new attempt; durable replay cann
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 2);
   assert.deepEqual((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId);
   assert.equal(executions, 2);
+  db.prepare("UPDATE pipeline_renders SET status='verifying' WHERE id='native-render'").run();
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 16 * 60_000;
+    assert.equal((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId,
+      'late replay in verification must recover the second attempt past the first queue deadline');
+  } finally {Date.now = realNow;}
+  assert.equal(executions, 2);
 });
 
 test('a lost platform-retry checkpoint requeues the confirmed failed attempt on Workflow replay', async t => {
@@ -756,6 +796,34 @@ test('Director event recovery continues past one stalled event without losing ei
   await sweep;
   assert.deepEqual(received.sort(),['ready-render','stalled-render']);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='render_progress' AND director_event_done_at IS NOT NULL").get().n,2);
+});
+
+test('timed-out Director get calls persist backoff instead of starving later outbox events', async t => {
+  const {db,env,op}=await fixture(t);
+  for(let index=0;index<65;index++){
+    const renderId='stalled-'+index;
+    db.prepare("INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,'passed',?)")
+      .run(renderId,op.id,op.generation,renderId,'renders/'+renderId+'/input.json',Date.now());
+    db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)')
+      .run('progress-'+renderId,op.id,'render_progress',canonical({operationId:op.id,generation:op.generation,renderId,status:'passed'}));
+  }
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('operation',?,?,?,?,?)")
+    .run(op.id,op.id,op.generation,Date.now(),'huashu');
+  const received=[];
+  env.OPERATIONS={getByName(){return {async progress(){}};}};
+  env.OPERATION_WORKFLOW={get(id){assert.equal(id,op.id);
+    // First sweep encounters 64 hung gets; the next has one healthy row.
+    const backedOff=db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox WHERE director_event_retry_at>0').get().n;
+    if(backedOff<64)return new Promise(()=>{});
+    return {async sendEvent(event){received.push(event.payload.renderId);}};
+  }};
+  const originalSetTimeout=globalThis.setTimeout;
+  t.mock.method(globalThis,'setTimeout',(callback,ms,...args)=>originalSetTimeout(callback,Math.min(ms,10),...args));
+  await recoverDirectorEvents(env);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox WHERE director_event_retry_at>?').get(Date.now()).n,64);
+  await recoverDirectorEvents(env);
+  assert.deepEqual(received,['stalled-64']);
+  assert.ok(db.prepare("SELECT director_event_done_at FROM pipeline_outbox WHERE id='progress-stalled-64'").get().director_event_done_at);
 });
 
 test('Workflow recovery inspects healthy rows despite a stalled status API', async t => {
