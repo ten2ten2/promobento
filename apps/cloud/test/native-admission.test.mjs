@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sqliteD1} from './fixtures/sqlite.mjs';
-import {dispatchRenderAdmissions, requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission, requeueRenderAfterAttempt} from '../src/render-admission.ts';
+import {dispatchRenderAdmissions, requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission, canRetryUnstartedAdmission, requeueRenderAfterAttempt} from '../src/render-admission.ts';
 import {nativeRenderPolicy} from '../src/native-task.ts';
 import {recordRenderFailure} from '../src/render-recovery.ts';
 
@@ -383,6 +383,10 @@ test('a physically started attempt and a cancelled operation cannot be restored 
     async waitForEvent() {return {payload: {expired: true}};}};
   for (const [id, renderId] of [[physicalId, physical.renderId], [cancelledId, cancelled.renderId]]) {
     const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?').get(renderId);
+    const owner = id === physicalId ? physical.op : cancelled.op;
+    assert.equal(await canRetryUnstartedAdmission(env, owner, renderId,
+      {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at}, 0), false,
+    'a claim failure cannot retry an already-physical or cancelled ticket');
     await assert.rejects(waitForRenderAdmission(env, wait, 'no-retry-' + id,
       {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at}, 0), /RENDER_QUEUE_EXPIRED/);
     assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(id).status, 'released');

@@ -7,6 +7,7 @@ import {sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
 import {immutableBytes, reserve, settle} from '../src/store.ts';
 import {runNativeRenderTask} from '../src/render-task.ts';
+import {claimRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
 import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverRenderDirectorEvent, recoverRenderDirectorEvents} from '../src/render-recovery.ts';
 import {flushOutbox} from '../src/outbox.ts';
@@ -154,6 +155,99 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 0);
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations').get().reserved_micros, 500);
+});
+
+for (const scenario of ['released-before-claim', 'lease-expired-during-extend']) {
+  test('a grant ' + scenario + ' is recovered without spending a physical retry', async t => {
+    const {db, env, op, saved, objects} = await fixture(t);
+    const waitForEvent = fakeAdmission(env);
+    await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId,
+      mode: 'preview', rendererRelease: 'native-release'});
+    const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+    const coordinator = env.COORDINATOR.getByName('global-v1');
+    const checkpointed = new Map();
+    let expired = false, oldToken, resets = 0, executions = 0;
+    if (scenario === 'lease-expired-during-extend') {
+      const originalExtend = coordinator.extend.bind(coordinator);
+      coordinator.extend = async (...args) => {
+        if (!expired) {
+          expired = true;
+          oldToken = args[1];
+          await coordinator.release(args[0], args[1]);
+          throw Error('RENDER_LEASE_FENCED');
+        }
+        return originalExtend(...args);
+      };
+    }
+    env.SHARDS = {getByName(id) {return {
+      async isStopped() {return true;}, async stopAndSettle() {},
+      async resetUnstartedAdmission(ticketId, token) {
+        assert.equal(ticketId, id);
+        assert.equal(token, oldToken);
+        assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+        resets++;
+      },
+      async execute() {executions++; return canonical({status:'succeeded', outputs: [], report: {}});},
+    };}};
+    const step = {
+      async do(name, ...args) {
+        if (!checkpointed.has(name)) {
+          if (scenario === 'released-before-claim' && name === 'native-project' && !expired) {
+            const row = db.prepare('SELECT id,lease_token FROM pipeline_render_admissions').get();
+            expired = true; oldToken = row.lease_token;
+            await coordinator.release(row.id, row.lease_token);
+          }
+          checkpointed.set(name, await args.at(-1)());
+        }
+        return checkpointed.get(name);
+      },
+      waitForEvent,
+      async sleep() {assert.fail('an unstarted admission cannot consume a physical retry');},
+    };
+    const context = {renderId:'native-render', op, input, imageDigest:'sha256:' + 'a'.repeat(64)};
+    const result = await runNativeRenderTask(env, step, context);
+    assert.equal(result.status, 'succeeded');
+    assert.equal(expired, true);
+    assert.equal(resets, 1);
+    assert.equal(executions, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+    assert.notEqual(db.prepare('SELECT lease_token FROM pipeline_render_admissions').get().lease_token, oldToken);
+    assert.ok(checkpointed.has('native-project-grant-retry-1'));
+    assert.equal((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId,
+      'durable replay must not execute the same paid attempt again');
+    assert.equal(executions, 1);
+  });
+}
+
+test('claim-time recovery never re-admits a ticket with an existing physical attempt', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'export',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const coordinator = env.COORDINATOR.getByName('global-v1');
+  let claimed = false;
+  env.SHARDS = {getByName() {return {
+    async isStopped() {return true;},
+    async execute() {assert.fail('physical execution must not be launched again');},
+    async resetUnstartedAdmission() {assert.fail('a physical attempt cannot be reset');},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (name === 'native-project' && !claimed) {
+        const row = db.prepare('SELECT id,lease_token FROM pipeline_render_admissions').get();
+        await claimRenderAdmission(env, op, input, row.id, row.lease_token);
+        await coordinator.release(row.id, row.lease_token);
+        claimed = true;
+      }
+      return args.at(-1)();
+    },
+    async waitForEvent() {assert.fail('a physically claimed ticket must not wait for another grant');},
+  };
+  await assert.rejects(runNativeRenderTask(env, step, {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)}),
+    /RENDER_FENCED/);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions').get().status, 'released');
 });
 
 test('a settled platform failure retries with a new attempt; durable replay cannot repeat it', async t => {

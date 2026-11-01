@@ -132,6 +132,21 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
 
 type AdmissionTicket = {id: string; queueDeadlineAt: number; operationDeadlineAt: number};
 
+/** Claim failed before a physical attempt: is another admission round still safe? */
+export async function canRetryUnstartedAdmission(env: PipelineEnv, op: Operation, renderId: string,
+  ticket: AdmissionTicket, index: number) {
+  if (Date.now() >= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) return false;
+  const row = await env.DB.prepare(`SELECT a.id FROM pipeline_render_admissions a
+    JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
+    WHERE a.id=? AND a.render_id=? AND a.operation_id=? AND a.generation=? AND a.attempt_index=?
+      AND a.status IN ('queued','admitted','released') AND a.queue_deadline_at>?
+      AND r.status='queued' AND r.generation=a.generation AND r.operation_deadline_at>?
+      AND o.status='active' AND o.generation=a.generation
+      AND NOT EXISTS(SELECT 1 FROM pipeline_attempts p WHERE p.id=a.id)`)
+    .bind(ticket.id, renderId, op.id, op.generation, index, Date.now(), Date.now()).first();
+  return Boolean(row);
+}
+
 async function timelyAdmission(env: PipelineEnv, ticket: AdmissionTicket) {
   const row = await env.DB.prepare(`SELECT a.status,a.admitted_at,a.lease_token,a.workspace_id,a.generation FROM pipeline_render_admissions a
     JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
