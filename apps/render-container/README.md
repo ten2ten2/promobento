@@ -25,6 +25,8 @@
 
 缺少的固定库会从上游安装补齐：GSAP、`om.js`、`camera-rig.js`、Three/OM3、完整 clip 库，以及 Noto Sans SC 500/900 与 Inter Variable。现有声明文件不被覆盖；原生声音刷新按上游行为更新运行时和音轨。导出后的 manifest 包含实际文件身份，可用于冻结和重现。
 
+Linux 平台字体使用固定 `fonts-dejavu-core` / `fonts-dejavu-mono` 2.37-8 的 TTF，为 Chromium 提供可用的基础字体和通用族映射。上游 WOFF 保持原始字节，通过作品的 `@font-face` 加载，不作为 fontconfig 的系统字体目录。浏览器 fixture 除了检查标题尺寸非零，还用 CDP 查询实际字形来源，要求标题确实使用自定义 Inter；系统 fallback 存在不能代替这个检查。
+
 `packages/native-motion` 的 `editNativeProject` 直接调用上游 `readSource`、`setVariables`、`writeSource`，要求 `baseToken`，沿用 `.om/history`。模型只修改原生页面文件，不产生另一套场景或镜头协议。根元素必须明确声明 `data-composition-id`、`data-width`、`data-height`、`data-duration` 和 `data-fps`；容器还核对浏览器实际读到的值，以及注册在 `window.__timelines[rootId]` 的暂停状态和实际 `duration()`。实际时间线必须与根声明同长，不能靠 `data-duration` 静默截断一条更长时间线。报告记入 `timelineDurationSeconds` 和 `timelinePaused`。
 
 ## 隔离

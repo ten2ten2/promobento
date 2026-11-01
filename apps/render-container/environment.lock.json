@@ -21,6 +21,7 @@
   },
   "webgl": {"backend": "swiftshader", "verification": "native browser CI required"},
   "ffmpeg": {"ubuntuPackageVersion": "7:6.1.1-3ubuntu5"},
+  "platformFonts": {"ubuntuPackages": {"fonts-dejavu-core": "2.37-8", "fonts-dejavu-mono": "2.37-8"}, "directory": "/usr/share/fonts/truetype/dejavu", "nativeWebFonts": "unmodified pinned upstream WOFF assets, loaded with @font-face"},
   "execution": {"controllerUid": 10001, "nativeUid": 10002, "supervisorUid": 10003, "workers": 1, "transport": "cdp_pipe", "internet": false},
   "note": "Pins a build recipe. Actual browser, encoding, network and cloud isolation require their corresponding CI or deployment evidence."
 }

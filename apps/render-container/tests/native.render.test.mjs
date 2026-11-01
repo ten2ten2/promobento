@@ -40,11 +40,19 @@ async function writeEditDiagnostics(prepared, name) {
       };
       return {time: 5, declared: JSON.parse(document.documentElement.getAttribute('data-composition-variables')),
         variables: OM.vars(), title: document.querySelector('h1')?.textContent,
+        fontStatus: document.fonts.status, fontFaces: [...document.fonts].map(font => ({family: font.family, weight: font.weight, status: font.status})),
         html: box('html'), body: box('body'), root: box('#film'), card: box('#card'), headline: box('h1'),
         canvas: box('#cube'), progress: box('#bar'), timelineTime: window.__timelines.film.time()};
     })()`);
+    await film.send('DOM.enable');
+    await film.send('CSS.enable');
+    const document = await film.send('DOM.getDocument');
+    const {nodeId} = await film.send('DOM.querySelector', {nodeId: document.root.nodeId, selector: 'h1'});
+    state.platformFonts = (await film.send('CSS.getPlatformFontsForNode', {nodeId})).fonts;
     writeFileSync(join(artifacts, name + '.json'), canonical({...state, pageErrors: film.errors}) + '\n');
     console.log(canonical({kind: 'native_edit_diagnostic', name, ...state, pageErrors: film.errors}));
+    assert.ok(state.headline.rect.width > 0 && state.headline.rect.height > 0, 'Native variable text must have visible layout');
+    assert.ok(state.platformFonts.length > 0 && state.platformFonts.every(font => font.familyName === 'Inter' && font.isCustomFont && font.glyphCount > 0), 'Native title must render with the pinned custom Inter font, not platform fallback');
   } finally { await film.close(); }
 }
 const results = [];
