@@ -3,6 +3,12 @@ ALTER TABLE pipeline_renders ADD COLUMN queue_deadline_at INTEGER;
 ALTER TABLE pipeline_renders ADD COLUMN operation_deadline_at INTEGER;
 ALTER TABLE pipeline_renders ADD COLUMN mode TEXT;
 
+-- Queue acceptance does not prove the Director Workflow received its wake-up event.
+ALTER TABLE pipeline_outbox ADD COLUMN director_event_done_at INTEGER;
+ALTER TABLE pipeline_outbox ADD COLUMN director_event_retry_at INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE pipeline_outbox ADD COLUMN director_event_failures INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS pipeline_outbox_director_event ON pipeline_outbox(kind,director_event_done_at,director_event_retry_at);
+
 CREATE TABLE IF NOT EXISTS pipeline_render_admissions (
   id TEXT PRIMARY KEY,
   render_id TEXT NOT NULL REFERENCES pipeline_renders(id),

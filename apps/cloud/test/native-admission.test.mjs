@@ -89,7 +89,7 @@ test('admission event can arrive before wait; only then can an attempt start its
   const ticket = await requestRenderAdmission(env, renderId, op, 'attempt-preview', 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
   assert.equal(events.length, 1);
-  const token = await waitForRenderAdmission({async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
+  const token = await waitForRenderAdmission(env, {async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
     assert.equal(options.type, 'native-admission-0');
     return {payload: events.shift().payload};
   }}, 'admission-0', ticket, 0);
@@ -116,10 +116,28 @@ test('a completed admission wait replays after its original queue deadline', asy
       return {payload: events[0].payload};
     },
   };
-  const first = await waitForRenderAdmission(step, 'native-project-admission', ticket, 0);
-  const replayed = await waitForRenderAdmission(step, 'native-project-admission', {...ticket, queueDeadlineAt: Date.now() - 60_000}, 0);
+  const first = await waitForRenderAdmission(env, step, 'native-project-admission', ticket, 0);
+  const replayed = await waitForRenderAdmission(env, step, 'native-project-admission', {...ticket, queueDeadlineAt: Date.now() - 60_000}, 0);
   assert.equal(replayed, first);
   assert.deepEqual(timeouts, [timeouts[0], timeouts[0]]);
+});
+
+test('first wait after queue cutoff consumes a previously admitted buffered event', async t => {
+  const {db, env, events, add} = fixture(t);
+  const pending = add('slow-workflow');
+  const ticket = await requestRenderAdmission(env, pending.renderId, pending.op, 'attempt-late-wait', 0);
+  const admittedAt = Date.now() - 6000, cutoff = Date.now() - 3000;
+  db.prepare('UPDATE pipeline_render_admissions SET admitted_at=?,queue_deadline_at=? WHERE id=?')
+    .run(admittedAt, cutoff, ticket.id);
+  const late = {...ticket, queueDeadlineAt: cutoff};
+  const step = {async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
+    assert.ok(Number.parseInt(options.timeout) > 0);
+    return {payload: events[0].payload};
+  }};
+  const token = await waitForRenderAdmission(env, step, 'late-first-wait', late, 0);
+  assert.equal(token, events[0].payload.leaseToken);
+  db.prepare("UPDATE pipeline_render_admissions SET status='queued' WHERE id=?").run(ticket.id);
+  await assert.rejects(waitForRenderAdmission(env, step, 'never-admitted', late, 0), /RENDER_QUEUE_EXPIRED/);
 });
 
 test('failed notifications rotate past older undeliverable events and terminal workflows are retired', async t => {

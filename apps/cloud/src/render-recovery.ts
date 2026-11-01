@@ -123,8 +123,8 @@ export async function dispatchRenderProgress(env:PipelineEnv,item:Json){
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Json>();
  if(row?.status!=='passed'||row.operation_id!==item.operationId||row.generation!==value.generation
   ||!op||!['active','awaiting_user','succeeded'].includes(op.status)||op.generation!==value.generation)return;
- try{await env.OPERATIONS.getByName(item.operationId).progress(canonical(value));}catch{ /* SSE delivery is not a commit prerequisite. */ }
  await notifyDirectorRender(env,item.operationId,value.renderId,value.generation,'passed');
+ try{await env.OPERATIONS.getByName(item.operationId).progress(canonical(value));}catch{ /* SSE delivery is not a commit prerequisite. */ }
 }
 
 async function notifyDirectorRender(env:PipelineEnv,operationId:string,renderId:string,generation:number,status:string){
@@ -147,4 +147,38 @@ export async function dispatchRenderTerminal(env:PipelineEnv,item:Json){
  if(!render||render.operation_id!==item.operationId||render.generation!==value.generation||render.status!==value.status
   ||!op||op.generation!==value.generation||!['active','awaiting_user'].includes(op.status))return;
  await notifyDirectorRender(env,item.operationId,value.renderId,value.generation,value.status);
+}
+
+type DirectorEventOutbox={id:string;operation_id:string;kind:string;payload_json:string;
+ director_event_done_at:number|null;director_event_retry_at:number;director_event_failures:number};
+
+/** Queue enqueue is not a Director acknowledgement. Persist the result of the actual event RPC. */
+export async function deliverRenderDirectorEvent(env:PipelineEnv,item:Json){
+ const row=await env.DB.prepare('SELECT * FROM pipeline_outbox WHERE id=? AND kind IN (\'render_progress\',\'render_terminal\')')
+  .bind(item.id).first<DirectorEventOutbox>();
+ if(!row||row.kind!==item.kind||row.operation_id!==item.operationId||row.payload_json!==item.payloadJson)throw Error('OUTBOX_SCOPE_INVALID');
+ if(row.director_event_done_at!==null||row.director_event_retry_at>Date.now())return;
+ try{
+  if(row.kind==='render_progress')await dispatchRenderProgress(env,item);
+  else await dispatchRenderTerminal(env,item);
+  await env.DB.prepare('UPDATE pipeline_outbox SET director_event_done_at=? WHERE id=? AND director_event_done_at IS NULL')
+   .bind(Date.now(),row.id).run();
+ }catch(error){
+  const delay=Math.min(5*60_000,5000*2**Math.min(row.director_event_failures,6));
+  await env.DB.prepare(`UPDATE pipeline_outbox SET director_event_failures=director_event_failures+1,
+    director_event_retry_at=MAX(director_event_retry_at,?) WHERE id=? AND director_event_done_at IS NULL`)
+   .bind(Date.now()+delay,row.id).run();
+  throw error;
+ }
+}
+
+/** Even if a Queue message exhausts retries, its durable outbox row can still wake the Director. */
+export async function recoverRenderDirectorEvents(env:PipelineEnv){
+ const rows=await env.DB.prepare(`SELECT * FROM pipeline_outbox
+  WHERE kind IN ('render_progress','render_terminal') AND director_event_done_at IS NULL AND director_event_retry_at<=?
+  ORDER BY director_event_retry_at,rowid LIMIT 64`).bind(Date.now()).all<DirectorEventOutbox>();
+ for(const row of rows.results){
+  try{await deliverRenderDirectorEvent(env,{id:row.id,kind:row.kind,operationId:row.operation_id,payloadJson:row.payload_json});}
+  catch{ /* Individual failures back off; later events still get a chance. */ }
+ }
 }

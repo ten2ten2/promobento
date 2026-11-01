@@ -3,7 +3,7 @@ import {directingMethodPack, directingMethodRef} from '../../../packages/methods
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
-import {reconcileOperation, dispatchRender, dispatchRenderProgress, dispatchRenderTerminal} from './render-recovery.ts';
+import {reconcileOperation, dispatchRender, deliverRenderDirectorEvent, recoverRenderDirectorEvents} from './render-recovery.ts';
 import {dispatchDirectorFailure, dispatchDirectorProgress, getReviewDraft} from './director-recovery.ts';
 import {importModelOpening, confirmModelOpening, modelBudgetStatus} from './model-budget.ts';
 import {workflowInventory} from './workflow-state.ts';
@@ -242,7 +242,12 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: PipelineEnv, ctx: ExecutionContext) {
-    if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {await flushOutbox(env); await dispatchRenderAdmissions(env); await recoverWorkflows(env);})());
+    if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {
+      // Independent recovery lanes: a Queue outage must not stop Director wake-up retries.
+      const results = await Promise.allSettled([flushOutbox(env),dispatchRenderAdmissions(env),recoverRenderDirectorEvents(env),recoverWorkflows(env)]);
+      const failed = results.find(result => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
+    })());
   },
   async queue(batch: MessageBatch<Json>, env: PipelineEnv) {
     for (const message of batch.messages) {
@@ -251,8 +256,7 @@ export default {
         const item = message.body;
         if (item.kind === 'render') await dispatchRender(env, item);
         else if (item.kind === 'admission') await dispatchRenderAdmissions(env);
-        else if (item.kind === 'render_progress') await dispatchRenderProgress(env, item);
-        else if (item.kind === 'render_terminal') await dispatchRenderTerminal(env, item);
+        else if (item.kind === 'render_progress' || item.kind === 'render_terminal') await deliverRenderDirectorEvent(env, item);
         else if (item.kind === 'operation_progress') await dispatchDirectorProgress(env, item);
         else if (item.kind === 'operation_failure') await dispatchDirectorFailure(env, item);
         else if (item.kind === 'creative') await dispatchCreative(env, item);

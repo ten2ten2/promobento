@@ -8,7 +8,8 @@ import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRende
 import {immutableBytes, reserve, settle} from '../src/store.ts';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
-import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation} from '../src/render-recovery.ts';
+import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverRenderDirectorEvent, recoverRenderDirectorEvents} from '../src/render-recovery.ts';
+import {flushOutbox} from '../src/outbox.ts';
 import {getReviewDraft} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
@@ -199,6 +200,50 @@ test('terminal media commit and notification are atomic and replayable; cancella
   env.OPERATIONS = {getByName() {return {async progress() {delivered = true;}};}};
   await dispatchRenderProgress(env, {operationId: op.id, payloadJson: canonical({operationId: op.id, generation: 0, renderId: 'native-render'})});
   assert.equal(delivered, false);
+});
+
+test('Director completion events recover after Queue acknowledgement and exhausted delivery retries', async t => {
+  const {db, env, op, saved} = await fixture(t);
+  await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
+  await createNativeRender(env, op, {renderId: 'blocked-render', revisionId: saved.revisionId, mode: 'preview', rendererRelease: 'native-release'});
+  db.prepare("UPDATE pipeline_renders SET status='passed' WHERE id='native-render'").run();
+  db.prepare("UPDATE pipeline_renders SET status='blocked' WHERE id='blocked-render'").run();
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('operation',?,?,?,?,?)")
+    .run(op.id, op.id, 0, Date.now(), 'huashu');
+  const entries = [
+    {id: 'progress-native-render', kind: 'render_progress', status: 'passed', renderId: 'native-render'},
+    {id: 'render-terminal-blocked-render', kind: 'render_terminal', status: 'blocked', renderId: 'blocked-render'},
+  ];
+  for (const entry of entries) {
+    db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)')
+      .run(entry.id, op.id, entry.kind, canonical({operationId: op.id, generation: 0, renderId: entry.renderId, status: entry.status}));
+    await flushOutbox(env, entry.id);
+    assert.ok(db.prepare('SELECT delivered_at FROM pipeline_outbox WHERE id=?').get(entry.id).delivered_at,
+      'Queue enqueue is tracked separately from Director event delivery');
+  }
+  const received = [], failures = new Set(entries.map(entry => entry.renderId));
+  env.OPERATION_WORKFLOW = {get() {return {
+    async sendEvent(event) {
+      if (failures.delete(event.payload.renderId)) throw Error('EVENT_API_TEMPORARILY_UNAVAILABLE');
+      received.push(event);
+    }, async status() {return {status: 'running'};},
+  };}};
+  env.OPERATIONS = {getByName() {return {async progress() {}};}};
+  for (const entry of entries) {
+    const item = {id: entry.id, kind: entry.kind, operationId: op.id,
+      payloadJson: db.prepare('SELECT payload_json FROM pipeline_outbox WHERE id=?').get(entry.id).payload_json};
+    await assert.rejects(deliverRenderDirectorEvent(env, item), /EVENT_API_TEMPORARILY_UNAVAILABLE/);
+    assert.equal(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(entry.id).director_event_done_at, null);
+  }
+  assert.equal(received.length, 0);
+  // Simulate a later scheduled sweep; Queue itself never redelivers these messages.
+  db.prepare("UPDATE pipeline_outbox SET director_event_retry_at=0 WHERE kind IN ('render_progress','render_terminal')").run();
+  await recoverRenderDirectorEvents(env);
+  assert.equal(received.length, 2);
+  assert.deepEqual(received.map(event => event.payload.status).sort(), ['blocked', 'passed']);
+  for (const entry of entries) assert.ok(db.prepare('SELECT director_event_done_at FROM pipeline_outbox WHERE id=?').get(entry.id).director_event_done_at);
+  await recoverRenderDirectorEvents(env);
+  assert.equal(received.length, 2, 'acknowledged events are not replayed by later sweeps');
 });
 
 test('a failed native render stays blocked until physical cleanup is confirmed', async t => {

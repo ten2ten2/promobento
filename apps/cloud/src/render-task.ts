@@ -28,7 +28,7 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
         id: string; requestedAt: number; queueDeadlineAt: number; operationDeadlineAt: number;
       };
     // A queued Workflow is hibernated; early notifications are buffered by Cloudflare Workflows.
-    const leaseToken = await waitForRenderAdmission(step, name + '-admission', ticket, index);
+    const leaseToken = await waitForRenderAdmission(env, step, name + '-admission', ticket, index);
     const value = parseCanonicalJson(await step.do(name, {retries: {limit: 0, delay: '1 second'}, timeout: '15 minutes'}, async () => {
       await operation(env, op.id, op.generation);
       const deadlineAt = await claimRenderAdmission(env, op, input, attemptId, leaseToken);

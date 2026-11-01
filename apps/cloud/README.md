@@ -16,7 +16,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 NativeProject 与 release，形成 R2 中的 `native_render_request`。operation generation 由 D1 渲染记录和内部 `native_render_task` 绑定，不由客户端提交。清单先经预编译 Schema 与共享语义校验，再核对实际文件、画幅和 release；作品不能设置预算、存储权限、编码或付费动作。
 
-`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 是与物理 `pipeline_attempts` 分开的排队记录：CoordinatorDO 在全局／工作区限额内授予带 generation/token 的租约，通过 Workflow 事件唤醒，不在容器或 Workflow 内循环抢容量。容量释放用 Queue 通知，定时 sweep 补漏；同级按各工作区最早任务公平选择。导演等待渲染完成也使用 Workflow 事件，不再每秒查询 D1。
+`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 是与物理 `pipeline_attempts` 分开的排队记录：CoordinatorDO 在全局／工作区限额内授予带 generation/token 的租约，通过 Workflow 事件唤醒，不在容器或 Workflow 内循环抢容量。容量释放用 Queue 通知，定时 sweep 补漏；同级按各工作区最早任务公平选择。导演等待渲染完成也使用 Workflow 事件，不再每秒查询 D1；完成事件的实际投递结果另记在 outbox，Queue 重试耗尽后仍可由定时任务补发。
 
 平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止、计算结算和租约释放均确认后，才允许另一个 attempt。排队过期不产生物理 attempt；取消和晚到事件受 generation/token 拦截。初始持久等待上限 15 分钟、单次预览／导出执行上限 3／10 分钟，单个渲染总上限 30／45 分钟（含排队、重试及验证）；内部评估值尚未经过真实云端标定，不能当作客户 SLA。
 

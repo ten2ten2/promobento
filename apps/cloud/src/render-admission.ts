@@ -1,7 +1,6 @@
 import {canonical} from '@promobento/contracts/canonical';
 import {operation} from './store.ts';
 import {nativeRenderPolicy} from './native-policy.ts';
-import {checkpointWaitSeconds} from './workflow-wait.ts';
 import type {WorkflowStep} from 'cloudflare:workers';
 import type {PipelineEnv, Json, Operation} from './pipeline-types.ts';
 
@@ -130,10 +129,24 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
   }
 }
 
-export async function waitForRenderAdmission(step: WorkflowStep, name: string, ticket: {
+export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: {
   id: string; queueDeadlineAt: number; operationDeadlineAt: number;
 }, index: number) {
-  const seconds = await checkpointWaitSeconds(step, name, Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt), 'RENDER_QUEUE_EXPIRED');
+  const seconds = await step.do<number>(name + '-timeout', {retries: {limit: 0, delay: '1 second'}}, async () => {
+    const now = Date.now();
+    const admitted = await env.DB.prepare('SELECT status,admitted_at,lease_token FROM pipeline_render_admissions WHERE id=?')
+      .bind(ticket.id).first<{status: string; admitted_at: number | null; lease_token: string | null}>();
+    // Admission happened before the queue cutoff, even if the Workflow first reaches this
+    // wait after that cutoff. Its buffered event must still be consumable.
+    if (admitted && ['admitted', 'running'].includes(admitted.status) && admitted.lease_token
+      && admitted.admitted_at !== null && admitted.admitted_at <= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) {
+      const remaining = Math.ceil((ticket.operationDeadlineAt - now) / 1000);
+      if (remaining > 0) return remaining;
+    }
+    const remaining = Math.ceil((Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt) - now) / 1000);
+    if (remaining <= 0) throw Error('RENDER_QUEUE_EXPIRED');
+    return remaining;
+  });
   let event;
   try {event = await step.waitForEvent<Json>(name, {type: eventType(index), timeout: `${seconds} seconds`});}
   catch (error) {
