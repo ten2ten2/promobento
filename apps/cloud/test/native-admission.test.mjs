@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sqliteD1} from './fixtures/sqlite.mjs';
-import {dispatchRenderAdmissions, requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission} from '../src/render-admission.ts';
+import {dispatchRenderAdmissions, requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission, requeueRenderAfterAttempt} from '../src/render-admission.ts';
 import {nativeRenderPolicy} from '../src/native-task.ts';
 import {recordRenderFailure} from '../src/render-recovery.ts';
 
@@ -89,7 +89,7 @@ test('admission event can arrive before wait; only then can an attempt start its
   const ticket = await requestRenderAdmission(env, renderId, op, 'attempt-preview', 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
   assert.equal(events.length, 1);
-  const token = await waitForRenderAdmission({async waitForEvent(_name, options) {
+  const token = await waitForRenderAdmission({async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
     assert.equal(options.type, 'native-admission-0');
     return {payload: events.shift().payload};
   }}, 'admission-0', ticket, 0);
@@ -99,6 +99,80 @@ test('admission event can arrive before wait; only then can an attempt start its
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(renderId).status, 'rendering');
   assert.equal(await claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, token), deadlineAt);
+});
+
+test('a completed admission wait replays after its original queue deadline', async t => {
+  const {env, events, add} = fixture(t);
+  const {op, renderId} = add();
+  const ticket = await requestRenderAdmission(env, renderId, op, 'attempt-replayed', 0);
+  const saved = new Map(), timeouts = [];
+  const step = {
+    async do(name, _options, action) {
+      if (!saved.has(name)) saved.set(name, await action());
+      return saved.get(name);
+    },
+    async waitForEvent(_name, options) {
+      timeouts.push(options.timeout);
+      return {payload: events[0].payload};
+    },
+  };
+  const first = await waitForRenderAdmission(step, 'native-project-admission', ticket, 0);
+  const replayed = await waitForRenderAdmission(step, 'native-project-admission', {...ticket, queueDeadlineAt: Date.now() - 60_000}, 0);
+  assert.equal(replayed, first);
+  assert.deepEqual(timeouts, [timeouts[0], timeouts[0]]);
+});
+
+test('failed notifications rotate past older undeliverable events and terminal workflows are retired', async t => {
+  const {db, env, add, addTicket} = fixture(t);
+  const old = [];
+  for (let i = 0; i < 40; i++) {
+    const pending = add('expired-' + i);
+    old.push(pending.renderId);
+    const id = addTicket(pending, 0, Date.now() - 20_000 + i);
+    db.prepare("UPDATE pipeline_render_admissions SET status='expired' WHERE id=?").run(id);
+  }
+  const live = add('live');
+  const liveId = addTicket(live);
+  let liveFailures = 1, terminal = false, liveDelivered = 0;
+  env.RENDER_WORKFLOW = {get(renderId) {return {
+    async sendEvent() {
+      if (renderId !== live.renderId) throw Error('workflow endpoint unavailable');
+      if (liveFailures--) throw Error('transient event failure');
+      liveDelivered++;
+    },
+    async status() {return {status: renderId === old[0] && terminal ? 'terminated' : 'running'};},
+  };}};
+  await dispatchRenderAdmissions(env);
+  assert.equal(db.prepare('SELECT notification_failures FROM pipeline_render_admissions WHERE id=?').get(liveId).notification_failures, 1);
+  assert.equal(liveDelivered, 0);
+  db.prepare('UPDATE pipeline_render_admissions SET notification_retry_at=0 WHERE id=?').run(liveId);
+  await dispatchRenderAdmissions(env);
+  assert.equal(liveDelivered, 1, 'newly recoverable admitted work is not starved by older failed expirations');
+  assert.ok(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE id=?').get(liveId).notification_sent_at);
+  terminal = true;
+  db.prepare('UPDATE pipeline_render_admissions SET notification_retry_at=0 WHERE render_id=?').run(old[0]);
+  await dispatchRenderAdmissions(env);
+  assert.ok(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE render_id=?').get(old[0]).notification_sent_at,
+    'a terminal Workflow cannot receive the event and is retired from retry candidates');
+});
+
+test('requeue is replay-safe only for a stopped, settled, released previous attempt', async t => {
+  const {db, env, leases, add, addTicket} = fixture(t);
+  const pending = add();
+  const attemptId = addTicket(pending);
+  await dispatchRenderAdmissions(env);
+  const token = leases.get(attemptId).token;
+  await claimRenderAdmission(env, pending.op, {renderId: pending.renderId, mode: 'export'}, attemptId, token);
+  await assert.rejects(requeueRenderAfterAttempt(env, pending.op, pending.renderId, attemptId), /RENDER_FENCED/);
+  db.prepare("UPDATE pipeline_attempts SET status='failed',stopped_at=? WHERE id=?").run(Date.now(), attemptId);
+  await env.COORDINATOR.getByName('global-v1').release(attemptId, token);
+  await requeueRenderAfterAttempt(env, pending.op, pending.renderId, attemptId);
+  await requeueRenderAfterAttempt(env, pending.op, pending.renderId, attemptId);
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(pending.renderId).status, 'queued');
+  addTicket(pending, 1);
+  await assert.rejects(requeueRenderAfterAttempt(env, pending.op, pending.renderId, attemptId), /RENDER_FENCED/);
+  db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id=?").run(pending.op.id);
+  await assert.rejects(requeueRenderAfterAttempt(env, pending.op, pending.renderId, attemptId), /RENDER_FENCED/);
 });
 
 test('two competing dispatchers cannot release the other dispatcher\'s winning lease', async t => {

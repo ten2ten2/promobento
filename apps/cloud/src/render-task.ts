@@ -69,7 +69,7 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
     if (value.kind !== 'render_platform_retry') return value;
     lastCode = value.code;
     if (index + 1 < nativeRenderPolicy.maxAttempts) await step.do(name + '-requeue', {retries: {limit: 0, delay: '1 second'}}, async () =>
-      requeueRenderAfterAttempt(env, op, renderId));
+      requeueRenderAfterAttempt(env, op, renderId, attemptId));
   }
   throw Error(lastCode);
 }

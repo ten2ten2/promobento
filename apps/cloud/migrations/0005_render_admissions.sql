@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS pipeline_render_admissions (
   admitted_at INTEGER,
   attempt_deadline_at INTEGER,
   notification_sent_at INTEGER,
+  notification_retry_at INTEGER NOT NULL DEFAULT 0,
+  notification_failures INTEGER NOT NULL DEFAULT 0,
   UNIQUE(render_id,attempt_index)
 );
 CREATE INDEX IF NOT EXISTS pipeline_admissions_ready ON pipeline_render_admissions(status,requested_at,render_id);

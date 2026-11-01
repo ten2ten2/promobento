@@ -20,6 +20,7 @@ import {assertModelBudgetReady} from './model-budget.ts';
 import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {renderCompletionEventType} from './render-recovery.ts';
+import {checkpointWaitSeconds} from './workflow-wait.ts';
 import {NATIVE_COMMIT,saveNativeProject,loadNativeProject,createNativeRender,getNativeRender,checkedNativeBytes,type SavedNativeProject} from './native-project.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 
@@ -192,8 +193,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
      return true;
     });
-    const seconds=Math.ceil((deadline()-Date.now())/1000);
-    if(seconds<=0)throw Error('OPERATION_DEADLINE');
+    const seconds=await checkpointWaitSeconds(step,'render-complete-'+name,deadline(),'OPERATION_DEADLINE');
     await step.waitForEvent('render-complete-'+name,{type:renderCompletionEventType(renderId),timeout:`${seconds} seconds`});
     return parseCanonicalJson(await step.do<string>('render-receipt-'+name,noRetry,async()=>{
      await guard();const state=await getNativeRender(this.env,op,renderId);

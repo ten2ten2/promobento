@@ -7,8 +7,16 @@ import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
+import {checkpointWaitSeconds} from '../src/workflow-wait.ts';
 
 const nativeCommit='52467f99c602b76ba86d511d37acdfe93fa1e16e';
+
+test('direction renders replay their checkpointed wait after a 24-hour user-choice pause', async () => {
+ const saved=new Map(),steps={async do(name,_options,action){if(!saved.has(name))saved.set(name,await action());return saved.get(name);}};
+ const before=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()+5000,'OPERATION_DEADLINE');
+ const replay=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()-24*60*60_000,'OPERATION_DEADLINE');
+ assert.equal(replay,before);
+});
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,

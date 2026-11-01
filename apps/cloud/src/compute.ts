@@ -102,7 +102,11 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
     // The durable queue is the recovery source if this best-effort notification is lost.
     try { await this.env.OUTBOX.send({kind: 'admission'}); } catch {}
   }
-  async arm() { await this.ctx.storage.setAlarm(Date.now() + 15000); }
+  async arm() {
+    const next = Date.now() + 15000;
+    const existing = await this.ctx.storage.getAlarm();
+    if (existing === null || existing > next) await this.ctx.storage.setAlarm(next);
+  }
   async alarm() {
     const leases = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE deadline<=?', Date.now()).toArray();
     for (const lease of leases) {

@@ -1,6 +1,7 @@
 import {canonical} from '@promobento/contracts/canonical';
 import {operation} from './store.ts';
 import {nativeRenderPolicy} from './native-policy.ts';
+import {checkpointWaitSeconds} from './workflow-wait.ts';
 import type {WorkflowStep} from 'cloudflare:workers';
 import type {PipelineEnv, Json, Operation} from './pipeline-types.ts';
 
@@ -8,7 +9,8 @@ type Admission = {
   id: string; render_id: string; operation_id: string; generation: number; workspace_id: string;
   attempt_index: number; status: string; requested_at: number; queue_deadline_at: number;
   lease_token: string | null; admitted_at: number | null; attempt_deadline_at: number | null;
-  notification_sent_at: number | null; operation_deadline_at?: number; mode?: string;
+  notification_sent_at: number | null; notification_retry_at: number; notification_failures: number;
+  operation_deadline_at?: number; mode?: string;
 };
 
 const coordinator = (env: PipelineEnv) => env.COORDINATOR.getByName('global-v1');
@@ -38,11 +40,34 @@ export async function requestRenderAdmission(env: PipelineEnv, renderId: string,
 }
 
 async function notify(env: PipelineEnv, row: Admission) {
-  await (await env.RENDER_WORKFLOW.get(row.render_id)).sendEvent({type: eventType(row.attempt_index), payload: {
-    attemptId: row.id, ...(row.status === 'expired' ? {expired: true} : {leaseToken: row.lease_token}),
-  }});
-  await env.DB.prepare('UPDATE pipeline_render_admissions SET notification_sent_at=? WHERE id=? AND status=? AND notification_sent_at IS NULL')
+  const markDone = () => env.DB.prepare('UPDATE pipeline_render_admissions SET notification_sent_at=? WHERE id=? AND status=? AND notification_sent_at IS NULL')
     .bind(Date.now(), row.id, row.status).run();
+  try {
+    await (await env.RENDER_WORKFLOW.get(row.render_id)).sendEvent({type: eventType(row.attempt_index), payload: {
+      attemptId: row.id, ...(row.status === 'expired' ? {expired: true} : {leaseToken: row.lease_token}),
+    }});
+  } catch (error) {
+    let terminal = false;
+    try {
+      const status = await (await env.RENDER_WORKFLOW.get(row.render_id)).status();
+      terminal = ['complete', 'errored', 'terminated'].includes(status.status);
+    } catch { /* An unknown Workflow state is not proof that delivery is impossible. */ }
+    if (terminal) {
+      try {
+        // A finished Workflow cannot consume the event. An admitted orphan must also return its slot.
+        if (row.status === 'admitted') await stopRenderAdmissions(env, row.render_id);
+        await markDone();
+        return;
+      } catch { /* A failed physical stop must remain retryable. */ }
+    }
+    const delay = Math.min(5 * 60_000, 5000 * 2 ** Math.min(row.notification_failures, 6));
+    await env.DB.prepare(`UPDATE pipeline_render_admissions
+      SET notification_failures=notification_failures+1,notification_retry_at=MAX(notification_retry_at,?)
+      WHERE id=? AND status=? AND notification_sent_at IS NULL`)
+      .bind(Date.now() + delay, row.id, row.status).run();
+    throw error;
+  }
+  await markDone();
 }
 
 /** Called by new tickets, freed capacity and a slow recovery sweep. No busy-waiting consumers. */
@@ -97,8 +122,9 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
   }
   // Event delivery can fail after admission; its D1 record remains retryable.
   const unsent = await env.DB.prepare(`SELECT * FROM pipeline_render_admissions
-    WHERE status IN ('admitted','expired') AND notification_sent_at IS NULL
-    ORDER BY requested_at LIMIT 32`).all<Admission>();
+    WHERE status IN ('admitted','expired') AND notification_sent_at IS NULL AND notification_retry_at<=?
+    ORDER BY CASE status WHEN 'admitted' THEN 0 ELSE 1 END,notification_retry_at,requested_at LIMIT 32`)
+    .bind(Date.now()).all<Admission>();
   for (const row of unsent.results) {
     try { await notify(env, row); } catch { /* Scheduled sweep retries without granting a second lease. */ }
   }
@@ -107,8 +133,7 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
 export async function waitForRenderAdmission(step: WorkflowStep, name: string, ticket: {
   id: string; queueDeadlineAt: number; operationDeadlineAt: number;
 }, index: number) {
-  const seconds = Math.ceil((Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt) - Date.now()) / 1000);
-  if (seconds <= 0) throw Error('RENDER_QUEUE_EXPIRED');
+  const seconds = await checkpointWaitSeconds(step, name, Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt), 'RENDER_QUEUE_EXPIRED');
   let event;
   try {event = await step.waitForEvent<Json>(name, {type: eventType(index), timeout: `${seconds} seconds`});}
   catch (error) {
@@ -161,10 +186,20 @@ export async function claimRenderAdmission(env: PipelineEnv, op: Operation, inpu
   return deadlineAt;
 }
 
-export async function requeueRenderAfterAttempt(env: PipelineEnv, op: Operation, renderId: string) {
-  const updated = await env.DB.prepare(`UPDATE pipeline_renders SET status='queued' WHERE id=? AND operation_id=? AND generation=?
-    AND status='rendering' AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')`)
-    .bind(renderId, op.id, op.generation, op.id, op.generation).run();
+export async function requeueRenderAfterAttempt(env: PipelineEnv, op: Operation, renderId: string, attemptId: string) {
+  // A replay of the completed requeue is harmless; an old attempt cannot reset a newer admission.
+  const updated = await env.DB.prepare(`UPDATE pipeline_renders SET status='queued'
+    WHERE id=? AND operation_id=? AND generation=? AND status IN ('rendering','queued')
+      AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')
+      AND EXISTS(SELECT 1 FROM pipeline_attempts p JOIN pipeline_render_admissions a ON a.id=p.id
+        WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=?
+          AND p.status='failed' AND p.stopped_at IS NOT NULL AND a.status='released'
+          AND NOT EXISTS(SELECT 1 FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id
+            WHERE r.id=p.id AND s.reservation_id IS NULL)
+          AND NOT EXISTS(SELECT 1 FROM pipeline_render_admissions next
+            WHERE next.render_id=? AND next.attempt_index>a.attempt_index))`)
+    .bind(renderId, op.id, op.generation, op.id, op.generation,
+      attemptId, renderId, op.id, op.generation, renderId).run();
   if (updated.meta.changes !== 1) throw Error('RENDER_FENCED');
 }
 
