@@ -16,7 +16,7 @@ function main(){
  const indexed=indexedPrdFiles(text('docs/prd/README.md'));
  expect(indexed.length>0&&new Set(indexed).size===indexed.length,'PRD index must list each chapter once');
  const prds=['README.md',...indexed];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
- for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/production.schema.json','contracts/agent-api.json','config/agent-policy.json','config/input-capabilities.json','config/preview.json','config/content-safety.json','config/output-safety-sampling.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
+ for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/native-project.schema.json','scripts/check-current-config.mjs','config/agent-policy.json','config/input-capabilities.json','config/content-safety.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
  expect(same(readdirSync(join(root,'docs/prd')).filter(p=>p.endsWith('.md')).sort(),[...prds].sort()),'PRD directory differs from the current indexed specification');
  const files=repositoryFiles(root);
  const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
@@ -43,12 +43,8 @@ function main(){
   const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);
   expect(prdVersions.length>0&&prdVersions.every(v=>v===prd)&&protocolVersions.length>0&&protocolVersions.every(v=>v===protocol),'PRD/protocol entry mismatch: '+path);
  }
- for(const path of ['contracts/agent-api.json','config/agent-policy.json','config/routes.json','config/preview.json','config/content-safety.json','config/output-safety-sampling.json',...readdirSync(join(root,'contracts')).filter(p=>p.endsWith('.example.json')).map(p=>'contracts/'+p)])
+ for(const path of ['config/agent-policy.json','config/routes.json','config/content-safety.json'])
   expect(json(path).schemaVersion===protocol,'Protocol envelope mismatch: '+path);
- const productionSchema=json('contracts/production.schema.json');
- expect(productionSchema.$id.endsWith('/'+protocol),'Production Schema protocol ID');
- for(const [name,definition] of Object.entries(productionSchema.$defs))
-  if(definition.properties?.schemaVersion?.const)expect(definition.properties.schemaVersion.const===protocol,'Schema protocol constant: '+name);
  try{
   const baseline=platformBaseline(root);counts.platformRulesBase=baseline.commit??baseline.reason;
   if(baseline.config)failures.push(...platformRuleErrors(baseline.config,platforms).map(e=>e+' [Git base '+baseline.reference+']'));
@@ -111,7 +107,7 @@ function main(){
   const command=task?.match(/^run\s*=\s*"([^"\n]+)"/m)?.[1];
   expect(typeof pkg.scripts[key]==='string'&&pkg.scripts[key].trim()&&command===pkg.scripts[key],'Task mismatch '+key);
  }
- const contractsCheck=spawnSync(process.execPath,[join(root,'scripts/check-production-contracts.mjs')],{stdio:'inherit'});expect(contractsCheck.status===0,'Failed check-production-contracts.mjs');
+ const configCheck=spawnSync(process.execPath,[join(root,'scripts/check-current-config.mjs')],{stdio:'inherit'});expect(configCheck.status===0,'Failed check-current-config.mjs');
 }
 try{main();}catch(e){failures.push(e.message);}
-if(failures.length){console.error('Repository check failed:\n'+failures.map(x=>'- '+x).join('\n'));process.exitCode=1;}else{console.log('Current repository checks passed.');console.log(JSON.stringify({node:process.version,...counts},null,2));console.log('Scope: current documentation, configuration and reference contracts; not live services.');}
+if(failures.length){console.error('Repository check failed:\n'+failures.map(x=>'- '+x).join('\n'));process.exitCode=1;}else{console.log('Current repository checks passed.');console.log(JSON.stringify({node:process.version,...counts},null,2));console.log('Scope: current documentation, product requirements and native configuration; not live services.');}

@@ -54,10 +54,6 @@
     }
   },
   {
-    "schema": "production",
-    "file": "contracts/fact-manifest.example.json"
-  },
-  {
     "schema": "model-config",
     "file": "config/model-providers.json"
   },
@@ -277,9 +273,11 @@
     "schema": "director-analysis",
     "value": {
       "schemaVersion": "3.0.0",
-      "kind": "cold_review",
-      "verdict": "pass",
-      "issues": []
+      "kind": "fact_analysis",
+      "factIds": [
+        "product_name"
+      ],
+      "summary": "The supplied product name is confirmed."
     }
   },
   {

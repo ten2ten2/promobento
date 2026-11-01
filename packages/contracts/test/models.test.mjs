@@ -35,8 +35,8 @@ test('unverified, unauthorized or unpriced models are refused', () => {
   assert.ok(modelConfigErrors(unverified, authorization(), policy).includes('Bound model modelswitch/deepseek-v4.1-flash-1017 is not verified'));
   const auth = authorization(); auth.models = auth.models.filter(ref => ref !== 'modelswitch/claude-opus-5-5');
   assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step treatment binds unauthorized model modelswitch/claude-opus-5-5','Step author binds unauthorized model modelswitch/claude-opus-5-5']);
-  const unknown = providers(); unknown.steps.triage = 'modelswitch/unknown-model';
-  assert.deepEqual(modelConfigErrors(unknown, authorization(), policy,{requireVerified:false}), ['Step triage binds unregistered model modelswitch/unknown-model']);
+  const unknown = providers(); unknown.steps.facts = 'modelswitch/unknown-model';
+  assert.deepEqual(modelConfigErrors(unknown, authorization(), policy,{requireVerified:false}), ['Step facts binds unregistered model modelswitch/unknown-model']);
   const drift = authorization(); drift.catalogVersion = 'models-2026-01-01';
   assert.ok(modelConfigErrors(providers(), drift, policy).includes('Authorization catalogVersion differs from model-providers.json'));
 });

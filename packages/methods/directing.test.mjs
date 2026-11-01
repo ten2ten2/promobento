@@ -5,7 +5,7 @@ import source from './huashu-motion/source.mjs';
 
 test('native stage recall preserves upstream references and the selected original template',()=>{
  const treatment=recallDirecting(directingMethodPack,'treatment','software');
- assert.equal(treatment.version,'2.0.0');assert.match(treatment.audience,/workflow/);
+ assert.equal(treatment.version,'2.0.1');assert.match(treatment.audience,/workflow/);
  assert.ok(treatment.hypit.references.some(ref=>ref.path==='references/creation/script-and-time.md'&&ref.content.length>0));
  const author=recallDirecting(directingMethodPack,'author','software','cursor-demo');
  assert.equal(author.huashu.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');
@@ -18,6 +18,9 @@ test('native stage recall preserves upstream references and the selected origina
 });
 
 test('retired method versions and execution stages cannot silently revive their adapter',()=>{
+ const frozen={...directingMethodPack,version:'2.0.0',stages:{...directingMethodPack.stages,triage:['Historical triage guidance']}};
+ assert.equal(recallDirecting(frozen,'treatment','software').version,'2.0.0');
+ assert.throws(()=>recallDirecting(frozen,'triage','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting({...directingMethodPack,version:'1.58.0'},'author','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting(directingMethodPack,'scenes','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting(directingMethodPack,'spec','software'),/DIRECTING_METHOD_UNSUPPORTED/);

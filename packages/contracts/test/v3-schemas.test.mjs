@@ -19,7 +19,7 @@ test('the standalone build covers every contract Schema and every Schema has a p
 });
 
 test('every v3 Schema compiles in strict mode with all definitions', () => {
-  for (const name of VALIDATOR_SCHEMAS.filter(name => name !== 'production')) {
+  for (const name of VALIDATOR_SCHEMAS) {
     const schema = read(`contracts/${name}.schema.json`);
     assert.equal(schema.$id.endsWith(name === 'native-project' ? '/1.0.0' : '/3.0.0'), true, name);
     const validate = createSchemaValidator(schema);

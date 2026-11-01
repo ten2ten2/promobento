@@ -10,8 +10,8 @@
 | --- | --- |
 | 产品、交易、授权与验收规则 | [PRD 索引](docs/prd/README.md) |
 | 接手、工具链与实施顺序 | [AGENTS](AGENTS.md)、[08 实施与交付](docs/prd/08-codex-execution.md) |
-| 原生创作与云端控制（S1 实施中） | [技术设计](docs/plans/cloud-motion-v3.md) |
-| 契约实现与机器结构 | [共享契约库与 Worker 导入方式](packages/contracts/README.md)、[原生工程清单](contracts/native-project.schema.json)、[生产 Schema](contracts/production.schema.json)、[14 生产契约](docs/prd/14-production-contracts.md) |
+| 原生创作与云端控制（S1 实施中） | [导演与改稿](docs/prd/13-agent-native-production.md)、[云端实现](apps/cloud/README.md) |
+| 契约实现与业务要求 | [共享契约库与 Worker 导入方式](packages/contracts/README.md)、[原生工程清单](contracts/native-project.schema.json)、[14 版本、状态与交付规则](docs/prd/14-production-contracts.md) |
 | 原生运行时与隔离 | [完整 huashu 适配器](packages/native-motion/README.md)、[预览与整片容器](apps/render-container/README.md) |
 | 模型与供应商 | [模型与步骤绑定](config/model-providers.json)、[模型授权](config/model-authorization.json) |
 | 云端 Worker | [apps/cloud](apps/cloud/wrangler.jsonc)（内部 S1 链路，实际验收见状态）、[渲染环境锁](apps/render-container/environment.lock.json) |

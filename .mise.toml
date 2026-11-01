@@ -16,9 +16,9 @@ dir = "{{config_root}}"
 run = "pnpm run build:validators && node scripts/check-repo.mjs"
 
 [tasks."check:contracts"]
-description = "check:contracts: current specifications and references only"
+description = "Check current native runtime, model and platform configuration"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && node scripts/check-production-contracts.mjs"
+run = "pnpm run build:validators && node scripts/check-current-config.mjs"
 
 [tasks."test"]
 description = "Run Node unit tests in scripts, packages, apps and tests"
@@ -36,7 +36,7 @@ dir = "{{config_root}}"
 run = "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs"
 
 [tasks."build:validators"]
-description = "Precompile the v3 contract Schemas into standalone validators for Workers"
+description = "Precompile the retained contract Schemas into standalone validators for Workers"
 dir = "{{config_root}}"
 run = "node packages/contracts/scripts/build-validators.mjs"
 

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "check:repo": "pnpm run build:validators && node scripts/check-repo.mjs",
-    "check:contracts": "pnpm run build:validators && node scripts/check-production-contracts.mjs",
+    "check:contracts": "pnpm run build:validators && node scripts/check-current-config.mjs",
     "test": "pnpm run build:validators && node scripts/run-tests.mjs",
     "test:browser": "node apps/render-container/tests/native.render.test.mjs",
     "test:cloud-local": "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs",

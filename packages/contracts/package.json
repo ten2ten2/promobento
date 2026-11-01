@@ -17,15 +17,11 @@
       "types": "./src/validation.d.mts",
       "default": "./src/validation.mjs"
     },
-    "./random": {
-      "types": "./src/random.d.mts",
-      "default": "./src/random.mjs"
-    },
     "./digest": {
       "types": "./src/digest.d.mts",
       "default": "./src/digest.mjs"
     },
-    "./identity": "./src/identity.mjs",
+    "./targets": "./src/targets.mjs",
     "./video-frames": {
       "types": "./src/video-frames.d.mts",
       "default": "./src/video-frames.mjs"

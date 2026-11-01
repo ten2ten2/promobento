@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs';
-import {createSchemaValidator,parseCanonicalJson,targets} from '../packages/contracts/index.mjs';
+import {createSchemaValidator,parseCanonicalJson} from '../packages/contracts/index.mjs';
+import {targets} from '../packages/contracts/src/targets.mjs';
 
 const schema=parseCanonicalJson(readFileSync(new URL('../contracts/unit-economics.schema.json',import.meta.url)));
 const validate=createSchemaValidator(schema);

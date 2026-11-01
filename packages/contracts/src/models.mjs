@@ -4,7 +4,7 @@
 /** Default image-input requirements; modelConfigErrors resolves an explicit native-author input mode. */
 export const STEP_REQUIREMENTS = Object.freeze({
   facts: [], assets: ['vision'], directions: [], treatment: ['tools'],
-  author: ['vision', 'tools'], review: ['vision', 'tools'], coldReview: ['vision','tools'], triage: []
+  author: ['vision', 'tools'], review: ['vision', 'tools'], coldReview: ['vision','tools']
 });
 
 /** Cross-file checks for config/model-providers.json, config/model-authorization.json and agent-policy cost. */

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { canonical, digest, parseCanonicalJson, contentIdentity } from '../index.mjs';
+import { canonical, digest, parseCanonicalJson } from '../index.mjs';
 
 // Expected UTF-8 strings are explicit; SHA-256 values were independently produced with Python hashlib.
 const vectors = parseCanonicalJson(readFileSync(new URL('./canonical-vectors.json', import.meta.url)));
@@ -9,13 +9,6 @@ for (const vector of vectors) test('JCS vector: ' + vector.name, () => {
   const value = parseCanonicalJson(vector.input);
   assert.equal(canonical(value), vector.canonical);
   assert.equal(digest(value), vector.sha256);
-});
-
-test('content identity fixes target order and ignores descriptive metadata', () => {
-  const value = parseCanonicalJson(readFileSync(new URL('../../../contracts/composition.example.json', import.meta.url)));
-  const before = canonical(contentIdentity(value));
-  value.variants.reverse(); value.textMetadata = [{label:'new description',language:'mul'}];
-  assert.equal(canonical(contentIdentity(value)), before);
 });
 
 test('serialized input rejects duplicate decoded property names at every nesting level', () => {

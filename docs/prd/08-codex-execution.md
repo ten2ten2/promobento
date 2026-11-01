@@ -22,12 +22,12 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | --- | --- |
 | `install` | pnpm 冻结安装 |
 | `check:repo` | 先预编译验证器，再检查当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；PRD/协议版本入口；v2 旧标识符不得出现（方案与留证目录除外）；并执行契约检查 |
-| `check:contracts` | 先预编译验证器，再检查生产 Schema 样例、语义、摘要、合法目标与 API 清单；固定目标与原生工程边界；模型配置与授权、价格目录一致 |
+| `check:contracts` | 先预编译验证器，再由 `scripts/check-current-config.mjs` 检查现行原生运行时、固定平台目标、模型配置/授权及价格目录；不再运行旧客户业务参考控制器 |
 | `test` | 先构建验证器，再运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `typecheck` | 先构建契约验证器，再检查 `apps/cloud` 的 TypeScript，包含共享契约导入用例 |
 | `test:browser` | CI 固定镜像内运行完整 huashu 的四画幅真实取帧、原生变量编辑和 15/30 秒有声整片导出；见[原生运行时](../../packages/native-motion/README.md) |
 | `test:cloud-local` | 以 SQLite／R2 和模型／容器响应夹具验证原生方向等待、创作／改稿、整片提交、取消与恢复；不产生模型费用，不代替真实云验 |
-| `build:validators` | 将当前十二个 Schema（原生工程 1.0.0、业务结构 3.0.0）预编译为 ESM；Workers 不在请求内编译 Ajv |
+| `build:validators` | 将当前十一项 Schema（原生工程 1.0.0、业务辅助结构 3.0.0）预编译为 ESM；Workers 不在请求内编译 Ajv |
 | `test:native` | 原生清单与路径边界、导演编排、源码版本、媒介证据、物理停止恢复及实际／未知模型账本的最小离线集 |
 
 云部署／集成目前使用 [Actions 工作流](../../apps/cloud/README.md)，评测使用 [research/evals 的 Node 入口](../../research/evals/README.md)。`build:containers`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 尚不是已登记的 mise 命令；有真实实现时再加入，不建空脚本。
@@ -36,11 +36,11 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 
 ## 2 里程碑与退出关口
 
-本章是 S0–S3 和 M1–M4 的唯一实施／出口清单；[技术设计](../plans/cloud-motion-v3.md)说明能力范围，[实施状态](../implementation-status.md)说明实际完成度。S0 契约就绪后，网站／交易工作可独立推进，但 S2 仍须等 S1 出口。
+本章是 S0–S3 和 M1–M4 的唯一实施／出口清单；[06](06-testing-and-release.md#渲染与导演性能目标)维护性能目标，[13](13-agent-native-production.md)维护导演规则，[实施状态](../implementation-status.md)说明实际完成度。S0 原生基础就绪后，网站／交易工作可独立推进，但 S2 仍须等 S1 出口。
 
 | 切片 | 实施内容 | 退出条件 |
 | --- | --- | --- |
-| S0 契约与工具链 | 业务 v3 契约、原生工程清单、预编译校验、固定工具链与云骨架 | 相关仓库、契约和类型检查通过 |
+| S0 契约与工具链 | 原生工程及所需辅助契约、预编译校验、固定工具链与云骨架 | 相关仓库、契约和类型检查通过；客户业务要求仍待各模块实现 |
 | S1 一条龙 | 完整 huashu 原生创作、预览、改稿、整片导出；Hypit 导演方法；预算／回执／恢复；六题首轮 | G1 通过；创作模型 p50≤$0.70、p95≤$1.20；既定时间目标达标；负责人正常速度视听愿意发布≥4/6 |
 | S2 客户预览与完整 QA | 独立域名原生播放器、直接改值、时间／元素批注、动态 Q0/Q1/Q2、完整攻击语料与四画幅准备 | 成本／时间目标达标；攻击与 QA 变异按预期；作品愿意发布≥5/6且两类用户各≥2 |
 | S3 素材与上线准备 | 客户素材处理、ASR／确认转写、受控抓取、声音与用户经验；观测告警 | 完整管线关口通过；未验证或 P1 能力不因源码存在自动开放 |
@@ -51,7 +51,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 
 **S1 原生切换**：用户已授权接入完整 huashu 的原生创作／预览／改稿／整片路径，并退出旧协议、执行器和分片链。原生 HTML／GSAP／SVG／Canvas／Three.js 在隔离容器里执行；完整攻击语料、动态 QA、作品质量和真实云端性能仍须通过对应出口，不能把引擎接通当成 SaaS 上线。
 
-**G1 云端检查点**：固定预发布镜像的 broker、分离 UID／Chromium 沙箱、原生 2D／WebGL 性能与并发、字体／视频／seek、真实取消／终止／restart 防重放、物理回收与结算。详细范围见[技术设计§10.2](../plans/cloud-motion-v3.md#102-g1-云端检查点)。旧分片接缝矩阵退役；内存峰值继续按既有平台限制保持未验证。实测不足不能自行提高性能或费用目标。
+**G1 云端检查点**：固定预发布镜像补验真实broker/R2/D1、Cloudflare容器能力、分离UID/Chromium沙箱、完整原生2D与WebGL性能分布及并发、字体/源视频/seek和完整编码；真实取消、Workflow终止与restart防重放、物理回收及费用结算均须留证。旧分片接缝矩阵不再用于新引擎；内存峰值继续按既有平台限制保留unverified、null和原因，待平台实际数据补验。实测不足不能自行提高[06性能目标](06-testing-and-release.md#渲染与导演性能目标)或费用上限。
 
 **完整管线关口**：完整原生模板和真实素材四画幅创作、预览、改稿与声音；固定镜像和 staging 的创建→选择方向→成片→改稿→目标准备与账本；完整动态 QA、隔离攻击、目标用户视听以及既定成本／性能目标。离线 mock 或单个编码样例不能替代。
 
@@ -75,7 +75,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 
 ## 3 代码责任与可复现工具链
 
-应用按 `apps/cloud`（控制面）与 `apps/render-container`（预览／整片容器）分工；`packages/native-motion` 直接连接完整上游，`packages/contracts` 统一清单与身份，`packages/methods` 管理原生导演和上游方法。其余客户素材／播放器模块随真实实现加入，不建空入口。职责见[技术设计](../plans/cloud-motion-v3.md#31-代码归属)。
+应用按 [apps/cloud](../../apps/cloud/README.md)（Worker/Workflows/DO、broker、版本与账本）和 [apps/render-container](../../apps/render-container/README.md)（隔离预览/整片、媒体归一与实际工程归档）分工；[packages/native-motion](../../packages/native-motion/README.md)直接调用完整上游，`packages/contracts`统一清单、身份与校验，`packages/methods`管理原生导演和上游方法。素材/声音辅助工具负责真实来源处理；其余客户素材/播放器模块随实现加入，不建空入口。
 
 mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、`package.json`，安装使用冻结 lockfile；TypeScript 与 wrangler 锁定精确版本，依赖的安装脚本默认不运行。初始化或主动升级时核对目标平台、官方兼容性与实际运行结果；普通文档/业务修改不自动升级，也不把本机版本当作选型依据。新增依赖锁版本，核查安装脚本和许可证；创作代码不能任意安装或联网。
 

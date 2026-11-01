@@ -49,7 +49,7 @@
   "publicPreviewWatermark": {
     "text": "Made with PromoBento",
     "renderInPaidExport": false,
-    "policySource": "config/preview.json"
+    "policySource": "docs/prd/02-ux-and-ui.md"
   },
   "checkoutDefaults": {
     "language": "en",

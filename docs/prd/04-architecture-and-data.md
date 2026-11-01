@@ -1,6 +1,6 @@
 # 技术架构与数据契约
 
-业务 API、鉴权、账务和模型凭据属于可信层；Composition 代码、评论、素材内容与沙箱输出都视为不可信数据。跨模块规则见 [14](14-production-contracts.md)，认证和交易分别见 [12](12-routing-and-auth.md)、[05](05-waffo-billing.md)。
+业务API、鉴权、账务和模型凭据属于可信层；原生作品代码、评论、素材内容与沙箱输出都视为不可信数据。本章包含待实施的客户架构，实际内部能力见[实施状态](../implementation-status.md)。跨模块要求见[14](14-production-contracts.md)，认证和交易分别见[12](12-routing-and-auth.md)、[05](05-waffo-billing.md)。
 
 ## 1 技术与职责
 
@@ -67,13 +67,13 @@ Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理�
 
 ### 输出审核
 
-方向卡、Treatment 和 audioPlan 在展示前审核实际文字；`run_result.outputStatus` 只有为 `allowed` 时才可返回这些字段，审核中或扣留时不能夹带原文。候选、可信预览、导出和案例展示分别审核实际可见文字、画面与音频，不能用源码声明或少数封面代替动态内容。
+客户方向卡、Treatment和声音计划在展示前审核实际文字；只有获准展示时才可返回正文，审核中或扣留时不能夹带原文。候选、可信预览、导出和案例展示分别审核实际可见文字、画面与音频，不能用源码声明或少数封面代替动态内容。以下是待接入的客户审核要求，当前内部模型冷审不代替该服务。
 
 可信服务保存 `outputSafetyResult`，绑定项目、operation/revision、用途、实际 `subjectHash`、`targetId`、策略、检查表示和 `coverageManifestHash`。覆盖清单固定实际文字摘要、源片范围、帧数、受检帧与连续音频区间；最低采样由登记的策略推导，不能靠调用方缩短采样数组放行。具体字段与边界见 [14](14-production-contracts.md#8-事实与qa授权)。媒体回执从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 取回，任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面检查文字与画面，视频/片段还检查覆盖实际输出时长的音频。
 
 纯图形与无音轨作品须由可信检查生成 `outputSafetyModalityObservation`，记录同一对象、目标及表示下的 `textPresent`、`audioPresent` 和证据引用；其摘要由覆盖清单的 `modalityObservationHash` 固定。只有观察确认确实不存在相应内容，才允许文字或音频清单为空；缺观察、摘要不符或实际存在但未覆盖都拒绝。静音作品保留真实时长，不为通过审核伪造音轨或摘要。
 
-只有 `allowed` 且内容、用途、目标、策略和覆盖均匹配时可放行；控制器必须提供可信 `revokedResultIds`，缺失或已撤销均拒绝。相同不可变内容不设置统一重扫天数；跨 operation/revision 复用时，仍须由可信服务建立绑定当前用途的 association 并重验上述条件。内容或所需策略/覆盖变化不能沿用旧结果，策略版本不进入创作 contentHash。`outputSafetyErrors` 只做参考准入校验，不产生真实审核结论。审核状态独立于美学 QA，普通 REVIEW 的用户确认不能豁免安全阻断；未通过的候选保持 withheld，不展示或消费可用结果次数，复核与修复共用原预算，实际费用照记。
+只有allowed且内容、用途、目标、策略和覆盖均匹配时可放行；可信撤销状态缺失或结果已撤销均拒绝。相同不可变内容不设置统一重扫天数；跨operation/revision复用仍须由可信服务关联当前用途并重验条件。内容或策略/覆盖变化不能沿用旧结果，策略版本不进入创作contentHash。审核独立于美学QA，普通REVIEW的用户确认不能豁免安全阻断；未通过的候选保持withheld，不展示或消费可用结果次数，复核与修复共用原预算，实际费用照记。
 
 审核表示分为 `text`、`trusted_media`、`verified_local_runtime`。已检查的可信视频不自动授权任意本地源码执行；本地回放须验证受限 runtime、资源和全部可触达状态，并绑定 `runtimeStateHash`。能力和覆盖尚未验证时，对外只提供已审核的可信媒体。普通输入和自动保存不逐键触发云审核；保存不代表取得展示许可，新内容在可信预览、冻结、分享或导出前须取得匹配结果。
 
@@ -107,7 +107,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 
 ### 成本计量与归因
 
-费用按 Schema 的 `costEvent` 写入 D1 账本；模型调用的金额由 `modelCallCostMicros` 按[模型配置](../../config/model-providers.json)的价格目录换算为美元微单位并向上取整，用量缺失时按最坏情况预留。金额、费用预留、去重和估算/实收的替代关系统一按[14 费用规则](14-production-contracts.md#6-ai操作费用与成功次数)，不要另写一套算法。
+当前内部模型费用按[模型配置](../../config/model-providers.json)的冻结价格目录换算为整数美元微单位并向上取整，实际/未知用量由共享MODEL_LEDGER保留，计算费用保存在D1预留与结算记录。客户完整成本事件与归因按[14费用要求](14-production-contracts.md#6-ai操作费用与成功次数)随业务账本实现，不能把已删除的参考Schema当作已完成服务，也不重算现有历史费用。
 
 每条记录从可信作业取得用户、工作区、项目、operation、attempt 和 target，注明用途、供应商/模型、价格版本及原始用量单位。记录能测到的 tokens、CPU、内存、存储与请求费用；未知用量标为未知，不能填零。原币金额与换算依据随提供方记录保存，不记录提示全文、凭据或客户源码。
 
@@ -117,7 +117,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 
 ## 5 第一方 API
 
-URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源；关键请求/响应在 [API 契约](../../contracts/agent-api.json) 引用 [正式 Schema](../../contracts/production.schema.json)。已绑定对象使用封闭字段和明确分支；其余 API 在对应模块实施前补齐契约与负例，不能接受任意 object 代替。下表按模块说明实施责任；当前 API 尚未部署。
+客户URI与最低权限以[路由配置](../../config/routes.json)为规划来源；请求/响应契约随对应模块实现，使用封闭字段、明确分支和真实事务负例，不接受任意object代替。下表说明待实施的客户API责任；当前实际入口只有[内部云端API](../../apps/cloud/README.md#内部-api)，不能把内部评测令牌替代客户认证。
 
 普通业务写请求使用 requestId/Idempotency-Key，同时提供须一致；幂等范围包含 workspace/project/actor/route，请求摘要不一致返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入 422、限流 429；未知路径 404、方法 405+Allow。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId。
 
@@ -132,7 +132,7 @@ URI 和权限以 [路由配置](../../config/routes.json) 为唯一注册来源�
 | 订单与支持 | checkout、Waffo 回调、订单查询、退款申请 | [05 交易](05-waffo-billing.md) |
 | 分享与展示 | 只读审阅链接、普通评论、独立案例展示授权和撤回 | [12 审阅权限](12-routing-and-auth.md)、本章第 6 节 |
 
-完整方法、路径和最低角色只在 routes 登记，请求/响应定义只在 agent-api 绑定 Schema，不在文档再维护一份路由表。
+客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。
 
 项目复制只继承同工作区内获准的素材与源包引用。新项目没有试用或付费权益，原购买快照与 QA 授权也不转移；可查看和本地编辑，新增上传、云预览、QA 或创作前先购买 `project_pack` 的 `top_up_only` 权益。
 

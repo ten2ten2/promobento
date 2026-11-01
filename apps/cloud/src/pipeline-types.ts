@@ -1,6 +1,4 @@
 import type {ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
-import type {OperationWorkflow} from './director.ts';
-import type {RenderWorkflow} from './render-workflow.ts';
 export type Json = Record<string, any>;
 export interface PipelineEnv {
   DB: D1Database; MODEL_LEDGER:D1Database; PIPELINE_ENVIRONMENT:string; MEDIA: R2Bucket; OUTBOX: Queue; SHARDS: DurableObjectNamespace<ShardDO>;

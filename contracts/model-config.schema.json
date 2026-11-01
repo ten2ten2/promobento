@@ -227,8 +227,7 @@
             "treatment",
             "author",
             "review",
-            "coldReview",
-            "triage"
+            "coldReview"
           ],
           "properties": {
             "facts": {
@@ -244,9 +243,6 @@
               "$ref": "#/$defs/modelRef"
             },
             "coldReview": {
-              "$ref": "#/$defs/modelRef"
-            },
-            "triage": {
               "$ref": "#/$defs/modelRef"
             },
             "treatment": {

@@ -4,7 +4,7 @@ import {digest} from '@promobento/contracts/digest';
 
 /** Frozen method evidence; the complete upstream references and original templates remain available. */
 export const directingMethodPack = {
-  id: 'native-product-directing', version: '2.0.0', huashuSource, hypitSource,
+  id: 'native-product-directing', version: '2.0.1', huashuSource, hypitSource,
   sources: [
     {ref: `https://github.com/alchaincyf/huashu-motion/tree/${huashuSource.revision}`, scope: 'Native HTML, GSAP, Canvas, SVG and Three.js authoring, original templates, preview, editing and whole-film rendering.'},
     {ref: `https://github.com/hypit-ai/hypit/tree/${hypitSource.revision}`, scope: 'Brief versus Treatment, source-backed material selection, semantic events and actual-media timing. No second execution runtime.'}
@@ -48,8 +48,7 @@ export const directingMethodPack = {
       'Treat native runtime errors as failures. Do not approve placeholder images, missing real material, empty frames or a treatment that was never implemented. Ask for a scoped source repair with evidence; do not change transport manifests or budget controls.',
       'Sampled frames establish only those frames. Do not infer full-motion or listening quality from stills; retain owner normal-speed review as pending.'
     ],
-    coldReview: ['Independently inspect the final encoded-output evidence against the original Brief. State concrete source frames and visible defects; do not treat a prior director note as proof.'],
-    triage: ['Classify the actual reported failure and its recorded evidence. Unknown usage requires reconciliation; never recommend resending an uncertain paid request.']
+    coldReview: ['Independently inspect the final encoded-output evidence against the original Brief. State concrete source frames and visible defects; do not treat a prior director note as proof.']
   }
 } as const;
 
@@ -63,7 +62,7 @@ export const directingMethodRef=(pack:DirectingMethodPack)=>({id:pack.id,version
 
 /** Stage-bounded recall; source/template bodies are the original native material, never adapted shims. */
 export function recallDirecting(pack:DirectingMethodPack,stage:string,audience:'software'|'course',language='') {
-  if(pack.id!=='native-product-directing'||pack.version!=='2.0.0'||!Object.hasOwn(pack.stages,stage))throw Error('DIRECTING_METHOD_UNSUPPORTED');
+  if(pack.id!=='native-product-directing'||!['2.0.0',directingMethodPack.version].includes(pack.version)||!Object.hasOwn(directingMethodPack.stages,stage)||!Object.hasOwn(pack.stages,stage))throw Error('DIRECTING_METHOD_UNSUPPORTED');
   const refs:Record<string,string[]>={
     directions:['references/director.md','references/visual-direction.md','references/library/formats.md'],
     treatment:['references/director.md','references/rhythm.md','references/product-demo-continuity.md','references/music.md'],

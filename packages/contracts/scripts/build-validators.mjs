@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Precompiles the v3 contract Schemas into standalone validator modules. Workers forbid runtime code
+// Precompiles the retained contract Schemas into standalone validator modules. Workers forbid runtime code
 // generation (new Function), so code that runs there imports these instead of compiling with Ajv.
 // Output: packages/contracts/generated/<name>.mjs (gitignored; rebuilt by this script).
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -12,7 +12,7 @@ import {parseCanonicalJson} from '../src/canonical.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const VALIDATOR_SCHEMAS = Object.freeze(['native-project', 'direction', 'audio-plan',
-  'asset-insight', 'director-analysis', 'video-frame-manifest', 'agent-tools', 'model-config', 'production', 'unit-economics', 'audio-admission', 'model-spend']);
+  'asset-insight', 'director-analysis', 'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'audio-admission', 'model-spend']);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
 export function standaloneModule(schema) {

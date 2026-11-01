@@ -6,7 +6,7 @@
 
 P0 提供 Google 与邮箱验证码登录，登录和注册共用入口。不提供密码、magic link 或额外的网站语言步骤，邮箱验证码也不称为多因素认证。内部 user_id 稳定，identity 与项目/订单 ID 分离；关联两种登录方式须分别验证，并由用户确认。
 
-业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；不可信 Composition 预览使用 [预览配置](../../config/preview.json) 中的受限 origin，不能共享应用会话。预览配置、隔离域和资产代理未验证前不开放真实预览，具体限制按 14。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
+业务站点/API 同源：正式 promobento.com，预发布 staging.promobento.com；客户原生工程预览使用独立受限 origin，不能共享应用会话。客户预览、隔离域和资产代理仍待实现与验证，具体要求按 [14](14-production-contracts.md#5-renderprotocol)。API `/api`，路径小写名词/短横线，无尾斜线，动态参数如 :projectId/:orderId。配置 auth 是最低入口，不替代资源权限、Owner、CSRF 或签名。
 
 /create 先选任务/15或30秒/平台，素材上传、预处理、方向卡和生成前均须 Google/邮箱登录；匿名阶段只保留低成本的选项和公开自有样片，不接收/处理客户素材或生成方向。/login 共用 Google/邮箱；/login/verify 验证码，/login/link 待注册/关联确认。/app→/app/projects、/app/settings→/app/settings/account 为 302/private,no-store；Account、Appearance、Brand、Members、Orders 使用已注册页面。Help 复用 /help；搜索资源只含真实 robots/sitemap，不提供空 /llms.txt 或未实现页面。
 

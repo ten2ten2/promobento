@@ -234,11 +234,6 @@
         "maxMicros": 50000,
         "effort": "none"
       },
-      "triage": {
-        "maxCalls": 1,
-        "maxMicros": 10000,
-        "effort": "low"
-      },
       "treatment": {
         "maxCalls": 3,
         "maxMicros": 400000,

@@ -25,30 +25,26 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
-原生预览与整片渲染从[固定完整上游安装](../../packages/native-motion/upstream.lock.json)取得字体，工程默认补齐 Inter Variable 和 Noto Sans SC 500/900，并保存实际 WOFF 字节及许可；加载方式见[渲染服务说明](../../apps/render-container/README.md)。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
+原生预览与整片渲染从[固定完整上游安装](../../packages/native-motion/upstream.lock.json)取得字体，工程默认补齐Inter Variable和Noto Sans SC 500/900，并保存实际WOFF字节及许可；加载方式见[渲染服务说明](../../apps/render-container/README.md)。当前声音准备和混音也来自该固定上游。保留的[历史乐器样本清单](../../packages/audio/samples/catalog.json)记录旧CC0样本及来源，适用范围见[声音辅助工具说明](../../packages/audio/src/NOTICE.md)，不把它当作当前原生sound的完整音源清单。生成产物记录实际采用的来源。
 
 字体随固定上游字节一并校验，作品通过 `@font-face` 加载原始 WOFF；系统基础字体及工具版本随[环境锁](../../apps/render-container/environment.lock.json)固定。现有字库不保证任意语种无缺字，更广 CJK／Emoji 覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
-客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）可经负责人决定使用第三方品牌的公开截图、录屏和 Logo，但只限内部评测：素材存放在预发布 R2、不进 Git，成片不发布或对外展示，也不作营销样片。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
+原生工程只读取本次已准入的真实素材文件，文件清单及broker绑定路径、R2对象和字节身份，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）的截图、录屏和Logo按既有负责人决定使用：素材存放在预发布R2、不进Git，成片不作为公开营销样片。真实素材发现、采集和转换能力继续保留，范围见[内部素材工具](../../research/evals/README.md)。
 
 ## 2 视频创作上游
 
-上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明，不整包并入或追随浮动版本。各模块实际采用的固定来源见其 NOTICE 或[渲染服务说明](../../apps/render-container/README.md)；[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
+当前引擎固定完整[huashu-motion v0.3.1](https://github.com/alchaincyf/huashu-motion/tree/52467f99c602b76ba86d511d37acdfe93fa1e16e)，提交为`52467f99c602b76ba86d511d37acdfe93fa1e16e`。镜像保留CLI、Studio、runtime、templates、fonts、examples和skills，构建逐一校验[315个原始blob](../../packages/native-motion/upstream.lock.json)，再应用固定的云端I/O与隔离补丁；原生动画、取帧、声音及整片渲染由上游实现。准确执行边界见[适配器](../../packages/native-motion/README.md)与[渲染容器](../../apps/render-container/README.md)，不再维护一份按旧积木裁剪的上游清单。
 
-Hypit 的[内部媒体检查与取景桥接入口](../../research/evals/README.md)固定使用 `@hypit/hypit@0.3.1` 和 `@hypit/visual-track@0.2.0`，不随渲染镜像安装，不在 Worker 或可信宿主执行作品代码。负责人表示已有授权，证明尚待提供；覆盖主体、有效期和托管／多租户范围核验前，仅用于单机构内部评测，不用于对客户提供 Hypit 的托管或多租户功能。上游软件许可不代替素材、音乐或第三方服务的许可。
+Hypit的Brief/Treatment、参考片分析和语义时间方法进入导演上下文，固定原文及版本见[方法来源](../../packages/methods/NOTICE.md)。[独立内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)保留`@hypit/hypit@0.3.1`，用于断网探测、切片和抽帧既有媒体；取景桥与`visual-track`入口已经退役。Hypit的DSL、编译器和任务runtime没有接入SaaS主链。
 
 | 来源范围 | 用途 |
 | --- | --- |
-| skills/huashu-motion/SKILL.md 与 references/ | 导演、节奏、色彩、运动语言、连续性和受众适配参考 |
-| runtime/clip/ 与 showcase 的 art-motion 派生代码；cli/lib/qa、beats、swatch | 2D数学/画面语法/材质与有界视听诊断；保留clip/art-motion独立MIT和NOTICE，不引入3D camera-rig或网页宿主 |
-| cli/lib/check、qa、score、sound、composer、dsp | 源码/帧检查与确定性声音；乐谱、采样和依赖单独审核 |
-| studio/studio.js、cli/lib/inbox.js、learn.js | 点选、源码定位和用户可控经验；权限和多租户由本产品实现 |
+| skills/huashu-motion/SKILL.md、references与原生templates | 按导演阶段召回原文与完整HTML模板，直接创作/修改原生工程 |
+| 完整CLI、runtime、vendor与fonts | 原生检查、变量编辑、capture、声音准备、GSAP/Canvas/SVG/Three.js及整片render；确切文件随固定上游安装 |
+| 上游Studio、examples | 完整保留本地能力与参考；不把单用户localhost服务直接开放成多租户网站 |
+| PromoBento控制面与容器适配 | 版本、权限、任务、预算、私有素材、broker、隔离、实际产物核验与归档 |
 
-新字体按OFL逐文件登记，其中中文字体为固定子集，不能把缺字替成系统字体。真实乐器采样只引入固定VSCO 2 CE的已核CC0文件，原始许可与来源随资源保存；Salamander钢琴和CC-BY电钢琴不进入默认素材包。新生成音轨使用独立`LicenseRef-PromoBento-Generated-Audio`记录组成材料，算法MIT不冒充输出CC0。自由ABC须有与请求/时长绑定的独立权利审批，模型源包不能自签，变更后重核。
-
-[上游第三方清单](https://github.com/alchaincyf/huashu-motion/blob/5f2608c2e12abcf518f74dde86093b19f7f88603/THIRD_PARTY.md)将作者“豆子花叔”形象排除在 MIT 许可之外。P0 不采用该形象或含它的演示素材；字体、模型和音源分别审核，清单未提及的材料也要核对。
-
-**积木和自写镜头都可以使用 GSAP。** 本产品已按负责人许可结论采用GSAP；具体分发文件以环境锁为准。GSAP 3.14.2 的 `dist/gsap.min.js` 随渲染镜像分发、不进 Git，版本与 SHA-256 记在[渲染环境锁](../../apps/render-container/environment.lock.json)。确定性靠静默 seek 与黄金帧检查保证，见[技术设计](../plans/cloud-motion-v3.md)第 4.3、5.6 节。
+来源说明随实际采用文件保留，导演和声音辅助文件分别见[方法来源](../../packages/methods/NOTICE.md)与[声音来源](../../packages/audio/src/NOTICE.md)。旧字体副本、旧合成/混音执行器不再随主线维护；原生字体和声音能力从固定上游取得。完整安装不表示示例自动成为客户作品，实际素材与生成产物仍绑定自己的来源记录。
 
 ## 3 适用规则与产品边界
 

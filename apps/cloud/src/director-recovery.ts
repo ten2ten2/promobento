@@ -25,13 +25,6 @@ export async function commitCandidate(env:PipelineEnv,op:Operation,key:string){
  }
 }
 
-export async function commitReviewDraft(env:PipelineEnv,op:Operation,key:string,reason:string){
- if(key!==`operations/${op.id}/review-draft.json`||!['DIRECTOR_REPAIR_LIMIT','COLD_REVIEW_BLOCK','COLD_REVIEW_NO_CHANGE'].includes(reason))throw Error('REVIEW_DRAFT_SCOPE_INVALID');
- await failDirector(env,op,reason,true,key);
- const saved=await env.DB.prepare("SELECT result_key FROM pipeline_operations WHERE id=? AND generation=? AND status='failed'").bind(op.id,op.generation).first<Json>();
- if(saved?.result_key!==key)throw Error('OPERATION_FENCED');
-}
-
 /** Internal owner review only; this terminal result is never exposed by the accepted-candidate endpoint. */
 export async function getReviewDraft(env:PipelineEnv,id:string):Promise<Json|null>{
  const owner=await env.DB.prepare("SELECT * FROM pipeline_operations WHERE id=? AND status='failed'").bind(id).first<Operation&{result_key:string}>();

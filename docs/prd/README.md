@@ -20,26 +20,25 @@
 | [13 导演、声音与改稿](13-agent-native-production.md) | 自由创作方法、宣传真实性、音画和编辑工作流 |
 | [14 生产契约与状态](14-production-contracts.md) | 类型、状态、hash、预算、授权证据与跨系统不变量 |
 
-各章说明上表范围内的规则，其他章节引用即可。价格、次数、尺寸等数值在配置中维护；页面和 API 清单在 routes 中维护；数据结构见 Schema，字段之间的约束见 14。修改规则时同步相关代码、配置和对外页面，不再复制一套价格、期限或接口表。
+各章说明上表范围内的规则，其他章节引用即可。价格、次数、尺寸等数值在配置中维护；页面和客户 API 规划在 routes 中维护；现行内部结构见 Schema，客户版本、计费和交付要求见 14。客户请求/响应契约随对应服务实现，不再保留一套与原生链路无关的参考实现。修改规则时同步相关代码、配置和对外页面，不再复制一套价格、期限或接口表。
 
 ## 配置与机器契约
 
 | 文件 | 用途 |
 | --- | --- |
 | [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、响度目标、renderProfiles 与来源 |
-| [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 完整页面/API与身份策略 |
+| [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 客户页面/API规划与身份策略；不是已部署入口 |
 | [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态、渲染期限、单位成本目标与公开能力边界 |
 | [模型与步骤绑定](../../config/model-providers.json)、[模型授权](../../config/model-authorization.json) | 供应商、价格目录、各导演步骤的模型及其授权上限 |
-| [预览策略](../../config/preview.json)、[输入审核](../../config/content-safety.json)、[输出采样](../../config/output-safety-sampling.json) | 本地回放与可信捕获；默认关闭的提示词审核适配；输出审核的最低覆盖与大小上限 |
+| [输入审核](../../config/content-safety.json) | 默认关闭的提示词审核参考适配；客户预览与输出审核要求见 04/14，尚待接入 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
-| [共享契约库](../../packages/contracts/README.md)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json)、[Schema 回归用例](../../packages/contracts/test/schema-vectors.json) | JCS、JSON 解析、Ajv 校验与 Workers 用的预编译验证器、原生项目路径／字节／画幅约束、模型费用、源码依赖摘要和版本环境继承 |
-| [生产 Schema](../../contracts/production.schema.json)、[原生工程](../../contracts/native-project.schema.json)、[方向卡](../../contracts/direction.schema.json)、[声音计划](../../contracts/audio-plan.schema.json)、[音乐准入](../../contracts/audio-admission.schema.json)、[素材理解](../../contracts/asset-insight.schema.json)、[导演工具](../../contracts/agent-tools.schema.json)、[事实整理／冷审](../../contracts/director-analysis.schema.json)、[模型费用](../../contracts/model-spend.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | 业务结构 3.0.0 与原生工程 1.0.0；结构存在不等于客户服务已实现 |
+| [共享契约库](../../packages/contracts/README.md)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json)、[Schema 回归用例](../../packages/contracts/test/schema-vectors.json) | JCS、严格 JSON、Ajv 与 Worker 预编译验证器；原生项目路径／字节／画幅、模型费用与平台目标 |
+| [原生工程](../../contracts/native-project.schema.json)、[导演工具](../../contracts/agent-tools.schema.json)、[事实整理](../../contracts/director-analysis.schema.json)、[方向卡](../../contracts/direction.schema.json)、[素材理解](../../contracts/asset-insight.schema.json)、[视频帧包](../../contracts/video-frame-manifest.schema.json) | 原生工程 1.0.0、导演及素材结构；当前内部用法见各实现，结构存在不代表客户服务已完成 |
+| [声音计划](../../contracts/audio-plan.schema.json)、[音乐准入](../../contracts/audio-admission.schema.json)、[模型配置](../../contracts/model-config.schema.json)、[模型费用](../../contracts/model-spend.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | 声音与素材辅助契约、模型授权/用量，以及离线单位经济分析 |
 | [原生运行时](../../packages/native-motion/README.md)、[渲染容器](../../apps/render-container/README.md) | 完整上游调用、普通工程文件、真实预览、整片导出与隔离边界 |
-| [Agent API](../../contracts/agent-api.json) | 路由与请求/响应定义关联 |
-| [原生工程回归样例](../../packages/contracts/test/native-project.test.mjs)、历史 [Composition](../../contracts/composition.example.json)／[Snapshot](../../contracts/release-snapshot.example.json) | 新原生工程边界；历史业务结构只读参考，不再用于新创作执行 |
-| [资源](../../contracts/resource-manifest.example.json)、[事实](../../contracts/fact-manifest.example.json)、[改稿](../../contracts/edit-request.example.json)、[输出](../../contracts/export-manifest.example.json) | 内容与请求/交付示例 |
+| [内部云端 API](../../apps/cloud/README.md#内部-api)、[原生工程回归样例](../../packages/contracts/test/native-project.test.mjs) | 实际内部入口与原生版本边界；客户购买、快照与交付按 14 后续实现 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |
 
 新环境运行 [agent-setup.sh](../../scripts/agent-setup.sh)，实施顺序见 08，已完成能力见[实施进度](../implementation-status.md)。代码样式路径相对仓库根目录，Markdown 链接相对所在文件。
