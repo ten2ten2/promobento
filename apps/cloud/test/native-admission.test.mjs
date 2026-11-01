@@ -100,6 +100,66 @@ test('64 submissions admit at most four distinct workspaces; no queue ticket cou
   assert.equal(events.length, 5);
 });
 
+test('hung Workflow notification never blocks another workspace grant or its event', async t => {
+  const {db, env, add, addTicket} = fixture(t);
+  const stuck = add('stuck-notification'), healthy = add('healthy-notification');
+  const stuckId = addTicket(stuck), healthyId = addTicket(healthy);
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+    originalSetTimeout(callback, Math.min(ms, 15), ...args));
+  const delivered = [];
+  env.RENDER_WORKFLOW = {get(id) {return {
+    async sendEvent(event) {
+      if (id === stuck.renderId) return new Promise(() => {});
+      delivered.push({id, event});
+    },
+    async status() {return {status:'running'};},
+  };}};
+  await dispatchRenderAdmissions(env);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(stuckId).status, 'admitted');
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(healthyId).status, 'admitted');
+  assert.deepEqual(delivered.map(row => row.id), [healthy.renderId]);
+  assert.ok(db.prepare('SELECT notification_retry_at FROM pipeline_render_admissions WHERE id=?').get(stuckId).notification_retry_at > Date.now());
+  assert.ok(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE id=?').get(healthyId).notification_sent_at);
+});
+
+test('one hung Coordinator acquire does not suppress another workspace admission', async t => {
+  const {db, env, add, addTicket} = fixture(t);
+  const stuck = add('stuck-acquire'), healthy = add('healthy-acquire');
+  const stuckId = addTicket(stuck), healthyId = addTicket(healthy);
+  const coordinator = env.COORDINATOR.getByName('global-v1'), originalAcquire = coordinator.acquire.bind(coordinator);
+  coordinator.acquire = (...args) => args[0] === stuckId ? new Promise(() => {}) : originalAcquire(...args);
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+    originalSetTimeout(callback, Math.min(ms, 15), ...args));
+  await dispatchRenderAdmissions(env);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(stuckId).status, 'queued');
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(healthyId).status, 'admitted');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+});
+
+test('hung lease validation cannot indefinitely hold an admission Workflow precheck', async t => {
+  const {db, env, add} = fixture(t);
+  const pending = add('hung-lease-check'), ticket = await requestRenderAdmission(env, pending.renderId,
+    pending.op, 'attempt-hung-lease', 0);
+  const originalSetTimeout = globalThis.setTimeout, realNow = Date.now;
+  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+    originalSetTimeout(callback, Math.min(ms, 15), ...args));
+  env.COORDINATOR.getByName('global-v1').assertLease = async () => new Promise(() => {});
+  const operationDeadlineAt = realNow() + 100;
+  let simulatedNow = realNow(), checks = 0;
+  const step = {async do(_name, ...args) {checks++; return args.at(-1)();},
+    async waitForEvent() {throw Error('EVENT_UNAVAILABLE');},
+    async sleepUntil(_name, wakeAt) {simulatedNow = wakeAt;}};
+  try {
+    Date.now = () => Math.max(realNow(), simulatedNow);
+    await assert.rejects(waitForRenderAdmission(env, step, 'hung-lease-assert',
+      {...ticket, operationDeadlineAt}, 0), /RENDER_QUEUE_EXPIRED/);
+  } finally {Date.now = realNow;}
+  assert.ok(checks >= 2);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+});
+
 test('admission event can arrive before wait; only then can an attempt start its execution deadline', async t => {
   const {db, env, events, add} = fixture(t);
   const {op, renderId} = add('workspace-one', {mode: 'preview', offset: -5 * 60_000});
@@ -116,6 +176,41 @@ test('admission event can arrive before wait; only then can an attempt start its
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(renderId).status, 'rendering');
   assert.equal(await claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, token), deadlineAt);
+});
+
+test('overlapping claims recover the first committed batch after a zero-row retry', async t => {
+  const {db, env, add} = fixture(t);
+  const pending = add('claim-overlap', {mode: 'preview'});
+  const ticket = await requestRenderAdmission(env, pending.renderId, pending.op, 'attempt-overlap', 0);
+  const token = db.prepare('SELECT lease_token FROM pipeline_render_admissions WHERE id=?').get(ticket.id).lease_token;
+  const originalDB = env.DB, coordinator = env.COORDINATOR.getByName('global-v1');
+  const originalExtend = coordinator.extend.bind(coordinator);
+  let firstBatchEntered, resumeFirstBatch, secondExtendEntered, resumeSecondExtend;
+  const firstBatch = new Promise(resolve => {firstBatchEntered = resolve;});
+  const allowFirstBatch = new Promise(resolve => {resumeFirstBatch = resolve;});
+  const secondExtend = new Promise(resolve => {secondExtendEntered = resolve;});
+  const allowSecondExtend = new Promise(resolve => {resumeSecondExtend = resolve;});
+  let batchCalls = 0, extendCalls = 0;
+  env.DB = {...originalDB, async batch(statements) {
+    if (++batchCalls === 1) {firstBatchEntered(); await allowFirstBatch;}
+    return originalDB.batch(statements);
+  }};
+  coordinator.extend = async (...args) => {
+    if (++extendCalls === 2) {secondExtendEntered(); await allowSecondExtend;}
+    return originalExtend(...args);
+  };
+  const input = {renderId: pending.renderId, mode: 'preview'};
+  const first = claimRenderAdmission(env, pending.op, input, ticket.id, token);
+  await firstBatch;
+  const second = claimRenderAdmission(env, pending.op, input, ticket.id, token);
+  await secondExtend;
+  resumeFirstBatch();
+  const firstDeadline = await first;
+  resumeSecondExtend();
+  assert.equal(await second, firstDeadline, 'a zero-row batch must use the original attempt clock');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts WHERE id=?').get(ticket.id).n, 1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(ticket.id).status, 'running');
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(pending.renderId).status, 'rendering');
 });
 
 test('a completed physical attempt replays its admission wait after the queue deadline', async t => {
@@ -185,7 +280,7 @@ test('a queue wait timeout recovers an on-time admission whose event delivery wa
     async sleepUntil() {},
   };
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token);
-  assert.ok(checkpointed.has('admission-timeout-resolved-0'));
+  assert.ok(checkpointed.has('admission-timeout-resolved-0-0'));
   await claimRenderAdmission(env, pending.op, {renderId: pending.renderId, mode: 'export'}, id, token);
   await env.COORDINATOR.getByName('global-v1').release(id, token);
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token,
@@ -281,9 +376,9 @@ test('event backoff uses one durable absolute wake time across Workflow replay',
     replayed = await waitForRenderAdmission(env, step, 'absolute-backoff', ticket, 0);
   } finally {Date.now = realNow;}
   assert.equal(replayed, first);
-  assert.equal(wakeTimes.length, 2);
-  assert.equal(wakeTimes[0], wakeTimes[1], 'replay cannot add an extra minute after a checkpointed event timeout');
-  assert.ok(wakeTimes[0] > Date.now());
+  assert.equal(wakeTimes.length, 1, 'a replay uses the checkpointed event without an extra backoff');
+  assert.ok(wakeTimes[0] <= Date.now() + 1_100, 'event floods are throttled for one second, not a full heartbeat');
+  assert.ok(checkpointed.has('absolute-backoff-check-0'), 'the original absolute heartbeat stays checkpointed');
 });
 
 test('an undeliverable grant is requeued after no-start lease expiry, without extending its queue window', async t => {
@@ -298,6 +393,8 @@ test('an undeliverable grant is requeued after no-start lease expiry, without ex
     async status() {return {status: 'running'};},
   };}};
   let firstLeaseToken;
+  const realNow = Date.now;
+  let simulatedNow = realNow();
   const step = {
     async do(_name, _options, action) {return action();},
     async waitForEvent(_name, {timeout}) {
@@ -311,9 +408,13 @@ test('an undeliverable grant is requeued after no-start lease expiry, without ex
       }
       throw Error('EVENT_WAIT_TIMEOUT');
     },
-    async sleepUntil() {},
+    async sleepUntil(_name, wakeAt) {simulatedNow = wakeAt;},
   };
-  const token = await waitForRenderAdmission(env, step, 'lost-event', ticket, 0);
+  let token;
+  try {
+    Date.now = () => Math.max(realNow(), simulatedNow);
+    token = await waitForRenderAdmission(env, step, 'lost-event', ticket, 0);
+  } finally {Date.now = realNow;}
   assert.notEqual(token, firstLeaseToken, 're-admission requires a fresh lease token');
   assert.equal(leases.get(id).token, token);
   assert.equal(stoppedShards.has(id), false, 'a never-bound ShardDO must be unfenced before its ticket is reused');
@@ -342,18 +443,47 @@ test('a stale buffered event and an expired Coordinator lease cannot revive the 
     async do(_name, _options, action) {return action();},
     async waitForEvent() {
       waitCount++;
-      assert.equal(waitCount, 1, 'an expired grant must not be returned directly from D1');
-      await env.SHARDS.getByName(id).stopAndSettle(false);
-      await env.COORDINATOR.getByName('global-v1').release(id, oldToken);
-      return {payload: {attemptId: id, leaseToken: oldToken}};
+      if (waitCount === 1) {
+        await env.SHARDS.getByName(id).stopAndSettle(false);
+        await env.COORDINATOR.getByName('global-v1').release(id, oldToken);
+        return {payload: {attemptId: id, leaseToken: oldToken}};
+      }
+      if (waitCount === 2) throw Error('EVENT_API_UNAVAILABLE');
+      return {payload: {attemptId: id, leaseToken: leases.get(id).token}};
     },
-    async sleepUntil() {backoffs++;},
+    async sleepUntil() {backoffs++; await dispatchRenderAdmissions(env);},
   };
   const recovered = await waitForRenderAdmission(env, step, 'stale-buffered', ticket, 0);
   assert.notEqual(recovered, oldToken);
   assert.equal(leases.get(id).token, recovered);
-  assert.equal(waitCount, 1);
-  assert.equal(backoffs, 1, 'stale events are paced instead of exhausting queue recovery checks');
+  assert.equal(waitCount, 1, 'the stale grant is revalidated and restored immediately');
+  assert.equal(backoffs, 0, 'a recoverable no-start ticket does not need to sleep at all');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+});
+
+test('a fresh grant arriving after a stale event wakes the same wait window before the queue cutoff', async t => {
+  const {db, env, leases, add, addTicket} = fixture(t);
+  const occupying = add('same-workspace'), pending = add('same-workspace');
+  const occupantId = addTicket(occupying), waitingId = addTicket(pending);
+  await dispatchRenderAdmissions(env);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(waitingId).status, 'queued');
+  const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId);
+  const ticket = {id:waitingId,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at};
+  let events = 0;
+  const step = {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent() {
+      if (++events === 1) return {payload: {attemptId:waitingId,leaseToken:'stale-buffered-token'}};
+      await env.SHARDS.getByName(occupantId).stopAndSettle(false);
+      await env.COORDINATOR.getByName('global-v1').release(occupantId, leases.get(occupantId).token);
+      await dispatchRenderAdmissions(env);
+      return {payload: {attemptId:waitingId,leaseToken:leases.get(waitingId).token}};
+    },
+    async sleepUntil() {assert.fail('a stale event must not suppress subsequent real grant events');},
+  };
+  const token = await waitForRenderAdmission(env, step, 'stale-then-fresh', ticket, 0);
+  assert.equal(token, leases.get(waitingId).token);
+  assert.equal(events, 2, 'the Workflow re-listened rather than waiting for the next 60-second heartbeat');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
 });
 

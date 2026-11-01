@@ -80,6 +80,7 @@ test('a D1 reservation committed before its response is lost can be stopped and 
   await assert.rejects(shard.execute(canonical(task)), /RENDER_STARTUP_CONNECTION_LOST/);
   assert.equal(reserveLost,true);
   assert.equal(memory.get('taskId'),id,'identity was durably bound before reservation');
+  assert.equal(memory.get('workFinished'), true, 'the completed failed coroutine persists its outcome across restarts');
   assert.equal(memory.has('startedAt'),false);
   assert.equal(starts,0);
   assert.equal(releases,1);
@@ -121,6 +122,18 @@ test('a still-running Shard coroutine cannot report an absent result as final', 
   finish();
   assert.deepEqual(parseCanonicalJson(await recovery).report,outcome.report);
   assert.equal(stops,1);
+});
+
+test('a restarted Shard with a bound unfinished request keeps the outcome unknown', async () => {
+  const expected={attemptId:'attempt-one',renderId:'render-one',operationId:'operation-one',generation:0,
+    leaseToken:'11111111-1111-4111-8111-111111111111'};
+  const memory = new Map([['requestHash', 'a'.repeat(64)], ['taskScope', expected]]);
+  const shard = Object.create(ShardDO.prototype);
+  shard.ctx = {storage: {async get(key) {return memory.get(key);}}};
+  await assert.rejects(shard.recoverCompletedResult(expected), /RENDER_ATTEMPT_OUTCOME_UNKNOWN/,
+    'a DO restart erases the in-memory Promise, not the uncertainty of its outcome');
+  memory.set('workFinished', true);
+  assert.equal(await shard.recoverCompletedResult(expected), null, 'a durable completed failure may be reconciled');
 });
 
 test('an observed running container without start time remains unknown across Shard restarts', async t => {
@@ -243,6 +256,38 @@ test('a late alarm only stops physical attempts belonging to its original lease 
     'started:stop', 'started:release',
     'regranted:release',
   ]);
+});
+
+test('one hung Shard stop cannot prevent other expired leases from releasing and rearming', async t => {
+  const leases = new Map([
+    ['stuck', {id:'stuck',token:'stuck-token',deadline:Date.now()-100}],
+    ['no-start', {id:'no-start',token:'free-token',deadline:Date.now()-100}],
+  ]);
+  const originalSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+    originalSetTimeout(callback, Math.min(ms, 15), ...args));
+  let rearmed = 0, stopCalls = 0;
+  const coordinator = Object.create(CoordinatorDO.prototype);
+  coordinator.ctx = {storage: {
+    sql: {exec(query) {
+      if (query.startsWith('SELECT * FROM leases')) return {toArray() {return [...leases.values()];}};
+      if (query.startsWith('SELECT id FROM leases')) return {toArray() {return [...leases.values()].slice(0, 1);}};
+      throw Error('UNEXPECTED_QUERY: ' + query);
+    }},
+    async getAlarm() {return null;}, async setAlarm() {rearmed++;},
+  }};
+  coordinator.env = {
+    DB: {prepare() {return {bind(id) {return {async first() {return id === 'stuck' ? {id} : null;}};}};}},
+    SHARDS: {getByName() {return {async stopAndSettle() {stopCalls++; return new Promise(() => {});}};}},
+  };
+  coordinator.release = async (id, token) => {
+    assert.equal(token, leases.get(id)?.token);
+    leases.delete(id);
+  };
+  await coordinator.alarm();
+  assert.equal(stopCalls, 1);
+  assert.deepEqual([...leases.keys()], ['stuck'], 'the unconfirmed stop remains counted against capacity');
+  assert.equal(rearmed, 1, 'a failed cleanup never suppresses the next alarm');
 });
 
 test('an expired unknown-token lease still stops and settles an existing physical attempt without an admission', async t => {

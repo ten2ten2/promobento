@@ -33,7 +33,8 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       if (!release || release.runtime_version !== NATIVE_COMMIT) throw Error('RENDER_ENVIRONMENT_MISMATCH');
       const operationDeadlineAt = Number(row.operation_deadline_at);
       if (!Number.isSafeInteger(operationDeadlineAt) || operationDeadlineAt <= Date.now()) throw Error('RENDER_OPERATION_DEADLINE');
-      const rendered = await runNativeRenderTask(this.env, step, {renderId: row.id, op, input, imageDigest: release.image_digest});
+      const rendered = await runNativeRenderTask(this.env, step, {renderId: row.id, op, input,
+        imageDigest: release.image_digest, operationDeadlineAt});
       const result = parseCanonicalJson(await step.do('verify-and-commit-native-render', {retries: {limit: 0, delay: '1 second'}}, async () => {
         if (Date.now() >= operationDeadlineAt) throw Error('RENDER_OPERATION_DEADLINE');
         await operation(this.env, op.id, op.generation);

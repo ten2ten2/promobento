@@ -171,9 +171,17 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
       throw Error('Network connection lost.');
     }, async stopAndSettle() {stops++;}, async isStopped() {return true;},
   };}};
-  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent, async sleep() {assert.fail('an unresolved reservation cannot authorize a retry');}};
-  await assert.rejects(runNativeRenderTask(env, step, {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)}), /RENDER_RPC_CONNECTION_LOST/);
-  assert.equal(executions, 1); assert.equal(stops, 1);
+  const realNow = Date.now, deadlineAt = realNow() + 100;
+  let simulatedNow = realNow();
+  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent,
+    async sleepUntil(_name, wakeAt) {simulatedNow = wakeAt;},
+    async sleep() {assert.fail('an unresolved reservation cannot authorize a retry');}};
+  try {
+    Date.now = () => Math.max(realNow(), simulatedNow);
+    await assert.rejects(runNativeRenderTask(env, step, {renderId: 'native-render', op, input,
+      imageDigest: 'sha256:' + 'a'.repeat(64), operationDeadlineAt: deadlineAt}), /RENDER_ATTEMPT_OUTCOME_UNKNOWN/);
+  } finally {Date.now = realNow;}
+  assert.equal(executions, 1); assert.ok(stops >= 1, 'reconciliation may repeat stop, but never relaunch compute');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 0);
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations').get().reserved_micros, 500);
@@ -385,7 +393,7 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
     async isStopped() {return true;},
     async stopAndSettle() {assert.fail('the settled Shard success must not be marked as failed');},
   };}};
-  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent};
+  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent, async sleepUntil() {}};
   const result = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)});
   assert.equal(result.status, 'succeeded');
   assert.deepEqual(result.report, savedResult.report);
@@ -393,6 +401,78 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
   assert.equal(executions, 1);
   assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status, 'succeeded');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+});
+
+test('a success materialized after the physical deadline and repeated unknown reads remains recoverable', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const coordinator = env.COORDINATOR.getByName('global-v1');
+  const result = {status:'succeeded',outputs:[],report:{fixture:'late durable success'}};
+  let executions = 0, recoveries = 0, stops = 0, waits = 0;
+  env.SHARDS = {getByName(id) {return {
+    async execute(text) {
+      executions++;
+      await reserve(env, op, id, 'compute', 'render', 500, parseCanonicalJson(text), 'fixture', 10000000);
+      await settle(env, id, 10, {fixture:'confirmed'});
+      await coordinator.release(id, parseCanonicalJson(text).leaseToken);
+      db.prepare('UPDATE pipeline_render_admissions SET attempt_deadline_at=? WHERE id=?').run(Date.now()-1, id);
+      throw Error('Network connection lost.');
+    },
+    async recoverCompletedResult(scope) {
+      assert.equal(scope.attemptId, id);
+      if (++recoveries <= 5) throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
+      db.prepare("UPDATE pipeline_attempts SET status='stopped',stopped_at=? WHERE id=?").run(Date.now(), id);
+      return canonical(result);
+    },
+    async stopAndSettle() {stops++;}, async isStopped() {return true;},
+  };}};
+  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent,
+    async sleepUntil() {waits++;}, async sleep() {assert.fail('late success cannot spend a second physical attempt');}};
+  const recovered = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,
+    imageDigest:'sha256:'+'a'.repeat(64)});
+  assert.deepEqual(recovered.report, result.report);
+  assert.equal(executions, 1); assert.ok(stops >= 2); assert.ok(waits >= 1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status, 'succeeded');
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders').get().status, 'rendering');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+});
+
+test('a hung Shard recovery RPC cannot prevent the operation deadline from being observed', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalSetTimeout = globalThis.setTimeout, realNow = Date.now;
+  t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+    originalSetTimeout(callback, Math.min(ms, 15), ...args));
+  const operationDeadlineAt = realNow() + 100;
+  let simulatedNow = realNow(), executions = 0, recoveries = 0, stops = 0;
+  env.SHARDS = {getByName(id) {return {
+    async execute() {
+      executions++;
+      db.prepare('UPDATE pipeline_render_admissions SET attempt_deadline_at=? WHERE id=?').run(Date.now()-1, id);
+      throw Error('Network connection lost.');
+    },
+    async recoverCompletedResult() {recoveries++; return new Promise(() => {});},
+    async stopAndSettle() {stops++; return new Promise(() => {});},
+    async isStopped() {return false;},
+  };}};
+  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent,
+    async sleepUntil(_name, wakeAt) {simulatedNow = wakeAt;},
+    async sleep() {assert.fail('an unknown attempt cannot be requeued');}};
+  try {
+    Date.now = () => Math.max(realNow(), simulatedNow);
+    await assert.rejects(runNativeRenderTask(env, step, {renderId:'native-render',op,input,
+      imageDigest:'sha256:'+'a'.repeat(64), operationDeadlineAt}), /RENDER_ATTEMPT_OUTCOME_UNKNOWN/);
+  } finally {Date.now = realNow;}
+  assert.equal(executions, 1);
+  assert.ok(recoveries >= 2 && stops >= 1, 'each hanging request is bounded and retried without a duplicate launch');
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders').get().status, 'rendering');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
 });
 
@@ -487,6 +567,56 @@ test('a settled platform failure retries with a new attempt; durable replay cann
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 2);
   assert.deepEqual((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId);
   assert.equal(executions, 2);
+});
+
+test('a lost platform-retry checkpoint requeues the confirmed failed attempt on Workflow replay', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const cached = new Map(), reservations = new Set();
+  let executions = 0, interrupted = false;
+  env.SHARDS = {getByName(id) {return {
+    async recoverCompletedResult() {return null;},
+    async execute(text) {
+      executions++;
+      await reserve(env, op, id, 'compute', 'render', 500, parseCanonicalJson(text), 'fixture', 10000000, op.max_micros);
+      reservations.add(id);
+      if (executions === 1) throw Error('RENDER_STARTUP_TIMEOUT');
+      await settle(env, id, 10, {fixture:'confirmed'});
+      return canonical({status:'succeeded',outputs:[],report:{fixture:'retry'}});
+    },
+    async stopAndSettle() {if (reservations.has(id)) await settle(env, id, 10, {fixture:'confirmed'});},
+    async isStopped() {return true;},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (cached.has(name)) return cached.get(name);
+      const result = await args.at(-1)();
+      if (name === 'native-project' && !interrupted) {
+        interrupted = true;
+        throw Error('SIMULATED_RETRY_CHECKPOINT_LOSS');
+      }
+      cached.set(name, result);
+      return result;
+    },
+    waitForEvent, async sleep() {},
+  };
+  const context = {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)};
+  await assert.rejects(runNativeRenderTask(env, step, context), /SIMULATED_RETRY_CHECKPOINT_LOSS/);
+  const failed = db.prepare('SELECT id,status,stopped_at,result_json FROM pipeline_attempts').get();
+  assert.equal(failed.status, 'failed');
+  assert.ok(failed.stopped_at);
+  assert.equal(parseCanonicalJson(failed.result_json).code, 'RENDER_STARTUP_TIMEOUT');
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions').get().status, 'released');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 1);
+  assert.equal(cached.has('native-project'), false);
+  const result = await runNativeRenderTask(env, step, context);
+  assert.equal(result.status, 'succeeded');
+  assert.equal(executions, 2, 'the first physical attempt is never executed again');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 2);
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders').get().status, 'rendering');
 });
 
 test('terminal media commit and notification are atomic and replayable; cancellation fences publication', async t => {

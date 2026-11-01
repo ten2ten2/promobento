@@ -108,21 +108,30 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
     if (existing === null || existing > next) await this.ctx.storage.setAlarm(next);
   }
   async alarm() {
-    const leases = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE deadline<=?', Date.now()).toArray();
-    for (const lease of leases) {
-      try {
-        // Do not stop a never-started Shard. In particular, an alarm holding a
-        // stale snapshot must not stop a NEW grant reusing this ticket ID.
-        const physical = await this.env.DB.prepare(`SELECT p.id FROM pipeline_attempts p
-          LEFT JOIN pipeline_render_admissions a ON a.id=p.id
-          WHERE p.id=? AND (a.id IS NULL OR a.lease_token=?)`)
-          .bind(String(lease.id), String(lease.token)).first();
-        if (physical) await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false);
-        await this.release(String(lease.id), String(lease.token));
-      }
-      catch { /* A deadline is not proof of stopped compute or settled usage. */ }
+    try {
+      const leases = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE deadline<=?', Date.now()).toArray();
+      // A stuck storage or Shard RPC cannot hold every other expired slot hostage.
+      // The timed-out lease stays counted until a later confirmed stop/settlement.
+      await Promise.allSettled(leases.map(async lease => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([(async () => {
+            // An old alarm snapshot must not stop a re-granted ticket's Shard.
+            const physical = await this.env.DB.prepare(`SELECT p.id FROM pipeline_attempts p
+              LEFT JOIN pipeline_render_admissions a ON a.id=p.id
+              WHERE p.id=? AND (a.id IS NULL OR a.lease_token=?)`)
+              .bind(String(lease.id), String(lease.token)).first();
+            if (physical) await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false);
+            await this.release(String(lease.id), String(lease.token));
+          })(), new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(Error('RENDER_LEASE_CLEANUP_TIMEOUT')), 10_000);
+          })]);
+        } catch { /* An unconfirmed physical stop/settlement never frees capacity. */ }
+        finally {if (timer !== undefined) clearTimeout(timer);}
+      }));
+    } finally {
+      if (this.ctx.storage.sql.exec('SELECT id FROM leases LIMIT 1').toArray().length) await this.arm();
     }
-    if (this.ctx.storage.sql.exec('SELECT id FROM leases LIMIT 1').toArray().length) await this.arm();
   }
   async counts() { return this.ctx.storage.sql.exec('SELECT workspace,kind,COUNT(*) AS count FROM leases GROUP BY workspace,kind').toArray(); }
 }
@@ -188,7 +197,14 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       } finally {if (timer !== undefined) clearTimeout(timer);}
     }
     const result = await this.ctx.storage.get<Json>('result');
-    if (!result) return null;
+    if (!result) {
+      // After an isolate restart this.work is gone. A bound task without a
+      // durable completion marker may still be committing its final result.
+      // A container stop alone cannot turn that unknown outcome into failure.
+      if (await this.ctx.storage.get<string>('requestHash')
+        && !await this.ctx.storage.get<boolean>('workFinished')) throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
+      return null;
+    }
     const scope = await this.ctx.storage.get<typeof expected>('taskScope');
     if (!scope || scope.attemptId !== expected.attemptId || scope.renderId !== expected.renderId
       || scope.operationId !== expected.operationId || scope.generation !== expected.generation
@@ -318,6 +334,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       try {
         await this.stopAndSettle();
       } catch (error) { if (failed) throw failure; throw error; }
+      // Persist the coroutine's conclusion across Durable Object restarts.
+      // Missing evidence is unknown, never permission to retry paid compute.
+      await this.ctx.storage.put('workFinished', true);
     }
   }
   private async finishCost(id: string, instance: string, startedAt?: number) {
