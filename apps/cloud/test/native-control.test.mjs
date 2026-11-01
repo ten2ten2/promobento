@@ -377,6 +377,7 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
       assert.equal(scope.attemptId, id);
       assert.equal(scope.operationId, op.id);
       assert.equal(scope.generation, op.generation);
+      if (recovered <= 2) throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
       await env.DB.prepare("UPDATE pipeline_attempts SET status='stopped',stopped_at=? WHERE id=?")
         .bind(Date.now(), id).run();
       return canonical(savedResult);
@@ -388,7 +389,7 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
   const result = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)});
   assert.equal(result.status, 'succeeded');
   assert.deepEqual(result.report, savedResult.report);
-  assert.equal(recovered, 1);
+  assert.equal(recovered, 3, 'a still-pending outcome must remain recoverable across repeated unknown reads');
   assert.equal(executions, 1);
   assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status, 'succeeded');
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 1);

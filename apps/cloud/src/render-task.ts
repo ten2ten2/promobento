@@ -38,7 +38,7 @@ async function completedRenderAttempt(env: PipelineEnv, op: Operation, renderId:
 /** A lost Shard RPC can leave its durable success ahead of the D1 attempt row. */
 async function reconcileShardSuccess(env: PipelineEnv, op: Operation, renderId: string,
   attemptId: string, index: number, mode: string): Promise<Json | null> {
-  const row = await env.DB.prepare(`SELECT a.lease_token FROM pipeline_attempts p
+  const row = await env.DB.prepare(`SELECT a.lease_token,a.attempt_deadline_at FROM pipeline_attempts p
     JOIN pipeline_render_admissions a ON a.id=p.id
     JOIN pipeline_renders r ON r.id=p.render_id
     JOIN pipeline_operations o ON o.id=p.operation_id
@@ -50,10 +50,25 @@ async function reconcileShardSuccess(env: PipelineEnv, op: Operation, renderId: 
       AND r.generation=p.generation AND r.status IN ('rendering','verifying')
       AND o.generation=p.generation AND o.status='active'`)
     .bind(attemptId, renderId, op.id, op.generation, 'native_' + mode, index, op.workspace_id)
-    .first<{lease_token: string}>();
+    .first<{lease_token: string; attempt_deadline_at: number}>();
   if (!row) return null;
-  const stored = await env.SHARDS.getByName(attemptId).recoverCompletedResult({attemptId, renderId,
-    operationId: op.id, generation: op.generation, leaseToken: row.lease_token});
+  const shard = env.SHARDS.getByName(attemptId);
+  const scope = {attemptId, renderId, operationId: op.id, generation: op.generation, leaseToken: row.lease_token};
+  let stored: string | null;
+  for (;;) {
+    try {stored = await shard.recoverCompletedResult(scope); break;}
+    catch (error) {
+      if (String((error as {message?: unknown})?.message ?? error) !== 'RENDER_ATTEMPT_OUTCOME_UNKNOWN') throw error;
+      if (Date.now() >= row.attempt_deadline_at) {
+        // A pending coroutine cannot authorize a second paid attempt. Stop at
+        // the physical deadline, reconcile usage, then inspect the last result.
+        await shard.stopAndSettle();
+        stored = await shard.recoverCompletedResult(scope);
+        break; // Still unknown throws rather than spending another attempt.
+      }
+      await new Promise(resolve => setTimeout(resolve, Math.min(250, Math.max(1, row.attempt_deadline_at - Date.now()))));
+    }
+  }
   if (!stored) return null;
   const result = parseCanonicalJson(stored) as Json;
   if (!result || typeof result !== 'object' || Array.isArray(result) || result.status !== 'succeeded')
