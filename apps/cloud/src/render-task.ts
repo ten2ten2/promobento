@@ -451,9 +451,17 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
             if (finished === outcomePending) return canonical({kind: 'render_outcome_pending', attemptId});
             if (finished) return canonical(finished);
           }
-          if ((code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED')
-            && await canRetryUnstartedAdmission(env, op, renderId, ticket, index))
-            return canonical({kind: 'render_admission_retry'});
+          if (code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED') {
+            try {
+              if (await bounded(canRetryUnstartedAdmission(env, op, renderId, ticket, index)))
+                return canonical({kind: 'render_admission_retry'});
+            } catch (readError) {
+              if (!isUnknownRecovery(readError)) throw readError;
+              // A transient no-start recheck cannot prove it is safe to requeue.
+              // The outer recovery loop will revalidate absent physical work.
+              return canonical({kind: 'render_outcome_pending', attemptId});
+            }
+          }
           throw error;
         }
         const payload = {schemaVersion: '1.0.0', kind: 'native_render_task', taskId: attemptId,
@@ -499,10 +507,15 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
         }
       })) as Json;
       if (result.kind !== 'render_admission_retry') {
-        value = result.kind === 'render_outcome_pending'
-          ? await waitForPendingOutcome(env, step, roundName, op, renderId, attemptId, index,
-            input.mode, operationDeadlineAt, result.code)
-          : result;
+        if (result.kind === 'render_outcome_pending') {
+          // A fenced claim may have created no physical attempt at all. A
+          // transient confirmation read must not turn its cached pending step
+          // into an operation-long wait or consume a paid physical retry.
+          const pending = await waitForPendingOutcome(env, step, roundName, op, renderId, attemptId, index,
+            input.mode, operationDeadlineAt, result.code, true);
+          if (pending.kind === 'render_admission_unstarted') continue;
+          value = pending;
+        } else value = result;
         break;
       }
     }

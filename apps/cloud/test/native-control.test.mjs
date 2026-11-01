@@ -234,7 +234,7 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations').get().reserved_micros, 500);
 });
 
-for (const scenario of ['released-before-claim', 'lease-expired-during-extend']) {
+for (const scenario of ['released-before-claim', 'lease-expired-during-extend', 'lost-read-after-release', 'lost-no-start-recheck']) {
   test('a grant ' + scenario + ' is recovered without spending a physical retry', async t => {
     const {db, env, op, saved, objects} = await fixture(t);
     const waitForEvent = fakeAdmission(env);
@@ -243,7 +243,29 @@ for (const scenario of ['released-before-claim', 'lease-expired-during-extend'])
     const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
     const coordinator = env.COORDINATOR.getByName('global-v1');
     const checkpointed = new Map();
-    let expired = false, oldToken, resets = 0, executions = 0;
+    let expired = false, oldToken, resets = 0, executions = 0, readLost = false;
+    if (scenario === 'lost-read-after-release') {
+      const originalDB = env.DB;
+      env.DB = {...originalDB, prepare(sql) {
+        const prepared = originalDB.prepare(sql);
+        if (!sql.includes('SELECT p.result_json FROM pipeline_attempts p') || !sql.includes("p.status='succeeded'")) return prepared;
+        return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+          if (expired && !readLost) {readLost = true; throw Error('Network connection lost.');}
+          return prepared.first();
+        }};
+      }};
+    }
+    if (scenario === 'lost-no-start-recheck') {
+      const originalDB = env.DB;
+      env.DB = {...originalDB, prepare(sql) {
+        const prepared = originalDB.prepare(sql);
+        if (!sql.includes('SELECT a.id FROM pipeline_render_admissions a')) return prepared;
+        return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+          if (expired && !readLost) {readLost = true; throw Error('Network connection lost.');}
+          return prepared.first();
+        }};
+      }};
+    }
     if (scenario === 'lease-expired-during-extend') {
       const originalExtend = coordinator.extend.bind(coordinator);
       coordinator.extend = async (...args) => {
@@ -269,7 +291,7 @@ for (const scenario of ['released-before-claim', 'lease-expired-during-extend'])
     const step = {
       async do(name, ...args) {
         if (!checkpointed.has(name)) {
-          if (scenario === 'released-before-claim' && name === 'native-project' && !expired) {
+          if (['released-before-claim','lost-read-after-release','lost-no-start-recheck'].includes(scenario) && name === 'native-project' && !expired) {
             const row = db.prepare('SELECT id,lease_token FROM pipeline_render_admissions').get();
             expired = true; oldToken = row.lease_token;
             await coordinator.release(row.id, row.lease_token);
@@ -285,6 +307,8 @@ for (const scenario of ['released-before-claim', 'lease-expired-during-extend'])
     const result = await runNativeRenderTask(env, step, context);
     assert.equal(result.status, 'succeeded');
     assert.equal(expired, true);
+    assert.equal(readLost, ['lost-read-after-release','lost-no-start-recheck'].includes(scenario));
+    if (readLost) assert.equal(parseCanonicalJson(checkpointed.get('native-project')).kind, 'render_outcome_pending');
     assert.equal(resets, 1);
     assert.equal(executions, 1);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
