@@ -31,7 +31,7 @@
 
 `facts_result` 返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 与 `unconfirmedFactIds`。非空 `revisionId` 必须等于同一响应的 `currentRevisionId`；`unconfirmedFactIds` 必须与该响应中确认字段为 null 的事实 ID 集合完全一致，不能漏报、多报或仅比较数量。校验以同一响应快照为准；幂等重放原成功结果时，不与后来推进的当前草稿比较。实际事务及重放服务仍按 §1 的数据库要求实现。
 
-`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变 Composition。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`、`activeMediaJobIds` 和 `activeReleaseIds`，刷新后按这些引用恢复任务。`jobs.get` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，交付使用 `exports.get`，并返回实际候选或产物引用。
+`qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变原生工程。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`、`activeMediaJobIds` 和 `activeReleaseIds`，刷新后按这些引用恢复任务。`jobs.get` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，交付使用 `exports.get`，并返回实际候选或产物引用。
 
 ### 数据库约束清单
 
@@ -62,7 +62,7 @@
 
 **音频冻结要求：** 声音事件使用稳定身份，插入或重排不能使画面标记指向另一事件。冻结保存实际音源、使用依据、时间区间、源内偏移、增益、淡入淡出及实际采用的增益曲线；源范围不能超过真实解码时长，缺省值必须由固定实现明确记录。事件与混音文件均须可复现，不能只保存模型的声音计划。
 
-保留的[声音计划](../../contracts/audio-plan.schema.json)与[音乐准入](../../contracts/audio-admission.schema.json)服务声音/素材辅助结构，不能据其存在宣称客户音乐服务已完成。实际使用的乐谱、上传音轨、派生文件及片长须与来源证据一致；许可来自可信记录，作品不能自签。原生导演的声音方法见[13](13-agent-native-production.md#5-声音与实际时间)，客户冻结仍须满足本节的实际文件与声音要求。
+实际乐谱、上传音轨、派生文件及片长须与来源证据一致，使用依据来自可信记录。原生声音方法见[13](13-agent-native-production.md#5-声音与实际时间)；历史声音计划与试听证据继续保留，客户冻结仍须满足本节要求。
 
 有声交付统一48kHz、双声道；30fps下一帧对应1,600个音频采样帧。冻结母带须与实际片长一致，路径、原始字节摘要、采样率、声道、采样长度和处理版本由可信解码/执行记录确认。用户选择静音时不伪造音轨；编码前导/尾部按[06](06-testing-and-release.md)的有效播放区间检查。
 
@@ -131,11 +131,7 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 
 ## 5 RenderProtocol
 
-旧页面命令、PB.scene 和 shard/assemble 协议已经退役。新内部渲染请求携带 operationId、generation、renderId、revisionId、rendererRelease、runtimeVersion 和 NativeProject；只有 `preview` 与 `export` 两种模式。请求先通过预编译 Schema，再核对路径、固定 composition、输入字节与实际 release。作品本身不能决定预算、存储权限、目标编码或付费动作。
-
-`preview` 在同一任务实例调用上游 capture，默认四个实际时刻；指定时刻必须位于 `[0,(N-1)/30]`，总数不超过十二，N 为 450 或 900。`export` 原生逐帧渲染整片并混音，再执行交付编码校验。输出有原生预览 PNG、最终 MP4、最终 MP4 的解码抽帧／接触表、实际完整工程和 report，各自固定原始字节摘要；HTML 预览不能冒充已编码输出。
-
-Worker 只有在所有报告和输出已写入 R2、hash／尺寸／帧时间／实际工程身份一致且 operation generation 有效后才原子提交。失败或取消先封锁后续 attempt，确认物理停止后结算和归还容量。新渲染不能借助旧 shard 回执通过校验。旧回执和发布镜像继续按原历史身份保留。
+当前 `preview` / `export` 的请求字段、内部任务、实际产物核验与停止结算统一见[云端说明](../../apps/cloud/README.md#工程与任务)，容器执行边界见[渲染服务](../../apps/render-container/README.md)。旧执行协议已退役，历史回执和镜像按原身份保留。
 
 原生编辑允许明确的原文件替换或变量更新，必须携带 baseRevision／原生 baseToken；冲突保留原稿与修改建议，不能悄悄覆盖新的版本。时间批注固定保存时的版本、帧和可选 elementId。当前已实现内部改稿编排及不可变版本，客户实时播放器、点选和并发草稿 UI 尚未实现。
 
@@ -160,7 +156,7 @@ Worker 只有在所有报告和输出已写入 R2、hash／尺寸／帧时间／
 
 客户费用事件须绑定稳定费用项、幂等观察ID、整数usdMicros及estimated/actual/reconciled状态。已有成本项结算或修正追加带原因的替代事件，不覆盖历史；汇总同一费用项最后有效观察，不能把估算与实收叠加。替代须同费用项/同scope且线性唯一，幂等与仲裁在真实数据库实施。project/shared scope、模型/价格版本、operation/attempt及用量单位明确，未知用量保留null。当前内部账本仍按现有预留/结算实现保存，不能因客户数据模型调整而重算或删除历史。
 
-每次计费调用前，在 operation 已用及在途费用之外原子预留最坏成本，结束后结算实际 usage；未知结果继续占上限待对账。子模型、ASR、审核、多目标和修复共用 operation 上限，换 attempt 不重置。退次数不退系统费用；超额如实记录并停止新调用，不截掉账单。可选提示词审核的调用边界和数据处理见04/09及 [content-safety](../../config/content-safety.json)，默认关闭的参考适配不代表生产审核已经接通。
+每次计费调用前，在 operation 已用及在途费用之外原子预留最坏成本，结束后结算实际 usage；未知结果继续占上限待对账。子模型、ASR、审核、多目标和修复共用 operation 上限，换 attempt 不重置。退次数不退系统费用；超额如实记录并停止新调用，不截掉账单。客户提示词审核尚未接入，调用边界和数据处理按[04](04-architecture-and-data.md#可选提示审核)实施。
 
 内部研究模型还受同一授权的跨环境总额约束：独立共享 `MODEL_LEDGER` 累加负责人确认的全部历史费用、各环境实际费用与未结预留；环境 `DB` 保留操作/阶段准入。历史清单及确认使用 [model-spend 契约](../../contracts/model-spend.schema.json)，缺价格/usage 不记作零。历史总额未确认时默认不发新付费请求；负责人明确允许有限继续研究时，可在[模型授权](../../config/model-authorization.json)登记有期限的 `unreconciledHistoryAllowance`，绑定原历史清单摘要、staging 环境、历史风险预留与累计新增上限。风险预留占用原授权总额，所有新操作/部署的实际与未知预留共同受较小上限原子约束；不用于 production，不改写 `openingMicros:null` 或 `openingConfirmed:false`，到期或清单不匹配即停止。风险预留不是已核实账单，历史仍待对账；获得真实确认后继续按原授权累计现有新费用。授权身份不因目录、绑定或临时放行变更重置。原始响应和当时计价依据先持久化，再解析/结算；补账重用原响应，不重发、不按新价重算。客户窗口和成功次数仍按本节另行实施。
 
@@ -204,7 +200,7 @@ Worker 只有在所有报告和输出已写入 R2、hash／尺寸／帧时间／
 
 ## 8 事实与QA授权
 
-FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允许确认字段同时为 null；本地候选可提示待确认，正式预检、可信 ready 预览与商业冻结必须已确认且有相应依据。绑定的 expectedText 必须与事实原文一致。仅确认或补证不改写既有 Composition；正文改变则按 §1 同步事实、参数和绑定，生成新 revision。构建检查只能证明已声明的 values 与事实一致，不能自动认出源码硬编码、纹理、Canvas 或旁白中的所有商业句子；这些仍需运行时、像素/语音检查及覆盖说明。
+FactManifest 固定事实版本、原文、证据和确认人/时间。草稿允许确认字段同时为 null；本地候选可提示待确认，正式预检、可信 ready 预览与商业冻结必须已确认且有相应依据。绑定的 expectedText 必须与事实原文一致。仅确认或补证不改写既有原生工程；正文改变则按 §1 同步事实、参数和绑定，生成新 revision。构建检查只能证明已声明的 values 与事实一致，不能自动认出源码硬编码、纹理、Canvas 或旁白中的所有商业句子；这些仍需运行时、像素/语音检查及覆盖说明。
 
 证据登记须绑定workspace/project、来源字节和确认文案摘要。分类与撤销同时绑定项目、factId、版本和原文摘要，不能只按factId查找。新冻结检查当前事实；已购导出读取冻结的历史事实与证据。普通改稿不撤销旧作品，明确撤销才阻止相关输出。此机制核对来源和确认，不自动认证事实真伪。
 
@@ -226,7 +222,7 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 输出审核须从可信回执及覆盖记录推导，不能传入单一布尔值代替。候选绑定目标、实际工程内容、解读与影响摘要；计划绑定实际方向/Treatment/声音内容；本地预览绑定获准原生revision，媒体预览和交付绑定实际字节摘要。只有不可变内容与策略仍一致，才可由可信服务关联新的operation/revision；当前撤销状态仍必查，改文字不能自行推定视觉、布局或音频未受影响。
 
-覆盖清单的 `sourceRange` 固定 `kind`（video/image）、`sourceFrameCount` 和源时间线半开区间 `frameStart/frameEndExclusive`；纯文本为 null。候选和本地运行时预览覆盖实际 revision 的完整450/900帧，成片覆盖冻结 Composition 全片，封面覆盖实际 `coverFrame`，截图覆盖请求起点一帧，片段覆盖实际截取区间。视频 `frameCount` 为区间长度，`durationMs = ceil(frameCount × 1000 / 30)`；图片为1帧且时长为 null。清单内 `frames[].frameIndex` 相对本次输出从0开始，镜头标记从源绝对帧换算；不同区间即使帧数相同也不能互换。
+覆盖清单的 `sourceRange` 固定 `kind`（video/image）、`sourceFrameCount` 和源时间线半开区间 `frameStart/frameEndExclusive`；纯文本为 null。候选和本地运行时预览覆盖实际 revision 的完整450/900帧，成片覆盖冻结原生工程全片，封面覆盖实际 `coverFrame`，截图覆盖请求起点一帧，片段覆盖实际截取区间。视频 `frameCount` 为区间长度，`durationMs = ceil(frameCount × 1000 / 30)`；图片为1帧且时长为 null。清单内 `frames[].frameIndex` 相对本次输出从0开始，镜头标记从源绝对帧换算；不同区间即使帧数相同也不能互换。
 
 客户输出审核的最低覆盖要求保留：首末帧、从输出第0帧起每30帧，以及范围内全部可信镜头标记；额外采样只能增加。策略版本、实际源范围、片长与标记须由可信服务登记并从原生工程/实际媒体核对，缺覆盖时拒绝，不能复制待审回执自证。此服务尚未接入；原生导出的四帧冷审不是完整输出安全覆盖。1秒间隔也不证明能发现所有瞬间，实际模态观察、连续音频、审核结论及撤销状态仍须同时成立。
 

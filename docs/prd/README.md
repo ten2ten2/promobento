@@ -26,17 +26,16 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、响度目标、renderProfiles 与来源 |
+| [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、响度目标与来源 |
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 客户页面/API规划与身份策略；不是已部署入口 |
 | [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态、渲染期限、单位成本目标与公开能力边界 |
 | [模型与步骤绑定](../../config/model-providers.json)、[模型授权](../../config/model-authorization.json) | 供应商、价格目录、各导演步骤的模型及其授权上限 |
-| [输入审核](../../config/content-safety.json) | 默认关闭的提示词审核参考适配；客户预览与输出审核要求见 04/14，尚待接入 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |
 | [UI tokens](../../config/ui-tokens.json)、[主题tokens](../../config/theme-tokens.json) | 字体、尺寸、间距、明暗配色及对比度要求 |
 | [共享契约库](../../packages/contracts/README.md)、[固定摘要向量](../../packages/contracts/test/canonical-vectors.json)、[Schema 回归用例](../../packages/contracts/test/schema-vectors.json) | JCS、严格 JSON、Ajv 与 Worker 预编译验证器；原生项目路径／字节／画幅、模型费用与平台目标 |
 | [原生工程](../../contracts/native-project.schema.json)、[导演工具](../../contracts/agent-tools.schema.json)、[事实整理](../../contracts/director-analysis.schema.json)、[方向卡](../../contracts/direction.schema.json)、[素材理解](../../contracts/asset-insight.schema.json)、[视频帧包](../../contracts/video-frame-manifest.schema.json) | 原生工程 1.0.0、导演及素材结构；当前内部用法见各实现，结构存在不代表客户服务已完成 |
-| [声音计划](../../contracts/audio-plan.schema.json)、[音乐准入](../../contracts/audio-admission.schema.json)、[模型配置](../../contracts/model-config.schema.json)、[模型费用](../../contracts/model-spend.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | 声音与素材辅助契约、模型授权/用量，以及离线单位经济分析 |
+| [模型配置](../../contracts/model-config.schema.json)、[模型费用](../../contracts/model-spend.schema.json)、[单位经济](../../contracts/unit-economics.schema.json) | 模型授权/用量与离线单位经济分析 |
 | [原生运行时](../../packages/native-motion/README.md)、[渲染容器](../../apps/render-container/README.md) | 完整上游调用、普通工程文件、真实预览、整片导出与隔离边界 |
 | [内部云端 API](../../apps/cloud/README.md#内部-api)、[原生工程回归样例](../../packages/contracts/test/native-project.test.mjs) | 实际内部入口与原生版本边界；客户购买、快照与交付按 14 后续实现 |
 | [CI](../../.github/workflows/checks.yml) | main/PR 的固定工具链检查；运行结果随提交 |

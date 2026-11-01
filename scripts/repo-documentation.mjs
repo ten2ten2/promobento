@@ -290,7 +290,7 @@ export function checkDocumentation(root,files,{publicContext={},routes=[]}={}) {
   return {errors,documents:documents.size,links:count};
 }
 
-const executionFields=['productLimits','encodingProfiles','aspectLayouts','presets','renderProfiles','defaultRenderProfile'];
+const executionFields=['productLimits','encodingProfiles','aspectLayouts','presets'];
 export function platformExecutionProjection(config) {
   const projection={};
   for (const key of executionFields) if (Object.hasOwn(config,key)) projection[key]=config[key];

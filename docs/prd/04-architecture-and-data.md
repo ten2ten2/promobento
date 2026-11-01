@@ -55,15 +55,13 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 可选提示审核
 
-[内容审核配置](../../config/content-safety.json)提供可选的 Waffo Prompt Sift，默认关闭，开关和凭据只在可信后台。`creative_generate`、`agent_patch`、`prepare_targets` 中每次产生新内容的模型调用，在发送前审核；纯编码、已审核内容的重放和自动保存不重复扫描。
+客户输入审核尚未接入；Waffo Prompt Sift 是可选提供方，只覆盖输入。`creative_generate`、`agent_patch`、`prepare_targets` 每次产生新内容前须审核实际生成上下文；纯编码、已审核内容的重放和自动保存不重复扫描。来源和启用前条件见[09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
 
-选用该提供方时，可信编排器用 `generationScanInputForRequest` 映射业务请求，再由 `generationScanInput` 组装本次任务、用户指令、事实文字（含相关素材提取文字）、转写、批注和实际参与生成的可编辑文本。无独立 instruction 的批注改稿和目标准备不伪造指令；至少一项须有实际内容。固定 JSON 结构保留原文与次序，不发送整仓源码、二进制附件、支付资料、固定系统提示或凭据。结果绑定 operationId、generationId 和完整送审文本；输入或生成调用变化不能沿用旧结果。
+可信编排器组装本次任务、用户指令、事实及相关素材文字、转写、批注和实际参与生成的可编辑文本，保留原文与次序。无独立指令时不伪造，至少一项有实际内容；不发送整仓源码、二进制、支付资料、固定系统提示或凭据。结果绑定 operationId、generationId 和完整送审文本，输入或生成调用变化须重新审核。
 
-组装和长度预检在排队、次数及费用预留前执行。`generationScanBudget` 的 `sections` 和 `textCodePoints` 统计原文，`formatCodePoints` 统计字段、标点与转义开销；二者之和等于实际发送的规范 JSON 总长 `totalCodePoints`。它只返回数字，空段原文用量为 0。上限取 `content-safety.maxPromptCharacters`，按 Unicode code point 计数；提供方具体计数边界仍待实测。这只限制本次选中且实际交给模型的生成上下文，不限制项目保存容量，也不替代模型上下文限制或美元预算。超限返回 422 `PROMPT_TOO_LONG` 并保留原稿，提示缩小本次材料范围；不静默截断、摘要或丢弃已选文字，错误和日志不回传原文。实际界面与服务仍需接入。
+排队及预留前，前后端对同一份规范 JSON 按 Unicode code point 计数：原文分项用量加格式、标点及转义开销，等于实际发送总长，空段原文为 0。接入时固定并实测提供方上限与计数边界；接口只返回用量，不回传原文。超限返回 422 `PROMPT_TOO_LONG` 并保留原稿，提示缩小材料范围，不静默截断、摘要或丢弃已选文字。审核长度、项目容量、模型上下文和费用上限分别检查。
 
-启用时使用 `semantic=enforce`，只有有效的 allow 且语义评分确实执行，`providerAllowsGeneration` 才为 true。关闭时返回 `provider_disabled` 和 false，表示该提供方未给出审核许可；总流程须取得当前审核方案的有效通过结果，不能把关闭 Waffo 当作整体放行或固定拒绝。review、block、降级、未知响应及超时均不能冒充通过。重试、超时和限流取配置及参考适配器，所有调用共用原操作预算。
-
-Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理由、输入摘要及必要任务引用，访问和保留按第 6 节执行。当前参考适配与本地测试不代表真实调用、人工处理或两阶段审核已上线；来源和披露见 [09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
+选用 Prompt Sift 时要求 `semantic=enforce` 且语义评分实际执行，仅有效 allow 可作为该提供方的通过结果。关闭、review、block、降级、未知响应和超时均不是通过；是否放行取决于当前完整审核方案。接入时固定重试、超时和限流，所有实际调用计入原操作预算。日志只保留 requestId、判定、理由、输入摘要及必要任务引用，访问和保留按第 6 节执行。
 
 ### 输出审核
 
@@ -145,7 +143,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 路径 ID 与 body ID 必须相等；所有引用重新查验当前租户、项目、成员和生命周期。读接口无业务副作用，均 `private, no-store`。Schema 只校验结构，不能替代以下服务端判断：
 
 - **付款与上传授权。** `checkoutResult` 只返回本地 orderId、订单/会话状态和受控 URL/截止，不透传提供方对象。只有 ready 会话有 HTTPS checkoutUrl；pending/closed 均为 null，pending 不另开付款会话。服务端核对实际会话、允许的提供方主机和有效截止，禁止凭 HTTPS 字符串放行任意地址。上传 URL 同样只授权该 intent 的临时对象、PUT、长度/类型及期限；complete 再检查当前权限与实际字节，处理预算和费用不因重试重置。
-- **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；编辑或确认状态改变时递增记录版本。`version` 仅在正文改变时递增，用于防止陈旧确认，不进入计费身份。`textHash=digest(text)` 计算 JCS 字符串字节，包含 JSON 双引号；不是原文 UTF-8 的直接摘要。证据变化使受影响的当前确认和检查资格失效，不改变计费内容或旧快照证据。批内 factId 唯一，CAS 全部原子通过，移除不破坏旧快照。正文变化按 14 同步参数、绑定和新 revision，响应给出新建及当前版本引用；仅确认不改 Composition。确认同时匹配 factId/version/textHash/expectedRecordVersion，确认人和时间取有效会话及服务端，Agent 不能代确认。
+- **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；编辑或确认状态改变时递增记录版本。`version` 仅在正文改变时递增，用于防止陈旧确认，不进入计费身份。`textHash=digest(text)` 计算 JCS 字符串字节，包含 JSON 双引号；不是原文 UTF-8 的直接摘要。证据变化使受影响的当前确认和检查资格失效，不改变计费内容或旧快照证据。批内 factId 唯一，CAS 全部原子通过，移除不破坏旧快照。正文变化按 14 同步参数、绑定和新 revision，响应给出新建及当前版本引用；仅确认不改原生工程。确认同时匹配 factId/version/textHash/expectedRecordVersion，确认人和时间取有效会话及服务端，Agent 不能代确认。
 - **证据与转写。** 事实的 `evidence` 只提交 assetId/sourceHash；服务端核验该项目已完成的 evidence 上传，并生成绑定来源字节及当前文案 hash 的 evidenceRefs。14 的事实分类及来源要求仍适用，客户确认不自动证明真实性。转写绑定不可变 assetId/sourceHash，expectedVersion=0 为首次，其后匹配当前转写版本；各段按时间升序、不重叠、落在实测时长内，合计原文不超过 6000 Unicode 码点。商业声称关联当前已确认的 factId/version/textHash，并接受文本覆盖检查；空 facts 不能绕过声称检查。`transcriptHash=digest({assetId,sourceHash,segments})`，确认人/时间由服务端写入；来源或事实变化须重新确认受影响的转写。
 - **展示与退款。** 展示 grant 必须当前 Owner、有权许可、已交付且确属该项目的 release、告知版本及明确所选渠道；scope 仅为该成片的 product_showcase，不延伸到原始素材或训练。revoke 使用当前版本，不要求仍有创作额度或媒体处于可编辑期，立即停止新增使用并安排撤下受控展示；旧 grant 的重放不能恢复已撤回授权。普通支持的可选 project/order 必须可见且关联一致；refund 分支额外核验订单 Owner，按 05 进入退款申请及依赖核查，不接受客户端金额/权益，不把 requested 当作退款到账。
 

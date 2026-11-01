@@ -22,13 +22,6 @@ export function parseVideoFrameManifest(raw,expectedSha){
  if(seen.size!==m.packs.length||offsets.some((value,index)=>value!==m.packs[index].byteLength)||m.packs.reduce((sum,pack)=>sum+pack.byteLength,0)>175<<20)throw Error('VIDEO_FRAME_MANIFEST_INVALID');
  return m;
 }
-/** Slice only a completely verified pack, never a name or range supplied by a film. */
-export function videoFrameBytes(manifest,index,pack){
- const frame=manifest.frames[index];if(!frame||frame.index!==index||!(pack instanceof Uint8Array))throw Error('VIDEO_FRAME_UNAVAILABLE');
- const expected=manifest.packs[frame.pack];if(pack.byteLength!==expected.byteLength||sha256Bytes(pack)!==expected.sha256)throw Error('VIDEO_FRAME_PACK_IDENTITY');
- return pack.subarray(frame.offset,frame.offset+frame.byteLength);
-}
-
 /** An admitted pack is copied into a private closure, so repeated frame reads do not re-hash it. */
 export function openVideoFramePack(manifest,packIndex,pack){
  const expected=manifest.packs[packIndex];

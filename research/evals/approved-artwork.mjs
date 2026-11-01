@@ -63,13 +63,11 @@ function checkIdentity(card,asset,sourceBytes){
  const decision=checkApproval(card,asset);if(sha256Bytes(sourceBytes)!==decision.explicit.sha256)throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');return decision;
 }
 async function openBrowser(){
- const isolatedTest=process.env.PROMOBENTO_BROWSER_TEST_CONTAINER==='1'&&process.platform==='linux'&&process.getuid?.()===10001;
- const browser=isolatedTest?await chromium.connectOverCDP('http://127.0.0.1:9222'):await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
+ const browser=await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
  let context;
  try{
   context=await browser.newContext({viewport:{width:4096,height:4096},deviceScaleFactor:1,locale:'en-US',acceptDownloads:false});
   await context.route('**/*',route=>route.abort('blockedbyclient'));const page=await context.newPage();
-  if(isolatedTest)(await import('../../apps/render-container/src/browser.mjs')).sandboxState();
   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>html,body{margin:0;padding:0;background:transparent}img{display:block}</style><img id="art">`);
   return{browser,context,page,version:browser.version(),async close(){try{await context.close();}finally{await browser.close();}}};
  }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}

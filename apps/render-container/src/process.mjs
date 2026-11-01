@@ -31,7 +31,7 @@ export function childProcess(command, args, {signal} = {}) {
     if (bytes > 32 << 20) child.kill('SIGKILL'); else stdout.push(chunk);
   });
   child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-16000); });
-  // A failed encoder can close stdin between write calls. Completion remains the authoritative error.
+  // A failed process can close stdin before input finishes. Completion remains the authoritative error.
   child.stdin.on('error', () => {});
   const done = new Promise((resolve, reject) => {
     child.once('error', reject);
@@ -47,10 +47,4 @@ export async function run(command, args, {input, timeoutMs = 60000, signal} = {}
   const process = childProcess(command, args, {signal});
   process.child.stdin.end(input);
   return deadline(process.done, timeoutMs, 'MEDIA_PROCESS_TIMEOUT', () => process.child.kill('SIGKILL'));
-}
-
-export async function write(process, bytes, timeoutMs) {
-  const written = new Promise((resolve, reject) => process.child.stdin.write(bytes, error => error ? reject(error) : resolve()));
-  return deadline(Promise.race([written, process.done.then(() => { throw Error('ENCODER_EXITED_EARLY'); })]),
-    timeoutMs, 'ENCODER_WRITE_TIMEOUT', () => process.child.kill('SIGKILL'));
 }

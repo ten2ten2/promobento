@@ -14,7 +14,7 @@ bash scripts/agent-setup.sh
 
 已有工作区先保留未提交改动，再同步 remote main。配置或契约变更须同步使用它们的代码与文档。
 
-开发期间非必要不跑测试，也不反复触发 CI；必须验证时只运行一次最小检查，已有适用结果直接复用。下表列出可用命令，不是每次接手或提交都要执行的清单；生产发布的必需检查保持不变。
+验证按 [AGENTS](../../AGENTS.md#验证与提交) 的最小检查规则执行。下表是可用命令及范围，不是每次接手或提交的必跑清单。
 
 setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm，缺工具先给明确提示。工具来源为 [mise 官方](https://mise.jdx.dev/getting-started.html)、[Node 官方发行](https://nodejs.org/en/download)及 [pnpm 官方安装](https://pnpm.io/installation)，也可使用已核验的内部镜像；不因某个沙箱下载方便而接受第三方重打包二进制。无 mise 时使用相同版本执行 `pnpm install --frozen-lockfile`，需要的已登记任务对应 `pnpm run <任务名>`。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
 
@@ -27,7 +27,7 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | `typecheck` | 先构建契约验证器，再检查 `apps/cloud` 的 TypeScript，包含共享契约导入用例 |
 | `test:browser` | CI 固定镜像内运行完整 huashu 的四画幅真实取帧、原生变量编辑和 15/30 秒有声整片导出；见[原生运行时](../../packages/native-motion/README.md) |
 | `test:cloud-local` | 以 SQLite／R2 和模型／容器响应夹具验证原生方向等待、创作／改稿、整片提交、取消与恢复；不产生模型费用，不代替真实云验 |
-| `build:validators` | 将当前十一项 Schema（原生工程 1.0.0、业务辅助结构 3.0.0）预编译为 ESM；Workers 不在请求内编译 Ajv |
+| `build:validators` | 将当前原生工程与辅助 Schema 预编译为 ESM；Workers 不在请求内编译 Ajv |
 | `test:native` | 原生清单与路径边界、导演编排、源码版本、媒介证据、物理停止恢复及实际／未知模型账本的最小离线集 |
 
 云部署／集成目前使用 [Actions 工作流](../../apps/cloud/README.md)，评测使用 [research/evals 的 Node 入口](../../research/evals/README.md)。`build:containers`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 尚不是已登记的 mise 命令；有真实实现时再加入，不建空脚本。
@@ -109,8 +109,6 @@ CI 的 [checks](../../.github/workflows/checks.yml) 包含 `contracts` 与 `brow
 
 appUrl、回调、发信和支持地址取 brand/routes/auth。密钥只交给需要它的可信服务，沙箱不带凭据；新增服务纳入费用预算。完成报告写清变更、实际验证、未实现项、样片/费用和外部条件；仅在能力变化时更新实施进度。
 
-验证按 AGENTS 的最小检查规则执行，不默认跑全套测试或为每次提交触发 CI。CI 结果只描述所验证的提交；后续未改变相关代码、配置和输入时直接复用，不因快进合并或纯文档修改重跑全量。必须验证的当前问题只做一次最小检查，失败先分析日志和产物。需要 CI 时记录实际提交和覆盖范围；生产发布仍要求最终发布 SHA 的必需检查通过。
-
 平台规则比较由 [select-ci-baseline.mjs](../../scripts/select-ci-baseline.mjs) 选择main上最近成功祖先，PR用base SHA；API／网络异常和无法证明最近祖先均阻断，不退回HEAD或全零。仓库固定初始基线只用于API明确零成功历史且该提交为严格祖先的情况，不能由环境变量替换。本地可用 `PROMOBENTO_BASE_REF` 指定已核实基线；`origin/main=HEAD` 可比较未提交改动。算法限额与特殊条件在脚本维护，不在文档复制实现。
 
-失败先区分代码错误与 runner/网络故障；前者修复或安全 revert，后者修复环境，是否再验证仍按最小检查规则判断，不自动重跑 CI。接入生产部署时，只部署该 SHA 必需检查全部成功的产物；被取消不算成功。推送方式及远端前移处理统一按 AGENTS。
+失败先读日志和产物，区分代码错误与 runner/网络故障，分别修复代码或环境；是否重验按 AGENTS 判断。生产仅部署最终 SHA 必需检查全部成功的产物，被取消不算成功。推送及远端前移处理同样按 AGENTS。

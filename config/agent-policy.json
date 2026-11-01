@@ -199,10 +199,6 @@
     "allTargetsPreparedP95Seconds": null,
     "status": "calibration_required"
   },
-  "quality": {
-    "profileVersion": "qa-v1",
-    "checkerVersion": "quality-engine-v1"
-  },
   "director": {
     "source": "packages/methods/directing.ts",
     "activeTimeoutMs": {
@@ -250,9 +246,6 @@
       "creative": 20,
       "patch": 8,
       "prepare": 8
-    },
-    "variants": {
-      "enabled": false
     }
   },
   "unitCostTargets": {

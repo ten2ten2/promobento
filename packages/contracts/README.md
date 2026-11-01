@@ -30,7 +30,7 @@ const revisionId = await nativeProjectHash(project);
 
 客户草稿、购买、冻结和交付服务仍未实现，要求见 [14](../../docs/prd/14-production-contracts.md)。原生链路不再携带旧 Composition、通用身份、Studio、预览及交易的参考 Schema／控制器；后续客户契约应直接围绕原生版本和真实业务事务实现。
 
-历史数据库、不可变回执、费用和已发布环境继续保留；删掉未接入的参考校验不修改这些数据，也不提供旧执行器兼容服务。PNG 像素工具和视频帧包仍供素材处理使用；平台目标枚举由 [targets](src/targets.mjs) 提供，离线单位经济和默认关闭的提示词审核参考工具继续保留。
+历史数据库、不可变回执、费用和已发布环境继续保留。PNG 像素工具和视频帧包供素材处理使用；平台目标枚举由 [targets](src/targets.mjs) 提供，离线单位经济分析仍使用现行模型和商品配置。
 
 ## 本地检查
 

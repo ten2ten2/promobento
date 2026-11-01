@@ -53,11 +53,9 @@ export function assertVideoSourceHeader(bytes,mediaType){
 }
 async function bounded(work,ms=15000){let timer;try{return await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('VIDEO_DECODE_TIMEOUT')),ms);})]);}finally{clearTimeout(timer);}}
 async function openBrowser(){
- const isolatedTest=process.env.PROMOBENTO_BROWSER_TEST_CONTAINER==='1'&&process.platform==='linux'&&process.getuid?.()===10001;
- const browser=isolatedTest?await chromium.connectOverCDP('http://127.0.0.1:9222'):
-  await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true,timeout:30000});
+ const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true,timeout:30000});
  let context;try{context=await browser.newContext({viewport:{width:16,height:16},deviceScaleFactor:1,acceptDownloads:false});await context.route('**/*',route=>route.abort('blockedbyclient'));
-  const page=await context.newPage();if(isolatedTest)(await import('../../apps/render-container/src/browser.mjs')).sandboxState();
+  const page=await context.newPage();
   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);return{browser,page,version:browser.version(),async close(){try{await context.close();}finally{await browser.close();}}};
  }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}
 }

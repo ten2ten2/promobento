@@ -16,7 +16,7 @@ function main(){
  const indexed=indexedPrdFiles(text('docs/prd/README.md'));
  expect(indexed.length>0&&new Set(indexed).size===indexed.length,'PRD index must list each chapter once');
  const prds=['README.md',...indexed];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
- for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/native-project.schema.json','scripts/check-current-config.mjs','config/agent-policy.json','config/input-capabilities.json','config/content-safety.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
+ for(const p of ['README.md','AGENTS.md','.mise.toml','package.json','pnpm-lock.yaml','docs/implementation-status.md','contracts/native-project.schema.json','scripts/check-current-config.mjs','config/agent-policy.json','config/input-capabilities.json','config/public-context.example.json'])expect(existsSync(join(root,p)),'Missing '+p);
  expect(same(readdirSync(join(root,'docs/prd')).filter(p=>p.endsWith('.md')).sort(),[...prds].sort()),'PRD directory differs from the current indexed specification');
  const files=repositoryFiles(root);
  const documentation=checkDocumentation(root,files,{publicContext:json('config/public-context.example.json'),routes:json('config/routes.json').routes});
@@ -43,7 +43,7 @@ function main(){
   const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);
   expect(prdVersions.length>0&&prdVersions.every(v=>v===prd)&&protocolVersions.length>0&&protocolVersions.every(v=>v===protocol),'PRD/protocol entry mismatch: '+path);
  }
- for(const path of ['config/agent-policy.json','config/routes.json','config/content-safety.json'])
+ for(const path of ['config/agent-policy.json','config/routes.json'])
   expect(json(path).schemaVersion===protocol,'Protocol envelope mismatch: '+path);
  try{
   const baseline=platformBaseline(root);counts.platformRulesBase=baseline.commit??baseline.reason;

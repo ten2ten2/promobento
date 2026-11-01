@@ -47,13 +47,6 @@
     }
   },
   {
-    "schema": "audio-admission",
-    "value": {
-      "kind": "audio_source_catalog",
-      "sources": []
-    }
-  },
-  {
     "schema": "model-config",
     "file": "config/model-providers.json"
   },
@@ -185,23 +178,6 @@
           ]
         }
       ]
-    }
-  },
-  {
-    "schema": "audio-plan",
-    "value": {
-      "schemaVersion": "3.0.0",
-      "kind": "audio_plan",
-      "totalFrames": 450,
-      "sampleRate": 48000,
-      "channels": 2,
-      "loudnessTarget": -14,
-      "truePeakMax": -1,
-      "music": {
-        "kind": "none"
-      },
-      "events": [],
-      "sources": []
     }
   },
   {

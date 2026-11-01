@@ -2,7 +2,7 @@
 
 当前执行单元是一个完整的原生项目：`index.html`、`assets/`、`vendor/`。`NativeProject` 只记录文件路径、R2 身份和 15/30 秒、30 fps、平台画幅；页面使用原版 GSAP、Canvas、SVG、Three.js、OM/OM3。渲染调用固定上游的 `capture`、`render`、声音合成与媒体混音实现。
 
-容器保留完整 huashu-motion 仓库 `52467f99c602b76ba86d511d37acdfe93fa1e16e`（0.3.1），包括 CLI、Studio、运行时、全部模板、字体、示例和技能参考。构建先逐一校验原始 315 个文件的 Git blob 身份，再对六个固定 CLI 文件应用受检的云端 I/O 补丁，并记录补丁文件 SHA-256。原生动画引擎不被替换；`om` CLI 仍使用原版创作与渲染方法。原生 Studio 是本地工具，当前云端入口只提供帧预览和整片导出。
+容器安装完整 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e`（0.3.1），保留 CLI、Studio、运行时、模板、字体、示例和技能。构建校验 315 个原始 blob 后，修改六个 CLI 文件并加入一个可信 helper，七个适配文件均记录和核对 SHA-256；具体边界见[适配器](../../packages/native-motion/README.md)。原生 Studio 保留为本地工具，云端入口只提供帧预览和整片导出。
 
 ## 执行接口
 
@@ -54,7 +54,9 @@ node --test packages/native-motion/test/*.test.mjs apps/render-container/tests/i
 ```bash
 docker build --target browser-test -f apps/render-container/Dockerfile -t promobento-native-test .
 sudo apparmor_parser -r apps/render-container/tests/apparmor.profile
-docker run --rm --network none --security-opt apparmor=promobento-browser-test promobento-native-test
+docker run --rm --network none \
+  --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
+  --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 promobento-native-test
 ```
 
 测试覆盖四种平台画幅的原生帧，以及 15 秒横屏、30 秒竖屏的真实完整 MP4；还请求同 UID 可读但在工程外的 canary、系统文件、实际本地 HTTP canary、broker 和外网地址，并检查 Worker 被阻止。测试失败不跳过 Chrome、不使用 `--no-sandbox`。可将可写目录挂载到 `/artifacts` 取得 MP4、PNG 和 `native-smoke-report.json`。CI 只构建和检查，不自动部署。云端 broker、D1/R2 与 Cloudflare 的物理停止必须另做真实环境验收。

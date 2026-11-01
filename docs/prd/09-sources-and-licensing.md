@@ -25,7 +25,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
-原生预览与整片渲染从[固定完整上游安装](../../packages/native-motion/upstream.lock.json)取得字体，工程默认补齐Inter Variable和Noto Sans SC 500/900，并保存实际WOFF字节及许可；加载方式见[渲染服务说明](../../apps/render-container/README.md)。当前声音准备和混音也来自该固定上游。保留的[历史乐器样本清单](../../packages/audio/samples/catalog.json)记录旧CC0样本及来源，适用范围见[声音辅助工具说明](../../packages/audio/src/NOTICE.md)，不把它当作当前原生sound的完整音源清单。生成产物记录实际采用的来源。
+原生字体、声音准备和混音来自[固定完整上游安装](../../packages/native-motion/upstream.lock.json)，工程默认补齐 Inter Variable 和 Noto Sans SC 500/900；加载方式见[渲染服务](../../apps/render-container/README.md)。[历史乐器样本清单](../../packages/audio/samples/catalog.json)记录保留样本的固定来源与字节身份，不是当前原生 sound 的音源清单；实际生成产物单独记录所用来源。
 
 字体随固定上游字节一并校验，作品通过 `@font-face` 加载原始 WOFF；系统基础字体及工具版本随[环境锁](../../apps/render-container/environment.lock.json)固定。现有字库不保证任意语种无缺字，更广 CJK／Emoji 覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
@@ -44,7 +44,7 @@ Hypit的Brief/Treatment、参考片分析和语义时间方法进入导演上下
 | 上游Studio、examples | 完整保留本地能力与参考；不把单用户localhost服务直接开放成多租户网站 |
 | PromoBento控制面与容器适配 | 版本、权限、任务、预算、私有素材、broker、隔离、实际产物核验与归档 |
 
-来源说明随实际采用文件保留，导演和声音辅助文件分别见[方法来源](../../packages/methods/NOTICE.md)与[声音来源](../../packages/audio/src/NOTICE.md)。旧字体副本、旧合成/混音执行器不再随主线维护；原生字体和声音能力从固定上游取得。完整安装不表示示例自动成为客户作品，实际素材与生成产物仍绑定自己的来源记录。
+导演原文见[方法来源](../../packages/methods/NOTICE.md)，原生文件来源随固定上游保留。完整安装不表示示例自动成为客户作品；实际素材与生成产物仍绑定各自来源，历史配乐试听入口见[内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)。
 
 ## 3 适用规则与产品边界
 
@@ -74,9 +74,9 @@ Hypit的Brief/Treatment、参考片分析和语义时间方法进入导演上下
 
 按 [Waffo AIGC 要求](https://docs.waffo.ai/zh/mor/account-reviews/aigc-compliance)，内容规则集中在 [Terms 第 8–9 节](../../content/pages/en/terms.md#8-acceptable-use)，模型在第 3 节披露，AI 数据处理在 Privacy 第 6 节披露。禁止的深度伪造功能不会因人物同意或添加 AI 标签而获准；真实、获授权的人物素材仍按素材准入规则处理。
 
-**提交 Waffo AIGC 审核或开放客户生成前，必须已运行生成前输入审核和展示前输出审核。** 公开展示客户作品时另加发布后检查。持续更新规则、保留必要审核记录，并提供可用的举报与申诉入口；访问和期限按 04 执行，公开条款须与实际能力一致。本仓库的输入审核参考适配不等于这两阶段已上线。
+**提交 Waffo AIGC 审核或开放客户生成前，必须已运行生成前输入审核和展示前输出审核。** 公开展示客户作品时另加发布后检查。持续更新规则、保留必要审核记录，并提供可用的举报与申诉入口；访问和期限按 04 执行，公开条款须与实际能力一致。这两阶段服务均待接入。
 
-[Prompt Sift](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)是默认关闭的可选输入审核提供方，不覆盖输出。操作映射、原文组装、长度和失败处理统一见 [04](04-architecture-and-data.md#可选提示审核)及配置。启用前核实合同、费率、数据流和保留设置并更新 Privacy；内测免费及不保留提示原文的说明不扩展为永久免费或整个服务零保留。端点未定义异步复核查询/回调，不承诺限时完成或自动恢复生成。
+[Prompt Sift](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)是尚未接入的可选输入审核提供方，不覆盖输出。原文组装、长度和失败处理见[04](04-architecture-and-data.md#可选提示审核)。启用前核实合同、费率、数据流和保留设置并更新 Privacy；内测免费及不保留提示原文的说明不扩展为永久免费或整个服务零保留。端点未定义异步复核查询/回调，不承诺限时完成或自动恢复生成。
 
 ## 4 技术核对入口
 

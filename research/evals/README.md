@@ -6,16 +6,7 @@
 
 方法 2.0 直接生成完整 huashu-motion HTML/JS 工程。过程为真实素材观察、三张原生方向预览、用户选择、Brief/Treatment、最难镜头预览、整片创作、按画幅审片和导出。改稿基于不可变 `baseRevision`，按时间和元素批注精确修改原文件。各画幅独立编排；不拉伸横屏成片代替竖屏版本。
 
-内部 API 仍由当前 Cloudflare Worker 提供：
-
-| 操作 | 入口 |
-| --- | --- |
-| 新创作或改稿 | `POST /internal/s1/creative`，正文 `{operationId,contextKey}` |
-| 状态及真实方向预览 | `GET /internal/s1/operations/{operationId}` |
-| 选择方向 | `POST /internal/s1/operations/{operationId}/direction`，传回所见 `directionsHash` 与 `key` |
-| 原生候选 | `GET /internal/s1/operations/{operationId}/candidate` |
-| 未通过审片的已有工程与结果 | `GET /internal/s1/operations/{operationId}/review-draft` |
-| 单画幅原生版本 | `GET /internal/s1/operations/{operationId}/projects/{revisionId}` |
+创作、方向选择、候选及工程查询使用[内部 API](../../apps/cloud/README.md#内部-api)。这是主线源码入口，实际 staging 版本仍须按实施状态核对。
 
 `contextKey` 指向本次操作的私有输入。创作输入保留确认事实、真实素材、语言、CTA、15/30 秒、平台画幅和固定 renderer release。改稿使用 `baseRevisions: {landscape: "<revisionId>", ...}` 与 `comments: [{text,frame?,elementId?}]`；单画幅也接受 `baseRevision`。基线必须属于同一 workspace/project。已用原生版本及素材不可变，不覆盖旧文件。
 
@@ -30,7 +21,7 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 
 这条命令只准备文件，不上传、不创建操作、不调用模型或渲染。输出 `manifest.json` 为 `prepared_not_executed`；每题生成 15/30 秒上下文，保留原语言、事实 ID、CTA、来源及本题素材选择。新的 `runtimeVersion` 固定为 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e`。已存在的输出目录拒绝覆盖；旧 prepared 目录仍是历史输入。
 
-字体由原生 runtime 提供本地 Inter 与 Noto Sans SC。原 `--huashu-fonts` 注册表入口已随旧执行器退役。选择其他实际字体时应将其作为本项目的固定文件纳入原生 manifest，不能引用任意远端 CDN。
+字体由原生 runtime 提供本地 Inter 与 Noto Sans SC；其他实际字体须作为固定文件纳入本项目 manifest，不能引用任意远端 CDN。
 
 ## 素材采集与保存
 
@@ -70,7 +61,16 @@ bash research/evals/hypit/media.sh <带FFmpeg的已固定镜像> \
   --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/overview.jpg --json
 ```
 
-工具只读挂载指定影片及安装内容，断网运行，不提供凭据，也不执行作品组件。与旧 `continuous-focus` 积木绑定的 focus 桥接器及其独立依赖入口已经删除。Hypit 的 Brief/Treatment、参考片分析和语义时间方法见[方法来源](../../packages/methods/NOTICE.md)；没有把它的生产 runtime 接入 SaaS。
+工具只读挂载指定影片及安装内容，断网运行，不提供凭据，也不执行作品组件。Hypit 的导演方法见[方法来源](../../packages/methods/NOTICE.md)，其生产 runtime 未接入 SaaS。
+
+历史 13 种配乐可用 [prepare-audio-review.mjs](prepare-audio-review.mjs) 生成离线试听页：
+
+```sh
+mise exec -- node research/evals/prepare-audio-review.mjs \
+  artifacts/audio-source artifacts/audio-review <原始CI运行ID>
+```
+
+源目录须包含已通过的 `index.json` 和各风格的 30 秒 `mixed.wav`；目标目录须不存在。工具仅复制原始音频、生成 `index.html` / `review.json`，按 sourceRun 与 audioPlanHash 匹配既有负责人决定，不重新作曲、混音或调用模型。
 
 ## 旧执行器与历史证据
 

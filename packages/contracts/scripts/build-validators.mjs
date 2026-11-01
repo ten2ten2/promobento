@@ -11,8 +11,8 @@ import {fileURLToPath} from 'node:url';
 import {parseCanonicalJson} from '../src/canonical.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-export const VALIDATOR_SCHEMAS = Object.freeze(['native-project', 'direction', 'audio-plan',
-  'asset-insight', 'director-analysis', 'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'audio-admission', 'model-spend']);
+export const VALIDATOR_SCHEMAS = Object.freeze(['native-project', 'direction', 'asset-insight',
+  'director-analysis', 'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'model-spend']);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
 export function standaloneModule(schema) {

@@ -12,8 +12,8 @@ const run=(n,extra={})=>({status:'completed',conclusion:'success',head_branch:'m
 test('cancelled rule edit followed by a documentation push is compared with the last verified rules',()=>{
   const baseline=selectSuccessfulAncestor([run(2,{conclusion:'cancelled'}),run(1)],sha(3),value=>value===sha(1)?2:1);
   assert.equal(baseline,sha(1));
-  const green={rulesVersion:'r1',renderProfiles:{standard:{sampleCount:1}}};
-  const edit={rulesVersion:'r1',renderProfiles:{standard:{sampleCount:4}}};
+  const green={rulesVersion:'r1',aspectLayouts:{portrait:{width:1080,height:1920}}};
+  const edit={rulesVersion:'r1',aspectLayouts:{portrait:{width:720,height:1280}}};
   assert.equal(platformRuleErrors(edit,edit).length,0,'event.before would miss this');
   assert.equal(platformRuleErrors(green,edit).length,1,'the successful base catches it');
   assert.deepEqual(platformRuleErrors(green,{...edit,rulesVersion:'r2'}),[],'a corrected final tree may pass without rewriting history');

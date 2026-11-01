@@ -86,9 +86,9 @@ test('execution changes require a rulesVersion bump; source prose and preset dis
   prose.presets[0].userNoteKey='copy.updated';
   prose.presets.reverse();
   assert.deepEqual(platformRuleErrors(previous,prose),[]);
-  const sampling=structuredClone(previous);
-  sampling.defaultRenderProfile=previous.defaultRenderProfile==='standard'?'motion4':'standard';
-  assert.match(platformRuleErrors(previous,sampling).join('\n'),/defaultRenderProfile/);
+  const encoding=structuredClone(previous);
+  encoding.encodingProfiles.mp4_h264_1080_v1.audio.bitrate+=1000;
+  assert.match(platformRuleErrors(previous,encoding).join('\n'),/rulesVersion bump.*encodingProfiles/);
 });
 
 test('conflict scanning covers source/config text and excludes Git metadata and dependencies',t=>{
