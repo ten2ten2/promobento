@@ -19,6 +19,7 @@ import {modelStep,ModelJsonOutputError} from './model-client.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
 import {workflowStarted} from './workflow-state.ts';
+import {renderCompletionEventType} from './render-recovery.ts';
 import {NATIVE_COMMIT,saveNativeProject,loadNativeProject,createNativeRender,getNativeRender,checkedNativeBytes,type SavedNativeProject} from './native-project.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 
@@ -186,15 +187,18 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    };
    const render=async(name:string,saved:SavedNativeProject,mode:'preview'|'export',frames?:number[])=>{
     const renderId='native-'+digest({operationId:op.id,generation:op.generation,name,revisionId:saved.revisionId,mode}).slice(0,48);
-    return parseCanonicalJson(await step.do<string>('render-'+name,{...noRetry,timeout:'12 minutes'},async()=>{
+    await step.do('render-submit-'+name,noRetry,async()=>{
      await guard();await rights(this.env,op,material.resources);
      await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
-     while(Date.now()<deadline()){
-      await guard();const state=await getNativeRender(this.env,op,renderId);
-      if(state?.status==='passed')return canonical({renderId,result:state.result});
-      if(state&&['blocked','failed','cancelled'].includes(state.status))throw Error(state.result?.code??'NATIVE_RENDER_FAILED');
-      await new Promise(resolve=>setTimeout(resolve,1000));
-     }throw Error('RENDER_DEADLINE');
+     return true;
+    });
+    const seconds=Math.ceil((deadline()-Date.now())/1000);
+    if(seconds<=0)throw Error('OPERATION_DEADLINE');
+    await step.waitForEvent('render-complete-'+name,{type:renderCompletionEventType(renderId),timeout:`${seconds} seconds`});
+    return parseCanonicalJson(await step.do<string>('render-receipt-'+name,noRetry,async()=>{
+     await guard();const state=await getNativeRender(this.env,op,renderId);
+     if(state?.status==='passed')return canonical({renderId,result:state.result});
+     throw Error(state?.result?.code??'NATIVE_RENDER_FAILED');
     })) as Json;
    };
    const observe=async(movie:Json)=>{

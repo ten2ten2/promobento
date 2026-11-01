@@ -30,6 +30,31 @@ async function fixture(t) {
   return {db, env, op, saved, input, sent, objects};
 }
 
+function fakeAdmission(env) {
+  const events = new Map(), leases = new Map();
+  const coordinator = {
+    async acquire(id, workspace, generation) {
+      const token = leases.get(id) ?? crypto.randomUUID(); leases.set(id, token);
+      return {token, created: true};
+    },
+    async extend() {},
+    async release(id, token) {
+      assert.equal(leases.get(id) ?? token, token);
+      const pending = await env.DB.prepare('SELECT r.id FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.id=? AND s.reservation_id IS NULL').bind(id).first();
+      if (pending) throw Error('COMPUTE_SETTLEMENT_UNCONFIRMED');
+      leases.delete(id);
+      await env.DB.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=? AND lease_token=?").bind(id, token).run();
+    },
+  };
+  env.COORDINATOR = {getByName() {return coordinator;}};
+  env.RENDER_WORKFLOW = {get(renderId) {return {async sendEvent(value) {events.set(renderId + ':' + value.type, value);}};}};
+  return async (_name, options) => {
+    const event = events.get('native-render:' + options.type);
+    assert.ok(event, 'capacity notification must be durable and ready before the step resumes');
+    return {payload: event.payload};
+  };
+}
+
 test('native migration preserves settled films and unknown reservations; automatic recovery skips legacy workflows', async () => {
   const db = new DatabaseSync(':memory:');
   try {
@@ -108,6 +133,7 @@ test('native render admission stores one job/outbox, preserves idempotency, and 
 
 test('unknown compute usage prevents a physical retry even after stop is confirmed', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
   const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
   let executions = 0, stops = 0;
@@ -118,8 +144,8 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
       throw Error('Network connection lost.');
     }, async stopAndSettle() {stops++;}, async isStopped() {return true;},
   };}};
-  const step = {async do(_name, ...args) {return args.at(-1)();}, async sleep() {assert.fail('an unresolved reservation cannot authorize a retry');}};
-  await assert.rejects(runNativeRenderTask(env, step, {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64), deadlineAt: Date.now() + 60000}), /RENDER_RPC_CONNECTION_LOST/);
+  const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent, async sleep() {assert.fail('an unresolved reservation cannot authorize a retry');}};
+  await assert.rejects(runNativeRenderTask(env, step, {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)}), /RENDER_RPC_CONNECTION_LOST/);
   assert.equal(executions, 1); assert.equal(stops, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 0);
@@ -128,6 +154,7 @@ test('unknown compute usage prevents a physical retry even after stop is confirm
 
 test('a settled platform failure retries with a new attempt; durable replay cannot repeat it', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
   const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
   const reservations = new Map(), cached = new Map(); let executions = 0;
@@ -141,8 +168,8 @@ test('a settled platform failure retries with a new attempt; durable replay cann
     }, async stopAndSettle() {if (reservations.has(id)) await settle(env, id, 10, {fixture: 'known usage'});},
     async isStopped() {return true;},
   };}};
-  const step = {async do(name, ...args) {if (!cached.has(name)) cached.set(name, await args.at(-1)()); return cached.get(name);}, async sleep() {}};
-  const context = {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64), deadlineAt: Date.now() + 60000};
+  const step = {async do(name, ...args) {if (!cached.has(name)) cached.set(name, await args.at(-1)()); return cached.get(name);}, waitForEvent, async sleep() {}};
+  const context = {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)};
   const result = await runNativeRenderTask(env, step, context);
   assert.equal(result.status, 'succeeded'); assert.equal(executions, 2);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 2);
@@ -153,12 +180,18 @@ test('a settled platform failure retries with a new attempt; durable replay cann
 test('terminal media commit and notification are atomic and replayable; cancellation fences publication', async t => {
   const {db, env, op, saved} = await fixture(t);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
-  const result = canonical({kind: 'native_render_result', status: 'passed', outputs: []});
+  const result = canonical({kind: 'native_render_result', status: 'passed', outputs: [], attemptId: 'successful-attempt'});
+  db.prepare("UPDATE pipeline_renders SET status='verifying' WHERE id='native-render'").run();
+  await assert.rejects(commitRender(env, 'native-render', op, result), /OPERATION_FENCED/, 'unverified physical attempts cannot publish results');
+  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at,stopped_at) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('successful-attempt','native-render',op.id,0,'native_export','standard-3','succeeded',Date.now()-1000,Date.now());
+  db.prepare('INSERT INTO pipeline_render_admissions(id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run('successful-attempt','native-render',op.id,0,op.workspace_id,0,'released',Date.now()-2000,Date.now()+60000,'11111111-1111-4111-8111-111111111111',Date.now()-1000,Date.now()+60000);
   await commitRender(env, 'native-render', op, result);
   await commitRender(env, 'native-render', op, result);
   assert.equal(db.prepare('SELECT status,result_json FROM pipeline_renders').get().result_json, result);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind=\'render_progress\'').get().n, 1);
-  await assert.rejects(commitRender(env, 'native-render', op, canonical({different: true})), /RENDER_COMMIT_CONFLICT/);
+  await assert.rejects(commitRender(env, 'native-render', op, canonical({attemptId: 'successful-attempt',different: true})), /RENDER_COMMIT_CONFLICT/);
   await createNativeRender(env, op, {renderId: 'second-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
   db.prepare('UPDATE pipeline_operations SET status=\'cancelled\',generation=1 WHERE id=?').run(op.id);
   await assert.rejects(commitRender(env, 'second-render', op, result), /OPERATION_FENCED/);

@@ -3,13 +3,14 @@ import {directingMethodPack, directingMethodRef} from '../../../packages/methods
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {operation, rights, readJson, immutableJson, getJson} from './store.ts';
-import {reconcileOperation, dispatchRender, dispatchRenderProgress} from './render-recovery.ts';
+import {reconcileOperation, dispatchRender, dispatchRenderProgress, dispatchRenderTerminal} from './render-recovery.ts';
 import {dispatchDirectorFailure, dispatchDirectorProgress, getReviewDraft} from './director-recovery.ts';
 import {importModelOpening, confirmModelOpening, modelBudgetStatus} from './model-budget.ts';
 import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative, recoverWorkflows} from './workflow-recovery.ts';
 import {saveNativeProject, loadNativeProject, createNativeRender, NATIVE_COMMIT} from './native-project.ts';
 import {flushOutbox} from './outbox.ts';
+import {dispatchRenderAdmissions} from './render-admission.ts';
 import {validId, type PipelineEnv, type Json, type Operation} from './pipeline-types.ts';
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
@@ -65,7 +66,13 @@ export default {
     if (request.method === 'GET' && path === '/healthz') return Response.json({ok: true, nativeProjectSchema: NATIVE_PROJECT_SCHEMA_VERSION, runtime: 'huashu-motion', nativeCommit: NATIVE_COMMIT});
     if (!path.startsWith('/internal/s1/') || !authorized(request, env)) return new Response('Not found', {status: 404});
     try {
-      if (request.method === 'GET' && path === '/internal/s1/capacity') return Response.json(await env.COORDINATOR.getByName('global-v1').counts());
+      if (request.method === 'GET' && path === '/internal/s1/capacity') {
+        const leases = await env.COORDINATOR.getByName('global-v1').counts();
+        const queued = await env.DB.prepare(`SELECT COUNT(*) AS count,MIN(a.requested_at) AS oldest FROM pipeline_render_admissions a
+          JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
+          WHERE a.status='queued' AND r.status='queued' AND o.status='active' AND o.generation=a.generation`).first<{count:number;oldest:number|null}>();
+        return Response.json({leases,queued:queued?.count??0,oldestWaitMs:queued?.oldest?Date.now()-queued.oldest:null});
+      }
       if (path === '/internal/s1/model-budget' && request.method === 'GET') return Response.json(await modelBudgetStatus(env));
       if (path === '/internal/s1/model-budget/import' && request.method === 'POST') return Response.json(await importModelOpening(env, await readJson(request)));
       if (path === '/internal/s1/model-budget/confirm' && request.method === 'POST') {
@@ -210,7 +217,9 @@ export default {
       if (request.method === 'GET' && events) return env.OPERATIONS.getByName(events[1]!).watch(events[1]!);
       const renderRoute = /^\/internal\/s1\/renders\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if (request.method === 'GET' && renderRoute) {
-        const row = await env.DB.prepare('SELECT id,status,result_json FROM pipeline_renders WHERE id=?').bind(renderRoute[1]).first<Json>();
+        const row = await env.DB.prepare(`SELECT r.id,r.result_json,
+          CASE WHEN r.status='queued' AND EXISTS(SELECT 1 FROM pipeline_render_admissions a WHERE a.render_id=r.id AND a.status='admitted')
+            THEN 'admitted' ELSE r.status END AS status FROM pipeline_renders r WHERE r.id=?`).bind(renderRoute[1]).first<Json>();
         return row ? Response.json(row) : new Response(null, {status: 404});
       }
       const cancel = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/cancel$/.exec(path);
@@ -233,7 +242,7 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: PipelineEnv, ctx: ExecutionContext) {
-    if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {await flushOutbox(env); await recoverWorkflows(env);})());
+    if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {await flushOutbox(env); await dispatchRenderAdmissions(env); await recoverWorkflows(env);})());
   },
   async queue(batch: MessageBatch<Json>, env: PipelineEnv) {
     for (const message of batch.messages) {
@@ -241,7 +250,9 @@ export default {
         if (env.S1_ENABLED !== 'internal_eval') throw Error('EXECUTION_DISABLED');
         const item = message.body;
         if (item.kind === 'render') await dispatchRender(env, item);
+        else if (item.kind === 'admission') await dispatchRenderAdmissions(env);
         else if (item.kind === 'render_progress') await dispatchRenderProgress(env, item);
+        else if (item.kind === 'render_terminal') await dispatchRenderTerminal(env, item);
         else if (item.kind === 'operation_progress') await dispatchDirectorProgress(env, item);
         else if (item.kind === 'operation_failure') await dispatchDirectorFailure(env, item);
         else if (item.kind === 'creative') await dispatchCreative(env, item);

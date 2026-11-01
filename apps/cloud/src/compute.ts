@@ -51,33 +51,62 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
 export class CoordinatorDO extends DurableObject<PipelineEnv> {
   constructor(ctx: DurableObjectState, env: PipelineEnv) {
     super(ctx, env);
-    ctx.storage.sql.exec('CREATE TABLE IF NOT EXISTS leases(id TEXT PRIMARY KEY,workspace TEXT NOT NULL,kind TEXT NOT NULL,deadline INTEGER NOT NULL)');
+    const sql = ctx.storage.sql;
+    sql.exec("CREATE TABLE IF NOT EXISTS leases(id TEXT PRIMARY KEY,workspace TEXT NOT NULL,kind TEXT NOT NULL,deadline INTEGER NOT NULL,token TEXT NOT NULL DEFAULT '',generation INTEGER NOT NULL DEFAULT -1)");
+    // Preserve leases held by an earlier deployed actor; an old unknown stop still consumes a slot.
+    const columns = sql.exec('PRAGMA table_info(leases)').toArray().map(row => String(row.name));
+    if (!columns.includes('token')) sql.exec("ALTER TABLE leases ADD COLUMN token TEXT NOT NULL DEFAULT ''");
+    if (!columns.includes('generation')) sql.exec('ALTER TABLE leases ADD COLUMN generation INTEGER NOT NULL DEFAULT -1');
   }
-  async acquire(id: string, workspace: string, deadline: number) {
-    return this.ctx.storage.transactionSync(() => {
+  async acquire(id: string, workspace: string, generation: number, deadline: number) {
+    const token = crypto.randomUUID();
+    const lease = this.ctx.storage.transactionSync(() => {
       const sql = this.ctx.storage.sql, existing = sql.exec('SELECT * FROM leases WHERE id=?', id).toArray()[0];
       if (existing) {
-        if (existing.workspace !== workspace || existing.kind !== 'render') throw Error('LEASE_CONFLICT');
-        return true;
+        if (existing.workspace !== workspace || existing.kind !== 'render' || existing.generation !== generation || !existing.token) throw Error('LEASE_CONFLICT');
+        return {token: String(existing.token), created: false};
       }
       // Any unconfirmed physical stop still occupies capacity.
       const rows = sql.exec('SELECT workspace,COUNT(*) AS n FROM leases GROUP BY workspace').toArray();
       const global = rows.reduce((sum, row) => sum + Number(row.n), 0);
       const local = rows.filter(row => row.workspace === workspace).reduce((sum, row) => sum + Number(row.n), 0);
-      if (global >= nativeRenderPolicy.globalInstances || local >= nativeRenderPolicy.workspaceInstances) return false;
-      sql.exec('INSERT INTO leases VALUES(?,?,?,?)', id, workspace, 'render', deadline);
-      return true;
+      if (global >= nativeRenderPolicy.globalInstances) return {blocked: 'global' as const};
+      if (local >= nativeRenderPolicy.workspaceInstances) return {blocked: 'workspace' as const};
+      sql.exec('INSERT INTO leases(id,workspace,kind,deadline,token,generation) VALUES(?,?,?,?,?,?)', id, workspace, 'render', deadline, token, generation);
+      return {token, created: true};
     });
+    if ('token' in lease) await this.arm();
+    return lease;
   }
-  async release(id: string) {
+  async assertLease(id: string, workspace: string, generation: number, token: string) {
+    const row = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE id=?', id).toArray()[0];
+    if (!row || row.workspace !== workspace || row.generation !== generation || row.token !== token || Number(row.deadline) <= Date.now())
+      throw Error('RENDER_LEASE_FENCED');
+  }
+  async extend(id: string, token: string, deadline: number) {
+    const changed = this.ctx.storage.sql.exec('UPDATE leases SET deadline=? WHERE id=? AND token=? AND deadline>?', deadline, id, token, Date.now());
+    if (!changed.rowsWritten) throw Error('RENDER_LEASE_FENCED');
+    await this.arm();
+  }
+  async release(id: string, token: string) {
+    const row = this.ctx.storage.sql.exec('SELECT token FROM leases WHERE id=?', id).toArray()[0];
+    if (!row) return;
+    if (row.token !== token) throw Error('RENDER_LEASE_FENCED');
     if (!await this.env.SHARDS.getByName(id).isStopped()) throw Error('COMPUTE_STILL_RUNNING');
-    this.ctx.storage.sql.exec('DELETE FROM leases WHERE id=?', id);
+    const pending = await this.env.DB.prepare('SELECT r.id FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.id=? AND s.reservation_id IS NULL')
+      .bind(id).first();
+    if (pending) throw Error('COMPUTE_SETTLEMENT_UNCONFIRMED');
+    await this.env.DB.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=? AND lease_token=? AND status IN ('admitted','running')")
+      .bind(id, token).run();
+    this.ctx.storage.sql.exec('DELETE FROM leases WHERE id=? AND token=?', id, token);
+    // The durable queue is the recovery source if this best-effort notification is lost.
+    try { await this.env.OUTBOX.send({kind: 'admission'}); } catch {}
   }
   async arm() { await this.ctx.storage.setAlarm(Date.now() + 15000); }
   async alarm() {
     const leases = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE deadline<=?', Date.now()).toArray();
     for (const lease of leases) {
-      try { await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(); await this.release(String(lease.id)); }
+      try { await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false); await this.release(String(lease.id), String(lease.token)); }
       catch { /* A deadline is not proof of stopped compute or settled usage. */ }
     }
     if (this.ctx.storage.sql.exec('SELECT id FROM leases LIMIT 1').toArray().length) await this.arm();
@@ -132,27 +161,21 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       || release.image_digest !== await this.imageDigest()) throw Error('RENDER_ENVIRONMENT_MISMATCH');
     const deadlineAt = task.deadlineAt as number;
     if (deadlineAt <= Date.now()) throw Error('RENDER_DEADLINE');
-    let startedAt: number | undefined, reserved = false, acquired = false;
+    const admission = await this.env.DB.prepare("SELECT admitted_at FROM pipeline_render_admissions WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND status='running' AND lease_token=? AND attempt_deadline_at=?")
+      .bind(task.taskId, task.renderId, task.operationId, task.generation, task.leaseToken, deadlineAt).first<{admitted_at: number}>();
+    if (!admission) throw Error('RENDER_LEASE_FENCED');
+    await coordinator(this.env).assertLease(task.taskId, op.workspace_id, op.generation, task.leaseToken);
+    let startedAt: number | undefined, reserved = false;
     let failed = false, failure: unknown, phase: 'startup' | 'broker' | 'dispatch' | 'execute' = 'startup';
     try {
-      const capacityStartedAt = Date.now();
-      for (;;) {
-        if (this.ctx.storage.kv.get('stopRequested')) throw Error('COMPUTE_ATTEMPT_STOPPED');
-        if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
-        await operation(this.env, op.id, op.generation);
-        acquired = await coordinator(this.env).acquire(task.taskId, op.workspace_id, deadlineAt + 30000);
-        if (acquired) break;
-        await sleep(Math.min(250, Math.max(0, deadlineAt - Date.now())));
-      }
-      const capacityWaitMs = Date.now() - capacityStartedAt;
-      await coordinator(this.env).arm();
+      const capacityWaitMs = Number(admission.admitted_at) - Number(task.queuedAt ?? admission.admitted_at);
       await operation(this.env, op.id, op.generation);
       const remaining = deadlineAt - Date.now();
       if (remaining < 1) throw Error('RENDER_DEADLINE');
       await reserve(this.env, op, task.taskId, 'compute', 'render', computeMicros(task.instance, remaining + 30000),
         task, 'cloudflare-containers-2026-10-23-upper-bound', 10000000, op.max_micros);
       reserved = true;
-      await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance});
+      await this.ctx.storage.put({requestHash: hash, taskId: task.taskId, instance: task.instance, leaseToken: task.leaseToken});
       await this.ctx.storage.setAlarm(deadlineAt);
       this.token = crypto.randomUUID() + crypto.randomUUID();
       const input = nativeContainerInput(task, this.token);
@@ -234,9 +257,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     } finally {
       try {
         await this.stop();
-        if (acquired) await coordinator(this.env).release(task.taskId);
-        await this.ctx.storage.deleteAlarm();
         if (reserved) await this.finishCost(task.taskId, task.instance, startedAt);
+        await coordinator(this.env).release(task.taskId, task.leaseToken);
+        await this.ctx.storage.deleteAlarm();
       } catch (error) { if (failed) throw failure; throw error; }
     }
   }
@@ -251,15 +274,15 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     await settle(this.env, id, computeMicros(instance, usage.runningMs), usage);
   }
   async alarm() { await this.stopAndSettle(); }
-  async stopAndSettle() {
+  async stopAndSettle(releaseLease = true) {
     await this.stop();
     const id = await this.ctx.storage.get<string>('taskId'), start = await this.ctx.storage.get<number>('startedAt'),
-      instance = await this.ctx.storage.get<string>('instance');
+      instance = await this.ctx.storage.get<string>('instance'), token = await this.ctx.storage.get<string>('leaseToken');
     if (id) {
-      await coordinator(this.env).release(id);
       if (instance) await this.finishCost(id, instance, start);
       await this.env.DB.prepare('UPDATE pipeline_attempts SET status=CASE WHEN status=\'active\' THEN \'stopped\' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?')
         .bind(Date.now(), id).run();
+      if (releaseLease && token) await coordinator(this.env).release(id, token);
     }
     await this.ctx.storage.deleteAlarm();
   }
