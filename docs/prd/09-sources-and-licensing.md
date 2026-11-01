@@ -35,7 +35,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 当前引擎固定完整[huashu-motion v0.3.1](https://github.com/alchaincyf/huashu-motion/tree/52467f99c602b76ba86d511d37acdfe93fa1e16e)，提交为`52467f99c602b76ba86d511d37acdfe93fa1e16e`。镜像保留CLI、Studio、runtime、templates、fonts、examples和skills，构建逐一校验[315个原始blob](../../packages/native-motion/upstream.lock.json)，再应用固定的云端I/O与隔离补丁；原生动画、取帧、声音及整片渲染由上游实现。准确执行边界见[适配器](../../packages/native-motion/README.md)与[渲染容器](../../apps/render-container/README.md)，不再维护一份按旧积木裁剪的上游清单。
 
-Hypit的Brief/Treatment、参考片分析和语义时间方法进入导演上下文，固定原文及版本见[方法来源](../../packages/methods/NOTICE.md)。[独立内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)保留`@hypit/hypit@0.3.1`，用于断网探测、切片和抽帧既有媒体；取景桥与`visual-track`入口已经退役。Hypit的DSL、编译器和任务runtime没有接入SaaS主链。
+当前代码已经接入 Hypit 的 Brief/Treatment、参考片分析和语义时间三项原文，固定来源见[方法来源](../../packages/methods/NOTICE.md)。**PRD v3.1 是更完整的目标**：新增参考转换、唯一 Script、素材角色、图片/视频/声音导演、身份锚点、候选复用、语义事件、Studio 组件与审片方法，详见[13](13-agent-native-production.md)。这些目标项不能写成已部署。技术选型不以本次上游版权许可复核为前提；无论示例或上游默认资源如何，**禁止把花叔本人肖像、头像、个人标识、拟人角色及作者片尾露出带入客户产品**。[独立内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)保留`@hypit/hypit@0.3.1`，用于断网探测、切片和抽帧既有媒体；取景桥与`visual-track`入口已经退役。Hypit的DSL、编译器和任务runtime没有接入SaaS主链。
 
 | 来源范围 | 用途 |
 | --- | --- |

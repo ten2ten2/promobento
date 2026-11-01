@@ -37,7 +37,7 @@ function main(){
   expect(Number.isSafeInteger(value)&&value>0&&publicContext.policy?.[publicKey]===value,'Public policy differs from positive integer agent-policy.'+policyKey);
  }
  for(const key of ['brandName','appUrl','supportEmail','legalEntityName'])expect(publicContext.brand?.[key]===brand[key],'Public brand differs: '+key);
- const protocol='3.0.0',prd='v3.0';
+ const protocol='3.0.0',prd='v3.1';
  for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
   const intro=text(path).split('\n').slice(0,8).join('\n');
   const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);

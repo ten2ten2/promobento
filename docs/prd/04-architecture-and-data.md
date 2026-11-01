@@ -15,7 +15,7 @@
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
 
-不另引入数据库/部署厂商；Workers HTTP 只协调，不承担长时间 Chromium 或模型编排。创作、素材处理、预览和交付各自返回持久任务 ID，浏览器轮询不能成为交付依赖。
+不另引入数据库/部署厂商，也不部署第二套 Hypit Runtime、Scene DSL、SVML 编译器或独立视频时间线；Workers HTTP 只协调，不承担长时间 Chromium 或模型编排。创作、素材处理、预览和交付各自返回持久任务 ID，浏览器轮询不能成为交付依赖。参考理解和未来的生成图片/视频只是导演的可选素材任务，生成后的媒体以同一 R2/版本/预算体系管理；完整渲染依然调用 huashu 原生工程。
 
 ```mermaid
 flowchart TD
@@ -52,6 +52,23 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 已获准本地执行的完整预览使用基线版本的 runtime、源包、字体与音轨；未保存参数立即在本地显示，保存时才通过 CAS 生成新版本。具体预览状态、缩放与正式捕获边界见 [14](14-production-contracts.md#5-renderprotocol)，本地执行的输出审核条件见下文。自动保存不触发模型、云 QA 或编码。可信截图/片段、预检和目标准备由明确操作发起，分别检查权益、缓存与费用预算。
 
 内容变化后，服务端重新计算当前稿的检查资格，允许相同输入复用有效报告并建立新版本关联；不能由客户端修改报告，也不能沿用不再匹配的通过结果。原购买快照保持不变。网站主题、Cookie 和浏览器语言不改变作品。
+
+### 参考、Script、语义时间和素材候选（目标）
+
+目标客户项目增加四种轻量数据关系，不建立第二个可执行项目格式：
+
+| 实体/关系 | 最小信息 | 权威边界 |
+| --- | --- | --- |
+| reference_analysis / reference_events | 上传来源 SHA、原始媒体时长、源时间窗、实见帧/声音、推断与导演解释、可继承的关系 | 只描述参考；源时间不作为目标成片时间 |
+| project_script / semantic_events | 已采用文字及显示/发音、Segment、Selection、Moment、手工或测量时间来源、目标帧投影 | Script 是台词唯一来源；投影不是新 renderer |
+| material_candidates / material_selections | 原始/生成资产版本、候选组、用户选择、锁定范围、模型/生成回执与来源字节 | 未采用 Result 保留引用；只能引用同工作区有权使用的资产 |
+| material_dependencies / render_cache_refs | 使用素材的原生版本、对象/画幅、声音/字幕事件、输入摘要、可复用输出 | 缓存命中要核验依赖与权限，不凭文件名或相似 prompt |
+
+参考片可与真实作品素材共用上传存储，但其 purpose 必须独立，分析动作不能暗中把参考片复制进新作品。没有可靠逐词对齐时，semantic_event 的 timingSource 只能为 authored，不能填一个估算数字假装是 measured。真实对齐引用实际同一音轨的摘要/时长/语言/时间数据，改变源音轨或片段后重新校验。
+
+每个生成素材 job 都绑定 operation/generation、预算、输入参考与提供方回执；已完成 Result 即使未被当前版本采用也保持可查询，失败重试前先识别真实已产生的输出。选中候选作为新的不可变资产版本，不直接覆盖旧对象；锁定的候选在局部编辑时继续引用。修改全局品牌、身份、台词、音轨或时间窗时按依赖图标记哪些产物失效，允许相同来源/参数且仍有权限的结果复用；不能因为一个输出缓存存在就跳过目标画幅的实际 QA。
+
+新增客户接口和 Schema 由这四个关系的首个真实实现提交，版本、权限、错误分支和真实事务同时完成。内部方法已能读部分 Hypit 参考原文，不等于这些客户表、自动对齐、素材生成 Provider 或 Studio Inspector 已实现。该新增结构允许破坏旧内部协议；不为未上线的 FilmSpec/分片状态建立兼容读取器。
 
 ### 可选提示审核
 
@@ -97,7 +114,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 
 试用：`trial_claims` 以内部 user_id 和 trial_project_id 分别唯一，保存 workspace_id、claimed_at 和政策版本。Owner 自领、项目创建、claim/grant 同事务；requestId 重试返回同项目，并发最多成功一次。`requestTrial` 默认 false；创建响应的 `trialGrantStatus` 使用 not_requested/granted/unavailable，不可领取仍可建无权益草稿。项目响应的 `trialStatus` 中 active 表示已授予且仍在正常试用期，expired 表示该期限已过，not_granted 表示本项目未获授；次数余额独立计算，用完次数不把期限改成 expired。身份或项目变化不重置 claim，最小去重关系按第 6 节保留；资格、次数和使用范围统一见 05/12。
 
-内容：projects、product_facts、assets/asset_versions/asset_refs、upload_intents/rights_declarations、asset_transcripts、project_revisions、composition_sources/variants、creative_briefs/treatments、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests、quality_reports/quality_associations/quality_waivers、output_safety_results、comments/edit_requests；独立展示授权为 showcase_consents。QA 和输出审核各自绑定精确内容与策略，不修改创作内容；字段及状态见 14。可无 scene/element 标记，不强制场景结构。
+内容：projects、product_facts、assets/asset_versions/asset_refs、upload_intents/rights_declarations、asset_transcripts、project_revisions、composition_sources/variants、creative_briefs/treatments、project_scripts/semantic_events、reference_analyses/reference_events、material_candidates/material_selections/material_dependencies、agent_runs/agent_run_steps、agent_candidates/agent_patches、fact_manifests、quality_reports/quality_associations/quality_waivers、output_safety_results、comments/edit_requests；独立展示授权为 showcase_consents。新增的参考/语义/素材关系为目标客户数据，未建表前不得宣称可用。QA 和输出审核各自绑定精确内容与策略，不修改创作内容；字段及状态见 14。可无 scene/element 标记，不强制场景结构。
 
 交易：orders、checkout_disclosures/checkout_consent_receipts、active_checkout_slots、entitlement_grants、credit_reservations/credit_ledger、payment_inbox、refund_requests、export_snapshots/export_releases/export_artifacts、jobs/job_attempts、outbox、renderer_versions。creative_reservations/creative_ledger 与成片账本分开。按 05 的购买资格、项目初始槽/升级槽、依赖退款与重新购买条件建唯一约束；条件写和 outbox 同事务，不无条件读后减余额。消费与费用不能因退款改写，旧付款去重关系不能被新订单复用；保存范围和期限见第 6 节。
 
