@@ -320,6 +320,123 @@ for (const scenario of ['released-before-claim', 'lease-expired-during-extend', 
   });
 }
 
+test('replay keeps an older no-start recovery decision after a newer grant committed its claim', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId,
+    mode: 'preview', rendererRelease: 'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalDB = env.DB, cached = new Map();
+  let released = false, readLost = false, interrupted = false, oldToken;
+  let resets = 0, executions = 0;
+  env.DB = {...originalDB, prepare(sql) {
+    const prepared = originalDB.prepare(sql);
+    if (!sql.includes('SELECT p.result_json FROM pipeline_attempts p') || !sql.includes("p.status='succeeded'")) return prepared;
+    return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+      if (released && !readLost) {readLost = true; throw Error('Network connection lost.');}
+      return prepared.first();
+    }};
+  }, async batch(statements) {
+    const result = await originalDB.batch(statements);
+    if (!interrupted) {
+      interrupted = true;
+      throw Error('SIMULATED_CLAIM_CHECKPOINT_INTERRUPTION');
+    }
+    return result;
+  }};
+  env.SHARDS = {getByName(id) {return {
+    async recoverCompletedResult() {return null;},
+    async resetUnstartedAdmission(ticketId, token) {
+      assert.equal(ticketId, id); assert.equal(token, oldToken); resets++;
+    },
+    async execute() {
+      executions++;
+      if (executions === 1) throw Error('RENDER_STARTUP_TIMEOUT');
+      return canonical({status: 'succeeded', outputs: [], report: {fixture: 'replayed grant'}});
+    },
+    async stopAndSettle() {}, async isStopped() {return true;},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (!cached.has(name)) {
+        if (name === 'native-project' && !released) {
+          const row = db.prepare('SELECT id,lease_token FROM pipeline_render_admissions').get();
+          oldToken = row.lease_token; released = true;
+          await env.COORDINATOR.getByName('global-v1').release(row.id, oldToken);
+        }
+        cached.set(name, await args.at(-1)());
+      }
+      return cached.get(name);
+    },
+    waitForEvent,
+    async sleep() {},
+    async sleepUntil() {assert.fail('a confirmed no-start admission must not poll');},
+  };
+  const context = {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)};
+  await assert.rejects(runNativeRenderTask(env, step, context), /SIMULATED_CLAIM_CHECKPOINT_INTERRUPTION/);
+  assert.equal(readLost, true);
+  assert.equal(interrupted, true);
+  assert.equal(resets, 1);
+  assert.equal(executions, 0, 'the second grant committed its D1 claim but did not invoke Shard');
+  assert.equal(parseCanonicalJson(cached.get('native-project')).kind, 'render_outcome_pending');
+  assert.equal(cached.get('native-project-outcome-check-0')?.kind, 'render_admission_unstarted');
+  assert.equal(db.prepare('SELECT status FROM pipeline_attempts').get().status, 'active');
+
+  const result = await runNativeRenderTask(env, step, context);
+  assert.equal(result.status, 'succeeded');
+  assert.equal(executions, 2, 'the genuine startup failure may spend the second physical attempt');
+  const attempts = db.prepare('SELECT status,result_json FROM pipeline_attempts ORDER BY rowid').all();
+  assert.deepEqual(attempts.map(a => a.status), ['failed', 'succeeded']);
+  assert.equal(parseCanonicalJson(attempts[0].result_json).code, 'RENDER_STARTUP_TIMEOUT');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 2);
+  assert.equal((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId);
+  assert.equal(executions, 2, 'further replays must not rerun paid work');
+});
+
+test('preflight no-start checkpoint cannot mask a later physical failure recovery', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId,
+    mode: 'preview', rendererRelease: 'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const originalDB = env.DB, cached = new Map();
+  let preflightLost = false, settlementLost = false, executions = 0;
+  env.DB = {...originalDB, prepare(sql) {
+    const prepared = originalDB.prepare(sql);
+    const failPreflight = sql.includes('SELECT p.result_json FROM pipeline_attempts p') && sql.includes("p.status='failed'");
+    const failSettlement = sql.includes('SELECT a.lease_token,p.result_json,p.recovery_code FROM pipeline_attempts p');
+    if (!failPreflight && !failSettlement) return prepared;
+    return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+      if (failPreflight && !preflightLost) {preflightLost = true; throw Error('Network connection lost.');}
+      if (failSettlement && !settlementLost) {settlementLost = true; throw Error('Network connection lost.');}
+      return prepared.first();
+    }};
+  }};
+  env.SHARDS = {getByName() {return {
+    async recoverCompletedResult() {return null;},
+    async execute() {
+      executions++;
+      if (executions === 1) throw Error('RENDER_STARTUP_TIMEOUT');
+      return canonical({status: 'succeeded', outputs: [], report: {}});
+    },
+    async stopAndSettle() {}, async isStopped() {return true;},
+  };}};
+  const step = {async do(name, ...args) {
+    if (!cached.has(name)) cached.set(name, await args.at(-1)());
+    return cached.get(name);
+  }, waitForEvent, async sleep() {},
+  async sleepUntil() {assert.fail('both recovery decisions should be immediate');}};
+  const context = {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)};
+  const result = await runNativeRenderTask(env, step, context);
+  assert.equal(result.status, 'succeeded');
+  assert.equal(preflightLost, true); assert.equal(settlementLost, true);
+  assert.equal(cached.get('native-project-preflight-failure-outcome-check-0')?.kind, 'render_admission_unstarted');
+  assert.equal(cached.get('native-project-outcome-check-0')?.kind, 'render_platform_retry');
+  assert.equal(executions, 2);
+  assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts ORDER BY rowid LIMIT 1').get().result_json).code,
+    'RENDER_STARTUP_TIMEOUT');
+});
+
 test('a settled successful render survives interruption before its execution-step checkpoint', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
   const waitForEvent = fakeAdmission(env);

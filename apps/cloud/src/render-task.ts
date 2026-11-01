@@ -315,36 +315,44 @@ async function waitForPendingOutcome(env: PipelineEnv, step: WorkflowStep, name:
   fallbackCode?: string, allowUnstarted = false): Promise<Json> {
   const checks = Math.ceil(nativeRenderPolicy.exportOperationMs / 5_000) + 4;
   for (let check = 0; check < checks; check++) {
-    let readable = false, priorFailure: string | null = null;
-    try {
-      await bounded(operation(env, op.id, op.generation));
-      const completed = await bounded(completedRenderAttempt(env, op, renderId, attemptId, index, mode));
-      if (completed) return completed;
-      priorFailure = await bounded(completedFailedAttempt(env, op, renderId, attemptId, index, mode));
-      readable = true;
-    } catch (error) {
-      if (!isUnknownRecovery(error)) throw error;
-    }
-    if (priorFailure) {
-      if (!retryable.has(priorFailure)) throw Error(priorFailure);
-      return {kind: 'render_platform_retry', code: priorFailure, attemptId};
-    }
-    if (readable) {
-      if (allowUnstarted) {
+    // A later admission round can claim the same attempt ID. Cache each
+    // recovery decision before advancing, so replay never reclassifies an
+    // earlier unstarted round using the newer round's physical row.
+    const observed = await step.do<Json>(name + '-outcome-check-' + check,
+      {retries: {limit: 0, delay: '1 second'}}, async () => {
+        let readable = false, priorFailure: string | null = null;
         try {
-          if (await confirmedUnstartedAttempt(env, op, renderId, attemptId, index, mode))
-            return {kind: 'render_admission_unstarted'};
+          await bounded(operation(env, op.id, op.generation));
+          const completed = await bounded(completedRenderAttempt(env, op, renderId, attemptId, index, mode));
+          if (completed) return completed;
+          priorFailure = await bounded(completedFailedAttempt(env, op, renderId, attemptId, index, mode));
+          readable = true;
         } catch (error) {
           if (!isUnknownRecovery(error)) throw error;
         }
-      }
-      const recovered = await reconcileShardSuccess(env, op, renderId, attemptId, index, mode);
-      if (recovered && recovered !== outcomePending) return recovered;
-      if (recovered === null) {
-        const settled = await settleKnownFailure(env, op, renderId, attemptId, index, mode, fallbackCode);
-        if (settled && settled !== outcomePending) return settled;
-      }
-    }
+        if (priorFailure) {
+          if (!retryable.has(priorFailure)) throw Error(priorFailure);
+          return {kind: 'render_platform_retry', code: priorFailure, attemptId};
+        }
+        if (readable) {
+          if (allowUnstarted) {
+            try {
+              if (await confirmedUnstartedAttempt(env, op, renderId, attemptId, index, mode))
+                return {kind: 'render_admission_unstarted'};
+            } catch (error) {
+              if (!isUnknownRecovery(error)) throw error;
+            }
+          }
+          const recovered = await reconcileShardSuccess(env, op, renderId, attemptId, index, mode);
+          if (recovered && recovered !== outcomePending) return recovered;
+          if (recovered === null) {
+            const settled = await settleKnownFailure(env, op, renderId, attemptId, index, mode, fallbackCode);
+            if (settled && settled !== outcomePending) return settled;
+          }
+        }
+        return {kind: 'render_outcome_unknown'};
+      });
+    if (observed.kind !== 'render_outcome_unknown') return observed;
     // An unknown outcome is not a failed render until its total operation
     // deadline. In particular, never re-admit another paid physical attempt.
     if (Date.now() >= operationDeadlineAt) throw Error('RENDER_ATTEMPT_OUTCOME_UNKNOWN');
@@ -385,7 +393,7 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
     try {priorFailure = await bounded(completedFailedAttempt(env, op, renderId, attemptId, index, input.mode));}
     catch (error) {
       if (!isUnknownRecovery(error)) throw error;
-      const pending = await waitForPendingOutcome(env, step, name, op, renderId, attemptId, index,
+      const pending = await waitForPendingOutcome(env, step, name + '-preflight-failure', op, renderId, attemptId, index,
         input.mode, operationDeadlineAt, undefined, true);
       if (pending.kind !== 'render_admission_unstarted') {
         if (pending.kind !== 'render_platform_retry') return pending;
@@ -414,7 +422,7 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
       : await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
     if (recovered && recovered !== outcomePending) return recovered;
     if (recovered === outcomePending) {
-      const pending = await waitForPendingOutcome(env, step, name, op, renderId, attemptId, index,
+      const pending = await waitForPendingOutcome(env, step, name + '-preflight-recovery', op, renderId, attemptId, index,
         input.mode, operationDeadlineAt, undefined, true);
       if (pending.kind !== 'render_admission_unstarted') {
         if (pending.kind !== 'render_platform_retry') return pending;
