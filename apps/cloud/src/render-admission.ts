@@ -39,8 +39,9 @@ export async function requestRenderAdmission(env: PipelineEnv, renderId: string,
 }
 
 async function notify(env: PipelineEnv, row: Admission) {
-  const markDone = () => env.DB.prepare('UPDATE pipeline_render_admissions SET notification_sent_at=? WHERE id=? AND status=? AND notification_sent_at IS NULL')
-    .bind(Date.now(), row.id, row.status).run();
+  const markDone = () => env.DB.prepare(`UPDATE pipeline_render_admissions SET notification_sent_at=?
+    WHERE id=? AND status=? AND COALESCE(lease_token,'')=? AND notification_sent_at IS NULL`)
+    .bind(Date.now(), row.id, row.status, row.lease_token ?? '').run();
   try {
     await (await env.RENDER_WORKFLOW.get(row.render_id)).sendEvent({type: eventType(row.attempt_index), payload: {
       attemptId: row.id, ...(row.status === 'expired' ? {expired: true} : {leaseToken: row.lease_token}),
@@ -62,8 +63,8 @@ async function notify(env: PipelineEnv, row: Admission) {
     const delay = Math.min(5 * 60_000, 5000 * 2 ** Math.min(row.notification_failures, 6));
     await env.DB.prepare(`UPDATE pipeline_render_admissions
       SET notification_failures=notification_failures+1,notification_retry_at=MAX(notification_retry_at,?)
-      WHERE id=? AND status=? AND notification_sent_at IS NULL`)
-      .bind(Date.now() + delay, row.id, row.status).run();
+      WHERE id=? AND status=? AND COALESCE(lease_token,'')=? AND notification_sent_at IS NULL`)
+      .bind(Date.now() + delay, row.id, row.status, row.lease_token ?? '').run();
     throw error;
   }
   await markDone();
@@ -132,46 +133,84 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
 type AdmissionTicket = {id: string; queueDeadlineAt: number; operationDeadlineAt: number};
 
 async function timelyAdmission(env: PipelineEnv, ticket: AdmissionTicket) {
-  const row = await env.DB.prepare(`SELECT a.status,a.admitted_at,a.lease_token FROM pipeline_render_admissions a
+  const row = await env.DB.prepare(`SELECT a.status,a.admitted_at,a.lease_token,a.workspace_id,a.generation FROM pipeline_render_admissions a
     JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
     WHERE a.id=? AND r.generation=a.generation AND r.status IN ('queued','rendering')
       AND o.generation=a.generation AND o.status='active'`)
-    .bind(ticket.id).first<{status: string; admitted_at: number | null; lease_token: string | null}>();
+    .bind(ticket.id).first<{status: string; admitted_at: number | null; lease_token: string | null; workspace_id: string; generation: number}>();
   if (!row || !['admitted', 'running'].includes(row.status) || !row.lease_token
     || row.admitted_at === null || row.admitted_at > Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)
     || Date.now() >= ticket.operationDeadlineAt) return null;
+  // D1 can lag the Coordinator alarm; never return an expired physical lease.
+  try { await coordinator(env).assertLease(ticket.id, row.workspace_id, row.generation, row.lease_token); }
+  catch { return null; }
   return row.lease_token;
 }
 
+/** A released grant with no physical attempt may reuse its original queue window. */
+async function restoreUnstartedAdmission(env: PipelineEnv, ticket: AdmissionTicket) {
+  if (Date.now() >= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) return;
+  const row = await env.DB.prepare(`SELECT a.status,a.lease_token FROM pipeline_render_admissions a
+    JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
+    WHERE a.id=? AND r.status='queued' AND r.generation=a.generation
+      AND o.status='active' AND o.generation=a.generation`)
+    .bind(ticket.id).first<{status: string; lease_token: string | null}>();
+  if (row?.status !== 'released' || !row.lease_token) return;
+  const physical = await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE id=?').bind(ticket.id).first();
+  if (physical) return; // A real attempt must never be replayed as a capacity ticket.
+  // release() is idempotent and serves as a barrier for a concurrent alarm that
+  // wrote D1 before deleting the old CoordinatorDO lease.
+  await coordinator(env).release(ticket.id, row.lease_token);
+  // The alarm stopped this ShardDO even if no execution ever started. Reusing
+  // its ticket requires clearing that permanent stop fence under D1 guards.
+  await env.SHARDS.getByName(ticket.id).resetUnstartedAdmission(ticket.id, row.lease_token);
+  const changed = await env.DB.prepare(`UPDATE pipeline_render_admissions
+    SET status='queued',lease_token=NULL,admitted_at=NULL,attempt_deadline_at=NULL,notification_sent_at=NULL,
+      notification_retry_at=0,notification_failures=0
+    WHERE id=? AND status='released' AND lease_token=? AND queue_deadline_at>?
+      AND NOT EXISTS(SELECT 1 FROM pipeline_attempts WHERE id=?)
+      AND EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id
+        WHERE r.id=pipeline_render_admissions.render_id AND r.status='queued'
+          AND r.operation_deadline_at>? AND r.generation=pipeline_render_admissions.generation
+          AND o.status='active' AND o.generation=r.generation)`)
+    .bind(ticket.id, row.lease_token, Date.now(), ticket.id, Date.now()).run();
+  if (changed.meta.changes) await dispatchRenderAdmissions(env);
+}
+
 export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
-  const seconds = await step.do<number>(name + '-timeout', {retries: {limit: 0, delay: '1 second'}}, async () => {
-    const now = Date.now();
-    // Admission happened before the queue cutoff, even if the Workflow first reaches this
-    // wait after that cutoff. Its buffered event must still be consumable.
-    if (await timelyAdmission(env, ticket)) {
-      const remaining = Math.ceil((ticket.operationDeadlineAt - now) / 1000);
-      if (remaining > 0) return remaining;
-    }
-    const remaining = Math.ceil((Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt) - now) / 1000);
-    if (remaining <= 0) throw Error('RENDER_QUEUE_EXPIRED');
-    return remaining;
-  });
-  let event;
-  try {event = await step.waitForEvent<Json>(name, {type: eventType(index), timeout: `${seconds} seconds`});}
-  catch (error) {
-    // The event can be delayed past the queue cutoff even when the D1 admission
-    // was granted on time. Persist this fallback token so a later Workflow replay
-    // does not depend on the lease still being in its admitted state.
-    const recovered = await step.do<string | null>(name + '-timeout-recheck', {retries: {limit: 0, delay: '1 second'}},
-      () => timelyAdmission(env, ticket));
+  const heartbeatMs = 60_000;
+  const checks = Math.ceil(nativeRenderPolicy.queueWaitMs / heartbeatMs) + 3;
+  for (let check = 0; check < checks; check++) {
+    const state = await step.do<{token: string | null; seconds: number}>(name + '-check-' + check,
+      {retries: {limit: 0, delay: '1 second'}}, async () => {
+        await restoreUnstartedAdmission(env, ticket);
+        const token = await timelyAdmission(env, ticket);
+        if (token) return {token, seconds: 0};
+        const remaining = Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt) - Date.now();
+        if (remaining <= 0) throw Error('RENDER_QUEUE_EXPIRED');
+        return {token: null, seconds: Math.max(1, Math.ceil(Math.min(heartbeatMs, remaining) / 1000))};
+      });
+    if (state.token) return state.token;
+    let payload: Json | null = null;
+    const startedWaitingAt = Date.now();
+    try {
+      const event = await step.waitForEvent<Json>(name + '-event-' + check,
+        {type: eventType(index), timeout: `${state.seconds} seconds`});
+      payload = event.payload as Json;
+    } catch { /* An event timeout or delivery error still requires a persisted-state recheck. */ }
+    const recovered = await step.do<string | null>(name + '-resolved-' + check,
+      {retries: {limit: 0, delay: '1 second'}}, async () => {
+        if (payload?.attemptId && payload.attemptId !== ticket.id) throw Error('RENDER_ADMISSION_CONFLICT');
+        if (payload?.expired) throw Error('RENDER_QUEUE_EXPIRED');
+        return timelyAdmission(env, ticket); // D1 fences stale tokens from an earlier lease.
+      });
     if (recovered) return recovered;
-    if (Date.now() >= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) throw Error('RENDER_QUEUE_EXPIRED');
-    throw error;
+    // An immediate API error or a burst of stale events must not exhaust all
+    // recovery checks before the original 15-minute queue window has elapsed.
+    const remaining = state.seconds * 1000 - (Date.now() - startedWaitingAt);
+    if (remaining > 1000) await step.sleep(name + '-event-backoff-' + check, `${Math.ceil(remaining / 1000)} seconds`);
   }
-  const payload = event.payload as Json;
-  if (payload.attemptId !== ticket.id || payload.expired) throw Error(payload.expired ? 'RENDER_QUEUE_EXPIRED' : 'RENDER_ADMISSION_CONFLICT');
-  if (typeof payload.leaseToken !== 'string') throw Error('RENDER_ADMISSION_INVALID');
-  return payload.leaseToken as string;
+  throw Error('RENDER_QUEUE_EXPIRED');
 }
 
 /** The execution clock starts only after admission; the database is the final fence. */

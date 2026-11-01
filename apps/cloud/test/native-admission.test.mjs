@@ -7,19 +7,25 @@ import {recordRenderFailure} from '../src/render-recovery.ts';
 
 function fixture(t) {
   const {db, DB} = sqliteD1(); t.after(() => db.close());
-  const leases = new Map(), events = [];
+  const leases = new Map(), events = [], stoppedShards = new Set();
+  let nextLease = 0;
   const coordinator = {
     async acquire(id, workspace, generation, deadline) {
       const previous = leases.get(id);
       if (previous) return {token: previous.token, created: false};
       if (leases.size >= nativeRenderPolicy.globalInstances) return {blocked: 'global'};
       if ([...leases.values()].some(lease => lease.workspace === workspace)) return {blocked: 'workspace'};
-      const token = '11111111-1111-4111-8111-' + String(leases.size + 1).padStart(12, '0');
+      const token = '11111111-1111-4111-8111-' + String(++nextLease).padStart(12, '0');
       leases.set(id, {workspace, generation, deadline, token}); return {token, created: true};
     },
     async extend(id, token, deadline) {
       assert.equal(leases.get(id)?.token, token);
       leases.get(id).deadline = deadline;
+    },
+    async assertLease(id, workspace, generation, token) {
+      const lease = leases.get(id);
+      if (!lease || lease.workspace !== workspace || lease.generation !== generation || lease.token !== token
+        || lease.deadline <= Date.now()) throw Error('RENDER_LEASE_FENCED');
     },
     async release(id, token) {
       if (leases.get(id)?.token === token) {
@@ -30,7 +36,18 @@ function fixture(t) {
   };
   const env = {DB, COORDINATOR: {getByName() {return coordinator;}},
     RENDER_WORKFLOW: {get(renderId) {return {async sendEvent(event) {events.push({renderId, ...event});}};}},
-    SHARDS: {getByName() {return {async isStopped() {return true;}, async stopAndSettle() {}};}},
+    SHARDS: {getByName(id) {return {
+      async isStopped() {return true;},
+      async stopAndSettle() {stoppedShards.add(id);},
+      async resetUnstartedAdmission(ticketId, token) {
+        assert.equal(ticketId, id);
+        const row = db.prepare('SELECT status,lease_token FROM pipeline_render_admissions WHERE id=?').get(id);
+        assert.equal(row.status, 'released');
+        assert.equal(row.lease_token, token);
+        assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts WHERE id=?').get(id).n, 0);
+        stoppedShards.delete(id);
+      },
+    };}},
   };
   let sequence = 0;
   function add(workspace = 'workspace-one', options = {}) {
@@ -57,7 +74,7 @@ function fixture(t) {
         db.prepare('SELECT queue_deadline_at FROM pipeline_renders WHERE id=?').get(renderId).queue_deadline_at);
     return id;
   }
-  return {db, env, leases, events, add, addTicket};
+  return {db, env, leases, events, stoppedShards, add, addTicket};
 }
 
 test('64 submissions admit at most four distinct workspaces; no queue ticket counts as physical compute', async t => {
@@ -89,10 +106,10 @@ test('admission event can arrive before wait; only then can an attempt start its
   const ticket = await requestRenderAdmission(env, renderId, op, 'attempt-preview', 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
   assert.equal(events.length, 1);
-  const token = await waitForRenderAdmission(env, {async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
-    assert.equal(options.type, 'native-admission-0');
-    return {payload: events.shift().payload};
-  }}, 'admission-0', ticket, 0);
+  const token = await waitForRenderAdmission(env, {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent() {assert.fail('a persisted grant does not need an event to be redelivered');},
+  }, 'admission-0', ticket, 0);
   await assert.rejects(claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, 'wrong-token'), /RENDER_FENCED/);
   const started = Date.now(), deadlineAt = await claimRenderAdmission(env, op, {renderId, mode: 'preview'}, ticket.id, token);
   assert.ok(deadlineAt >= started + nativeRenderPolicy.previewDeadlineMs - 1000);
@@ -119,7 +136,7 @@ test('a completed admission wait replays after its original queue deadline', asy
   const first = await waitForRenderAdmission(env, step, 'native-project-admission', ticket, 0);
   const replayed = await waitForRenderAdmission(env, step, 'native-project-admission', {...ticket, queueDeadlineAt: Date.now() - 60_000}, 0);
   assert.equal(replayed, first);
-  assert.deepEqual(timeouts, [timeouts[0], timeouts[0]]);
+  assert.deepEqual(timeouts, [], 'checkpointed grants survive replay without another event wait');
 });
 
 test('first wait after queue cutoff consumes a previously admitted buffered event', async t => {
@@ -130,10 +147,8 @@ test('first wait after queue cutoff consumes a previously admitted buffered even
   db.prepare('UPDATE pipeline_render_admissions SET admitted_at=?,queue_deadline_at=? WHERE id=?')
     .run(admittedAt, cutoff, ticket.id);
   const late = {...ticket, queueDeadlineAt: cutoff};
-  const step = {async do(_name, _options, action) {return action();}, async waitForEvent(_name, options) {
-    assert.ok(Number.parseInt(options.timeout) > 0);
-    return {payload: events[0].payload};
-  }};
+  const step = {async do(_name, _options, action) {return action();},
+    async waitForEvent() {assert.fail('an admitted ticket remains valid after its original queue cutoff');}};
   const token = await waitForRenderAdmission(env, step, 'late-first-wait', late, 0);
   assert.equal(token, events[0].payload.leaseToken);
   db.prepare("UPDATE pipeline_render_admissions SET status='queued' WHERE id=?").run(ticket.id);
@@ -141,7 +156,7 @@ test('first wait after queue cutoff consumes a previously admitted buffered even
 });
 
 test('a queue wait timeout recovers an on-time admission whose event delivery was delayed', async t => {
-  const {db, env, add, addTicket} = fixture(t);
+  const {db, env, leases, add, addTicket} = fixture(t);
   const pending = add('late-notification');
   const id = addTicket(pending);
   const ticket = {id, queueDeadlineAt: Date.now() + 60_000,
@@ -160,12 +175,15 @@ test('a queue wait timeout recovers an on-time admission whose event delivery wa
         ticket.queueDeadlineAt = cutoff; // Simulate the original wait reaching its cutoff.
         db.prepare("UPDATE pipeline_render_admissions SET status='admitted',admitted_at=?,queue_deadline_at=?,lease_token=? WHERE id=?")
           .run(now - 2000, cutoff, token, id);
+        leases.set(id, {workspace: pending.op.workspace_id, generation: pending.op.generation,
+          token, deadline: ticket.operationDeadlineAt});
       }
       throw Error('EVENT_WAIT_TIMEOUT');
     },
+    async sleep() {},
   };
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token);
-  assert.ok(checkpointed.has('admission-timeout-timeout-recheck'));
+  assert.ok(checkpointed.has('admission-timeout-resolved-0'));
   db.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=?").run(id);
   assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token,
     'Workflow replay must reuse the recovered token even after the lease is released');
@@ -179,6 +197,135 @@ test('a queue wait timeout recovers an on-time admission whose event delivery wa
     async do(_name, _options, action) {return action();},
     async waitForEvent() {throw Error('EVENT_WAIT_TIMEOUT');},
   }, 'admission-late', {id:lateId,queueDeadlineAt:cutoff,operationDeadlineAt:ticket.operationDeadlineAt}, 0), /RENDER_QUEUE_EXPIRED/);
+});
+
+test('an undeliverable grant is requeued after no-start lease expiry, without extending its queue window', async t => {
+  const {db, env, leases, stoppedShards, add, addTicket} = fixture(t);
+  const pending = add('preview-with-lost-event', {mode: 'preview'});
+  const id = addTicket(pending);
+  const initial = db.prepare('SELECT queue_deadline_at FROM pipeline_render_admissions WHERE id=?').get(id).queue_deadline_at;
+  const ticket = {id, queueDeadlineAt: initial,
+    operationDeadlineAt: db.prepare('SELECT operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId).operation_deadline_at};
+  env.RENDER_WORKFLOW = {get() {return {
+    async sendEvent() {throw Error('EVENT_SERVICE_UNAVAILABLE');},
+    async status() {return {status: 'running'};},
+  };}};
+  let firstLeaseToken;
+  const step = {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent(_name, {timeout}) {
+      assert.ok(Number.parseInt(timeout) <= 60, 'the Workflow must wake before the 5-minute lease expires');
+      if (!firstLeaseToken) {
+        await dispatchRenderAdmissions(env);
+        firstLeaseToken = leases.get(id).token;
+        await env.SHARDS.getByName(id).stopAndSettle(false); // Coordinator alarm fences the never-started Shard.
+        await env.COORDINATOR.getByName('global-v1').release(id, firstLeaseToken);
+        assert.ok(stoppedShards.has(id));
+      }
+      throw Error('EVENT_WAIT_TIMEOUT');
+    },
+    async sleep() {},
+  };
+  const token = await waitForRenderAdmission(env, step, 'lost-event', ticket, 0);
+  assert.notEqual(token, firstLeaseToken, 're-admission requires a fresh lease token');
+  assert.equal(leases.get(id).token, token);
+  assert.equal(stoppedShards.has(id), false, 'a never-bound ShardDO must be unfenced before its ticket is reused');
+  const restored = db.prepare('SELECT status,lease_token,queue_deadline_at,admitted_at FROM pipeline_render_admissions WHERE id=?').get(id);
+  assert.equal(restored.status, 'admitted');
+  assert.equal(restored.lease_token, token);
+  assert.equal(restored.queue_deadline_at, initial);
+  assert.ok(restored.admitted_at);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+  await claimRenderAdmission(env, pending.op, {renderId: pending.renderId, mode: 'preview'}, id, token);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+});
+
+test('a stale buffered event and an expired Coordinator lease cannot revive the old grant', async t => {
+  const {db, env, leases, add, addTicket} = fixture(t);
+  const pending = add('stale-grant', {mode: 'preview'}), id = addTicket(pending);
+  await dispatchRenderAdmissions(env);
+  const oldToken = leases.get(id).token;
+  leases.get(id).deadline = Date.now() - 1; // Alarm has not yet updated D1.
+  const ticket = {id,
+    queueDeadlineAt: db.prepare('SELECT queue_deadline_at FROM pipeline_render_admissions WHERE id=?').get(id).queue_deadline_at,
+    operationDeadlineAt: db.prepare('SELECT operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId).operation_deadline_at};
+  let waitCount = 0;
+  let backoffs = 0;
+  const step = {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent() {
+      waitCount++;
+      assert.equal(waitCount, 1, 'an expired grant must not be returned directly from D1');
+      await env.SHARDS.getByName(id).stopAndSettle(false);
+      await env.COORDINATOR.getByName('global-v1').release(id, oldToken);
+      return {payload: {attemptId: id, leaseToken: oldToken}};
+    },
+    async sleep() {backoffs++;},
+  };
+  const recovered = await waitForRenderAdmission(env, step, 'stale-buffered', ticket, 0);
+  assert.notEqual(recovered, oldToken);
+  assert.equal(leases.get(id).token, recovered);
+  assert.equal(waitCount, 1);
+  assert.equal(backoffs, 1, 'stale events are paced instead of exhausting queue recovery checks');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 0);
+});
+
+test('an old in-flight notification cannot acknowledge the newly granted lease', async t => {
+  const {db, env, leases, add, addTicket} = fixture(t);
+  const pending = add('delayed-event'), id = addTicket(pending);
+  let unblockFirst, sawFirst;
+  const firstSendStarted = new Promise(resolve => {sawFirst = resolve;});
+  const firstSendBlocked = new Promise(resolve => {unblockFirst = resolve;});
+  let calls = 0;
+  env.RENDER_WORKFLOW = {get() {return {
+    async sendEvent() {
+      calls++;
+      if (calls === 1) {sawFirst(); await firstSendBlocked;}
+      else throw Error('EVENT_API_DOWN');
+    },
+    async status() {return {status: 'running'};},
+  };}};
+  const oldDispatch = dispatchRenderAdmissions(env);
+  try {
+    await Promise.race([firstSendStarted, oldDispatch.then(() => {throw Error('MISSING_FIRST_NOTIFICATION');})]);
+    const oldToken = leases.get(id).token;
+    await env.SHARDS.getByName(id).stopAndSettle(false);
+    await env.COORDINATOR.getByName('global-v1').release(id, oldToken);
+    const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId);
+    const token = await waitForRenderAdmission(env, {
+      async do(_name, _options, action) {return action();},
+      async waitForEvent() {assert.fail('a restored ticket must be visible in persisted state');},
+    }, 'old-in-flight', {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at}, 0);
+    assert.notEqual(token, oldToken);
+  } finally {unblockFirst(); await oldDispatch;}
+  assert.equal(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE id=?').get(id).notification_sent_at,
+    null, 'the old lease notification must not mark the new lease as delivered');
+});
+
+test('a physically started attempt and a cancelled operation cannot be restored as unstarted admissions', async t => {
+  const {db, env, leases, stoppedShards, add, addTicket} = fixture(t);
+  const physical = add('already-started'), cancelled = add('no-longer-active');
+  const physicalId = addTicket(physical), cancelledId = addTicket(cancelled);
+  await dispatchRenderAdmissions(env);
+  const firstToken = leases.get(physicalId).token;
+  await claimRenderAdmission(env, physical.op, {renderId: physical.renderId, mode: 'export'}, physicalId, firstToken);
+  db.prepare("UPDATE pipeline_renders SET status='queued' WHERE id=?").run(physical.renderId);
+  await env.SHARDS.getByName(physicalId).stopAndSettle(false);
+  await env.COORDINATOR.getByName('global-v1').release(physicalId, firstToken);
+  db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id=?").run(cancelled.op.id);
+  const cancelledToken = leases.get(cancelledId).token;
+  await env.SHARDS.getByName(cancelledId).stopAndSettle(false);
+  await env.COORDINATOR.getByName('global-v1').release(cancelledId, cancelledToken);
+  const wait = {async do(_name, _options, action) {return action();},
+    async waitForEvent() {return {payload: {expired: true}};}};
+  for (const [id, renderId] of [[physicalId, physical.renderId], [cancelledId, cancelled.renderId]]) {
+    const deadlines = db.prepare('SELECT queue_deadline_at,operation_deadline_at FROM pipeline_renders WHERE id=?').get(renderId);
+    await assert.rejects(waitForRenderAdmission(env, wait, 'no-retry-' + id,
+      {id,queueDeadlineAt:deadlines.queue_deadline_at,operationDeadlineAt:deadlines.operation_deadline_at}, 0), /RENDER_QUEUE_EXPIRED/);
+    assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(id).status, 'released');
+    assert.equal(leases.has(id), false);
+    assert.ok(stoppedShards.has(id), 'a physically bound or cancelled Shard must remain fenced');
+  }
 });
 
 test('failed notifications rotate past older undeliverable events and terminal workflows are retired', async t => {

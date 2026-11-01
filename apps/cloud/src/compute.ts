@@ -110,7 +110,16 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
   async alarm() {
     const leases = this.ctx.storage.sql.exec('SELECT * FROM leases WHERE deadline<=?', Date.now()).toArray();
     for (const lease of leases) {
-      try { await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false); await this.release(String(lease.id), String(lease.token)); }
+      try {
+        // Do not stop a never-started Shard. In particular, an alarm holding a
+        // stale snapshot must not stop a NEW grant reusing this ticket ID.
+        const physical = await this.env.DB.prepare(`SELECT p.id FROM pipeline_attempts p
+          JOIN pipeline_render_admissions a ON a.id=p.id
+          WHERE p.id=? AND a.lease_token=?`)
+          .bind(String(lease.id), String(lease.token)).first();
+        if (physical) await this.env.SHARDS.getByName(String(lease.id)).stopAndSettle(false);
+        await this.release(String(lease.id), String(lease.token));
+      }
       catch { /* A deadline is not proof of stopped compute or settled usage. */ }
     }
     if (this.ctx.storage.sql.exec('SELECT id FROM leases LIMIT 1').toArray().length) await this.arm();
@@ -133,6 +142,19 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     return hash;
   }
   async isStopped() { return !this.ctx.container!.running; }
+  /** Only a never-bound Shard may be reused after an unstarted grant expires. */
+  async resetUnstartedAdmission(id: string, leaseToken: string) {
+    const safe = await this.env.DB.prepare(`SELECT a.id FROM pipeline_render_admissions a
+      JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
+      WHERE a.id=? AND a.lease_token=? AND a.status='released' AND r.status='queued'
+        AND r.generation=a.generation AND o.status='active' AND o.generation=a.generation
+        AND NOT EXISTS (SELECT 1 FROM pipeline_attempts p WHERE p.id=a.id)`)
+      .bind(id, leaseToken).first();
+    if (!safe || this.ctx.container!.running || this.work || this.workHash ||
+      ['requestHash','taskId','startedAt','result','costUsage'].some(key => this.ctx.storage.kv.get(key) !== undefined))
+      throw Error('COMPUTE_ATTEMPT_STOPPED');
+    this.ctx.storage.kv.delete('stopRequested');
+  }
   async stop() {
     // An attempt ID cannot be reused by a delayed execute RPC after a confirmed stop.
     this.ctx.storage.kv.put('stopRequested', true);

@@ -30,3 +30,37 @@ test('repeated lease activity never postpones an existing earlier coordinator cl
   assert.equal(alarmAt, earlier);
   assert.equal(alarms.length, 1);
 });
+
+test('a late alarm only stops physical attempts belonging to its original lease token', async () => {
+  const observations = [];
+  for (const scenario of ['never-started','started','regranted']) {
+    const old = {id:'ticket',token:'old-token',deadline:Date.now() - 100};
+    const coordinator = Object.create(CoordinatorDO.prototype);
+    coordinator.ctx = {storage: {sql: {exec(query) {
+      if (query.startsWith('SELECT * FROM leases')) return {toArray() {return [old];}};
+      if (query.startsWith('SELECT id FROM leases')) return {toArray() {return [];}};
+      throw Error('UNEXPECTED_QUERY: ' + query);
+    }}}};
+    coordinator.env = {
+      DB: {prepare(query) {
+        assert.match(query, /a\.lease_token=\?/);
+        return {bind(id, token) {
+          assert.equal(id, old.id); assert.equal(token, old.token);
+          return {async first() {return scenario === 'started' ? {id} : null;}};
+        }};
+      }},
+      SHARDS: {getByName(id) {assert.equal(id, old.id); return {async stopAndSettle() {observations.push(scenario + ':stop');}};}},
+    };
+    coordinator.release = async (id, token) => {
+      assert.equal(id, old.id); assert.equal(token, old.token);
+      observations.push(scenario + ':release');
+      if (scenario === 'regranted') throw Error('RENDER_LEASE_FENCED');
+    };
+    await coordinator.alarm();
+  }
+  assert.deepEqual(observations, [
+    'never-started:release',
+    'started:stop', 'started:release',
+    'regranted:release',
+  ]);
+});

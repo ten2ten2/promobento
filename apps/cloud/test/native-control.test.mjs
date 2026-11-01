@@ -39,6 +39,9 @@ function fakeAdmission(env) {
       return {token, created: true};
     },
     async extend() {},
+    async assertLease(id, _workspace, _generation, token) {
+      if (leases.get(id) !== token) throw Error('RENDER_LEASE_FENCED');
+    },
     async release(id, token) {
       assert.equal(leases.get(id) ?? token, token);
       const pending = await env.DB.prepare('SELECT r.id FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.id=? AND s.reservation_id IS NULL').bind(id).first();
