@@ -20,7 +20,7 @@ const report = {
   scope: 'read_only_staging_operation_diagnosis', deploymentSha: sha, requestedRunId: run, operationId,
   operations: await query('SELECT id,status,generation,created_at,finished_at FROM pipeline_operations WHERE id=?'),
   renders: await query('SELECT id,status,created_at,finished_at,result_json FROM pipeline_renders WHERE operation_id=?'),
-  attempts: await query('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=?'),
+  attempts: await query('SELECT id,mode,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=?'),
   costs: await query('SELECT r.id,r.kind,r.reserved_micros,s.actual_micros,s.usage_json FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=?'),
   workflows: await query('SELECT * FROM pipeline_workflows WHERE operation_id=?'),
   workflowStatuses: [],

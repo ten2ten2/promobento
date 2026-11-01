@@ -1,10 +1,13 @@
 // Deployment readback, not a paid model probe or a media/test rerun.
 import {writeFileSync} from 'node:fs';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {NATIVE_RUNTIME_COMMIT} from '@promobento/contracts/native-project';
 const{GITHUB_ACTIONS,STAGING_URL,EVAL_API_KEY,GITHUB_SHA}=process.env;
 if(GITHUB_ACTIONS!=='true'||STAGING_URL!=='https://promobento-staging.woffordvivian.workers.dev'||!EVAL_API_KEY)throw Error('DEPLOYMENT_HEALTH_SCOPE_INVALID');
 const health=await fetch(STAGING_URL+'/healthz',{signal:AbortSignal.timeout(15000)});
-if(!health.ok||(parseCanonicalJson(await health.text())).ok!==true)throw Error('DEPLOYMENT_UNHEALTHY');
+const healthBody=health.ok?parseCanonicalJson(await health.text()):null;
+if(!healthBody||healthBody.ok!==true||healthBody.nativeProjectSchema!=='1.0.0'
+ ||healthBody.runtime!=='huashu-motion'||healthBody.nativeCommit!==NATIVE_RUNTIME_COMMIT)throw Error('DEPLOYMENT_UNHEALTHY');
 async function read(path){
  const until=Date.now()+60000;
  for(;;){

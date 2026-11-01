@@ -1,83 +1,50 @@
-# 固定页面与政策内容
+# 网站政策内容
 
-本目录维护完整文章，UI 短消息继续使用 `locales/*.json`。当前有三篇英文政策草稿；后续 About、帮助文章沿用此结构，不先创建空页面或翻译目录。
-
-**当前三篇正文均为草稿，尚未发布。** `effectiveAt` 为空，`REQUIRED` 标记待补事实；页面实现进度见[实施状态](../../docs/implementation-status.md)。
+**现有三篇英文正文均为未发布草稿**：`effectiveAt` 为空，仍含 `REQUIRED` 待核实事实。不得直接用于生产路由、结账或取得用户同意。短 UI 文案在 `locales/*.json`，业务规则以 PRD [04](../../docs/prd/04-architecture-and-data.md)、[05](../../docs/prd/05-waffo-billing.md)、[09](../../docs/prd/09-sources-and-licensing.md) 为准。
 
 ## 1 页面与章节
 
-| 路由 | 正文 | 负责内容 |
+| 路由 | 正文 | 责任 |
 | --- | --- | --- |
-| `/terms` | [terms.md](en/terms.md) | 服务、购买、素材和成片权利、可接受使用、模型披露、退款概要及争议处理 |
-| `/privacy` | [privacy.md](en/privacy.md) | 数据类别、目的、接收方、AI 处理、Cookie、保存与删除、隐私权利 |
-| `/refund-policy` | [refund-policy.md](en/refund-policy.md) | 完整退款规则、使用判定、关联订单、到账状态及退款影响 |
+| `/terms` | [Terms](en/terms.md) | 服务、素材/成片权利、AI 与可接受使用 |
+| `/privacy` | [Privacy](en/privacy.md) | 处理目的、接收方、Cookie、保存与权利请求 |
+| `/refund-policy` | [Refund Policy](en/refund-policy.md) | 退款条件、例外、订单状态及影响 |
 
-不另开 AIGC 页面。固定章节链接为 `/terms#acceptable-use`、`/terms#ai-models` 和 `/privacy#ai-processing`；完整退款规则只在退款页维护。路由来自 [routes](../../config/routes.json)，注册路由不代表草稿可以发布。
-
-业务规则分别由 [04 数据处理](../../docs/prd/04-architecture-and-data.md)、[05 购买与授权](../../docs/prd/05-waffo-billing.md)和 [09 素材与合规](../../docs/prd/09-sources-and-licensing.md)负责。正文是这些规则的对外表达；规则变化时同步审阅相关页面，不能只改配置数字而改变既有购买承诺。
+全文退款规则只在退款页维护；Terms 只摘要并链接。固定章节锚点为 `/terms#acceptable-use`、`/terms#ai-models`、`/privacy#ai-processing`。路由以 [routes](../../config/routes.json) 为准；配置中存在路由不代表正文已发布。
 
 ## 2 内容和配置的边界
 
-Markdown 使用受控标量占位符，如 `{{brand.brandName}}`、`{{brand.supportEmail}}`、`{{links.privacy}}`。品牌、主体、邮箱、链接和少量政策数字可以替换；完整条款、退款条件及许可范围保留在各语言正文中。
+正文使用白名单标量占位符（如 `{{brand.brandName}}`、`{{links.privacy}}`），由构建时的可信配置展开：
 
-[public-context.example.json](../../config/public-context.example.json) 展示构建时需要的公开变量。接入时从下表来源生成，不在示例文件里另外维护同一份配置，也不传入密钥或内部账户资料。
-
-| 字段 | 来源及维护方式 |
-| --- | --- |
-| `brand.*` | [brand.json](../../config/brand.json) 的品牌、URL、邮箱和主体；经营地址补入经确认的主体资料。支持邮箱与域名现有规划值仍需部署核验。 |
-| `links.*` | 从 routes 和 [localization](../../config/localization.json) 推导当前语言链接；示例中的路径不再单独手工维护。 |
-| `policy.trialActiveDays`、`paidActiveDays`、`readOnlyGraceDays` | 分别取 [agent-policy](../../config/agent-policy.json) 的 `retention.freeDays`、`paidDays`、`graceDays`；起算、退款重算和使用条件以 05 为准。 |
-| `policy.refundNoticeDays` | 取 `retention.refundNoticeDays`，用于退款导致提前清理时的通知期，不复用正常到期的宽限天数。 |
-| `policy.voluntaryRefundDays` | 取 `agent-policy.refund.voluntaryWindowDays`；申请条件和例外按 05。 |
-| `policy.onlineMediaDeletionHours` | 取 `agent-policy.retention.onlineMediaDeletionHours`；仅覆盖在线业务存储中已无合法引用的项目媒体，范围按 04。 |
-| `policy.minimumAge` | 本稿建议 18，待结合实际主体与市场确认；不是已批准的生产规则。 |
-| `legal.*`、`payment.*` | 经确认的适用法、法院、实际 MoR 法律实体、买家条款及隐私告知；不得用 Waffo 品牌名代替法律销售方。 |
-| `ai.*` | 实际生产提供商和模型的简短披露；多提供商时，正文还须列清提供商、模型、用途之间的对应关系。 |
-
-上述保存期、退款期和在线媒体删除时限由 `check:repo` 核对配置与公开变量是否一致。未知值保持 null；`_meta` 只说明示例状态，不是正文变量。供应商数据范围、地区、保留期限及删除能力直接维护在 Privacy。客户内容不用于训练是产品承诺和供应商准入条件，不设模板开关；合同和账户设置不能支持该承诺时，不得启用该供应商或发布相关功能。
-
-接入时只接受登记过的字符串和符合范围的数字。文本按 Markdown/HTML 使用位置转义，链接目标分别校验允许的站内路径、HTTPS 地址和邮箱。先解析 frontmatter，再对允许的文本字段替换；不做任意模板求值，不启用 MDX、脚本或原始 HTML。替换不能递归解释配置值中的新变量。
+- 品牌、域名、支持邮箱取 [brand](../../config/brand.json)；页面链接由 routes/localization 推导；保存/退款时限取 [agent-policy](../../config/agent-policy.json)。[public-context 示例](../../config/public-context.example.json)不得另行维护冲突值或包含密钥。
+- 实际经营主体、市场、MoR、AI/邮件/审核供应商、数据地区及法定权利须以经核实事实填入正文；未知值保留待办，不推测或伪造。不得把配置的产品目标写成已部署承诺。
+- 只替换允许的字符串和数值，并按 HTML/Markdown 上下文转义；站内路径、HTTPS、邮箱分别校验。禁止任意模板求值、脚本、原始 HTML、递归替换或从正文导出密钥。
 
 ## 3 Frontmatter 与锚点
 
-每页包含 `title`、`description`、`status`、`version`、`effectiveAt`、`updatedAt`；有固定章节链接的页面另有 `anchors`。语言和页面标识由受控目录及文件名取得。
-
-- 文章布局用 title 渲染唯一 H1，正文从 H2 开始；description 用于页面和搜索描述，可使用同一白名单中的品牌变量。
-- version 是独立的政策版本，不跟随 PRD 或应用版本。effectiveAt 是生效日期，草稿为空；updatedAt 是正文修订日期，不随部署自动改变。
-- anchors 的键为稳定 ID，值为该语言的准确 H2 文本。渲染器须找到唯一对应标题并设置 ID；这不是 Markdown 原生自动生效的语法。
-- 普通 Markdown 预览器可能生成带编号的标题锚点。正式页面须验证三个固定章节链接，不能仅凭预览器显示正常判定完成。
+每页须有 `title`、`description`、`status`、`version`、`effectiveAt`、`updatedAt`；固定锚点还需 `anchors` 映射。页面布局渲染唯一 H1，正文从 H2 开始；指定锚点必须精确匹配唯一 H2。政策 `version` 独立于 PRD，`effectiveAt` 由真实生效日填写，不能由部署自动生成。
 
 ## 4 多语言
 
-英文使用根路径和 `content/pages/en`，不复制 `/en`。未来语言目录与 URL 前缀一致，例如 `content/pages/zh-hans/terms.md` 对应 `/zh-hans/terms`；内部标识仍为 `zh-Hans`。完整路由、翻译和搜索元数据规则见 [10](../../docs/prd/10-i18n-and-themes.md)。
-
-法律译文另记录 `sourceVersion`，保留固定 anchor ID。新政策生效前审阅所有已启用语言；缺失或过期译文不得用于取得对新版本的接受。未发布语言返回 404，可提供用户主动打开英文版的链接，不静默混入英文法律正文。
+英文原文在 `content/pages/en`、站点根路径（不加 `/en`）。新增语言按 URL 前缀建目录，例如 `zh-hans` → `/zh-hans/terms`，使用标准语言标识 `zh-Hans`。每份法律译文绑定 `sourceVersion` 并保留稳定 anchor ID；缺失或过期译文返回 404，不静默混入英文，也不能用来接受新政策。详见 [10](../../docs/prd/10-i18n-and-themes.md)。
 
 ## 5 发布与版本记录
 
-正式页面公开可访问，SSR 或构建产物包含可读全文，Footer、注册和结账入口链接正确。个性化 Cookie、主题和会话仍遵守 10/12 的缓存规则；草稿不进入正式路由和 sitemap。
+发布前必须实现全文可读取的公开页面、Footer/注册/结账链接、真实锚点、变量解析及草稿门禁；拒绝 draft、无生效日、`REQUIRED`、未知变量、缺失事实和过期译文。仓库 Markdown 检查不等于正式页面或法律核验通过。
 
-发布时归档展开后的完整正文、语言、版本、生效日期、hash、配置版本、实际源 commit 及关联退款政策版本。源 commit 在构建时取得，不在示例里维护一个过时值。订单和必要接受记录引用该快照，不能用新配置重新展开历史条款。
-
-接受服务条款、隐私告知、依法需要的即时履行请求及撤回权确认、可选展示/营销同意分别记录。单片交付与持续创作服务按实际市场和合同分类，不套用一段统一的权利放弃声明；购买收据关联事前确认，不能替代确认。具体要求统一见 05。
-
-发布校验须拒绝 draft、缺少生效日期、空必填值、未知或类型错误的变量、未替换占位符、REQUIRED 编辑标记、失效锚点和过期译文。仓库可以保留草稿；现有链接、锚点和变量检查不能替代发布校验或事实核验。
+每次发布归档**展开后的全文**、语言、版本、生效日、内容 hash、配置和源码 commit、关联退款政策版本；订单与接受/同意记录引用该快照，不能用后续配置覆盖旧购买承诺。条款接受、隐私告知、即时履行确认、营销同意分别记录，适用市场差异由 PRD 05 管理。
 
 ## 6 发布前待确认与核验
 
-正文中的编辑提示逐项补齐后删除，不能原样展示给客户。
-
-| 待完成事项 | 验证范围 |
+| 待办 | 必须有的证据 |
 | --- | --- |
-| 主体与市场 | 真实经营主体、地址、注册地、适用法、法院、最低年龄；必要的 DPO/当地代表；支持邮箱可收件且有人处理。 |
-| MoR | 实际签约销售方、对应买家条款和隐私 URL，与结账及收据一致；普通退款窗口以外的法定或履约请求有处理路径。 |
-| AI 与数据处理 | 真实模型、转写、审核、邮件、支持等供应商及其角色、数据范围、地区、保留和删除能力；可选 Prompt Sift 仅在实际启用后列为审核提供方，付款处理与提示审核分别披露；不训练的合同/账户设置、DPA、子处理者及跨境安排。 |
-| 保留和删除 | 账号关闭后、财务、支持、安全、分析与归因、备份、供应商日志、试用防滥用、付款去重、许可和同意证据的具体期限或客观终止条件；主动删除及备份恢复演练。 |
-| 展示副本 | 独立授权的成片副本保存终点、撤回后的移除时限，以及原项目删除或到期是否同时结束展示；授权记录只保留必要证据。 |
-| Cookie、分析与营销 | 按实际 Cookie、其他浏览器存储及服务端记录披露分析标识、关联范围和期限；核实归因、广告、营销及个人信息出售/共享情况，不凭设计名称虚构 Cookie 或控制入口。 |
-| 素材与成片权利 | 字体、音乐、素材、代码及组件许可支持所授使用范围；项目专属新增权利确属平台且可转让，必要形式及交付记录范围已落实；用户原许可限制与用途一致。 |
-| 审核与用户权利 | 提交 Waffo AIGC 审核和开放客户生成前，按 09 验证输入、展示前输出两阶段；公开展示另有发布后检查。举报、申诉和隐私请求有可用渠道；P0 账号关闭通过 `brand.supportEmail` 人工核验和处理，按 12 的 AUTH-11 验收。 |
-| 购买、退款及到期 | 成功成果计次、失败释放、缺陷修复、升级/追加依赖、退款确认状态及退款诱发的清理宽限与 05 一致；不由余额状态自动回转版权或撤销无关许可。 |
-| 页面和记录 | 模板变量、锚点、链接、全文 SSR、缓存及语言策略通过验收；发布快照和按目的区分的接受/同意记录可追溯。 |
+| 主体、地域、年龄 | 真实经营主体、地址、首发市场、适用法、最低年龄、支持邮箱；必要时当地代表 |
+| MoR 与退款 | 实际销售方及买家条款/隐私 URL、收据、法定退款和普通退款的不同处理路径 |
+| AI/数据处理 | 模型、转写、审核、邮件和支付方的真实职责、接收数据、地区、保留与删除能力；不训练承诺的合同/账户依据 |
+| 存储与删除 | 账户关闭、财务、日志、备份、支持、费用和权利证据的期限；在线媒体清理及恢复演练 |
+| 展示、素材与成片 | 展示副本保留/撤回、授权来源、生成标记、权利范围和客户删除的实际效果；禁止花叔本人形象进入客户素材 |
+| Cookies 与营销 | 实际使用的标识、分析/归因、售卖或共享、可选同意及期限，不按规划虚构 Cookie |
+| 安全与用户请求 | 输入/输出审核、投诉、申诉、隐私/账号关闭工单真实通道和 Waffo 适用检查 |
+| 页面与交易验收 | SSR、锚点、语言、缓存、政策快照、接受日志、退款与购买状态一致 |
 
-披露范围参考 Waffo 的 [Terms 模板](https://docs.waffo.ai/mor/account-reviews/tos)、[Privacy 模板](https://docs.waffo.ai/mor/account-reviews/privacy-policy)和 [AIGC 要求](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)；法律与供应商依据见 09。模板中的承诺仍须由实际合同、账户设置和服务能力支持。
+相关外部参考：[Waffo Terms](https://docs.waffo.ai/mor/account-reviews/tos)、[Privacy](https://docs.waffo.ai/mor/account-reviews/privacy-policy)、[AIGC](https://docs.waffo.ai/mor/account-reviews/aigc-compliance)。模板不能替代经营和服务事实。

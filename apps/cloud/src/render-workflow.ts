@@ -19,8 +19,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
     })) as Json;
     // Immutable source lives in R2; only the pointer is checkpointed, never an entire project in Workflow state.
     const input = await getJson(this.env, row.job_key);
-    // Refusing an old execution does not rewrite its historical row or consume another reservation.
-    if (input.schemaVersion !== '1.0.0' || input.kind !== 'native_render_request') throw Error('LEGACY_RENDER_REQUIRES_RECONCILIATION');
+    if (input.schemaVersion !== '1.0.0' || input.kind !== 'native_render_request') throw Error('NATIVE_RENDER_REQUEST_INVALID');
     try {
       await step.do('claim-execution', {retries: {limit: 0, delay: '1 second'}}, async () =>
         workflowStarted(this.env, 'render', row.id, row.operation_id, row.generation));

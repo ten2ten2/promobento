@@ -1,21 +1,13 @@
-# 两种模型接口，共用持久预算
+# 模型适配与持久费用
 
-`src/adapters.mjs` 将固定提示、图片和工具转换为OpenAI-compatible／Anthropic请求，读取真实SSE文本、工具参数、usage、首token／总耗时。适配器只发一次；重试与结构纠正由持久调用方按原预算授权，无usage、截断、拒绝或断流不记免费成功。
+`src/adapters.mjs` 负责 OpenAI-compatible / Anthropic 请求、视觉/工具输入、SSE 解析、首 token/总耗时和完整 usage。适配器**只发送一次**，不决定重试、纠错或预算；可信 Worker 的持久调用方按冻结步骤和已授权的真实费用处理。供应商、模型能力、价格见 [model-providers](../../config/model-providers.json)，授权见 [model-authorization](../../config/model-authorization.json)。
 
-## 请求与校验
+## 约束
 
-- Anthropic使用显式一小时前缀缓存和output_config.format；网关按登记能力使用json_object，不把它当JSON Schema强保证。结果仍经共享parseCanonicalJson和预编译校验器。
-- 调用方显式指定1–32,768输出token；这是适配器边界，不是全部步骤默认值。共享／阶段账本按实际上限预留，再按usage结算。
-- OpenAI-compatible接口可将显式`toolChoice`序列化为命名tool_choice，名称必须对应已声明工具；省略保留默认行为。Anthropic不接受这项适配器参数；参数被供应商接受不证明实际执行了该语义。
-- `parseModelJson` 只允许完整单一Markdown json围栏去包络，仍用同一严格解析器；不从散文提取片段、不修补残缺JSON、不忽略重复键。
-- 密钥只通过可信Worker／Actions绑定传入，不写源包、产物或日志。原生导演阶段绑定、能力和价格见[model-providers](../../config/model-providers.json)，内部创作与改稿入口见[cloud README](../../apps/cloud/README.md)。
+- Anthropic 使用显式 1 小时提示缓存及 `output_config.format`；兼容网关的 `json_object` 不是强 Schema 保证。模型结果总要经过 `parseCanonicalJson` 和预编译校验器。
+- 请求显式给定 1–32,768 输出 token；工具选择必须指向已声明的工具，且只在该供应商支持时序列化。完整单一 Markdown JSON 围栏可解包，不从散文提取或修补不合法片段。
+- 终态截断/拒绝、非法工具参数、空输出和 SSE 流内错误分别保留原始文本/arguments、失败码、usage 与已知 HTTP 状态。终态原始 SSE 存入操作私有存储并由回执引用；断线和超限流的原始字节尚未完整保留。
+- 真实 usage 按目录结算；无 usage 或断流视为**未知费用**，不补零、不自动重发。完成但格式无效的回答只有在原次数/金额内才可纠正；补账必须绑定原 callId 与价格。
+- 密钥仅由 Worker/Actions 可信绑定传入，不进入源码、HTML、产物或日志。当前只有原生导演方法的阶段入口，没有旧引擎备用路线。
 
-## 先保留用量，再返回失败
-
-终态截断／拒绝抛 `ModelOutputError`，result保留partial text、失败码、流结束状态和后到usage，供持久层先保存／计费再落失败。工具参数非法也保留原arguments、usage及MODEL_TOOL_JSON_INVALID。完成的空输出记为 `MODEL_OUTPUT_EMPTY`，兼容接口的流内 error 记为 `MODEL_STREAM_FAILED`，数值状态码保留为 `upstreamStatus`；适配器不自动重发。已解析到终态的原始 SSE 单独存入操作私有存储并由回执引用；流解析失败、断线或超限的原始字节目前仍不保留。当前原生调用按冻结阶段绑定执行，不把旧自写镜头备用路线当作现行自动切换入口。
-
-完整usage按冻结目录结算；无usage的HTTP／传输失败保留未知预留。完整但不合法的结果只可在原次数／金额内结构纠正；无usage则要求对账，不自动重发。持久层按原callId／价格补账，不用输出上限伪造实收。
-
-发送请求或读取响应流时的网络连接错误以 `MODEL_TRANSPORT_FAILED` 返回；已有明确错误码和 HTTP 状态保持原样，响应解析错误不冒充断线。读取失败后的流清理不覆盖首因。
-
-实际模型能力和反例见[模型证据](../../docs/evidence/2026-10-23-model-probe/README.md)，当前作品验收只见[实施状态](../../docs/implementation-status.md)。
+实际模型反例见[模型证据](../../docs/evidence/2026-10-23-model-probe/README.md)；真实作品、授权有效期与部署范围见[实施状态](../../docs/implementation-status.md)。

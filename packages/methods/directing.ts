@@ -2,7 +2,7 @@ import huashuSource from './huashu-motion/source.mjs';
 import hypitSource from './hypit-source.mjs';
 import {digest} from '@promobento/contracts/digest';
 
-/** Frozen method evidence; the complete upstream references and original templates remain available. */
+/** Current native method; source references and templates are pinned with each operation. */
 export const directingMethodPack = {
   id: 'native-product-directing', version: '2.0.1', huashuSource, hypitSource,
   sources: [
@@ -62,7 +62,7 @@ export const directingMethodRef=(pack:DirectingMethodPack)=>({id:pack.id,version
 
 /** Stage-bounded recall; source/template bodies are the original native material, never adapted shims. */
 export function recallDirecting(pack:DirectingMethodPack,stage:string,audience:'software'|'course',language='') {
-  if(pack.id!=='native-product-directing'||!['2.0.0',directingMethodPack.version].includes(pack.version)||!Object.hasOwn(directingMethodPack.stages,stage)||!Object.hasOwn(pack.stages,stage))throw Error('DIRECTING_METHOD_UNSUPPORTED');
+  if(pack.id!==directingMethodPack.id||pack.version!==directingMethodPack.version||!Object.hasOwn(directingMethodPack.stages,stage)||!Object.hasOwn(pack.stages,stage))throw Error('DIRECTING_METHOD_UNSUPPORTED');
   const refs:Record<string,string[]>={
     directions:['references/director.md','references/visual-direction.md','references/library/formats.md'],
     treatment:['references/director.md','references/rhythm.md','references/product-demo-continuity.md','references/music.md'],

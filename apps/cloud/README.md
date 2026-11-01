@@ -1,8 +1,8 @@
 # Native huashu control plane
 
-Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有产物。影片直接使用固定版本 huashu-motion 的 HTML 工程；每个画幅的预览或整片导出是一个容器任务。原来的 FilmSpec、PB.scene、跨容器分片、接缝合并和自建长期 Studio 执行入口已移除。
+Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有产物。影片只使用固定版本 huashu-motion 的 HTML 工程；每次预览或整片导出都是一个独立容器任务，没有 FilmSpec、分片合并或云端长期 Studio 执行入口。
 
-本页描述主线源码提供的内部 API，受 `EVAL_API_KEY` 保护；原生主线尚未部署 staging，实际部署和验收见[实施状态](../../docs/implementation-status.md)。生产 `S1_ENABLED=off`，客户认证、工作区权限、购买、冻结交付和 Studio 待实现。管理 token 能访问内部共享的 `evals/` 导入区；操作产物限定在自己的 `operations/:id/`，跨操作复用须绑定同工作区／项目的父 revision。客户资产 ACL 须另行实现，不能向租户开放内部导入区。
+本页是**主线内部 API**，受 `EVAL_API_KEY` 保护；原生代码尚未部署 staging，生产 `S1_ENABLED=off`。客户认证、资产 ACL、购买、冻结交付和 Studio 待实现。内部 `evals/` 导入区不得向租户开放；操作生成文件限定在 `operations/:id/`，跨操作复用须证明同工作区／项目的父 revision。实际验收见[实施状态](../../docs/implementation-status.md)。
 
 ## 工程与任务
 
@@ -28,13 +28,13 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。未确认费用继续占用原预留，不写成 0，不自动重发模型。
 
-## 数据与兼容边界
+## 部署标识与账本
 
-应用迁移 `0004_native_projects.sql` 新增原生工程版本表，以及 Workflow/context 的 engine 标记。旧行默认为 `legacy`；新任务标记 `huashu`，自动恢复只处理新任务。旧业务、账本、费用回执、已通过影片与 R2 文件保持原样；旧执行器的实例不通过新渲染器重放。
+迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
 
-`SHARDS` / `ShardDO` 仅保留已部署 Durable Object 的名称及持久状态身份，让旧容器的 stop/cost 句柄仍可查询和清理；新执行能力只有完整 native job。`closeStudio` 是历史句柄的清理函数，没有创建、取帧或运行旧 Studio 的入口。旧的 `shard_index` 数据列只用于保留和读取历史记录，新 attempt 不填写它。
+`SHARDS` / `ShardDO` 是 Cloudflare 已登记的 Durable Object 绑定/类名，**目前承载的是完整 native job**，不能仅凭名称删除。更名须单独规划 DO 迁移，确保执行中的真实容器和费用可结算。旧 `shard_index` 只存在于已应用的数据库迁移/历史行，当前任务与 API 不使用它。
 
-共享 `MODEL_LEDGER`、`model-budget.ts` 与 `store.reserve/settle` 延续原预留与不可变结算规则。新开发不会重新创建授权、补零历史用量或提高费用额度。
+共享 `MODEL_LEDGER`、模型预留与不可变结算规则仍有效；删除旧执行代码不会重置授权或把未知费用算成零。
 
 ## 内部 API
 
@@ -61,10 +61,10 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 | `GET capacity`、`GET model-budget` | 只读容量与共享账本 |
 | `POST releases`、`GET releases/:id` | 登记或读取固定容器镜像摘要与原生 runtime commit |
 
-注册新 release 时，`runtimeVersion` 必须为固定 huashu commit；旧 release 仍可读取，但不得用于新的 native job。原来的 `/studio`、`/frames`、Studio check/benchmark/isolation 入口不再存在。
+注册 release 时 `runtimeVersion` 必须为固定 huashu commit；不提供旧 `/studio`、`/frames` 等入口。公开 `/healthz` 返回 `nativeProjectSchema: "1.0.0"`、`runtime: "huashu-motion"` 和原生 commit；**产品 PRD 协议 3.0.0 与内部文件清单 1.0.0 是不同版本域**。
 
 ## 构建、验证与部署
 
 依赖、工具链和 Actions 入口见[08](../../docs/prd/08-codex-execution.md#3-代码责任与可复现工具链)。Worker 入口为 `src/index.ts`，容器构建见 [render-container](../render-container/README.md)。检查不自动部署或发起付费模型评测。
 
-`test/native-control.test.mjs` 用真实 SQLite 事务和内存 R2 验证版本范围、不可变身份、outbox、取消 fence、平台重试、未知计算费用和历史迁移；媒体执行与进程隔离由容器侧验证。旧模型账务与密钥测试继续保留。未运行的云集成不能根据离线单元检查记为通过。
+`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、outbox、取消 fence、平台重试、未知计算费用及迁移安全；媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。

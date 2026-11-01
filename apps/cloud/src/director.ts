@@ -34,7 +34,7 @@ const toBase64=(bytes:Uint8Array)=>{let binary='';for(let i=0;i<bytes.length;i+=
 const record=(value:unknown):value is Json=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
 const fileExtension=(mediaType:string)=>({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/svg+xml':'svg','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','audio/wav':'wav','audio/x-wav':'wav','audio/mpeg':'mp3','audio/mp4':'m4a','audio/ogg':'ogg'})[mediaType as 'image/png'];
 
-/** Resolve legacy upload manifests to their actual original video; the old frame-pack executor is not retained. */
+/** Internal evaluation frame-pack evidence resolves to the retained original video before native authoring. */
 async function materialInputs(env:PipelineEnv,op:Operation,context:Json){
  const files:Json[]=[],materials:Json[]=[],resources=[...context.resources,...(context.audioSources??[])];
  await rights(env,op,resources);

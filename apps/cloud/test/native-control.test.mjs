@@ -8,7 +8,8 @@ import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRende
 import {immutableBytes, reserve, settle} from '../src/store.ts';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
-import {commitRender, dispatchRenderProgress, recordRenderFailure} from '../src/render-recovery.ts';
+import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation} from '../src/render-recovery.ts';
+import {getReviewDraft} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -48,6 +49,17 @@ test('native migration preserves settled films and unknown reservations; automat
     assert.equal(canonical({operations: db.prepare('SELECT * FROM pipeline_operations').all(), renders: db.prepare('SELECT * FROM pipeline_renders').all(),
       costs: db.prepare('SELECT * FROM cost_reservations').all(), settlements: db.prepare('SELECT * FROM cost_settlements').all()}), before);
   } finally {db.close();}
+});
+
+test('terminal native cleanup and draft reads require no retired Studio handle or response shape', async t => {
+  const {db, env, op} = await fixture(t);
+  db.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?")
+    .run('operations/' + op.id + '/review-draft.json', op.id);
+  assert.equal(await getReviewDraft(env, op.id), null, 'the pre-native review-draft address is retired');
+  const result = await reconcileOperation(env, op.id);
+  assert.equal(result.stoppedAttempts, 0);
+  assert.equal(result.reconciledRenders, 0);
+  assert.deepEqual(result.pendingCosts, []);
 });
 
 test('immutable revisions validate bytes and scope parents to the same workspace/project', async t => {

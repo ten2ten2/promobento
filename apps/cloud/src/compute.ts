@@ -8,7 +8,7 @@ import type {PipelineEnv, Json} from './pipeline-types.ts';
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const coordinator = (env: PipelineEnv) => env.COORDINATOR.getByName('global-v1');
 const sizes: Record<string, [number, number, number]> = {'standard-1': [.5, 4, 8], 'standard-2': [1, 6, 12], 'standard-3': [2, 8, 16], 'standard-4': [4, 12, 20]};
-/** The existing allocated-resource upper bound is retained for historical settlements. */
+/** Cost reservation upper bound for native container time. */
 const computeMicros = (instance: string, ms: number) => {
   const size = sizes[instance];
   if (!size || !Number.isFinite(ms) || ms < 0) throw Error('COMPUTE_USAGE_INVALID');
@@ -60,7 +60,7 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
         if (existing.workspace !== workspace || existing.kind !== 'render') throw Error('LEASE_CONFLICT');
         return true;
       }
-      // Old leases still occupy capacity until their actual container stop is confirmed.
+      // Any unconfirmed physical stop still occupies capacity.
       const rows = sql.exec('SELECT workspace,COUNT(*) AS n FROM leases GROUP BY workspace').toArray();
       const global = rows.reduce((sum, row) => sum + Number(row.n), 0);
       const local = rows.filter(row => row.workspace === workspace).reduce((sum, row) => sum + Number(row.n), 0);
@@ -85,10 +85,7 @@ export class CoordinatorDO extends DurableObject<PipelineEnv> {
   async counts() { return this.ctx.storage.sql.exec('SELECT workspace,kind,COUNT(*) AS count FROM leases GROUP BY workspace,kind').toArray(); }
 }
 
-/**
- * Existing class/namespace names preserve deployed DO storage and stop/cost handles.
- * Every newly admitted task executes one complete native project. No shard executor remains.
- */
+/** Deployed DO name; its sole execution mode is one complete native project per container. */
 export class ShardDO extends DurableObject<PipelineEnv> {
   private token: string | undefined;
   private work: Promise<Json> | undefined;
@@ -258,7 +255,6 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     await this.stop();
     const id = await this.ctx.storage.get<string>('taskId'), start = await this.ctx.storage.get<number>('startedAt'),
       instance = await this.ctx.storage.get<string>('instance');
-    await this.ctx.storage.delete('studio');
     if (id) {
       await coordinator(this.env).release(id);
       if (instance) await this.finishCost(id, instance, start);
@@ -291,12 +287,5 @@ export class OperationDO extends DurableObject<PipelineEnv> {
       }, cancel: () => {clearTimeout(timer); this.listeners.delete(listener);},
     });
     return new Response(body, {headers: {'content-type': 'text/event-stream', 'cache-control': 'no-store'}});
-  }
-  /** Cleanup-only compatibility for a studio handle written by a previous deployment. */
-  async closeStudio() {
-    const studio = await this.ctx.storage.get<Json>('studio');
-    if (!studio) return;
-    await this.env.SHARDS.getByName(studio.taskId).stopAndSettle();
-    await this.ctx.storage.delete('studio');
   }
 }

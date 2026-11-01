@@ -13,7 +13,7 @@ export async function nativeWorkerHealthy(fetchHealth=fetch){
   const response=await fetchHealth(base+'/healthz',{signal:AbortSignal.timeout(15000),cache:'no-store'});
   if(!response.ok)return false;
   const body=parseCanonicalJson(await response.text());
-  return body.ok===true&&body.protocol==='1.0.0'&&body.runtime==='huashu-motion'&&body.nativeCommit===NATIVE_RUNTIME_COMMIT;
+  return body.ok===true&&body.nativeProjectSchema==='1.0.0'&&body.runtime==='huashu-motion'&&body.nativeCommit===NATIVE_RUNTIME_COMMIT;
  }catch{return false;}
 }
 

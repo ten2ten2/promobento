@@ -20,7 +20,7 @@ export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status
   if(render.status!=='passed')await recordRenderFailure(env,row.id,nativeFailure(row.kind,native)); // Includes any unconfirmed physical stop.
  }else if(['active','awaiting_user'].includes(op.status)){
   await failDirector(env,op,nativeFailure(row.kind,native));return;
- }else await env.OPERATIONS.getByName(op.id).closeStudio();
+ }
  await resolveWorkflow(env,row);
 }
 

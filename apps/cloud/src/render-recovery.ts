@@ -60,9 +60,9 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  // Native termination and physical stops are independent. An unavailable platform API must not skip compute cleanup.
  const workflowsPromise=Promise.allSettled([stopOperationWorkflows(env,operationId,exceptWorkflow)]);
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE operation_id=? AND stopped_at IS NULL').bind(operationId).all<{id:string}>();
- const cleanup=await Promise.allSettled([stopAttempts(env,attempts.results),env.OPERATIONS.getByName(operationId).closeStudio()]);
+ const unconfirmedStops=await stopAttempts(env,attempts.results);
  const workflows=await workflowsPromise;
- if(cleanup[0]!.status==='rejected'||cleanup[0]!.value||cleanup[1]!.status==='rejected')throw Error('COMPUTE_STOP_UNCONFIRMED');
+ if(unconfirmedStops)throw Error('COMPUTE_STOP_UNCONFIRMED');
  if(workflows[0]!.status==='rejected')throw Error('WORKFLOW_STOP_UNCONFIRMED');
  const renders=await env.DB.prepare("SELECT id,status,result_json FROM pipeline_renders WHERE operation_id=? AND status<>'passed'").bind(operationId).all<Json>();
  for(const row of renders.results){

@@ -172,7 +172,7 @@ test('a valid response without usage cannot be reused by another operation',asyn
  await assert.rejects(modelStep(env,'new-operation',0,'facts','new-call',request,validate),/MODEL_CALL_RECONCILIATION_REQUIRED/);assert.equal(requests,1);
  const after=await budget.modelBudgetStatus(env);assert.deepEqual(after.pending,before.pending);
 });
-test('legacy cache re-admits a settled receipt in the same scope without a new request',async t=>{
+test('settled response cache re-admits an identical request without new spending',async t=>{
  const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
  t.after(()=>{globalThis.fetch=originalFetch;});

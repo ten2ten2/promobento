@@ -1,6 +1,6 @@
 # 共享契约与原生工程身份
 
-保留的业务辅助结构使用 **3.0.0**；原生渲染入口使用独立 **NativeProject 1.0.0**，其 JSON 只描述文件、固定环境与画幅。动画和声音的创作源是 `index.html` 与本地工程文件。
+产品配置/业务协议 **3.0.0** 与内部 **NativeProject 1.0.0** 是独立版本域。NativeProject JSON 只描述文件、环境与画幅；原生 `index.html` 及本地文件才是动画和声音的源码。Worker `/healthz` 的 `nativeProjectSchema` 表示后者，不能当作产品版本。
 
 ## 构建覆盖全部 Schema
 
@@ -26,11 +26,11 @@ assertNativeProject(project);
 const revisionId = await nativeProjectHash(project);
 ```
 
-## 业务要求与历史边界
+## 使用边界
 
-客户草稿、购买、冻结和交付服务仍未实现，要求见 [14](../../docs/prd/14-production-contracts.md)。原生链路不再携带旧 Composition、通用身份、Studio、预览及交易的参考 Schema／控制器；后续客户契约应直接围绕原生版本和真实业务事务实现。
+客户草稿、权限、购买、冻结与交付尚未实现，详见 [14](../../docs/prd/14-production-contracts.md)。未来客户契约直接引用不可变原生 revision 与可信事务，不恢复旧 FilmSpec、Composition 或 Studio 协议。
 
-历史数据库、不可变回执、费用和已发布环境继续保留。PNG 像素工具和视频帧包供素材处理使用；平台目标枚举由 [targets](src/targets.mjs) 提供，离线单位经济分析仍使用现行模型和商品配置。
+PNG 工具和视频帧包只服务内部真实素材采集，不能作为第二套影片播放器；[targets](src/targets.mjs) 仍供平台配置与离线经济分析。数据库迁移、真实素材、费用/用量及原始回执不因源码清理而删除。
 
 ## 本地检查
 

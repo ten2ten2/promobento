@@ -1,6 +1,6 @@
 # 导演方法来源
 
-方法 **2.0.1** 使用原生 huashu-motion 工程作为影片源码：`index.html`、本地 JavaScript/CSS、素材和单一时间线。完整 HTML、GSAP、Canvas、SVG 与 Three.js 在隔离浏览器中运行；方法包不再把模板转写成 PromoBento 镜头 DSL，也不保留 1.x 功能旗标。已冻结2.0.0仍可召回相同的现行阶段；未调用的triage入口已退役，历史方法与验收记录保持原归属。
+当前方法仅支持 **2.0.1**：原生 huashu-motion `index.html`、JS/CSS、素材及单一时间线在隔离浏览器中运行，不转写 PromoBento 镜头 DSL，也不兼容 1.x、2.0.0 或退役的 triage 阶段。历史方法和调用回执保留在原始证据中，不由新导演恢复。
 
 [固定 huashu 源码](huashu-motion/source.mjs)保留 `52467f99c602b76ba86d511d37acdfe93fa1e16e` 的原始 SKILL、40 篇参考和 11 个模板 HTML。`directing.ts` 按创作阶段召回相关原文；选中语言的原始模板直接作为原生工程起点。运行容器固定同一上游提交，提供原版 vendor、字体、检查、取帧、声音与整片渲染工具。已有上游声明仍保存在 [huashu-motion](huashu-motion/)。
 

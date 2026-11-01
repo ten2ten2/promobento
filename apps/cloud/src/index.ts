@@ -1,4 +1,4 @@
-import {PROTOCOL_VERSION} from './version.ts';
+import {NATIVE_PROJECT_SCHEMA_VERSION} from './version.ts';
 import {directingMethodPack, directingMethodRef} from '../../../packages/methods/directing.ts';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
@@ -23,9 +23,9 @@ function authorized(request: Request, env: PipelineEnv) {
   return difference === 0;
 }
 
-/** Internal authenticated reads retain historical artifact ownership and cancellation fences. */
+/** Internal artifact reads are restricted to native results and the owning operation. */
 async function artifact(env: PipelineEnv, key: string) {
-  let owner: Json | null = null, resources: Json[] = [], native = false;
+  let owner: Json | null = null, resources: Json[] = [];
   if (key.startsWith('renders/')) {
     const row = await env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=? AND status=\'passed\'').bind(key.split('/')[1]).first<Json>();
     const result = row?.result_json ? parseCanonicalJson(row.result_json) as Json : null;
@@ -33,8 +33,8 @@ async function artifact(env: PipelineEnv, key: string) {
     owner = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(row!.operation_id).first<Json>();
     if (owner?.generation !== row!.generation) return new Response(null, {status: 404});
     const input = await getJson(env, row!.job_key);
-    native = input.kind === 'native_render_request';
-    resources = native ? input.project.resources ?? [] : input.job.resources;
+    if (input.kind !== 'native_render_request') return new Response(null, {status: 404});
+    resources = input.project.resources ?? [];
   } else if (key.startsWith('operations/')) {
     const id = key.split('/')[1];
     const context = await env.DB.prepare('SELECT * FROM pipeline_contexts WHERE operation_id=?').bind(id).first<Json>();
@@ -46,12 +46,10 @@ async function artifact(env: PipelineEnv, key: string) {
   }
   if (owner?.status === 'failed') {
     const draft = await getReviewDraft(env, owner.id);
-    const outputs = draft?.kind === 'native_review_draft'
-      ? (draft.renders ?? []).flatMap((entry: Json) => entry.result?.outputs ?? [])
-      : (draft?.movies ?? []).flatMap((entry: Json) => entry.movie?.outputs ?? []);
+    const outputs = (draft?.renders ?? []).flatMap((entry: Json) => entry.result?.outputs ?? []);
     if (!outputs.some((output: Json) => output.key === key)) return new Response(null, {status: 404});
   } else if (!owner || !['active', 'awaiting_user', 'succeeded'].includes(owner.status)) return new Response(null, {status: 404});
-  if (!native) await rights(env, owner as Operation, resources);
+  await rights(env, owner as Operation, resources);
   const object = await env.MEDIA.get(key);
   if (!object) return new Response(null, {status: 404});
   const mediaType = object.httpMetadata?.contentType ?? 'application/octet-stream';
@@ -64,7 +62,7 @@ async function artifact(env: PipelineEnv, key: string) {
 export default {
   async fetch(request: Request, env: PipelineEnv, ctx: ExecutionContext): Promise<Response> {
     const path = new URL(request.url).pathname;
-    if (request.method === 'GET' && path === '/healthz') return Response.json({ok: true, protocol: PROTOCOL_VERSION, runtime: 'huashu-motion', nativeCommit: NATIVE_COMMIT});
+    if (request.method === 'GET' && path === '/healthz') return Response.json({ok: true, nativeProjectSchema: NATIVE_PROJECT_SCHEMA_VERSION, runtime: 'huashu-motion', nativeCommit: NATIVE_COMMIT});
     if (!path.startsWith('/internal/s1/') || !authorized(request, env)) return new Response('Not found', {status: 404});
     try {
       if (request.method === 'GET' && path === '/internal/s1/capacity') return Response.json(await env.COORDINATOR.getByName('global-v1').counts());
@@ -87,7 +85,7 @@ export default {
           .bind(input.id, input.workspaceId, input.projectId, 0, input.purpose, 'active', hash, input.maxMicros, Date.now()).run();
         return Response.json({operationId: input.id});
       }
-      // Existing evidence can still be recorded/read; this is not a new native animation protocol.
+      // Rights evidence is required for native material reads and execution.
       if (request.method === 'POST' && path === '/internal/s1/rights') {
         const input = await readJson(request), op = await operation(env, input.operationId);
         if (!/^res_[A-Za-z0-9_-]{4,64}$/.test(input.resourceId) || !/^[a-f0-9]{64}$/.test(input.sha256)
@@ -175,13 +173,7 @@ export default {
         const owner = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=? AND status=\'succeeded\'').bind(candidateRoute[1]).first<Json>();
         if (!owner?.result_key) return new Response(null, {status: 404});
         const candidate = await getJson(env, owner.result_key);
-        if (!['native_candidate', 's1_internal_candidate'].includes(candidate.kind) || candidate.operationId !== owner.id) throw Error('CANDIDATE_SCOPE_INVALID');
-        if (candidate.kind !== 'native_candidate') {
-          const context = await env.DB.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').bind(owner.id).first<Json>();
-          if (!context) return new Response(null, {status: 404});
-          const input = await getJson(env, context.request_key);
-          await rights(env, owner as Operation, [...input.resources, ...(input.audioSources ?? [])]);
-        }
+        if (candidate.kind !== 'native_candidate' || candidate.operationId !== owner.id) throw Error('CANDIDATE_SCOPE_INVALID');
         return Response.json(candidate, {headers: {'cache-control': 'private, no-store'}});
       }
       const reviewRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/review-draft$/.exec(path);
@@ -201,7 +193,7 @@ export default {
       if (recoveryRoute && request.method === 'GET') {
         const id = recoveryRoute[1]!, op = await env.DB.prepare('SELECT id,status,generation FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
         if (!op) return new Response(null, {status: 404});
-        const rows = await env.DB.prepare('SELECT id,mode,shard_index,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
+        const rows = await env.DB.prepare('SELECT id,mode,instance,status,started_at,stopped_at,result_json FROM pipeline_attempts WHERE operation_id=? ORDER BY started_at,id').bind(id).all<Json>();
         const stopped = new Map<string, boolean | null>();
         const attempts = await Promise.all(rows.results.map(async row => {
           const physicallyStopped = await env.SHARDS.getByName(row.id).isStopped().catch(() => null);

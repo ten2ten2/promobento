@@ -17,9 +17,9 @@ test('native stage recall preserves upstream references and the selected origina
  assert.ok(recallDirecting(directingMethodPack,'directions','software').huashu.references.some(ref=>ref.path==='references/library/languages/cursor-demo.md'));
 });
 
-test('retired method versions and execution stages cannot silently revive their adapter',()=>{
+test('only the current native method and stages are callable',()=>{
  const frozen={...directingMethodPack,version:'2.0.0',stages:{...directingMethodPack.stages,triage:['Historical triage guidance']}};
- assert.equal(recallDirecting(frozen,'treatment','software').version,'2.0.0');
+ assert.throws(()=>recallDirecting(frozen,'treatment','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting(frozen,'triage','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting({...directingMethodPack,version:'1.58.0'},'author','software'),/DIRECTING_METHOD_UNSUPPORTED/);
  assert.throws(()=>recallDirecting(directingMethodPack,'scenes','software'),/DIRECTING_METHOD_UNSUPPORTED/);
