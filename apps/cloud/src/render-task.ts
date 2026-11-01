@@ -10,6 +10,31 @@ const retryable = new Set(['RENDER_CAPACITY_UNAVAILABLE', 'RENDER_STARTUP_CONNEC
   'RENDER_EXECUTE_CONNECTION_LOST', 'RENDER_RPC_CONNECTION_LOST', 'RENDER_BROKER_CONNECTION_LOST',
   'RENDER_BROKER_REGISTRATION_TIMEOUT', 'RENDER_STARTUP_TIMEOUT']);
 
+/** The physical result can be committed before Workflow checkpoints its step.do return. */
+async function completedRenderAttempt(env: PipelineEnv, op: Operation, renderId: string,
+  attemptId: string, index: number, mode: string): Promise<Json | null> {
+  const row = await env.DB.prepare(`SELECT p.result_json FROM pipeline_attempts p
+    JOIN pipeline_render_admissions a ON a.id=p.id
+    JOIN pipeline_renders r ON r.id=p.render_id
+    JOIN pipeline_operations o ON o.id=p.operation_id
+    WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=? AND p.mode=?
+      AND p.status='succeeded' AND p.stopped_at IS NOT NULL AND p.result_json IS NOT NULL
+      AND a.render_id=p.render_id AND a.operation_id=p.operation_id AND a.generation=p.generation
+      AND a.attempt_index=? AND a.workspace_id=? AND a.status='released'
+      AND a.lease_token IS NOT NULL AND a.attempt_deadline_at IS NOT NULL
+      AND r.generation=p.generation AND r.status IN ('rendering','verifying','passed')
+      AND o.generation=p.generation AND o.status='active'
+      AND NOT EXISTS(SELECT 1 FROM cost_reservations c LEFT JOIN cost_settlements s ON s.reservation_id=c.id
+        WHERE c.id=p.id AND s.reservation_id IS NULL)`)
+    .bind(attemptId, renderId, op.id, op.generation, 'native_' + mode, index, op.workspace_id)
+    .first<{result_json: string}>();
+  if (!row) return null;
+  const result = parseCanonicalJson(row.result_json) as Json;
+  if (!result || typeof result !== 'object' || Array.isArray(result) || result.status !== 'succeeded')
+    throw Error('NATIVE_RENDER_EVIDENCE_INVALID');
+  return {...result, attemptId};
+}
+
 /** One movie per physical attempt; a retry requires confirmed stop and settled compute usage. */
 export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, context: {
   renderId: string; op: Operation; input: Json; imageDigest: string;
@@ -23,6 +48,10 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
       await step.sleep(name + '-backoff', '15 seconds');
     }
     const attemptId = await step.do(name + '-id', async () => crypto.randomUUID());
+    // Also handle a lost queue-step checkpoint: a released, settled physical
+    // attempt must not request a fresh grant or launch compute a second time.
+    const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
+    if (completed) return completed;
     const ticket = parseCanonicalJson(await step.do(name + '-queue', {retries: {limit: 3, delay: '1 second'}}, async () =>
       canonical(await requestRenderAdmission(env, renderId, op, attemptId, index)))) as {
         id: string; requestedAt: number; queueDeadlineAt: number; operationDeadlineAt: number;
@@ -40,6 +69,12 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
         try {deadlineAt = await claimRenderAdmission(env, op, input, attemptId, leaseToken);}
         catch (error) {
           const code = String((error as {message?: unknown})?.message ?? error);
+          // Another continuation may have finished and released this same
+          // attempt between the preflight read and the physical claim.
+          if (code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED') {
+            const finished = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode);
+            if (finished) return canonical(finished);
+          }
           if ((code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED')
             && await canRetryUnstartedAdmission(env, op, renderId, ticket, index))
             return canonical({kind: 'render_admission_retry'});

@@ -219,6 +219,95 @@ for (const scenario of ['released-before-claim', 'lease-expired-during-extend'])
   });
 }
 
+test('a settled successful render survives interruption before its execution-step checkpoint', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId,
+    mode: 'preview', rendererRelease: 'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const cached = new Map();
+  let executions = 0, interrupted = false;
+  env.SHARDS = {getByName(id) {return {
+    async execute(text) {
+      executions++;
+      await reserve(env, op, id, 'compute', 'render', 500, parseCanonicalJson(text), 'fixture', 10000000);
+      await settle(env, id, 10, {fixture: 'known usage'});
+      return canonical({status: 'succeeded', outputs: [], report: {fixture: 'persisted'}});
+    }, async isStopped() {return true;},
+    async stopAndSettle() {assert.fail('a settled success must not need another stop');},
+    async resetUnstartedAdmission() {assert.fail('a paid attempt cannot be reset');},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (cached.has(name)) return cached.get(name);
+      const result = await args.at(-1)();
+      if (name === 'native-project' && !interrupted) {
+        interrupted = true;
+        throw Error('SIMULATED_CHECKPOINT_INTERRUPTION');
+      }
+      cached.set(name, result);
+      return result;
+    }, waitForEvent,
+    async sleep() {assert.fail('the successful physical attempt must not retry');},
+  };
+  const context = {renderId: 'native-render', op, input, imageDigest: 'sha256:' + 'a'.repeat(64)};
+  await assert.rejects(runNativeRenderTask(env, step, context), /SIMULATED_CHECKPOINT_INTERRUPTION/);
+  const physical = db.prepare('SELECT id,status,stopped_at,result_json FROM pipeline_attempts').get();
+  assert.equal(physical.status, 'succeeded');
+  assert.ok(physical.stopped_at);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions').get().status, 'released');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n, 1);
+  assert.equal(cached.has('native-project'), false);
+
+  const recovered = await runNativeRenderTask(env, step, context);
+  assert.equal(recovered.attemptId, physical.id);
+  assert.deepEqual(recovered.report, {fixture: 'persisted'});
+  assert.equal(executions, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+
+  // A result cannot be recovered if cost settlement or the stop proof disappears.
+  db.prepare('DELETE FROM cost_settlements WHERE reservation_id=?').run(physical.id);
+  await assert.rejects(runNativeRenderTask(env, step, context), /RENDER_FENCED/);
+  await settle(env, physical.id, 10, {fixture: 'known usage'});
+  db.prepare('UPDATE pipeline_attempts SET stopped_at=NULL WHERE id=?').run(physical.id);
+  await assert.rejects(runNativeRenderTask(env, step, context), /RENDER_FENCED/);
+  assert.equal(executions, 1);
+});
+
+test('a concurrent completion after the replay precheck returns its stored result without re-executing', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'export',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const coordinator = env.COORDINATOR.getByName('global-v1');
+  let completed = false;
+  env.SHARDS = {getByName() {return {
+    async execute() {assert.fail('the already-completed compute must never run again');},
+    async stopAndSettle() {assert.fail('a settled result requires no new stop');},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (name === 'native-project' && !completed) {
+        const row = db.prepare('SELECT id,lease_token FROM pipeline_render_admissions').get();
+        await claimRenderAdmission(env, op, input, row.id, row.lease_token);
+        await reserve(env, op, row.id, 'compute', 'render', 500, {taskId: row.id}, 'fixture', 10000000);
+        await settle(env, row.id, 10, {fixture: 'known usage'});
+        await coordinator.release(row.id, row.lease_token);
+        await env.DB.prepare('UPDATE pipeline_attempts SET status=?,stopped_at=?,result_json=? WHERE id=?')
+          .bind('succeeded',Date.now(),canonical({status:'succeeded',outputs:[],report:{fixture:'concurrent'}}),row.id).run();
+        completed = true;
+      }
+      return args.at(-1)();
+    }, waitForEvent,
+  };
+  const recovered = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)});
+  assert.equal(completed, true);
+  assert.deepEqual(recovered.report, {fixture:'concurrent'});
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions').get().status, 'released');
+});
+
 test('claim-time recovery never re-admits a ticket with an existing physical attempt', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
   fakeAdmission(env);
