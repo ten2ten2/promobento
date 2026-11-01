@@ -140,6 +140,47 @@ test('first wait after queue cutoff consumes a previously admitted buffered even
   await assert.rejects(waitForRenderAdmission(env, step, 'never-admitted', late, 0), /RENDER_QUEUE_EXPIRED/);
 });
 
+test('a queue wait timeout recovers an on-time admission whose event delivery was delayed', async t => {
+  const {db, env, add, addTicket} = fixture(t);
+  const pending = add('late-notification');
+  const id = addTicket(pending);
+  const ticket = {id, queueDeadlineAt: Date.now() + 60_000,
+    operationDeadlineAt: db.prepare('SELECT operation_deadline_at FROM pipeline_renders WHERE id=?').get(pending.renderId).operation_deadline_at};
+  const token = '11111111-1111-4111-8111-000000000099', checkpointed = new Map();
+  let firstWait = true;
+  const step = {
+    async do(name, _options, action) {
+      if (!checkpointed.has(name)) checkpointed.set(name, await action());
+      return checkpointed.get(name);
+    },
+    async waitForEvent() {
+      if (firstWait) {
+        firstWait = false;
+        const now = Date.now(), cutoff = now - 1000;
+        ticket.queueDeadlineAt = cutoff; // Simulate the original wait reaching its cutoff.
+        db.prepare("UPDATE pipeline_render_admissions SET status='admitted',admitted_at=?,queue_deadline_at=?,lease_token=? WHERE id=?")
+          .run(now - 2000, cutoff, token, id);
+      }
+      throw Error('EVENT_WAIT_TIMEOUT');
+    },
+  };
+  assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token);
+  assert.ok(checkpointed.has('admission-timeout-timeout-recheck'));
+  db.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=?").run(id);
+  assert.equal(await waitForRenderAdmission(env, step, 'admission-timeout', ticket, 0), token,
+    'Workflow replay must reuse the recovered token even after the lease is released');
+
+  const tooLate = add('late-grant');
+  const lateId = addTicket(tooLate);
+  const cutoff = Date.now() - 1000;
+  db.prepare("UPDATE pipeline_render_admissions SET status='admitted',admitted_at=?,queue_deadline_at=?,lease_token=? WHERE id=?")
+    .run(Date.now(), cutoff, token, lateId);
+  await assert.rejects(waitForRenderAdmission(env, {
+    async do(_name, _options, action) {return action();},
+    async waitForEvent() {throw Error('EVENT_WAIT_TIMEOUT');},
+  }, 'admission-late', {id:lateId,queueDeadlineAt:cutoff,operationDeadlineAt:ticket.operationDeadlineAt}, 0), /RENDER_QUEUE_EXPIRED/);
+});
+
 test('failed notifications rotate past older undeliverable events and terminal workflows are retired', async t => {
   const {db, env, add, addTicket} = fixture(t);
   const old = [];

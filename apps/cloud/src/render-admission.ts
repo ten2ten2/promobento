@@ -129,17 +129,26 @@ export async function dispatchRenderAdmissions(env: PipelineEnv) {
   }
 }
 
-export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: {
-  id: string; queueDeadlineAt: number; operationDeadlineAt: number;
-}, index: number) {
+type AdmissionTicket = {id: string; queueDeadlineAt: number; operationDeadlineAt: number};
+
+async function timelyAdmission(env: PipelineEnv, ticket: AdmissionTicket) {
+  const row = await env.DB.prepare(`SELECT a.status,a.admitted_at,a.lease_token FROM pipeline_render_admissions a
+    JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
+    WHERE a.id=? AND r.generation=a.generation AND r.status IN ('queued','rendering')
+      AND o.generation=a.generation AND o.status='active'`)
+    .bind(ticket.id).first<{status: string; admitted_at: number | null; lease_token: string | null}>();
+  if (!row || !['admitted', 'running'].includes(row.status) || !row.lease_token
+    || row.admitted_at === null || row.admitted_at > Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)
+    || Date.now() >= ticket.operationDeadlineAt) return null;
+  return row.lease_token;
+}
+
+export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowStep, name: string, ticket: AdmissionTicket, index: number) {
   const seconds = await step.do<number>(name + '-timeout', {retries: {limit: 0, delay: '1 second'}}, async () => {
     const now = Date.now();
-    const admitted = await env.DB.prepare('SELECT status,admitted_at,lease_token FROM pipeline_render_admissions WHERE id=?')
-      .bind(ticket.id).first<{status: string; admitted_at: number | null; lease_token: string | null}>();
     // Admission happened before the queue cutoff, even if the Workflow first reaches this
     // wait after that cutoff. Its buffered event must still be consumable.
-    if (admitted && ['admitted', 'running'].includes(admitted.status) && admitted.lease_token
-      && admitted.admitted_at !== null && admitted.admitted_at <= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) {
+    if (await timelyAdmission(env, ticket)) {
       const remaining = Math.ceil((ticket.operationDeadlineAt - now) / 1000);
       if (remaining > 0) return remaining;
     }
@@ -150,6 +159,12 @@ export async function waitForRenderAdmission(env: PipelineEnv, step: WorkflowSte
   let event;
   try {event = await step.waitForEvent<Json>(name, {type: eventType(index), timeout: `${seconds} seconds`});}
   catch (error) {
+    // The event can be delayed past the queue cutoff even when the D1 admission
+    // was granted on time. Persist this fallback token so a later Workflow replay
+    // does not depend on the lease still being in its admitted state.
+    const recovered = await step.do<string | null>(name + '-timeout-recheck', {retries: {limit: 0, delay: '1 second'}},
+      () => timelyAdmission(env, ticket));
+    if (recovered) return recovered;
     if (Date.now() >= Math.min(ticket.queueDeadlineAt, ticket.operationDeadlineAt)) throw Error('RENDER_QUEUE_EXPIRED');
     throw error;
   }
