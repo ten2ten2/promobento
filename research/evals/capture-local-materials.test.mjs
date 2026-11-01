@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,symlinkSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
-import {pngRgba} from '@promobento/contracts/seams';
+import {pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedLocal} from './capture-local-materials.mjs';
 import {assertLocalMaterialIdentity,materialApproval} from './material-approval.mjs';

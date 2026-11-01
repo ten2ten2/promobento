@@ -17,54 +17,29 @@
       "types": "./src/validation.d.mts",
       "default": "./src/validation.mjs"
     },
-    "./film": {
-      "types": "./src/film.d.mts",
-      "default": "./src/film.mjs"
-    },
     "./random": {
       "types": "./src/random.d.mts",
       "default": "./src/random.mjs"
-    },
-    "./canvas-text": {
-      "types": "./src/canvas-text.d.mts",
-      "default": "./src/canvas-text.mjs"
     },
     "./digest": {
       "types": "./src/digest.d.mts",
       "default": "./src/digest.mjs"
     },
     "./identity": "./src/identity.mjs",
-    "./render": {
-      "types": "./src/render.d.mts",
-      "default": "./src/render.mjs"
-    },
-    "./studio-runtime": {
-      "types": "./src/studio-runtime.d.mts",
-      "default": "./src/studio-runtime.mjs"
-    },
-    "./seams": {
-      "types": "./src/seams.d.mts",
-      "default": "./src/seams.mjs"
-    },
-    "./film-source": {
-      "types": "./src/film-source.d.mts",
-      "default": "./src/film-source.mjs"
-    },
-    "./film-composition": {
-      "types": "./src/film-composition.d.mts",
-      "default": "./src/film-composition.mjs"
-    },
     "./video-frames": {
       "types": "./src/video-frames.d.mts",
       "default": "./src/video-frames.mjs"
     },
-    "./custom-source": {
-      "types": "./src/custom-source.d.mts",
-      "default": "./src/custom-source.mjs"
+    "./native-project": {
+      "types": "./src/native-project.d.mts",
+      "default": "./src/native-project.mjs"
+    },
+    "./png": {
+      "types": "./src/png.d.mts",
+      "default": "./src/png.mjs"
     }
   },
   "dependencies": {
-    "acorn": "8.19.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1"
   }

@@ -1,10 +1,57 @@
 [
-  {"schema":"video-frame-manifest","value":{"schemaVersion":"3.0.0","kind":"video_frame_manifest","source":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","byteLength":1,"mediaType":"video/webm"},"browserVersion":"151.0.7922.34","width":1,"height":1,"poster":{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","byteLength":1},"packs":[{"sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","byteLength":1}],"frames":[{"index":0,"pts":0,"duration":0.03333333333333333,"pack":0,"offset":0,"byteLength":1}]}},
-  {"schema":"model-spend","value":{"kind":"historical_model_spend","authorizationId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scope":"all_model_spend_before_shared_ledger","sources":["offline-fixture"],"entries":[]}},
-  {"schema":"audio-admission","value":{"kind":"audio_source_catalog","sources":[]}},
   {
-    "schema": "film",
-    "file": "contracts/film.example.json"
+    "schema": "video-frame-manifest",
+    "value": {
+      "schemaVersion": "3.0.0",
+      "kind": "video_frame_manifest",
+      "source": {
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 1,
+        "mediaType": "video/webm"
+      },
+      "browserVersion": "151.0.7922.34",
+      "width": 1,
+      "height": 1,
+      "poster": {
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "byteLength": 1
+      },
+      "packs": [
+        {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "byteLength": 1
+        }
+      ],
+      "frames": [
+        {
+          "index": 0,
+          "pts": 0,
+          "duration": 0.03333333333333333,
+          "pack": 0,
+          "offset": 0,
+          "byteLength": 1
+        }
+      ]
+    }
+  },
+  {
+    "schema": "model-spend",
+    "value": {
+      "kind": "historical_model_spend",
+      "authorizationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "scope": "all_model_spend_before_shared_ledger",
+      "sources": [
+        "offline-fixture"
+      ],
+      "entries": []
+    }
+  },
+  {
+    "schema": "audio-admission",
+    "value": {
+      "kind": "audio_source_catalog",
+      "sources": []
+    }
   },
   {
     "schema": "production",
@@ -17,74 +64,6 @@
   {
     "schema": "model-config",
     "file": "config/model-authorization.json"
-  },
-  {
-    "schema": "block",
-    "value": {
-      "schemaVersion": "3.0.0",
-      "kind": "block_manifest",
-      "id": "hook-title",
-      "version": "1.0.0",
-      "category": "opening",
-      "aspects": [
-        "landscape",
-        "portrait",
-        "feed",
-        "square"
-      ],
-      "params": {
-        "type": "object",
-        "additionalProperties": false
-      },
-      "editable": [],
-      "cost": "low",
-      "events": [],
-      "regions": [],
-      "usesGsap": true,
-      "usesWebgl": false,
-      "goldenFrames": [
-        0,
-        30,
-        60
-      ]
-    }
-  },
-  {
-    "schema": "render-job",
-    "value": {
-      "schemaVersion": "3.0.0",
-      "kind": "render_job",
-      "renderId": "render_test",
-      "operationId": "operation_test",
-      "candidateId": "candidate_test",
-      "sourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "runtimeVersion": "runtime-test",
-      "rendererRelease": "render-test",
-      "aspectId": "portrait",
-      "durationSeconds": 15,
-      "totalFrames": 450,
-      "quality": "final",
-      "renderProfile": {
-        "sampleCount": 1,
-        "shutterAngle": 0,
-        "sampling": "centered-box-v1",
-        "edgePolicy": "clamp-v1"
-      },
-      "resources": []
-    }
-  },
-  {
-    "schema": "frame-observation",
-    "value": {
-      "schemaVersion": "3.0.0",
-      "kind": "frame_observation",
-      "renderId": "render_test",
-      "aspectId": "square",
-      "frame": 0,
-      "texts": [],
-      "regions": [],
-      "findings": []
-    }
   },
   {
     "schema": "direction",
@@ -119,21 +98,21 @@
           "skeleton": [
             {
               "purpose": "Hook",
-              "approach": "block:hook-title"
+              "approach": "Original native typography presents the product promise."
             },
             {
               "purpose": "Proof",
-              "approach": "block:ui-showcase"
+              "approach": "A local image of the real interface fills the composition."
             },
             {
               "purpose": "Action",
-              "approach": "block:cta-endcard"
+              "approach": "The stable product identity lands beside a readable CTA."
             }
           ]
         },
         {
           "key": "amplify",
-          "language": "kinetic-type",
+          "language": "3d-object",
           "palette": [
             {
               "color": "#101010",
@@ -154,19 +133,19 @@
           },
           "sound": "Bright percussion.",
           "risk": "Reading speed.",
-          "usesDepth": false,
+          "usesDepth": true,
           "skeleton": [
             {
               "purpose": "Hook",
-              "approach": "block:hook-title"
+              "approach": "Original native typography presents the product promise."
             },
             {
               "purpose": "Proof",
-              "approach": "block:ui-showcase"
+              "approach": "A local image of the real interface fills the composition."
             },
             {
               "purpose": "Action",
-              "approach": "block:cta-endcard"
+              "approach": "The stable product identity lands beside a readable CTA."
             }
           ]
         },
@@ -197,15 +176,15 @@
           "skeleton": [
             {
               "purpose": "Hook",
-              "approach": "custom"
+              "approach": "Original native typography presents the product promise."
             },
             {
               "purpose": "Proof",
-              "approach": "block:ui-showcase"
+              "approach": "A local image of the real interface fills the composition."
             },
             {
               "purpose": "Action",
-              "approach": "block:cta-endcard"
+              "approach": "The stable product identity lands beside a readable CTA."
             }
           ]
         }
@@ -244,8 +223,8 @@
         "#112233"
       ],
       "visibleText": [],
-      "suitableBlocks": [
-        "ui-showcase"
+      "visualRoles": [
+        "The real interface establishes product evidence."
       ]
     }
   },
@@ -254,14 +233,20 @@
     "value": {
       "schemaVersion": "3.0.0",
       "kind": "tool_call",
-      "tool": "still",
+      "tool": "write_project",
       "input": {
-        "frames": [
-          0,
-          90
+        "files": [
+          {
+            "path": "index.html",
+            "content": "<!doctype html><html><body>Native source fixture</body></html>"
+          }
         ],
-        "aspect": "square",
-        "scale": 0.5
+        "reviewFrames": [
+          0,
+          90,
+          449
+        ],
+        "note": "Native HTML file transport; pixels require a real preview."
       }
     }
   },
@@ -298,19 +283,115 @@
     }
   },
   {
-    "schema": "production",
-    "file": "contracts/film-composition.example.json"
+    "schema": "native-project",
+    "value": {
+      "schemaVersion": "1.0.0",
+      "kind": "native_project",
+      "entry": "index.html",
+      "runtime": {
+        "name": "huashu-motion",
+        "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e"
+      },
+      "composition": {
+        "durationSeconds": 15,
+        "fps": 30,
+        "width": 1920,
+        "height": 1080
+      },
+      "files": [
+        {
+          "path": "index.html",
+          "key": "operations/offline/native/index.html",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "byteLength": 1,
+          "mediaType": "text/html"
+        }
+      ],
+      "resources": []
+    }
   },
   {
-    "schema": "production",
-    "file": "contracts/film-release-snapshot.example.json"
+    "schema": "native-project",
+    "value": {
+      "schemaVersion": "1.0.0",
+      "kind": "native_project",
+      "entry": "index.html",
+      "runtime": {
+        "name": "huashu-motion",
+        "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e"
+      },
+      "composition": {
+        "durationSeconds": 15,
+        "fps": 30,
+        "width": 1080,
+        "height": 1920
+      },
+      "files": [
+        {
+          "path": "index.html",
+          "key": "operations/offline/native/index.html",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "byteLength": 1,
+          "mediaType": "text/html"
+        }
+      ],
+      "resources": []
+    }
   },
   {
-    "schema": "production",
-    "file": "contracts/film-fact-manifest.example.json"
+    "schema": "native-project",
+    "value": {
+      "schemaVersion": "1.0.0",
+      "kind": "native_project",
+      "entry": "index.html",
+      "runtime": {
+        "name": "huashu-motion",
+        "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e"
+      },
+      "composition": {
+        "durationSeconds": 15,
+        "fps": 30,
+        "width": 1080,
+        "height": 1350
+      },
+      "files": [
+        {
+          "path": "index.html",
+          "key": "operations/offline/native/index.html",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "byteLength": 1,
+          "mediaType": "text/html"
+        }
+      ],
+      "resources": []
+    }
   },
   {
-    "schema": "production",
-    "file": "contracts/film-resource-manifest.example.json"
+    "schema": "native-project",
+    "value": {
+      "schemaVersion": "1.0.0",
+      "kind": "native_project",
+      "entry": "index.html",
+      "runtime": {
+        "name": "huashu-motion",
+        "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e"
+      },
+      "composition": {
+        "durationSeconds": 15,
+        "fps": 30,
+        "width": 1080,
+        "height": 1080
+      },
+      "files": [
+        {
+          "path": "index.html",
+          "key": "operations/offline/native/index.html",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "byteLength": 1,
+          "mediaType": "text/html"
+        }
+      ],
+      "resources": []
+    }
   }
 ]

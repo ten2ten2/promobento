@@ -1,6 +1,6 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章规定产品规格 v3.0 / 协议 `3.0.0` 中影响保存、验证、计费和交付的共同规则。字段类型以 [Schema](../../contracts/production.schema.json)、[帧协议](../../contracts/render-protocol.d.ts)和[片子运行时](../../contracts/film-runtime.d.ts)为准，界面流程见[02](02-ux-and-ui.md)。
+本章规定产品规格 v3.0 / 协议 `3.0.0` 中影响保存、验证、计费和交付的共同规则。字段类型以 [业务 Schema](../../contracts/production.schema.json)与[原生工程清单](../../contracts/native-project.schema.json)为准，界面流程见[02](02-ux-and-ui.md)。
 
 仓库提供共享契约与参考校验，实际实现范围以[实施状态](../implementation-status.md)为准；本章的完整要求不等于服务已经上线。生产校验使用 `{production:true}`，拒绝 `exampleOnly:true`。校验用的 context 必须来自可信存储和执行观察，不能直接接收请求体或 Agent 自报的权限、素材、摘要和检查结论。
 
@@ -50,7 +50,7 @@
 
 ## 2 Manifest、目标与冻结准备
 
-新建 CompositionManifest 使用 `identityVersion:2`、`capabilityProfile:"film-v1"`，固定 project/revision、15/30 秒、30 fps、450/900 帧、seed，以及源码、依赖、资源、布局、事实内容、runtime/renderer、平台规则和 `renderProfile`。所有业务 variant 的入口为同一个 `film.json`，`sourceHash` 与 `sourceArchiveHash` 绑定同一份规范源包；`targetOverrideHash:null`，画幅差异由固定运行时与布局处理。事实只引用 `factContentHash`；确认与证据不写入 Composition，完整 `factManifestHash` 在冻结快照固定。`styleLabel` 和内容语言元数据可省略；网站 Cookie/语言/主题不进入创作身份。
+新内部创作使用 NativeProject 1.0.0：`index.html` 与普通本地工程文件、固定 huashu commit、15/30 秒、30 fps 和单画幅 composition。不同画幅独立生成、审片和导出；每个文件固定 path、R2 key、SHA-256、byteLength、mediaType。历史 CompositionManifest／identityVersion 1/2 保留读取与业务参考，不再接收新创作写入。客户 `project_revisions`、购买快照和完整冻结事务仍待接入，不能把内部工程清单当作已完成的客户冻结服务。
 
 `createFilmComposition` 与 `filmCompositionErrors` 共用此结构；后者核对镜头参数实际引用的文字/事实区间和 `r/<resourceId>` 资源，不能用一个未引用的文字槽位给画面提供事实证明。负责人已批准 DOM/SVG/Canvas2D 自写镜头提前进入内部 S1，源码准入、隔离和实际帧要求见[实施范围](08-codex-execution.md#2-里程碑与退出关口)。构造与结构检查不代替成员、许可、确认、QA 或数据库冻结事务。
 
@@ -58,7 +58,7 @@
 
 `resource_manifest` 保存实际素材的 path、sha256、byteLength、mediaType 和稳定 licenseRef。Asset broker 按 hash 解析不可变存储；可信构建/渲染记录实际访问的资源、音源和混音，与清单核对，不能只信 Agent 自报。源码包保存代码和静态创作声明，素材单独按资源 hash 引用；不包含自身 manifest、QA 输出、临时 URL 或日志。字体子集、塑形和回退配置一同冻结；按实际文字检查字素簇、塑形和回退，不能用 `document.fonts.ready` 证明无缺字。
 
-film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` 一份来源，不要求第二份 `values.json` 或目标专有 `.mjs`。保存规范 JCS UTF-8 字节，不因请求 API 升级改写旧源文件，不归一化客户原文。内部 D/E 已接入自写模块编辑；客户直接改值及完整编辑器仍按 S2 接入。
+原生 HTML/JS/CSS 是创作源，不再要求 `film.json`、`PB.scene` 或第二份可执行场景协议。Brief 和 Treatment 记录事实与导演决策，不用于宿主绘制。保存源文件原始 UTF-8 字节，不因 API 版本升级改写或归一化客户文案；源码修改由 baseRevision 约束并产生新版本。
 
 历史 `identityVersion:1` 保留原入口和 `values.json` 读取：内容严格为 `{kind:"source_values",values:{...}}` 的 JCS UTF-8 字节，最多 1 MiB、256 项。它不携带请求协议版本；格式由固定的 runtime 和依赖解释，单纯升级 API 协议不能改写该文件。颜色按声明转成小写，其他用户原文不归一化。`sourceValuesBytes` 与 `parseSourceValues` 继续服务这些记录。
 
@@ -68,11 +68,11 @@ film-v1 保存后的文本、素材槽位、样式和时序只有 `film.json` �
 
 **音频冻结：** AudioPlan 与冻结事件都使用稳定的 `eventId`，marker 通过 `audioEventId` 引用，不以数组下标定位。未合成事件允许缺音源与混音细节；进入资源清单的 `frozenAudioEvent` 必须显式提供音源、许可、半开帧区间、`sourceOffsetFrames`、`gainDb`、`fadeInFrames` 和 `fadeOutFrames`，零值不能靠实现方猜默认值。源内偏移和事件长度不得超过实际解码音源。可选 `gainAutomation` 是相对事件起点的整数 `frameOffset` 与相对基础 gainDb 的增量 dB；必须含 0 和事件长度两个端点、严格递增，按 linear-dB 插值。Ducking 编译为这些关键帧。淡入淡出使用线性振幅包络，与增益相乘；两段长度之和不能超过事件长度。
 
-内部导演的外部音乐准入见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)：音乐目录与图片分开，许可来自可信权利行而非 FilmSpec。ABC 除音源内容身份和许可外，还绑定负责人独立批准的 `digest({text,totalFrames})`，不同片长分别批准；带字节身份的新乐谱必须与送入合成器的文本一致。旧独立 AudioPlan 的 requestHash 批准入口保留，不因新增目录引入额外字节前置条件。许可在首次读/处理前及后续使用时检查；冻结仍须满足本节完整音频事件、混音和资源清单要求。
+内部导演的外部音乐准入见 [`audio-admission.schema.json`](../../contracts/audio-admission.schema.json)：音乐目录与图片分开，许可来自可信权利行而非模型创作源。ABC 除音源内容身份和许可外，还绑定负责人独立批准的 `digest({text,totalFrames})`，不同片长分别批准；带字节身份的新乐谱必须与送入合成器的文本一致。旧独立 AudioPlan 的 requestHash 批准入口保留，不因新增目录引入额外字节前置条件。许可在首次读/处理前及后续使用时检查；冻结仍须满足本节完整音频事件、混音和资源清单要求。
 
 混音统一为 48 kHz、双声道；1 帧等于 1,600 个音频采样帧。最终 WAV 恰为 `totalFrames × 1600` 个采样帧，空白补静音，处理顺序与后处理由固定 `mixerVersion` 决定。`mixedAudio` 固定资源路径、真实 sha256、采样率、声道和 mixerVersion，必须解析到资源表中同路径/同 hash 的实际 WAV。可信解码观察 `audioMetadata` 按字节 hash 保存 sampleRate、channels、sampleFrames；校验音源为音频、源内时间范围及混音的采样率/声道/完整片长，不只检查清单自报值。
 
-film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落点、请求时长和实际源长度；它是制作过程字段，不直接充当 `frozenAudioEvent`。资源冻结仍绑定实际音源与混音字节，不能把非整数帧的前导偏移舍入成 `sourceOffsetFrames`。
+原生声音准备和混音可能派生新的音频文件或修改 HTML 引用，因此导出保存实际完整工程及 rendered-project manifest。输入 project hash、实际 HTML hash、实际工程 hash 和最终 MP4 字节 hash 分别记录，不能互相代替。业务音频冻结仍需绑定实际音源与混音字节。
 
 `audioHash = digest(audioIdentity(resourceManifest))`：保留事件顺序及音源、帧区间、偏移、增益、淡入淡出和自动化曲线，以及实际混音的路径、字节 hash、采样率、声道；排除 licenseRef、描述性 mark 和单纯 mixerVersion 元信息。静音只允许空事件表和 `mixedAudio:null`。预览与导出读取同一混音字节，可信观察记录须证明实际取用；编码阶段不做创作性音量调整、重新 ducking 或重新混音。最终AAC须实测；仅为纠正编码引入的响度／真峰越界，可按固定renderer从同一冻结WAV做一次确定性补偿／限幅并重编码AAC，视频复制，冻结WAV及其身份不改。纠正前后数值和实际输出字节绑定Q2，复测仍越界阻断，不能覆盖母带或借纠正更换声音内容。完整资源清单仍固定 mixerVersion，声音来源的授权链逐项保留。参考验证器核对可信解码/执行记录，实际解码、混音与试听仍按06验收。
 
@@ -82,11 +82,11 @@ film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落
 
 `targetId = presetId + ':' + aspectId`。服务器依据**快照固定的**rulesVersion读取合法配对、presetVersion、尺寸、安全区与编码；当前六平台七target。比例分别存在不代表配对有效，例如TikTok:square拒绝。加载不到固定规则版本则 PRESET_VERSION_UNAVAILABLE，不用当前配置代替。
 
-候选可以只覆盖当前目标；购买冻结前必须有该规则版本全部合法 target 的源引用、资源、字体、音轨、coverFrame，以及有效的 Q0/Q1 关联、必要片段和事实复核。film-v1 同画幅目标引用同源和共享资源/声音；实际布局、编码、运行环境及标记相同的视频指纹才共享。历史目标源码仍逐项验证，不按比例自动去重。准备状态独立于创作清单；全目标可冻结也不等于完整高清文件已经通过 Q2。
+候选可以只覆盖当前目标；购买冻结前必须有该规则版本全部合法 target 的源引用、资源、字体、音轨、coverFrame，以及有效的 Q0/Q1 关联、必要片段和事实复核。原生同画幅目标只有在工程、环境、编码与声音完全相同时才可共享产物；实际布局、编码、运行环境及标记相同的视频指纹才共享。历史目标源码仍逐项验证，不按比例自动去重。准备状态独立于创作清单；全目标可冻结也不等于完整高清文件已经通过 Q2。
 
 准备平台是显式prepare_targets操作，响应式语义布局优先，并仅对 Q1 失败镜头做 Agent 定点适配；按原revision/target去重和独立系统预算，不扣额外成功次数。同operation下全部target、attempt和子调用共同受美元上限约束，不能为每个目标重开一份无限预算。共享源码、布局规则、依赖、资源及每个target的覆盖项必须进入冻结身份，不能只保存一个可变规则名称。每新增构图的模型、CPU、字幕/字体、QA 和返工成本应计量，报告一次通过率与修复开销，不假设派生成本为零。它不能原地追加不可变revision；产出新的候选revision并CAS确认，保留原稿。改变原主目标风格或事实必须重新向用户确认，不能伪装成无变化准备。
 
-目标 Q1 覆盖关键时点、转场和高风险动态片段，可用真实布局的低清取帧，不要求付款前全部高清编码。静态图不能替代时序 QA。film-v1 渲染缓存按画幅及完整产物指纹复用，QA 报告/权益/下载授权和 mapping 仍按 targetId 关联。编码、布局等条件分歧时拆分；不把比例相同当作共享证明。
+目标 Q1 覆盖关键时点、转场和高风险动态片段，可用真实布局的低清取帧，不要求付款前全部高清编码。静态图不能替代时序 QA。原生渲染缓存按工程、画幅及完整产物指纹复用，QA 报告/权益/下载授权和 mapping 仍按 targetId 关联。编码、布局等条件分歧时拆分；不把比例相同当作共享证明。
 
 `POST .../export-snapshots`只冻结已经准备好的revision，缺目标/报告409 VARIANTS_NOT_READY；不会在请求内暗中做昂贵生成。付款冻结所有来源，首次只编码所选目标；后补平台仅运行被冻结源包，不再调用模型。系统缺陷以独立correction关联原release、免费且有审计，原文件不覆盖。
 
@@ -94,7 +94,7 @@ film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落
 
 规范实现唯一入口为 [packages/contracts](../../packages/contracts/index.mjs)，脚本和生产代码共同调用，不另抄算法。`canonical` 按 [RFC 8785/JCS](https://www.rfc-editor.org/rfc/rfc8785) 处理 JSON 数据域：对象键按 UTF-16 码元排序，数组保持声明顺序，采用 binary64 数字序列化，拒绝非有限数和孤立代理码元；入站原始 JSON 经 `parseCanonicalJson` 拒绝重复键。不对用户 Unicode 原文归一化。`digest` 计算规范 UTF-8 字节的 SHA-256；实际文件直接计算原始字节 SHA-256。
 
-内容身份采用显式字段白名单，与请求协议版本分开。新 film-v1 使用 `identityVersion:2`；历史 `identityVersion:1` 的白名单、摘要和重放保持原义。variants 按 UTF-16 targetId 排序；语义上无序的事实、绑定和 factIds 使用规范排序，音频事件等有序数组保留顺序。固定测试向量包含完整期望序列及摘要，包括纯字符串：`digest("abc")` 哈希的是含引号的 JSON 字符串，不是原始 abc 字节。金额、计数、帧索引等业务整数限制在安全整数范围；JCS 的 binary64 数字域不因此整体缩小。
+内容身份采用显式字段与规范 JSON，协议和历史身份版本互不混淆。新原生 revision 使用 `nativeProjectHash`；历史 identityVersion 1/2 的已存摘要不重算。语义无序的文件按 UTF-16 路径排序，音频事件等有序数组保留顺序。`digest("abc")` 哈希含引号 JSON 字符串，原始媒体与源码用 `sha256Bytes`；金额、计数和帧索引仍限制为安全整数。
 
 | 身份 | 用途和边界 |
 | --- | --- |
@@ -111,7 +111,7 @@ film-v1 的制作 AudioPlan 可用 `sfxTiming` 保存前导音效的样本级落
 
 字段白名单以共享包的同名函数为准。完整收据摘要、创作内容摘要和输出指纹分别计算，不能互相替代。
 
-新 film-v1 的 `sourceHash` 与 `sourceArchiveHash` 使用 `filmSourceIdentity` 固定规范 `film.json` 及全部已声明自写模块的路径、字节摘要和长度；模块保留原始 UTF-8 字节。`filmBuildReceipt` 与 `filmBuildErrors` 核对实际源字节和可信清单，缺模块或夹带额外源文件均拒绝；旧积木单文件身份不变。旧 `identityVersion:1` 继续使用 `sourceHash = digest(targetSourceIdentity(build))`。可信构建器先解析目标依赖，再记录入口路径，以及实际执行所用的每个本地文件的路径、原始字节 SHA-256 和长度；必须包括 `values.json` 和共享依赖。文件按路径的 UTF-16 顺序排序，入口路径也参加摘要。同字节换入口、改参数或改共享文件都会改变对应摘要。`sourceFileDigests` 和 `targetSourceIdentity` 已可复用；历史自由依赖的发现、沙箱构建和实际执行观察仍待实现，不能把调用方提交的文件列表当作可信构建结果。
+`nativeProjectHash` 绑定完整输入清单及每个不可变文件引用，实际输入读取再次核对字节与普通文件路径。`renderedProjectHash` 绑定上游补齐依赖／声音后的全部实际工程，回执连同文件存入私有 R2 后才可提交。旧 `targetSourceIdentity`、`sourceFileDigests` 仍供历史业务参考使用；旧 film-v1 构建返回 `LEGACY_RENDERER_REQUIRED`，不会自动切换到新原生引擎。
 
 历史 `identityVersion:1` 的 `sourceArchiveHash = digest(sourceArchiveIdentity(files))` 固定完整源包的规范文件清单，每项包含路径、原始字节 SHA-256 和长度，按路径排序。它不是 ZIP 压缩字节的摘要；传输包可另校验字节 hash。可信 `sourceArchiveFiles` 必须由实际解包得到，并证明每个目标构建文件都属于该源包，`values.json` 的字节与构建读取的值完全一致。
 
@@ -145,45 +145,15 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 
 ## 5 RenderProtocol
 
-可信控制器解析 revision、业务 target 到画幅的映射、固定规则和 renderProfile 后建立短期 session；源码不能自选尺寸、快门、源包写入或支付/模型权限。生命周期为 created→initializing→idle→seeking→ready，后续 ready→seeking；本地改值进入 applying-values，成功返回可用状态，拒绝恢复上一版；活动态可 failed/disposed。init、set-values、seek/sample 与 inspect 共用串行画布，同一会话最多一个在途命令。默认 profile 为 standard；motion4/8 按 agent-policy 保持实验关闭，启用须由可信控制器验证实测预算，不能由 Agent 或浏览器自行升级采样。
+旧页面命令、PB.scene 和 shard/assemble 协议已经退役。新内部渲染请求携带 operationId、generation、renderId、revisionId、rendererRelease、runtimeVersion 和 NativeProject；只有 `preview` 与 `export` 两种模式。请求先通过预编译 Schema，再核对路径、固定 composition、输入字节与实际 release。作品本身不能决定预算、存储权限、目标编码或付费动作。
 
-RenderProtocol 3.0.0 的页面命令和响应都带 protocolVersion、sessionId、requestId、sequence、revisionId 和 **aspectId**；帧响应还回显帧号与 manifestHash。页面的 `__omTarget` 不含业务 targetId，同画幅目标映射到同一次画幅绘制。每次命令使用新 requestId 和严格递增 sequence。revision、aspect、profile 在会话内固定，变更后新建会话；旧会话、旧请求、已 dispose 的响应全部丢弃。业务侧快照、权益和交付仍按 targetId 管理；film-v1 生产结构、身份及冻结参考校验已接入；客户冻结/交付服务仍按 M1/M2 实施。Schema 兼容旧 targetId 包络读取，但与 aspectId 互斥，不能用一类回执响应另一类命令。`frameTimeout` 覆盖一帧的全部采样、合成和读回，不能逐样本重置。
+`preview` 在同一任务实例调用上游 capture，默认四个实际时刻；指定时刻必须位于 `[0,(N-1)/30]`，总数不超过十二，N 为 450 或 900。`export` 原生逐帧渲染整片并混音，再执行交付编码校验。输出有原生预览 PNG、最终 MP4、最终 MP4 的解码抽帧／接触表、实际完整工程和 report，各自固定原始字节摘要；HTML 预览不能冒充已编码输出。
 
-内部 `shard_receipt.timings.frameCaptureMs` 是按编码源帧排序的真实毫秒序列，覆盖 seek、ready 确认和 CDP JPEG 捕获，不含编码背压、QA 与接缝 PNG。该字段可选以读取历史回执；G1 分布采样要求完整的实际帧数，不用 `renderMs / 帧数` 冒充。原 `readyMs` 保持 CDP 连接语义；DO 结果的 `lifecycleTimings.containerReadyMs` 从新实例启动计至控制器健康响应，`capacityWaitMs` 只计等待计算名额。两类计时与费用通过原内部恢复查询读取，账本和输出身份不因新增诊断字段改变。
+Worker 只有在所有报告和输出已写入 R2、hash／尺寸／帧时间／实际工程身份一致且 operation generation 有效后才原子提交。失败或取消先封锁后续 attempt，确认物理停止后结算和归还容量。新渲染不能借助旧 shard 回执通过校验。旧回执和发布镜像继续按原历史身份保留。
 
-`random-seq-v1` 的实现与[固定向量](../../packages/contracts/test/random-vectors.json)在共享契约库：对 UTF-8 的 `seed + NUL + 十进制调用序号` 做 FNV-1a-32（初值 2166136261，逐字节 XOR 后乘 16777619、保留低 32 位），再做 Murmur3 fmix32：XOR 右移 16、乘 `0x85ebca6b`，XOR 右移 13、乘 `0xc2b2ae35`，最后 XOR 右移 16，取无符号 32 位除以 2³²。调用序号从 0 开始，每次 seek 重置；镜头的 `ctx.random` 使用项目 seed 加 NUL 加 sceneId 的独立序列。虚拟 Date/performance 时间为当前影片秒数，初始化阶段为 0，不使用墙钟。该确定性随机源不用于令牌或安全用途。
+原生编辑允许明确的原文件替换或变量更新，必须携带 baseRevision／原生 baseToken；冲突保留原稿与修改建议，不能悄悄覆盖新的版本。时间批注固定保存时的版本、帧和可选 elementId。当前已实现内部改稿编排及不可变版本，客户实时播放器、点选和并发草稿 UI 尚未实现。
 
-本地会话从 `previewEpoch:0` 开始，`init` 可带 `valuesOverlay`。后续 `set-values` 提交完整覆盖表及 `requestedEpoch=appliedEpoch+1`；host 校验直接和间接绑定值，再用“冻结值 + 覆盖表”重新 prepare。成功发 `values-applied` 才推进 `appliedEpoch`；失败发 `values-rejected` 并保持上一版，修正后可用新 requestId/sequence 重试同一待应用 epoch。空表恢复冻结值。seek、inspect 及其响应携带实际应用的 `previewEpoch`，旧响应不能覆盖新画面；prepare 失败必须保留或恢复上一版可用状态。
-
-临时覆盖只存在于本地会话，不写事实确认、正式身份、计费、QA 或导出。可信渲染拒绝 overlay 和本地 epoch。保存仍走 §1 的草稿 CAS；仅值变化且执行环境、源码逻辑不变时，可继续显示旧会话加已确认覆盖，待暂停或到期平滑换到新 revision 会话。新会话 ready 后才替换，不伪造旧会话的 revision/hash；源码变化或恢复操作必须新开会话。保存期间的后续输入和已删除字段的未保存文本须保留供用户处理。
-
-`inspect` 显式提交 frameIndex 与归一化坐标 x01/y01，返回同帧 `hit-result` 或 hit:null。坐标可等于 1，但半开区域的右/下边界不命中；区域重叠按静态声明顺序取最后一个。结果只可引用静态 regionId；sourcePath/line 须与可信声明一致，不接受源码临时指定任意文件。无可检查区域时仍可保留画面坐标批注，不能伪造 DOM 定位。提交批注前先保存，绑定实际显示且已保存的 revision/frame；保存冲突保留批注，不自动换绑其他版本。
-
-本地播放由 Studio 父页面持有时钟和混音播放器。`mixedAudioUrl` 与 `mixedAudioHash` 成对，URL 由当前任务的只读 broker 授权；源码不获得额外声音权限。自动播放受阻时显示播放按钮。低清回放只保留一个 seek 在途，按时钟追赶最新帧，允许跳过过时帧；可信导出仍逐帧完成。初始化、prepare、draw、缺视频帧、帧越界和命令冲突返回具体错误，不能以旧画面冒充就绪。
-
-所有 `seekFrame(n)` 只收整数 `0 ≤ n < N`，名义时间为 n/30；N 为 450 或 900。当前合法 renderProfile 只有 `standard=(1,0°)`、`motion4=(4,180°)`、`motion8=(8,180°)`，Schema、类型和运行时计算一致；能通过结构校验不代表实验功能已获启用。单样本直接取 n/30，多样本按冻结配置的 M 和快门角 A 计算第 j 个样本（0≤j<M）的秒数：
-
-```text
-t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
-```
-
-`centered-box-v1` 在快门区间中点等距取样，`clamp-v1` 将首末名义帧外的样本固定到边界画面。时间以等值安全整数有理数传给 `draw(time)`，不向外开放任意小数 seek。内部 `sampleSubframe` 只接受可信 Renderer session，sampleIndex 必须小于冻结 M；逐样本完成资源屏障后回 `sample-ready`，全部样本在线性光空间等权平均，再发最终 `frame-ready`。单样本回执不能替代合成帧；成本按实际样本数计量。
-
-| 用途 | API / Bridge 模式 | 回执与用途 |
-| --- | --- | --- |
-| 本地完整低清回放 | `local_full` 会话 → `local_preview` | `preview-frame-ready`；按名义时间单次绘制，motion 近似效果须标明 |
-| 可信截图或短片段 | `preview_request` 的 `screenshot/clip` → `trusted_render` | 按冻结 profile 完成采样，再生成带证据的预览产物 |
-| QA 与付费导出 | `trusted_render` | 完整采样后返回 `frame-ready`；本地回执不能代替它 |
-
-历史创作模块静态声明 editables、markers、regions、videoUses 和 fonts；可信构建检查唯一 ID、区间和安全资源路径。`RuntimeContext.surface` 提供 host 创建的 root/canvas，width/height 始终是平台逻辑尺寸，DOM root 保持目标 CSS 逻辑尺寸，由外层 transform 缩放显示，指针坐标按相反变换映射回逻辑坐标；Canvas 缓冲尺寸显式乘以 pixelScale。本地预览不依赖设备 DPR，可信 Chromium 固定 DPR=1。`prepare` 固定输入和 tween 端点，`draw(time)` 完整重建该时间的像素/区域，不累积播放状态。禁止墙钟、未受控随机数、隐藏 CSS 时间、出网及采样时音效副作用；仿真可固定初态重放或预烘焙。画面采样不推进音频；冷/顺/逆序一致性与 WebGL 能力仍需真实验证。
-
-录屏通过 `videoFrames.get(useId,time)` 读取；videoUses 固定资源、源起止、时间线起点和有理数 playbackRate，按包含目标源时间的 `[PTS,nextPTS)` 区间选择帧，最后一帧止于源时长。缺帧、越界或未验证代理映射须失败，不按墙钟或最近帧猜测。字体按平台登记的 fontId/registryVersion/字重/回退及实际字节冻结，同一fontId的多个字重注册为同一个CSS family，family身份绑定全部冻结face。`fonts.ready`只证明加载完成；`fonts.assertText(fontId,text,weight)`要求显式已登记的主字体字重，回退字体按CSS字重匹配选定face后检查cmap，不能合并不同字重的覆盖来放行。cmap检查不能证明复杂塑形或布局。当前镜像已将固定字库转换WOFF2并生成cmap／字节身份目录，PTS帧图路径已实现；完整客户素材处理、字体准入服务及更广字形覆盖仍待实施，P0不开放任意上传字体。
-
-预览策略以 [preview.json](../../config/preview.json) 为准。`preview-sessions` 只分配本地会话，不自动启动云 QA。可信捕获在预留前检查路径项目、当前有效创作权益、费用预算、实际构建记录、事实确认和该目标有效 QA；调用方不能只传一个“已检查”布尔值。截图必须是单帧；clip 必须给出非空半开区间，且不超过当前片长、单次片段上限、项目窗口和原试用 claim 的累计请求/帧数。当前准入只接受 standard；motion4/8 须另行标定采样成本与上限。计数包含进行中的预留，费用和次数须同事务检查、预留并幂等提交。`trustedPreviewErrors` 与生产契约共同提供准入校验，不是实际调度器或额度数据库；上限未标定时保持 null 和关闭。
-
-品牌水印位于内容外的 footer band：本地由 Studio 父页面在作品 iframe 之外绘制，编码预览由可信捕获合成器写入实际文件并检查可读性。干净内容 QA 和付费输出不带品牌水印；AI 标记另按 §4。低清和水印不保证防复制。
-
-独立预览 origin 按任务隔离，不带主站 Cookie；精确校验 origin/source window/不可预测 nonce/消息 Schema。CSP 从 `default-src 'none'` 开始，仅给冻结 bundle 与任务 broker 开放实际必需的 script、style、connect、image/media/font 来源，禁止 object、base、form 和任意导航；不能以宽泛公网白名单代替资源代理。iframe 不授予 top-navigation、popup、download 等无关能力。CSP 不能单独证明所有出网路径已关闭；WebRTC 等通道及可信 Renderer 的网络隔离在S2客户预览及正式Renderer隔离验收中分别实测。配置已有独立previewOrigin，但服务仍未部署；不接受origin=null或以缺部署跳过来源校验。只读审阅只给媒体投影，broker 权限可撤销。
+后续客户预览应在独立注册域名与 sandbox iframe 中使用冻结原生工程，且不携带主站 Cookie／管理凭据。客户原生 Studio 不能直接暴露上游 localhost HTTP 服务。预览策略、业务权益、事实确认、输出审核和品牌水印的产品要求仍由对应配置约束，接入客户服务前须单独实现和验证，不能把内部管理预览当作已授权公开入口。
 
 ## 6 AI操作、费用与成功次数
 
@@ -228,8 +198,8 @@ t = clamp((n + ((j + 0.5) / M - 0.5) * (A / 360)) / 30, 0, (N - 1) / 30)
 | Agent run | validating→repair→active | 同预算且累计修复<2，不新增收费run |
 | Agent run | 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
 | Agent run | 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
-| 渲染 | queued→start→sharding→verify→verifying→assemble→assembling | 每次推进检查 operation/generation；每个 attempt 独立实例、累计预算与真实停止确认；重放有效检查点，不重跑成功捕获 |
-| 渲染 | assembling→commit→passed | generation 栅栏下原子保存不可变输出引用与进度 outbox；通知可独立重试，不能因通知失败回滚成片 |
+| 渲染 | queued→start→rendering→verifying | 每次推进检查 operation/generation；每个 attempt 独立实例、累计预算与真实停止确认；重放有效检查点，不重跑成功捕获 |
+| 渲染 | verifying→commit→passed | generation 栅栏下原子保存不可变输出引用与进度 outbox；通知可独立重试，不能因通知失败回滚成片 |
 | 渲染 | 非终态→fail/cancel→blocked/cancelled | 先封锁新 attempt，再确认已有实例停止、归还 lease 与结算；保留首个原因及未确认停止标记，清理重试不重跑捕获/模型 |
 | 候选 | withheld→审核通过→ready | 只由可信审核结果解锁；失败、未知或覆盖不足不能展示与消费 |
 | 候选 | ready→accept→accepted | §1 CAS、权限与输出审核同时验证；同请求同候选幂等 |
@@ -286,7 +256,7 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 ## 10 协议与发布版本
 
-普通参数编辑、AI 改稿和目标准备继承基线 revision 的 `runtimeVersion`、`dependencyManifestHash`、`presetRulesVersion`、`layoutRulesHash`、`rendererImageDigest`、`renderProfile` 和 `identityVersion`；film-v1 另继承 `capabilityProfile`。`inheritRevisionEnvironment` 负责复制，`revisionEnvironmentErrors` 检查是否被替换。应用默认值升级只影响新作品，不能顺带改旧稿。恢复时从可信 `restoreFromComposition` 继承被恢复版本的执行环境，CAS 仍针对当前草稿；环境来源与并发基线不能混用。
+新原生改稿必须显式引用同工作区、同项目的 baseRevision，继承固定 runtime commit、合法画幅及实际素材，不从浮动默认环境重建旧稿。客户保存／恢复仍须在最终 `project_revisions` 服务实现 CAS；当前内部版本是不可变分支，没有假冒已实现的协作草稿头。历史 Composition 的 `inheritRevisionEnvironment` 与 `revisionEnvironmentErrors` 保留原参考语义；环境升级不得顺带改旧购买快照。
 
 必须升级旧作品时，另建明确的兼容修复或迁移记录，保留原内容、快照和 release 关联。仅镜像更新可保持内容 hash；runtime、源码或身份算法变化可能改变它，此时按原 release 免费修复或明确迁移映射，不能把新 hash 当作一次新购买。存在安全问题的旧镜像停止执行，已交付文件和原收据仍不可变；不能以兼容承诺要求继续运行不安全版本。
 

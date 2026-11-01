@@ -1,0 +1,1899 @@
+{
+  "repository": "alchaincyf/huashu-motion",
+  "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e",
+  "version": "0.3.1",
+  "tree": "52467f99c602b76ba86d511d37acdfe93fa1e16e",
+  "archiveUrl": "https://codeload.github.com/alchaincyf/huashu-motion/tar.gz/52467f99c602b76ba86d511d37acdfe93fa1e16e",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha": "e061211f06fd1d51da15a1940ef611f01b4aecf1",
+      "size": 354,
+      "mode": "100644"
+    },
+    {
+      "path": ".npmignore",
+      "sha": "9387d8e06ebc128d6c3b62134d63accf4ca92bf6",
+      "size": 72,
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSE",
+      "sha": "1ea2ec32da72b1cb829068e8fee385f79527d665",
+      "size": 1063,
+      "mode": "100644"
+    },
+    {
+      "path": "README.en.md",
+      "sha": "96ac0955cc8967e46462d8de08980f580cd38c97",
+      "size": 21525,
+      "mode": "100644"
+    },
+    {
+      "path": "README.md",
+      "sha": "19ad048f296d0ccb13372ae9a53e75ed63b3402c",
+      "size": 25818,
+      "mode": "100644"
+    },
+    {
+      "path": "THIRD_PARTY.md",
+      "sha": "4b643f38dd204d9973d2558cfd3f1993d8cf3175",
+      "size": 1772,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/audio.js",
+      "sha": "aa3211cd5e2759a13762cf9c21329c67f5b61fd1",
+      "size": 5867,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/beats.js",
+      "sha": "5bcd4806af60345ee16a650e4d03e5d7f6b92b64",
+      "size": 18579,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/browser.js",
+      "sha": "a1aab9ba4c26c8d8017fa63515fbaa2948111fed",
+      "size": 1775,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/capture.js",
+      "sha": "088163a3b7af0b93e3debe35119666ef26c27a19",
+      "size": 7920,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/cdp.js",
+      "sha": "843d4ac5487796f285adc5a94354a5031bd389e5",
+      "size": 11413,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/check.js",
+      "sha": "13fbde6f4c82904f54290622fa410a8b1631118b",
+      "size": 28187,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/composed.js",
+      "sha": "c4e719ddc1227a85a6032968cbc89f941ad24c82",
+      "size": 8759,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/composer.js",
+      "sha": "7e1c9e6538282d17b8f1d2f24eace15fdc30c85f",
+      "size": 23997,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/dsp.js",
+      "sha": "9c1b9f510b4bbde7eeb4b1c0346b9d70a62d0db1",
+      "size": 12042,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/export.js",
+      "sha": "013755183c4c687e678e8e06f2156409dc0667e7",
+      "size": 25330,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/fonts.js",
+      "sha": "44aebafafc93f56ee88e22befc5c67290ea1ff53",
+      "size": 2484,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/fork.js",
+      "sha": "083c7e7b4df3d578d3eb6afddb86b8bee1a92cfb",
+      "size": 4954,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/frames.js",
+      "sha": "5bebaec3f2efaba1aa9c4b3a51b07aba2b5d9334",
+      "size": 6696,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/fx.js",
+      "sha": "86ceb4b3e7b397e404e83f0b72ac71935f31b49d",
+      "size": 19397,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/grab.js",
+      "sha": "cf841d17322f6736fdbdbe87440f5d908cb37533",
+      "size": 18277,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/inbox.js",
+      "sha": "8150fc02fae7d81d50672cfed3c3cd573e6d25f5",
+      "size": 3567,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/kokoro.py",
+      "sha": "c97a622851343560d39e264feb5d8d1eb023f09c",
+      "size": 2280,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/learn.js",
+      "sha": "73630cf3bddddf679b33f210e0f925406f030a91",
+      "size": 8421,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/project.js",
+      "sha": "cb6f5a3cedd5a42342851146eec9b21fb8045b90",
+      "size": 11368,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/qa.js",
+      "sha": "1514ff2deaa17cc248071745e8cb69c656ee8b4f",
+      "size": 8211,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/render-om.js",
+      "sha": "75e5a2afd06c45bf7614b126915cdee0583a7d3f",
+      "size": 18774,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/render.js",
+      "sha": "5d9ff44cbd688bed9acbe49204b6f22b87d8ed9d",
+      "size": 6512,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/samples-build.js",
+      "sha": "34c834bf40a5fc28be3dd079f3562b36a6a91469",
+      "size": 27434,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/samples.js",
+      "sha": "b86f40534d396b65b4b50e914dda81dff33f9e37",
+      "size": 7645,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/score.js",
+      "sha": "a1f77018c0dad86b04455d72e30cb8f1326a2087",
+      "size": 48117,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/server.js",
+      "sha": "85b17213bc9770be1a48286d1ddd689396412ced",
+      "size": 8806,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/share.js",
+      "sha": "abc13f527a7499067d2a0927efa7232d975a62d2",
+      "size": 6325,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/sound.js",
+      "sha": "cf60341f07eede2f599f308ebce4ced954b142d5",
+      "size": 44217,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/soundprint.js",
+      "sha": "0a661b7603dfd896d57f1f8bd6db9cd39834cdd4",
+      "size": 4449,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/still.js",
+      "sha": "59d79bcb749d330898f0881e1dc163790ae1679c",
+      "size": 1903,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/swatch.js",
+      "sha": "256c7a7ac369d4b4245dae0abe7ef6203eeb1dc6",
+      "size": 8171,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/lib/voice.js",
+      "sha": "676da7c255de77c0a18fde979ecdd6783aa0d48f",
+      "size": 38114,
+      "mode": "100644"
+    },
+    {
+      "path": "cli/om.js",
+      "sha": "3ccb61228cd3e58260041fa350ad62e3484fe9fd",
+      "size": 24663,
+      "mode": "100755"
+    },
+    {
+      "path": "docs/CONTRACT.md",
+      "sha": "42c8036927b04fb87ef99dd2dc3c80d363742d2a",
+      "size": 541,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/catlight-pro.gif",
+      "sha": "6eb6569126d5ebb8929b1c8d2b3ee04d87bf090b",
+      "size": 4838516,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/claude-duet.gif",
+      "sha": "4a285e6dcb2e8a897aa71f52e45412b8c492d61f",
+      "size": 2215660,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/deepseek-flash.gif",
+      "sha": "392a823aace2bb01a55fa445411e40fba8164b17",
+      "size": 2055466,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/grok-bot.gif",
+      "sha": "93e1b48da02a5297e6d904f3b5755a3dc1f3e5ab",
+      "size": 2571531,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/hero.gif",
+      "sha": "def1d6b1da78c0bbec637469d711e9232195bbec",
+      "size": 4101342,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/huashu-design.gif",
+      "sha": "fae18f782e452ccc45c43cee71fb7a041dead342",
+      "size": 3422978,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/point-to-edit.gif",
+      "sha": "e3dd8b4d917c6c25a174718143f4e22cf686c8f7",
+      "size": 4368964,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/score-first.gif",
+      "sha": "75300498cfe1b8bd0a00ea539254e226b4318cb5",
+      "size": 4438828,
+      "mode": "100644"
+    },
+    {
+      "path": "docs/media/sixteen-cuts.gif",
+      "sha": "bad57ac52a9c813278d084fe09050f85bada5c52",
+      "size": 3043477,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/.npmignore",
+      "sha": "7d9978d796c5168472246b7003e89895c95b8b23",
+      "size": 21,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/AlfaSlabOne-400.woff",
+      "sha": "ed5ca898aee8d6c009883b8e175749c0546d9bc5",
+      "size": 41728,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Anton-400.woff",
+      "sha": "af925c19f8fba07fcedaa246def2ca066de8a0bc",
+      "size": 61460,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/ArchivoBlack-400.woff",
+      "sha": "5273a9c1dd787f49f2c8259b90a14dff9e25b9b8",
+      "size": 38316,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Bangers-400.woff",
+      "sha": "46c888483959b08f93521c80a18112b8e6e38358",
+      "size": 43808,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Caveat-600.woff",
+      "sha": "a9fc847617e47ab384c641e5e1bad555795f0f55",
+      "size": 132264,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Cinzel-400.woff",
+      "sha": "08649ede82c8d776224a015c55c90a2df4eea9c9",
+      "size": 22812,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Cinzel-700.woff",
+      "sha": "28f02c19e71e75e823715e685ace79c88ffdd307",
+      "size": 24288,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/CormorantGaramond-500.woff",
+      "sha": "4dccf368b0e59fb7f6bb4dfc1d38680ef2ffa5a1",
+      "size": 90464,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/EBGaramond-400.woff",
+      "sha": "7952db1dbe1b6174b7dea79dacee618c2b1b9e59",
+      "size": 162740,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/EBGaramond-600.woff",
+      "sha": "d30aa9dc3d3acecfeeb3051ef232c30b18ee8ee5",
+      "size": 179028,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Exo2-800i.woff",
+      "sha": "7437aeef4e45b7f321063be69359af60aed680dc",
+      "size": 60124,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/GochiHand-400.woff",
+      "sha": "b500d9a883dbb9c829b34c97cc07648a9d65029e",
+      "size": 23640,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/IMFellEnglish-400.woff",
+      "sha": "f9b84ad24d7df1c3de1c3ab487fad091320a26c4",
+      "size": 108052,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Kalam-700.woff",
+      "sha": "b31a7658b9e2d7978425ecaf1f1816660b7b4e23",
+      "size": 186044,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/LICENSES.md",
+      "sha": "0533deaf8ce621691fbd791c134a4e4bede9154e",
+      "size": 4498,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/LibreBaskerville-700.woff",
+      "sha": "1ede9e63b750769cce553c85f16215f349798a4b",
+      "size": 47524,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/LilitaOne-400.woff",
+      "sha": "73646caa4abc54bdbecf865b1cac02e80a0b6d0b",
+      "size": 14372,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Marcellus-400.woff",
+      "sha": "8d593988566742cb3a8fee262e4aa58743d8dd85",
+      "size": 22320,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/OFL.txt",
+      "sha": "a4670b02de28ecdaa5cafd2356b4a41b629a2e20",
+      "size": 4430,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/PlayfairDisplay-400i.woff",
+      "sha": "b1f80d059ff71a3a34356fe311c768946d84d441",
+      "size": 50928,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Poppins-600.woff",
+      "sha": "5035ee775d447b94636e9859d3a570410b553538",
+      "size": 66232,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/Poppins-800.woff",
+      "sha": "fe74641c202b0f5f752322389894bc4f2478392b",
+      "size": 65344,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/PressStart2P-400.woff",
+      "sha": "302418fa53e00fb032203b2be3a64ebee396b8ea",
+      "size": 36184,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/assets/fonts/UnifrakturMaguntia-400.woff",
+      "sha": "580bb9bd4e6ed3971a782f6494cb1f4c7a7cb11b",
+      "size": 39076,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/index.html",
+      "sha": "74782f9986e6d0d18cef845df8194e06df4fbec2",
+      "size": 10849,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/GSAP-LICENSE.html",
+      "sha": "fd3d1475e0762831003e3f84290952ab305321b9",
+      "size": 76456,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/GSAP-LICENSE.txt",
+      "sha": "20334cee4465ba5ded800931d590e58a35d8371b",
+      "size": 153,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/LICENSE",
+      "sha": "ed67368a2a79ed7be97b2a4852330cdac5b8b12a",
+      "size": 1086,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/NOTICE.md",
+      "sha": "c00b48b577fad6090f754a1d3fcd04a969be4c29",
+      "size": 1198,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/engine.js",
+      "sha": "c5d09b447e915b27243c3e07d3be8eda88cbf9ea",
+      "size": 15982,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/eras.js",
+      "sha": "72e6f9f4416e838a45817acc192038ba750cbf4f",
+      "size": 6119,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/brush.js",
+      "sha": "5c2eeadc90f82e50135a94d80b1326f4479788ca",
+      "size": 11850,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/kit.js",
+      "sha": "c4de23b17b2386d5c8c68b98cbe5455b44b9dbba",
+      "size": 6542,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/paint.js",
+      "sha": "897661b4527febfb22ef1f04dfbed15d1567ab1d",
+      "size": 15339,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/post.js",
+      "sha": "b4a980381a6cc3721ce024c38dba4bb0e7ae6529",
+      "size": 9939,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/render.js",
+      "sha": "6ae4a4671764e67943e289999a03836f1f776e6a",
+      "size": 17315,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/rig.js",
+      "sha": "c4ef9fb481c46f8358043593a553d38137f4ec85",
+      "size": 34157,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/lib/util.js",
+      "sha": "3a7846474d9c75e7daa7ca8ec4bc4378fe5dc37e",
+      "size": 6416,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/01_cave.js",
+      "sha": "c5d9ee48d561ce7666dc26336bcf771cf4bdb321",
+      "size": 31438,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/02_egypt.js",
+      "sha": "b562fdbdf86780c646cd7295888c05e76ba7de40",
+      "size": 50018,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/03_greek.js",
+      "sha": "731f61622246d98cb715024d50164477ef1fb823",
+      "size": 40744,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/04_roman.js",
+      "sha": "a0c813416a5517a22ef4246cbf59eb2604800552",
+      "size": 47611,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/05_gothic.js",
+      "sha": "5df30d9435e7f66cc38412834f96cb94942dc354",
+      "size": 40426,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/06_renaissance.js",
+      "sha": "d6df5f9eba6320eb588807c3be461aa3b348fcc3",
+      "size": 31437,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/08_impressionism.js",
+      "sha": "faaf347a12cd971e769569ccf7a2ea5f53fd7fd9",
+      "size": 20908,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/09_postimp.js",
+      "sha": "483ecbfc91661c0b047cfc329e8a5d67c46389a3",
+      "size": 16299,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/10_nouveau.js",
+      "sha": "0cff9a9cb978a32094b6e5cd1f907fdcff429e39",
+      "size": 30381,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/11_cubism.js",
+      "sha": "e26e76a50c7cee2d8bbc88af4ac856f730a2b8a6",
+      "size": 27428,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/12_bauhaus.js",
+      "sha": "feade9f50aed8055df0d7015720abd666a12ca7f",
+      "size": 17535,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/13_pop.js",
+      "sha": "04c1fc844a9cb533a3ddb3066923ab674927e499",
+      "size": 24647,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/14_8bit.js",
+      "sha": "8418bef5b6ffbfaba8a1866c7a2c02b2d50c17ec",
+      "size": 17139,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/15_raytrace.js",
+      "sha": "11838972b0d5f6b8ff9a5707290b3ff5eafdab44",
+      "size": 25794,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/16_2026.js",
+      "sha": "2d344cc46db931949461c835cf366c7b69eb0036",
+      "size": 50054,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/scenes/index.js",
+      "sha": "498c2b583c73638b3edf519ab72319dbec210216",
+      "size": 2439,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/art-motion/transitions.js",
+      "sha": "88a459a220fa6155073b3a839c3b17789630d185",
+      "size": 69064,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/gsap.min.js",
+      "sha": "fde57af06cc445f47ca2a6fc1232ec04666346d4",
+      "size": 72779,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/showcase/vendor/om.js",
+      "sha": "92d2d4c141f04f772eb0efec4d517d61fb1b28d1",
+      "size": 11086,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/fonts/LICENSES.md",
+      "sha": "0533deaf8ce621691fbd791c134a4e4bede9154e",
+      "size": 4498,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/fonts/NotoSansSC-500.woff",
+      "sha": "4c7cade7f4d92173af4c3a1b6e3a44919e2636bc",
+      "size": 1416188,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/fonts/NotoSansSC-900.woff",
+      "sha": "664a8d52cc3924e36c85599f8c26405c12797817",
+      "size": 1394104,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/fonts/OFL.txt",
+      "sha": "a4670b02de28ecdaa5cafd2356b4a41b629a2e20",
+      "size": 4430,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/voice.wav",
+      "sha": "5abeb0f9dd652ea2034a63a1e91ea6da423087cc",
+      "size": 703758,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/assets/voice.words.json",
+      "sha": "d1affd3de501938d28dca8dbc81298c9b6877d62",
+      "size": 2487,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/index.html",
+      "sha": "b0ef6a78fec84c989ab13f896eebce4a9ac41ed9",
+      "size": 13052,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/script.txt",
+      "sha": "688a274053cea3568a5dd83c5f9799c39bf8712c",
+      "size": 193,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/vendor/GSAP-LICENSE.html",
+      "sha": "fd3d1475e0762831003e3f84290952ab305321b9",
+      "size": 76456,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/vendor/GSAP-LICENSE.txt",
+      "sha": "20334cee4465ba5ded800931d590e58a35d8371b",
+      "size": 153,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/vendor/gsap.min.js",
+      "sha": "fde57af06cc445f47ca2a6fc1232ec04666346d4",
+      "size": 72779,
+      "mode": "100644"
+    },
+    {
+      "path": "examples/voice-demo/vendor/om.js",
+      "sha": "92d2d4c141f04f772eb0efec4d517d61fb1b28d1",
+      "size": 11086,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/AlfaSlabOne-400.woff",
+      "sha": "ed5ca898aee8d6c009883b8e175749c0546d9bc5",
+      "size": 41728,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Anton-400.woff",
+      "sha": "af925c19f8fba07fcedaa246def2ca066de8a0bc",
+      "size": 61460,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/ArchivoBlack-400.woff",
+      "sha": "5273a9c1dd787f49f2c8259b90a14dff9e25b9b8",
+      "size": 38316,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Bangers-400.woff",
+      "sha": "46c888483959b08f93521c80a18112b8e6e38358",
+      "size": 43808,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Caveat-600.woff",
+      "sha": "a9fc847617e47ab384c641e5e1bad555795f0f55",
+      "size": 132264,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Cinzel-400.woff",
+      "sha": "08649ede82c8d776224a015c55c90a2df4eea9c9",
+      "size": 22812,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Cinzel-700.woff",
+      "sha": "28f02c19e71e75e823715e685ace79c88ffdd307",
+      "size": 24288,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/CormorantGaramond-500.woff",
+      "sha": "4dccf368b0e59fb7f6bb4dfc1d38680ef2ffa5a1",
+      "size": 90464,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/CormorantGaramond-500i.woff",
+      "sha": "3bc493df4e4581c8dd9b8f88e5c15dfa732b9837",
+      "size": 93400,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/CormorantGaramond-700.woff",
+      "sha": "f1ddbfb1ce61e58120d6955d59d21742d7426872",
+      "size": 87248,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/EBGaramond-400.woff",
+      "sha": "7952db1dbe1b6174b7dea79dacee618c2b1b9e59",
+      "size": 162740,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/EBGaramond-400i.woff",
+      "sha": "f6534947ee5bea1e5d5fc8eb384a84a148c86540",
+      "size": 151904,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/EBGaramond-600.woff",
+      "sha": "d30aa9dc3d3acecfeeb3051ef232c30b18ee8ee5",
+      "size": 179028,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Exo2-800i.woff",
+      "sha": "7437aeef4e45b7f321063be69359af60aed680dc",
+      "size": 60124,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/GochiHand-400.woff",
+      "sha": "b500d9a883dbb9c829b34c97cc07648a9d65029e",
+      "size": 23640,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/IMFellEnglish-400.woff",
+      "sha": "f9b84ad24d7df1c3de1c3ab487fad091320a26c4",
+      "size": 108052,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/IMFellEnglish-400i.woff",
+      "sha": "6c1d5e42240d0210a583386df4e6dc4defe1fefa",
+      "size": 111628,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Inter-var.woff",
+      "sha": "ace36e8017be19b3c1b1bf347f09d6835466e8e6",
+      "size": 126688,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/JosefinSans-700.woff",
+      "sha": "2e2bfbf8407c0b70e348c4155c1481f8f7065fc7",
+      "size": 26564,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Kalam-700.woff",
+      "sha": "b31a7658b9e2d7978425ecaf1f1816660b7b4e23",
+      "size": 186044,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/LICENSES.md",
+      "sha": "0533deaf8ce621691fbd791c134a4e4bede9154e",
+      "size": 4498,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/LXGWWenKai-500.woff",
+      "sha": "4f02c88fd17d3a10936351fef76596440163c805",
+      "size": 2098296,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/LibreBaskerville-400.woff",
+      "sha": "70100bd82e15ce4df8e5e0ef2db7967326268efc",
+      "size": 46628,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/LibreBaskerville-700.woff",
+      "sha": "1ede9e63b750769cce553c85f16215f349798a4b",
+      "size": 47524,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/LilitaOne-400.woff",
+      "sha": "73646caa4abc54bdbecf865b1cac02e80a0b6d0b",
+      "size": 14372,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Marcellus-400.woff",
+      "sha": "8d593988566742cb3a8fee262e4aa58743d8dd85",
+      "size": 22320,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/NotoSansSC-500.woff",
+      "sha": "4c7cade7f4d92173af4c3a1b6e3a44919e2636bc",
+      "size": 1416188,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/NotoSansSC-700.woff",
+      "sha": "4e5c21514f3c9c69f2571c9889390a779843d4fe",
+      "size": 1425340,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/NotoSansSC-800.woff",
+      "sha": "056fba6424656387bd2a4a85efbc9ae3c5db1ef7",
+      "size": 1426988,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/NotoSansSC-900.woff",
+      "sha": "664a8d52cc3924e36c85599f8c26405c12797817",
+      "size": 1394104,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/OFL.txt",
+      "sha": "a4670b02de28ecdaa5cafd2356b4a41b629a2e20",
+      "size": 4430,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/PlayfairDisplay-400i.woff",
+      "sha": "b1f80d059ff71a3a34356fe311c768946d84d441",
+      "size": 50928,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/PlayfairDisplay-700.woff",
+      "sha": "507012058185ee64b4f0e9a278a3836302b82c66",
+      "size": 55652,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/PlayfairDisplay-700i.woff",
+      "sha": "95def380ef3b56f5ae599a375c05c914ed5c8956",
+      "size": 53612,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Poppins-600.woff",
+      "sha": "5035ee775d447b94636e9859d3a570410b553538",
+      "size": 66232,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Poppins-700.woff",
+      "sha": "64fbbd9ae3c0b5d59a8757662ead23bfa7bfa2fc",
+      "size": 65616,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Poppins-800.woff",
+      "sha": "fe74641c202b0f5f752322389894bc4f2478392b",
+      "size": 65344,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/PressStart2P-400.woff",
+      "sha": "302418fa53e00fb032203b2be3a64ebee396b8ea",
+      "size": 36184,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Righteous-400.woff",
+      "sha": "59c797f127fc0d243f8586c6dbcac1afecc173a0",
+      "size": 21028,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/RobotoCondensed-var.woff",
+      "sha": "1196643983d70c8fcfc751c9bd4177981f0a4ddc",
+      "size": 94036,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/Rye-400.woff",
+      "sha": "66c64f2e9616104014d094ab60881e57fc1d2d96",
+      "size": 62848,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/UnifrakturMaguntia-400.woff",
+      "sha": "580bb9bd4e6ed3971a782f6494cb1f4c7a7cb11b",
+      "size": 39076,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/cmunrm.woff",
+      "sha": "9efca1264afa69d5f0cd016b8c9f48f5144446f8",
+      "size": 123340,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/cmunti.woff",
+      "sha": "122340ad48803a8682b363cc83b0e99a00c80e24",
+      "size": 158668,
+      "mode": "100644"
+    },
+    {
+      "path": "fonts/index.json",
+      "sha": "75cb4e9c1d7737ddb573a37dff8448564e49e4db",
+      "size": 4711,
+      "mode": "100644"
+    },
+    {
+      "path": "package.json",
+      "sha": "a80518822b60c88f1fa4a1f8970904db3cdbe696",
+      "size": 915,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/camera-rig.js",
+      "sha": "72961098c6b7be6f33763024b3a00a4e4b465c3d",
+      "size": 3597,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/LICENSE",
+      "sha": "ed67368a2a79ed7be97b2a4852330cdac5b8b12a",
+      "size": 1086,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/NOTICE.md",
+      "sha": "e5a99c324f729f18a04a5c0d45cfa0379573bf1b",
+      "size": 2524,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/clip.js",
+      "sha": "8df8440a66df6339b78f19de25c0879528e4c73f",
+      "size": 15549,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/cues.js",
+      "sha": "e035edcb9d39f0255cf66d3b8c17679b14285a90",
+      "size": 3956,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/t1_3b1b.js",
+      "sha": "09324633e99f250f4c0c18a96af883faa8c1c07f",
+      "size": 19308,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/t2_keynote_ui.js",
+      "sha": "f34778a1018f50b26eebe5f5fdd76cfa6bbfd0c4",
+      "size": 27295,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/t3_finance_chart.js",
+      "sha": "a26c5fe6f6ac45b50b11d2665bf0fb59ec0e5cc8",
+      "size": 21148,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/y1_kurzgesagt.js",
+      "sha": "3e52f0b32a6def1d383d498d6c40a46098a49e26",
+      "size": 15230,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/y2_vox.js",
+      "sha": "12a7a585c339dd4eb9b726bf47cb29afc346216b",
+      "size": 14569,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/y3_whiteboard.js",
+      "sha": "1b04b770eca9cc20b999b345b15499c23a6c939a",
+      "size": 22588,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/y4_storytime.js",
+      "sha": "df5f9b716790184051835e99f1cd66cb26144624",
+      "size": 19715,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/grammars/y5_kinetic_type.js",
+      "sha": "977c1ddb93c77ffd60ca80627b009dad08d27990",
+      "size": 13373,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/camera.js",
+      "sha": "fed99d4ba60cb236282759265c233679ac3d5271",
+      "size": 5391,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/chart.js",
+      "sha": "e18de00ae35ab951117f9547e6b946d4094ee216",
+      "size": 10870,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/collage.js",
+      "sha": "f3491e46ac4040ea4951a6215df7ef61e406514a",
+      "size": 8972,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/diagram.js",
+      "sha": "8baf28f1c084426a886bcffb98225eb13a70d583",
+      "size": 20080,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/kit.js",
+      "sha": "c4de23b17b2386d5c8c68b98cbe5455b44b9dbba",
+      "size": 6542,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/motion.js",
+      "sha": "55e4005bad7587b0267855450b97a17d65deb961",
+      "size": 7891,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/paint.js",
+      "sha": "897661b4527febfb22ef1f04dfbed15d1567ab1d",
+      "size": 15339,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/toon.js",
+      "sha": "606b828bd583832197a3c3f4fc9a4256426b982b",
+      "size": 13188,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/typo.js",
+      "sha": "da397e5c3ff3b809242659ee80fb85b89b1f39ad",
+      "size": 9998,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/ui.js",
+      "sha": "8dbf8f16c41dd60ce3a3adad2d691d38ab776cea",
+      "size": 10548,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/lib/util.js",
+      "sha": "3a7846474d9c75e7daa7ca8ec4bc4378fe5dc37e",
+      "size": 6416,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/clip/test/cues.test.js",
+      "sha": "b112f182c3d9194d1b0d158560a370059b6610aa",
+      "size": 6557,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/om-engine.js",
+      "sha": "ce10cd04591c2398aed0e1dfd9296e8be02d5643",
+      "size": 25602,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/om-player.js",
+      "sha": "3c101153820d46ff9b16f4ef47ae4ddf650308e8",
+      "size": 9225,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/om.js",
+      "sha": "f1096f7286b747e8e1b0215b8d26896cfcc28799",
+      "size": 20691,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/three/LICENSE",
+      "sha": "8ada2a5f982916b0ba4b7a0aa7de347587e745d7",
+      "size": 1081,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/three/entry.js",
+      "sha": "1ee1605230e8132fcd60f36301bc9a910fa8fc75",
+      "size": 1810,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/three/om-three.js",
+      "sha": "956b197ac4273e89bddb8f04ca6ab0bfb9de577c",
+      "size": 15703,
+      "mode": "100644"
+    },
+    {
+      "path": "runtime/three/three.min.js",
+      "sha": "ec031d0eee27cb15c6d22c78d0d8e116e00ae10d",
+      "size": 864197,
+      "mode": "100644"
+    },
+    {
+      "path": "site/build.js",
+      "sha": "113300715e461cafdfd37d2a43d5560a54f7cdc7",
+      "size": 29824,
+      "mode": "100644"
+    },
+    {
+      "path": "site/works.json",
+      "sha": "7f6767e561696412c8ba40b05bee5a2942bf1218",
+      "size": 3319,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/SKILL.md",
+      "sha": "7ee79026ef01f7760c191dbab70dfa15cc351ce6",
+      "size": 24613,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/bin/om",
+      "sha": "180dcaa21c0cba19d9e9e775ea35712fce4bec73",
+      "size": 259,
+      "mode": "100755"
+    },
+    {
+      "path": "skills/huashu-motion/references/about-author.md",
+      "sha": "cc6d3fe690e6b6e1ab48c0430c155fd4a81fff2b",
+      "size": 10181,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/colour.md",
+      "sha": "fd94780e4322cd9f79f5ac0ba7aa9bbda1cdbfca",
+      "size": 8864,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/contract.md",
+      "sha": "88352c4a0606ae8d814b463d9b083ac69a768c3c",
+      "size": 7062,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/craft.md",
+      "sha": "61c0319e64256e4c74e1b17925870fb7a29e7c17",
+      "size": 3291,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/depth.md",
+      "sha": "728f57d105e67a486f69f193ca572ece5614c751",
+      "size": 8370,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/director.md",
+      "sha": "553613260c751774b69e67218018656b5dad73ba",
+      "size": 18161,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/experience.md",
+      "sha": "08d3e9374c795290915aa19b237379034e13ca31",
+      "size": 27387,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/grammars.md",
+      "sha": "b88cbcd418680a410d95ec75e3b363dbe007c3cc",
+      "size": 6852,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/README.md",
+      "sha": "0abd608682517ef0a35b52d172930376861bda13",
+      "size": 6714,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/formats.md",
+      "sha": "ec6ae453bee35b456d463c89bbb2a159dda29d42",
+      "size": 9538,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/3d-object.md",
+      "sha": "e4aa64ae4d56f44b49a2bdbaed9cb95b51ded662",
+      "size": 2335,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/art-styles.md",
+      "sha": "9a8e5191d085eee928ac66ac43f07d6ef534f2a3",
+      "size": 1359,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/card-montage.md",
+      "sha": "9471e06526002e65af336415a67015f4d81fffbc",
+      "size": 3777,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/character.md",
+      "sha": "2e0b85d54040d8b912920ea66f5a5045b515f879",
+      "size": 1963,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/continuous-morph.md",
+      "sha": "729ff8be1eb61c0d587dc3c598e7e94dd552e339",
+      "size": 4492,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/cursor-demo.md",
+      "sha": "b066137b0824ef726fa8d86eac405820929a9ebc",
+      "size": 4600,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/data-story.md",
+      "sha": "e5bcfd943fb212b007d8133c3fef50019b39c6bd",
+      "size": 2060,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/editorial-collage.md",
+      "sha": "6a932655b4a3fd955209c88e6947de91cddd51ad",
+      "size": 1518,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/flat-world.md",
+      "sha": "ea9ef24ac35eb6cc317301dbcea3730d86a1926c",
+      "size": 1234,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/generative-field.md",
+      "sha": "07075ad8bf6428b842b27dd8b11463774673df4f",
+      "size": 1384,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/hand-drawn.md",
+      "sha": "12a7b91d4ffb4010de75459ac20796c471fdfd6a",
+      "size": 1489,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/kinetic-type.md",
+      "sha": "a1311c604208f381b6f8d819467025a7c5fab6a1",
+      "size": 3614,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/liquid-glass.md",
+      "sha": "9c4ba28a9cce5a696c2068783efc9361077f37a5",
+      "size": 1120,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/mechanism.md",
+      "sha": "197ef66997d57ca20325a88cdb298b95222b7f98",
+      "size": 1539,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/modular-grid.md",
+      "sha": "349d6f35774e2122a1b369367bb6966f745eea45",
+      "size": 1726,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/photo-led.md",
+      "sha": "683f1823ce76e93756204326b029a4f52de4563f",
+      "size": 1201,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/retro-digital.md",
+      "sha": "45b2056de633253604d409346b9ac8b633bda91a",
+      "size": 1076,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/showreel.md",
+      "sha": "a708ad61c0b2028675d4580a1606c87a422742af",
+      "size": 2980,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/system-diagram.md",
+      "sha": "7072a216c1c4906eec820506d1d4ec43f5b90fb8",
+      "size": 1516,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/languages/talking-head.md",
+      "sha": "10897b0ce3cc62e0dd52fc6c15e7415e3db924b9",
+      "size": 473,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/product-fit.md",
+      "sha": "18499875e4b5b8fa5a238def18e6ed22eb5d9596",
+      "size": 7212,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/library/techniques.md",
+      "sha": "bfaffa5299bd016adda03d60be48988f09576ce2",
+      "size": 20432,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/music.md",
+      "sha": "b3c1efafb0c09453ee7e9c52fa44b63f8fd3ed54",
+      "size": 15477,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/product-demo-continuity.md",
+      "sha": "0f5a44af857211f9784f1ac05460573a6731805c",
+      "size": 8652,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/provenance.md",
+      "sha": "99125a2fe533474aa457ecf620186a1cbefb63d6",
+      "size": 2229,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/rhythm.md",
+      "sha": "7dd476425fd99e580b674d71dc09c428cb3ff71f",
+      "size": 12365,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/scores/first-light.abc",
+      "sha": "b0e00aee6484f4a96fef9793e4d7479af8d569e2",
+      "size": 3041,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/scores/four-rooms.abc",
+      "sha": "cba46a75284b62f1d15410732efc9085da5df140",
+      "size": 4294,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/scores/signal.abc",
+      "sha": "a9e10a65b181e4fb55d1375ad363e824974fe27c",
+      "size": 4038,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/sound.md",
+      "sha": "81470225dfff26146b9ea583108c0db33deb8182",
+      "size": 13664,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/talking-head.md",
+      "sha": "3d616ef11b8cf8663a733af6ab316c4c096c1d22",
+      "size": 10259,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/verification.md",
+      "sha": "1c800e0e8b927a74db1fa924fb853835943d0a6c",
+      "size": 2314,
+      "mode": "100644"
+    },
+    {
+      "path": "skills/huashu-motion/references/visual-direction.md",
+      "sha": "4f16e9d3895e8dd5a57d42af7c75b82f5ae6ca5b",
+      "size": 9036,
+      "mode": "100644"
+    },
+    {
+      "path": "studio/index.html",
+      "sha": "62630c15ed3b94ba2c38423936c205d28d9bb655",
+      "size": 4027,
+      "mode": "100644"
+    },
+    {
+      "path": "studio/studio.css",
+      "sha": "18b76b4642339265d7012ec7a8f3e93d9fef07f6",
+      "size": 12224,
+      "mode": "100644"
+    },
+    {
+      "path": "studio/studio.js",
+      "sha": "b77c697cfd6dddf4420549470e82bd8d90451dd7",
+      "size": 31148,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/.npmignore",
+      "sha": "7d9978d796c5168472246b7003e89895c95b8b23",
+      "size": 21,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/assets/fonts/LICENSES.md",
+      "sha": "0533deaf8ce621691fbd791c134a4e4bede9154e",
+      "size": 4498,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/assets/fonts/NotoSansSC-500.woff",
+      "sha": "4c7cade7f4d92173af4c3a1b6e3a44919e2636bc",
+      "size": 1416188,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/assets/fonts/NotoSansSC-900.woff",
+      "sha": "664a8d52cc3924e36c85599f8c26405c12797817",
+      "size": 1394104,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/assets/fonts/OFL.txt",
+      "sha": "a4670b02de28ecdaa5cafd2356b4a41b629a2e20",
+      "size": 4430,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/index.html",
+      "sha": "d54efe49af9b9104c6ab87b878b5548a66db4180",
+      "size": 5992,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/template.json",
+      "sha": "929b901e46d0c84add4b015b110ee7a03ba46b05",
+      "size": 258,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/vendor/GSAP-LICENSE.html",
+      "sha": "fd3d1475e0762831003e3f84290952ab305321b9",
+      "size": 76456,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/vendor/GSAP-LICENSE.txt",
+      "sha": "20334cee4465ba5ded800931d590e58a35d8371b",
+      "size": 153,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/blank/vendor/gsap.min.js",
+      "sha": "fde57af06cc445f47ca2a6fc1232ec04666346d4",
+      "size": 72779,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/finance-chart/index.html",
+      "sha": "4d68c824fda5895a1fd9192e19102069163ef7fd",
+      "size": 6985,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/finance-chart/template.json",
+      "sha": "2202217e0c53f33d301cb095ebb40fea24f9576a",
+      "size": 1232,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/keynote-ui/assets/chart.png",
+      "sha": "d0d37a4267299a576857332b44ede7683f279e85",
+      "size": 96255,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/keynote-ui/index.html",
+      "sha": "ce133823b3772b723efce014a8da2108988b1292",
+      "size": 9170,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/keynote-ui/template.json",
+      "sha": "0f29c769409555663598cd2911a7fdc9ba2f6320",
+      "size": 1245,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/kinetic-type/index.html",
+      "sha": "34575dc59c741063f39ee285f7b3b92d7797b4fd",
+      "size": 6329,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/kinetic-type/template.json",
+      "sha": "85a4c086562ebdc11d279288535faa4fa4b5e656",
+      "size": 1270,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/kurzgesagt/index.html",
+      "sha": "9ce87797603017ddfb7f5ad73a99680407df646e",
+      "size": 6479,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/kurzgesagt/template.json",
+      "sha": "f163d617f41d44c08385d2ca63cd6bf7049e0e74",
+      "size": 1167,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/math-3b1b/index.html",
+      "sha": "fab9dd81a5bef6b059f0b113996d950a5f4d2de9",
+      "size": 8086,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/math-3b1b/template.json",
+      "sha": "fc97c693c30a02c591d03e98124d9952022090c1",
+      "size": 1307,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/assets/comment.svg",
+      "sha": "2d1c84afbc03296cff6ecadf347bbc3d9ba0da81",
+      "size": 112,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/assets/cursor.svg",
+      "sha": "99628fd4505674c6b6ca87e0e46b4e81ea80bac9",
+      "size": 116,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/assets/studio.jpg",
+      "sha": "90282aba3c8c2779182be585229b044e74c85786",
+      "size": 793872,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/index.html",
+      "sha": "6dd3c090aed29f9522f8e5fc19aac08c937830b6",
+      "size": 10292,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/materials.md",
+      "sha": "a3a7ca114c2086ecfd9f0cdc5ccca543bd427f59",
+      "size": 451,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/object-3d/template.json",
+      "sha": "b1bcf9bba8529577e9d1ea1c02d79cc3a502a84e",
+      "size": 1188,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/storytime/index.html",
+      "sha": "e164b7df377919b3a7e2425a39bf3ae87bade39a",
+      "size": 6155,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/storytime/template.json",
+      "sha": "bcd415208bee940141897baa4a495380496ce24a",
+      "size": 1188,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/talking-head/index.html",
+      "sha": "4f1d7b097900ed96922a02bff05d3fd39c2ff585",
+      "size": 26018,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/talking-head/template.json",
+      "sha": "85193575ab151f0e80bcedff334ea2226fac4d6f",
+      "size": 905,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/ui-space/index.html",
+      "sha": "550deba5395d4aae4cf31f7a84e2b489288ed2d3",
+      "size": 10567,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/ui-space/materials.md",
+      "sha": "a3a7ca114c2086ecfd9f0cdc5ccca543bd427f59",
+      "size": 451,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/ui-space/template.json",
+      "sha": "e8b21bb0cb3e498a61945e5d3d25bffe9b9d69eb",
+      "size": 1117,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/vox-collage/assets/kline.png",
+      "sha": "9e681fc782734d6ac1e2dc797cbfff11d3e93bf8",
+      "size": 136588,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/vox-collage/assets/revenue-portrait.png",
+      "sha": "542e1c241fd53c27ea2b63ed1352b1b207415e28",
+      "size": 84147,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/vox-collage/index.html",
+      "sha": "9f8ee5d89c733fed973b4a57a07f5b1cf3ef9ba1",
+      "size": 5481,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/vox-collage/template.json",
+      "sha": "94ff2e5791104bb99accca5111b063ae3071f425",
+      "size": 1200,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/whiteboard/index.html",
+      "sha": "e1e88b65b1f8c3275aab5e75a422f439a193b6b4",
+      "size": 7203,
+      "mode": "100644"
+    },
+    {
+      "path": "templates/whiteboard/template.json",
+      "sha": "b1b2b041659b58af708127cafe406ef955db0b1b",
+      "size": 1102,
+      "mode": "100644"
+    },
+    {
+      "path": "test/audio.test.js",
+      "sha": "23b4ec3849ead0563bb7dc34c1627c91c20339b8",
+      "size": 3974,
+      "mode": "100644"
+    },
+    {
+      "path": "test/beats.test.js",
+      "sha": "14af40ccea39a439335caf1daeda32b5ec680018",
+      "size": 8606,
+      "mode": "100644"
+    },
+    {
+      "path": "test/browser.test.js",
+      "sha": "9a51857ea64241a22888c86914c80bd799355ed4",
+      "size": 1782,
+      "mode": "100644"
+    },
+    {
+      "path": "test/capture.test.js",
+      "sha": "320262cd0b6620ede7ddf41a306b2bb32c6c1032",
+      "size": 2738,
+      "mode": "100644"
+    },
+    {
+      "path": "test/cdp.test.js",
+      "sha": "f093039e50fbf78626e474373f3ac01ba2ba6153",
+      "size": 2848,
+      "mode": "100644"
+    },
+    {
+      "path": "test/check.test.js",
+      "sha": "886b27f6bc1aa7d277300e6ef88ad04645e4bdf4",
+      "size": 5172,
+      "mode": "100644"
+    },
+    {
+      "path": "test/composer.test.js",
+      "sha": "4e1d2b5e69de095e6c90fd6a63a0a35e326eee53",
+      "size": 5557,
+      "mode": "100644"
+    },
+    {
+      "path": "test/engine.test.js",
+      "sha": "0571add5e50f5b8c4aa4f81fc6902a4a4114f9e6",
+      "size": 8487,
+      "mode": "100644"
+    },
+    {
+      "path": "test/export.test.js",
+      "sha": "74a7e3fc80992a14a155cae24ba6cb93293a9d47",
+      "size": 9995,
+      "mode": "100644"
+    },
+    {
+      "path": "test/fixture-film.js",
+      "sha": "fa8dd2edb53ee252efaf8adfc773cd4a82d66a3b",
+      "size": 3137,
+      "mode": "100644"
+    },
+    {
+      "path": "test/fork.test.js",
+      "sha": "7474875e478b9039de081b99b8f87343ae9cb3ad",
+      "size": 4233,
+      "mode": "100644"
+    },
+    {
+      "path": "test/frames.test.js",
+      "sha": "3e31f2baff11b3dc7736bab777bdb1dee6881726",
+      "size": 2340,
+      "mode": "100644"
+    },
+    {
+      "path": "test/fx.test.js",
+      "sha": "8b22927bcae3feeca7409fdf6d8cb6ad0a8b3469",
+      "size": 13623,
+      "mode": "100644"
+    },
+    {
+      "path": "test/grab.test.js",
+      "sha": "602487cabf7b1d2d79c2bf72d80c517ebb5f8c17",
+      "size": 1913,
+      "mode": "100644"
+    },
+    {
+      "path": "test/learn.test.js",
+      "sha": "5ba15b62d497aed70aa6b9a1a8cfbb20d645228e",
+      "size": 2787,
+      "mode": "100644"
+    },
+    {
+      "path": "test/motion-tools.test.js",
+      "sha": "be4927f3a807c50c4d27e7ce573ae54ccb5d9485",
+      "size": 5192,
+      "mode": "100644"
+    },
+    {
+      "path": "test/music.test.js",
+      "sha": "4e448734e6dd13e98be81801824cac0edbd01e6b",
+      "size": 4108,
+      "mode": "100644"
+    },
+    {
+      "path": "test/package.test.js",
+      "sha": "0fd61667efa20ca22e8815769e79dc865e175340",
+      "size": 1141,
+      "mode": "100644"
+    },
+    {
+      "path": "test/project.test.js",
+      "sha": "2f72444237b0c3fc805347ff8ce933287cd7e43f",
+      "size": 4813,
+      "mode": "100644"
+    },
+    {
+      "path": "test/render.test.js",
+      "sha": "456aa7aac7ea3c7881028364ae58475dd4f77973",
+      "size": 9550,
+      "mode": "100644"
+    },
+    {
+      "path": "test/samples.test.js",
+      "sha": "32ed2f57e558c28177d6f7ca6d5480918b56266c",
+      "size": 6743,
+      "mode": "100644"
+    },
+    {
+      "path": "test/setup.mjs",
+      "sha": "3edbd53eab6fa0e831bcce79ddb27c79bba1f1b5",
+      "size": 278,
+      "mode": "100644"
+    },
+    {
+      "path": "test/share.test.js",
+      "sha": "99c9b2c65340315fbeeab55b6eeab6b7928e4971",
+      "size": 2211,
+      "mode": "100644"
+    },
+    {
+      "path": "test/sound.test.js",
+      "sha": "39e0284fe526d63fb9a00c4a3ebf69adbafc2aec",
+      "size": 5041,
+      "mode": "100644"
+    },
+    {
+      "path": "test/space.test.js",
+      "sha": "2e64730afb9670c5dc8ac46839ddc1b22562d8f8",
+      "size": 5298,
+      "mode": "100644"
+    },
+    {
+      "path": "test/still.test.js",
+      "sha": "ddad1b2cdb2e2e82e3afc4423eafe276a2b8fc6a",
+      "size": 5918,
+      "mode": "100644"
+    },
+    {
+      "path": "test/templates-3d.test.js",
+      "sha": "7de323fe9d7b94f80286103c4b5c46909b6f26c9",
+      "size": 2043,
+      "mode": "100644"
+    },
+    {
+      "path": "test/voice.test.js",
+      "sha": "8a6217f6b08077705c2a97294d9ff591ce0bacf5",
+      "size": 12374,
+      "mode": "100644"
+    }
+  ]
+}

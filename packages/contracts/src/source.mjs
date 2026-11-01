@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { compareUtf16, canonical } from './canonical.mjs';
 import { digest } from './digest.mjs';
-import {filmBuildErrors} from './film-composition.mjs';
 
 import { safePath, sourceValuesBytes, pathComparisonKey } from './source-values.mjs';
 export { safePath, SOURCE_VALUES_MAX_BYTES, SOURCE_VALUES_MAX_ITEMS, sourceValuesBytes, parseSourceValues } from './source-values.mjs';
@@ -63,7 +62,7 @@ export function targetSourceIdentity({entrypoint,files}) {
 
 /** Build receipts come from the trusted builder/store, never from a request body. */
 export function sourceBuildErrors(composition,builds,archiveFiles) {
-  if(composition.identityVersion===2&&composition.capabilityProfile==='film-v1')return filmBuildErrors(composition,builds,archiveFiles);
+  if(composition.identityVersion===2&&composition.capabilityProfile==='film-v1')return ['LEGACY_RENDERER_REQUIRED'];
   const errors = [];
   let archive;
   try {

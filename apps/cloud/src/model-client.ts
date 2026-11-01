@@ -1,5 +1,5 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest,sha256Bytes} from '@promobento/contracts/digest';
+import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
 import {providerRequest, streamModel, ModelOutputError, parseModelJson, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
 import providersInput from '../../../config/model-providers.json';
@@ -14,43 +14,33 @@ const providers: Json=providersInput, policy: Json=policyInput;
 export class ModelJsonOutputError extends Error {
   constructor(code='MODEL_OUTPUT_JSON_INVALID',readonly completedOutput?:{text:string;toolCalls:Json[]}){super(code);}
 }
-class SceneUpstream502 extends Error {constructor(){super('MODEL_UPSTREAM_502');}}
-type ModelContext={directingMethod?:{id:string;version:string;contentHash:string};sceneId?:string};
+type ModelContext={directingMethod?:{id:string;version:string;contentHash:string}};
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs,
   context:ModelContext={}) {
-  const fallback=stage==='scenes'&&providers.steps.scenes==='modelswitch/claude-opus-5-5'
-    &&request.tools?.some(tool=>tool.name==='edit_file')&&!request.toolChoice;
-  try{return await modelStepOnce(env,operationId,generation,stage,callId,request,validate,deadlineAt,context,undefined,Boolean(fallback));}
-  catch(error){
-    if(!fallback||!(error instanceof SceneUpstream502))throw error;
-    // This is a separate paid call, fenced by its own ID and the original scene/operation limits.
-    return modelStepOnce(env,operationId,generation,stage,callId+'-deepseek-502',
-      {...request,toolChoice:'edit_file'},validate,deadlineAt,context,'modelswitch/deepseek-v4.1-flash-1017',false,'none',true);
-  }
+  return modelStepOnce(env,operationId,generation,stage,callId,request,validate,deadlineAt,context);
 }
+
 async function modelStepOnce(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt:number,
-  context:ModelContext,overrideRef?:string,allow502Fallback=false,overrideEffort?:string,preventPendingReplay=allow502Fallback) {
+  context:ModelContext) {
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
-  const op=await operation(env,operationId,generation), ref=overrideRef??providers.steps[stage], model=providers.models[ref], provider=providers.providers[ref?.split('/')[0]];
+  const op=await operation(env,operationId,generation), ref=providers.steps[stage], model=providers.models[ref], provider=providers.providers[ref?.split('/')[0]];
   if(!ref||!model?.capabilities.verified||!authorization.models.includes(ref)||!authorization.purposes.includes(op.purpose)
     ||Date.now()>=Date.parse(authorization.expiresAt)||providers.catalogVersion!==authorization.catalogVersion)throw Error('MODEL_NOT_AUTHORIZED');
   const secret=provider.secret==='ANTHROPIC_API_KEY'?env.ANTHROPIC_API_KEY:env.MODEL_COMPAT_API_KEY;
   if(!secret)throw Error('MODEL_SECRET_MISSING');
   const limits=policy.director.steps[stage];
   if(!limits)throw Error('MODEL_STAGE_UNKNOWN');
-  if(stage==='scenes'&&!/^[a-z][a-z0-9-]{0,47}$/.test(context.sceneId??''))throw Error('MODEL_SCENE_REQUIRED');
-  const stageLimit=stage==='scenes'?limits.maxMicrosPerScene:limits.maxMicros;
+  const stageLimit=limits.maxMicros;
   const methodEvidence=context.directingMethod?{directingMethod:context.directingMethod}:{};
   if(request.messages.some(message=>message.images?.length)&&!model.capabilities.vision)throw Error('MODEL_VISION_UNAVAILABLE');
   if(request.tools?.length&&!model.capabilities.tools)throw Error('MODEL_TOOLS_UNAVAILABLE');
-  const input:ModelRequest={...request,provider,model:ref.slice(ref.indexOf('/')+1),effort:overrideEffort??limits.effort};
+  const input:ModelRequest={...request,provider,model:ref.slice(ref.indexOf('/')+1),effort:limits.effort};
   const requestSettings={providerKind:provider.kind,effort:input.effort,toolChoice:input.toolChoice??null,maxOutputTokens:input.maxOutputTokens};
-  const identity={promptVersion:'s1-director-v1',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
+  const identity={promptVersion:'native-director-v2',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
   const cacheKey=digest({kind:'model-response-cache-v2',requestHash:key,workspaceId:op.workspace_id,projectId:op.project_id,purpose:op.purpose});
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
-  const fallbackKey=`operations/${op.id}/model-fallbacks/${digest({callId})}.json`;
   const decode=(result:Json)=>{
     if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure,{text:result.text,toolCalls:result.toolCalls});
     if(result.failure)throw Error(result.failure);
@@ -63,7 +53,6 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
       await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence,...(receipt.requestSettings?{requestSettings:receipt.requestSettings}:{})});
     }
-    if(allow502Fallback&&receipt.result.failure==='MODEL_STREAM_FAILED'&&receipt.result.upstreamStatus===502)throw new SceneUpstream502();
     let value:Json;
     try{value=decode(receipt.result);validate(value);}catch(error){
       // A malformed completed payload can be corrected only after its actual usage is settled.
@@ -75,20 +64,8 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   };
   // A durable response may complete bookkeeping after a crash. An absent response never permits resending.
   if(await env.DB.prepare('SELECT id FROM cost_reservations WHERE id=?').bind(callId).first()){
-    if(!await env.MEDIA.head(receiptKey)){
-      const diagnosticKey=receiptKey.replace(/\.json$/,'-request-failure.json');
-      if(allow502Fallback&&await env.MEDIA.head(diagnosticKey)){
-        const diagnostic=await getJson(env,diagnosticKey);
-        if(diagnostic.callId===callId&&diagnostic.requestHash===key&&diagnostic.budgetId===budgetId&&diagnostic.model===ref
-          &&diagnostic.code==='MODEL_REQUEST_FAILED'&&diagnostic.httpStatus===502)throw new SceneUpstream502();
-      }
-      throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
-    }return finish(await getJson(env,receiptKey),true);
-  }
-  if(allow502Fallback&&await env.MEDIA.head(fallbackKey)){
-    const trigger=await getJson(env,fallbackKey);
-    if(trigger.kind!=='prior_scene_502_fallback'||trigger.callId!==callId||trigger.requestHash!==key||trigger.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
-    throw new SceneUpstream502();
+    if(!await env.MEDIA.head(receiptKey))throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    return finish(await getJson(env,receiptKey),true);
   }
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(cacheKey).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
@@ -114,45 +91,11 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     }
   }
   if(missingReceipt)throw Error('MODEL_RECEIPT_UNAVAILABLE');
-  if(preventPendingReplay){
-    const pending=await env.DB.prepare(`SELECT r.id,r.operation_id,p.status FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
-      LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
-      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL ORDER BY r.created_at,r.id`)
-      .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).all<Json>();
-    if(pending.results.length){
-      // Only a terminal same-scope exact-request receipt can authorize a new fallback.
-      // An active competing operation or an unknown failure must not trigger another call.
-      if(allow502Fallback&&pending.results.every(row=>['failed','cancelled'].includes(row.status))){
-        for(const previous of pending.results){
-          const originalKey=`operations/${previous.operation_id}/model-calls/${digest({callId:previous.id})}.json`;
-          if(!await env.MEDIA.head(originalKey))continue;
-          const receipt=await getJson(env,originalKey);
-          if(receipt.kind!=='metered_model_response'||receipt.callId!==previous.id||receipt.requestHash!==key||receipt.model!==ref
-            ||receipt.budgetId!==modelBudgetId(env.PIPELINE_ENVIRONMENT,previous.id))throw Error('MODEL_RECEIPT_CONFLICT');
-          if(receipt.result?.failure!=='MODEL_STREAM_FAILED')continue;
-          let confirmed=receipt.result.upstreamStatus===502;
-          // Older 502 receipts predate upstreamStatus; inspect their original immutable stream.
-          const raw=receipt.rawStreamRef;
-          if(!confirmed&&receipt.result.upstreamStatus===undefined&&raw?.key===`operations/${previous.operation_id}/model-streams/${digest({callId:previous.id})}.sse`
-            &&Number.isSafeInteger(raw.byteLength)&&raw.byteLength>=0&&raw.byteLength<=(16<<20)&&/^[a-f0-9]{64}$/.test(raw.sha256??'')){
-            const object=await env.MEDIA.get(raw.key);
-            if(!object||object.size!==raw.byteLength)throw Error('MODEL_RECEIPT_UNAVAILABLE');
-            const bytes=new Uint8Array(await object.arrayBuffer());if(sha256Bytes(bytes)!==raw.sha256)throw Error('MODEL_RECEIPT_CONFLICT');
-            const stream=new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes);
-            for(const line of stream.split('\n'))if(line.startsWith('data:')){
-              const payload=line.slice(5).trim();if(payload==='[DONE]')continue;
-              const data=parseCanonicalJson(payload) as Json;if(data.error?.code===502)confirmed=true;
-            }
-          }
-          if(confirmed){
-            await immutableJson(env,fallbackKey,{kind:'prior_scene_502_fallback',callId,requestHash:key,model:ref,sourceReceiptKey:originalKey,sourceCallId:previous.id});
-            throw new SceneUpstream502();
-          }
-        }
-      }
-      throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
-    }
-  }
+  const pending=await env.DB.prepare(`SELECT r.id FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+    LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
+    AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
+    .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first();
+  if(pending)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
   await assertModelBudgetReady(env);
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
   if(provider.kind==='anthropic'){
@@ -171,11 +114,11 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
   if(worst>stageLimit)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
-  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage==='scenes'?'scenes:'+context.sceneId:stage;
+  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
   try{
     await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
-      limits.maxCalls??limits.maxCallsPerAsset??limits.maxCallsPerScene??1,preventPendingReplay);
+      limits.maxCalls??limits.maxCallsPerAsset??1,true);
     await operation(env,op.id,op.generation);
   }catch(error){await settleModelBudget(env,reserved,0,{kind:'not_dispatched',reason:'Local admission did not reach the paid request.'},{notDispatched:true});throw error;}
   await markModelDispatched(env,reserved);
@@ -189,9 +132,6 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
         code:error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_ADAPTER_FAILED',
         httpStatus:Number.isInteger(status)&&Number(status)>=100&&Number(status)<=599?status:null,usageStatus:'unknown'
       };
-      if(allow502Fallback&&diagnostic.code==='MODEL_REQUEST_FAILED'&&diagnostic.httpStatus===502){
-        await immutableJson(env,receiptKey.replace(/\.json$/,'-request-failure.json'),diagnostic);throw new SceneUpstream502();
-      }
       await immutableJson(env,receiptKey.replace(/\.json$/,'-request-failure.json'),diagnostic).catch(()=>{}); // Optional diagnosis must not replace the original provider/transport failure.
       throw error;
     }

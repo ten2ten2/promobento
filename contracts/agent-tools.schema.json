@@ -1,84 +1,423 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://promobento.com/contracts/agent-tools/3.0.0",
-  "title": "Director tool calls",
-  "description": "Inputs of the director's tools (cloud motion plan §6.8). Every call is validated here before it runs, billed and written to the ledger. Large payloads (write_spec, audio_plan) are also validated against their own Schemas.",
+  "title": "Native huashu director tools",
+  "description": "Validated production documents, native source writes, revision-fenced patches and reviews. JSON is not an executable film specification.",
   "oneOf": [
-    {"$ref": "#/$defs/call_brief_context"}, {"$ref": "#/$defs/call_asset_insights"}, {"$ref": "#/$defs/call_method_recall"},
-    {"$ref": "#/$defs/call_block_catalog"}, {"$ref": "#/$defs/call_submit_directions"}, {"$ref": "#/$defs/call_write_spec"},
-    {"$ref": "#/$defs/call_spec_patch"}, {"$ref": "#/$defs/call_edit_file"}, {"$ref": "#/$defs/call_check"},
-    {"$ref": "#/$defs/call_still"}, {"$ref": "#/$defs/call_review"}, {"$ref": "#/$defs/call_audio_plan"},
-    {"$ref": "#/$defs/call_submit_candidate"}
+    {
+      "$ref": "#/$defs/call_write_treatment"
+    },
+    {
+      "$ref": "#/$defs/call_write_project"
+    },
+    {
+      "$ref": "#/$defs/call_apply_project_patch"
+    },
+    {
+      "$ref": "#/$defs/call_submit_review"
+    }
   ],
   "$defs": {
-    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"},
-    "aspectId": {"enum": ["landscape", "portrait", "feed", "square"]},
-    "frame": {"type": "integer", "minimum": 0, "maximum": 900},
-    "scenePath": {"type": "string", "pattern": "^scenes/[a-z][a-z0-9-]{0,47}/[A-Za-z0-9._-]{1,64}\\.(js|css|svg|json|abc)$"},
-    "empty": {"type": "object", "additionalProperties": false, "properties": {}},
-
-    "call_brief_context": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "brief_context"}, "input": {"$ref": "#/$defs/empty"}}},
-    "call_asset_insights": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "asset_insights"},
-        "input": {"type": "object", "additionalProperties": false, "properties": {"assetKeys": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}}}}}},
-    "call_method_recall": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "method_recall"},
-        "input": {"type": "object", "additionalProperties": false, "required": ["topics", "stage"],
-          "properties": {"topics": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 60}},
-            "stage": {"enum": ["directions", "spec", "scenes", "review"]}}}}},
-    "call_block_catalog": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "block_catalog"},
-        "input": {"type": "object", "additionalProperties": false,
-          "properties": {"category": {"enum": ["opening", "software", "data", "course", "3d", "closing", "transition"]}, "ids": {"type": "array", "maxItems": 40, "items": {"$ref": "#/$defs/id"}}}}}},
-    "call_submit_directions": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "submit_directions"},
-        "input": {"description": "A direction_set; validated against direction.schema.json.", "type": "object", "required": ["cards"], "properties": {"cards": {"type": "array", "minItems": 3, "maxItems": 3}}}}},
-    "call_write_spec": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "write_spec"},
-        "input": {"description": "A FilmSpec; validated against film.schema.json and filmSpecErrors().", "type": "object", "required": ["film"], "additionalProperties": false, "properties": {"film": {"type": "object"}}}}},
-    "call_spec_patch": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "spec_patch"},
-        "input": {"type": "object", "additionalProperties": false, "required": ["ops"],
-          "properties": {"ops": {"type": "array", "minItems": 1, "maxItems": 64, "items": {
-            "type": "object", "additionalProperties": false, "required": ["op", "path"],
-            "properties": {"op": {"enum": ["add", "remove", "replace", "move", "copy", "test"]},
-              "path": {"type": "string", "pattern": "^(/[^/]*)+$", "maxLength": 300},
-              "from": {"type": "string", "pattern": "^(/[^/]*)+$", "maxLength": 300},
-              "value": true}}}}}}},
-    "call_edit_file": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "edit_file"},
-        "input": {"oneOf": [
-          {"type": "object", "additionalProperties": false, "required": ["command", "path"],
-            "properties": {"command": {"const": "view"}, "path": {"$ref": "#/$defs/scenePath"}}},
-          {"type": "object", "additionalProperties": false, "required": ["command", "path", "fileText"],
-            "properties": {"command": {"const": "create"}, "path": {"$ref": "#/$defs/scenePath"}, "fileText": {"type": "string", "maxLength": 200000}}},
-          {"type": "object", "additionalProperties": false, "required": ["command", "path", "oldStr", "newStr"],
-            "properties": {"command": {"const": "str_replace"}, "path": {"$ref": "#/$defs/scenePath"}, "oldStr": {"type": "string", "minLength": 1, "maxLength": 100000}, "newStr": {"type": "string", "maxLength": 100000}}},
-          {"type": "object", "additionalProperties": false, "required": ["command", "path", "insertLine", "newStr"],
-            "properties": {"command": {"const": "insert"}, "path": {"$ref": "#/$defs/scenePath"}, "insertLine": {"type": "integer", "minimum": 0}, "newStr": {"type": "string", "maxLength": 100000}}}
-        ]}}},
-    "call_check": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "check"},
-        "input": {"type": "object", "additionalProperties": false, "required": ["scope"],
-          "properties": {"scope": {"oneOf": [{"const": "film"}, {"type": "object", "additionalProperties": false, "required": ["sceneId"], "properties": {"sceneId": {"$ref": "#/$defs/id"}}}]},
-            "frames": {"type": "array", "maxItems": 24, "items": {"$ref": "#/$defs/frame"}}}}}},
-    "call_still": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "still"},
-        "input": {"type": "object", "additionalProperties": false, "required": ["frames", "aspect", "scale"],
-          "properties": {"frames": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/frame"}},
-            "aspect": {"$ref": "#/$defs/aspectId"},
-            "scale": {"enum": [0.25, 0.5, 1]},
-            "crop": {"type": "object", "additionalProperties": false, "required": ["x01", "y01"],
-              "properties": {"x01": {"type": "number", "minimum": 0, "maximum": 1}, "y01": {"type": "number", "minimum": 0, "maximum": 1}}}}}}},
-    "call_review": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "review"}, "input": {"$ref": "#/$defs/empty"}}},
-    "call_audio_plan": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "audio_plan"},
-        "input": {"description": "Overrides on the derived plan; validated against audio-plan.schema.json after derivation.", "type": "object", "additionalProperties": false,
-          "properties": {"music": {"type": "object"}, "sfx": {"oneOf": [{"const": "auto"}, {"type": "array", "maxItems": 120}]}}}}},
-    "call_submit_candidate": {"type": "object", "additionalProperties": false, "required": ["schemaVersion", "kind", "tool", "input"],
-      "properties": {"schemaVersion": {"const": "3.0.0"}, "kind": {"const": "tool_call"}, "tool": {"const": "submit_candidate"},
-        "input": {"type": "object", "additionalProperties": false, "required": ["note"], "properties": {"note": {"type": "string", "minLength": 1, "maxLength": 4000}}}}}
+    "write_treatmentInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "treatment",
+        "beats",
+        "hardestBeat",
+        "reviewFrames"
+      ],
+      "properties": {
+        "treatment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        "beats": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "purpose",
+              "startFrame",
+              "endFrame",
+              "assetIds"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,47}$"
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "startFrame": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 899
+              },
+              "endFrame": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 900
+              },
+              "assetIds": {
+                "type": "array",
+                "maxItems": 12,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                }
+              }
+            }
+          }
+        },
+        "hardestBeat": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "reviewFrames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 899
+          }
+        }
+      }
+    },
+    "call_write_treatment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "tool",
+        "input"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "tool_call"
+        },
+        "tool": {
+          "const": "write_treatment"
+        },
+        "input": {
+          "$ref": "#/$defs/write_treatmentInput"
+        }
+      }
+    },
+    "write_projectInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files",
+        "reviewFrames",
+        "note"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 24,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "content"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^(index\\.(html|js|css)|src/[A-Za-z0-9_./-]+\\.(html|js|css|svg|json)|BRIEF\\.md|TREATMENT\\.md|script\\.json)$",
+                "maxLength": 180
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 240000
+              }
+            }
+          }
+        },
+        "reviewFrames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 899
+          }
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      }
+    },
+    "call_write_project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "tool",
+        "input"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "tool_call"
+        },
+        "tool": {
+          "const": "write_project"
+        },
+        "input": {
+          "$ref": "#/$defs/write_projectInput"
+        }
+      }
+    },
+    "apply_project_patchInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseRevision",
+        "edits",
+        "reviewFrames",
+        "note"
+      ],
+      "properties": {
+        "baseRevision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "edits": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "command",
+                  "path",
+                  "content"
+                ],
+                "properties": {
+                  "command": {
+                    "const": "create"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(index\\.(html|js|css)|src/[A-Za-z0-9_./-]+\\.(html|js|css|svg|json)|BRIEF\\.md|TREATMENT\\.md|script\\.json)$",
+                    "maxLength": 180
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 240000
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "command",
+                  "path",
+                  "oldText",
+                  "newText"
+                ],
+                "properties": {
+                  "command": {
+                    "const": "replace"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(index\\.(html|js|css)|src/[A-Za-z0-9_./-]+\\.(html|js|css|svg|json)|BRIEF\\.md|TREATMENT\\.md|script\\.json)$",
+                    "maxLength": 180
+                  },
+                  "oldText": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240000
+                  },
+                  "newText": {
+                    "type": "string",
+                    "maxLength": 240000
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "command",
+                  "path"
+                ],
+                "properties": {
+                  "command": {
+                    "const": "delete"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(index\\.(html|js|css)|src/[A-Za-z0-9_./-]+\\.(html|js|css|svg|json)|BRIEF\\.md|TREATMENT\\.md|script\\.json)$",
+                    "maxLength": 180
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "reviewFrames": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 899
+          }
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      }
+    },
+    "call_apply_project_patch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "tool",
+        "input"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "tool_call"
+        },
+        "tool": {
+          "const": "apply_project_patch"
+        },
+        "input": {
+          "$ref": "#/$defs/apply_project_patchInput"
+        }
+      }
+    },
+    "submit_reviewInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "issues",
+        "note"
+      ],
+      "properties": {
+        "verdict": {
+          "enum": [
+            "pass",
+            "revise"
+          ]
+        },
+        "issues": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "detail",
+              "frames"
+            ],
+            "properties": {
+              "detail": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 800
+              },
+              "frames": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 12,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 899
+                }
+              },
+              "elementId": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "aspect": {
+                "enum": [
+                  "landscape",
+                  "portrait",
+                  "feed",
+                  "square"
+                ]
+              }
+            }
+          }
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      }
+    },
+    "call_submit_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "tool",
+        "input"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "3.0.0"
+        },
+        "kind": {
+          "const": "tool_call"
+        },
+        "tool": {
+          "const": "submit_review"
+        },
+        "input": {
+          "$ref": "#/$defs/submit_reviewInput"
+        }
+      }
+    }
   }
 }

@@ -49,10 +49,6 @@ function main(){
  expect(productionSchema.$id.endsWith('/'+protocol),'Production Schema protocol ID');
  for(const [name,definition] of Object.entries(productionSchema.$defs))
   if(definition.properties?.schemaVersion?.const)expect(definition.properties.schemaVersion.const===protocol,'Schema protocol constant: '+name);
- for(const path of ['contracts/film-runtime.d.ts','contracts/render-protocol.d.ts']){
-  const versions=[...text(path).matchAll(/(?:apiVersion|protocolVersion|schemaVersion):\s*['"]([^'"]+)['"]/g)].map(m=>m[1]);
-  expect(versions.length>0&&versions.every(v=>v===protocol),'Runtime/bridge protocol entry mismatch: '+path);
- }
  try{
   const baseline=platformBaseline(root);counts.platformRulesBase=baseline.commit??baseline.reason;
   if(baseline.config)failures.push(...platformRuleErrors(baseline.config,platforms).map(e=>e+' [Git base '+baseline.reference+']'));

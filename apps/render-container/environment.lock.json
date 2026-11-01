@@ -1,12 +1,17 @@
 {
-  "kind": "render_environment_lock",
-  "schemaVersion": "3.0.0",
+  "kind": "native_render_environment_lock",
+  "schemaVersion": "1.0.0",
   "platform": "linux",
   "architecture": "x64",
   "distribution": "ubuntu",
   "distributionVersion": "24.04",
   "nodeVersion": "26.12.0",
-  "playwrightCoreVersion": "1.62.1",
+  "nativeRuntime": {
+    "repository": "alchaincyf/huashu-motion",
+    "version": "0.3.1",
+    "commit": "52467f99c602b76ba86d511d37acdfe93fa1e16e",
+    "installation": "complete upstream checkout, every blob checked against packages/native-motion/upstream.lock.json"
+  },
   "browser": {
     "version": "151.0.7922.34",
     "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip",
@@ -14,28 +19,8 @@
     "relativeExecutable": "chrome-headless-shell-linux64/chrome-headless-shell",
     "executableSha256": "e11fc9ce65c96313476f7ee9844b6fb6a9220fb048693cfe9eee00acf4170a9f"
   },
-  "gsap": {
-    "version": "3.14.2",
-    "file": "dist/gsap.min.js",
-    "sha256": "c174bfce53a729418d57a8ad8625e7247c793a22fef8e2851e3cfa3de9cd8280",
-    "license": "owner_decision_2026-10-22",
-    "inGit": false
-  },
-  "three": {
-    "version": "0.186.1",
-    "source": "https://github.com/mrdoob/three.js/tree/r186",
-    "license": "MIT",
-    "integrity": "pnpm-lock.yaml",
-    "loading": "conditional blocks-3d.js bundle; 2D-only pages do not load Three.js"
-  },
-  "webgl": {
-    "backend": "swiftshader",
-    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
-    "source": "docs/evidence/2026-10-23-g1-pre-probe/run2-report.json"
-  },
-  "ffmpeg": {
-    "ubuntuPackageVersion": "7:6.1.1-3ubuntu5",
-    "source": "https://launchpad.net/ubuntu/+source/ffmpeg/7:6.1.1-3ubuntu5"
-  },
-  "note": "Pins the render image built in S1. Executable digests are re-recorded from the built image; this file is not evidence that the image exists."
+  "webgl": {"backend": "swiftshader", "verification": "native browser CI required"},
+  "ffmpeg": {"ubuntuPackageVersion": "7:6.1.1-3ubuntu5"},
+  "execution": {"controllerUid": 10001, "nativeUid": 10002, "supervisorUid": 10003, "workers": 1, "transport": "cdp_pipe", "internet": false},
+  "note": "Pins a build recipe. Actual browser, encoding, network and cloud isolation require their corresponding CI or deployment evidence."
 }

@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/native-project/1.0.0",
+  "title": "Native huashu project manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "entry",
+    "runtime",
+    "composition",
+    "files",
+    "resources"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "kind": {
+      "const": "native_project"
+    },
+    "entry": {
+      "const": "index.html"
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "commit"
+      ],
+      "properties": {
+        "name": {
+          "const": "huashu-motion"
+        },
+        "commit": {
+          "const": "52467f99c602b76ba86d511d37acdfe93fa1e16e"
+        }
+      }
+    },
+    "composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durationSeconds",
+        "fps",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "durationSeconds": {
+          "enum": [
+            15,
+            30
+          ]
+        },
+        "fps": {
+          "const": 30
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "width": {
+              "const": 1920
+            },
+            "height": {
+              "const": 1080
+            }
+          }
+        },
+        {
+          "properties": {
+            "width": {
+              "const": 1080
+            },
+            "height": {
+              "const": 1920
+            }
+          }
+        },
+        {
+          "properties": {
+            "width": {
+              "const": 1080
+            },
+            "height": {
+              "const": 1350
+            }
+          }
+        },
+        {
+          "properties": {
+            "width": {
+              "const": 1080
+            },
+            "height": {
+              "const": 1080
+            }
+          }
+        }
+      ]
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 512,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "key",
+          "sha256",
+          "byteLength",
+          "mediaType"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 41943040
+          },
+          "mediaType": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.+-]*/[a-zA-Z0-9][a-zA-Z0-9.+-]*$"
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "maxItems": 128,
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

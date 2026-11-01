@@ -1,16 +1,12 @@
-import { canonical, compareUtf16, parseCanonicalJson } from '@promobento/contracts/canonical';
-import { validate } from '@promobento/contracts/validators/film';
+import {canonical, compareUtf16, parseCanonicalJson} from '@promobento/contracts/canonical';
+import {assertNativeProject, nativeProjectHash} from '@promobento/contracts/native-project';
 
 const input: unknown = parseCanonicalJson(new TextEncoder().encode('{}'));
-const valid: boolean = validate(input);
-const path: string | undefined = validate.errors?.[0]?.instancePath;
-const encoded: string = canonical(input);
+const project = assertNativeProject(input);
+const encoded: string = canonical(project);
+const hash: Promise<string> = nativeProjectHash(project);
 const order: -1 | 0 | 1 = compareUtf16('a', 'b');
-void [valid, path, encoded, order];
+void [encoded, hash, order];
 
-// @ts-expect-error Raw JSON inputs must be text or UTF-8 bytes, not already-parsed objects.
+// @ts-expect-error Incoming JSON must be text or bytes.
 parseCanonicalJson({});
-
-// @ts-expect-error Unknown Schema names must fail type checking as well as module resolution.
-import { validate as unknownSchema } from '@promobento/contracts/validators/not-a-schema';
-void unknownSchema;

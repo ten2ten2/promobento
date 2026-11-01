@@ -35,8 +35,12 @@ export async function commitReviewDraft(env:PipelineEnv,op:Operation,key:string,
 /** Internal owner review only; this terminal result is never exposed by the accepted-candidate endpoint. */
 export async function getReviewDraft(env:PipelineEnv,id:string):Promise<Json|null>{
  const owner=await env.DB.prepare("SELECT * FROM pipeline_operations WHERE id=? AND status='failed'").bind(id).first<Operation&{result_key:string}>();
- if(owner?.result_key!==`operations/${id}/review-draft.json`)return null;
+ if(!owner||![`operations/${id}/review-draft.json`,`operations/${id}/native-review-draft.json`].includes(owner.result_key))return null;
  const draft=await getJson(env,owner.result_key);
+ if(owner.result_key===`operations/${id}/native-review-draft.json`){
+  if(draft.kind!=='native_review_draft'||draft.operationId!==id||draft.generation!==owner.generation)throw Error('REVIEW_DRAFT_SCOPE_INVALID');
+  return draft;
+ }
  if(draft.kind!=='s1_internal_review_draft'||draft.operationId!==id||draft.generation!==owner.generation
   ||draft.publicUseCleared!==false||draft.acceptanceStatus!=='unapproved')throw Error('REVIEW_DRAFT_SCOPE_INVALID');
  const context=await env.DB.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').bind(id).first<Json>();

@@ -1,20 +1,22 @@
 import type {PipelineEnv,Json} from './pipeline-types.ts';
 
 export type WorkflowKind='operation'|'render';
-export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;reconciled_at:number|null};
+export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;reconciled_at:number|null;engine:'legacy'|'huashu'};
 export const nativeTerminal=(status:string)=>['complete','errored','terminated'].includes(status);
 const binding=(env:PipelineEnv,kind:WorkflowKind)=>kind==='render'?env.RENDER_WORKFLOW:env.OPERATION_WORKFLOW;
 
 export async function registerWorkflow(env:PipelineEnv,kind:WorkflowKind,id:string,operationId:string,generation:number){
- await env.DB.prepare('INSERT OR IGNORE INTO pipeline_workflows(kind,id,operation_id,generation,registered_at) VALUES(?,?,?,?,?)')
+ await env.DB.prepare('INSERT OR IGNORE INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES(?,?,?,?,?,\'huashu\')')
   .bind(kind,id,operationId,generation,Date.now()).run();
  const row=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE kind=? AND id=?').bind(kind,id).first<TrackedWorkflow>();
- if(!row||row.operation_id!==operationId||row.generation!==generation)throw Error('WORKFLOW_IDENTITY_CONFLICT');return row;
+ if(!row||row.operation_id!==operationId||row.generation!==generation)throw Error('WORKFLOW_IDENTITY_CONFLICT');
+ if(row.engine!=='huashu')throw Error('LEGACY_WORKFLOW_REQUIRES_RECONCILIATION');return row;
 }
 
 /** Run only inside the first durable step. A full native restart loses that step but cannot repeat the D1 claim. */
 export async function workflowStarted(env:PipelineEnv,kind:WorkflowKind,id:string,operationId:string,fallbackGeneration:number){
- const previous=await env.DB.prepare('SELECT generation FROM pipeline_workflows WHERE kind=? AND id=?').bind(kind,id).first<{generation:number}>();
+ const previous=await env.DB.prepare('SELECT generation,engine FROM pipeline_workflows WHERE kind=? AND id=?').bind(kind,id).first<{generation:number;engine:string}>();
+ if(previous&&previous.engine!=='huashu')throw Error('LEGACY_WORKFLOW_REQUIRES_RECONCILIATION');
  const row=await registerWorkflow(env,kind,id,operationId,previous?.generation??fallbackGeneration);
  await env.DB.prepare("UPDATE pipeline_workflows SET native_created_at=COALESCE(native_created_at,?),native_status='running',last_checked_at=?,last_error=NULL,reconciled_at=NULL WHERE kind=? AND id=?")
   .bind(Date.now(),Date.now(),kind,id).run();

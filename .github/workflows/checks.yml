@@ -1,4 +1,4 @@
-name: Repository checks
+name: Native pipeline checks
 
 on:
   push:
@@ -7,57 +7,22 @@ on:
   workflow_dispatch:
     inputs:
       suite:
-        description: Run only the necessary check
+        description: Run the needed native migration check
         type: choice
-        options: [all, contracts, browser, runtime, journey, media, audio, cloud-local, staging]
+        options: [all, contracts, browser]
         default: all
-      staging_sha:
-        description: Already deployed SHA; staging-only harness repair without rebuilding or redeploying
-        type: string
-        default: ''
-      runtime_case:
-        description: Narrow only a known failed runtime case; all keeps normal coverage
-        type: choice
-        options: [all, review, showcase, layout, typography, opening, relay, journey-beats, focus-port, component-relay, vox-clip, custom, custom-assets]
-        default: all
-      staging_inspect_run:
-        description: Read-only diagnosis of this prior staging run; no deployment, keys or render
-        type: string
-        default: ''
-      staging_inspect_operation:
-        description: Exact child operation from the inspected run; read-only, no replay
-        type: string
-        default: ''
-      staging_reconcile_operation:
-        description: Confirm stop and reconcile this one failed/cancelled internal operation before smoke
-        type: string
-        default: ''
-      staging_renderer_sha:
-        description: Existing renderer source SHA for a Worker-only repair; requires its registry digest
-        type: string
-        default: ''
-      staging_renderer_digest:
-        description: Existing renderer registry digest; renderer inputs must be unchanged from staging_renderer_sha
-        type: string
-        default: ''
-      staging_scenario:
-        description: New coverage only; lifecycle-recovery interrupts compute without repeating a complete movie
-        type: choice
-        options: [deploy-only, engineering, custom-studio, webgl-studio, webgl-film, lifecycle-recovery, director-preflight, g1-performance, g1-2d-performance, g1-selection, g1-isolation]
-        default: engineering
 
 permissions:
   contents: read
   actions: read
 
 concurrency:
-  # Validate the latest branch tree; superseded runs need not finish.
   group: checks-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   contracts:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'browser' && inputs.suite != 'runtime' && inputs.suite != 'journey' && inputs.suite != 'media' && inputs.suite != 'audio' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
+    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'browser'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -81,16 +46,15 @@ jobs:
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: echo "PROMOBENTO_BASE_REF=$PR_BASE_SHA" >> "$GITHUB_ENV"
-      - name: Check repository and schemas
+      - name: Check current documentation and contracts
         run: mise run check:repo
-      - name: Run Node unit tests
-        run: mise run test
-
-      - name: Type-check the cloud Worker
+      - name: Verify native revisions, authoring, cancellation, recovery and accounting
+        run: mise run test:native
+      - name: Type-check the cloud control plane
         run: mise run typecheck
 
   browser:
-    if: github.event_name != 'workflow_dispatch' || (inputs.suite != 'contracts' && inputs.suite != 'cloud-local' && inputs.suite != 'staging')
+    if: github.event_name != 'workflow_dispatch' || inputs.suite != 'contracts'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -103,132 +67,30 @@ jobs:
           context: .
           file: apps/render-container/Dockerfile
           target: browser-test
-          tags: promobento-film-runtime-tests:ci
+          tags: promobento-native-tests:ci
           load: true
           push: false
-          cache-from: type=gha,scope=film-runtime-tests
-          cache-to: type=gha,mode=max,scope=film-runtime-tests
-      - name: Check only the changed pipeline contracts, adapters and confirmed eval cards
-        if: inputs.suite != 'runtime' && inputs.suite != 'journey' && inputs.suite != 'media' && inputs.suite != 'audio'
-        run: |
-          docker run --rm --network none --entrypoint node promobento-film-runtime-tests:ci --test \
-            packages/contracts/test/render-pipeline.test.mjs packages/models/test/adapters.test.mjs tests/evals/input-cards.test.mjs
-      - name: Exercise encoded-media motion cues and diagnostic failure handling
-        if: inputs.suite != 'runtime' && inputs.suite != 'journey' && inputs.suite != 'audio'
-        run: |
-          docker run --rm --network none --read-only --tmpfs /tmp:rw,size=256m --user 10001:10001 \
-            --cpus 2 --memory 2g --pids-limit 128 -e PROMOBENTO_MEDIA_TEST_CONTAINER=1 --entrypoint node \
-            promobento-film-runtime-tests:ci --test apps/render-container/tests/motion-audit.render.test.mjs apps/render-container/tests/audit-images.test.mjs
-      - name: Check declared custom assets and non-overlapping CTA handoff
-        if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser'
+          cache-from: type=gha,scope=native-renderer
+          cache-to: type=gha,mode=max,scope=native-renderer
+      - name: Native preview, direct edit and 15/30 second exports
         shell: bash
         run: |
-          mkdir -p artifacts/film-runtime
-          chmod 0777 artifacts/film-runtime
+          set -euo pipefail
+          mkdir -p artifacts/native
+          chmod 0777 artifacts/native
           sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
-          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
-            -e PROMOBENTO_RUNTIME_CASE=custom-assets \
-            -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
+          docker image inspect promobento-native-tests:ci --format '{{.Id}}' > artifacts/native/image-digest.txt
+          docker run --rm --network none \
+            --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
             --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
-            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs
-          test -s artifacts/film-runtime/asset-check.json
-      - name: Retain the changed title and 3D frames for visual inspection
-        if: always() && (github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'browser')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: changed-browser-frames
-          if-no-files-found: ignore
-          path: |
-            artifacts/film-runtime/canvas-title-*.png
-            artifacts/film-runtime/canvas-highlight-*.png
-            artifacts/film-runtime/canvas-number-*.png
-            artifacts/film-runtime/canvas-subtitle-*.png
-            artifacts/film-runtime/grapheme-title-*.png
-            artifacts/film-runtime/grapheme-style.png
-            artifacts/film-runtime/canvas-wrapped-*.png
-            artifacts/film-runtime/canvas-sequence-*.png
-            artifacts/film-runtime/whiteboard-clip-*.png
-            artifacts/film-runtime/keynote-clip-*.png
-            artifacts/film-runtime/keynote-focus-*.png
-            artifacts/film-runtime/drawn-icons-*.png
-            artifacts/film-runtime/object-motion-*.png
-            artifacts/film-runtime/om3-panels-*.png
-            artifacts/film-runtime/om3-crop-*.png
-            artifacts/film-runtime/vox-focus-*.png
-            artifacts/film-runtime/vox-plain-*.png
-            artifacts/film-runtime/asset-check.json
-      - name: Exercise trusted blocks in an offline, separate-uid Chromium sandbox
-        if: inputs.suite != 'audio'
-        shell: bash
-        run: |
-          mkdir -p artifacts/film-runtime
-          chmod 0777 artifacts/film-runtime
-          sudo apparmor_parser --replace apps/render-container/tests/apparmor.profile
-          docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
-            -e PROMOBENTO_MEDIA_ONLY="${{ inputs.suite == 'media' && '1' || '0' }}" \
-            -e PROMOBENTO_RUNTIME_ONLY="${{ inputs.suite == 'runtime' && '1' || '0' }}" \
-            -e PROMOBENTO_JOURNEY_ONLY="${{ inputs.suite == 'journey' && '1' || '0' }}" \
-            -e PROMOBENTO_RUNTIME_CASE="${{ inputs.suite == 'runtime' && inputs.runtime_case || 'all' }}" \
-            -e PROMOBENTO_TEST_IMAGE_DIGEST="$(docker image inspect promobento-film-runtime-tests:ci --format '{{.Id}}')" \
-            --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
-            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-            promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee artifacts/film-runtime/container.log
-          if [ '${{ inputs.suite }}' = 'runtime' ] && [ '${{ inputs.runtime_case }}' = 'custom-assets' ]; then
-            test -s artifacts/film-runtime/asset-check.json
-          else
-            test -s artifacts/film-runtime/report.json
-          fi
-      - name: Bound custom source CPU and memory faults
-        if: inputs.suite == 'runtime' && inputs.runtime_case == 'custom'
-        shell: bash
-        run: |
-          for fault in custom-loop custom-memory custom-init-loop; do
-            docker run --rm --network none --user 0 --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
-              -e PROMOBENTO_RUNTIME_CASE="$fault" --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
-              -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-              promobento-film-runtime-tests:ci apps/render-container/tests/init.mjs 2>&1 | tee "artifacts/film-runtime/$fault.log"
-          done
-      - name: Master only the two failed program styles
-        if: inputs.suite == 'audio'
-        shell: bash
-        run: |
-          mkdir -p artifacts/film-runtime
-          chmod 0777 artifacts/film-runtime
-          docker run --rm --network none --user 10001:10001 --cpus 4 --memory 6g \
-            -v "$PWD/artifacts/film-runtime:/work/film-runtime" --entrypoint node \
-            promobento-film-runtime-tests:ci apps/render-container/tests/audio.render.test.mjs 2>&1 | tee artifacts/film-runtime/container.log
-          test -s artifacts/film-runtime/report.json
+            -v "$PWD/artifacts/native:/artifacts" \
+            promobento-native-tests:ci 2>&1 | tee artifacts/native/container.log
+          test -s artifacts/native/native-smoke-report.json
+          test -s artifacts/native/landscape-15.mp4
+          test -s artifacts/native/portrait-30.mp4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: film-runtime-browser
-          path: artifacts/film-runtime/
+          name: native-browser-media
+          path: artifacts/native/
           if-no-files-found: error
-
-  cloud-local:
-    if: github.event_name != 'workflow_dispatch' || inputs.suite == 'all' || inputs.suite == 'cloud-local'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
-        with:
-          version: 2026.10.13
-          cache: false
-      - run: mise run install && mise run test:cloud-local
-
-  staging:
-    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'staging'
-    uses: ./.github/workflows/cloud-deploy.yml
-    with:
-      reuse_deployment: ${{ inputs.staging_sha }}
-      inspect_run: ${{ inputs.staging_inspect_run }}
-      inspect_operation: ${{ inputs.staging_inspect_operation }}
-      reconcile_operation: ${{ inputs.staging_reconcile_operation }}
-      renderer_sha: ${{ inputs.staging_renderer_sha }}
-      renderer_digest: ${{ inputs.staging_renderer_digest }}
-      scenario: ${{ inputs.staging_scenario }}
-    secrets: inherit

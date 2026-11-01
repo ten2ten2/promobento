@@ -7,9 +7,9 @@
 ## 实现与维护
 
 - 保持 15/30 秒、30 fps、既有平台预设、两类首发用户、Google/邮箱登录、Cloudflare 和 Waffo。网站语言或主题不能改变客户视频原文、成片或计费。
-- 自写镜头等创作代码只在渲染容器的 Chromium 沙箱里运行：每个分段或 studio 实例单独隔离，出网只经 broker，不在 Worker 或可信进程里求值。权限、任务取消、版本确认、冻结交付、账本幂等与预算按 04/05/14 实现，不能只靠前端检查；购买创作额度与购买并导出分别处理。
+- 原生 HTML/JS 创作代码只在渲染容器的 Chromium 沙箱里运行：每个预览或整片任务实例单独隔离，出网只经 broker，不在 Worker 或可信进程里求值。权限、任务取消、版本确认、冻结交付、账本幂等与预算按 04/05/14 实现，不能只靠前端检查；购买创作额度与购买并导出分别处理。
 - 容器镜像只通过 GitHub Actions 构建并推送，不从 Mac 构建推送。
-- JSON 解析、规范化、摘要、身份计算和完整 Ajv 校验统一导入 `packages/contracts`。入站原始文本先经 `parseCanonicalJson` 解析。积木与自写镜头使用 `contracts/film-runtime.d.ts`，可信宿主使用 `contracts/render-protocol.d.ts`。Workers 内只用 `mise run build:validators` 预编译的验证器，不在运行时编译 Schema。
+- JSON 解析、规范化、摘要、身份计算和完整 Ajv 校验统一导入 `packages/contracts`。入站原始文本先经 `parseCanonicalJson` 解析。创作源为完整 huashu 原生项目，传输清单使用 `contracts/native-project.schema.json`，路径、字节、画幅与身份语义统一在 `packages/contracts/src/native-project.mjs`；不重建 FilmSpec 或场景 DSL。Workers 内只用 `mise run build:validators` 预编译的验证器，不在运行时编译 Schema。
 - 素材第一次处理前就核验许可，包含免费预览；事实确认与证据按 13/14 的相应阶段检查。授权证据、AI 标记和成片使用权按 09/14/05 处理，不能把仓库 MIT 当作所有素材的许可。
 - 按 PRD 索引分工维护规则。删除过时开发说明及其无用引用；保留素材来源、用户版本、购买证据和仍被购买/任务引用的已发布契约、配置及可执行环境。不得借文档清理改写 Git 历史或删除用户数据。
 - 配置或契约变更时同步使用它们的代码和文档。应用命令随真实实现加入，不创建返回成功的空脚本。

@@ -22,8 +22,8 @@ flowchart TD
   UI[Studio与独立域名预览] --> API[可信Workers API]
   API --> DIRECTOR[OperationWorkflow / 分阶段导演]
   API --> DATA[D1与私有R2]
-  DIRECTOR --> SOURCE[候选规格与源码数据]
-  SOURCE --> RENDER[RenderWorkflow / ShardDO]
+  DIRECTOR --> SOURCE[原生工程与不可变版本]
+  SOURCE --> RENDER[RenderWorkflow / 整片任务]
   RENDER --> BOX[独立容器 / Chromium沙箱执行]
   BOX --> CHECK[可信观测 / 媒体检查]
   CHECK --> DATA
@@ -47,7 +47,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 作品版本与预览
 
-作品统一保存在 `project_revisions`。每个版本的 CompositionManifest 固定源码、依赖、素材、布局、事实和音轨；检查报告与用户复核记录单独保存。版本、摘要、全目标冻结和资源准备的完整规则见[14](14-production-contracts.md#2-manifest目标与冻结准备)。品牌 `fontSelection` 只能引用已审核的平台字库、版本与回退，未选择时为 null，不能假定客户设备上的字体可用于渲染。
+目标客户版本模型仍为 `project_revisions`；当前内部实现使用 `pipeline_native_projects`，每个原生版本固定 HTML／本地文件、素材字节、画幅和 huashu commit，补齐后的实际工程随导出归档。检查报告与用户复核记录独立保存；客户冻结和交易服务未实现。版本、摘要、全目标冻结和资源准备的完整规则见[14](14-production-contracts.md#2-manifest目标与冻结准备)。品牌 `fontSelection` 只能引用已审核的平台字库、版本与回退，未选择时为 null，不能假定客户设备上的字体可用于渲染。
 
 已获准本地执行的完整预览使用基线版本的 runtime、源包、字体与音轨；未保存参数立即在本地显示，保存时才通过 CAS 生成新版本。具体预览状态、缩放与正式捕获边界见 [14](14-production-contracts.md#5-renderprotocol)，本地执行的输出审核条件见下文。自动保存不触发模型、云 QA 或编码。可信截图/片段、预检和目标准备由明确操作发起，分别检查权益、缓存与费用预算。
 
@@ -83,11 +83,11 @@ Prompt Sift 只覆盖输入审核。审核日志只留 requestId、判定、理�
 
 业务更新与 outbox 在同一 D1 原子批次提交；dispatcher/Cron 扫描漏发，不能只依赖进程内 waitUntil。Queues 可能重复投递，重复消息复用同一 job；提交结果时校验 generation，拒绝已取消或过期的任务。Billing DO 按项目协调 checkout、grant、快照预留、退款冻结和首次发布；网络等待后重新读取权威状态。
 
-成功结果持久化后 ack；可恢复失败先原子写 attempt 和定时重试 outbox 再 ack；持久化失败不 ack。重试由一套应用调度控制，不同时叠加 Queue 重投与应用重试次数。渲染最多 3 次实际执行，退避 15/60 秒；模型内部修复最多 2 轮，累计预算共享。无效素材、未确认事实、确定性违规不盲重试。
+成功结果持久化后 ack；可恢复失败先原子写 attempt 和定时重试 outbox 再 ack；持久化失败不 ack。重试由一套应用调度控制，不同时叠加 Queue 重投与应用重试次数。当前原生任务最多 2 次实际执行，只有已确认停止且结算的可恢复平台失败才允许下一次；模型内部修复最多 2 轮，累计预算共享。无效素材、未确认事实、确定性违规不盲重试。
 
-[算力配置](../../config/agent-policy.json) 分开限制 shard（全局 64、工作区 24）、studio（全局 32）与 asset（全局 8），分段数取同一配置。CoordinatorDO 的 lease 直到实例确认停止才归还；超时不是停止证据。等待用户/预算暂停释放 studio，不能持有所有 slot 等待子任务。已收款履约的预留与优先级按 05。
+当前原生限制统一在 `apps/cloud/src/native-task.ts` 的 `nativeRenderPolicy`：全局四个、同工作区一个 standard-3 实例，预览三分钟／整片导出十分钟硬期限。容量和期限是初始止损，不代表性能 SLA。CoordinatorDO 的 lease 直到实例确认停止才归还；等待用户不持有渲染实例。已收款履约的预留与优先级仍按 05。
 
-shard、assemble、audio、studio 实例都按 operation/generation/attempt 隔离，结束销毁；不复用含客户源码、内存或文件的长期进程。实例是信任边界，不以不同 Linux 用户冒充隔离。默认禁公网，不携带支付、模型、D1/R2 管理或云平台凭据；资产代理只给当前任务的只读输入与有限输出。依赖离线镜像、锁定和许可审核，禁止未审查生命周期脚本。
+原生 `preview` 和 `export` 按 operation/generation/attempt 隔离，一个任务一台容器，结束销毁；不复用包含客户源码、内存或文件的长期进程。实例是信任边界，UID 分离是额外保护。容器禁公网，不携带支付、模型、D1/R2 管理或云平台凭据；broker 只给当前任务的输入和指定输出。完整上游安装与小范围隔离补丁固定版本；作品代码不在可信 Node 或 Worker 求值。
 
 不信源码自报 QA。预览使用独立 origin、无主站 Cookie、CSP/iframe 限权，bridge 校验 origin/source/nonce/session/schema；具体按 14。普通退出不取消已付款渲染，成员撤销/项目墓碑阻止未提交创作副作用。G1 在真实 Cloudflare 验字体、视频 seek、WebGL 能力、编码、销毁重建和跨任务残留；本地 PoC 不替代。
 

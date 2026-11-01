@@ -1,17 +1,17 @@
 // Model configuration rules and per-call cost. Pricing is per provider (USD or CNY credits) and every
 // cost lands in the ledger as USD micros, rounded up, together with the catalog version.
 
-/** Default image-input requirements; modelConfigErrors resolves an explicit scene input mode (§6.11). */
+/** Default image-input requirements; modelConfigErrors resolves an explicit native-author input mode. */
 export const STEP_REQUIREMENTS = Object.freeze({
-  facts: [], assets: ['vision'], directions: [], spec: [],
-  scenes: ['vision', 'tools'], review: ['vision', 'tools'], coldReview: ['vision'], triage: []
+  facts: [], assets: ['vision'], directions: [], treatment: ['tools'],
+  author: ['vision', 'tools'], review: ['vision', 'tools'], coldReview: ['vision','tools'], triage: []
 });
 
 /** Cross-file checks for config/model-providers.json, config/model-authorization.json and agent-policy cost. */
 export function modelConfigErrors(providers, authorization, policy, {requireVerified = true} = {}) {
   const errors = [];
-  const sceneInputMode=policy?.director?.steps?.scenes?.inputMode??'images';
-  if(!['images','asset-insights'].includes(sceneInputMode))errors.push('Unknown scenes inputMode');
+  const authorInputMode=policy?.director?.steps?.author?.inputMode??'images';
+  if(!['images','asset-insights'].includes(authorInputMode))errors.push('Unknown author inputMode');
   const catalog = providers.catalogVersion;
   if (authorization.catalogVersion !== catalog) errors.push('Authorization catalogVersion differs from model-providers.json');
   if (policy?.cost?.catalogVersion !== catalog) errors.push('agent-policy cost.catalogVersion differs from model-providers.json');
@@ -27,7 +27,7 @@ export function modelConfigErrors(providers, authorization, policy, {requireVeri
     if (!model) { errors.push(`Step ${step} binds unregistered model ${ref}`); continue; }
     for (const need of STEP_REQUIREMENTS[step] ?? []) {
       // Text-only coding is an explicit mode fed by the image-analysis stage, not a vision claim.
-      if(step==='scenes'&&need==='vision'&&sceneInputMode==='asset-insights')continue;
+      if(step==='author'&&need==='vision'&&authorInputMode==='asset-insights')continue;
       if(model.capabilities[need]!==true)errors.push(`Step ${step} needs ${need}, which ${ref} lacks`);
     }
     if (!authorized.has(ref)) errors.push(`Step ${step} binds unauthorized model ${ref}`);

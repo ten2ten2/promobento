@@ -1,64 +1,62 @@
-# 隔离渲染服务
+# 原生 huashu-motion 渲染容器
 
-[`Dockerfile`](Dockerfile)固定Chromium、GSAP、FFmpeg、字体和运行时，仅通过GitHub Actions构建／推送。runtime为服务入口，browser-test为离线检查入口；实际部署和验收范围见[实施状态](../../docs/implementation-status.md)。
+当前执行单元是一个完整的原生项目：`index.html`、`assets/`、`vendor/`。`NativeProject` 只记录文件路径、R2 身份和 15/30 秒、30 fps、平台画幅；页面使用原版 GSAP、Canvas、SVG、Three.js、OM/OM3。渲染调用固定上游的 `capture`、`render`、声音合成与媒体混音实现。
 
-## 执行与隔离
+容器保留完整 huashu-motion 仓库 `52467f99c602b76ba86d511d37acdfe93fa1e16e`（0.3.1），包括 CLI、Studio、运行时、全部模板、字体、示例和技能参考。构建先逐一校验原始 315 个文件的 Git blob 身份，再对六个固定 CLI 文件应用受检的云端 I/O 补丁，并记录补丁文件 SHA-256。原生动画引擎不被替换；`om` CLI 仍使用原版创作与渲染方法。原生 Studio 是本地工具，当前云端入口只提供帧预览和整片导出。
 
-PID1只分离uid后降为10003，控制器10001、Chromium启动器／浏览器10002，均无capability。每次加载作品前核对完整namespace／seccomp沙箱，不降级无沙箱。Chromium使用disable-dev-shm-usage，把共享内存文件落实例私有/tmp，避免64MiB/dev/shm引发页面崩溃；正式／CI共用，不能用此选项关闭沙箱。
+## 执行接口
 
-私有8080端口接受不可变 [render_task](../../contracts/render-job.schema.json)，每实例一个任务。broker令牌只在可信控制器内存，不进环境／文件／Chromium；所有输入来自该task白名单，逐对象检查字节身份，字体只取镜像登记。页面／作者代码只在Chromium内执行。
+`POST /task` 接收 `{taskId, renderId, mode, project, frames?, brokerToken}`，`mode` 为 `preview` 或 `export`。每个容器只接受一次任务；Cloudflare DO 在完成、取消或超时后停止这个容器。`GET /result` 返回 `running`、`succeeded`、`failed` 或 `cancelled`。`POST /cancel` 接受 JSON；DO 的物理停止仍是取消的最终保证。
 
-## 四种模式
-
-| 模式 | 行为 |
+| 模式 | 输出 |
 | --- | --- |
-| shard | 逐源帧seek，CDP JPEG92直送FFmpeg；PNG重叠／末帧、可信阅读观测、动作姿势及真实回执 |
-| assemble | 顺序封装closed-GOP Annex B，混入冻结WAV，检查CFR／PTS／GOP／色彩／音频／时长／体积／一秒码率，封面取真实帧 |
-| audio | 冻结AudioPlan合成一次、两遍loudnorm和实际母带测量，48kHz双声道；越界者至多一次补偿／过采样限幅，合格字节不改 |
-| studio | 只处理task允许的still／check帧，seek／截图／观测整次互斥；Worker管理许可／generation／关闭 |
+| `preview` | 默认四张原生 PNG，时间为 0、1/3、2/3、末帧；也接受 1–12 个指定时间 |
+| `export` | 原生整片 MP4，经一次可信 FFmpeg 输出规格归一；原生预览 PNG、实际成片解码 PNG、`rendered-project.json` 和实际工程文件一并保留 |
 
-`canvas-title@1`、`canvas-sequence@1`、`canvas-number@1`、`canvas-subtitle@1` 和 `canvas-subtitle-sequence@1` 在每个编码源帧将受限可信绘制的文字、字体、透明度和逐字框写入 `frame-digests.json`，与该帧截图摘要一起受分段回执绑定；云端按冻结 FilmSpec 校验完整轨迹。计数的每帧显示值由冻结数值与源帧号计算，而不将过渡值当成最终事实。阅读点另外检查实际截图是否与有字画布一致，并逐槽与移去该槽文字的画布比较文字像素；平台字体由 CDP 独立读取。读取点以外的像素可见性和完整动态 QA 尚未由这项检查证明，同片自写代码不受支持。
+输出统一写入 `renders/<renderId>/attempts/<taskId>/out/`。每项包含 `name/key/sha256/byteLength/mediaType`；`report.json` 区分原 manifest 的 `projectHash`、输入 `index.html` 的 `inputSourceSha256` 和声音刷新后的 `renderedSourceSha256`。`report.frames` 为编码帧总数，预览为 0、15 秒为 450、30 秒为 900；预览时间单列在 `previewFrameTimes`。
 
-分段和必要视频纠正使用平台一秒门槛70%的maxrate、20%的VBV buffer，目标码率不高于maxrate；仍实测滑窗，超标只重编码一次，复测失败阻断。不改变平台交付上限。
+`frames/*.png` 来自原生 HTML 捕获；`review-frames/*.png` 从最终 `film.mp4` 按 0、1/3、2/3、末帧真实解码，用于独立成片审查，对应 `reviewFrameTimes` 和 `reviewFramesSource: "film.mp4"`。四个静帧不替代正常速度观看或听觉验收。
 
-assemble对**最终MP4的AAC解码信号**测响度／真峰／静音：任务从同一audio结果的受校验audio-report取得目标，历史直接assemble保持−14LUFS／−1dBTP默认。目标±0.5LU、真峰不高于上限；越界只从原WAV作一次补偿、4×过采样／延迟补偿限幅，再编码AAC、视频复制。余量按该次AAC相对WAV的峰值增量＋0.4dB，仍失败报OUTPUT_AUDIO_OUT_OF_RANGE。冻结母带不覆盖；media.audio保存最终与纠正前实测，reencoded仅指视频重编码。[实际超峰／云验](../../docs/evidence/2026-10-24-s1-director/README.md#当前修复所依据的反例)。
+`review-sheet.jpg` 将四张成片抽帧按行排为 2×2，每格等比缩至最长边 960 像素并填黑边；`reviewSheet` 记录帧号、时间与来源。独立审片可以每个画幅只发送一张接触表，以保留现有模型预算。
 
-review 组装后另以 [huashu-motion@52467f99c602b76ba86d511d37acdfe93fa1e16e 的 `cli/lib/qa.js`](https://github.com/alchaincyf/huashu-motion/blob/52467f99c602b76ba86d511d37acdfe93fa1e16e/cli/lib/qa.js) 扫描实际 MP4 全部帧；Copyright (c) 2026 Huashu，[MIT 许可](../../packages/film-runtime/src/LICENSE.huashu)。解码适配为本服务有界、可取消的 FFmpeg 进程，输出 `media.motionAudit`。它按 96×54 灰度全画面报告近静止区间、单帧闪变、切点、每秒变化与开场线索，不自动决定通过或阻断。
+完整视频交付前核验真实 FFprobe 输出：尺寸、30 fps、连续帧时间、帧数、H.264 High/YUV420P、BT.709、GOP15、时长、50 MB 上限和 10 Mbps 一秒窗口上限。存在声音时输出 AAC-LC、48 kHz、双声道、128 kbps，并使用 -14 LUFS 的 FFmpeg 标准化目标。这些检查不等于平台上传认证或人工画质验收。
 
-review 会按空开场、闪变、低运动区间的优先级，最多取两个可疑区间，优先检查内容段而非最后三秒片尾，各从实际编码影片取六个连续预览帧，向 E 附 3×2 时序图及 30 fps 源帧编号；其他未选线索数量保留在 `inspection.omitted`。320×180 差分有变化时另附最大变化区域的局部图，标明源画面归一化近似坐标，不声称追踪到了鼠标。取帧失败或超时单独记 `unavailable`，不改影片组装结果；采样可能漏掉鼠标或其他局部动作，也不代替正常速度视听。final／F 尚未增加这些区间图；旧直接 `assemble()` 调用默认不执行诊断。
+## 原生文件与修改
 
-`tests/encoded-audio.render.test.mjs` 可在已有隔离镜像内单独运行实际AAC纠正专项；`tests/motion-audit.render.test.mjs` 检查实编码、旧组装接口和诊断失败／取消，随 browser/media CI 运行。它们不是普通文档修改的默认验证。完整音源／样本权利见 [audio NOTICE](../../packages/audio/src/NOTICE.md)。
+缺少的固定库会从上游安装补齐：GSAP、`om.js`、`camera-rig.js`、Three/OM3、完整 clip 库，以及 Noto Sans SC 500/900 与 Inter Variable。现有声明文件不被覆盖；原生声音刷新按上游行为更新运行时和音轨。导出后的 manifest 包含实际文件身份，可用于冻结和重现。
 
-## 取帧与可信观测
+`packages/native-motion` 的 `editNativeProject` 直接调用上游 `readSource`、`setVariables`、`writeSource`，要求 `baseToken`，沿用 `.om/history`。模型只修改原生页面文件，不产生另一套场景或镜头协议。根元素必须明确声明 `data-composition-id`、`data-width`、`data-height`、`data-duration` 和 `data-fps`；容器还核对浏览器实际读到的值，以及注册在 `window.__timelines[rootId]` 的暂停状态和实际 `duration()`。实际时间线必须与根声明同长，不能靠 `data-duration` 静默截断一条更长时间线。报告记入 `timelineDurationSeconds` 和 `timelinePaused`。
 
-review保持30fps源时间轴，隔帧捕获完整逻辑尺寸JPEG92后由FFmpeg缩半尺寸／15fps；PNG由同一完整尺寸帧在宿主整数面积平均缩小，不用浏览器半比例截图。final为既定1080p／30fps；motion4/8未开放。视频只读授权PTS帧图，不使用video元素。
+## 隔离
 
-filmObservationFrames生成全片阅读计划，再落各分段；没有计划点的短段保存空数组。Worker核对精确帧、身份和BLOCK，不以“数组非空”代替覆盖。custom文字观测附sceneId，方法据此核对阅读窗口visibleTextSlots；槽位内嵌套文字若被隐藏、裁切或移到画外，按实际 CDP 文字矩形阻断，不以父槽位完整字符串代替可见性。旧观测合同保留。
+控制器为 UID 10001，原生 Node/Chromium 为 UID 10002，PID 1 为 UID 10003。broker bearer 只在控制器内存，绝不写进任务文件、子进程环境或命令行。原生 launcher 使用 Unix socket，Chromium 通过 CDP pipe 受控，保留 Chrome 沙箱。外层容器必须 `enableInternet=false`；非虚拟资源请求还受不可达代理限制。
 
-自写素材的可信观测结合实际图片、可见样式、裁切和 CDP 命中；透明、无背景／边框／阴影等自身绘制的普通 DIV 不再单独遮挡命中判断，其子节点和伪元素仍分别检查。对于命中透明度为零的层，只有目标及裁切祖先的变换后四边形覆盖采样点、且绘制顺序排除后方遮挡时才确认可见。无法排除实际绘制、遮罩或遮挡时保持 `unverified`，不把它当作可见；不同画幅仍须分别核验。
+作品不再以 `file://` 页面运行。云端补丁使用固定虚拟 HTTP origin，CDP Fetch 只从当前工程目录供给真实字节，不打开 HTTP 服务端口。响应带有 CSP，禁止其他源、`file://`、iframe、Worker、对象嵌入、外部 base 和表单；允许本地脚本、Canvas/WebGL 和内联数据。移除原生 Chrome 的 `--allow-file-access-from-files`。只有原生生成的 `.om/cache/frames` 可作为内部媒体缓存读取，历史目录不对页面供给。
 
-filmMotionFrames保存接力落点／中途姿势、新镜头的时间采样、自写每秒／事件／交接，前两个自写事件加前后六源帧，review按15fps对齐。E/F另看第一画幅动作拼图，不减少各画幅阅读图。有限采样不是完整动态Q1/Q2或正常速度听感。
+文件按 manifest 的字节数和 SHA-256 校验，拒绝路径穿越、符号链接与特殊文件。原生音视频和 voice 路径在进入 Node 读取或 FFmpeg 前做项目根目录的真实路径检查；FFmpeg 输入按文件头限定 demuxer，拒绝 HLS、concat、SDP 等可间接打开其他文件的清单，MOV 外部数据引用显式关闭。支持普通 MP4/MOV、WebM、WAV/MP3/AAC、FLAC/Ogg、GIF/APNG 等文件，不接受远程媒体或播放清单。
 
-对比度普通字4.5:1、大字3:1，不四舍五入；大字按CDP实际≥24px，或≥18⅔px且字重≥700识别，不信作者role豁免。字体、裁切、安全区／遮挡分别保留发现。
+只执行应用和受检上游的 Node 模块，模型提供的 `.js` 或 HTML 从不作为 Node 模块加载。上游源码检查仅编译语法，不在可信进程求值作品。超时先发 SIGTERM，让原生 renderer 释放浏览器，再清理进程树；Chrome 会创建独立进程组，因此 DO 的物理停止是最终边界，不能用“Node 已退出”代替确认容器停止。
 
-WebGL只在3D页按需加载锁定Three.js0.186.1，CDP读取真实WebGL2 renderer/vendor/version，与环境锁核对，失配报RENDER_ENVIRONMENT_MISMATCH。初始化／单帧期限为60／10秒，2D为30／5秒；dispose释放资源，context丢失失败，不重建掩盖问题。
+上述限制是源码中的隔离机制，不是对任意恶意代码安全性的认证。媒体验证、普通帧渲染通过都不能替代文件/网络负向探针、云端 UID/broker/物理停止验收和持续的浏览器漏洞维护。原生 Studio 没有被直接开放为多租户服务。
 
-## 输出、费用与诊断
+## 验证
 
-输出先进入 `renders/<renderId>/attempts/<taskId>/…`，Workflow验证后才发布引用，失败attempt不覆盖成功字节。授权输出上传／拼接源下载各至多四路，保序；首失败停派新项并排空在途后清理，不增加物理实例并发。
+不调用模型的本地边界检查：
 
-回执frameCaptureMs按实际编码源帧记录seek／ready／JPEG耗时，排除背压／QA／额外PNG；renderMs仍是分段总耗时，不能拿均摊值补造旧逐帧分布。readyMs仅CDP连接，DO的启动／等名额另计。
+```bash
+node --test packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs
+```
 
-内存只取cgroup高水位，不用控制器RSS。接口缺失写peakMemoryMiB:null和cgroup_peak_not_exposed、汇总unverified；权限错误／无效读数阻断。[S1例外](../../docs/evidence/2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)只允许暂缓测量。取消／超时并发固定同一usage，结算冲突核对原记录，可重放不重复计费。
+真实原生预览、3D、直接修改、声音和整片导出检查在固定 Linux 镜像运行：
 
-普通失败回执只有可信阶段、有限帧号、白名单系统码、媒体进程名／退出码／已知特征，不含原异常／堆栈／URL／请求头／stderr。无法归类的runtime_ready故障可在原attempt写私有private-failure.json，最多错误／cause各2048字符、替换令牌／Bearer，不含源文件或完整task；写入限三秒，不延长渲染或阻挡清理。普通报告只留私有引用。
+```bash
+docker build --target browser-test -f apps/render-container/Dockerfile -t promobento-native-test .
+sudo apparmor_parser -r apps/render-container/tests/apparmor.profile
+docker run --rm --network none --security-opt apparmor=promobento-browser-test promobento-native-test
+```
 
-初始化由可信控制器有界读取ready／boot-failure标志，不向作品注入RAF／eval轮询，取消或超时不接晚到ready。素材读取失败保留宿主首因，同时使页面请求失败，不能只留下泛化解码错误。
+测试覆盖四种平台画幅的原生帧，以及 15 秒横屏、30 秒竖屏的真实完整 MP4；还请求同 UID 可读但在工程外的 canary、系统文件、实际本地 HTTP canary、broker 和外网地址，并检查 Worker 被阻止。测试失败不跳过 Chrome、不使用 `--no-sandbox`。可将可写目录挂载到 `/artifacts` 取得 MP4、PNG 和 `native-smoke-report.json`。CI 只构建和检查，不自动部署。云端 broker、D1/R2 与 Cloudflare 的物理停止必须另做真实环境验收。
 
-## 校准工具
+## 当前边界
 
-benchmark只比较授权帧PNG／JPEG90/92/95及解码RGB SSIM，不向客户FilmSpec开放质量旋钮。isolation使用[固定攻击项](../../tests/attacks/film-v1/isolation.json)，不接受调用者代码／命令／主机。
-
-CSP动态编译检查用普通同源脚本，不借CDP调试权限。控制器先检查broker正向／越权，再制造断网请求；uid探针只接一次性令牌指纹和长度，不接bearer，报告不返回指纹／环境值／内存。不可读进程不能记无泄漏，子进程argv残留不误认成环境键。[固定隔离证据](../../docs/evidence/2026-10-24-s1-performance/README.md#正式镜像隔离通过)不代替S2任意代码／耗尽语料。临时文件限本task工作区，用完清理。
-
-可信积木参数／行为和定点CI选择统一见 [film-runtime](../../packages/film-runtime/README.md)，不在容器文档重复积木改版历史。
+这次切换接入原生创作、帧预览和整片导出。公开 Studio、静态 HTML 分享服务、客户身份/计费、原生批注的云端会话，以及 Linux 可用的旁白提供方仍须接入。完整上游语音工具保留，但构建不会自动下载 TTS 模型、调用付费服务或使用 macOS `say`。

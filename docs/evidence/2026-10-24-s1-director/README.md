@@ -86,7 +86,7 @@ F 独立终审请求用量未知，以 `MODEL_CALL_RECONCILIATION_REQUIRED` 停�
 
 ## 方法 1.5.0：横屏低清审片已生成，E 参数不完整且无用量
 
-源码 `6204a149bc68b9c55ec806f971e6cb1544944be3` 的 [CI](https://github.com/ten2ten2/promobento/actions/runs/40481688976)及 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40483086885)通过；renderer 为 `renderer-6204a149bc68`，实际镜像和完整回执见 [summary.json](custom-method150-attempt/summary.json)。方法 1.5.0 使用负责人批准的内部自写评测 30 分钟活动上限，适用范围见[期限契约](../../plans/cloud-motion-v3.md#611-预算限制与-effort)；本轮未触及新上限。
+源码 `6204a149bc68b9c55ec806f971e6cb1544944be3` 的 [CI](https://github.com/ten2ten2/promobento/actions/runs/40481688976)及 [staging 部署](https://github.com/ten2ten2/promobento/actions/runs/40483086885)通过；renderer 为 `renderer-6204a149bc68`，实际镜像和完整回执见 [summary.json](custom-method150-attempt/summary.json)。方法 1.5.0 使用负责人批准的内部自写评测 30 分钟活动上限，适用范围见[期限契约](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/docs/plans/cloud-motion-v3.md#611-预算限制与-effort)；本轮未触及新上限。
 
 操作 `eval-minimax-15-1793094623437` 选择 Fit，以 Start／Resume／Reset 的真实状态作叙事锚点；C 生成一个 custom pet-story 和 CTA，D 一次布局／三次动作编辑完成。横竖各 11 张前向帧，逆序与新实例冷 seek 共 **24 次比较全零差异**，阅读无 BLOCK。
 
@@ -166,4 +166,4 @@ Hypit 半秒拼图、关键帧与片尾转场已查看；完整解码帧按相�
 
 - 模型未知消费依据：[早期方向截断](third-attempt/report.json)、[E 坏工具参数](eighth-attempt/report.json)、[网关请求失败](minimax-eighth-attempt/report.json)、[D HTTP502](custom-seventh-attempt/report.json)、[D 无工具／usage](custom-tenth-attempt/report.json)、[最新 E 无 usage](custom-method150-attempt/summary.json)。当前合计在实施状态；旧调用不重发。
 - 支持当前准入／回执语义的早期报告仍在 first-attempt 至 eleventh-attempt 等目录；它们只说明各自冻结候选，不能从当时的“待验”推断当前状态。
-- 逐轮授权次数已用完；继续付费前需有效具体授权和明确修改方向。历史费用确认、补账与恢复入口见 [cloud README](../../../apps/cloud/README.md#研究模型共用一份预算)。
+- 逐轮授权次数已用完；继续付费前需有效具体授权和明确修改方向。历史费用确认、补账与恢复入口见 [cloud README](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/apps/cloud/README.md#研究模型共用一份预算)。

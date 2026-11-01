@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://promobento.com/contracts/direction/3.0.0",
-  "title": "Direction cards (Fit / Amplify / Unexpected)",
+  "title": "Native direction cards (Fit / Amplify / Unexpected)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -54,7 +54,7 @@
         },
         "language": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,47}$"
+          "pattern": "^[a-z0-9][a-z0-9-]{0,47}$"
         },
         "palette": {
           "type": "array",
@@ -130,17 +130,6 @@
         "usesDepth": {
           "type": "boolean"
         },
-        "font": {
-          "description": "Optional admitted display face used in the direction hero.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["fontId", "weight", "style"],
-          "properties": {
-            "fontId": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
-            "weight": {"type": "integer", "minimum": 100, "maximum": 900},
-            "style": {"enum": ["normal", "italic"]}
-          }
-        },
         "skeleton": {
           "type": "array",
           "minItems": 3,
@@ -160,7 +149,9 @@
               },
               "approach": {
                 "type": "string",
-                "pattern": "^(block:[a-z][a-z0-9-]{0,47}|custom)$"
+                "minLength": 1,
+                "maxLength": 400,
+                "description": "The shot and motion design in ordinary language; implemented as native HTML/JS."
               },
               "keyText": {
                 "type": "string",
@@ -168,10 +159,6 @@
               }
             }
           }
-        },
-        "keyframeFilm": {
-          "type": "object",
-          "description": "Optional FilmSpec for actual direction keyframe rendering; separately validated against FilmSpec and the trusted facts/resources context."
         }
       }
     }

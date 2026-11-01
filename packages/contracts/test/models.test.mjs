@@ -15,26 +15,26 @@ test('gateway bindings use the existing shared key and keep unbound official mod
   assert.deepEqual(modelConfigErrors(providers(), authorization(), policy,{requireVerified:false}), []);
   assert.deepEqual(modelConfigErrors(providers(), authorization(), policy),[]);
   assert.deepEqual(modelConfigErrors(providers(), authorization(), {...policy,enabled:true},{requireVerified:false}),[]);
-  const config=providers();assert.equal(config.steps.spec,'modelswitch/claude-opus-5-5');assert.equal(config.steps.coldReview,'modelswitch/deepseek-v4.1-flash-1017');
+  const config=providers();assert.equal(config.steps.treatment,'modelswitch/claude-opus-5-5');assert.equal(config.steps.coldReview,'modelswitch/deepseek-v4.1-flash-1017');
   assert.ok(Object.values(config.steps).every(ref=>config.providers[ref.split('/')[0]].secret==='MODEL_COMPAT_API_KEY'));
   assert.equal(config.models['anthropic/claude-opus-5-5'].capabilities.verified,false);assert.equal(config.models['anthropic/claude-sonnet-5-5'].capabilities.verified,false);
   config.steps.coldReview='anthropic/claude-sonnet-5-5';assert.deepEqual(modelConfigErrors(config,authorization(),policy),['Bound model anthropic/claude-sonnet-5-5 is not verified']);
 });
 
 test('a vision step cannot bind gateway Claude after the image-loss probe', () => {
-  const config = providers(); config.steps.scenes = 'modelswitch/claude-sonnet-5-5';
-  const imagePolicy=structuredClone(policy);delete imagePolicy.director.steps.scenes.inputMode;
-  assert.deepEqual(modelConfigErrors(config, authorization(), imagePolicy,{requireVerified:false}), ['Step scenes needs vision, which modelswitch/claude-sonnet-5-5 lacks']);
+  const config = providers(); config.steps.author = 'modelswitch/claude-sonnet-5-5';
+  const imagePolicy=structuredClone(policy);delete imagePolicy.director.steps.author.inputMode;
+  assert.deepEqual(modelConfigErrors(config, authorization(), imagePolicy,{requireVerified:false}), ['Step author needs vision, which modelswitch/claude-sonnet-5-5 lacks']);
   assert.deepEqual(modelConfigErrors(config,authorization(),policy),[]);
   config.steps.assets='modelswitch/claude-sonnet-5-5';assert.ok(modelConfigErrors(config,authorization(),policy).some(error=>error.startsWith('Step assets needs vision')));
-  const invalid=structuredClone(policy);invalid.director.steps.scenes.inputMode='automatic-fallback';assert.ok(modelConfigErrors(providers(),authorization(),invalid).includes('Unknown scenes inputMode'));
+  const invalid=structuredClone(policy);invalid.director.steps.author.inputMode='automatic-fallback';assert.ok(modelConfigErrors(providers(),authorization(),invalid).includes('Unknown author inputMode'));
 });
 
 test('unverified, unauthorized or unpriced models are refused', () => {
   const unverified = providers(); unverified.models['modelswitch/deepseek-v4.1-flash-1017'].capabilities.verified = false;
   assert.ok(modelConfigErrors(unverified, authorization(), policy).includes('Bound model modelswitch/deepseek-v4.1-flash-1017 is not verified'));
   const auth = authorization(); auth.models = auth.models.filter(ref => ref !== 'modelswitch/claude-opus-5-5');
-  assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step spec binds unauthorized model modelswitch/claude-opus-5-5','Step scenes binds unauthorized model modelswitch/claude-opus-5-5']);
+  assert.deepEqual(modelConfigErrors(providers(), auth, policy,{requireVerified:false}), ['Step treatment binds unauthorized model modelswitch/claude-opus-5-5','Step author binds unauthorized model modelswitch/claude-opus-5-5']);
   const unknown = providers(); unknown.steps.triage = 'modelswitch/unknown-model';
   assert.deepEqual(modelConfigErrors(unknown, authorization(), policy,{requireVerified:false}), ['Step triage binds unregistered model modelswitch/unknown-model']);
   const drift = authorization(); drift.catalogVersion = 'models-2026-01-01';

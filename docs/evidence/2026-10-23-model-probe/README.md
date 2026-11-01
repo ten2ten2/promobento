@@ -12,7 +12,7 @@
 
 没有模型在本探针可靠遵守json_schema；effort仅证明参数被接受，未证明推理行为改变。官方Anthropic备用未绑定／verified:false，不把网关结果移植过去。
 
-当前A/B/E/F使用网关DeepSeek，C/D为Opus纯文本；D显式接A按资源绑定的真实图像观察，不给Claude发送原图或改vision:false。现有MODEL_COMPAT_API_KEY已实际绑定staging并在真实导演调用，不再写“缺官方密钥阻断当前链路”。完整输入约定见 [cloud README](../../../apps/cloud/README.md#导演选择结构d-实现自写镜头)。index-tts-2尚无本仓库探针或准入，不在上述能力结论中。
+当前A/B/E/F使用网关DeepSeek，C/D为Opus纯文本；D显式接A按资源绑定的真实图像观察，不给Claude发送原图或改vision:false。现有MODEL_COMPAT_API_KEY已实际绑定staging并在真实导演调用，不再写“缺官方密钥阻断当前链路”。完整输入约定见 [cloud README](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/apps/cloud/README.md#导演选择结构d-实现自写镜头)。index-tts-2尚无本仓库探针或准入，不在上述能力结论中。
 
 ## 原始报告和方法
 
@@ -25,4 +25,4 @@
 
 [history.mjs](../../../research/model-probe/history.mjs)从四份报告生成不可变[opening-spend.json](opening-spend.json)，128次请求中114次可按冻结[价格目录](pricing-catalog.json)与usage估算 **255,521 usd_micros**，14次缺usage／价格，quote:null，不记零。
 
-目录快照不是历史账单；负责人尚未提供授权以来全部消费统计，openingMicros:null／openingConfirmed:false保持不变。共享MODEL_LEDGER已导入原清单，默认未对账拒绝新付费；当前有限风险放行、上限和有效期统一见[实施状态](../../implementation-status.md#有效授权与费用)及 [14预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。确认入口见 [cloud README](../../../apps/cloud/README.md#研究模型共用一份预算)，不能只把可计价114笔估算当总账。
+目录快照不是历史账单；负责人尚未提供授权以来全部消费统计，openingMicros:null／openingConfirmed:false保持不变。共享MODEL_LEDGER已导入原清单，默认未对账拒绝新付费；当前有限风险放行、上限和有效期统一见[实施状态](../../implementation-status.md#有效授权与费用)及 [14预算契约](../../prd/14-production-contracts.md#6-ai操作费用与成功次数)。确认入口见 [cloud README](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/apps/cloud/README.md#研究模型共用一份预算)，不能只把可计价114笔估算当总账。

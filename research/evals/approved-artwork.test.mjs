@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';
 import {join,resolve} from 'node:path';
-import {pngPixels,pngRgba} from '@promobento/contracts/seams';
+import {pngPixels,pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedArtwork,captureApprovedWebArtwork,captureApprovedInlineArtwork,verifyArtworkSelections,artworkSourceObjectName,extractIcnsPng} from './approved-artwork.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';

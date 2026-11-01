@@ -16,9 +16,9 @@
 
 WAV 合格不代替 AAC 编码后的验收。最终 MP4 的测量、一次有界纠正与失败阻断由[渲染服务 assemble](../../../apps/render-container/README.md)完成，冻结母带不覆盖。
 
-FilmSpec 的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
+历史音频适配中的 `audio.sfx[].gain` 单位为 dB（−30 至 +6），省略时为 −6 dB，0 表示原增益；直接写入 AudioPlan 的 `gainDb`，不是线性倍率。旧接入把显式 −6 错算成 −60 dB，现已修正；既有冻结 AudioPlan 和成片不改写。上游声音合成及 ABC 内部的线性增益字段保持原用法。
 
-显式开启 `params.sourceSfx` 的自写镜头可使用原版 `ctx.OM.sfx` 声明；宿主从源码静态取得已限定的音效与帧、将上游线性 gain 换算为 AudioPlan 的 dB，并在付费渲染前核对源码与计划。声明的时间、支持范围和静音语义见[片子运行时](../../film-runtime/README.md#自写镜头源码与规格分开)。这不包含原版可选的 pan／pitch／note／dur 或任意子帧时间，也不改变既有 FilmSpec 音效的默认增益。
+旧 `ctx.OM.sfx`／场景静态提取适配已经随旧执行器退役。当前主线声音使用完整上游原生 sound 工具；本包保留的音源、ABC 与采样辅助用于既有素材及历史证据，不作为新的影片执行器。
 
 ## Lead-in 事件先冻结，再合成
 

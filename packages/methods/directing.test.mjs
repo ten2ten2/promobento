@@ -1,39 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {directingMethodPack,recallDirecting} from './directing.ts';
-test('stage recall carries the shared story method and the right audience without unrelated stages',()=>{
-  const software=recallDirecting(directingMethodPack,'spec','software');
-  assert.equal(software.version,'1.58.0');assert.match(software.audience,/workflow/);
-  assert.match(software.guidance.join(' '),/runtimeText: grapheme-v1/);
-  assert.match(software.guidance.join(' '),/om3-studio-v4.*same image/);
-  assert.match(software.guidance.join(' '),/canvas-subtitle runs/);
-  assert.match(software.guidance.join(' '),/canvas-number runs/);
-  assert.match(software.guidance.join(' '),/optional highlightFrame/);
-  assert.match(software.guidance.join(' '),/up to two lines/);
-  assert.match(software.guidance.join(' '),/keynote-clip item may use focus:roi:n/);
-  assert.match(software.guidance.join(' '),/focusFrom\/focusTo/);
-  assert.match(software.guidance.join(' '),/params\.gsapScope.*scene/);
-  assert.match(software.guidance.join(' '),/params\.sourceSfx=true/);
-  assert.match(software.common.join(' '),/Do not reproduce huashu-motion’s bean Huashu author likeness/);
-  assert.ok(!software.guidance.some(text=>text.includes('Offer different')));
-  const course=recallDirecting(directingMethodPack,'coldReview','course');
-  assert.match(course.audience,/worked step/);assert.match(course.audience,/do not invent learner progress/);
-  assert.equal(recallDirecting(directingMethodPack,'assets','software'),null);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/returns the actual text element.*parent does not override/);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/GSAP string selectors.*this scene/);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/cameraRig\.create\(shots\)/);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/OM\.ready\(promise\)/);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/OM\.beat\(n\).*frozen procedural music bpm/);
-  assert.match(recallDirecting(directingMethodPack,'scenes','software').guidance.join(' '),/OM\.sfx\(id, seconds/);
-  assert.match(recallDirecting(directingMethodPack,'review','software').guidance.join(' '),/zoom above 1 crops source edges/);
-  const visual=recallDirecting(directingMethodPack,'directions','software').upstreamReference;
-  assert.equal(visual.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');
-  assert.ok(visual.references.some(item=>item.path==='references/library/languages/cursor-demo.md'&&item.content.includes('Action → response → result')));
-  assert.ok(recallDirecting(directingMethodPack,'scenes','software').upstreamReference.references.some(item=>item.path==='references/product-demo-continuity.md'));
-  const scene=recallDirecting(directingMethodPack,'scenes','software','cursor-demo').upstreamReference;
-  assert.equal(scene.template.path,'ui-space/index.html');assert.match(scene.template.content,/OM\.space/);
-  assert.equal(recallDirecting(directingMethodPack,'scenes','software','unrelated').upstreamReference.template,undefined);
-  const frozen=structuredClone(directingMethodPack);frozen.version='1.16.0';
-  assert.equal(recallDirecting(frozen,'directions','software').upstreamReference,undefined);
-  assert.equal(recallDirecting(frozen,'review','software').version,'1.16.0');
+import source from './huashu-motion/source.mjs';
+
+test('native stage recall preserves upstream references and the selected original template',()=>{
+ const treatment=recallDirecting(directingMethodPack,'treatment','software');
+ assert.equal(treatment.version,'2.0.0');assert.match(treatment.audience,/workflow/);
+ assert.ok(treatment.hypit.references.some(ref=>ref.path==='references/creation/script-and-time.md'&&ref.content.length>0));
+ const author=recallDirecting(directingMethodPack,'author','software','cursor-demo');
+ assert.equal(author.huashu.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');
+ assert.equal(author.huashu.template.path,'ui-space/index.html');
+ assert.equal(author.huashu.template.content,source.templateSources['ui-space/index.html']);
+ for(const ref of author.huashu.references){assert.equal(typeof ref.content,'string');assert.equal(ref.content,source.references[ref.path]);}
+ assert.equal(directingMethodPack.huashuSource,source,'the complete original source pack remains available');
+ assert.match(recallDirecting(directingMethodPack,'coldReview','course').audience,/worked step/);
+ assert.ok(recallDirecting(directingMethodPack,'directions','software').huashu.references.some(ref=>ref.path==='references/library/languages/cursor-demo.md'));
+});
+
+test('retired method versions and execution stages cannot silently revive their adapter',()=>{
+ assert.throws(()=>recallDirecting({...directingMethodPack,version:'1.58.0'},'author','software'),/DIRECTING_METHOD_UNSUPPORTED/);
+ assert.throws(()=>recallDirecting(directingMethodPack,'scenes','software'),/DIRECTING_METHOD_UNSUPPORTED/);
+ assert.throws(()=>recallDirecting(directingMethodPack,'spec','software'),/DIRECTING_METHOD_UNSUPPORTED/);
 });

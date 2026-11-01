@@ -3,9 +3,19 @@ import {execFileSync} from 'node:child_process';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {NATIVE_RUNTIME_COMMIT} from '@promobento/contracts/native-project';
 
 const name='MODEL_COMPAT_API_KEY',base='https://promobento-staging.woffordvivian.workers.dev';
 const idleSql="SELECT (SELECT COUNT(*) FROM pipeline_operations WHERE status IN ('active','awaiting_user')) AS unfinished, (SELECT COUNT(*) FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='compute' AND s.reservation_id IS NULL) AS unsettled_compute;";
+
+export async function nativeWorkerHealthy(fetchHealth=fetch){
+ try{
+  const response=await fetchHealth(base+'/healthz',{signal:AbortSignal.timeout(15000),cache:'no-store'});
+  if(!response.ok)return false;
+  const body=parseCanonicalJson(await response.text());
+  return body.ok===true&&body.protocol==='1.0.0'&&body.runtime==='huashu-motion'&&body.nativeCommit===NATIVE_RUNTIME_COMMIT;
+ }catch{return false;}
+}
 
 export async function bindModelSecret({run,health,secret,report}){
  if(typeof secret!=='string'||!secret.trim())throw Error('ACTIONS_MODEL_KEY_MISSING');
@@ -44,10 +54,7 @@ async function main(){
  const {MODEL_COMPAT_API_KEY:secret,...env}=process.env;
  const run=(args,input)=>execFileSync('pnpm',['--filter','@promobento/cloud','exec','wrangler',...args],
   {env,input,encoding:'utf8',stdio:['pipe','pipe','pipe'],timeout:60000,maxBuffer:2<<20});
- const health=async()=>{
-  try{const response=await fetch(base+'/healthz',{signal:AbortSignal.timeout(15000),cache:'no-store'});
-   return response.ok&&(parseCanonicalJson(await response.text())).protocol==='3.0.0';}catch{return false;}
- };
+ const health=nativeWorkerHealthy;
  try{await bindModelSecret({run,health,secret,report});}
  catch(error){report.status=report.status==='checking'?'failed':report.status;report.error=error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_KEY_MAINTENANCE_FAILED';process.exitCode=1;}
  finally{writeFileSync(directory+'/binding.json',canonical(report)+'\n');console.log(canonical(report));}

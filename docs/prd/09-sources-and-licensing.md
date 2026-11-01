@@ -27,15 +27,15 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 渲染与预览共用 [packages/fonts](../../packages/fonts/huashu/LICENSES.md) 的字体：huashu-motion 登记的 OFL WOFF，以及 `@fontsource` 固定 `5.0.3` 归档的 Geist Sans/Mono（未修改字节，保留 OFL 原文）。程序配乐的乐器采样只用 CC0，清单与来源见 [packages/audio/samples](../../packages/audio/samples/catalog.json)；排除 CC-BY 钢琴与 Wurlitzer。不采购曲库。混音和抽帧前核对这些依据，生成产物继续引用相应来源。
 
-正式与CI镜像均由[build-render-fonts.mjs](../../scripts/build-render-fonts.mjs)核对现有登记的源／许可字节，转换WOFF2、记录输出摘要和cmap，并复制许可。生成字节不写回Git；工具版本随环境锁／构建清单固定。现有字库不保证任意语种无缺字，更广CJK／Emoji覆盖、客户选择／回退及准入服务仍须按实际文字验证。
+正式与CI镜像均由[build-render-fonts.mjs](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/scripts/build-render-fonts.mjs)核对现有登记的源／许可字节，转换WOFF2、记录输出摘要和cmap，并复制许可。生成字节不写回Git；工具版本随环境锁／构建清单固定。现有字库不保证任意语种无缺字，更广CJK／Emoji覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
 客户素材只经 `film.json` 的 `assets` 引用已核验许可的资源，作品不能自授资源。内部评测题目（[`research/evals/topics.json`](../../research/evals/topics.json)）可经负责人决定使用第三方品牌的公开截图、录屏和 Logo，但只限内部评测：素材存放在预发布 R2、不进 Git，成片不发布或对外展示，也不作营销样片。新增字体或采样须核对真实文件及用途；公开产品网页可作为题目事实来源，不因此授权复制Logo、界面、照片、音乐或人物。
 
 ## 2 视频创作上游
 
-上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明，不整包并入或追随浮动版本。各模块实际采用的固定来源见其 NOTICE 或[渲染服务说明](../../apps/render-container/README.md#四种模式)；[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
+上游固定参考为 [huashu-motion@4236053](https://github.com/alchaincyf/huashu-motion/tree/4236053)（v0.2.0，MIT）。需要的方法、画面语法和检查规则改写进 PromoBento 自己的代码，保留 MIT 来源说明，不整包并入或追随浮动版本。各模块实际采用的固定来源见其 NOTICE 或[渲染服务说明](../../apps/render-container/README.md)；[导演方法](../../packages/methods/NOTICE.md)另含负责人指定的固定流程参考，[声音](../../packages/audio/src/NOTICE.md)保留具体移植来源。Three.js r186为MIT。成片不加上游软件签名；素材许可要求的署名仍按具体授权保留。上游作者形象不采用，用原创角色替代。
 
-Hypit 的[内部媒体检查与取景桥接入口](../../research/evals/README.md#用-hypit-逐帧审看片子)固定使用 `@hypit/hypit@0.3.1` 和 `@hypit/visual-track@0.2.0`，不随渲染镜像安装，不在 Worker 或可信宿主执行作品代码。负责人表示已有授权，证明尚待提供；覆盖主体、有效期和托管／多租户范围核验前，仅用于单机构内部评测，不用于对客户提供 Hypit 的托管或多租户功能。上游软件许可不代替素材、音乐或第三方服务的许可。
+Hypit 的[内部媒体检查与取景桥接入口](../../research/evals/README.md)固定使用 `@hypit/hypit@0.3.1` 和 `@hypit/visual-track@0.2.0`，不随渲染镜像安装，不在 Worker 或可信宿主执行作品代码。负责人表示已有授权，证明尚待提供；覆盖主体、有效期和托管／多租户范围核验前，仅用于单机构内部评测，不用于对客户提供 Hypit 的托管或多租户功能。上游软件许可不代替素材、音乐或第三方服务的许可。
 
 | 来源范围 | 用途 |
 | --- | --- |

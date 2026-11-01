@@ -1,4 +1,4 @@
-// Internal S1 runs only in staging. Deploy/build through GitHub Actions; production execution remains off.
+// One native project per container task in staging. Existing DO names retain stop/cost handles; production stays off.
 {
   "name": "promobento",
   "main": "src/index.ts",

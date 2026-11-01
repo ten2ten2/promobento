@@ -1,199 +1,124 @@
 import http from 'node:http';
-import {mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:fs';
-import {join, relative} from 'node:path';
-import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest,sha256Bytes} from '@promobento/contracts/digest';
-import {assertRenderTask} from '@promobento/contracts/render';
-import {filmSourceHash} from '@promobento/contracts/film-source';
+import {existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync} from 'node:fs';
+import {dirname, join, relative} from 'node:path';
+import {canonical, parseCanonicalJson} from '../../../packages/contracts/src/canonical.mjs';
+import {assertNativeProject, assertNativePath, nativeProjectHash} from '../../../packages/contracts/src/native-project.mjs';
+import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
+import {NATIVE_COMMIT, frameTimes, projectPath} from '../../../packages/native-motion/src/index.mjs';
 import {brokerClient} from './broker.mjs';
-import {renderShard} from './shard.mjs';
-import {assemble} from './media.mjs';
-import {renderAudio} from './audio.mjs';
-import {filmSession} from './browser.mjs';
-import {deadline,mapIO} from './process.mjs';
-import {memoryHealth} from './memory.mjs';
-import {inRenderPhase,renderFailureDiagnostic} from './failure.mjs';
-import {savePrivateFailure} from './private-failure.mjs';
-import {assertStudioFrame,checkStudio,benchmarkCapture} from './studio-tools.mjs';
-import {hostIsolation,collectIsolation} from './isolation.mjs';
-import {admitPackedVideos} from './video-input.mjs';
+import {mapIO} from './process.mjs';
 
-if (process.platform !== 'linux' || process.getuid() !== 10001) throw Error('RENDER_CONTAINER_REQUIRED');
-const rules = parseCanonicalJson(readFileSync(new URL('../../../config/platform-presets.json', import.meta.url)));
-const lock = parseCanonicalJson(readFileSync(new URL('../environment.lock.json', import.meta.url)));
-const fontCatalog = parseCanonicalJson(readFileSync('/opt/fonts/catalog.json'));
-let task, requestHash, result, session, workDirectory,studioBusy=false, stored = new Map();
-const abort = new AbortController();
-const launch = async command => {
-  const response = await fetch('http://127.0.0.1:9300/' + command, {method: 'POST', signal: AbortSignal.timeout(35000)});
-  if (!response.ok) throw Error('CHROMIUM_UNAVAILABLE');
-};
-const relativeFiles = directory => readdirSync(directory, {withFileTypes: true}).flatMap(entry => {
-  const path = join(directory, entry.name);
-  return entry.isDirectory() ? relativeFiles(path) : [path];
-});
+if (process.getuid() !== 10001) throw Error('CONTROLLER_UID_REQUIRED');
+process.umask(0o007);
+let current = null;
+const idOk = id => typeof id === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(id);
+const safeCode = value => /^[A-Z][A-Z0-9_]{2,80}$/.test(value || '') ? value : 'NATIVE_TASK_FAILED';
 
-async function execute(input) {
-  workDirectory = mkdtempSync('/work/task-');
-  const broker = brokerClient(input.brokerToken, abort.signal), objects = new Map(input.inputs.map(object => [object.name, object]));
-  const bytes = async (name, maxBytes) => {
-    if (!objects.has(name)) throw Error('TASK_INPUT_MISSING');
-    if (!stored.has(name)) stored.set(name, await broker.read(objects.get(name), maxBytes));
-    return stored.get(name);
-  };
-  const packedVideos=input.options?await admitPackedVideos(input,objects,bytes):new Map();
-  const font = face => {
-    const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
-    if (!installed) throw Error('FONT_FACE_UNAVAILABLE');
-    if (face.licenseRef !== installed.licenseRef) throw Error('FONT_LICENSE_MISMATCH');
-    return readFileSync('/opt/fonts/' + installed.file);
-  };
-  const resource = async resourceId => {
-    const expected = input.job.resources.find(resource => resource.resourceId === resourceId), actual = objects.get('resource:' + resourceId);
-    if (!expected || !actual || expected.sha256 !== actual.sha256) throw Error('RESOURCE_SCOPE_MISMATCH');
-    return packedVideos.has(resourceId)?packedVideos.get(resourceId).poster():bytes('resource:' + resourceId);
-  };
-  const config = {width: rules.aspectLayouts[input.job.aspectId].width, height: rules.aspectLayouts[input.job.aspectId].height,
-    encoding: rules.encodingProfiles.mp4_h264_1080_v1, threads: input.mode === 'audio' ? 1 : input.instance === 'standard-4' ? 4 : input.instance === 'standard-3' ? 2 : 1};
-  if (input.job.quality === 'review') { config.encoding = {...config.encoding, fps: 15, targetVideoBitrate: 2000000, maxVideoBitrate: 2500000}; }
-  const prefix = 'renders/' + input.job.renderId + '/attempts/' + input.taskId + (input.mode === 'shard' ? '/shards/' + input.shard.index : input.mode === 'audio' ? '/audio' : '/out');
-  let report;
-  if (input.mode === 'shard' || input.mode === 'studio') {
-    const raw = await inRenderPhase({phase:'broker_input_read'},()=>bytes('film', 8 << 20));
-    const sources={};
-    for(const object of input.inputs.filter(object=>object.name.startsWith('scenes/')))
-      sources[object.name]=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await bytes(object.name,65536));
-    if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_SCOPE_MISMATCH');
-    // Only inert source bytes are read in the controller. The browser executes them after the shim.
-    input.options={...input.options,customSources:sources};
-    await inRenderPhase({phase:'chromium_start'},()=>launch('start'));
-    input.options.fonts = input.options.fonts.map(face => {
-      const installed = fontCatalog.fonts.find(item => item.fontId === face.fontId && item.weight === face.weight && item.style === face.style);
-      if (!installed) throw Error('FONT_FACE_UNAVAILABLE');
-      if (face.licenseRef !== installed.licenseRef) throw Error('FONT_LICENSE_MISMATCH');
-      return {...face, codePoints: installed.codePoints};
+function launcher(path, data = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request({socketPath: '/run/promobento/native.sock', path, method: 'POST', headers: {'content-type': 'application/json'}}, response => {
+      const chunks = []; let size = 0;
+      response.on('data', chunk => { size += chunk.length; if (size > 64 << 10) request.destroy(Error('LAUNCHER_RESPONSE_TOO_LARGE')); else chunks.push(chunk); });
+      response.once('end', () => {
+        try {
+          const result = parseCanonicalJson(Buffer.concat(chunks));
+          if (response.statusCode !== 200) return reject(Object.assign(Error(safeCode(result.error)), {detail: result.detail}));
+          resolve(result);
+        } catch (error) { reject(error); }
+      });
     });
-    if (input.options.target.width !== config.width || input.options.target.height !== config.height) throw Error('TARGET_SCOPE_MISMATCH');
-    const shared = {raw, options: input.options, resource, font, videoFrame: (id, index) => packedVideos.has(id)?packedVideos.get(id).frame(index):bytes('frame:' + id + ':' + index, 12 << 20),
-      signal: abort.signal, browserVersion: lock.browser.version,expectedWebglRenderer:lock.webgl.renderer,killBrowser: () => launch('kill')};
-    if (input.mode === 'shard') report = await renderShard({...shared, job: input.job, shard: input.shard, directory: workDirectory,
-      imageDigest: process.env.RENDER_IMAGE_DIGEST, encoding: config.encoding, threads: config.threads});
-    else {
-      session = await filmSession(shared);
-      const cpuInfo=readFileSync('/proc/cpuinfo','utf8');
-      result = {status: 'ready', frames: input.job.frames, taskId: input.taskId,webgl:session.webgl,
-        cpuModel:cpuInfo.match(/^model name\s*:\s*(.*)$/m)?.[1]??'unknown',cpuFlagsHash:digest((cpuInfo.match(/^flags\s*:\s*(.*)$/m)?.[1]??'').split(/\s+/).sort())};
-      return;
-    }
-    await inRenderPhase({phase:'chromium_stop'},()=>launch('kill'));
-  } else if (input.mode === 'assemble') {
-    const sources=input.inputs.filter(object=>/^shard:\d+$/.test(object.name)).sort((a,b)=>Number(a.name.slice(6))-Number(b.name.slice(6)));
-    const shards=sources.map(object=>join(workDirectory,object.name.replace(':','-')+'.h264'));
-    const audioPath=objects.has('audio')?join(workDirectory,'mixed.wav'):undefined;
-    await inRenderPhase({phase:'assemble_inputs'},()=>mapIO([...sources.map((object,index)=>({name:object.name,path:shards[index]})),...(audioPath?[{name:'audio',path:audioPath}]:[])],
-      async source=>writeFileSync(source.path,await bytes(source.name))));
-    let audioLimits;
-    if (objects.has('audio-report')) {
-      const master = parseCanonicalJson(await bytes('audio-report', 64 << 10));
-      if (!audioPath || !Number.isFinite(master.loudnessTarget) || !Number.isFinite(master.truePeakMax) || typeof master.silent !== 'boolean')
-        throw Error('AUDIO_MASTER_REPORT_INVALID');
-      audioLimits = {loudnessTarget: master.loudnessTarget, truePeakMax: master.truePeakMax, silent: master.silent};
-    }
-    report = await inRenderPhase({phase:'media_assemble'},()=>assemble({shards, audioPath, audioLimits, outputPath: join(workDirectory, 'film.mp4'), posterPath: join(workDirectory, 'poster.png'),
-      coverFrame: input.job.quality === 'review' ? Math.floor(input.coverFrame / 2) : input.coverFrame,
-      config: input.job.quality === 'review' ? {...config, width: config.width / 2, height: config.height / 2} : config,
-      totalFrames: input.job.totalFrames / (input.job.quality === 'review' ? 2 : 1), maxBytes: rules.productLimits.maxOutputFileBytes,
-      signal: abort.signal, motionAudit: input.job.quality === 'review'}));
-  } else {
-    const plan = parseCanonicalJson(await bytes('audio-plan', 4 << 20));
-    const {audioPlanHash} = await import('../../../packages/audio/src/plan.mjs');
-    if (audioPlanHash(plan,{seed:input.audioInputs.seed}) !== input.job.audioPlanHash) throw Error('AUDIO_PLAN_SCOPE_MISMATCH');
-    const bytesBySource = new Map();
-    for (const source of plan.sources.filter(source => source.sha256)) bytesBySource.set(source.sourceId, await bytes('audio:' + source.sourceId));
-    report = await inRenderPhase({phase:'audio_render'},()=>renderAudio({plan, inputs: {...input.audioInputs, clearedSources: new Map(input.audioInputs.clearedSources.map(source => [source.sourceId, source])),
-      bytesBySource, scores: new Map(input.audioInputs.scores ?? [])}, directory: workDirectory, signal: abort.signal}));
-    report = {...report, path: 'mixed.wav'};
-  }
-  writeFileSync(join(workDirectory, 'report.json'), canonical(report));
-  // Temporary sources and intermediate pre-master PCM are never uploaded as deliverables.
-  const allowed = input.mode === 'assemble' ? ['film.mp4', 'poster.png', 'report.json'] : input.mode === 'audio' ? ['mixed.wav', 'report.json'] : null;
-  const outputs=await inRenderPhase({phase:'output_upload'},()=>mapIO(relativeFiles(workDirectory).filter(path=>!allowed||allowed.includes(relative(workDirectory,path))||
-    (input.mode==='assemble'&&/^audit-frames\/[01]-(overview|detail)\.jpg$/.test(relative(workDirectory,path)))),async path=>{
-    const name = relative(workDirectory, path);
-    const mediaType = name.endsWith('.png') ? 'image/png' : name.endsWith('.jpg') ? 'image/jpeg' : name.endsWith('.mp4') ? 'video/mp4' : name.endsWith('.h264') ? 'video/h264'
-      : name.endsWith('.wav') ? 'audio/wav' : 'application/json';
-    return broker.write(prefix + '/' + name, readFileSync(path), mediaType);
-  }));
-  return {status: 'succeeded', taskId: input.taskId, outputs, report};
+    request.on('error', reject); request.end(canonical(data));
+  });
 }
 
-function assertTask(input) {
-  assertRenderTask(input);
-  if (input.job.rendererRelease !== process.env.RENDERER_RELEASE || !/^sha256:[0-9a-f]{64}$/.test(process.env.RENDER_IMAGE_DIGEST ?? '')) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-  if (input.mode === 'shard' && !input.shard || input.mode === 'studio' && input.job.quality !== 'still') throw Error('TASK_INVALID');
+async function execute(task, brokerToken, state) {
+  const base = '/jobs/' + task.taskId, projectDir = join(base, 'project');
+  const broker = brokerClient(brokerToken, state.abort.signal);
+  try {
+    mkdirSync(base, {recursive: false, mode: 0o2770});
+    mkdirSync(projectDir, {mode: 0o2770});
+    await mapIO(task.project.files, async file => {
+      const full = projectPath(projectDir, file.path);
+      mkdirSync(dirname(full), {recursive: true, mode: 0o2770});
+      const bytes = await broker.read(file);
+      writeFileSync(full, bytes, {flag: 'wx', mode: 0o660});
+    });
+    // The broker bearer never reaches disk, native Node, Chromium, an argument or an inherited environment.
+    writeFileSync(join(base, 'request.json'), canonical(task), {flag: 'wx', mode: 0o640});
+    state.abort.signal.throwIfAborted();
+    await launcher('/run', {taskId: task.taskId});
+    state.abort.signal.throwIfAborted();
+    const result = parseCanonicalJson(readFileSync(join(base, 'result.json')));
+    const {report, localOutputs} = result;
+    if (report.nativeCommit !== NATIVE_COMMIT || report.projectHash !== await nativeProjectHash(task.project)
+      || report.inputSourceSha256 !== task.project.files.find(file => file.path === 'index.html').sha256
+      || canonical(report.composition) !== canonical(task.project.composition) || report.pageErrors?.length !== 0
+      || report.timelineDurationSeconds !== task.project.composition.durationSeconds || report.timelinePaused !== true
+      || report.frames !== (task.mode === 'export' ? task.project.composition.durationSeconds * 30 : 0)
+      || !Array.isArray(localOutputs) || localOutputs.length > 530) throw Error('NATIVE_RESULT_INVALID');
+    const prefix = `renders/${task.renderId}/attempts/${task.taskId}/out/`;
+    const outputs = await mapIO(localOutputs, async output => {
+      assertNativePath(output.name);
+      const full = realpathSync(output.path), inside = relative(base, full);
+      if (!inside || inside.startsWith('../') || inside.startsWith('/') || !statSync(full).isFile() || statSync(full).size > 50_000_000) throw Error('NATIVE_OUTPUT_PATH_INVALID');
+      const bytes = readFileSync(full);
+      if (bytes.length !== output.byteLength || sha256Bytes(bytes) !== output.sha256) throw Error('NATIVE_OUTPUT_IDENTITY_MISMATCH');
+      const blob = await broker.write(prefix + output.name, bytes, output.mediaType);
+      return {name: output.name, ...blob};
+    });
+    if (task.mode === 'export') {
+      const files = localOutputs.filter(output => output.projectPath).map(output => {
+        const blob = outputs.find(item => item.name === output.name);
+        return {path: output.projectPath, key: blob.key, sha256: blob.sha256, byteLength: blob.byteLength, mediaType: blob.mediaType};
+      });
+      const renderedProject = {...task.project, files};
+      assertNativeProject(renderedProject);
+      outputs.push({name: 'rendered-project.json', ...await broker.write(prefix + 'rendered-project.json', Buffer.from(canonical(renderedProject)), 'application/json')});
+      report.renderedProjectHash = await nativeProjectHash(renderedProject);
+    }
+    outputs.push({name: 'report.json', ...await broker.write(prefix + 'report.json', Buffer.from(canonical(report)), 'application/json')});
+    state.result = {status: 'succeeded', outputs, report};
+  } catch (error) {
+    state.result = {status: state.abort.signal.aborted ? 'cancelled' : 'failed', error: {code: safeCode(error.message), ...(error.detail ? {detail: error.detail} : {})}};
+    await launcher('/cancel').catch(() => {});
+  } finally {
+    brokerToken = null;
+    // The task container is stopped by its DO after a terminal receipt; no next task can reuse its directory.
+    rmSync(base, {recursive: true, force: true});
+  }
 }
 
 const server = http.createServer(async (request, response) => {
+  const send = (status, value) => response.writeHead(status, {'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff'}).end(canonical(value));
   try {
+    // Browser-origin requests cannot invoke controller operations, even from a hostile file:// composition.
+    if (request.headers.origin || request.headers['sec-fetch-site']) return send(403, {error: 'BROWSER_REQUEST_FORBIDDEN'});
     if (request.method === 'GET' && request.url === '/healthz') {
-      response.writeHead(200, {'content-type':'application/json'}).end(canonical({status:'ready',memoryPeak:memoryHealth()})); return;
+      const ready = existsSync('/run/promobento/native.sock');
+      return send(ready ? 200 : 503, {ok: ready, runtime: 'huashu-motion', nativeCommit: NATIVE_COMMIT});
     }
-    if (request.method === 'GET' && request.url === '/result') { response.writeHead(200, {'content-type': 'application/json'}).end(canonical(result ?? {status: 'idle'})); return; }
-    if (request.method !== 'POST' || !['/task', '/studio/frame','/studio/check','/studio/benchmark','/studio/isolation'].includes(request.url)) { response.writeHead(404).end(); return; }
+    if (request.method === 'GET' && request.url === '/result') return send(200, current?.result || {status: current ? 'running' : 'idle'});
+    if (request.method !== 'POST' || !/^application\/json(?:;|$)/i.test(request.headers['content-type'] || '')) return send(404, {error: 'NOT_FOUND'});
+    if (request.url === '/cancel') {
+      current?.abort.abort(); await launcher('/cancel').catch(() => {});
+      return send(200, {status: 'cancelling'});
+    }
+    if (request.url !== '/task') return send(404, {error: 'NOT_FOUND'});
+    if (current) return send(409, {error: 'CONTAINER_ALREADY_USED'});
     const chunks = []; let size = 0;
-    for await (const chunk of request) { size += chunk.length; if (size > 4 << 20) throw Error('TASK_TOO_LARGE'); chunks.push(chunk); }
+    for await (const chunk of request) { size += chunk.length; if (size > 2 << 20) throw Error('TASK_TOO_LARGE'); chunks.push(chunk); }
     const input = parseCanonicalJson(Buffer.concat(chunks));
-    if (request.url.startsWith('/studio/')) {
-      assertStudioFrame(task,input,Boolean(session&&result?.status==='ready'));
-      if(studioBusy)throw Error('STUDIO_COMMAND_IN_PROGRESS');studioBusy=true;
-      try{
-       if(request.url==='/studio/frame'){
-        const png=await session.frame(input.frameIndex,{format:'png'});response.writeHead(200,{'content-type':'image/png'}).end(png);
-       }else if(request.url==='/studio/isolation'){
-        const work=(async()=>{
-         const probes={capture:async()=>{await session.frame(input.frameIndex,{format:'png'});return{passed:true,frameIndex:input.frameIndex};},
-          page:()=>session.isolation(),uid:async()=>{
-          const response=await fetch('http://127.0.0.1:9300/isolation',{method:'POST',signal:AbortSignal.timeout(5000),
-           headers:{'content-type':'application/json'},body:canonical({fingerprint:sha256Bytes(Buffer.from(task.brokerToken)),tokenByteLength:Buffer.byteLength(task.brokerToken)})});
-          if(!response.ok)throw Error('ISOLATION_LAUNCHER_UNAVAILABLE');return parseCanonicalJson(await response.text());
-         },host:()=>hostIsolation(task,abort.signal)};
-         return collectIsolation({sandbox:session.sandbox,token:task.brokerToken,probes});
-        })();
-        const value=await deadline(work,30000,'ISOLATION_TIMEOUT',()=>abort.abort());
-        response.writeHead(200,{'content-type':'application/json'}).end(canonical(value));
-       }else{
-        const work=request.url==='/studio/check'?checkStudio(session,task,input.frameIndex):benchmarkCapture(session,input.frameIndex,workDirectory,abort.signal);
-        const value=await deadline(work,request.url==='/studio/check'?task.options.frameTimeoutMs:30000,'STUDIO_TOOL_TIMEOUT',()=>abort.abort());
-        response.writeHead(200,{'content-type':'application/json'}).end(canonical(value));
-       }
-      }finally{studioBusy=false;}
-      return;
-    }
-    assertTask(input);
-    const identity = digest({...input, brokerToken: null});
-    if (task && identity !== requestHash) { response.writeHead(409).end('TASK_ALREADY_BOUND'); return; }
-    if (!task) {
-      task = input; requestHash = identity; result = {status: 'active', taskId: input.taskId};
-      const limit = input.mode === 'studio' ? 20 * 60000 : input.mode === 'shard' ? (input.shard.end - input.shard.start) * (input.instance === 'standard-4' ? 6000 : 1000) + 60000 : 300000;
-      void deadline(execute(input), limit, 'RENDER_DEADLINE', () => abort.abort()).then(value => { if (value) result = value; },
-        async error => {
-          const code=error.message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR',diagnostic=renderFailureDiagnostic(error);
-          const broker=brokerClient(input.brokerToken,AbortSignal.any([abort.signal,AbortSignal.timeout(3000)]));
-          const privateFailure=code==='RENDER_INTERNAL_ERROR'&&diagnostic.phase==='runtime_ready'
-            ? await savePrivateFailure(error,input,(...args)=>broker.write(...args)) : null;
-          result = {status: 'failed', taskId: input.taskId, code,diagnostic,
-          ...(privateFailure?{privateFailure}:{}),
-          ...(error.audioValidation?{audioValidation:error.audioValidation}:{}),
-          ...(error.bitrateCorrection?{bitrateCorrection:error.bitrateCorrection}:{})}; })
-        .finally(() => { if (input.mode !== 'studio') { stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); } });
-    }
-    response.writeHead(202, {'content-type': 'application/json'}).end(canonical({taskId: task.taskId, status: result.status}));
-  } catch (error) { response.writeHead(422).end(/^[A-Z][A-Z0-9_]+$/.test(error.message) ? error.message : 'TASK_INVALID'); }
+    if (!idOk(input.taskId) || !idOk(input.renderId) || !['preview', 'export'].includes(input.mode)) throw Error('NATIVE_TASK_INVALID');
+    assertNativeProject(input.project);
+    if (input.mode === 'preview') frameTimes(input.project.composition, input.frames);
+    if (typeof input.brokerToken !== 'string' || !input.brokerToken || input.brokerToken.length > 16384) throw Error('BROKER_TOKEN_REQUIRED');
+    const task = {taskId: input.taskId, renderId: input.renderId, mode: input.mode, project: input.project, ...(input.frames == null ? {} : {frames: input.frames})};
+    current = {abort: new AbortController(), result: null};
+    void execute(task, input.brokerToken, current);
+    return send(202, {status: 'running', taskId: input.taskId});
+  } catch (error) { return send(400, {error: safeCode(error.message)}); }
 });
 server.listen(8080, '0.0.0.0');
-const stop = async () => {
-  abort.abort(); await session?.close().catch(() => {}); await launch('kill').catch(() => {});
-  server.close(); server.closeAllConnections(); stored.clear(); if (workDirectory) rmSync(workDirectory, {recursive: true, force: true}); process.stdin.pause();
-};
+const stop = async () => { current?.abort.abort(); await launcher('/cancel').catch(() => {}); server.close(); process.stdin.pause(); };
 for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, stop);
 process.stdin.on('data', data => { if (String(data).includes('terminate\n')) void stop(); });

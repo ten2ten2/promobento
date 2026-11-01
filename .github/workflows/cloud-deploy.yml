@@ -1,29 +1,35 @@
-name: Deploy S1 staging
+name: Deploy native staging
 on:
   workflow_dispatch:
-  workflow_call:
     inputs:
-      reuse_deployment:
+      action:
+        description: Deploy staging or inspect an existing operation without deploying
+        type: choice
+        options:
+          - deploy
+          - inspect
+        default: deploy
+        required: true
+      deployed_sha:
+        description: Source SHA of the existing deployment (inspect only)
         type: string
         default: ''
       inspect_run:
+        description: Existing run ID for diagnostic attribution (inspect only)
         type: string
         default: ''
       inspect_operation:
-        type: string
-        default: ''
-      reconcile_operation:
+        description: Existing operation ID to inspect (inspect only)
         type: string
         default: ''
       renderer_sha:
+        description: Optional source SHA of an unchanged native renderer image
         type: string
         default: ''
       renderer_digest:
+        description: Optional unchanged native renderer image digest
         type: string
         default: ''
-      scenario:
-        type: string
-        default: engineering
 permissions:
   contents: read
 concurrency:
@@ -31,21 +37,20 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ inputs.scenario == 'g1-performance' && 60 || 30 }}
+    timeout-minutes: 30
     environment: staging
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       STAGING_URL: https://promobento-staging.woffordvivian.workers.dev
-      DEPLOYED_SHA: ${{ inputs.reuse_deployment || github.sha }}
+      DEPLOYED_SHA: ${{ inputs.deployed_sha || github.sha }}
       INSPECT_RUN: ${{ inputs.inspect_run }}
       INSPECT_OPERATION: ${{ inputs.inspect_operation }}
-      RECONCILE_OPERATION: ${{ inputs.reconcile_operation }}
       RENDERER_SHA: ${{ inputs.renderer_sha }}
       RENDERER_DIGEST: ${{ inputs.renderer_digest }}
-      STAGING_SCENARIO: ${{ inputs.scenario || 'engineering' }}
-      EXPECTED_DIRECTOR_PREFLIGHT_CODE: ${{ inputs.scenario == 'director-preflight' && 'MODEL_HISTORY_RECONCILIATION_REQUIRED' || '' }}
+      STAGING_ACTION: ${{ inputs.action }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -55,17 +60,38 @@ jobs:
         with:
           version: 2026.10.13
           cache: false
+      - name: Check explicit deployment or inspection inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOYED_SHA" =~ ^[a-f0-9]{40}$ ]]
+          if [[ "$STAGING_ACTION" == inspect ]]; then
+            [[ "$INSPECT_RUN" =~ ^[0-9]{8,20}$ ]]
+            [[ "$INSPECT_OPERATION" =~ ^[A-Za-z0-9_-]{4,96}$ ]]
+            test -z "$RENDERER_SHA"
+            test -z "$RENDERER_DIGEST"
+          else
+            test "$STAGING_ACTION" = deploy
+            test -z "$INSPECT_RUN"
+            test -z "$INSPECT_OPERATION"
+            if [[ -n "$RENDERER_DIGEST" ]]; then
+              [[ "$RENDERER_SHA" =~ ^[a-f0-9]{40}$ ]]
+              [[ "$RENDERER_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+            else
+              test -z "$RENDERER_SHA"
+            fi
+          fi
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-        if: inputs.reuse_deployment == '' && inputs.inspect_run == '' && inputs.renderer_digest == ''
+        if: inputs.action == 'deploy' && inputs.renderer_digest == ''
       - name: Install pinned dependencies and precompile validators
         run: mise run install && mise run build:validators
-      - name: Apply staging migration
-        if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
+      - name: Apply additive staging migrations
+        if: inputs.action == 'deploy'
         run: |
           mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-staging --env staging --remote
           mise exec -- pnpm --filter @promobento/cloud exec wrangler d1 migrations apply promobento-model-ledger --env staging --remote
-      - name: Build and push renderer, deploy Worker
-        if: inputs.reuse_deployment == '' && inputs.inspect_run == ''
+      - name: Build native renderer and deploy Worker
+        if: inputs.action == 'deploy'
         shell: bash
         run: |
           set -euo pipefail
@@ -75,42 +101,23 @@ jobs:
             mise exec -- node apps/cloud/scripts/prepare-worker-deploy.mjs
             mise exec -- pnpm --filter @promobento/cloud exec wrangler deploy --env staging --config "$WORKER_CONFIG" 2>&1 | tee artifacts/staging/deploy.log
           else
-            test -z "$RENDERER_SHA"
             mise exec -- pnpm --filter @promobento/cloud exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/deploy.log
           fi
           printf '%s\n' "$GITHUB_SHA" > artifacts/staging/deployed-sha.txt
-          url=$(grep -oE 'https://promobento-staging\.[a-z0-9-]+\.workers\.dev' artifacts/staging/deploy.log | head -1)
-          test -n "$url"
-          echo "STAGING_URL=$url" >> "$GITHUB_ENV"
-      - name: Bind a masked run-only internal key
-        if: inputs.inspect_run == ''
+      - name: Bind a masked run-only internal key for readback
+        if: inputs.action == 'deploy'
         shell: bash
         run: |
-          [[ "$DEPLOYED_SHA" =~ ^[a-f0-9]{40}$ ]]
-          mkdir -p artifacts/staging
-          printf '%s\n' "$DEPLOYED_SHA" > artifacts/staging/deployed-sha.txt
+          set -euo pipefail
           key=$(openssl rand -hex 32)
           echo "::add-mask::$key"
           echo "EVAL_API_KEY=$key" >> "$GITHUB_ENV"
           printf '%s' "$key" | mise exec -- pnpm --filter @promobento/cloud exec wrangler secret put EVAL_API_KEY --env staging
-      - name: Run only the selected staging scenario
-        if: inputs.inspect_run == '' && inputs.scenario != 'deploy-only'
-        run: mise exec -- node apps/cloud/scripts/smoke-render.mjs
-      - name: Read deployed health and budget without starting an operation
-        if: inputs.inspect_run == '' && inputs.scenario == 'deploy-only'
+      - name: Read deployed health, idle capacity and budget without creating an operation
+        if: inputs.action == 'deploy'
         run: mise exec -- node apps/cloud/scripts/deployment-health.mjs
-      - name: Read-only diagnosis of a prior staging run
-        if: inputs.inspect_run != ''
-        run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
-      - name: Preserve failed render diagnosis without another render
-        if: failure() && inputs.inspect_run == '' && inputs.scenario != 'deploy-only' && inputs.scenario != 'g1-performance' && inputs.scenario != 'g1-2d-performance' && inputs.scenario != 'g1-selection' && inputs.scenario != 'g1-isolation' && env.EVAL_API_KEY != ''
-        env:
-          INSPECT_RUN: ${{ github.run_id }}
-        run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
-      - name: Collect new WebGL movie costs without another render
-        if: success() && inputs.inspect_run == '' && inputs.scenario == 'webgl-film'
-        env:
-          INSPECT_RUN: ${{ github.run_id }}
+      - name: Read-only inspection of an existing operation
+        if: inputs.action == 'inspect'
         run: mise exec -- node apps/cloud/scripts/inspect-render.mjs
       - name: Revoke the run-only internal key
         if: always() && env.EVAL_API_KEY != ''
@@ -118,6 +125,6 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
-          name: s1-staging-deployment
+          name: native-staging-deployment
           path: artifacts/staging/
           if-no-files-found: warn

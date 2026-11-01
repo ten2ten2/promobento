@@ -1,4 +1,4 @@
-import {sha256Bytes} from '@promobento/contracts/digest';
+import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
 
 /** Token lives only in this closure, not files, URLs, child environments, or diagnostics. */
 export function brokerClient(token, signal) {

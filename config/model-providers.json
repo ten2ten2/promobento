@@ -130,10 +130,10 @@
     "facts": "modelswitch/deepseek-v4.1-flash-1017",
     "assets": "modelswitch/deepseek-v4.1-flash-1017",
     "directions": "modelswitch/deepseek-v4.1-flash-1017",
-    "spec": "modelswitch/claude-opus-5-5",
-    "scenes": "modelswitch/claude-opus-5-5",
     "review": "modelswitch/deepseek-v4.1-flash-1017",
     "coldReview": "modelswitch/deepseek-v4.1-flash-1017",
-    "triage": "modelswitch/deepseek-v4.1-flash-1017"
+    "triage": "modelswitch/deepseek-v4.1-flash-1017",
+    "treatment": "modelswitch/claude-opus-5-5",
+    "author": "modelswitch/claude-opus-5-5"
   }
 }

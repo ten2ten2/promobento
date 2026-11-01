@@ -2,7 +2,7 @@
   "name": "promobento",
   "version": "0.0.0",
   "private": true,
-  "description": "PromoBento contracts, repository checks and the cloud motion pipeline (v3 plan: docs/plans/cloud-motion-v3.md).",
+  "description": "PromoBento native huashu-motion authoring and Cloudflare control plane.",
   "type": "module",
   "packageManager": "pnpm@12.14.0",
   "engines": {
@@ -12,11 +12,11 @@
     "check:repo": "pnpm run build:validators && node scripts/check-repo.mjs",
     "check:contracts": "pnpm run build:validators && node scripts/check-production-contracts.mjs",
     "test": "pnpm run build:validators && node scripts/run-tests.mjs",
-    "build:film-runtime": "node scripts/build-film-runtime.mjs",
-    "test:browser": "node apps/render-container/tests/browser.render.test.mjs",
-    "test:cloud-local": "node scripts/run-cloud-mock.mjs",
+    "test:browser": "node apps/render-container/tests/native.render.test.mjs",
+    "test:cloud-local": "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
-    "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"
+    "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck",
+    "test:native": "pnpm run build:validators && node --test packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-budget.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/png.test.mjs packages/methods/directing.test.mjs"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*",

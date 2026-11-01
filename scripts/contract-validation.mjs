@@ -9,7 +9,7 @@ import {
   targets as contractTargets, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity,
   variantIdentity as contractVariantIdentity, artifactIdentity as contractArtifactIdentity,
   outputArtifactIdentity as contractOutputArtifactIdentity, qaInputIdentity as contractQaInputIdentity,
-  sourceBuildErrors, revisionEnvironmentErrors, safePath, filmCompositionErrors
+  sourceBuildErrors, revisionEnvironmentErrors, safePath
 } from '../packages/contracts/index.mjs';
 export {canonical, digest, parseCanonicalJson, factVersionKey, factContentIdentity, resourceContentIdentity, contentIdentity, audioIdentity, safePath};
 const ROOT = new URL('../', import.meta.url);
@@ -407,10 +407,7 @@ export function semanticErrors(v, context = {}) {
     }
     errors.push(...revisionEnvironmentErrors(restored ?? context.baseComposition,v));
   }
-  if(v.kind==='composition'&&context.newCreativeWrite)fail(v.identityVersion===2&&v.capabilityProfile==='film-v1','FILM_PROFILE_REQUIRED');
-  if(v.kind==='composition'&&v.identityVersion===2&&context.filmSource!==undefined)
-    errors.push(...filmCompositionErrors(v,{...context,presetConfig:rules,
-      resourceManifest:context.resourceManifest??own(context.resourceManifests,v.resourceManifestHash)}));
+  if(v.kind==='composition'&&context.newCreativeWrite)errors.push('LEGACY_COMPOSITION_READ_ONLY');
   if (v.kind === 'create_project_request' && v.requestTrial && context.role !== undefined) fail(context.role === 'owner', 'TRIAL_OWNER_REQUIRED');
   if (context.production) fail(v.exampleOnly !== true, 'FIXTURE_IN_PRODUCTION');
   if ('totalFrames' in v) fail(v.totalFrames === v.durationSeconds * 30, 'DURATION_FRAME_MISMATCH');
@@ -522,11 +519,7 @@ export function semanticErrors(v, context = {}) {
           const build = own(context.sourceBuilds,variant.targetId);
           if (!build) continue;
           fail(build.exampleOnly !== true, 'FIXTURE_SOURCE_BUILD_IN_PRODUCTION');
-          if(source.identityVersion===2){
-            if(variant===source.variants[0])errors.push(...filmCompositionErrors(source,{filmSource:build.filmSource,presetConfig:rules,
-              factManifest:context.factManifest,resourceManifest:own(context.resourceManifests,source.resourceManifestHash)}));
-            continue;
-          }
+          if(source.identityVersion===2){ errors.push('LEGACY_RENDERER_REQUIRED'); continue; }
           fail(Array.isArray(build.editables) && !!build.values, 'SOURCE_VALUES_OBSERVATION_REQUIRED');
           if (!Array.isArray(build.editables) || !build.values) continue;
           fail(new Set(build.editables.map(item => item.id)).size === build.editables.length, 'DUPLICATE_EDITABLES');

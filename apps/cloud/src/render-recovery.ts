@@ -15,7 +15,7 @@ async function stopAttempts(env:PipelineEnv,attempts:Array<{id:string}>){
  return stopped.filter(result=>result.status==='rejected').length;
 }
 
-export async function advanceRenderStage(env:PipelineEnv,renderId:string,op:Operation,status:'sharding'|'verifying'|'assembling'){
+export async function advanceRenderStage(env:PipelineEnv,renderId:string,op:Operation,status:'rendering'|'verifying'){
  const updated=await env.DB.prepare("UPDATE pipeline_renders SET status=? WHERE id=? AND operation_id=? AND generation=? AND status NOT IN ('passed','blocked','cancelled') AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')")
   .bind(status,renderId,op.id,op.generation,op.id,op.generation).run();
  if(updated.meta.changes!==1)throw Error('OPERATION_FENCED');
@@ -79,8 +79,10 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
 }
 
 export async function dispatchRender(env:PipelineEnv,item:Json){
+ const payload=parseCanonicalJson(item.payloadJson) as Json;
+ if(payload.engine!=='huashu')return;
  const row=await env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=?').bind(item.id.slice('render-'.length)).first<Json>();
- if(!row||row.operation_id!==item.operationId)throw Error('OUTBOX_SCOPE_INVALID');
+ if(!row||row.operation_id!==item.operationId||payload.renderId!==row.id)throw Error('OUTBOX_SCOPE_INVALID');
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Json>();
  if(terminal.has(row.status)||!op||op.status!=='active'||op.generation!==row.generation)return;
  const tracked=await registerWorkflow(env,'render',row.id,row.operation_id,row.generation);

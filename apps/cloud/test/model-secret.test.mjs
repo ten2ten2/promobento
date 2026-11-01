@@ -1,7 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {canonical} from '@promobento/contracts/canonical';
-import {bindModelSecret} from '../scripts/bind-model-secret.mjs';
+import {NATIVE_RUNTIME_COMMIT} from '@promobento/contracts/native-project';
+import {bindModelSecret,nativeWorkerHealthy} from '../scripts/bind-model-secret.mjs';
+
+test('staging model key maintenance admits only the pinned native Worker health contract',async()=>{
+ const native={ok:true,protocol:'1.0.0',runtime:'huashu-motion',nativeCommit:NATIVE_RUNTIME_COMMIT};
+ const check=(body,status=200)=>nativeWorkerHealthy(async(url,options)=>{
+  assert.equal(url,'https://promobento-staging.woffordvivian.workers.dev/healthz');
+  assert.equal(options.cache,'no-store');
+  return new Response(typeof body==='string'?body:canonical(body),{status});
+ });
+ assert.equal(await check(native),true);
+ for(const invalid of [{...native,ok:false},{...native,protocol:'3.0.0'},{...native,runtime:'legacy'},
+  {...native,nativeCommit:'0'.repeat(40)},{ok:true,protocol:'1.0.0'},'not-json'])assert.equal(await check(invalid),false);
+ assert.equal(await check(native,503),false);
+ assert.equal(await nativeWorkerHealthy(async()=>{throw Error('SYNTHETIC_OFFLINE');}),false);
+});
 
 test('staging key maintenance uses stdin once, refuses active work, preserves existing keys and rolls back only its own addition',async()=>{
  const fixture=({existing=false,session=false,busy=false,pending=false,writeUnknown=false,badHealth=false}={})=>{

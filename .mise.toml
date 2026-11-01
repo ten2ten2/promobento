@@ -25,20 +25,15 @@ description = "Run Node unit tests in scripts, packages, apps and tests"
 dir = "{{config_root}}"
 run = "pnpm run build:validators && node scripts/run-tests.mjs"
 
-[tasks."build:film-runtime"]
-description = "Build the trusted film page generator, clock shim, OM/clip helpers and trusted blocks"
-dir = "{{config_root}}"
-run = "node scripts/build-film-runtime.mjs"
-
 [tasks."test:browser"]
-description = "Run the offline browser/media check and style sample generation inside the CI image"
+description = "Render real native 15/30 second films and previews inside the isolated CI image"
 dir = "{{config_root}}"
-run = "node apps/render-container/tests/browser.render.test.mjs"
+run = "node apps/render-container/tests/native.render.test.mjs"
 
 [tasks."test:cloud-local"]
-description = "Replay S1 director stages offline through both SSE adapters, SQLite budgets and R2 fixtures"
+description = "Exercise native creation, revisions, exports and durable recovery with offline fixtures"
 dir = "{{config_root}}"
-run = "node scripts/run-cloud-mock.mjs"
+run = "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs"
 
 [tasks."build:validators"]
 description = "Precompile the v3 contract Schemas into standalone validators for Workers"
@@ -46,6 +41,11 @@ dir = "{{config_root}}"
 run = "node packages/contracts/scripts/build-validators.mjs"
 
 [tasks."typecheck"]
-description = "Build validators and type-check the cloud Worker, film runtime and blocks"
+description = "Build validators and type-check the native cloud control plane"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm exec tsc --project packages/film-runtime/tsconfig.json"
+run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
+
+[tasks."test:native"]
+description = "Check native project boundaries, director orchestration, recovery and model accounting"
+dir = "{{config_root}}"
+run = "pnpm run build:validators && node --test packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-budget.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/png.test.mjs packages/methods/directing.test.mjs"

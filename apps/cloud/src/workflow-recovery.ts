@@ -1,4 +1,5 @@
 import {recordRenderFailure,reconcileOperation} from './render-recovery.ts';
+import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {failDirector} from './director-recovery.ts';
 import {registerWorkflow,createTrackedWorkflow,workflowStatus,stopWorkflow,resolveWorkflow,nativeTerminal,type TrackedWorkflow} from './workflow-state.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
@@ -25,7 +26,7 @@ export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status
 
 /** No native restart here: an interrupted paid stage is reconciled, never replayed speculatively. */
 export async function recoverWorkflows(env:PipelineEnv){
- const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE reconciled_at IS NULL ORDER BY COALESCE(last_checked_at,0),registered_at LIMIT 20').all<TrackedWorkflow>();
+ const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE engine=\'huashu\' AND reconciled_at IS NULL ORDER BY COALESCE(last_checked_at,0),registered_at LIMIT 20').all<TrackedWorkflow>();
  const results=[];
  for(const row of rows.results){
   try{await recoverWorkflow(env,row);results.push({kind:row.kind,id:row.id,status:'inspected'});}
@@ -35,6 +36,9 @@ export async function recoverWorkflows(env:PipelineEnv){
 }
 
 export async function dispatchCreative(env:PipelineEnv,item:Json){
+ const payload=parseCanonicalJson(item.payloadJson) as Json;
+ if(payload.engine!=='huashu')return;
+ if(payload.operationId!==item.operationId)throw Error('OUTBOX_SCOPE_INVALID');
  const op=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Operation>();
  if(!op||!['active','awaiting_user'].includes(op.status))return;
  const row=await registerWorkflow(env,'operation',op.id,op.id,op.generation);

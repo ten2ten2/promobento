@@ -1,90 +1,62 @@
-import {isCanvasTextScene} from '@promobento/contracts/canvas-text';
 import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudflare:workers';
-import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {planShards, assertRenderJob,renderDeadlineMs} from '@promobento/contracts/render';
-import {filmSourceHash} from '@promobento/contracts/film-source';
-import {operation, rights, immutableJson, getJson} from './store.ts';
-import {advanceRenderStage,commitRender,recordRenderFailure,renderFailureCode} from './render-recovery.ts';
-import {verifyRenderShards} from './render-verification.ts';
+import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
+import {nativeProjectHash} from '@promobento/contracts/native-project';
+import {operation, getJson} from './store.ts';
+import {advanceRenderStage, commitRender, recordRenderFailure, renderFailureCode} from './render-recovery.ts';
+import {verifyNativeResult} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
-import {runRenderTask,AUDIO_INSTANCE} from './render-task.ts';
-import {checkedBytes,loadCustomSources,verifySourceSfxPlan} from './render-source.ts';
-import policy from '../../../config/agent-policy.json';
-import type {PipelineEnv, Json, BlobRef} from './pipeline-types.ts';
+import {runNativeRenderTask} from './render-task.ts';
+import {verifyNativeInputs, validateFrameTimes, NATIVE_COMMIT} from './native-project.ts';
+import {nativeRenderPolicy} from './native-task.ts';
+import type {PipelineEnv, Json} from './pipeline-types.ts';
 
-export {checkedBytes} from './render-source.ts';
 export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: string}> {
   async run(event: WorkflowEvent<{renderId: string}>, step: WorkflowStep) {
     const row = parseCanonicalJson(await step.do('load-render', async () => {
       const value = await this.env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=?').bind(event.payload.renderId).first<Json>();
-      if (!value) throw Error('RENDER_NOT_FOUND'); return canonical(value);
+      if (!value) throw Error('RENDER_NOT_FOUND');
+      return canonical(value);
     })) as Json;
+    // Immutable source lives in R2; only the pointer is checkpointed, never an entire project in Workflow state.
+    const input = await getJson(this.env, row.job_key);
+    // Refusing an old execution does not rewrite its historical row or consume another reservation.
+    if (input.schemaVersion !== '1.0.0' || input.kind !== 'native_render_request') throw Error('LEGACY_RENDER_REQUIRES_RECONCILIATION');
     try {
-      await step.do('claim-execution',{retries:{limit:0,delay:'1 second'}},async()=>workflowStarted(this.env,'render',row.id,row.operation_id,row.generation));
-      const input = parseCanonicalJson(await step.do('load-input', async () => canonical(await getJson(this.env, row.job_key)))) as Json;
-      assertRenderJob(input.job);
+      await step.do('claim-execution', {retries: {limit: 0, delay: '1 second'}}, async () =>
+        workflowStarted(this.env, 'render', row.id, row.operation_id, row.generation));
       const op = await operation(this.env, row.operation_id, row.generation);
-      if (input.job.operationId !== op.id || input.job.renderId !== row.id) throw Error('RENDER_SCOPE_INVALID');
-      const release = await this.env.DB.prepare('SELECT image_digest FROM renderer_releases WHERE id=? AND status=\'active\'').bind(input.job.rendererRelease).first<{image_digest: string}>();
-      if (!release) throw Error('RENDER_ENVIRONMENT_MISMATCH');
-      const filmBlob = input.inputs.find((blob: BlobRef) => blob.name === 'film'); if (!filmBlob) throw Error('SOURCE_UNAVAILABLE');
-      const raw = await checkedBytes(this.env, filmBlob);
-      const sources=await loadCustomSources(this.env,input.inputs);
-      if (filmSourceHash(raw,sources) !== input.job.sourceHash) throw Error('SOURCE_IDENTITY_MISMATCH');
-      const film = parseCanonicalJson(raw) as Json;
-      await verifySourceSfxPlan(this.env,film,sources,input);
-      const partition = planShards(input.job, film, {seed: input.options.seed});
-      const deadlineAt=await step.do<number>('deadline',async()=>Number(row.created_at)+renderDeadlineMs(input.job,partition,policy.render));
-      const task = async (name: string, mode: string, instance: string, additions: Json): Promise<Json> => {
-        return runRenderTask(this.env,step,{renderId:row.id,op,job:input.job,imageDigest:release.image_digest,deadlineAt},{name,mode,instance,additions});
-      };
-      await step.do('mark-sharding', async () => { await advanceRenderStage(this.env,row.id,op,'sharding');return true; });
-      try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'sharding'}));}catch{}
-      const shardsPromise = Promise.all(partition.shards.map(shard => task('shard-' + shard.index, 'shard', shard.instance,
-        {options: input.options, inputs: input.inputs, shard})));
-      const audioPromise = task('audio', 'audio', AUDIO_INSTANCE, {inputs: input.audioInputsBlobs, audioInputs: input.audioInputs});
-      const [shards, audio] = await Promise.all([shardsPromise, audioPromise]);
-      const output = (result: Json, suffix: string): BlobRef => {
-        const value = result.outputs?.find((blob: BlobRef) => blob.key.endsWith(suffix)); if (!value) throw Error('RENDER_OUTPUT_MISSING'); return value;
-      };
-      const seamReport = parseCanonicalJson(await step.do('verify-shards',{retries:{limit:0,delay:'1 second'}}, async () => {
+      if (input.operationId !== op.id || input.renderId !== row.id || input.runtimeVersion !== NATIVE_COMMIT) throw Error('RENDER_SCOPE_INVALID');
+      await verifyNativeInputs(this.env, input.project);
+      if (await nativeProjectHash(input.project) !== input.revisionId) throw Error('SOURCE_IDENTITY_MISMATCH');
+      validateFrameTimes(input.project, input.mode, input.frames);
+      const release = await this.env.DB.prepare('SELECT image_digest,runtime_version FROM renderer_releases WHERE id=? AND status=\'active\'')
+        .bind(input.rendererRelease).first<{image_digest: string; runtime_version: string}>();
+      if (!release || release.runtime_version !== NATIVE_COMMIT) throw Error('RENDER_ENVIRONMENT_MISMATCH');
+      const deadlineAt = await step.do<number>('native-deadline', async () =>
+        Number(row.created_at) + (input.mode === 'preview' ? nativeRenderPolicy.previewDeadlineMs : nativeRenderPolicy.exportDeadlineMs));
+      await step.do('mark-rendering', async () => {await advanceRenderStage(this.env, row.id, op, 'rendering'); return true;});
+      try {await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId: op.id, renderId: row.id, status: 'rendering'}));} catch {}
+      const rendered = await runNativeRenderTask(this.env, step, {renderId: row.id, op, input, imageDigest: release.image_digest, deadlineAt});
+      return parseCanonicalJson(await step.do('verify-and-commit-native-render', {retries: {limit: 0, delay: '1 second'}}, async () => {
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
-        await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
-        await advanceRenderStage(this.env,row.id,op,'verifying');
-        const seams=await verifyRenderShards({job:input.job,film,partition,shards,imageDigest:release.image_digest,
-          read:blob=>checkedBytes(this.env,blob),output});
-        const report = {schemaVersion: '3.0.0', kind: 'seam_report', renderId: row.id, seams};
-        await immutableJson(this.env, `renders/${row.id}/seams.json`, report); return canonical(report);
-      })) as Json;
-      await step.do('mark-assembling',async()=>{
-        await advanceRenderStage(this.env,row.id,op,'assembling');
-        try{await this.env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:row.id,status:'assembling'}));}catch{}return true;
-      });
-      const assembled = await task('assemble', 'assemble', 'standard-2', {coverFrame: input.coverFrame, inputs: [
-        ...shards.map((result, index) => ({...output(result, '/shard.h264'), name: 'shard:' + index})), {...output(audio, '/mixed.wav'), name: 'audio'},
-        {...output(audio, '/report.json'), name: 'audio-report'}]});
-      return parseCanonicalJson(await step.do('commit-render', {retries:{limit:0,delay:'1 second'}}, async () => {
+        await operation(this.env, op.id, op.generation);
+        await advanceRenderStage(this.env, row.id, op, 'verifying');
+        await verifyNativeResult(this.env, input, rendered);
+        const result = {kind: 'native_render_result', renderId: row.id, revisionId: input.revisionId,
+          mode: input.mode, status: 'passed', outputs: rendered.outputs, report: rendered.report,
+          attemptId: rendered.attemptId, environmentHealth: rendered.environmentHealth ?? null,
+          lifecycleTimings: rendered.lifecycleTimings ?? null};
+        const serialized = canonical(result);
         if (Date.now() >= deadlineAt) throw Error('RENDER_DEADLINE');
-        await operation(this.env, op.id, op.generation); await rights(this.env, op, input.job.resources);
-        const peakMemory = {status: shards.some(result=>result.report.peakMemoryMiB===null)?'unverified':'measured',
-          measurements: shards.map(result=>({shardIndex:result.report.shardIndex,peakMemoryMiB:result.report.peakMemoryMiB,
-            ...(result.report.peakMemoryMiB===null?{peakMemoryUnavailableReason:result.report.peakMemoryUnavailableReason}:{})}))};
-        const result = {renderId: row.id, status: 'passed', outputs: assembled.outputs, media: assembled.report, seamReport, peakMemory,
-          observationFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/observation-frames/'))),
-          motionFrames: shards.flatMap(result => result.outputs.filter((blob: BlobRef) => blob.key.includes('/motion-frames/'))),
-          ...(film.scenes.some((scene:Json)=>isCanvasTextScene(scene))?{canvasTextTraces:shards.map(result=>output(result,'/frame-digests.json'))}:{})};
-        let resultJson: string;
-        try { resultJson=canonical(result); }
-        catch {
-          const invalid=Object.entries(result).find(([,value])=>{try{canonical(value);return false;}catch{return true;}});
-          throw Error('RENDER_RESULT_'+(invalid?.[0]??'root').replace(/([a-z])([A-Z])/g,'$1_$2').toUpperCase()+'_NOT_JSON');
-        }
-        await commitRender(this.env,row.id,op,resultJson);return resultJson;
+        await operation(this.env, op.id, op.generation);
+        await commitRender(this.env, row.id, op, serialized);
+        return serialized;
       })) as Json;
     } catch (error) {
-      const code=renderFailureCode(error);
-      await step.do('fail-render',{retries:{limit:3,delay:'1 second',backoff:'exponential'},timeout:'1 minute'},async()=>{
-        await recordRenderFailure(this.env,row.id,code);return true;
+      const code = renderFailureCode(error);
+      await step.do('fail-render', {retries: {limit: 3, delay: '1 second', backoff: 'exponential'}, timeout: '1 minute'}, async () => {
+        await recordRenderFailure(this.env, row.id, code);
+        return true;
       });
       throw error;
     }

@@ -6,21 +6,10 @@
   "enabled": false,
   "requiresModelAndCostCalibration": true,
   "limits": {
-    "globalShardInstances": 64,
-    "workspaceShardInstances": 24,
-    "shardsPerRender": 6,
-    "shardsPerRenderWebgl": 24,
-    "globalStudioInstances": 32,
-    "globalAssetInstances": 8,
     "maxInternalRepairs": 2,
-    "maxRenderAttempts": 3,
-    "initTimeoutMs": 30000,
-    "frameTimeoutMs": 5000,
-    "frameTimeoutWebglMs": 10000,
     "requestTimeoutMs": 600000,
     "awaitingUserHours": 24,
-    "temporaryPreviewHours": 72,
-    "frameTimeoutScope": "final_frame_including_all_samples_composite_and_readback"
+    "temporaryPreviewHours": 72
   },
   "cost": {
     "unit": "usd_micros",
@@ -214,42 +203,10 @@
     "profileVersion": "qa-v1",
     "checkerVersion": "quality-engine-v1"
   },
-  "renderProfileSelection": {
-    "defaultProfile": "standard",
-    "experimentalProfiles": [
-      "motion4",
-      "motion8"
-    ],
-    "experimentalEnabled": false,
-    "requiresMeasuredBudget": true,
-    "selector": "trusted_controller"
-  },
-  "render": {
-    "containerStartupMs": 45000,
-    "startupMs": 30000,
-    "startupWebglMs": 60000,
-    "frameTimeoutMs": 5000,
-    "frameTimeoutWebglMs": 10000,
-    "perFrameBasisMs": 1000,
-    "perFrameBasisWebglMs": 6000,
-    "shardOverheadMs": 30000,
-    "assembleMs": 60000,
-    "reencodeBaseMs": 60000,
-    "reencodePerFrameMs": 200,
-    "totalMs": {
-      "final30": 240000,
-      "final15": 150000,
-      "review": 180000,
-      "webglExtra": 120000
-    },
-    "captureFormat": "jpeg92",
-    "source": "docs/plans/cloud-motion-v3.md#53-期限"
-  },
   "director": {
-    "source": "docs/plans/cloud-motion-v3.md#611-预算限制与-effort",
+    "source": "packages/methods/directing.ts",
     "activeTimeoutMs": {
-      "creative": 1200000,
-      "internalCustomEvaluation": 1800000
+      "creative": 1200000
     },
     "steps": {
       "facts": {
@@ -267,17 +224,6 @@
         "maxMicros": 400000,
         "effort": "high"
       },
-      "spec": {
-        "maxCalls": 3,
-        "maxMicros": 400000,
-        "effort": "high"
-      },
-      "scenes": {
-        "maxCallsPerScene": 12,
-        "maxMicrosPerScene": 350000,
-        "effort": "high",
-        "inputMode": "asset-insights"
-      },
       "review": {
         "maxCalls": 6,
         "maxMicros": 300000,
@@ -292,6 +238,17 @@
         "maxCalls": 1,
         "maxMicros": 10000,
         "effort": "low"
+      },
+      "treatment": {
+        "maxCalls": 3,
+        "maxMicros": 400000,
+        "effort": "high"
+      },
+      "author": {
+        "maxCalls": 12,
+        "maxMicros": 350000,
+        "effort": "high",
+        "inputMode": "asset-insights"
       }
     },
     "wallClockMinutes": {

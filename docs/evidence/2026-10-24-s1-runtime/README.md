@@ -27,7 +27,7 @@
 
 ### 云端源码传输与四画幅 studio 已通过
 
-[40328040010](https://github.com/ten2ten2/promobento/actions/runs/40328040010) 在 `3aaa64692f11b1c6a004f77bee2ea360f4cba6dd` 由 Actions 构建/推送镜像 `sha256:5d32d143cb98ab946bde9f0bdaf3724df68536d83739e6bcab791ff5d6d7f28c` 并部署 staging。运行时输入沿用上一节的已验证实现；本轮D按图片模式输入；当前文本asset-insights合同及模型绑定见[cloud README](../../../apps/cloud/README.md#导演选择结构d-实现自写镜头)，不将旧输入模式写成当前默认。
+[40328040010](https://github.com/ten2ten2/promobento/actions/runs/40328040010) 在 `3aaa64692f11b1c6a004f77bee2ea360f4cba6dd` 由 Actions 构建/推送镜像 `sha256:5d32d143cb98ab946bde9f0bdaf3724df68536d83739e6bcab791ff5d6d7f28c` 并部署 staging。运行时输入沿用上一节的已验证实现；本轮D按图片模式输入；当前文本asset-insights合同及模型绑定见[cloud README](https://github.com/ten2ten2/promobento/blob/c78a51fa748b3029058119b00874b9043f499da0/apps/cloud/README.md#导演选择结构d-实现自写镜头)，不将旧输入模式写成当前默认。
 
 [原始云端报告](cloud-custom-report-40328040010.json)：八个独立 studio 实例，四画幅的 0/36/180/330/449 帧逆序及新实例冷 180 帧共 24 次比较全零差异，原始模块经私有 R2/broker 传输并核对源码身份。实际阅读停留没有 BLOCK；四画幅各保留一条 text-covered REVIEW，实际 PNG 中可见文字未被遮住，未将该观察删除或改为零发现。已看真实竖屏 180 帧。
 

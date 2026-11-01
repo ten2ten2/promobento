@@ -4,7 +4,7 @@ import {mkdtempSync,readFileSync,rmSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
-import {pngRgba} from '@promobento/contracts/seams';
+import {pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedWebImages,downloadApprovedImage} from './capture-approved-web-images.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
