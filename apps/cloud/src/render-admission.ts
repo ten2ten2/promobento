@@ -384,11 +384,13 @@ export async function requeueRenderAfterAttempt(env: PipelineEnv, op: Operation,
 
 /** Reconcile a ticket that was admitted but never started, including cancelled operations. */
 export async function stopRenderAdmissions(env: PipelineEnv, renderId: string) {
-  const rows = await env.DB.prepare("SELECT id,lease_token FROM pipeline_render_admissions WHERE render_id=? AND status IN ('admitted','running')")
-    .bind(renderId).all<{id: string; lease_token: string}>();
+  const rows = await boundedAdmission(env.DB.prepare("SELECT id,lease_token FROM pipeline_render_admissions WHERE render_id=? AND status IN ('admitted','running')")
+    .bind(renderId).all<{id: string; lease_token: string}>());
   const stopped = await Promise.allSettled(rows.results.map(async row => {
-    await env.SHARDS.getByName(row.id).stopAndSettle();
-    await coordinator(env).release(row.id, row.lease_token);
+    // Both barriers are remote. A stuck stop must keep its lease counted, not
+    // prevent unrelated tickets from completing their notification round.
+    await boundedAdmission(env.SHARDS.getByName(row.id).stopAndSettle());
+    await boundedAdmission(coordinator(env).release(row.id, row.lease_token));
   }));
   if (stopped.some(item => item.status === 'rejected')) throw Error('COMPUTE_STOP_UNCONFIRMED');
 }

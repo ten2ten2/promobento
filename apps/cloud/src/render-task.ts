@@ -97,6 +97,32 @@ async function confirmedUnstartedAttempt(env: PipelineEnv, op: Operation, render
   return Boolean(row);
 }
 
+/** A checkpointed transport failure must also be readable by a replayed preflight.
+ * This is only fallback evidence; the Shard's result_json always takes priority. */
+async function rememberFailureReason(env: PipelineEnv, op: Operation, renderId: string,
+  attemptId: string, index: number, mode: string, leaseToken: string, code: string) {
+  for (let tries = 0; tries < 2; tries++) {
+    try {
+      await bounded(env.DB.prepare(`UPDATE pipeline_attempts SET recovery_code=COALESCE(recovery_code,?)
+        WHERE id=? AND render_id=? AND operation_id=? AND generation=? AND mode=?
+          AND status IN ('active','stopped') AND EXISTS(SELECT 1 FROM pipeline_render_admissions a
+            WHERE a.id=pipeline_attempts.id AND a.render_id=? AND a.operation_id=?
+              AND a.generation=? AND a.workspace_id=? AND a.attempt_index=?
+              AND a.lease_token=? AND a.status IN ('running','released'))
+          AND EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id
+            WHERE r.id=pipeline_attempts.render_id AND r.generation=pipeline_attempts.generation
+              AND r.status IN ('rendering','verifying') AND o.status='active' AND o.generation=r.generation)`)
+        .bind(code, attemptId, renderId, op.id, op.generation, 'native_' + mode,
+          renderId, op.id, op.generation, op.workspace_id, index, leaseToken).run());
+      return;
+    } catch (error) {
+      if (!isUnknownRecovery(error)) throw error;
+      // D1 may be unavailable; never treat an unconfirmed write as a failure
+      // or a reason to start a second physical attempt.
+    }
+  }
+}
+
 /** A lost Shard RPC can leave its durable success ahead of the D1 attempt row. */
 async function reconcileShardSuccess(env: PipelineEnv, op: Operation, renderId: string,
   attemptId: string, index: number, mode: string): Promise<Recovered> {
@@ -161,11 +187,31 @@ async function reconcileShardSuccess(env: PipelineEnv, op: Operation, renderId: 
     throw error;
   }
   if (!changed.meta.changes) {
-    const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, mode);
-    if (completed) return completed;
+    try {
+      const completed = await bounded(completedRenderAttempt(env, op, renderId, attemptId, index, mode));
+      if (completed) return completed;
+    } catch (error) {
+      if (isUnknownRecovery(error)) return outcomePending;
+      throw error;
+    }
     throw Error('RENDER_ATTEMPT_OUTCOME_CONFLICT');
   }
   return {...result, attemptId};
+}
+
+/** A temporary D1 read failure cannot erase an already committed Shard success. */
+async function completedOrRecovered(env: PipelineEnv, op: Operation, renderId: string,
+  attemptId: string, index: number, mode: string): Promise<Recovered> {
+  let readUnknown = false;
+  try {
+    const completed = await bounded(completedRenderAttempt(env, op, renderId, attemptId, index, mode));
+    if (completed) return completed;
+  } catch (error) {
+    if (!isUnknownRecovery(error)) throw error;
+    readUnknown = true;
+  }
+  const recovered = await reconcileShardSuccess(env, op, renderId, attemptId, index, mode);
+  return recovered === null && readUnknown ? outcomePending : recovered;
 }
 
 /** A lost D1 batch response is not evidence that its claim transaction rolled back. */
@@ -180,9 +226,9 @@ async function claimWithRecheck(env: PipelineEnv, op: Operation, input: Json, at
 /** Confirm stop, cost and fencing before converting an absent success into a retryable failure. */
 async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: string, attemptId: string,
   index: number, mode: string, fallbackCode?: string): Promise<Recovered> {
-  let row: {lease_token: string; result_json: string | null} | null;
+  let row: {lease_token: string; result_json: string | null; recovery_code: string | null} | null;
   try {
-    row = await bounded(env.DB.prepare(`SELECT a.lease_token,p.result_json FROM pipeline_attempts p
+    row = await bounded(env.DB.prepare(`SELECT a.lease_token,p.result_json,p.recovery_code FROM pipeline_attempts p
       JOIN pipeline_render_admissions a ON a.id=p.id
       JOIN pipeline_renders r ON r.id=p.render_id JOIN pipeline_operations o ON o.id=p.operation_id
       WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=? AND p.mode=?
@@ -191,12 +237,12 @@ async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: str
         AND r.status IN ('rendering','verifying') AND r.generation=p.generation
         AND o.status='active' AND o.generation=p.generation`)
       .bind(attemptId, renderId, op.id, op.generation, 'native_' + mode, index, op.workspace_id)
-      .first<{lease_token: string; result_json: string | null}>());
+      .first<{lease_token: string; result_json: string | null; recovery_code: string | null}>());
   } catch {return outcomePending;}
   if (!row) return outcomePending;
   const diagnostic = row.result_json ? parseCanonicalJson(row.result_json) as Json : null;
   const code = diagnostic?.status === 'failed' && typeof diagnostic.code === 'string'
-    ? diagnostic.code : fallbackCode;
+    ? diagnostic.code : row.recovery_code ?? fallbackCode;
   // Missing diagnostics from a lost execution coroutine are not proof of failure.
   if (!code) return outcomePending;
   const shard = env.SHARDS.getByName(attemptId);
@@ -233,16 +279,27 @@ async function settleKnownFailure(env: PipelineEnv, op: Operation, renderId: str
         'native_' + mode, row.lease_token, index, op.workspace_id).run());
   } catch {return outcomePending;}
   if (!changed.meta.changes) {
-    const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, mode);
-    if (completed) return completed;
-    const failedCode = await completedFailedAttempt(env, op, renderId, attemptId, index, mode);
+    let completed: Json | null, failedCode: string | null;
+    try {
+      completed = await bounded(completedRenderAttempt(env, op, renderId, attemptId, index, mode));
+      if (completed) return completed;
+      failedCode = await bounded(completedFailedAttempt(env, op, renderId, attemptId, index, mode));
+    } catch (error) {
+      if (isUnknownRecovery(error)) return outcomePending;
+      throw error;
+    }
     if (failedCode) {
       if (retryable.has(failedCode)) return {kind: 'render_platform_retry', code: failedCode, attemptId};
       throw Error(failedCode);
     }
     return outcomePending;
   }
-  const knownCode = await completedFailedAttempt(env, op, renderId, attemptId, index, mode);
+  let knownCode: string | null;
+  try {knownCode = await bounded(completedFailedAttempt(env, op, renderId, attemptId, index, mode));}
+  catch (error) {
+    if (isUnknownRecovery(error)) return outcomePending;
+    throw error;
+  }
   if (!knownCode) return outcomePending;
   if (retryable.has(knownCode)) return {kind: 'render_platform_retry', code: knownCode, attemptId};
   throw Error(knownCode); // Preserve the Shard's durable non-retryable diagnosis.
@@ -386,8 +443,7 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
           // Another continuation may have finished and released this same
           // attempt between the preflight read and the physical claim.
           if (code === 'RENDER_FENCED' || code === 'RENDER_LEASE_FENCED') {
-            const finished = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode)
-              ?? await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
+            const finished = await completedOrRecovered(env, op, renderId, attemptId, index, input.mode);
             if (finished === outcomePending) return canonical({kind: 'render_outcome_pending', attemptId});
             if (finished) return canonical(finished);
           }
@@ -423,12 +479,17 @@ export async function runNativeRenderTask(env: PipelineEnv, step: WorkflowStep, 
           const code = String((error as {message?: unknown})?.message ?? error) === 'Network connection lost.' ? 'RENDER_RPC_CONNECTION_LOST' : renderFailureCode(error);
           // Shard persists success before its RPC return and cleanup. A lost
           // response must not spend another physical attempt if success exists.
-          const completed = await completedRenderAttempt(env, op, renderId, attemptId, index, input.mode)
-            ?? await reconcileShardSuccess(env, op, renderId, attemptId, index, input.mode);
-          if (completed === outcomePending) return canonical({kind: 'render_outcome_pending', code, attemptId});
+          const completed = await completedOrRecovered(env, op, renderId, attemptId, index, input.mode);
+          if (completed === outcomePending) {
+            await rememberFailureReason(env, op, renderId, attemptId, index, input.mode, leaseToken, code);
+            return canonical({kind: 'render_outcome_pending', code, attemptId});
+          }
           if (completed) return canonical(completed);
           const settled = await settleKnownFailure(env, op, renderId, attemptId, index, input.mode, code);
-          if (settled === outcomePending) return canonical({kind: 'render_outcome_pending', code, attemptId});
+          if (settled === outcomePending) {
+            await rememberFailureReason(env, op, renderId, attemptId, index, input.mode, leaseToken, code);
+            return canonical({kind: 'render_outcome_pending', code, attemptId});
+          }
           if (settled) return canonical(settled);
           throw error;
         }

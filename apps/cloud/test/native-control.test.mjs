@@ -439,6 +439,62 @@ test('a Shard success with lost RPC is persisted before deciding on a physical r
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts').get().n, 1);
 });
 
+test('replayed preflight recovers a checkpointed transport failure before a second physical attempt', async t => {
+  const {db, env, op, saved, objects} = await fixture(t);
+  const waitForEvent = fakeAdmission(env);
+  await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+    mode:'preview',rendererRelease:'native-release'});
+  const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+  const cached = new Map();
+  let executions = 0, recoveries = 0, stops = 0, interrupted = false, waits = 0;
+  env.SHARDS = {getByName() {return {
+    async execute() {
+      if (++executions === 1) throw Error('Network connection lost.');
+      return canonical({status:'succeeded',outputs:[],report:{fixture:'second attempt'}});
+    },
+    async recoverCompletedResult() {
+      if (++recoveries <= 4) throw Error('RENDER_RECOVERY_UNAVAILABLE');
+      return null;
+    },
+    async stopAndSettle() {stops++;},
+    async isStopped() {return true;},
+  };}};
+  const step = {
+    async do(name, ...args) {
+      if (!cached.has(name)) cached.set(name, await args.at(-1)());
+      return cached.get(name);
+    },
+    waitForEvent,
+    async sleepUntil() {
+      waits++;
+      if (!interrupted) {interrupted = true; throw Error('SIMULATED_WORKFLOW_REPLAY');}
+    },
+    async sleep() {},
+  };
+  const context = {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)};
+  await assert.rejects(runNativeRenderTask(env, step, context), /SIMULATED_WORKFLOW_REPLAY/);
+  const first = db.prepare('SELECT id,status,recovery_code,result_json FROM pipeline_attempts').get();
+  assert.equal(first.status, 'active');
+  assert.equal(first.recovery_code, 'RENDER_RPC_CONNECTION_LOST');
+  assert.equal(first.result_json, null, 'Workflow diagnostics never masquerade as authoritative Shard results');
+  assert.equal(cached.get('native-project') && parseCanonicalJson(cached.get('native-project')).kind, 'render_outcome_pending');
+
+  const result = await runNativeRenderTask(env, step, context);
+  assert.equal(result.status, 'succeeded');
+  assert.deepEqual(result.report, {fixture:'second attempt'});
+  assert.equal(executions, 2);
+  assert.ok(stops >= 1);
+  assert.ok(waits <= 3, 'the recovered failure does not wait until the total operation deadline');
+  const attempts = db.prepare('SELECT id,status,result_json FROM pipeline_attempts ORDER BY started_at,id').all();
+  assert.equal(attempts.length, 2);
+  assert.equal(db.prepare('SELECT status FROM pipeline_attempts WHERE id=?').get(first.id).status, 'failed');
+  assert.equal(parseCanonicalJson(db.prepare('SELECT result_json FROM pipeline_attempts WHERE id=?').get(first.id).result_json).code,
+    'RENDER_RPC_CONNECTION_LOST');
+  assert.equal(db.prepare("SELECT status FROM pipeline_render_admissions WHERE id=?").get(first.id).status, 'released');
+  assert.equal((await runNativeRenderTask(env, step, context)).attemptId, result.attemptId);
+  assert.equal(executions, 2, 'durable replay cannot execute a settled attempt twice');
+});
+
 test('a success materialized after the physical deadline and repeated unknown reads remains recoverable', async t => {
   const {db, env, op, saved, objects} = await fixture(t);
   const waitForEvent = fakeAdmission(env);
@@ -518,9 +574,15 @@ test('an acknowledged success write with a lost response is never downgraded to 
     mode:'preview',rendererRelease:'native-release'});
   const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
   const originalDB = env.DB;
-  let lost = false, executions = 0;
+  let lost = false, readLost = false, executions = 0;
   env.DB = {...originalDB, prepare(sql) {
     const prepared = originalDB.prepare(sql);
+    if (sql.includes('SELECT p.result_json FROM pipeline_attempts p') && sql.includes("p.status='succeeded'")) {
+      return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+        if (lost && !readLost) {readLost = true; throw Error('Network connection lost.');}
+        return prepared.first();
+      }};
+    }
     if (!sql.includes("UPDATE pipeline_attempts SET status='succeeded'")) return prepared;
     return {bind(...args) {
       const bound = prepared.bind(...args);
@@ -539,6 +601,7 @@ test('an acknowledged success write with a lost response is never downgraded to 
   const result = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,imageDigest:'sha256:'+'a'.repeat(64)});
   const row = db.prepare('SELECT status,result_json FROM pipeline_attempts').get();
   assert.equal(lost, true);
+  assert.equal(readLost, true, 'a transient confirmation read failure is also recoverable');
   assert.equal(row.status, 'succeeded');
   assert.equal(parseCanonicalJson(row.result_json).status, 'succeeded');
   assert.deepEqual(result.report, {fixture:'first result'});
@@ -611,6 +674,59 @@ test('a settled platform failure retries with a new attempt; durable replay cann
   } finally {Date.now = realNow;}
   assert.equal(executions, 2);
 });
+
+for (const changedResponse of ['committed', 'zero-change']) {
+  test('failure confirmation read outage after a ' + changedResponse + ' update resumes the physical retry', async t => {
+    const {db, env, op, saved, objects} = await fixture(t);
+    const waitForEvent = fakeAdmission(env);
+    await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,
+      mode:'preview',rendererRelease:'native-release'});
+    const input = parseCanonicalJson(objects.get('renders/native-render/input.json').bytes);
+    const originalDB = env.DB;
+    let readLost = false, zeroed = false, executions = 0, stops = 0;
+    env.DB = {...originalDB, prepare(sql) {
+      const prepared = originalDB.prepare(sql);
+      if (sql.includes('SELECT p.result_json FROM pipeline_attempts p') && sql.includes("p.status='failed'")) {
+        return {bind(...args) {prepared.bind(...args); return this;}, async first() {
+          if (!readLost && db.prepare("SELECT COUNT(*) AS n FROM pipeline_attempts WHERE status='failed'").get().n) {
+            readLost = true;
+            throw Error('Network connection lost.');
+          }
+          return prepared.first();
+        }};
+      }
+      if (changedResponse === 'zero-change' && sql.includes("UPDATE pipeline_attempts SET\n      status='failed'")) {
+        return {bind(...args) {prepared.bind(...args); return this;}, async run() {
+          const response = await prepared.run();
+          if (!zeroed) {zeroed = true; return {meta:{changes:0}};}
+          return response;
+        }};
+      }
+      return prepared;
+    }};
+    env.SHARDS = {getByName() {return {
+      async recoverCompletedResult() {return null;},
+      async execute() {
+        if (++executions === 1) throw Error('RENDER_STARTUP_TIMEOUT');
+        return canonical({status:'succeeded',outputs:[],report:{fixture:'recovered retry'}});
+      },
+      async stopAndSettle() {stops++;},
+      async isStopped() {return true;},
+    };}};
+    const step = {async do(_name, ...args) {return args.at(-1)();}, waitForEvent, async sleep() {}};
+    const result = await runNativeRenderTask(env, step, {renderId:'native-render',op,input,
+      imageDigest:'sha256:'+'a'.repeat(64)});
+    assert.equal(result.status, 'succeeded');
+    assert.equal(readLost, true);
+    assert.equal(zeroed, changedResponse === 'zero-change');
+    assert.equal(executions, 2);
+    assert.ok(stops >= 1);
+    const rows = db.prepare('SELECT status,result_json FROM pipeline_attempts ORDER BY started_at,id').all();
+    assert.equal(rows.length, 2);
+    assert.ok(rows.some(row => row.status === 'failed' && parseCanonicalJson(row.result_json).code === 'RENDER_STARTUP_TIMEOUT'));
+    assert.ok(rows.some(row => row.status === 'succeeded'));
+  });
+}
 
 test('a lost platform-retry checkpoint requeues the confirmed failed attempt on Workflow replay', async t => {
   const {db, env, op, saved, objects} = await fixture(t);

@@ -2,6 +2,9 @@
 ALTER TABLE pipeline_renders ADD COLUMN queue_deadline_at INTEGER;
 ALTER TABLE pipeline_renders ADD COLUMN operation_deadline_at INTEGER;
 ALTER TABLE pipeline_renders ADD COLUMN mode TEXT;
+-- A transport failure observed by Workflow may precede Shard diagnostics.
+-- Keep it separately so it cannot overwrite a later authoritative result_json.
+ALTER TABLE pipeline_attempts ADD COLUMN recovery_code TEXT;
 
 -- Queue acceptance does not prove the Director Workflow received its wake-up event.
 ALTER TABLE pipeline_outbox ADD COLUMN director_event_done_at INTEGER;

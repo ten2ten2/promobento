@@ -123,6 +123,52 @@ test('hung Workflow notification never blocks another workspace grant or its eve
   assert.ok(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE id=?').get(healthyId).notification_sent_at);
 });
 
+for (const barrier of ['Shard stop', 'Coordinator release']) {
+  test('terminal Workflow cleanup with hung ' + barrier + ' leaves the lease retryable and unblocks new tickets', async t => {
+    const {db, env, leases, events, add} = fixture(t);
+    const stuck = add('terminal-workflow');
+    const ticket = await requestRenderAdmission(env, stuck.renderId, stuck.op, 'terminal-ticket', 0);
+    assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(ticket.id).status, 'admitted');
+    db.prepare('UPDATE pipeline_render_admissions SET notification_sent_at=NULL WHERE id=?').run(ticket.id);
+    const healthy = add('independent-workspace');
+    const coordinator = env.COORDINATOR.getByName('global-v1');
+    const originalRelease = coordinator.release.bind(coordinator);
+    if (barrier === 'Coordinator release') coordinator.release = (id, token) =>
+      id === ticket.id ? new Promise(() => {}) : originalRelease(id, token);
+    const originalShards = env.SHARDS;
+    let stopCalls = 0;
+    env.SHARDS = {getByName(id) {return id !== ticket.id ? originalShards.getByName(id) : {
+      async stopAndSettle() {
+        stopCalls++;
+        if (barrier === 'Shard stop') return new Promise(() => {});
+      },
+    };}};
+    env.RENDER_WORKFLOW = {get(id) {return {
+      async sendEvent(event) {
+        if (id === stuck.renderId) throw Error('WORKFLOW_TERMINATED');
+        events.push({renderId:id, ...event});
+      },
+      async status() {return {status:id === stuck.renderId ? 'terminated' : 'running'};},
+    };}};
+    const originalSetTimeout = globalThis.setTimeout;
+    t.mock.method(globalThis, 'setTimeout', (callback, ms, ...args) =>
+      originalSetTimeout(callback, Math.min(ms, 15), ...args));
+
+    const next = await requestRenderAdmission(env, healthy.renderId, healthy.op, 'healthy-ticket', 0);
+    assert.ok(stopCalls >= 1);
+    assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(next.id).status, 'admitted');
+    assert.ok(db.prepare('SELECT notification_sent_at FROM pipeline_render_admissions WHERE id=?').get(next.id).notification_sent_at);
+    assert.ok(events.some(event => event.renderId === healthy.renderId));
+    const orphan = db.prepare('SELECT status,notification_sent_at,notification_retry_at,notification_failures FROM pipeline_render_admissions WHERE id=?').get(ticket.id);
+    assert.equal(orphan.status, 'admitted', 'unknown stop or release may not free capacity');
+    assert.equal(orphan.notification_sent_at, null);
+    assert.ok(orphan.notification_retry_at > Date.now());
+    assert.ok(orphan.notification_failures >= 1);
+    assert.ok(leases.has(ticket.id), 'the uncertain terminal cleanup is retried with its original lease');
+    assert.equal(leases.size, 2);
+  });
+}
+
 test('one hung Coordinator acquire does not suppress another workspace admission', async t => {
   const {db, env, add, addTicket} = fixture(t);
   const stuck = add('stuck-acquire'), healthy = add('healthy-acquire');
