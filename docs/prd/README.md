@@ -9,16 +9,16 @@
 | [01 产品与范围](01-product-prd.md) | 产品定位、完整用户流程、功能 ID、P0/P1 和边界 |
 | [02 UX 与 UI](02-ux-and-ui.md) | 用户流程、状态反馈、视觉、组件与可访问性 |
 | [03 平台与编码](03-platform-presets.md) | 输出目标、编码、构图、安全区与上传验收 |
-| [04 架构与数据](04-architecture-and-data.md) | 服务职责、实体、API 实施清单、隐私与删除 |
+| [04 架构与数据](04-architecture-and-data.md) | 服务与数据、持久排队/背压、资源分级、流式I/O与安全缓存、隐私 |
 | [05 交易、成片授权与退款](05-waffo-billing.md) | 商品/试用、购买资格、许可、付款、保存期与退款 |
-| [06 测试与发布](06-testing-and-release.md) | 回归范围、真实发布门槛与证据规则 |
-| [07 获客与实验](07-growth-and-experiments.md) | 归因、漏斗、完整单位经济与试运营实验 |
+| [06 测试与发布](06-testing-and-release.md) | 质量/契约、1/4/16/64负载、内存与成本实测、发布门槛 |
+| [07 获客与实验](07-growth-and-experiments.md) | 归因、漏斗、每份合格片总成本与价格实验 |
 | [08 实施与交付](08-codex-execution.md) | 接手、里程碑、工具链、命令及交付 |
 | [09 素材许可、合规与来源](09-sources-and-licensing.md) | 来源准入、上游许可、法务依据及待确认事项 |
 | [10 网站语言与主题](10-i18n-and-themes.md) | 网站语言、主题、混排与 SSR/缓存隔离 |
 | [12 URI 与认证](12-routing-and-auth.md) | 身份、权限、认证流程与 URI 语义 |
 | [13 导演、声音与改稿](13-agent-native-production.md) | huashu/Hypit 取舍、参考分析、Script/语义时间、素材生成与候选、原生编辑、声音和审片 |
-| [14 生产契约与状态](14-production-contracts.md) | 类型、状态、hash、预算、授权证据与跨系统不变量 |
+| [14 生产契约与状态](14-production-contracts.md) | 版本/产物身份、job/lease/期限、费用、授权与交付不变量 |
 
 各章说明上表范围内的规则，其他章节引用即可。价格、次数、尺寸等数值在配置中维护；页面和客户 API 规划在 routes 中维护；现行内部结构见 Schema，客户版本、计费和交付要求见 14。客户请求/响应契约随对应服务实现，不再保留一套与原生链路无关的参考实现。修改规则时同步相关代码、配置和对外页面，不再复制一套价格、期限或接口表。
 
@@ -28,7 +28,7 @@
 | --- | --- |
 | [平台配置](../../config/platform-presets.json) | 固定目标、编码、安全区、响度目标与来源 |
 | [路由配置](../../config/routes.json)、[认证配置](../../config/auth.json) | 客户页面/API规划与身份策略；不是已部署入口 |
-| [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 预算/次数/状态、渲染期限、单位成本目标与公开能力边界 |
+| [Agent策略](../../config/agent-policy.json)、[输入能力](../../config/input-capabilities.json) | 现有预算/次数/成本目标、上传尺寸及能力边界；队列等待/资源档阈值待G1标定 |
 | [模型与步骤绑定](../../config/model-providers.json)、[模型授权](../../config/model-authorization.json) | 供应商、价格目录、各导演步骤的模型及其授权上限 |
 | [品牌](../../config/brand.json)、[语言](../../config/localization.json)、[消息](../../locales/en.json) | 网站资料与英文文案 |
 | [完整页面正文与维护规则](../../content/pages/README.md)、[公开上下文示例](../../config/public-context.example.json) | 英文 Terms/Privacy/Refund 草稿、构建期变量、译文版本及待补事实；不是已上线页面 |

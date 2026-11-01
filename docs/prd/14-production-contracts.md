@@ -1,8 +1,8 @@
 # 生产契约：版本、状态、指纹与交付
 
-本章规定产品规格 v3.1 / 协议 `3.0.0` 中影响保存、验证、计费和交付的共同要求。本次重构允许直接替换尚未上线的旧 PromoBento 创作与数据协议，不为 FilmSpec 或分片任务开发迁移/兼容层；正式收费后新创建的冻结交付则须遵守本章的持久授权和恢复规则。当前内部实现以 [NativeProject 1.0.0](../../contracts/native-project.schema.json)、[共享原生身份](../../packages/contracts/src/native-project.mjs)和[云端入口](../../apps/cloud/README.md)为准，界面流程见[02](02-ux-and-ui.md)。
+本章是产品规格 v3.1 / 协议 `3.0.0` 的**版本、状态、费用与交付不变量**唯一来源。未上线的旧创作/数据协议直接替换，不提供兼容层；真实授权、费用与已冻结交付仍持久保留。运行时文件结构取 [NativeProject 1.0.0](../../contracts/native-project.schema.json) 和[共享身份实现](../../packages/contracts/src/native-project.mjs)，客户交互见[02](02-ux-and-ui.md)。
 
-客户草稿、购买、冻结、输出审核和交付服务尚未实现；下文的客户实体、字段和状态描述产品要求，随对应服务建立真实契约和事务，不再维护另一套内存参考控制器。实际能力见[实施状态](../implementation-status.md)。权限、素材、摘要和检查依据必须来自可信存储与实际观察；示例、离线夹具或Agent自报不能作为生产放行证据。
+客户草稿、购买、冻结及交付状态仍是待实现要求，完成度只见[实施状态](../implementation-status.md)。可信权限、实际字节与检查回执不可由示例、离线夹具或Agent自报替代。
 
 ## 1 唯一版本模型
 
@@ -47,14 +47,16 @@
 | DB-RELEASE | UNIQUE(project_id,content_hash)；首次批次发布、有效grant/预留检查和唯一consume同事务 |
 | DB-COST | costEvent的eventId/dedupKey幂等；同charge替代链只接受一个后继，scope一致，预留与结算原子更新 |
 | DB-OUTBOX | 业务状态与outbox同事务；consumer以事件/作业身份去重，lease与generation阻止晚到提交 |
+| DB-ADMISSION | job/operation状态、queueDeadlineAt、attemptDeadlineAt、类别、优先级、generation和leaseToken原子推进；只有实际拿到容量才计attempt/启动容器，排队过期不占算力 |
+| DB-CACHE | 同租户、来源字节/PTS/处理版本/参数的缓存只在权威资产引用与权益仍有效时绑定；跨租户、过期依赖与部分写入结果不可复用 |
 
 ## 2 Manifest、目标与冻结准备
 
-新内部创作使用NativeProject 1.0.0：`index.html`与普通本地工程文件、固定huashu commit、15/30秒、30fps和单画幅composition。不同画幅独立生成、审片和导出；每个文件固定path、R2 key、SHA-256、byteLength、mediaType。客户`project_revisions`、购买快照和完整冻结事务仍待接入，不能把内部工程清单当作已完成的客户冻结服务。历史原文、已存摘要、回执和环境按其冻结身份保留，不通过新创作入口重解释旧项目。
+NativeProject 1.0.0 固定单画幅、15/30秒、30fps、huashu commit，以及 `index.html`/文件路径、R2 key、SHA-256、长度和类型。不同画幅独立成稿、QA和导出；工程清单不等于客户冻结收据。已保存实际原文/字节与回执不因新版本被重写。
 
 素材与字体的真实文件身份、来源及使用依据随项目保存；broker只允许本次已准入文件。可信检查核对实际读取的资源、音源和混音，不能只信Agent自报。原生源码保存原始字节，不混入临时URL、QA输出或日志。字体、塑形和回退配置随实际工程冻结；按实际文字验证，不能用`document.fonts.ready`证明无缺字。画面事实依据必须对应实际可见内容，未显示的声明文字不能充当证据。
 
-原生 HTML/JS/CSS 是创作源，不再要求 `film.json`、`PB.scene` 或第二份可执行场景协议。Brief 和 Treatment 记录事实与导演决策，不用于宿主绘制。保存源文件原始 UTF-8 字节，不因 API 版本升级改写或归一化客户文案；源码修改由 baseRevision 约束并产生新版本。
+原生 HTML/JS/CSS 是唯一可执行创作源；Brief/Treatment 不用于宿主绘制。按原始 UTF-8 字节保存源码，baseRevision 控制修改并生成不可变版本；不归一化客户文案。
 
 原生变量保存在作品文件中；客户直接编辑须检查实际声明的类型、范围、事实绑定和所有受影响画幅，不另建一套当前值文件。素材替换须同时匹配可信媒体类型与可绘授权，事实证明附件不能仅因出现在存储中就用于画面。可信检查与导出只读取已保存版本，本地未保存预览不得冒充冻结结果。
 
@@ -88,7 +90,7 @@
 
 规范实现唯一入口为 [packages/contracts](../../packages/contracts/index.mjs)，脚本和生产代码共同调用，不另抄算法。`canonical` 按 [RFC 8785/JCS](https://www.rfc-editor.org/rfc/rfc8785) 处理 JSON 数据域：对象键按 UTF-16 码元排序，数组保持声明顺序，采用 binary64 数字序列化，拒绝非有限数和孤立代理码元；入站原始 JSON 经 `parseCanonicalJson` 拒绝重复键。不对用户 Unicode 原文归一化。`digest` 计算规范 UTF-8 字节的 SHA-256；实际文件直接计算原始字节 SHA-256。
 
-身份采用显式字段与规范JSON，协议和内容版本互不混淆。新原生revision使用`nativeProjectHash`。旧内部评测摘要只归档，不通过新协议重算或迁入客户空间。语义无序的文件按UTF-16路径排序，有序数组保留顺序。`digest("abc")`哈希含引号JSON字符串，原始媒体与源码用`sha256Bytes`；金额、计数和帧索引仍限制为安全整数。
+身份采用显式字段和规范 JSON，原生 revision 用 `nativeProjectHash`；语义无序的文件按 UTF-16 路径排序，有序数组保留顺序。`digest("abc")` 含 JSON 引号，原始媒体/源码用 `sha256Bytes`；金额、计数和帧索引均为安全整数。
 
 | 身份 | 用途和边界 |
 | --- | --- |
@@ -144,11 +146,11 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 
 ## 5 RenderProtocol
 
-当前 `preview` / `export` 的请求字段、内部任务、实际产物核验与停止结算统一见[云端说明](../../apps/cloud/README.md#工程与任务)，容器执行边界见[渲染服务](../../apps/render-container/README.md)。旧执行协议已退役，历史回执和镜像按原身份保留。
+当前内部 preview/export 的真实请求与停止结算见[云端说明](../../apps/cloud/README.md#工程与任务)及[渲染服务](../../apps/render-container/README.md)；客户预览与发布仍须实现本章冻结、权利和QA门禁。
 
 原生编辑允许明确的原文件替换或变量更新，必须携带 baseRevision／原生 baseToken；冲突保留原稿与修改建议，不能悄悄覆盖新的版本。时间批注固定保存时的版本、帧和可选 elementId。当前已实现内部改稿编排及不可变版本，客户实时播放器、点选和并发草稿 UI 尚未实现。
 
-后续客户预览应在独立注册域名与sandbox iframe中使用冻结原生工程，不携带主站Cookie/管理凭据，不能直接暴露上游localhost Studio。低清全长、有声或明确静音、品牌水印与不提供正式下载的边界按[02](02-ux-and-ui.md)实现；权益、事实确认和输出审核按各章接通并实测，不能把内部管理预览当作已授权公开入口。
+客户低清全长预览在独立origin与sandbox iframe中使用获准的原生revision，固定实际逻辑画幅、帧数、字体与冻结音轨；采集端直接以较低像素密度捕获，不得先渲1080p再缩小冒充低清节省算力。品牌水印和下载禁用按[02](02-ux-and-ui.md)，权益、事实及输出审核仍须全量校验；最终目标帧和媒体 Q1/Q2 在需要时采用正式分辨率，低清不代替高风险完整检查。
 
 ## 6 AI操作、费用与成功次数
 
@@ -193,21 +195,25 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 | Agent run | validating→repair→active | 同预算且累计修复<2，不新增收费run |
 | Agent run | 非终态→cancel→cancelled | 提升generation，释放未消费预留和资源；晚到不能提交 |
 | Agent run | 非终态→fail/expiry→failed | 具体原因及真实成本，释放未消费预留，旧稿保留 |
-| 渲染 | queued→start→rendering→verifying | 每次推进检查 operation/generation；每个 attempt 独立实例、累计预算与真实停止确认；重放有效检查点，不重跑成功捕获 |
-| 渲染 | verifying→commit→passed | generation 栅栏下原子保存不可变输出引用与进度 outbox；通知可独立重试，不能因通知失败回滚成片 |
-| 渲染 | 非终态→fail/cancel→blocked/cancelled | 先封锁新 attempt，再确认已有实例停止、归还 lease 与结算；保留首个原因及未确认停止标记，清理重试不重跑捕获/模型 |
+| 计算 job | 无→enqueue→queued | 权限、预算与请求幂等核验后落库并发 outbox；只等待，不占容器、DO 长调用或物理 attempt |
+| 计算 job | queued→admit→admitted | CoordinatorDO 带 generation/leaseToken 原子预留匹配资源档与工作区/全局容量；不允许单任务多有效 lease；无容量仍 queued 并由事件/有界补漏唤醒 |
+| 计算 job | admitted→start→running | 核验租约/权限、启动独立容器、记录真实 attempt 和 attemptDeadlineAt；排队时间只进 queueWait，不减少本次执行期限 |
+| 计算 job | running→render_complete→verifying | 确认实际输出、流式hash/上传、FFmpeg/音频与Q2；持续核对 operation/generation 和总期限，不接受未知/半成品 |
+| 计算 job | verifying→commit→passed | generation/leaseToken 栅栏下原子保存不可变产物及 outbox；通知另重试，不撤销已成功文件；确认容器停止再释放容量 |
+| 计算 job | queued→queue_expired→failed | 不创建物理 attempt、不耗成功次数；按免费/付费权益给明确可恢复状态，付费履约的补偿/恢复不自动丢单 |
+| 计算 job | 非终态→fail/cancel→failed/cancelled | 提升 generation 封锁新 attempt，确认所有已启动实例停止、归还 lease 和费用结算；未确认停止保留租约/告警，迟到结果不能提交 |
 | 候选 | withheld→审核通过→ready | 只由可信审核结果解锁；失败、未知或覆盖不足不能展示与消费 |
 | 候选 | ready→accept→accepted | §1 CAS、权限与输出审核同时验证；同请求同候选幂等 |
 | 候选 | ready/withheld→reject→rejected | 不改当前稿；ready不返已交付成功次数，withheld未交付则释放未消费预留 |
 | 候选 | ready/withheld→cancel→cancelled | 原稿不变，作废后续接受；终止原操作时释放未消费预留并阻止晚到结果，已交付成功次数不返还 |
 
-冻结、付款、预留和交付发布按§4与[05](05-waffo-billing.md)执行。有效产物复用，源码修复与平台重试分别计数并共享累计费用；当前原生任务只按`nativeRenderPolicy`允许最多两个物理attempt，须先确认上一实例停止且费用结算，不能在交付层另叠加旧编码重试循环。
+冻结、付款和交付发布按§4与[05](05-waffo-billing.md)。当前物理 attempt 上限取 `nativeRenderPolicy`（最多2次），每次重试前确认旧实例停止/费用结清；operation 总期限/总成本不因排队、重发或重试刷新，不能让 Queue 与应用各自叠加重试。
 
-终态不能通过普通resume重新活动；需要新的授权操作。长调用结束、消费、接受、发布均重查权限/generation/墓碑。移除发起成员取消未提交创作副作用，但已收款交付由项目权益继续驱动；删除项目/工作区撤销新授权、提升generation、取消作业并清理，晚到文件孤儿回收，不复活项目。退款只冻结关联grant及未发布预留，不能影响无关订单。
+此处**计算 job 状态不同于 05 的 release 状态**；可恢复任务以自己的持久操作ID查询。终态不由普通resume重启；权限/generation/墓碑在最终提交重查。成员移除取消未提交创作，但付款交付由项目权益持续驱动；项目删除、退款只影响其合法作用域，迟到结果孤儿回收，不复活已删项目。
 
-已失败/取消操作的对账只确认停止、补齐残留非终态记录并列出未结费用；不恢复 generation，不重启计算，不覆盖 passed 产物或原始失败原因。未知模型费用继续占预留。每个计算 attempt 的停止标记持久化，已确认停止后的晚到 execute 不得重新启动容器。
+失败/取消对账只补确认停止、未结费用和残留状态，保留原始失败及已 passed 产物；未知模型费用仍占预留。attempt 停止标记持久化，迟到 execute 不得重启容器。
 
-队列已发送不等于原生 Workflow 已创建或停止，须独立持久化实例身份、原 generation、平台状态和清理确认。取消先封锁操作，再终止已登记 Workflow 并确认物理实例停止；创建晚于取消返回时仍要停止。平台状态未知或停止失败保留未确认，不假定实例不存在。原生强制终止/出错由定期对账发现并落业务终态。有效检查点重放不重做付费阶段；清空检查点的整次 `restart()` 必须被持久执行 claim 阻断，转为清理和对账，不能当普通 resume。
+Queue 已发送不等于 Workflow/容器已启动或停止；实例身份、generation、平台状态、物理回收和 leaseToken 必须持久化。取消先栅栏后停止；即使容器创建晚到也要回收。平台状态未知不释放容量。定期对账强制终止及重启事件；整次 `restart()` 只能清理，不能抹去付费阶段的持久 claim 或重新消费。
 
 真实并发、故障和恢复验收按[06](06-testing-and-release.md)；内存状态测试不构成 D1 实现。
 
@@ -247,14 +253,14 @@ Q2 另由 §4 的 `qualityEvidenceRef` 绑定真实媒体字节及输出指纹�
 
 ## 9 资源、输入与保存
 
-任务隔离、调度和媒体清理按[04](04-architecture-and-data.md)，权益期限按[05](05-waffo-billing.md)，输入范围取 [input-capabilities](../../config/input-capabilities.json)与[01](01-product-prd.md)，权利依据按[09](09-sources-and-licensing.md)。固定镜像不代表客户代码可信，实例名称也不能证明GPU或完整浏览器能力。真实隔离、恢复和性能须通过[06](06-testing-and-release.md)及[08的执行隔离要求](08-codex-execution.md#自写镜头的执行隔离)；限制须在作品执行前生效，确定性由原生实际取帧验证，不依赖已退役的虚拟页面时钟。
+任务隔离、队列期限、流式I/O与缓存以[04 §3](04-architecture-and-data.md#3-队列资源与隔离)为准；输入上限见[输入配置](../../config/input-capabilities.json)，50 MiB原始录屏须在准备原生工程前规范化为满足[NativeProject单文件40 MiB限值](../../contracts/native-project.schema.json)的可用文件，否则明确拒绝，不静默裁剪。权益/权利见[05](05-waffo-billing.md)、[09](09-sources-and-licensing.md)。真实隔离、恢复、容量和性能以[06](06-testing-and-release.md)、[08](08-codex-execution.md)实测为准；缺GPU/字体/解码器或不确定性阻断执行，不能由容器名称推断能力。
 
 ## 10 协议与发布版本
 
-新原生改稿必须显式引用同工作区、同项目的baseRevision，继承固定runtime commit、合法画幅及实际素材，不从浮动默认环境重建旧稿。客户保存/恢复仍须在`project_revisions`服务实现CAS；当前内部版本是不可变分支，没有协作草稿头。环境升级不得顺带改旧购买快照，旧运行环境的继续执行按实际安全性与冻结引用处理。
+原生改稿引用同项目、同工作区 baseRevision 与冻结 runtime/素材，在 `project_revisions` 中以 CAS 保存；环境升级不能重写已购快照或从浮动默认镜像重建旧稿。
 
-正式上线后必须升级**已付费并已冻结**的作品时，另建明确的修复记录，保留原内容、快照和 release 关联。本次上线前的旧 PromoBento 草稿/FilmSpec 不在迁移范围内。仅镜像更新可保持内容 hash；runtime、源码或身份算法变化可能改变它，此时按原 release 免费修复或明确迁移映射，不能把新 hash 当作一次新购买。存在安全问题的旧镜像停止执行，已交付文件和原收据仍不可变；不能以兼容承诺要求继续运行不安全版本。
+已付费冻结作品需要修复时，另建 correction 并关联原内容、快照、release 与收据；runtime/源码/身份算法变更不当作新成片收费。存在安全问题的旧镜像停止执行，已交付文件与原收据不覆盖。未上线的 FilmSpec/分片草稿不迁移。
 
-未发布且已替换的开发规格可直接删除；旧 Proto/FilmSpec 及分片执行路径不保留兼容入口。首次生产冻结后，发布登记固定 Schema/validator、identity 算法、平台配置、QA/marking 策略、runtime 与镜像 digest。加载时核对登记摘要，不能拿当前文件冒充旧版本；有效购买或在途作业引用的版本须可安全执行或有明确迁移与免费修复路径。
+首次生产冻结后登记 Schema/validator、身份算法、平台、QA/标记策略、runtime和镜像 digest；加载时严格核对，不能把新版本冒充既有已购快照。仍有真实付款/在途任务引用的版本须安全执行或按原收据免费修复；未发布的开发规格可直接删除。
 
-平台执行规则改变必须更换rulesVersion；仓库检查与[08](08-codex-execution.md)定义的最近可信成功Git基线比较，失败或取消的提交不推进基线，不能用同一提交中互相匹配的版本表和文件证明不可变。正文来源日期或文案修正不强制改执行版本。跨版本解析须明确分派，未知版本返回可定位错误，不把任意旧请求当当前结构。客户发布登记和历史重放属于M2；现行内部原生实现不宣称已具备这些服务。
+执行规则改变须更换 rulesVersion，并按[08](08-codex-execution.md)的可信成功基线检验；文案/日期修正不强制改变规则版本。已售版本的解析需显式分派，未知版本拒绝，不用当前协议猜测旧快照。发布登记与重放属于M2，当前内部实现未完成。
