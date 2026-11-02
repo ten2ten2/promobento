@@ -8,7 +8,9 @@ export async function readJson(request: Request, limit = 4 << 20): Promise<Json>
   const reader = request.body.getReader(), chunks: Uint8Array[] = []; let size = 0;
   try { for (;;) { const {done, value} = await reader.read(); if (done) break; size += value.length;
     if (size > limit) throw Error('BODY_TOO_LARGE'); chunks.push(value); } }
-  finally { await reader.cancel(); }
+  // A failed or stalled transport teardown must not hide the original body
+  // error (or prevent an otherwise complete JSON request from finishing).
+  finally { void reader.cancel().catch(() => {}); }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) {bytes.set(chunk, offset); offset += chunk.length;}
   // Syntax, UTF-8 and canonical-JSON failures all describe malformed client
   // input. Keep failures from reading the transport stream outside this catch.

@@ -53,6 +53,18 @@ test('HTTP JSON boundary classifies malformed bodies as 422, even with strict ca
  }
 });
 
+test('HTTP JSON boundary preserves an oversized-body error when stream cancellation fails',async()=>{
+ const body=new ReadableStream({
+  start(controller){controller.enqueue(new Uint8Array((4<<20)+1));},
+  cancel(){throw Error('private transport cancellation failure');},
+ });
+ const response=await worker.fetch(new Request('https://worker.example/internal/s1/operations',{
+  method:'POST',duplex:'half',headers:{authorization:'Bearer fixture-only'},body,
+ }),{S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},{});
+ assert.equal(response.status,422);
+ assert.deepEqual(await response.json(),{code:'BODY_TOO_LARGE'});
+});
+
 test('native project HTTP rejects malformed file/resource lists at the input boundary',async t=>{
  const {db,DB}=sqliteD1();t.after(()=>db.close());
  const operationId='input-shape-operation';

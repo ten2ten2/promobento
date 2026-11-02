@@ -1,21 +1,23 @@
 // Owner's internal evaluation only. Uses the existing Wrangler connection; never reads or exports credentials.
-import {readFileSync,writeFileSync,existsSync} from 'node:fs';
-import {resolve,join} from 'node:path';
+import {closeSync,constants,lstatSync,openSync,readFileSync,writeFileSync,realpathSync} from 'node:fs';
+import {resolve,join,sep} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {objectUploadHeaders,requireIdleCapacity} from '../../apps/cloud/src/internal-eval-client.mjs';
-import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {prepareMaterialSelection,readReviewedMaterial} from './prepare-material-selection.mjs';
 import {verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {verifyVideoSelections} from './approved-video.mjs';
 
-const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
-if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
+const directory=realpathSync(resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24'));
+if(!directory.startsWith(realpathSync('artifacts')+sep))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
 const selected=parseCanonicalJson(readFileSync(join(directory,'selected.json'))),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
 const verifiedArtwork=await verifyArtworkSelections(directory,selected,topics);
 const verifiedVideos=await verifyVideoSelections(directory,selected,topics);
 const prepared=prepareMaterialSelection(directory,selected,topics,{verifiedArtwork,verifiedVideos});
-const receiptPath=join(directory,'ingestion.json'),previous=existsSync(receiptPath)?parseCanonicalJson(readFileSync(receiptPath)):null;
+const receiptPath=join(directory,'ingestion.json'),receiptStat=lstatSync(receiptPath,{throwIfNoEntry:false});
+if(receiptStat&&(!receiptStat.isFile()||receiptStat.isSymbolicLink()))throw Error('PRIVATE_RECEIPT_PATH_INVALID');
+const previous=receiptStat?parseCanonicalJson(readFileSync(receiptPath)):null;
 const env={...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-material-ingest.log'},args=['--filter','@promobento/cloud','exec','wrangler'];
 const wrangler=(command,options={})=>execFileSync('pnpm',[...args,...command],{env,encoding:'utf8',timeout:60000,...options});
 // Never overwrite another active internal session. The root also checks the account identity before invoking this script.
@@ -27,7 +29,10 @@ if(!/^materials-[A-Za-z0-9_-]{8,70}$/.test(operationId))throw Error('MATERIAL_OP
 const prefix='evals/'+operationId,licenseRef='LicenseRef-S1-Internal-Evaluation';
 const manifest={kind:'s1_internal_materials',scope:'internal_eval_only',publicUseCleared:false,operationId,
  rightsDecision:'research/evals/topics.json#/rights',acquiredAt:new Date().toISOString(),assets:[],pending:[]};
-const save=()=>writeFileSync(join(directory,'ingestion.json'),canonical(manifest)+'\n');
+const save=()=>{
+ const fd=openSync(receiptPath,constants.O_WRONLY|constants.O_CREAT|constants.O_TRUNC|constants.O_NOFOLLOW,0o600);
+ try{writeFileSync(fd,canonical(manifest)+'\n');}finally{closeSync(fd);}
+};
 let secretAttempted=false,operationCreated=false;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -77,7 +82,7 @@ try{
   let licenseNotice;
   if(asset.licenseFile){
    if(!/^[a-z0-9.-]{8,80}\.txt$/.test(asset.licenseFile))throw Error('MATERIAL_LICENSE_INVALID');
-   const text=readFileSync(join(directory,asset.licenseFile));if(text.length>32000)throw Error('MATERIAL_LICENSE_INVALID');
+   const text=readReviewedMaterial(directory,asset.licenseFile,32000);
    const name=asset.licenseFile.slice(0,-4).replaceAll('.','-')+'.txt';
    licenseNotice=await upload(`${prefix}/${asset.topicId}/${name}`,text,'text/plain');
   }
