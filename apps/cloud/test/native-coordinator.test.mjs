@@ -76,6 +76,33 @@ test('a live SSE reader receives committed terminal progress and ignores stale g
  await reader.cancel();assert.equal(operation.listeners.size,0);
 });
 
+test('a delayed in-flight SSE write cannot overwrite or follow a newer terminal event',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run('racing-sse','workspace','project',0,'evaluation','active','request',1000,Date.now(),null,null);
+ const memory=new Map(),operation=Object.create(OperationDO.prototype);
+ operation.env={DB};operation.listeners=new Map();
+ let unblock,entered;
+ const barrier=new Promise(resolve=>{unblock=resolve;}),stageStarted=new Promise(resolve=>{entered=resolve;});
+ operation.ctx={storage:{async put(key,value){
+   if(value.status==='rendering'){entered();await barrier;}
+   memory.set(key,value);
+  },async get(key){return memory.get(key);}}};
+ const response=await operation.watch('racing-sse'),reader=response.body.getReader();
+ t.after(async()=>{unblock();await reader.cancel();});
+ await reader.read();
+ const slow=operation.progress(canonical({operationId:'racing-sse',generation:0,status:'rendering'}));
+ await stageStarted;
+ db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id='racing-sse'").run();
+ await operation.progress(canonical({operationId:'racing-sse',generation:0,status:'failed'}));
+ const notification=parseCanonicalJson(new TextDecoder().decode((await reader.read()).value).slice('data: '.length).trim());
+ assert.equal(notification.status,'failed');
+ unblock();await slow;
+ assert.equal(memory.get('progress').status,'failed','a late nonterminal storage write must not replace a terminal snapshot');
+ const later=await Promise.race([reader.read(),new Promise(resolve=>setTimeout(()=>resolve(null),25))]);
+ assert.equal(later,null,'a late stage hint must not follow a terminal SSE event');
+});
+
 test('a D1 reservation committed before its response is lost can be stopped and settled without starting a container', async t => {
   const {db, DB} = sqliteD1(); t.after(() => db.close());
   const now = Date.now(), id='attempt-shard', renderId='render-shard', opId='operation-shard';

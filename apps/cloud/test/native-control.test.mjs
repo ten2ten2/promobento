@@ -11,6 +11,7 @@ import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
+import {registerWorkflow,workflowStarted} from '../src/workflow-state.ts';
 import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverDirectorEvent, recoverDirectorEvents} from '../src/render-recovery.ts';
 import {flushOutbox} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
@@ -95,6 +96,32 @@ test('terminal native cleanup and draft reads require no retired Studio handle o
   assert.equal(result.stoppedAttempts, 0);
   assert.equal(result.reconciledRenders, 0);
   assert.deepEqual(result.pendingCosts, []);
+});
+
+test('an already-claimed Workflow restart cannot erase its reconciled terminal status',async t=>{
+ const{db,env,op}=await fixture(t);
+ assert.equal(await workflowStarted(env,'operation',op.id,op.id,op.generation),op.generation);
+ db.prepare(`UPDATE pipeline_workflows SET native_status='complete',reconciled_at=?,last_error='archived'
+   WHERE kind='operation' AND id=?`).run(Date.now(),op.id);
+ const before=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ const after=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ assert.deepEqual(after,before,'rejecting a second claim must not revive or modify a terminal Workflow row');
+});
+
+test('a delayed first Workflow start cannot claim a pre-reconciled or cancelled operation',async t=>{
+ const{db,env,op}=await fixture(t);
+ await registerWorkflow(env,'operation',op.id,op.id,op.generation);
+ db.prepare(`UPDATE pipeline_workflows SET native_status='terminated',reconciled_at=?
+   WHERE kind='operation' AND id=?`).run(Date.now(),op.id);
+ const before=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ assert.deepEqual(db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id),before);
+ db.prepare('UPDATE pipeline_workflows SET reconciled_at=NULL WHERE id=?').run(op.id);
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(op.id);
+ const cancelled=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ assert.deepEqual(db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id),cancelled);
 });
 
 test('terminal cleanup limits parallel Workflow, Shard and capacity-release RPCs across many renders',async t=>{

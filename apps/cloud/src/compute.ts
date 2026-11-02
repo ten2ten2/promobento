@@ -405,6 +405,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
 
 export class OperationDO extends DurableObject<PipelineEnv> {
   private listeners = new Map<ReadableStreamDefaultController<Uint8Array>,ReturnType<typeof setTimeout>>();
+  private terminalProgress: Json | undefined;
   async progress(serialized: string) {
     const value = parseCanonicalJson(serialized) as Json;
     const current = await this.env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
@@ -413,7 +414,17 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     // the operation's committed terminal outcome in a live SSE connection.
     if (!current || value.generation !== current.generation
       || ['succeeded','failed','cancelled'].includes(current.status) && value.status !== current.status) return;
+    const terminal = ['succeeded','failed','cancelled'].includes(current.status);
+    // A previous nonterminal RPC may already have passed its D1 read but be
+    // stalled while writing DO storage. Fence it synchronously as soon as the
+    // terminal state is observed, then repair a late in-flight storage write.
+    if (terminal) this.terminalProgress = value;
+    else if (this.terminalProgress && this.terminalProgress.generation >= value.generation) return;
     await this.ctx.storage.put('progress', value);
+    if (!terminal && this.terminalProgress && this.terminalProgress.generation >= value.generation) {
+      await this.ctx.storage.put('progress', this.terminalProgress);
+      return;
+    }
     const bytes = new TextEncoder().encode('data: ' + canonical(value) + '\n\n');
     for (const [listener,timer] of this.listeners) {
       if (listener.desiredSize === null || listener.desiredSize <= 0) {
@@ -436,6 +447,7 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     const cached = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
     const initial = ['succeeded','failed','cancelled'].includes(current.status)
       ? {...cached, operationId, generation:current.generation, status:current.status} : cached;
+    if (['succeeded','failed','cancelled'].includes(current.status)) this.terminalProgress = initial;
     let listener: ReadableStreamDefaultController<Uint8Array>, timer: ReturnType<typeof setTimeout>;
     const body = new ReadableStream<Uint8Array>({
       start: controller => {

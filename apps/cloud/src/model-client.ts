@@ -6,7 +6,7 @@ import providersInput from '../../../config/model-providers.json';
 import authorization from '../../../config/model-authorization.json';
 import policyInput from '../../../config/agent-policy.json';
 import {operation, reserve, settle, getJson, immutableJson, immutableBytes} from './store.ts';
-import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,settleModelBudget,modelBudgetId} from './model-budget.ts';
+import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
@@ -96,7 +96,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
     .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first();
   if(pending)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
-  await assertModelBudgetReady(env);
+  const authorizationBasis=await assertModelBudgetReady(env);
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
   if(provider.kind==='anthropic'){
     const prepared=providerRequest(input), body={...prepared.body};delete body.stream;delete body.max_tokens;delete body.output_config;
@@ -133,8 +133,23 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     throw error;
   }
   await markModelDispatched(env,reserved);
+  // The ledger RPC may outlive the deadline or race a cancellation. There is
+  // no provider request yet; recheck the operation, deadline and owner grant immediately before transport.
+  let transportWindow:number;
+  try{
+    await operation(env,op.id,op.generation);
+    transportWindow=deadlineAt-Date.now();
+    if(transportWindow<=0)throw Error('OPERATION_DEADLINE');
+    if(Date.now()>=authorizationBasis.expiresAt)throw Error('MODEL_NOT_AUTHORIZED');
+  }catch(error){
+    await undoUnsentModelDispatch(env,reserved);
+    const unused={kind:'not_dispatched',reason:'The operation was fenced before the provider transport started.'};
+    await settleModelBudget(env,reserved,0,unused,{notDispatched:true});
+    await settle(env,callId,0,unused);
+    throw error;
+  }
   let result;
-  try{result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});}
+  try{result=await streamModel({...input,secret},{timeoutMs:Math.min(policy.limits.requestTimeoutMs,transportWindow)});}
   catch(error){
     if(!(error instanceof ModelOutputError)){
       const status=(error as {status?:unknown})?.status;

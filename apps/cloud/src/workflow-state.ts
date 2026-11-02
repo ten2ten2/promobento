@@ -19,10 +19,15 @@ export async function workflowStarted(env:PipelineEnv,kind:WorkflowKind,id:strin
  const previous=await env.DB.prepare('SELECT generation,engine FROM pipeline_workflows WHERE kind=? AND id=?').bind(kind,id).first<{generation:number;engine:string}>();
  if(previous&&previous.engine!=='huashu')throw Error('LEGACY_WORKFLOW_REQUIRES_RECONCILIATION');
  const row=await registerWorkflow(env,kind,id,operationId,previous?.generation??fallbackGeneration);
- await env.DB.prepare("UPDATE pipeline_workflows SET native_created_at=COALESCE(native_created_at,?),native_status='running',last_checked_at=?,last_error=NULL,reconciled_at=NULL WHERE kind=? AND id=?")
-  .bind(Date.now(),Date.now(),kind,id).run();
- const claimed=await env.DB.prepare('UPDATE pipeline_workflows SET execution_claimed_at=? WHERE kind=? AND id=? AND execution_claimed_at IS NULL')
-  .bind(Date.now(),kind,id).run();
+ // Claim and state transition are one D1 update. A duplicate or delayed start
+ // must not clear reconciliation evidence or revive an already-fenced operation.
+ const now=Date.now();
+ const claimed=await env.DB.prepare(`UPDATE pipeline_workflows SET
+   native_created_at=COALESCE(native_created_at,?),native_status='running',last_checked_at=?,last_error=NULL,
+   reconciled_at=NULL,execution_claimed_at=? WHERE kind=? AND id=?
+   AND execution_claimed_at IS NULL AND reconciled_at IS NULL
+   AND EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='active')`)
+  .bind(now,now,now,kind,id,operationId,row.generation).run();
  if(claimed.meta.changes!==1)throw Error('WORKFLOW_RESTART_RECONCILIATION_REQUIRED');return row.generation;
 }
 

@@ -32,6 +32,7 @@ async function validateVideoTrack(path, composition) {
   const totalFrames = composition.durationSeconds * FPS;
   if (!video || video.codec_name !== 'h264' || video.profile !== 'High' || video.width !== composition.width || video.height !== composition.height
     || video.pix_fmt !== 'yuv420p' || video.r_frame_rate !== '30/1' || video.avg_frame_rate !== '30/1'
+    || video.field_order !== 'progressive'
     || video.color_space !== 'bt709' || video.color_transfer !== 'bt709' || video.color_primaries !== 'bt709'
     || video.has_b_frames !== 0 || data.frames?.length !== totalFrames) throw Error('OUTPUT_VIDEO_INVALID');
   data.frames.forEach((frame, index) => {
@@ -64,6 +65,7 @@ export async function normalizeNativeVideo(nativePath, outputPath, composition) 
   const audioStreams = native.streams.filter(stream => stream.codec_type === 'audio');
   if (audioStreams.length > 1) throw Error('NATIVE_AUDIO_TRACKS_INVALID');
   const hasAudio = audioStreams.length === 1;
+  const needsDeinterlace = video.field_order !== 'progressive';
   const args = ['-hide_banner', '-loglevel', 'error', '-y', '-i', nativePath, '-map', '0:v:0', '-map', '0:a:0?'];
   // A voice-over or effect can end before the picture; keep one full-length AAC
   // track by padding silence after loudness normalization, then trim with -t.
@@ -83,6 +85,7 @@ export async function normalizeNativeVideo(nativePath, outputPath, composition) 
   await run('ffmpeg', [...args, '-c:v', 'libx264', '-preset', 'fast', '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-r', '30', '-fps_mode', 'cfr',
     '-g', '15', '-keyint_min', '15', '-sc_threshold', '0', '-bf', '0', '-flags', '+cgop', '-threads', '2',
     '-b:v', '7000000', '-maxrate', '7000000', '-bufsize', '2000000', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-colorspace', 'bt709', '-color_range', 'tv',
+    ...(needsDeinterlace ? ['-vf', 'bwdif=mode=send_frame:parity=auto:deint=all', '-field_order', 'progressive'] : []),
     ...audioArgs, ...outputArgs], {timeoutMs: 300_000});
   return {...await validateVideo(outputPath, composition, hasAudio), videoEncoding: 'transcoded', copyRejection,
     processingElapsedMs: Math.round(performance.now() - started)};

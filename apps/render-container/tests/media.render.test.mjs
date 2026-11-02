@@ -95,3 +95,18 @@ test('H.264 alone is insufficient: noncompliant keyframe cadence must be re-enco
  assert.equal(result.copyRejection,'OUTPUT_FRAME_TIMING_INVALID');
  assert.equal((await validateVideo(output,composition,false)).frameCount,30);
 });
+
+test('interlaced H.264 is deinterlaced and re-encoded as progressive, never stream-copied',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-interlaced-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  ...compliantVideo,'-x264-params','tff=1','-an',input]);
+ const original=await run('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=field_order','-of','default=noprint_wrappers=1:nokey=1',input]);
+ assert.equal(original.stdout.toString().trim(),'tt','the negative fixture must contain actual interlaced fields');
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');
+ assert.equal(result.copyRejection,'OUTPUT_VIDEO_INVALID');
+ const delivered=await run('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=field_order','-of','default=noprint_wrappers=1:nokey=1',output]);
+ assert.equal(delivered.stdout.toString().trim(),'progressive');
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});

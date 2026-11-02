@@ -133,6 +133,70 @@ test('a deadline expiring during local admission settles both unused model reser
  assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
  assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
 });
+test('an expired dispatch-marker response cannot start a late paid model request',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();jumped=true;clock+=60_000;return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','late-dispatch-marker',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true,'the marker committed before its response advanced the clock');
+ assert.equal(requests,0,'an expired paid call must not leave the control plane');
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+test('cancellation during dispatch bookkeeping cannot launch an already-fenced model request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let cancelled=false,requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();cancelled=true;
+    local.db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id='model-operation'").run();
+    return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await modelStep(env,'model-operation',0,'facts','cancelled-during-dispatch',request,()=>{},Date.now()+30_000).catch(()=>{});
+ assert.equal(cancelled,true);
+ assert.equal(requests,0,'a known cancelled generation must never start a paid transport');
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+});
+test('an owner authorization expiring after reservation cannot dispatch a paid model request',async t=>{
+ const{env,shared,local}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=Date.parse('2026-12-31T23:59:58+08:00'),marked=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();marked=true;clock+=5_000;return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const error=await modelStep(env,'model-operation',0,'facts','authorization-expired-after-mark',request,()=>{},clock+30_000).then(()=>null,cause=>cause);
+ assert.equal(marked,true);
+ assert.equal(error?.message,'MODEL_NOT_AUTHORIZED');
+ assert.equal(requests,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+});
 for(const mode of ['stream','http'])test(`native author ${mode} 502 preserves unknown cost and never dispatches a fallback`,async t=>{
  const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;if(mode==='http')return new Response('bad gateway',{status:502});

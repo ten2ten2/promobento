@@ -30,7 +30,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 
-取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。模型前置核查可能耗时，实际费用预留前及派发前须重查请求截止时间；过期而尚未派发的两层费用预留均结为零，不把不确定的已派发费用冒充零。费用预留和内部操作创建按完整身份进行并发幂等校验。容器传入 SHA-256 和字节数，Broker 限长流式写入 R2，使用 `FixedLengthStream` 保持 Cloudflare R2 所需的运行时已知长度，由 R2 验证 SHA-256；上传完成复核对象大小、摘要元数据及可用的 R2 校验值，竞争写入只能确认实际保存的相同字节。不同摘要不得冒充同一对象；代际撤销后暂存对象不可提交。SSE 进度流对慢读者设置缓冲上限与连接数上限；失败／取消时先推送已提交的终态再清理，乱序或旧 generation 的提示不覆盖终态；断开后包括已完成操作均可重新订阅 D1 终态快照。
+取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。Workflow 执行权的条件领取与状态更新是同一条 D1 更新，拒绝重复启动时不会抹掉既有终态与 reconciliation 证据。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。模型前置核查可能耗时，实际费用预留前及派发前须重查请求截止时间；派发标记的共享账本写入返回后，还要重查操作代际、期限和负责人授权有效期。确知尚未发送的模型请求撤销派发标记，两层费用预留均结为零；不把不确定的已派发费用冒充零。费用预留和内部操作创建按完整身份进行并发幂等校验。容器传入 SHA-256 和字节数，Broker 限长流式写入 R2，使用 `FixedLengthStream` 保持 Cloudflare R2 所需的运行时已知长度，由 R2 验证 SHA-256；上传完成复核对象大小、摘要元数据及可用的 R2 校验值，竞争写入只能确认实际保存的相同字节。不同摘要不得冒充同一对象；代际撤销后暂存对象不可提交。SSE 进度流对慢读者设置缓冲上限与连接数上限；失败／取消时先推送已提交的终态再清理，乱序或旧 generation 的提示不能覆盖终态，连异步缓存写入期间迟到的旧提示也会被终态屏障拦截；断开后包括已完成操作均可重新订阅 D1 终态快照。
 
 ## 部署标识与账本
 
@@ -71,4 +71,4 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 依赖、工具链和 Actions 入口见[08](../../docs/prd/08-codex-execution.md#3-代码责任与可复现工具链)。Worker 入口为 `src/index.ts`，容器构建见 [render-container](../render-container/README.md)。检查不自动部署或发起付费模型评测。
 
-`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、授权撤销竞态、未知计算费用及迁移安全；`test/native-coordinator.test.mjs` 验证终态 SSE 重连与旧代际隔离，`test/model-budget.test.mjs` 验证过期请求不派发及未派发费用清算；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。
+`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、Workflow 重复启动保护、授权撤销竞态、未知计算费用及迁移安全；`test/native-coordinator.test.mjs` 验证终态 SSE 重连、旧代际隔离与异步缓存竞态，`test/model-budget.test.mjs` 验证过期／已撤销请求不派发及未派发费用清算；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。
