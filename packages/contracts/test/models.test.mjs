@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createSchemaValidator, parseCanonicalJson, modelConfigErrors, modelCallCostMicros } from '../index.mjs';
+import { createSchemaValidator, parseCanonicalJson, modelConfigErrors, modelCallCostMicros, modelUsageQuote } from '../index.mjs';
 
 const read = path => parseCanonicalJson(readFileSync(new URL('../../../' + path, import.meta.url)));
 const providers = () => read('config/model-providers.json');
@@ -61,4 +61,37 @@ test('missing usage reserves the worst case: all input uncached, output at its c
   const cost = modelCallCostMicros('modelswitch/claude-opus-5-5', {prompt_tokens: 1000}, providers(), {maxOutputTokens: 4000});
   assert.equal(cost.estimated, true);
   assert.equal(cost.usdMicros, Math.ceil((1000 * 2.6 + 4000 * 13) / 6.6863));
+});
+
+test('malformed token counters and cache breakdowns cannot become a settled zero-cost receipt', () => {
+  const config = providers(), compatible = 'modelswitch/deepseek-v4.1-flash-1017';
+  const valid = {prompt_tokens: 10000, completion_tokens: 20, prompt_tokens_details: {cached_tokens: 4000}};
+  assert.ok(modelUsageQuote(compatible, valid, config));
+  for (const usage of [
+    {...valid, prompt_tokens: -1},
+    {...valid, completion_tokens: -1},
+    {...valid, prompt_tokens_details: {cached_tokens: 0.5}},
+    {...valid, prompt_tokens_details: {cached_tokens: '4000'}},
+    {...valid, prompt_tokens_details: {cached_tokens: -1}},
+    {...valid, prompt_tokens_details: {cached_tokens: 10001}},
+    {...valid, prompt_tokens_details: 'malformed'},
+  ]) {
+    assert.equal(modelCallCostMicros(compatible, usage, config).estimated, true);
+    assert.equal(modelUsageQuote(compatible, usage, config), null);
+  }
+  const anthropic = 'anthropic/claude-opus-5-5';
+  const reported = {input_tokens: 1000, output_tokens: 20, cache_creation: {ephemeral_5m_input_tokens: 30, ephemeral_1h_input_tokens: 40}, cache_read_input_tokens: 50};
+  assert.ok(modelUsageQuote(anthropic, reported, config));
+  for (const usage of [
+    {...reported, input_tokens: -1},
+    {...reported, output_tokens: -1},
+    {...reported, cache_creation: {ephemeral_5m_input_tokens: 0.5}},
+    {...reported, cache_creation: {ephemeral_1h_input_tokens: '40'}},
+    {...reported, cache_creation: []},
+    {...reported, cache_read_input_tokens: '50'},
+    {...reported, cache_creation_input_tokens: -1},
+  ]) {
+    assert.equal(modelCallCostMicros(anthropic, usage, config).estimated, true);
+    assert.equal(modelUsageQuote(anthropic, usage, config), null);
+  }
 });

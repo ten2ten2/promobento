@@ -51,4 +51,4 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 
 ## 验证
 
-`pnpm run test:native` 覆盖契约、队列/准入、Workflow 恢复、租约、素材撤权、模型账本及 SSE 错误；`pnpm run typecheck` 校验 Worker 类型。真正的 Chromium/FFmpeg 和四画幅导出由 [固定容器 CI](../render-container/README.md#验证与部署)运行。测试不会自动部署或发起付费模型；结果与实际验收范围见[实施状态](../../docs/implementation-status.md)。
+`pnpm test` 覆盖契约、队列/准入、Workflow 恢复、租约、素材撤权、模型账本、SSE 和非浏览器素材入库测试；`pnpm run typecheck` 校验 Worker 类型。真正的 Chromium/FFmpeg、素材栅格化/视频采样和四画幅导出由 [固定容器 CI](../render-container/README.md#验证与部署)运行。测试不会自动部署或发起付费模型；结果与实际验收范围见[实施状态](../../docs/implementation-status.md)。

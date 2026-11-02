@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {observeProduct,mergeProductObservations} from './product-observation.mjs';
 import {capturePageOptions,capturePageScreens} from './capture-page.mjs';
+import {evaluationChromeExecutable} from './chrome.mjs';
 
 const root=new URL('../../',import.meta.url),topics=parseCanonicalJson(readFileSync(new URL('topics.json',import.meta.url)));
 const selected=process.argv[3],{grab:enhanced,maxShots}=capturePageOptions(process.argv.slice(4)),directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
@@ -21,7 +22,7 @@ let context;
 const report={scope:'private_internal_eval_source_capture_not_public_license',browser:null,capturedAt:new Date().toISOString(),assets:[]};
 const save=()=>writeFileSync(reportPath,canonical(report)+'\n');
 try{
- context=await chromium.launchPersistentContext(profile,{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+ context=await chromium.launchPersistentContext(profile,{executablePath:evaluationChromeExecutable,
   headless:true,...(enhanced?{chromiumSandbox:true}:{}),...(selected==='ielts-ready'?{args:['--disable-http2']}:{}),viewport:{width:1600,height:1000},deviceScaleFactor:1,locale:'en-US',timezoneId:'UTC',acceptDownloads:false});
  report.browser=context.browser().version();
  for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false&&(!selected||topic.id===selected))){

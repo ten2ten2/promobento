@@ -20,6 +20,7 @@ mise exec -- node research/evals/prepare-inputs.mjs \
 ## 采集、选择与入库
 
 这些工具只用于登记的内部题目；每个来源先人工审看，不构成客户上传或任意网站抓取能力。
+本地素材浏览器默认使用 macOS Chrome；Linux CI 通过 `PROMOBENTO_EVAL_CHROME_PATH` 指向固定 Chromium。`pnpm test` 执行不依赖浏览器的素材验证，PR CI 的浏览器任务另行验证真实解码和渲染。
 
 | 用途 | 工具 |
 | --- | --- |

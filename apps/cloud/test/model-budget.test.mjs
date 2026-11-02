@@ -139,6 +139,28 @@ test('a failed incomplete model stream cannot settle from provisional mid-stream
  assert.equal(receipt.result.usage.completion_tokens,2);
  assert.equal(receipt.quote,null,'mid-stream usage is evidence, not final charge confirmation');
 });
+test('a completed response with invalid cached-token usage keeps its reservation and cannot be reused as a settled bill',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{
+  requests++;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],
+   usage:{prompt_tokens:10000,completion_tokens:20,prompt_tokens_details:{cached_tokens:0.5}}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Synthetic cached-token usage check.',messages:[{role:'user',text:'Return ok.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true);
+ const first=await modelStep(env,'model-operation',0,'facts','invalid-cache-usage',request,check);
+ assert.equal(first.value.ok,true);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
+ assert.equal(receipt.quote,null,'malformed reported usage must not produce an exact price');
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ const replay=await modelStep(env,'model-operation',0,'facts','invalid-cache-usage',request,check);
+ assert.equal(replay.cached,true);assert.equal(requests,1);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('other-operation','workspace','project',0,'calibration','active','another-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'other-operation',0,'facts','other-invalid-cache',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1);
+});
 test('an empty completed stream retains private raw events and an unknown reservation without resending',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  const raw='data: '+canonical({choices:[{delta:{reasoning_content:'fixture'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n';

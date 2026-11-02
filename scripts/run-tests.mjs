@@ -5,13 +5,19 @@ import {spawnSync} from 'node:child_process';
 import {repositoryFiles} from './repo-documentation.mjs';
 
 // Native Node unit tests. Browser and media integration suites have separate commands.
+const researchBrowserTests = new Set([
+  'research/evals/approved-artwork.test.mjs',
+  'research/evals/approved-video.test.mjs',
+  'research/evals/product-observation.test.mjs',
+]);
 export function discoverTests(root,{suite='unit'}={}) {
   if (!['unit','render'].includes(suite)) throw Error('Unknown test suite: '+suite);
   return repositoryFiles(root).filter(path=>{
     const name=relative(root,path).split(sep).join('/');
-    if (!/^(?:scripts|tests|packages|apps)\/.*\.test\.[^/]+$/.test(name)) return false;
+    if (!/^(?:scripts|tests|packages|apps|research\/evals)\/.*\.test\.[^/]+$/.test(name)) return false;
     if (!/\.test\.(?:mjs|js|cjs|ts|mts|cts)$/.test(name)) throw Error('Unsupported test extension: '+name);
-    return suite==='render'?name.includes('.render.test.'):!name.includes('.render.test.');
+    const browser = name.includes('.render.test.') || researchBrowserTests.has(name);
+    return suite==='render'?browser:!browser;
   });
 }
 

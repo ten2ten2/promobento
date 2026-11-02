@@ -10,9 +10,9 @@ import {materialApproval} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 import {assertStaticArtwork} from './artwork-format.mjs';
+import {evaluationChromeExecutable} from './chrome.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
-const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns','.gif':'image/gif','.avif':'image/avif'})[extname(path).toLowerCase()];
 const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns','image/gif':'gif','image/avif':'avif'})[type];
 const inlineSelector=value=>typeof value==='string'&&value.length<=256&&/^(?:#[a-z_][a-z0-9_-]*|html(?: > [a-z][a-z0-9-]*:nth-of-type\([1-9][0-9]{0,4}\)){1,32})$/i.test(value);
@@ -63,7 +63,7 @@ function checkIdentity(card,asset,sourceBytes){
  const decision=checkApproval(card,asset);if(sha256Bytes(sourceBytes)!==decision.explicit.sha256)throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');return decision;
 }
 async function openBrowser(){
- const browser=await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
+ const browser=await chromium.launch({executablePath:evaluationChromeExecutable,headless:true,chromiumSandbox:true,timeout:30000});
  let context;
  try{
   context=await browser.newContext({viewport:{width:4096,height:4096},deviceScaleFactor:1,locale:'en-US',acceptDownloads:false});

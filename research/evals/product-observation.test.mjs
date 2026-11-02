@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright-core';
 import {observeProduct} from './product-observation.mjs';
+import {evaluationChromeExecutable} from './chrome.mjs';
 
 test('approved page observation records real logo, images, colours and type without treating URLs as permission',async()=>{
- const browser=await chromium.launch({executablePath:process.env.PROMOBENTO_OBSERVATION_CHROME??'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true});
+ const browser=await chromium.launch({executablePath:evaluationChromeExecutable,headless:true,chromiumSandbox:true});
  try{
   const page=await browser.newPage({viewport:{width:800,height:600}});
   await page.route('**/*',route=>route.abort());

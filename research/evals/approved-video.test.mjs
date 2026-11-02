@@ -2,8 +2,9 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {chromium} from 'playwright-core';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
 import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {evaluationChromeExecutable} from './chrome.mjs';
 async function syntheticVideo(){let browser;try{
- browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,chromiumSandbox:true});const page=await browser.newPage();
+ browser=await chromium.launch({executablePath:evaluationChromeExecutable,headless:true,chromiumSandbox:true});const page=await browser.newPage();
  const data=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const ctx=canvas.getContext('2d'),stream=canvas.captureStream(10),chunks=[];
   const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8'});recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};const stopped=new Promise(resolve=>recorder.onstop=resolve);recorder.start();
   for(let i=0;i<22;i++){ctx.fillStyle=i<11?'#16c930':'#1640e0';ctx.fillRect(0,0,96,64);await new Promise(resolve=>setTimeout(resolve,100));}

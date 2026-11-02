@@ -41,4 +41,4 @@ docker run --rm --network none \
   --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 promobento-native-test
 ```
 
-CI 不自动部署；实际 Cloudflare Broker/D1/R2、物理停止、高并发、客户权限和作品视听仍须分别验收。已验证 SHA 见[实施状态](../../docs/implementation-status.md)。
+CI 还在相同固定浏览器镜像中运行审批素材 SVG/图标、视频/动态图和网页观察测试；只挂载只读源码及临时测试目录，断网且不调用模型。CI 不自动部署；实际 Cloudflare Broker/D1/R2、物理停止、高并发、客户权限和作品视听仍须分别验收。已验证 SHA 见[实施状态](../../docs/implementation-status.md)。

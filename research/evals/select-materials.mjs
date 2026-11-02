@@ -4,6 +4,7 @@ import {readFileSync,writeFileSync,mkdtempSync,rmSync,existsSync} from 'node:fs'
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {evaluationChromeExecutable} from './chrome.mjs';
 const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
 const selectedTopic=process.argv[3];
 if(selectedTopic&&!['deepseek','minimax','duolingo','marugoto','hf-llm-course'].includes(selectedTopic))throw Error('CURATED_SELECTION_UNAVAILABLE');
@@ -11,7 +12,7 @@ if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT
 const topicCapture=selectedTopic?join(directory,`capture-${selectedTopic}.json`):null;
 const capture=parseCanonicalJson(readFileSync(topicCapture&&existsSync(topicCapture)?topicCapture:join(directory,'capture.json'))),byId=new Map(capture.assets.map(asset=>[asset.id,asset]));
 const profile=mkdtempSync(join(tmpdir(),'promobento-material-selection-'));
-const context=await chromium.launchPersistentContext(profile,{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,
+const context=await chromium.launchPersistentContext(profile,{executablePath:evaluationChromeExecutable,headless:true,
  viewport:{width:1600,height:1000},deviceScaleFactor:1,locale:'en-US',timezoneId:'UTC',acceptDownloads:false});
 const selectionFile=join(directory,'selected.json');
 const selected=selectedTopic&&existsSync(selectionFile)?parseCanonicalJson(readFileSync(selectionFile)).assets.filter(asset=>asset.topicId!==selectedTopic):[];
