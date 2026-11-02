@@ -10,6 +10,8 @@ export function checkpointWaitSeconds(step: WorkflowStep, name: string, deadline
 }
 
 type DurableRenderState = {status: string | null; finishedAt: number | null; code: string | null};
+const transientRead = (error: unknown) => error instanceof Error
+  && /network connection lost|D1_ERROR|SQLITE_BUSY|timed? out|connection reset|service unavailable/i.test(error.message);
 
 /** Events are wake-up hints, not completion records. A bounded heartbeat also
  * observes a durably finished render when its notification is delayed or lost. */
@@ -17,7 +19,17 @@ export async function waitForDurableRender(step: WorkflowStep, name: string, eve
   deadlineAt: number, probe: () => Promise<DurableRenderState>) {
   for (let round = 0; ; round++) {
     const state = await step.do<DurableRenderState>(`${name}-state-${round}`,
-      {retries: {limit: 0, delay: '1 second'}}, probe);
+      {retries: {limit: 0, delay: '1 second'}}, async () => {
+        // An unavailable D1 read is not a render failure. Persist an unknown
+        // observation and try again at the next heartbeat; never replay work.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {return await probe();}
+          catch (error) {
+            if (!transientRead(error)) throw error; // Includes OPERATION_FENCED.
+          }
+        }
+        return {status: 'unavailable', finishedAt: null, code: null};
+      });
     if (state.status === 'passed') {
       if (!Number.isSafeInteger(state.finishedAt) || state.finishedAt! > deadlineAt)
         throw Error('OPERATION_DEADLINE');

@@ -16,7 +16,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 NativeProject 与 release，形成 R2 中的 `native_render_request`。operation generation 由 D1 渲染记录和内部 `native_render_task` 绑定，不由客户端提交。清单先经预编译 Schema 与共享语义校验，再核对实际文件、画幅和 release；作品不能设置预算、存储权限、编码或付费动作。
 
-`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；失败终态通知与渲染失败状态同事务保存，不等待物理停机确认才写入；事件实际送达结果独立记录，定时 sweep 补发。完成事件只是唤醒信号：导演最多每 60 秒核查一次 D1 持久渲染终态，丢失通知不能使已按时完成的结果被误判；迟于操作期限的结果仍被拒绝。Queue、Workflow/Director 恢复、停机清理、非关键进度上报和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
+`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；失败终态通知与渲染失败状态同事务保存，不等待物理停机确认才写入；事件实际送达结果独立记录，定时 sweep 补发。完成事件只是唤醒信号：导演最多每 60 秒核查一次 D1 持久渲染终态；短暂读取故障保留未知状态并继续等待，不会重发模型或渲染，取消／明确失败仍立即终止；迟于操作期限的结果仍被拒绝。Queue、Workflow/Director 恢复、停机清理、非关键进度上报和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
 
 平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止、计算结算和租约释放均确认后，才允许另一个 attempt。Workflow 观察到的传输失败代码单独保存在 `pipeline_attempts.recovery_code`，供重放预检恢复；Shard 的 `result_json` 仍是更高优先级的执行诊断。若该诊断写入暂时不可用，必须再确认 Shard 无成功结果及全部停机／结算／租约屏障，才允许把缺失诊断归类为可重试失败，未知费用仍禁止重发。claim 前租约失效或预检读取暂时失败时，只有确认同一作用域没有物理执行或费用，才允许复用原 ticket 的剩余排队窗口；不消耗物理重试次数。排队过期不产生物理 attempt；取消和晚到事件受 generation/token 拦截。初始持久等待上限 15 分钟、单次预览／导出执行上限 3／10 分钟，单个渲染总上限 30／45 分钟（含排队、重试及验证）；内部评估值尚未经过真实云端标定，不能当作客户 SLA。
 
@@ -60,7 +60,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 | `POST operations/:id/cancel` | generation fence 与持久清理 |
 | `GET operations/:id/recovery` | Workflow、实际停止状态、已结与未知费用 |
 | `POST operations/:id/reconcile` | 清理已终止操作，不重启创作 |
-| `GET capacity`、`GET model-budget` | 只读当前租约、待准入任务数／最久等待和共享账本 |
+| `GET capacity`、`GET model-budget` | 容量返回 `{leases, queued, oldestWaitMs}`，供内部检查运行中与排队任务；另可只读共享账本 |
 | `POST releases`、`GET releases/:id` | 登记或读取固定容器镜像摘要与原生 runtime commit |
 
 注册 release 时 `runtimeVersion` 必须为固定 huashu commit；不提供旧 `/studio`、`/frames` 等入口。公开 `/healthz` 返回 `nativeProjectSchema: "1.0.0"`、`runtime: "huashu-motion"` 和原生 commit；**产品 PRD 协议 3.0.0 与内部文件清单 1.0.0 是不同版本域**。

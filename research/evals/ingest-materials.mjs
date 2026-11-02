@@ -4,6 +4,7 @@ import {resolve,join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {objectUploadHeaders,requireIdleCapacity} from '../../apps/cloud/src/internal-eval-client.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 import {verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {verifyVideoSelections} from './approved-video.mjs';
@@ -31,8 +32,10 @@ let secretAttempted=false,operationCreated=false;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
  for(;;){
- const response=await fetch(base+path,{method,headers:{authorization:'Bearer '+key,'content-type':mediaType},
-  ...(body===undefined?{}:{body:body instanceof Uint8Array?body:canonical(body)}),signal:AbortSignal.timeout(45000)});
+ const payload=body===undefined?undefined:body instanceof Uint8Array?body:canonical(body);
+ const response=await fetch(base+path,{method,headers:{authorization:'Bearer '+key,'content-type':mediaType,
+  ...(method==='PUT'?objectUploadHeaders(payload):{})},
+  ...(payload===undefined?{}:{body:payload}),signal:AbortSignal.timeout(45000)});
  if(!response.ok){
   const detail=await response.text();
   // This exact response precedes dispatch. Different Cloudflare requests can see the new secret at different times.
@@ -48,7 +51,7 @@ try{
  let ready=false;const until=Date.now()+60000;
  do{
   const response=await fetch(base+'capacity',{headers:{authorization:'Bearer '+key},signal:AbortSignal.timeout(15000)});
-  if(response.ok){const leases=parseCanonicalJson(await response.text());if(leases.length)throw Error('OTHER_COMPUTE_ACTIVE');ready=true;break;}
+  if(response.ok){requireIdleCapacity(parseCanonicalJson(await response.text()),'OTHER_COMPUTE_ACTIVE');ready=true;break;}
   if(response.status!==404)throw Error('MATERIAL_AUTH_HEALTH_'+response.status);await response.arrayBuffer();await new Promise(resolve=>setTimeout(resolve,1000));
  }while(Date.now()<until);
  if(!ready)throw Error('MATERIAL_SECRET_PROPAGATION_TIMEOUT');
