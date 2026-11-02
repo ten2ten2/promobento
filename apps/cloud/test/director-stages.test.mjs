@@ -36,3 +36,26 @@ test('stage boundaries preserve asset indices and the authored direction-card or
  const cards=[{key:'fit'},{key:'amplify'},{key:'unexpected'}];
  assert.deepEqual(await previewDirectionStage(cards,2,async card=>({key:card.key})),cards);
 });
+
+test('duplicate material identities share one in-flight analysis and preserve every original result slot',async()=>{
+ const first={resourceId:'same',sha256:'source',preview:{sha256:'poster',mediaType:'image/png'}};
+ const another={resourceId:'distinct',sha256:'other',preview:{sha256:'poster-2',mediaType:'image/png'}};
+ const materials=[first,{resourceId:'audio'},structuredClone(first),another,structuredClone(first)];
+ const invoked=[];
+ const result=await analyzeMaterialStage(materials,2,async(asset,index)=>{
+  invoked.push({resourceId:asset.resourceId,index});
+  await setImmediate();return {resourceId:asset.resourceId,callId:'asset-'+index};
+ },asset=>JSON.stringify([asset.resourceId,asset.sha256,asset.preview.sha256,asset.preview.mediaType]));
+ assert.deepEqual(invoked,[{resourceId:'same',index:0},{resourceId:'distinct',index:3}]);
+ assert.deepEqual(result,[
+  {resourceId:'same',callId:'asset-0'},
+  {resourceId:'same',callId:'asset-0'},
+  {resourceId:'distinct',callId:'asset-3'},
+  {resourceId:'same',callId:'asset-0'},
+ ]);
+ const changedPoster={...first,preview:{...first.preview,sha256:'different-poster'}};
+ const calls=[];
+ await analyzeMaterialStage([first,changedPoster],2,async(_asset,index)=>{calls.push(index);return{index};},
+  asset=>JSON.stringify([asset.resourceId,asset.sha256,asset.preview.sha256,asset.preview.mediaType]));
+ assert.deepEqual(calls,[0,1],'different signed preview bytes must never be mistaken for the same model request');
+});

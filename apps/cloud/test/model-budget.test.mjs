@@ -10,7 +10,8 @@ import {historicalModelSpend} from '../../../research/model-probe/history.mjs';
 
 async function load(path){const{outputFiles}=await build({entryPoints:[path],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
  return import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));}
-const budget=await load('apps/cloud/src/model-budget.ts'),{modelStep}=await load('apps/cloud/src/model-client.ts');
+const budget=await load('apps/cloud/src/model-budget.ts'),{modelStep}=await load('apps/cloud/src/model-client.ts'),
+ {analyzeMaterialStage}=await load('apps/cloud/src/director-stages.ts');
 async function fixture(t,confirmed=true,history){
  const shared=sqliteD1(),local=sqliteD1();t.after(()=>{shared.db.close();local.db.close();});const{MEDIA,objects}=memoryMedia();
  const env={DB:local.DB,MODEL_LEDGER:shared.DB,PIPELINE_ENVIRONMENT:'staging',MEDIA,MODEL_COMPAT_API_KEY:'synthetic-not-a-secret'};
@@ -19,6 +20,39 @@ async function fixture(t,confirmed=true,history){
  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('model-operation','workspace','project',0,'calibration','active','request',10000000,Date.now(),null,null);
  return{shared,local,env,objects};
 }
+
+test('identical concurrent observations share one metered request while other operations still honor pending and receipt barriers',async t=>{
+ const{env,local,shared}=await fixture(t),oldFetch=globalThis.fetch;
+ let requests=0,releaseProvider,markStarted;
+ const held=new Promise(resolve=>{releaseProvider=resolve;});
+ const started=new Promise(resolve=>{markStarted=resolve;});
+ globalThis.fetch=async()=>{
+  requests++;markStarted();await held;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"shared observation"}'},finish_reason:'stop'}],
+   usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{releaseProvider();globalThis.fetch=oldFetch;});
+ const asset={resourceId:'res_shared',sha256:'a'.repeat(64),preview:{sha256:'b'.repeat(64),mediaType:'image/png'}};
+ const identity=item=>canonical([item.resourceId,item.sha256,item.preview.sha256,item.preview.mediaType]);
+ const request={system:'Synthetic offline observation.',messages:[{role:'user',text:'Analyze identical signed evidence.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.value,'shared observation');
+ const analyze=(item,index,guard)=>modelStep(env,'model-operation',0,'assets','model-operation-asset-'+index,request,check,Date.now()+30_000,
+  {dispatchGuard:guard}).then(result=>result.value);
+ const observed=analyzeMaterialStage([asset,structuredClone(asset)],2,analyze,identity);
+ await Promise.race([started,new Promise((_,reject)=>setTimeout(()=>reject(Error('MODEL_REQUEST_NOT_STARTED')),1_000))]);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('other-operation','workspace','project',0,'calibration','active','other-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'other-operation',0,'assets','other-asset-0',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/,
+  'a genuinely pending provider call is not a reusable completed result');
+ releaseProvider();
+ assert.deepEqual(await observed,[{value:'shared observation'},{value:'shared observation'}]);
+ assert.equal(requests,1,'the duplicate asset did not start another paid request');
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,1);
+ const reused=await modelStep(env,'other-operation',0,'assets','other-asset-0',request,check);
+ assert.equal(reused.cached,true,'a settled response with a receipt is safely reusable');
+ assert.equal(requests,1);
+});
 
 test('historical primary reports inventory every request; unknown prices/usage never become a zero opening',async t=>{
  const{env}=await fixture(t,false),history=historicalModelSpend();

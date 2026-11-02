@@ -116,7 +116,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   const request=await putJson('evals/fixture/'+id+'.json',context);
   db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
-  for(const resource of [...context.resources,...(context.audioSources??[]),...readmittedRights])db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+  for(const resource of [...context.resources,...(context.audioSources??[]),...readmittedRights])db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -156,6 +156,19 @@ test('director overlaps only independent stages, freezes per-card method languag
  assert.ok(stored);
  const previewSet=parseCanonicalJson(new Uint8Array(await stored.arrayBuffer()));
  assert.deepEqual(previewSet.map(item=>item.direction),['fit','amplify','unexpected']);
+});
+
+test('duplicate material entries keep original positions but never start two identical paid asset calls',async t=>{
+ const f=await fixture(t,{parallelDelay:true});
+ const completed=await f.create('duplicate-materials',{resources:[f.asset,structuredClone(f.asset)],aspects:['landscape']});
+ assert.equal(completed.kind,'native_candidate');
+ const observations=f.calls.filter(call=>call.stage==='assets');
+ assert.equal(observations.length,1,'an identical observation should have one in-flight model call and stable first callId');
+ assert.ok(observations[0].callId.endsWith('asset-0'));
+ assert.equal(f.parallel.assets.peak,1);
+ const directions=f.calls.find(call=>call.stage==='directions');
+ assert.equal(directions.payload.insights.length,2,'the downstream stage still receives an ordered insight for each material');
+ assert.deepEqual(directions.payload.insights[0],directions.payload.insights[1]);
 });
 
 test('a failed parallel asset stops in-flight invalid output from starting a paid correction',async t=>{

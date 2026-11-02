@@ -79,9 +79,11 @@ test('native migration preserves settled films and unknown reservations; automat
     const before = canonical({operations: db.prepare('SELECT * FROM pipeline_operations').all(), renders: db.prepare('SELECT * FROM pipeline_renders').all(),
       costs: db.prepare('SELECT * FROM cost_reservations').all(), settlements: db.prepare('SELECT * FROM cost_settlements').all()});
     db.exec(readFileSync('apps/cloud/migrations/0004_native_projects.sql', 'utf8'));
+    db.exec(readFileSync('apps/cloud/migrations/0006_workflow_stop_checkpoints.sql', 'utf8'));
     const DB = {prepare(sql) {return {async all() {return {results: db.prepare(sql).all()};}};}};
     assert.deepEqual(await recoverWorkflows({DB}), []);
     assert.equal(db.prepare('SELECT engine FROM pipeline_workflows').get().engine, 'legacy');
+    assert.equal(db.prepare('SELECT native_stop_confirmed_at FROM pipeline_workflows').get().native_stop_confirmed_at,null);
     assert.equal(canonical({operations: db.prepare('SELECT * FROM pipeline_operations').all(), renders: db.prepare('SELECT * FROM pipeline_renders').all(),
       costs: db.prepare('SELECT * FROM cost_reservations').all(), settlements: db.prepare('SELECT * FROM cost_settlements').all()}), before);
   } finally {db.close();}
@@ -185,13 +187,86 @@ test('a Queue timeout retains confirmed Workflow stops so its next cancellation 
  const dispatch=msg=>{const work=dispatchOperationCancellation(env,msg.body);background.push(work);return work;};
  await processQueueMessages([message()],dispatch,55);
  assert.deepEqual(handled,['retry']);
- assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,8,
-  'the first two confirmed waves must be durable before the Queue invocation expires');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE native_stop_confirmed_at IS NOT NULL').get().n,8,
+  'the first two native stop waves must be durable before the Queue invocation expires');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,0,
+  'native stop evidence must not be confused with a completed operation cleanup');
  release();
  await processQueueMessages([message()],dispatch,300);
  assert.deepEqual(handled,['retry','ack']);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE native_stop_confirmed_at IS NOT NULL').get().n,12);
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,12);
  for(let index=0;index<8;index++)assert.equal(calls.get('queued-cleanup-'+index),1,'the retry must not recheck an already confirmed stop');
+});
+
+test('a final-render D1 outage leaves terminal cleanup discoverable without re-stopping verified native Workflows',async t=>{
+ for(const status of ['cancelled','failed']){
+  const{db,env,op}=await fixture(t),renderId='tail-render-'+status,attemptId='tail-attempt-'+status;
+  const token='11111111-1111-4111-8111-111111111111';
+  db.prepare("INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at,result_json) VALUES(?,?,?,?,?,'rendering',?,?)")
+   .run(renderId,op.id,0,'tail-'+status,'renders/'+renderId+'/job.json',Date.now(),canonical({stopPending:true}));
+  db.prepare("INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)")
+   .run(attemptId,renderId,op.id,0,'native_export','standard-3','active',Date.now());
+  db.prepare(`INSERT INTO pipeline_render_admissions(id,render_id,operation_id,generation,workspace_id,attempt_index,status,
+   requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,0,'running',?,?,?,?,?)`)
+   .run(attemptId,renderId,op.id,0,op.workspace_id,Date.now(),Date.now()+60_000,token,Date.now(),Date.now()+60_000);
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
+   .run(renderId,op.id,Date.now());
+  db.prepare('UPDATE pipeline_operations SET status=? WHERE id=?').run(status,op.id);
+  let nativeChecks=0,physicalStops=0,leaseReleases=0;
+  env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
+  env.SHARDS={getByName(){return{async stopAndSettle(){physicalStops++;}}}};
+  env.COORDINATOR={getByName(){return{async release(id,lease){
+   assert.equal(id,attemptId);assert.equal(lease,token);leaseReleases++;
+   db.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=?").run(id);
+  }}}};
+  let failOnce=true;
+  const prepare=env.DB.prepare.bind(env.DB);
+  env.DB.prepare=sql=>{
+   if(failOnce&&sql.startsWith('UPDATE pipeline_renders SET status=?,finished_at=COALESCE')){
+    failOnce=false;
+    return{bind(){return{async run(){throw Error('SIMULATED_RENDER_FINALIZATION_D1_OUTAGE');}}}};
+   }
+   return prepare(sql);
+  };
+  await assert.rejects(reconcileOperation(env,op.id),/SIMULATED_RENDER_FINALIZATION_D1_OUTAGE/);
+  const checkpoint=db.prepare('SELECT native_status,native_stop_confirmed_at,reconciled_at FROM pipeline_workflows WHERE id=?').get(renderId);
+  assert.equal(checkpoint.native_status,'complete');
+  assert.ok(checkpoint.native_stop_confirmed_at,'a confirmed native stop must survive the failed cleanup');
+  assert.equal(checkpoint.reconciled_at,null,'native stop confirmation must not mark the full operation cleanup complete');
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(renderId).status,'rendering');
+  assert.equal(db.prepare('SELECT stopped_at FROM pipeline_attempts WHERE id=?').get(attemptId).stopped_at!==null,true);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(attemptId).status,'released');
+  assert.ok(physicalStops>=1);assert.ok(leaseReleases>=1);
+  const recovered=await recoverWorkflows(env);
+  assert.ok(recovered.some(row=>row.id===renderId&&row.status==='inspected'),'the sweep must rediscover this terminal operation');
+  assert.equal(nativeChecks,1,'a confirmed native stop is never needlessly queried again');
+  const done=db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get(renderId);
+  assert.equal(done.status,status==='cancelled'?'cancelled':'blocked');
+  assert.equal(parseCanonicalJson(done.result_json).stopPending,false);
+  assert.ok(db.prepare('SELECT reconciled_at FROM pipeline_workflows WHERE id=?').get(renderId).reconciled_at);
+  assert.deepEqual(await recoverWorkflows(env),[],'fully reconciled terminal work leaves the sweep');
+ }
+});
+
+test('a recovery sweep launches only one cleanup for many pending Workflows of the same terminal operation',async t=>{
+ const{db,env,op}=await fixture(t);
+ for(let n=0;n<9;n++)db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
+  .run('sweep-render-'+n,op.id,Date.now());
+ db.prepare("UPDATE pipeline_operations SET status='cancelled' WHERE id=?").run(op.id);
+ let reconciliations=0,nativeChecks=0;
+ env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(sql==='SELECT status FROM pipeline_operations WHERE id=?')reconciliations++;
+  return prepare(sql);
+ };
+ const result=await recoverWorkflows(env);
+ assert.equal(result.length,1,'the sweep must coalesce all pending rows of a terminal operation');
+ assert.equal(reconciliations,1,'terminal cleanup must not race itself across four pool workers');
+ assert.equal(nativeChecks,9,'one reconciliation still stops every native Workflow');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,9);
+ assert.deepEqual(await recoverWorkflows(env),[]);
 });
 
 test('unavailable Workflow status does not strand an admitted no-start lease during reconciliation', async t => {

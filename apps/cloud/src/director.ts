@@ -236,7 +236,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      return runModel('asset-'+index,'assets',{messages:[{role:'user',text:canonical({task:'Describe only the actual supplied image. For a video this is the poster only; do not infer later action.',resourceId:asset.resourceId,sha256:asset.sha256,model:providers.steps.assets,promptVersion:'native-asset-v1'}),images:[image]}],schema:insightSchema,maxOutputTokens:4096},value=>{
       if(!validInsight(value)||value.sha256!==asset.sha256||value.model!==providers.steps.assets)outputError('ASSET_INSIGHT_INVALID',value);
      },language,stageGuard);
-    });
+    },asset=>canonical([asset.resourceId,asset.sha256,asset.preview.sha256,asset.preview.mediaType??'image/png']));
     await progress('directions');
     const directions=await runModel('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose Fit, Amplify, Unexpected as three distinct native visual directions. Use natural-language shot approaches and actual assets. Exactly one depth option unless the Brief rules depth out.',brief,facts,materials:publicMaterials(material.materials),insights})}],schema:directionSchema,maxOutputTokens:32768},value=>{
      if(!validDirections(value)||canonical(value.cards.map((card:Json)=>card.key).sort())!==canonical(['amplify','fit','unexpected']))outputError('DIRECTIONS_INVALID',value);

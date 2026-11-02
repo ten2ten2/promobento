@@ -106,6 +106,11 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  }
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
+ // Only full cleanup completion may retire recovery-scannable Workflow rows.
+ // A per-item native-stop checkpoint is not a compute, lease or D1 finalization receipt.
+ await env.DB.prepare(`UPDATE pipeline_workflows SET reconciled_at=COALESCE(reconciled_at,?)
+   WHERE operation_id=? AND native_stop_confirmed_at IS NOT NULL AND reconciled_at IS NULL`)
+  .bind(Date.now(),operationId).run();
  return {operationId,stoppedAttempts:attempts.results.length,reconciledRenders:renders.results.length,workflows:workflows[0]!.value,pendingCosts:pending.results};
 }
 
