@@ -16,7 +16,7 @@
     "test:cloud-local": "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
     "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck",
-    "test:native": "pnpm run build:validators && node --test packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/cloud/test/director-stages.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-budget.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/png.test.mjs packages/methods/directing.test.mjs"
+    "test:native": "pnpm run build:validators && node --test packages/contracts/test/canonical.test.mjs packages/contracts/test/validation.test.mjs packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/render-container/tests/media-precheck.test.mjs apps/cloud/test/director-stages.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-secret.test.mjs apps/cloud/test/recovery-indexes.test.mjs apps/cloud/test/model-budget.test.mjs packages/models/test/adapters.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/video-frames.test.mjs packages/contracts/test/png.test.mjs packages/methods/*.test.mjs"
   },
   "devDependencies": {
     "@promobento/contracts": "workspace:*",

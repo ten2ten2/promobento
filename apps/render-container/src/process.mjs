@@ -14,7 +14,7 @@ export async function mapIO(values,work,concurrency=4){
   if(failed)throw failure;return results;
 }
 
-export async function deadline(work, ms, code, cancel = () => {}) {
+async function deadline(work, ms, code, cancel = () => {}) {
   let timer;
   try {
     return await Promise.race([work, new Promise((_, reject) => {
@@ -24,7 +24,7 @@ export async function deadline(work, ms, code, cancel = () => {}) {
 }
 
 /** Trusted executables/argument arrays only. Never accepts shell programs or author modules. */
-export function childProcess(command, args, {signal} = {}) {
+function childProcess(command, args, {signal} = {}) {
   const child = spawn(command, args, {stdio: ['pipe', 'pipe', 'pipe'], signal});
   let stdout = [], bytes = 0, stderr = '';
   child.stdout.on('data', chunk => {

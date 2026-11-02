@@ -1,9 +1,10 @@
 // Candidate inventory only, adapted from huashu-motion cli/lib/grab.js @ 52467f99 (MIT).
 // No media bytes are read or copied; selection and per-file rights precede ingestion.
-import {existsSync,lstatSync,mkdirSync,readdirSync,readFileSync,realpathSync,writeFileSync} from 'node:fs';
-import {resolve,relative,sep,join,dirname,extname} from 'node:path';
+import {lstatSync,mkdirSync,readdirSync,readFileSync,realpathSync} from 'node:fs';
+import {resolve,relative,sep,join,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep);
 const skipped=new Set(['node_modules','.git','dist','build','out','.om','_archive','.next','coverage','vendor','Pods','DerivedData','.cache']);
@@ -16,10 +17,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
  if(typeof sourceUrl!=='string'||!sourceUrl.trim()||sourceUrl.length>2048||card.status!=='confirmed_for_s1_eval'||card.confirmation?.confirmedBy!=='owner'||card.confirmation.scope!=='s1-first-internal-evaluation'
   ||card.rights?.scope!=='internal_eval_only'||card.rights.publicUseCleared!==false||card.materialLicenseReview?.status==='permission_required'
   ||!card.assetSources?.some(item=>item.kind==='local_project_media'&&item.url===sourceUrl))throw Error('LOCAL_SOURCE_APPROVAL_REQUIRED');
- const root=realpathSync(sourceDir),output=resolve(outputDir),artifacts=realpathSync('artifacts');
- if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
- const actualParent=realpathSync(parent);if(actualParent!==artifacts&&!within(artifacts,actualParent))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ const root=realpathSync(sourceDir),output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(typeof observeStyles!=='boolean'||typeof preferReadme!=='boolean'||typeof observeFonts!=='boolean')throw Error('LOCAL_DISCOVERY_MODE_INVALID');
  const featured=new Set();let readmeObservation;
  if(preferReadme){
@@ -69,8 +67,8 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
  const result={kind:'local_material_candidates',topicId:card.topicId,sourceUrl,scope:'internal_eval_only',publicUseCleared:false,
   candidates,missing,skippedSymlinks:symlinks,...(readmeObservation?{readmeObservation}:{}),...(observeStyles?{styleObservations:{colours:[...colours.values()],fonts:[...fonts.values()],filesRead:styleFiles,
    scope:'declared_stylesheets_only_not_font_or_asset_permission'}}:{})};
- mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- writeFileSync(join(output,'candidates.json'),canonical(result)+'\n',{flag:'wx'});return result;
+ mkdirSync(output,{recursive:true});privateExisting(output,'directory','NEW_PRIVATE_OUTPUT_REQUIRED');
+ writePrivateFile(join(output,'candidates.json'),canonical(result)+'\n',{exclusive:true});return result;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceDir,sourceUrl,...extra]=process.argv.slice(2);

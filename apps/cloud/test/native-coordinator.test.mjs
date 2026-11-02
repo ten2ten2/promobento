@@ -5,7 +5,7 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {nativeProjectHash} from '@promobento/contracts/native-project';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {NATIVE_COMMIT} from '../src/native-project.ts';
-import {nativeRenderPolicy} from '../src/native-task.ts';
+import {nativeRenderPolicy} from '../src/native-policy.ts';
 import {reserve} from '../src/store.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 

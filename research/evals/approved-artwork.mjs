@@ -1,8 +1,8 @@
 // Rasterize explicitly approved local SVG/ICO into inspectable PNGs. The source bytes,
 // browser version and reproducible output stay bound through subsequent ingestion.
 import {chromium} from 'playwright-core';
-import {existsSync,lstatSync,mkdirSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
-import {resolve,relative,dirname,join,sep,extname} from 'node:path';
+import {lstatSync,mkdirSync,readFileSync,realpathSync,statSync} from 'node:fs';
+import {resolve,relative,join,sep,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
@@ -10,9 +10,12 @@ import {materialApproval} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
 import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-images.mjs';
 import {assertStaticArtwork} from './artwork-format.mjs';
+import {evaluationChromeExecutable} from './chrome.mjs';
+import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
+import {readBoundedApprovedFile} from './read-local-approved.mjs';
+import {readReviewedMaterial} from './prepare-material-selection.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
-const executablePath='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const kindFor=path=>({'.svg':'image/svg+xml','.ico':'image/x-icon','.icns':'image/icns','.gif':'image/gif','.avif':'image/avif'})[extname(path).toLowerCase()];
 const extension=type=>({'image/svg+xml':'svg','image/x-icon':'ico','image/icns':'icns','image/gif':'gif','image/avif':'avif'})[type];
 const inlineSelector=value=>typeof value==='string'&&value.length<=256&&/^(?:#[a-z_][a-z0-9_-]*|html(?: > [a-z][a-z0-9-]*:nth-of-type\([1-9][0-9]{0,4}\)){1,32})$/i.test(value);
@@ -63,7 +66,7 @@ function checkIdentity(card,asset,sourceBytes){
  const decision=checkApproval(card,asset);if(sha256Bytes(sourceBytes)!==decision.explicit.sha256)throw Error('ARTWORK_APPROVAL_IDENTITY_MISMATCH');return decision;
 }
 async function openBrowser(){
- const browser=await chromium.launch({executablePath,headless:true,chromiumSandbox:true,timeout:30000});
+ const browser=await chromium.launch({executablePath:evaluationChromeExecutable,headless:true,chromiumSandbox:true,timeout:30000});
  let context;
  try{
   context=await browser.newContext({viewport:{width:4096,height:4096},deviceScaleFactor:1,locale:'en-US',acceptDownloads:false});
@@ -124,10 +127,7 @@ async function renderArtwork({page},bytes,mediaType){
 }
 /** All inputs are approved and identity-checked before any image is decoded. */
 export async function captureApprovedArtwork({sourceDir,outputDir,card,entries}){
- const source=realpathSync(sourceDir),artifacts=realpathSync('artifacts'),output=resolve(outputDir);
- if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
- const parentReal=realpathSync(parent);if(parentReal!==artifacts&&!within(artifacts,parentReal))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ const source=realpathSync(sourceDir),output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('ARTWORK_SELECTION_INVALID');
  const accepted=entries.map(entry=>{
@@ -139,23 +139,21 @@ export async function captureApprovedArtwork({sourceDir,outputDir,card,entries})
   const path=resolve(source,entry.sourceFile);if(!within(source,path)||relative(source,path).split(sep).join('/')!==entry.sourceFile||!within(source,realpathSync(path))||lstatSync(path).isSymbolicLink()||!statSync(path).isFile())throw Error('LOCAL_MATERIAL_PATH_INVALID');
   if(statSync(path).size>limit)throw Error('ARTWORK_SIZE_INVALID');return{entry,asset,path};
  });
- const inputs=accepted.map(item=>{const bytes=readFileSync(item.path);if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);return{...item,bytes};});
- return materializeArtwork(output,artifacts,inputs);
+ const inputs=accepted.map(item=>{const bytes=readBoundedApprovedFile(item.path,limit,'ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);return{...item,bytes};});
+ return materializeArtwork(output,inputs);
 }
-async function materializeArtwork(output,artifacts,inputs){
+async function materializeArtwork(output,inputs){
  let runner;const items=[];
  try{runner=await openBrowser();for(const input of inputs){const image=await renderArtwork(runner,input.bytes,input.asset.derivation.sourceMediaType);
   items.push({bytes:input.bytes,png:image.png,asset:{...input.asset,derivation:{...input.asset.derivation,chromeVersion:runner.version},file:input.entry.id+'.png',width:image.width,height:image.height,mediaType:'image/png',description:input.entry.description,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}});
  }}finally{await runner?.close();}
- mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- for(const item of items){writeFileSync(join(output,item.asset.derivation.originalFile),item.bytes,{flag:'wx'});writeFileSync(join(output,item.asset.file),item.png,{flag:'wx'});}
- const result={scope:'internal_eval_only',publicUseCleared:false,assets:items.map(item=>item.asset)};writeFileSync(join(output,'selected.json'),canonical(result)+'\n',{flag:'wx'});return result;
+ mkdirSync(output,{recursive:true});privateExisting(output,'directory','NEW_PRIVATE_OUTPUT_REQUIRED');
+ for(const item of items){writePrivateFile(join(output,item.asset.derivation.originalFile),item.bytes,{exclusive:true});writePrivateFile(join(output,item.asset.file),item.png,{exclusive:true});}
+ const result={scope:'internal_eval_only',publicUseCleared:false,assets:items.map(item=>item.asset)};writePrivateFile(join(output,'selected.json'),canonical(result)+'\n',{exclusive:true});return result;
 }
 /** An observed web image is not permission: every URL and exact source hash must be approved first. */
 export async function captureApprovedWebArtwork({outputDir,card,entries,download=downloadApprovedImage}){
- const artifacts=realpathSync('artifacts'),output=resolve(outputDir);if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
- const parentReal=realpathSync(parent);if(parentReal!==artifacts&&!within(artifacts,parentReal))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ const output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('ARTWORK_SELECTION_INVALID');
  const accepted=entries.map(entry=>{
@@ -167,15 +165,13 @@ export async function captureApprovedWebArtwork({outputDir,card,entries,download
   checkApproval(card,asset);return{entry,asset};
  });
  const inputs=[];for(const item of accepted){const bytes=Buffer.from(await download(item.entry.imageUrl,{accept:'image/svg+xml,image/x-icon,image/icns,image/gif,image/avif'}));if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});}
- return materializeArtwork(output,artifacts,inputs);
+ return materializeArtwork(output,inputs);
 }
 /** Capture an explicitly approved, byte-bound inline SVG from static page HTML.
  * Website scripts are never run; dynamically generated SVG must be supplied by
  * another approved source rather than silently substituting a different mark. */
 export async function captureApprovedInlineArtwork({outputDir,card,entries,download=downloadApprovedImage}){
- const artifacts=realpathSync('artifacts'),output=resolve(outputDir);if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
- const parentReal=realpathSync(parent);if(parentReal!==artifacts&&!within(artifacts,parentReal))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ const output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('ARTWORK_SELECTION_INVALID');
  const accepted=entries.map(entry=>{
@@ -203,13 +199,13 @@ export async function captureApprovedInlineArtwork({outputDir,card,entries,downl
   if(typeof svg!=='string')throw Error('ARTWORK_INLINE_SELECTOR_INVALID');
   const bytes=Buffer.from(svg);if(!bytes.length||bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);inputs.push({...item,bytes});
  }}finally{await runner?.close();}
- return materializeArtwork(output,artifacts,inputs);
+ return materializeArtwork(output,inputs);
 }
 /** Independently rebuild artwork previews before any remote side effect; bytes must match. */
 export async function verifyArtworkSelections(directory,selected,topics){
  const artwork=(selected.assets??[]).filter(asset=>asset.derivation?.kind==='approved_artwork_rasterization');if(!artwork.length)return new Map();
  if(selected.scope!=='internal_eval_only'||selected.publicUseCleared!==false||topics.factConfirmation?.confirmedBy!=='owner')throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
- const root=realpathSync(directory),artifacts=realpathSync('artifacts');if(!within(artifacts,root))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
+ const root=privateExisting(directory);
  const sources=artwork.map(asset=>{
   if(!/^[a-z0-9-]{4,80}$/.test(asset.id??'')||asset.review!=='approved_for_internal_eval_by_codex'||!asset.reviewedAt)throw Error('MATERIAL_REVIEW_REQUIRED');
   const topic=topics.topics.find(item=>item.id===asset.topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
@@ -218,15 +214,14 @@ export async function verifyArtworkSelections(directory,selected,topics){
   const ext=extension(asset.derivation.sourceMediaType);if(!ext)throw Error('ARTWORK_SOURCE_INVALID');
   const original=asset.derivation.originalFile,expected=asset.id+'.source.'+ext;
   if(original!==expected||asset.file!==asset.id+'.png')throw Error('ARTWORK_SOURCE_INVALID');
-  const sourcePath=join(root,original),pngPath=join(root,asset.file);
-  for(const path of [sourcePath,pngPath])if(lstatSync(path).isSymbolicLink()||!within(root,realpathSync(path))||!statSync(path).isFile())throw Error('ARTWORK_SOURCE_INVALID');
-  const bytes=readFileSync(sourcePath);if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,asset,bytes);
-  return{asset,bytes,pngPath};
+  const bytes=readReviewedMaterial(root,original,limit),png=readReviewedMaterial(root,asset.file,limit);
+  checkIdentity(card,asset,bytes);
+  return{asset,bytes,png};
  });
  let runner;const verified=new Map();
- try{runner=await openBrowser();for(const {asset,bytes,pngPath}of sources){
+ try{runner=await openBrowser();for(const {asset,bytes,png}of sources){
   if(asset.derivation.chromeVersion!==runner.version)throw Error('ARTWORK_RENDERER_CHANGED');
-  const result=await renderArtwork(runner,bytes,asset.derivation.sourceMediaType),png=readFileSync(pngPath);
+  const result=await renderArtwork(runner,bytes,asset.derivation.sourceMediaType);
   if(!result.png.equals(png)||result.width!==asset.width||result.height!==asset.height)throw Error('ARTWORK_DERIVATION_MISMATCH');
   verified.set(asset.id,{sha256:sha256Bytes(png),original:bytes,sourceMediaType:asset.derivation.sourceMediaType});
  }}finally{await runner?.close();}return verified;
@@ -234,7 +229,7 @@ export async function verifyArtworkSelections(directory,selected,topics){
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceArg,manifestArg,...extra]=process.argv.slice(2),web=sourceArg==='--web',inline=sourceArg==='--inline',manifestFile=manifestArg;
  if(!outputDir||!topicId||!sourceArg||!manifestFile||extra.length)throw Error('ARTWORK_CAPTURE_ARGUMENTS_REQUIRED');
- const root=realpathSync('artifacts'),manifestPath=realpathSync(manifestFile);if(!within(root,manifestPath))throw Error('PRIVATE_MANIFEST_REQUIRED');
+ const manifestPath=privateExisting(manifestFile,'file','PRIVATE_MANIFEST_REQUIRED');
  const topics=parseCanonicalJson(readFileSync('research/evals/topics.json')),topic=topics.topics.find(item=>item.id===topicId&&item.countsTowardGate!==false);if(!topic)throw Error('TOPIC_NOT_APPROVED');
  const card=parseCanonicalJson(readFileSync(topic.factCard)),manifest=parseCanonicalJson(readFileSync(manifestPath));
  const result=inline?await captureApprovedInlineArtwork({outputDir,card,entries:manifest.files}):web?await captureApprovedWebArtwork({outputDir,card,entries:manifest.files}):await captureApprovedArtwork({sourceDir:sourceArg,outputDir,card,entries:manifest.files});

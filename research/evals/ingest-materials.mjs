@@ -1,21 +1,23 @@
 // Owner's internal evaluation only. Uses the existing Wrangler connection; never reads or exports credentials.
-import {readFileSync,writeFileSync,existsSync} from 'node:fs';
-import {resolve,join} from 'node:path';
+import {lstatSync,readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {objectUploadHeaders,requireIdleCapacity} from '../../apps/cloud/src/internal-eval-client.mjs';
-import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {prepareMaterialSelection,readReviewedMaterial} from './prepare-material-selection.mjs';
 import {verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {verifyVideoSelections} from './approved-video.mjs';
+import {privateExisting,writePrivateFile} from './private-path.mjs';
 
-const directory=resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24');
-if(!directory.startsWith(resolve('artifacts')+'/'))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
-const selected=parseCanonicalJson(readFileSync(join(directory,'selected.json'))),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
+const directory=privateExisting(process.argv[2]??'artifacts/eval-materials-2026-10-24');
+const selected=parseCanonicalJson(readReviewedMaterial(directory,'selected.json',8<<20)),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
 const verifiedArtwork=await verifyArtworkSelections(directory,selected,topics);
 const verifiedVideos=await verifyVideoSelections(directory,selected,topics);
 const prepared=prepareMaterialSelection(directory,selected,topics,{verifiedArtwork,verifiedVideos});
-const receiptPath=join(directory,'ingestion.json'),previous=existsSync(receiptPath)?parseCanonicalJson(readFileSync(receiptPath)):null;
+const receiptPath=join(directory,'ingestion.json'),receiptStat=lstatSync(receiptPath,{throwIfNoEntry:false});
+if(receiptStat&&(!receiptStat.isFile()||receiptStat.isSymbolicLink()))throw Error('PRIVATE_RECEIPT_PATH_INVALID');
+const previous=receiptStat?parseCanonicalJson(readFileSync(receiptPath)):null;
 const env={...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-material-ingest.log'},args=['--filter','@promobento/cloud','exec','wrangler'];
 const wrangler=(command,options={})=>execFileSync('pnpm',[...args,...command],{env,encoding:'utf8',timeout:60000,...options});
 // Never overwrite another active internal session. The root also checks the account identity before invoking this script.
@@ -27,7 +29,7 @@ if(!/^materials-[A-Za-z0-9_-]{8,70}$/.test(operationId))throw Error('MATERIAL_OP
 const prefix='evals/'+operationId,licenseRef='LicenseRef-S1-Internal-Evaluation';
 const manifest={kind:'s1_internal_materials',scope:'internal_eval_only',publicUseCleared:false,operationId,
  rightsDecision:'research/evals/topics.json#/rights',acquiredAt:new Date().toISOString(),assets:[],pending:[]};
-const save=()=>writeFileSync(join(directory,'ingestion.json'),canonical(manifest)+'\n');
+const save=()=>writePrivateFile(receiptPath,canonical(manifest)+'\n');
 let secretAttempted=false,operationCreated=false;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;
@@ -57,7 +59,7 @@ try{
  if(!ready)throw Error('MATERIAL_SECRET_PROPAGATION_TIMEOUT');
  const budgetBefore=await call('model-budget');
  await call('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'eval-materials',purpose:'evaluation',maxMicros:1000000}});operationCreated=true;
- for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource,artwork,video}of prepared){
+ for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource,normalizedSource,artwork,video}of prepared){
   const reused=previous?.assets.find(item=>item.id===asset.id&&item.topicId===asset.topicId&&item.sha256===sha256&&item.byteLength===bytes.length
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
@@ -66,6 +68,7 @@ try{
    &&(!(artwork||video)||item.derivation?.sourceMediaType===asset.derivation.sourceMediaType)
    &&(!artwork||asset.derivation.sourceOrigin!=='inline-svg'||item.derivation?.selector===asset.derivation.selector)
    &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl)
+   &&(!normalizedSource||item.derivation?.original?.sha256===asset.derivation.original.sha256&&!!item.originalSourceKey)
    &&(!video||asset.derivation.sourceOrigin!=='web'||item.videoUrl===asset.videoUrl));
   if(reused){
    // Re-admit the exact existing evidence for this operation; do not upload passed material again.
@@ -77,14 +80,16 @@ try{
   let licenseNotice;
   if(asset.licenseFile){
    if(!/^[a-z0-9.-]{8,80}\.txt$/.test(asset.licenseFile))throw Error('MATERIAL_LICENSE_INVALID');
-   const text=readFileSync(join(directory,asset.licenseFile));if(text.length>32000)throw Error('MATERIAL_LICENSE_INVALID');
+   const text=readReviewedMaterial(directory,asset.licenseFile,32000);
    const name=asset.licenseFile.slice(0,-4).replaceAll('.','-')+'.txt';
    licenseNotice=await upload(`${prefix}/${asset.topicId}/${name}`,text,'text/plain');
   }
   const sourceObject=originalSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.svg`,originalSource,'image/svg+xml')
+   :normalizedSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.png`,normalizedSource,'image/png')
    :artwork?await upload(`${prefix}/${asset.topicId}/${artworkSourceObjectName(asset)}`,artwork.original,artwork.sourceMediaType)
    :video?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.${({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif','image/png':'png','image/webp':'webp','image/avif':'avif'})[asset.derivation.sourceMediaType]}`,video.source,asset.derivation.sourceMediaType):null;
   if((artwork||video)&&sourceObject.sha256!==asset.derivation.sourceSha256)throw Error('MATERIAL_UPLOAD_IDENTITY_MISMATCH');
+  if(normalizedSource&&(sourceObject.sha256!==asset.derivation.original.sha256||sourceObject.byteLength!==normalizedSource.length))throw Error('MATERIAL_UPLOAD_IDENTITY_MISMATCH');
   const preview=video?await upload(`${prefix}/${asset.topicId}/${asset.id}-poster.png`,video.poster,'image/png'):null,framePacks=[];
   if(video){
    if(preview.sha256!==video.manifest.poster.sha256||preview.byteLength!==video.manifest.poster.byteLength)throw Error('VIDEO_UPLOAD_IDENTITY_MISMATCH');
@@ -94,7 +99,8 @@ try{
   const evidence=await upload(`${prefix}/${asset.topicId}/${asset.id}-rights.json`,{kind:'eval_material_rights',resourceId,sha256,licenseRef,scope:'internal_eval_only',approvedBy:'owner',
    source:asset.sourceUrl,basis:original?'Original self-contained factual diagram created for this project; no copied interface, logo, image, portrait or testimonial.':explicit?explicit.basis:topics.rights.rule,
    decisionRef:original||explicit?asset.approvalRef:manifest.rightsDecision,decidedBy:original?original.approvedBy:explicit?explicit.approvedBy:topics.decidedBy,decidedAt:original?original.approvedAt:explicit?explicit.approvedOn:topics.decidedAt,
-   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(artwork?{originalSource:sourceObject}:{}),...(video?{videoSource:sourceObject,preview,framePacks}:{}),
+   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(normalizedSource?{originalSource:sourceObject}:{}),
+   ...(artwork?{originalSource:sourceObject}:{}),...(video?{videoSource:sourceObject,preview,framePacks}:{}),
    ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
    acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),...(asset.derivation?{derivation:asset.derivation}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
   await call('rights',{method:'POST',body:{operationId,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
@@ -102,7 +108,8 @@ try{
    sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSourceKey:sourceObject.key,approvalRef:asset.approvalRef}:{}),
    ...(explicit?{approvalRef:asset.approvalRef}:{}),
-   ...(asset.derivation?{derivation:asset.derivation}:{}),...(artwork?{originalSourceKey:sourceObject.key}:{}),...(video?{originalSourceKey:sourceObject.key,videoFramePacking:'webp-pack-v1',preview,framePacks}:{}),
+   ...(asset.derivation?{derivation:asset.derivation}:{}),...(normalizedSource?{originalSourceKey:sourceObject.key}:{}),
+   ...(artwork?{originalSourceKey:sourceObject.key}:{}),...(video?{originalSourceKey:sourceObject.key,videoFramePacking:'webp-pack-v1',preview,framePacks}:{}),
    ...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),scope:'internal_eval_only',publicUseCleared:false});save();
   console.log(canonical({id:asset.id,key:object.key,byteLength:object.byteLength}));
  }

@@ -5,7 +5,7 @@ import {canonical} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {nativeProjectHash} from '@promobento/contracts/native-project';
 import {verifyNativeResult} from '../src/render-verification.ts';
-import {NATIVE_COMMIT, previewFrames} from '../src/native-project.ts';
+import {NATIVE_COMMIT, previewFrames, checkedNativeBytes} from '../src/native-project.ts';
 import {immutableBytes, immutableJson} from '../src/store.ts';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -77,6 +77,9 @@ test('native previews require every requested frame, matching dimensions and imm
   await assert.rejects(verifyNativeResult(env, input, missing), /RENDER_OUTPUT_MISSING/);
   const wrongScope = structuredClone(result); wrongScope.attemptId = 'other-attempt';
   await assert.rejects(verifyNativeResult(env, input, wrongScope), /RENDER_OUTPUT_SCOPE_INVALID/);
+  const malformedOutput = structuredClone(result); malformedOutput.outputs[0].sha256 = {toString:null};
+  await assert.rejects(verifyNativeResult(env, input, malformedOutput), /RENDER_OUTPUT_SCOPE_INVALID/);
+  await assert.rejects(checkedNativeBytes(env,{key:{toString:null},sha256:'a'.repeat(64),byteLength:1}),/RENDER_OUTPUT_INVALID/);
   const report = result.outputs.find(value => value.name === 'report.json');
   objects.get(report.key).bytes = Buffer.from('{}');
   await assert.rejects(verifyNativeResult(env, input, result), /SOURCE_IDENTITY_MISMATCH/);
@@ -87,6 +90,8 @@ test('native export requires measured frame count and a matching, locally scoped
   await verifyNativeResult(env, input, result);
   const wrongCommit = structuredClone(result); wrongCommit.report.nativeCommit = 'b'.repeat(40);
   await assert.rejects(verifyNativeResult(env, input, wrongCommit), /NATIVE_RENDER_EVIDENCE_INVALID/);
+  const badHashType = structuredClone(result); badHashType.report.renderedSourceSha256 = {toString:null};
+  await assert.rejects(verifyNativeResult(env, input, badHashType), /NATIVE_RENDER_EVIDENCE_INVALID/);
   const wrongTimeline = structuredClone(result); wrongTimeline.report.timelineDurationSeconds = 30;
   await assert.rejects(verifyNativeResult(env, input, wrongTimeline), /NATIVE_RENDER_EVIDENCE_INVALID/);
   const liveTimeline = structuredClone(result); liveTimeline.report.timelinePaused = false;

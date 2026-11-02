@@ -1,42 +1,36 @@
-# 内部素材与原生导演评测
+# 内部素材与导演评测
 
-六题的真实材料、事实卡、来源、既有批准记录和历史费用证据继续保留。题目及素材范围以 [topics.json](topics.json)、[materials.json](materials.json) 和 [fact-cards](fact-cards/) 为准；实际完成度、有效预算与部署范围见[实施状态](../../docs/implementation-status.md)。准备文件、离线 fixture 或原生导出代码存在，都不计作真实作品验收。
+六题真实素材、事实卡、授权、原始回执和费用证据继续保留；题目及文件以 [topics.json](topics.json)、[materials.json](materials.json)、[fact-cards](fact-cards/) 为准。准备文件或离线 fixture **不算真实作品通过**；覆盖、预算和部署状态见[实施状态](../../docs/implementation-status.md)。
 
-## 当前原生导演
+## 原生评测输入
 
-方法 2.0.1 直接生成完整 huashu-motion HTML/JS 工程：真实素材观察→三方向原生预览→选择→Brief/Treatment→最难镜头→逐画幅创作、审片与导出。改稿基于不可变 `baseRevision` 和精确文件补丁；横竖画幅分别制作。
+方法 2.0.1 以完整 huashu-motion HTML/JS 工程制作三方向预览、Treatment、各画幅原生影片及改稿，使用[内部 API](../../apps/cloud/README.md#内部-api)，不是已上线的 Studio。输入 `contextKey` 指向私有 JSON，包含确认事实、素材、授权、语言、CTA、15/30 秒、平台预设和固定 renderer release。
 
-创作、方向选择、候选及工程查询使用[内部 API](../../apps/cloud/README.md#内部-api)。这是主线源码入口，实际 staging 版本仍须按实施状态核对。
+改稿以 `baseRevisions: {landscape: "<revisionId>", ...}`、`comments: [{text,frame?,elementId?}]` 指定；单画幅也接受 `baseRevision`。父版本必须属于同一 workspace/project，不能覆盖已付费或已生成的历史版本。共享模型账本保留未知费用预留；此前临时授权过期，当前不提供自动付费 runner。
 
-`contextKey` 指向本次操作的私有输入。创作输入保留确认事实、真实素材、语言、CTA、15/30 秒、平台画幅和固定 renderer release。改稿使用 `baseRevisions: {landscape: "<revisionId>", ...}` 与 `comments: [{text,frame?,elementId?}]`；单画幅也接受 `baseRevision`。基线必须属于同一 workspace/project。已用原生版本及素材不可变，不覆盖旧文件。
-
-模型调用继续受共享账本、原始回执、阶段/操作额度与未知费用预留约束。未知请求不自动重发；生产执行开关与研究授权不会因代码迁移而打开。本次没有新增自动付费 runner。
-
-## 离线准备六题
+离线准备六题：
 
 ```sh
 mise exec -- node research/evals/prepare-inputs.mjs \
   artifacts/native-eval-inputs renderer-<已部署源码SHA前12位>
 ```
 
-这条命令只准备文件，不上传、不创建操作、不调用模型或渲染。输出 `manifest.json` 为 `prepared_not_executed`；每题生成 15/30 秒上下文，保留原语言、事实 ID、CTA、来源及本题素材选择。新的 `runtimeVersion` 固定为 huashu-motion `52467f99c602b76ba86d511d37acdfe93fa1e16e`。已存在的输出目录拒绝覆盖；旧 prepared 目录仍是历史输入。
+输出 `manifest.json` 标记 `prepared_not_executed`；不会上传、创建操作、调用模型或渲染。命令拒绝覆盖已存在目录，保留原语言、事实、来源和素材选择；`runtimeVersion` 固定 huashu commit `52467f99c602b76ba86d511d37acdfe93fa1e16e`。字体使用原生 Inter/Noto Sans SC，其他实际字体须纳入工程 manifest，不能依赖 CDN。
 
-字体由原生 runtime 提供本地 Inter 与 Noto Sans SC；其他实际字体须作为固定文件纳入本项目 manifest，不能引用任意远端 CDN。
+## 采集、选择与入库
 
-## 素材采集与保存
+这些工具只用于登记的内部题目；每个来源先人工审看，不构成客户上传或任意网站抓取能力。
+本地素材浏览器默认使用 macOS Chrome；Linux CI 通过 `PROMOBENTO_EVAL_CHROME_PATH` 指向固定 Chromium。`pnpm test` 执行不依赖浏览器的素材验证，PR CI 的浏览器任务另行验证真实解码和渲染。
 
-现有采集工具继续用于指定的内部题目。它们保留源文件、字节摘要、来源、派生关系、人工审看和既有批准记录；不是已完成的客户上传或任意网站采集服务。
-
-| 需要 | 工具 |
+| 用途 | 工具 |
 | --- | --- |
-| 页面截图与图片/logo/视频、颜色及字体候选 | [capture-materials.mjs](capture-materials.mjs)，可加 `--grab` |
-| 选择已观察材料 | [select-materials.mjs](select-materials.mjs) |
-| 指定本地项目文件候选 | [discover-local-materials.mjs](discover-local-materials.mjs)，支持 `--readme`、`--styles`、`--fonts` |
-| 已登记网页原图 | [capture-approved-web-images.mjs](capture-approved-web-images.mjs) |
-| 已登记本地 PNG/JPEG/WebP | [capture-local-materials.mjs](capture-local-materials.mjs) |
-| SVG、ICO、ICNS、静态 GIF/AVIF 的离线栅格化 | [approved-artwork.mjs](approved-artwork.mjs)，也支持 `--web`、`--inline` |
-| 实际视频或动态图及源时间证据 | [approved-video.mjs](approved-video.mjs)，支持 `--web` |
-| 已审看材料入私有 R2、保留来源证据 | [ingest-materials.mjs](ingest-materials.mjs) |
+| 网页截图、图片/logo/视频和颜色/字体候选 | [capture-materials.mjs](capture-materials.mjs)，可用 `--grab` |
+| 人工筛选已观察的素材 | [select-materials.mjs](select-materials.mjs) |
+| 已登记本地项目文件 | [discover-local-materials.mjs](discover-local-materials.mjs)，可用 `--readme`、`--styles`、`--fonts` |
+| 已批准网页图片、本地图片 | [capture-approved-web-images.mjs](capture-approved-web-images.mjs)、[capture-local-materials.mjs](capture-local-materials.mjs) |
+| SVG/ICO/ICNS/GIF/AVIF 栅格化 | [approved-artwork.mjs](approved-artwork.mjs) |
+| 视频/动态图和原始时间证据 | [approved-video.mjs](approved-video.mjs) |
+| 审看通过的素材及授权证据入 R2 | [ingest-materials.mjs](ingest-materials.mjs) |
 
 ```sh
 mise exec -- node research/evals/capture-materials.mjs artifacts/eval-materials-current
@@ -44,17 +38,15 @@ mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-c
 mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-current
 ```
 
-入库时每个文件、原始素材、授权证据和 manifest 都使用实际发送字节的 SHA-256 上传；开始前同时检查 staging 的运行中租约和排队任务，发现未清空或响应格式异常即停止，不接管其他评测会话。
+重新筛选单一题目时，先在内存中完成全部采集，再以内容哈希文件名保存并一次性提交 `selected.json`；网络中断或某项选择失败不会删掉原来已审看的清单。官方 PNG 若单边超过 4096px、但仍在有界原图范围内，使用禁用网络的 Chromium 画布按完整画面等比缩小，保留原 PNG、输入输出哈希及尺寸衍生记录；入库时重新验证并同时上传原件。批准网页图片的同源缓存重定向会逐跳重新校验 DNS，不接受跨域跳转。
 
-每条采集入口仍按自身参数检查限定题目、来源和精确字节，不执行目标项目的代码。未审看文件保持待选状态；旧图、原视频和已记录证据不被新一轮采集覆盖。针对现有 WebP 帧包输入，原生导演从绑定证据读取实际原视频及海报；不会运行旧分片/帧包播放器。海报只说明首帧，不能用它推断后续动作。
+上传原文件、衍生物、授权证据及 manifest 时按**实际发送字节**核对 SHA-256。入库前检查 staging 运行中租约和排队是否为空；异常时停止，不接管其他评测。未审看素材不自动采用，旧源文件和历史证据不覆盖。WebP 视频帧包通过授权证据映射回原视频与海报；海报不代表整片动作，也不会启用旧帧包播放器。
 
-实际词级对齐证据通过 `timingEvidence` 输入，绑定真实来源的 SHA-256、测得时长和按时间排序的 `words`；没有这类证据就用作者明确写出的事件时间，不伪造旁白词时间戳。自动 ASR 与完整参考片理解仍是待实现功能。
+真实词级时间证据可通过 `timingEvidence` 绑定来源 SHA-256、时长与排序后的 `words`。缺失时只使用导演明确给出的事件时间，不伪造 ASR 时间戳；自动转写与完整参考片理解仍未实现。
 
 ## 查看已经生成的媒体
 
-原生 export 的最终 MP4 附带四张从该 MP4 抽取的帧和 `review-sheet.jpg`，用于独立冷审。原生 HTML capture 与编码后的实际帧在报告中明确区分。它们不能代替正常速度、有声音的人工观看；候选仍保留 `ownerNormalSpeedReview: pending`。
-
-固定安装的 [Hypit 媒体工具](hypit/media.sh)可以离线探测、切片和抽帧既有 MP4：
+最终 MP4 的四张解码帧、`review-sheet.jpg` 与原生 HTML 预览分别留证，不能代替有声正常速度人工观看；`ownerNormalSpeedReview` 仍为 `pending`。已生成的影片还可用固定 [Hypit 媒体脚本](hypit/media.sh)只读抽帧：
 
 ```sh
 mkdir -p artifacts/native-review
@@ -63,12 +55,4 @@ bash research/evals/hypit/media.sh <带FFmpeg的已固定镜像> \
   --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/overview.jpg --json
 ```
 
-工具只读挂载指定影片及安装内容，断网运行，不提供凭据，也不执行作品组件。Hypit 的导演方法见[方法来源](../../packages/methods/NOTICE.md)，其生产 runtime 未接入 SaaS。
-
-旧链路的 13 种配乐试听与[负责人决定](../../docs/evidence/2026-10-24-s1-audio-review/owner-decision.json)已归档；当前原生配乐使用 huashu 的声音工具，不再提供旧试听页打包脚本。
-
-## 旧执行器与历史证据
-
-FilmSpec、旧分片 runner 和旧 Studio 已删除，历史执行语义可查[归档提交](https://github.com/ten2ten2/promobento/tree/c78a51fa748b3029058119b00874b9043f499da0/research/evals)，不可发送给原生 Worker。
-
-原始回执、源文件、素材索引和[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)保留不变。[recover-case.mjs](recover-case.mjs)仅核对/清理**已终止**操作的真实资源和未知费用，不能启动旧导演、模型或渲染。
+历史 FilmSpec/分片 runner/Studio 仅见[归档源码](https://github.com/ten2ten2/promobento/tree/c78a51fa748b3029058119b00874b9043f499da0/research/evals)，不得发送给当前 Worker。[recover-case.mjs](recover-case.mjs)只检查或清理**已终止**操作，不恢复旧导演或模型。历史评测、配乐与负责人反馈见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)，原始素材、费用和回执不删除。

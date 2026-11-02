@@ -9,7 +9,7 @@ export async function verifyNativeResult(env: PipelineEnv, input: Json, result: 
   const inputIndex = input.project.files.find((file: Json) => file.path === input.project.entry);
   if (result.status !== 'succeeded' || !report || report.nativeCommit !== NATIVE_COMMIT
     || report.projectHash !== input.revisionId || report.inputSourceSha256 !== inputIndex?.sha256
-    || !/^[a-f0-9]{64}$/.test(report.renderedSourceSha256)
+    || typeof report.renderedSourceSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(report.renderedSourceSha256)
     || canonical(report.composition) !== canonical(composition)
     || report.timelineDurationSeconds !== composition.durationSeconds || report.timelinePaused !== true
     || !Array.isArray(report.pageErrors) || report.pageErrors.length
@@ -21,7 +21,7 @@ export async function verifyNativeResult(env: PipelineEnv, input: Json, result: 
   for (const blob of result.outputs) {
     assertNativePath(blob.name);
     if (names.has(blob.name) || blob.key !== prefix + blob.name
-      || !/^[a-f0-9]{64}$/.test(blob.sha256) || !Number.isSafeInteger(blob.byteLength)
+      || typeof blob.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(blob.sha256) || !Number.isSafeInteger(blob.byteLength)
       || blob.byteLength < 0 || blob.byteLength > 50 << 20) throw Error('RENDER_OUTPUT_SCOPE_INVALID');
     names.add(blob.name);
     artifacts.set(blob.key, blob);

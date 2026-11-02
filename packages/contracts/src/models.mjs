@@ -37,6 +37,9 @@ export function modelConfigErrors(providers, authorization, policy, {requireVeri
 }
 
 const ceilDiv = (a, b) => (a + b - 1n) / b;
+const tokenCount = value => Number.isSafeInteger(value) && value >= 0;
+const optionalToken = (record, key) => record === undefined || !Object.hasOwn(record, key) || tokenCount(record[key]);
+const breakdown = value => value === undefined || (value !== null && typeof value === 'object' && !Array.isArray(value));
 
 /**
  * Cost of one call in USD micros. usage uses the provider's field names; missing fields fall back to
@@ -45,18 +48,25 @@ const ceilDiv = (a, b) => (a + b - 1n) / b;
 export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0} = {}) {
   const model = providers.models[ref], provider = providers.providers[ref.split('/')[0]];
   if (!model || !provider) throw Error('MODEL_UNKNOWN: ' + ref);
-  const p = model.prices, n = value => BigInt(Number.isSafeInteger(value) && value >= 0 ? value : 0);
+  const p = model.prices, n = value => BigInt(tokenCount(value) ? value : 0);
   let units;
   if (provider.kind === 'anthropic') {
-    const write5m = usage?.cache_creation?.ephemeral_5m_input_tokens ?? usage?.cache_creation_input_tokens;
+    const cache = usage?.cache_creation;
+    const write5m = cache?.ephemeral_5m_input_tokens ?? usage?.cache_creation_input_tokens;
     const write1h = usage?.cache_creation?.ephemeral_1h_input_tokens ?? 0;
-    const known = usage && Number.isSafeInteger(usage.input_tokens) && Number.isSafeInteger(usage.output_tokens);
+    const known = tokenCount(usage?.input_tokens) && tokenCount(usage?.output_tokens)
+      && breakdown(cache) && optionalToken(cache, 'ephemeral_5m_input_tokens')
+      && optionalToken(cache, 'ephemeral_1h_input_tokens')
+      && optionalToken(usage, 'cache_creation_input_tokens') && optionalToken(usage, 'cache_read_input_tokens');
     units = known
       ? n(usage.input_tokens) * BigInt(p.input) + n(write5m) * BigInt(p.cacheWrite5m ?? p.input) + n(write1h) * BigInt(p.cacheWrite1h ?? p.input)
         + n(usage.cache_read_input_tokens) * BigInt(p.cacheRead ?? p.input) + n(usage.output_tokens) * BigInt(p.output)
       : null;
   } else {
-    const known = usage && Number.isSafeInteger(usage.prompt_tokens) && Number.isSafeInteger(usage.completion_tokens);
+    const details = usage?.prompt_tokens_details;
+    const known = tokenCount(usage?.prompt_tokens) && tokenCount(usage?.completion_tokens)
+      && breakdown(details) && optionalToken(details, 'cached_tokens')
+      && (details?.cached_tokens ?? 0) <= usage.prompt_tokens;
     const cached = Math.min(usage?.prompt_tokens_details?.cached_tokens ?? 0, usage?.prompt_tokens ?? 0);
     units = known
       ? n(usage.prompt_tokens - cached) * BigInt(p.input) + n(cached) * BigInt(p.cacheRead ?? p.input) + n(usage.completion_tokens) * BigInt(p.output)

@@ -48,8 +48,8 @@ jobs:
         run: echo "PROMOBENTO_BASE_REF=$PR_BASE_SHA" >> "$GITHUB_ENV"
       - name: Check current documentation and contracts
         run: mise run check:repo
-      - name: Verify native revisions, authoring, cancellation, recovery and accounting
-        run: mise run test:native
+      - name: Verify native pipeline, accounting and approved-material intake
+        run: mise run test
       - name: Type-check the cloud control plane
         run: mise run typecheck
 
@@ -88,6 +88,31 @@ jobs:
           test -s artifacts/native/native-smoke-report.json
           test -s artifacts/native/landscape-15.mp4
           test -s artifacts/native/portrait-30.mp4
+      - uses: jdx/mise-action@94c60b39bc2d90ab2f9bab27f38d3cc4812c1834 # v5.1.0
+        with:
+          version: 2026.10.13
+          cache: false
+      - name: Install pinned test dependencies
+        run: mise run install
+      - name: Build contract validators for browser evaluations
+        run: mise run build:validators
+      - name: Validate approved artwork, video and page observations in the pinned browser
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/eval-browser
+          chmod 0777 artifacts/eval-browser
+          docker run --rm --network none \
+            --security-opt seccomp=unconfined --security-opt apparmor=promobento-browser-test \
+            --cpus 4 --memory 6g --shm-size 1g --pids-limit 512 \
+            -v "$PWD/research/evals:/repo/research/evals:ro" \
+            -v "$PWD/packages/contracts:/repo/packages/contracts:ro" \
+            -v "$PWD/node_modules:/repo/node_modules:ro" \
+            -v "$PWD/artifacts/eval-browser:/repo/artifacts:rw" \
+            -w /repo -e PROMOBENTO_EVAL_CHROME_PATH=/opt/chrome-headless-shell-linux64/chrome-headless-shell \
+            promobento-native-tests:ci node --test \
+            research/evals/approved-artwork.test.mjs research/evals/approved-video.test.mjs \
+            research/evals/product-observation.test.mjs 2>&1 | tee artifacts/eval-browser/test.log
       - name: Make isolated test artifacts readable by the runner
         if: always()
         shell: bash
@@ -95,9 +120,14 @@ jobs:
           if [ -d artifacts/native ]; then
             sudo chown -hR "$(id -u):$(id -g)" artifacts/native
           fi
+          if [ -d artifacts/eval-browser ]; then
+            sudo chown -hR "$(id -u):$(id -g)" artifacts/eval-browser
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: native-browser-media
-          path: artifacts/native/
+          path: |
+            artifacts/native/
+            artifacts/eval-browser/test.log
           if-no-files-found: error

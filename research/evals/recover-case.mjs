@@ -1,12 +1,13 @@
 // Finish cleanup evidence for one already-terminal private case. Never creates/replays work.
-import {readFileSync,writeFileSync} from 'node:fs';
-import {resolve} from 'node:path';
+import {readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {requireIdleCapacity} from '../../apps/cloud/src/internal-eval-client.mjs';
-const [arg,...extra]=process.argv.slice(2),file=resolve(arg??'');
-if(!arg||extra.length||!file.startsWith(resolve('artifacts')+'/')||!file.endsWith('/report.json'))throw Error('PRIVATE_CASE_REPORT_REQUIRED');
+import {privateExisting,writePrivateFile} from './private-path.mjs';
+const [arg,...extra]=process.argv.slice(2);
+if(!arg||extra.length||!arg.endsWith('/report.json'))throw Error('PRIVATE_CASE_REPORT_REQUIRED');
+const file=privateExisting(arg,'file','PRIVATE_CASE_REPORT_REQUIRED');
 const report=parseCanonicalJson(readFileSync(file));
 if(report.scope!=='internal_eval_only'||report.publicUseCleared!==false||!['failed','cancelled','review_draft_delivered_pending_owner_review'].includes(report.status)
  ||!/^eval-[a-z0-9-]+-\d{13}$/.test(report.operationId??''))throw Error('TERMINAL_EVAL_CASE_REQUIRED');
@@ -14,7 +15,7 @@ const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/c
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-recovery-cli.log'},encoding:'utf8',timeout:60000,...options});
 if(parseCanonicalJson(wrangler(['secret','list','--env','staging'])).some(secret=>secret.name==='EVAL_API_KEY'))throw Error('ANOTHER_INTERNAL_SESSION_ACTIVE');
 const key=randomBytes(32).toString('hex'),base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
-const save=()=>writeFileSync(file,canonical(report)+'\n');let bound=false;
+const save=()=>writePrivateFile(file,canonical(report)+'\n');let bound=false;
 async function json(path,method='GET'){
  const until=Date.now()+30000;
  for(;;){

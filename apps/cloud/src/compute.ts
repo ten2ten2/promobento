@@ -3,7 +3,8 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {operation, rights, reserve, settle} from './store.ts';
 import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
-import {assertNativeExecution, nativeContainerInput, nativeRenderPolicy} from './native-task.ts';
+import {assertNativeExecution, nativeContainerInput} from './native-task.ts';
+import {nativeRenderPolicy} from './native-policy.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

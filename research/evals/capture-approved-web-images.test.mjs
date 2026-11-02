@@ -4,6 +4,7 @@ import {mkdtempSync,readFileSync,rmSync,existsSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {EventEmitter} from 'node:events';
 import {PassThrough} from 'node:stream';
+import {createServer,request as httpRequest} from 'node:http';
 import {pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedWebImages,downloadApprovedImage} from './capture-approved-web-images.mjs';
@@ -44,7 +45,7 @@ test('the actual downloader rejects non-HTTPS and literal network addresses befo
 });
 
 
-test('downloader pins public DNS and refuses redirects, private addresses and oversized responses',async()=>{
+test('downloader pins public DNS, follows bounded same-origin redirects and rejects private addresses and oversized responses',async()=>{
  const publicDns=async()=>[{address:'93.184.216.34',family:4}];let calls=0;
  const responder=(status,body,headers={})=>(url,options,callback)=>{
   calls++;assert.equal(url.href,imageUrl);assert.equal(options.method,'GET');
@@ -58,4 +59,76 @@ test('downloader pins public DNS and refuses redirects, private addresses and ov
  for(const address of [{address:'127.0.0.1',family:4},{address:'10.1.2.3',family:4},{address:'169.254.169.254',family:4},{address:'::ffff:127.0.0.1',family:6},{address:'2001:db8::1',family:6}])
   await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:async()=>[address],makeRequest:()=>{throw Error('UNEXPECTED_REQUEST');}}),/WEB_MATERIAL_ADDRESS_INVALID/);
  assert.equal(calls,4);
+});
+
+test('Hugging Face-style cache redirects retain DNS pins and reject cross-origin, loops and excess hops',async()=>{
+ const source='https://huggingface.co/datasets/course/resolve/main/summary.svg';
+ const visited=[],addresses=[];
+ const resolveAddress=async hostname=>{addresses.push(hostname);return [{address:'93.184.216.34',family:4}];};
+ const makeRequest=(url,options,callback)=>{
+  visited.push(url.href);
+  options.lookup(url.hostname,{all:true},(error,records)=>{assert.ifError(error);assert.deepEqual(records,[{address:'93.184.216.34',family:4}]);});
+  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{
+   const res=new PassThrough();res.statusCode=visited.length===1?307:200;
+   res.headers=visited.length===1?{location:'/api/resolve-cache/summary.svg?download=true&token=short'}:{};
+   res.on('close',()=>req.emit('close'));callback(res);res.end(visited.length===1?'':png);
+  });req.destroy=error=>req.emit('error',error);req.on('error',()=>req.emit('close'));return req;
+ };
+ assert.deepEqual(await downloadApprovedImage(source,{resolveAddress,makeRequest}),png);
+ assert.deepEqual(visited,[source,'https://huggingface.co/api/resolve-cache/summary.svg?download=true&token=short']);
+ assert.deepEqual(addresses,['huggingface.co','huggingface.co']);
+ const redirect=location=>(url,options,callback)=>{
+  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{const res=new PassThrough();res.statusCode=307;res.headers={location};res.on('close',()=>req.emit('close'));callback(res);res.end();});
+  req.destroy=error=>req.emit('error',error);req.on('error',()=>req.emit('close'));return req;
+ };
+ for(const target of ['https://example.org/p.png','http://huggingface.co/a','https://user@huggingface.co/a','https://127.0.0.1/a'])
+  await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:redirect(target)}),/WEB_MATERIAL_REDIRECT_INVALID/);
+ await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:redirect(source)}),/WEB_MATERIAL_REDIRECT_LOOP/);
+ let hop=0;
+ await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:(url,options,callback)=>redirect('/redirect-'+(++hop))(url,options,callback)}),/WEB_MATERIAL_REDIRECT_LIMIT/);
+ assert.equal(hop,4);
+});
+
+test('real IncomingMessage redirects can be closed without misclassifying our own abort',async t=>{
+ const source='https://huggingface.co/resolve/main/summary.svg',seen=[];
+ const server=createServer((req,res)=>{
+  seen.push(req.url);
+  if(req.url==='/resolve/main/summary.svg'){
+   res.writeHead(307,{location:'/api/resolve-cache/summary.svg?token=test','content-length':'1000'});
+   res.write('partial redirect body'); // Deliberately not ended: destroy() synchronously emits aborted.
+  }else if(req.url==='/api/resolve-cache/summary.svg?token=test'){
+   res.writeHead(200,{'content-type':'image/png'});res.end(png);
+  }else if(req.url==='/missing'){
+   res.writeHead(302,{'content-length':'1000'});res.write('partial redirect body');
+  }else if(req.url==='/oversized'){
+   res.writeHead(200,{'content-length':String((1<<20)+1)});res.write('partial oversized body');
+  }else if(req.url==='/oversized-stream'){
+   res.writeHead(200);res.end(Buffer.alloc((1<<20)+1));
+  }else if(req.url==='/disconnect'){
+   res.writeHead(200,{'content-length':'1000'});res.write('partial upstream body');
+   setTimeout(()=>res.destroy(),10); // This is a genuine upstream abort, not our cleanup.
+  }else if(req.url==='/stall'){
+   res.writeHead(200,{'content-length':'1000'});res.write('partial upstream body');
+  }else{res.writeHead(404);res.end();}
+ });
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+ t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
+ const port=server.address().port;
+ const publicDns=async()=>[{address:'93.184.216.34',family:4}];
+ const makeRequest=(url,options,callback)=>{
+  options.lookup(url.hostname,{all:true},(error,addresses)=>{
+   assert.ifError(error);assert.deepEqual(addresses,[{address:'93.184.216.34',family:4}]);
+  });
+  // Only the socket is loopback; the downloader still validates the original
+  // public HTTPS URL, redirect origin, DNS addresses and redirect budget.
+  return httpRequest({hostname:'127.0.0.1',port,path:url.pathname+url.search,
+   method:options.method,headers:options.headers},callback);
+ };
+ assert.deepEqual(await downloadApprovedImage(source,{resolveAddress:publicDns,makeRequest}),png);
+ assert.deepEqual(seen,['/resolve/main/summary.svg','/api/resolve-cache/summary.svg?token=test']);
+ await assert.rejects(downloadApprovedImage('https://huggingface.co/missing',{resolveAddress:publicDns,makeRequest}),/WEB_MATERIAL_HTTP_302/);
+ await assert.rejects(downloadApprovedImage('https://huggingface.co/oversized',{resolveAddress:publicDns,makeRequest}),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
+ await assert.rejects(downloadApprovedImage('https://huggingface.co/oversized-stream',{resolveAddress:publicDns,makeRequest}),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
+ await assert.rejects(downloadApprovedImage('https://huggingface.co/disconnect',{resolveAddress:publicDns,makeRequest}),/WEB_MATERIAL_RESPONSE_ABORTED/);
+ await assert.rejects(downloadApprovedImage('https://huggingface.co/stall',{resolveAddress:publicDns,makeRequest,timeoutMs:100}),/WEB_MATERIAL_TIMEOUT/);
 });

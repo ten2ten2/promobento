@@ -9,7 +9,7 @@ import {nativeRenderPolicy} from './native-policy.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
-export type NativeRenderMode = 'preview' | 'export';
+type NativeRenderMode = 'preview' | 'export';
 export const previewFrames = (duration: number) => [0, duration / 3, duration * 2 / 3, duration - 1 / 30];
 export function assertCloudNativeProject(project: unknown) {
   if (!validNativeProject(project)) throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
@@ -18,7 +18,7 @@ export function assertCloudNativeProject(project: unknown) {
 
 /** Versions are immutable branches. A parent must belong to the same workspace/project. */
 export async function loadNativeProject(env: PipelineEnv, op: Operation, revisionId: string): Promise<SavedNativeProject> {
-  if (!/^[a-f0-9]{64}$/.test(revisionId)) throw Error('NATIVE_REVISION_INVALID');
+  if (typeof revisionId !== 'string' || !/^[a-f0-9]{64}$/.test(revisionId)) throw Error('NATIVE_REVISION_INVALID');
   const row = await env.DB.prepare('SELECT n.manifest_key FROM pipeline_native_projects n JOIN pipeline_operations o ON o.id=n.operation_id WHERE n.revision_id=? AND o.workspace_id=? AND o.project_id=? ORDER BY n.created_at LIMIT 1')
     .bind(revisionId, op.workspace_id, op.project_id).first<{manifest_key: string}>();
   if (!row) throw Error('NATIVE_PROJECT_NOT_FOUND');
@@ -41,6 +41,16 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
   composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string;
 }): Promise<SavedNativeProject> {
   await operation(env, op.id, op.generation);
+  // Internal HTTP callers still supply untrusted JSON. A malformed list must
+  // produce a domain validation error, not a TypeError/500 before Schema checks.
+  if (!Array.isArray(input.files) || input.files.some(file => !file || typeof file !== 'object'
+    || typeof file.path !== 'string' || typeof file.key !== 'string')
+    || input.resources !== undefined && (!Array.isArray(input.resources)
+      || input.resources.some(resource => !resource || typeof resource !== 'object' || Array.isArray(resource)
+        || typeof resource.resourceId !== 'string' || !resource.resourceId
+        || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256)))
+    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string')
+    throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
   const parent = input.baseRevision ? await loadNativeProject(env, op, input.baseRevision) : null;
   for (const file of input.files) {
     const inherited = parent?.project.files.some((previous: Json) => previous.key === file.key
@@ -148,7 +158,10 @@ export async function getNativeRender(env: PipelineEnv, op: Operation, renderId:
 
 /** Verify stored bytes. Evidence must be nonempty; ordinary authored files may explicitly allow empty content. */
 export async function checkedNativeBytes(env: PipelineEnv, blob: Json, limit = 50 << 20, options: {allowEmpty?: boolean} = {}) {
-  if (!blob || !/^[a-f0-9]{64}$/.test(blob.sha256) || !Number.isSafeInteger(blob.byteLength) || blob.byteLength < (options.allowEmpty ? 0 : 1) || blob.byteLength > limit) throw Error('RENDER_OUTPUT_INVALID');
+  if (!blob || typeof blob.key !== 'string' || !blob.key
+    || typeof blob.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(blob.sha256)
+    || !Number.isSafeInteger(blob.byteLength) || blob.byteLength < (options.allowEmpty ? 0 : 1)
+    || blob.byteLength > limit) throw Error('RENDER_OUTPUT_INVALID');
   const object = await env.MEDIA.get(blob.key);
   if (!object || object.size !== blob.byteLength || object.customMetadata?.sha256 !== blob.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
   const bytes = new Uint8Array(await object.arrayBuffer());

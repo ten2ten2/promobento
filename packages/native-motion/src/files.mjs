@@ -3,7 +3,6 @@ import {createSha256} from '../../contracts/src/digest.mjs';
 import {dirname, extname, join, relative, resolve, sep} from 'node:path';
 import {assertNativePath, NATIVE_SOURCE_LIMITS} from '../../contracts/src/native-project.mjs';
 
-export const SOURCE_LIMITS = NATIVE_SOURCE_LIMITS;
 const SKIP = new Set(['.om', 'out', 'snapshots', 'node_modules', '.git']);
 /** Identity of a local regular file, with a fixed 64 KiB read buffer. */
 export function fileIdentity(path, maxBytes = 50_000_000) {
@@ -45,7 +44,7 @@ export function projectFiles(root) {
       if (stat.isDirectory()) walk(full, path + '/');
       else if (stat.isFile()) {
         bytes += stat.size;
-        if (stat.size > SOURCE_LIMITS.fileBytes || bytes > SOURCE_LIMITS.bytes || files.length >= SOURCE_LIMITS.files) throw Error('NATIVE_PROJECT_TOO_LARGE');
+        if (stat.size > NATIVE_SOURCE_LIMITS.fileBytes || bytes > NATIVE_SOURCE_LIMITS.bytes || files.length >= NATIVE_SOURCE_LIMITS.files) throw Error('NATIVE_PROJECT_TOO_LARGE');
         files.push({path, file: full, byteLength: stat.size, mediaType: mediaType(path)});
       } else throw Error('NATIVE_SPECIAL_FILE');
     }
@@ -59,7 +58,7 @@ export function verifyProjectFiles(root, manifest) {
   if (actual.length !== expected.size || actual.some(file => !expected.has(file.path))) throw Error('NATIVE_UNDECLARED_FILE');
   for (const file of manifest.files) {
     const full = projectPath(root, file.path), stat = lstatSync(full);
-    if (!stat.isFile() || stat.size !== file.byteLength || fileIdentity(full, SOURCE_LIMITS.fileBytes).sha256 !== file.sha256)
+    if (!stat.isFile() || stat.size !== file.byteLength || fileIdentity(full, NATIVE_SOURCE_LIMITS.fileBytes).sha256 !== file.sha256)
       throw Error('NATIVE_INPUT_IDENTITY_MISMATCH');
   }
 }

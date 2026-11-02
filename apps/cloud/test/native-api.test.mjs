@@ -16,6 +16,179 @@ const built=await build({stdin:{contents:'export {default as worker} from "./app
   }}]});
 const {worker}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 
+test('internal API distinguishes runtime failure from invalid input without leaking exception details',async()=>{
+ const base='https://worker.example/internal/s1/';
+ const env={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',
+  COORDINATOR:{getByName(){return {async counts(){throw Error('private database connection details');}};}}};
+ const headers={authorization:'Bearer fixture-only'};
+ const failed=await worker.fetch(new Request(base+'capacity',{headers}),env,{});
+ assert.equal(failed.status,500);
+ assert.equal(failed.headers.get('cache-control'),'private, no-store');
+ assert.deepEqual(await failed.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const masked=await worker.fetch(new Request(base+'capacity',{headers}),
+  {...env,COORDINATOR:{getByName(){return {async counts(){throw Error('SQLITE_BUSY');}};}}},{});
+ assert.equal(masked.status,500);
+ assert.deepEqual(await masked.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const invalid=await worker.fetch(new Request(base+'objects/evals/test/a.bin',{method:'PUT',headers:{...headers,'content-length':'0'}}),env,{});
+ assert.equal(invalid.status,422);
+ assert.deepEqual(await invalid.json(),{code:'OBJECT_SHA256_REQUIRED'});
+});
+
+test('HTTP JSON boundary classifies malformed bodies as 422, even with strict canonical parsing',async()=>{
+ const base='https://worker.example/internal/s1/operations';
+ const env={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ for(const [body,code] of [['{','BODY_JSON_INVALID'],['{"a":1,"a":2}','BODY_JSON_INVALID'],
+  ['"\\ud800"','BODY_JSON_INVALID'],['null','BODY_JSON_OBJECT_REQUIRED'],
+  ['[]','BODY_JSON_OBJECT_REQUIRED'],['42','BODY_JSON_OBJECT_REQUIRED']]){
+  const response=await worker.fetch(new Request(base,{method:'POST',
+   headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body}),env,{});
+  assert.equal(response.status,422,body);
+  assert.deepEqual(await response.json(),{code},body);
+ }
+ for(const path of ['native/projects','renders','creative','rights']){
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/'+path,
+   {method:'POST',headers:{authorization:'Bearer fixture-only'},body:'{}'}),env,{});
+  assert.equal(response.status,422,path);
+  assert.deepEqual(await response.json(),{code:'OPERATION_INVALID'},path);
+ }
+});
+
+test('HTTP JSON boundary preserves an oversized-body error when stream cancellation fails',async()=>{
+ const body=new ReadableStream({
+  start(controller){controller.enqueue(new Uint8Array((4<<20)+1));},
+  cancel(){throw Error('private transport cancellation failure');},
+ });
+ const response=await worker.fetch(new Request('https://worker.example/internal/s1/operations',{
+  method:'POST',duplex:'half',headers:{authorization:'Bearer fixture-only'},body,
+ }),{S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},{});
+ assert.equal(response.status,422);
+ assert.deepEqual(await response.json(),{code:'BODY_TOO_LARGE'});
+});
+
+test('native project HTTP rejects malformed file/resource lists at the input boundary',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='input-shape-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const env={DB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const file={path:'index.html',key:'evals/native/index.html',sha256:'a'.repeat(64),byteLength:1,mediaType:'text/html'};
+ for(const invalid of [{files:null},{files:[null]},{files:[{path:'index.html'}]},
+  {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12},
+  {files:[file,{...file,path:{toString:null},key:'evals/native/second.js'}]},
+  {files:[{...file,path:['index.html']}]},
+  {files:[file],resources:[{resourceId:{toString:null},sha256:'a'.repeat(64)}]},
+  {files:[file],resources:[{resourceId:'res_invalid',sha256:{toString:null}}]}]){
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
+   method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},
+   body:canonical({operationId,...invalid})}),env,{});
+  assert.equal(response.status,422,JSON.stringify(invalid));
+  assert.deepEqual(await response.json(),{code:'NATIVE_PROJECT_SCHEMA_INVALID'});
+ }
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_native_projects').get().n,0);
+});
+
+test('malformed nested render revision and rights identities return 422 without writes',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='typed-identity-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const env={DB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const request=(path,input)=>worker.fetch(new Request('https://worker.example/internal/s1/'+path,{
+  method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body:canonical({operationId,...input})}),env,{});
+ for(const revisionId of [['a'.repeat(64)],{toString:null}]){
+  const response=await request('renders',{renderId:'invalid-revision-render',revisionId,rendererRelease:'fixture-release',mode:'preview'});
+  assert.equal(response.status,422,JSON.stringify(revisionId));
+  assert.deepEqual(await response.json(),{code:'NATIVE_REVISION_INVALID'});
+ }
+ const rights={resourceId:'res_test_resource',sha256:'a'.repeat(64),licenseRef:'owner-approved',
+  scope:'internal_eval_only',evidenceKey:'evals/fixture/rights.json'};
+ for(const invalid of [{resourceId:{toString:null}},{resourceId:['res_test_resource']},
+  {sha256:{toString:null}},{sha256:['a'.repeat(64)]}]){
+  const response=await request('rights',{...rights,...invalid});
+  assert.equal(response.status,422,JSON.stringify(invalid));
+  assert.deepEqual(await response.json(),{code:'RIGHTS_INVALID'});
+ }
+ for(const table of ['pipeline_renders','pipeline_rights'])
+  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,0,table);
+});
+
+test('uploaded malformed or non-object evidence is rejected as client input on both evidence endpoints',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='uploaded-evidence-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const {MEDIA}=memoryMedia();
+ const env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const base='https://worker.example/internal/s1/';
+ const headers={authorization:'Bearer fixture-only','content-type':'application/json'};
+ const rights={operationId,resourceId:'res_test_resource',sha256:'a'.repeat(64),licenseRef:'owner-approved',
+  scope:'internal_eval_only'};
+ for(const [index,body] of ['null','[]','42','{','{"duplicate":1,"duplicate":2}','"\\ud800"'].entries()){
+  const key=`evals/fixture/invalid-${index}.json`,bytes=new TextEncoder().encode(body);
+  const uploaded=await worker.fetch(new Request(base+'objects/'+key,{method:'PUT',
+   headers:{...headers,...objectUploadHeaders(bytes)},body:bytes}),env,{});
+  assert.equal(uploaded.status,200,body);
+  const registration=await worker.fetch(new Request(base+'rights',{method:'POST',headers,
+   body:canonical({...rights,evidenceKey:key})}),env,{});
+  assert.equal(registration.status,422,body);
+  assert.deepEqual(await registration.json(),{code:'RIGHTS_EVIDENCE_INVALID'},body);
+  const confirmation=await worker.fetch(new Request(base+'model-budget/confirm',{method:'POST',headers,
+   body:canonical({evidenceKey:key})}),env,{});
+  assert.equal(confirmation.status,422,body);
+  assert.deepEqual(await confirmation.json(),{code:'MODEL_CONFIRMATION_INVALID'},body);
+ }
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_rights').get().n,0);
+ const broken={...env,MEDIA:{...MEDIA,async get(){throw Error('private R2 transport failure');}}};
+ for(const [endpoint,input] of [['rights',{...rights,evidenceKey:'evals/fixture/invalid-0.json'}],
+  ['model-budget/confirm',{evidenceKey:'evals/fixture/invalid-0.json'}]]){
+  const response=await worker.fetch(new Request(base+endpoint,{method:'POST',headers,body:canonical(input)}),broken,{});
+  assert.equal(response.status,500,endpoint);
+  assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'},endpoint);
+ }
+});
+
+test('asynchronous recovery, private-artifact and event failures stay inside HTTP error boundary',async()=>{
+ const headers={authorization:'Bearer fixture-only'};
+ const base='https://worker.example/internal/s1/';
+ const brokenDB={prepare(){return {bind(){return this;},async first(){throw Error('private D1 error');}};}};
+ const baseEnv={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',DB:brokenDB};
+ for(const path of ['operations/a123/recovery','artifacts/renders/a123/result.mp4']){
+  const response=await worker.fetch(new Request(base+path,{headers}),baseEnv,{});
+  assert.equal(response.status,500,path);
+  assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'},path);
+ }
+ const eventsEnv={...baseEnv,OPERATIONS:{getByName(){return {async watch(){throw Error('private SSE error');}};}}};
+ const response=await worker.fetch(new Request(base+'operations/a123/events',{headers}),eventsEnv,{});
+ assert.equal(response.status,500);
+ assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const malformed=await worker.fetch(new Request(base+'artifacts/%ZZ',{headers}),baseEnv,{});
+ assert.equal(malformed.status,422);
+ assert.deepEqual(await malformed.json(),{code:'OBJECT_KEY_INVALID'});
+});
+
+test('direction-preview artifact reads honor separately supplied audio rights and later revocation',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const {MEDIA}=memoryMedia(),id='audio-preview-operation',key='operations/'+id+'/direction-preview.png';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(id,'workspace','project',0,'evaluation','awaiting_user','request',100000,Date.now(),null,null);
+ const audio={resourceId:'res_audio_source',sha256:'a'.repeat(64),kind:'audio'};
+ await MEDIA.put('evals/native/context.json',canonical({resources:[],audioSources:[audio]}));
+ await MEDIA.put('operations/'+id+'/previews.json',canonical([{key}]));
+ await MEDIA.put(key,Uint8Array.from([137,80,78,71]));
+ await MEDIA.put('evals/native/license.json',canonical({approvedBy:'owner'}));
+ db.prepare("INSERT INTO pipeline_contexts(operation_id,request_key,previews_key,engine) VALUES(?,?,?,'huashu')")
+  .run(id,'evals/native/context.json','operations/'+id+'/previews.json');
+ db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+  .run(id,audio.resourceId,audio.sha256,'fixture-license','evals/native/license.json','internal_eval_only');
+ const request=()=>worker.fetch(new Request('https://worker.example/internal/s1/artifacts/'+key,
+  {headers:{authorization:'Bearer fixture-only'}}),{DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},{});
+ assert.equal((await request()).status,200);
+ db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),id);
+ const blocked=await request();
+ assert.equal(blocked.status,422);
+ assert.deepEqual(await blocked.json(),{code:'ASSET_RIGHTS_PENDING'});
+});
+
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
   const {db,DB}=sqliteD1();t.after(()=>db.close());
   const {MEDIA}=memoryMedia(),env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
@@ -80,6 +253,7 @@ test('operation recovery bounds physical-stop probes and reports unknown when a 
     new Promise((_,reject)=>{watchdog=setTimeout(()=>reject(Error('RECOVERY_ROUTE_HUNG')),3_600);}),
   ]).finally(()=>clearTimeout(watchdog));
   assert.equal(response.status,200);
+  assert.equal(response.headers.get('cache-control'),'private, no-store');
   const state=await response.json();
   assert.equal(state.attempts.length,12);
   assert.equal(state.attempts[0].physicallyStopped,null,'a timed-out probe remains unknown');
@@ -100,8 +274,14 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   const request=(path,input)=>worker.fetch(new Request('https://worker.example/internal/s1/'+path,
     {method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body:JSON.stringify(input)}),env,ctx);
   const creation={id:'api-operation',workspaceId:'workspace-one',projectId:'project-one',purpose:'evaluation',maxMicros:5000};
+  const created=await request('operations',creation);
+  assert.equal(created.status,200);
+  assert.equal(created.headers.get('cache-control'),'private, no-store');
   assert.equal((await request('operations',creation)).status,200);
-  assert.equal((await request('operations',creation)).status,200);
+  const status=await worker.fetch(new Request('https://worker.example/internal/s1/operations/'+creation.id,
+    {headers:{authorization:'Bearer fixture-only'}}),env,ctx);
+  assert.equal(status.status,200);
+  assert.equal(status.headers.get('cache-control'),'private, no-store');
   const conflict=await request('operations',{...creation,maxMicros:6000});
   assert.equal(conflict.status,409);
   assert.equal((await conflict.json()).code,'IDEMPOTENCY_CONFLICT');
@@ -115,6 +295,12 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   const rights={operationId:creation.id,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:'evals/fixture/rights.json'};
   await MEDIA.put(rights.evidenceKey,JSON.stringify(evidence));
   await MEDIA.put('evals/fixture/rights-other.json',JSON.stringify(evidence));
+  const wrongEvidence=await request('rights',{...rights,evidenceKey:undefined});
+  assert.equal(wrongEvidence.status,422);
+  assert.equal((await wrongEvidence.json()).code,'RIGHTS_INVALID');
+  const missingLicense=await request('rights',{...rights,licenseRef:''});
+  assert.equal(missingLicense.status,422);
+  assert.equal((await missingLicense.json()).code,'RIGHTS_INVALID');
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',{...rights,evidenceKey:'evals/fixture/rights-other.json'})).status,409);

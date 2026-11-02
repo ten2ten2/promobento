@@ -2,7 +2,8 @@ import type {WorkflowStep} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {operation} from './store.ts';
 import {renderFailureCode} from './render-recovery.ts';
-import {assertNativeExecution, nativeRenderPolicy} from './native-task.ts';
+import {assertNativeExecution} from './native-task.ts';
+import {nativeRenderPolicy} from './native-policy.ts';
 import {requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission, canRetryUnstartedAdmission, requeueRenderAfterAttempt} from './render-admission.ts';
 import type {PipelineEnv, Json, Operation} from './pipeline-types.ts';
 

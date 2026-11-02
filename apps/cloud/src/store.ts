@@ -1,24 +1,38 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
-import type {PipelineEnv, Operation, BlobRef, Json} from './pipeline-types.ts';
+import {validId,type PipelineEnv, type Operation, type BlobRef, type Json} from './pipeline-types.ts';
 
 export async function readJson(request: Request, limit = 4 << 20): Promise<Json> {
   if (!request.body) throw Error('BODY_REQUIRED');
   const reader = request.body.getReader(), chunks: Uint8Array[] = []; let size = 0;
   try { for (;;) { const {done, value} = await reader.read(); if (done) break; size += value.length;
     if (size > limit) throw Error('BODY_TOO_LARGE'); chunks.push(value); } }
-  finally { await reader.cancel(); }
+  // A failed or stalled transport teardown must not hide the original body
+  // error (or prevent an otherwise complete JSON request from finishing).
+  finally { void reader.cancel().catch(() => {}); }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) {bytes.set(chunk, offset); offset += chunk.length;}
-  return parseCanonicalJson(bytes) as Json;
+  // Syntax, UTF-8 and canonical-JSON failures all describe malformed client
+  // input. Keep failures from reading the transport stream outside this catch.
+  let parsed: unknown;
+  try {parsed = parseCanonicalJson(bytes);}
+  catch {throw Error('BODY_JSON_INVALID');}
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw Error('BODY_JSON_OBJECT_REQUIRED');
+  return parsed as Json;
 }
 export async function operation(env: PipelineEnv, id: string, generation?: number): Promise<Operation> {
+  if (!validId(id)) throw Error('OPERATION_INVALID');
   const row = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Operation>();
   if (!row || !['active', 'awaiting_user'].includes(row.status) || generation !== undefined && row.generation !== generation) throw Error('OPERATION_FENCED');
   return row;
 }
 export async function rights(env: PipelineEnv, op: Operation, resources: Json[]) {
+  if (!Array.isArray(resources)) throw Error('ASSET_RIGHTS_INVALID');
   for (const resource of resources) {
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)
+      || typeof resource.resourceId !== 'string' || !resource.resourceId
+      || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256))
+      throw Error('ASSET_RIGHTS_INVALID');
     const row = await env.DB.prepare('SELECT evidence_key,license_ref FROM pipeline_rights WHERE operation_id=? AND resource_id=? AND sha256=? AND revoked_at IS NULL')
       .bind(op.id, resource.resourceId, resource.sha256).first<{evidence_key: string; license_ref: string}>();
     if (!row || !await env.MEDIA.head(row.evidence_key)) throw Error('ASSET_RIGHTS_PENDING');
@@ -54,11 +68,20 @@ export async function immutableStream(env: PipelineEnv, key: string, body: Reada
   if (!matchesStoredUpload(await env.MEDIA.head(key), length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   return {name: key.split('/').at(-1)!, key, sha256, byteLength: length, mediaType};
 }
-export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
+export async function getJson(env: PipelineEnv, key: string,
+  clientEvidenceError?: 'RIGHTS_EVIDENCE_INVALID' | 'MODEL_CONFIRMATION_INVALID'): Promise<Json> {
   const object = await env.MEDIA.get(key); if (!object || object.size > 8 << 20) throw Error('SOURCE_UNAVAILABLE');
   const bytes = new Uint8Array(await object.arrayBuffer());
   if (object.customMetadata?.sha256 && sha256Bytes(bytes) !== object.customMetadata.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
-  return parseCanonicalJson(bytes) as Json;
+  let parsed: unknown;
+  try {parsed = parseCanonicalJson(bytes);}
+  catch (error) {
+    if (clientEvidenceError) throw Error(clientEvidenceError);
+    throw error;
+  }
+  if (clientEvidenceError && (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)))
+    throw Error(clientEvidenceError);
+  return parsed as Json;
 }
 /** Local operation/stage admission, including unresolved costs. MODEL_LEDGER owns the cross-environment model grant. */
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,
