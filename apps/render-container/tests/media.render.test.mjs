@@ -1,0 +1,125 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync, rmSync, statSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {normalizeNativeVideo, validateVideo} from '../src/media.mjs';
+import {run} from '../src/process.mjs';
+
+// Real FFmpeg tests run in the pinned browser-test image, not the contracts-only runner.
+const composition = {width:320,height:180,durationSeconds:1,fps:30};
+const compliantVideo = ['-c:v','libx264','-profile:v','high','-pix_fmt','yuv420p','-r','30',
+  '-g','15','-keyint_min','15','-sc_threshold','0','-bf','0','-b:v','700000',
+  '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'];
+const videoBytes=async path=>(await run('ffmpeg',['-v','error','-i',path,'-map','0:v:0','-c:v','copy','-f','h264','pipe:1'])).stdout;
+
+test('the pinned upstream delivery override makes its original CRF/GOP defaults eligible for stream copy',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-native-delivery-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-c:v','libx264','-preset','veryfast','-crf','16','-g','60','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-color_range','tv','-movflags','+faststart',
+  '-profile:v','high','-pix_fmt','yuv420p','-g','15','-keyint_min','15','-sc_threshold','0','-bf','0','-flags','+cgop',
+  '-maxrate','7000000','-bufsize','2000000','-field_order','progressive','-threads','2','-r','30','-an',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');assert.equal(result.copyRejection,undefined);
+ assert.deepEqual(await videoBytes(output),await videoBytes(input));
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
+test('compliant native H.264 retains video packets while the final MP4 is verified',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-copy-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',...compliantVideo,'-an',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');assert.equal(result.frameCount,30);
+ assert.ok(Number.isSafeInteger(result.processingElapsedMs)&&result.processingElapsedMs>=0);
+ assert.deepEqual(await videoBytes(output),await videoBytes(input),'the H.264 elementary stream must be unchanged');
+ assert.ok(statSync(output).size>0);
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
+test('stream-copying valid video still normalizes source PCM audio to one AAC track',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=1',...compliantVideo,
+  '-c:a','pcm_s16le','-ac','2','-shortest',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');assert.equal(result.audioCodec,'aac');
+ assert.deepEqual(await videoBytes(output),await videoBytes(input),'audio processing must not re-encode video');
+ assert.equal((await validateVideo(output,composition,true)).audioSampleRate,48000);
+});
+
+test('a shorter source audio track is padded to the full film duration',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-short-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=0.25',...compliantVideo,
+  '-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');
+ assert.equal(result.audioCodec,'aac');
+ assert.deepEqual(await videoBytes(output),await videoBytes(input),'short audio must not force video re-encoding');
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
+});
+
+test('an overlong source audio track is trimmed without rejecting a valid picture',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-long-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=1.5',...compliantVideo,
+  '-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');
+ assert.deepEqual(await videoBytes(output),await videoBytes(input));
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
+});
+
+test('noncompliant native codecs still take the trusted full-encode fallback',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-fallback-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-c:v','mpeg4','-q:v','4','-an',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');assert.equal(result.copyRejection,'OUTPUT_VIDEO_INVALID');
+ assert.ok(Number.isSafeInteger(result.processingElapsedMs)&&result.processingElapsedMs>=0);
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
+test('full video transcode also pads a short audio track without truncating the picture',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-fallback-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=0.25',
+  '-c:v','mpeg4','-q:v','4','-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');
+ assert.equal(result.audioCodec,'aac');
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
+});
+
+test('H.264 alone is insufficient: noncompliant keyframe cadence must be re-encoded',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-gop-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ const args=compliantVideo.slice(),gop=args.indexOf('-g');args[gop+1]='30';
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',...args,'-an',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');
+ assert.equal(result.copyRejection,'OUTPUT_FRAME_TIMING_INVALID');
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
+test('interlaced H.264 is deinterlaced and re-encoded as progressive, never stream-copied',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-interlaced-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  ...compliantVideo,'-x264-params','tff=1','-an',input]);
+ const original=await run('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=field_order','-of','default=noprint_wrappers=1:nokey=1',input]);
+ assert.equal(original.stdout.toString().trim(),'tt','the negative fixture must contain actual interlaced fields');
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');
+ assert.equal(result.copyRejection,'OUTPUT_VIDEO_INVALID');
+ const delivered=await run('ffprobe',['-v','error','-select_streams','v:0','-show_entries','stream=field_order','-of','default=noprint_wrappers=1:nokey=1',output]);
+ assert.equal(delivered.stdout.toString().trim(),'progressive');
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});

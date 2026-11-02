@@ -11,12 +11,12 @@ export const renderCompletionEventType=(renderId:string)=>'native-render-'+diges
 export const renderFailureCode=(error:unknown)=>error instanceof Error&&/^[A-Z][A-Z0-9_]+$/.test(error.message)?error.message:'RENDER_INTERNAL_ERROR';
 
 async function stopAttempts(env:PipelineEnv,attempts:Array<{id:string}>){
- const stopped=await Promise.allSettled(attempts.map(async attempt=>{
+ const stopped=await settledPool(attempts,4,async attempt=>{
   await boundedControl(env.SHARDS.getByName(attempt.id).stopAndSettle());
   // An attempt may have failed before the DO bound taskId. The confirmed stop still belongs to this row.
   await boundedControl(env.DB.prepare("UPDATE pipeline_attempts SET status=CASE WHEN status='active' THEN 'stopped' ELSE status END,stopped_at=COALESCE(stopped_at,?) WHERE id=?")
    .bind(Date.now(),attempt.id).run());
- }));
+ });
  return stopped.filter(result=>result.status==='rejected').length;
 }
 
@@ -90,7 +90,7 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  const renders=await env.DB.prepare("SELECT id,status,result_json FROM pipeline_renders WHERE operation_id=? AND status<>'passed'").bind(operationId).all<Json>();
  await env.DB.prepare("UPDATE pipeline_render_admissions SET status='cancelled' WHERE operation_id=? AND status='queued'")
   .bind(operationId).run();
- const stops=await Promise.allSettled(renders.results.map(row=>stopRenderAdmissions(env,row.id)));
+ const stops=await settledPool(renders.results,4,row=>stopRenderAdmissions(env,row.id));
  // A failed Workflow status API must not prevent admitted, never-started
  // tickets from returning their capacity. Try all physical and admission stops
  // before reporting any of the independent cleanup failures.
@@ -106,7 +106,11 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  }
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
- for(const workflow of workflows[0]!.value)await resolveWorkflow(env,workflow);
+ // Only full cleanup completion may retire recovery-scannable Workflow rows.
+ // A per-item native-stop checkpoint is not a compute, lease or D1 finalization receipt.
+ await env.DB.prepare(`UPDATE pipeline_workflows SET reconciled_at=COALESCE(reconciled_at,?)
+   WHERE operation_id=? AND native_stop_confirmed_at IS NOT NULL AND reconciled_at IS NULL`)
+  .bind(Date.now(),operationId).run();
  return {operationId,stoppedAttempts:attempts.results.length,reconciledRenders:renders.results.length,workflows:workflows[0]!.value,pendingCosts:pending.results};
 }
 

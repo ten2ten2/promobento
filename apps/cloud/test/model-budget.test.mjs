@@ -10,7 +10,8 @@ import {historicalModelSpend} from '../../../research/model-probe/history.mjs';
 
 async function load(path){const{outputFiles}=await build({entryPoints:[path],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
  return import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));}
-const budget=await load('apps/cloud/src/model-budget.ts'),{modelStep}=await load('apps/cloud/src/model-client.ts');
+const budget=await load('apps/cloud/src/model-budget.ts'),{modelStep}=await load('apps/cloud/src/model-client.ts'),
+ {analyzeMaterialStage}=await load('apps/cloud/src/director-stages.ts');
 async function fixture(t,confirmed=true,history){
  const shared=sqliteD1(),local=sqliteD1();t.after(()=>{shared.db.close();local.db.close();});const{MEDIA,objects}=memoryMedia();
  const env={DB:local.DB,MODEL_LEDGER:shared.DB,PIPELINE_ENVIRONMENT:'staging',MEDIA,MODEL_COMPAT_API_KEY:'synthetic-not-a-secret'};
@@ -19,6 +20,39 @@ async function fixture(t,confirmed=true,history){
  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('model-operation','workspace','project',0,'calibration','active','request',10000000,Date.now(),null,null);
  return{shared,local,env,objects};
 }
+
+test('identical concurrent observations share one metered request while other operations still honor pending and receipt barriers',async t=>{
+ const{env,local,shared}=await fixture(t),oldFetch=globalThis.fetch;
+ let requests=0,releaseProvider,markStarted;
+ const held=new Promise(resolve=>{releaseProvider=resolve;});
+ const started=new Promise(resolve=>{markStarted=resolve;});
+ globalThis.fetch=async()=>{
+  requests++;markStarted();await held;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"shared observation"}'},finish_reason:'stop'}],
+   usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{releaseProvider();globalThis.fetch=oldFetch;});
+ const asset={resourceId:'res_shared',sha256:'a'.repeat(64),preview:{sha256:'b'.repeat(64),mediaType:'image/png'}};
+ const identity=item=>canonical([item.resourceId,item.sha256,item.preview.sha256,item.preview.mediaType]);
+ const request={system:'Synthetic offline observation.',messages:[{role:'user',text:'Analyze identical signed evidence.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.value,'shared observation');
+ const analyze=(item,index,guard)=>modelStep(env,'model-operation',0,'assets','model-operation-asset-'+index,request,check,Date.now()+30_000,
+  {dispatchGuard:guard}).then(result=>result.value);
+ const observed=analyzeMaterialStage([asset,structuredClone(asset)],2,analyze,identity);
+ await Promise.race([started,new Promise((_,reject)=>setTimeout(()=>reject(Error('MODEL_REQUEST_NOT_STARTED')),1_000))]);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('other-operation','workspace','project',0,'calibration','active','other-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'other-operation',0,'assets','other-asset-0',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/,
+  'a genuinely pending provider call is not a reusable completed result');
+ releaseProvider();
+ assert.deepEqual(await observed,[{value:'shared observation'},{value:'shared observation'}]);
+ assert.equal(requests,1,'the duplicate asset did not start another paid request');
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,1);
+ const reused=await modelStep(env,'other-operation',0,'assets','other-asset-0',request,check);
+ assert.equal(reused.cached,true,'a settled response with a receipt is safely reusable');
+ assert.equal(requests,1);
+});
 
 test('historical primary reports inventory every request; unknown prices/usage never become a zero opening',async t=>{
  const{env}=await fixture(t,false),history=historicalModelSpend();
@@ -97,6 +131,166 @@ test('an empty completed stream retains private raw events and an unknown reserv
  const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
  assert.equal(receipt.result.failure,'MODEL_OUTPUT_EMPTY');assert.equal(receipt.quote,null);
  assert.equal(new TextDecoder().decode(objects.get(receipt.rawStreamRef.key).bytes),raw);
+});
+test('an expired model preflight never reserves funds or dispatches a paid request',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  if(!jumped&&sql.startsWith('SELECT * FROM model_budget_openings')){jumped=true;clock+=60_000;}
+  return prepare(sql);
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','expired-preflight',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true,'the test advanced time after model preflight began');
+ assert.equal(requests,0,'no paid provider request may escape after the deadline');
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,0);
+});
+test('a deadline expiring during local admission settles both unused model reservations',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(!jumped&&sql.startsWith('SELECT operation_id,request_hash,kind,stage,reserved_micros')){jumped=true;clock+=60_000;}
+  return prepare(sql);
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','expired-admission',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true);assert.equal(requests,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,1);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+test('an expired dispatch-marker response cannot start a late paid model request',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();jumped=true;clock+=60_000;return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','late-dispatch-marker',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true,'the marker committed before its response advanced the clock');
+ assert.equal(requests,0,'an expired paid call must not leave the control plane');
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+test('cancellation during dispatch bookkeeping cannot launch an already-fenced model request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let cancelled=false,requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();cancelled=true;
+    local.db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id='model-operation'").run();
+    return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await modelStep(env,'model-operation',0,'facts','cancelled-during-dispatch',request,()=>{},Date.now()+30_000).catch(()=>{});
+ assert.equal(cancelled,true);
+ assert.equal(requests,0,'a known cancelled generation must never start a paid transport');
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+});
+test('an owner authorization expiring after reservation cannot dispatch a paid model request',async t=>{
+ const{env,shared,local}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=Date.parse('2026-12-31T23:59:58+08:00'),marked=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+    const result=await bound.run();marked=true;clock+=5_000;return result;
+  }};}};
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const error=await modelStep(env,'model-operation',0,'facts','authorization-expired-after-mark',request,()=>{},clock+30_000).then(()=>null,cause=>cause);
+ assert.equal(marked,true);
+ assert.equal(error?.message,'MODEL_NOT_AUTHORIZED');
+ assert.equal(requests,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+});
+test('a proven unsent settlement must not prevent a different operation from making its first paid request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let marked=false,failedOnce=false,requests=0;
+ const prepareLedger=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER),prepareLocal=env.DB.prepare.bind(env.DB);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepareLedger(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();marked=true;return result;
+  }};}};
+ };
+ env.DB.prepare=sql=>{
+  if(sql.startsWith('SELECT * FROM pipeline_operations')&&marked&&!failedOnce){failedOnce=true;throw Error('Network connection lost.');}
+  return prepareLocal(sql);
+ };
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"fresh"}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','unsent-original',request,()=>{}),/Network connection lost/);
+ assert.equal(marked,true);assert.equal(failedOnce,true);assert.equal(requests,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-model-operation','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ const result=await modelStep(env,'new-model-operation',0,'facts','fresh-call',request,value=>assert.equal(value.value,'fresh'));
+ assert.equal(result.value.value,'fresh');assert.equal(requests,1);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+test('a parallel-stage failure during shared dispatch bookkeeping fences transport and releases known-unsent cost',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let allowed=true,requests=0,marked=false;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();marked=true;allowed=false;return result;
+  }};}};
+ };
+ const request={system:'Offline parallel stage.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','stage-fenced',request,()=>{},Date.now()+30_000,
+  {dispatchGuard:()=>{if(!allowed)throw Error('DIRECTOR_STAGE_ABORTED');}}),/DIRECTOR_STAGE_ABORTED/);
+ assert.equal(marked,true);assert.equal(requests,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+});
+test('a genuine zero-price completed request still requires its immutable provider receipt',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"zero"}'},finish_reason:'stop'}],usage:{prompt_tokens:0,completion_tokens:0}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline zero-cost fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await modelStep(env,'model-operation',0,'facts','zero-cost-original',request,()=>{});
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ const receiptKey=[...objects.keys()].find(key=>key.includes('/model-calls/')&&key.endsWith('.json'));
+ assert.ok(receiptKey);objects.delete(receiptKey);
+ local.db.prepare('DELETE FROM model_responses').run();
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('zero-cost-next','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'zero-cost-next',0,'facts','zero-cost-next-call',request,()=>{}),/MODEL_RECEIPT_UNAVAILABLE/);
+ assert.equal(requests,1,'a known completed call with a missing receipt is not silently sent again');
 });
 for(const mode of ['stream','http'])test(`native author ${mode} 502 preserves unknown cost and never dispatches a fallback`,async t=>{
  const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;

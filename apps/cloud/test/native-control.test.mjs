@@ -5,18 +5,19 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,immutableStream,reserve,settle} from '../src/store.ts';
+import {immutableBytes,immutableStream,reserve,settle,rights} from '../src/store.ts';
 import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
 import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
+import {registerWorkflow,workflowStarted} from '../src/workflow-state.ts';
 import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverDirectorEvent, recoverDirectorEvents} from '../src/render-recovery.ts';
 import {flushOutbox} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
-import {getReviewDraft, directorProgress, dispatchDirectorProgress} from '../src/director-recovery.ts';
+import {getReviewDraft, directorProgress, dispatchDirectorProgress, dispatchOperationCancellation, failDirector, commitCandidate} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -78,9 +79,11 @@ test('native migration preserves settled films and unknown reservations; automat
     const before = canonical({operations: db.prepare('SELECT * FROM pipeline_operations').all(), renders: db.prepare('SELECT * FROM pipeline_renders').all(),
       costs: db.prepare('SELECT * FROM cost_reservations').all(), settlements: db.prepare('SELECT * FROM cost_settlements').all()});
     db.exec(readFileSync('apps/cloud/migrations/0004_native_projects.sql', 'utf8'));
+    db.exec(readFileSync('apps/cloud/migrations/0006_workflow_stop_checkpoints.sql', 'utf8'));
     const DB = {prepare(sql) {return {async all() {return {results: db.prepare(sql).all()};}};}};
     assert.deepEqual(await recoverWorkflows({DB}), []);
     assert.equal(db.prepare('SELECT engine FROM pipeline_workflows').get().engine, 'legacy');
+    assert.equal(db.prepare('SELECT native_stop_confirmed_at FROM pipeline_workflows').get().native_stop_confirmed_at,null);
     assert.equal(canonical({operations: db.prepare('SELECT * FROM pipeline_operations').all(), renders: db.prepare('SELECT * FROM pipeline_renders').all(),
       costs: db.prepare('SELECT * FROM cost_reservations').all(), settlements: db.prepare('SELECT * FROM cost_settlements').all()}), before);
   } finally {db.close();}
@@ -95,6 +98,175 @@ test('terminal native cleanup and draft reads require no retired Studio handle o
   assert.equal(result.stoppedAttempts, 0);
   assert.equal(result.reconciledRenders, 0);
   assert.deepEqual(result.pendingCosts, []);
+});
+
+test('an already-claimed Workflow restart cannot erase its reconciled terminal status',async t=>{
+ const{db,env,op}=await fixture(t);
+ assert.equal(await workflowStarted(env,'operation',op.id,op.id,op.generation),op.generation);
+ db.prepare(`UPDATE pipeline_workflows SET native_status='complete',reconciled_at=?,last_error='archived'
+   WHERE kind='operation' AND id=?`).run(Date.now(),op.id);
+ const before=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ const after=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ assert.deepEqual(after,before,'rejecting a second claim must not revive or modify a terminal Workflow row');
+});
+
+test('a delayed first Workflow start cannot claim a pre-reconciled or cancelled operation',async t=>{
+ const{db,env,op}=await fixture(t);
+ await registerWorkflow(env,'operation',op.id,op.id,op.generation);
+ db.prepare(`UPDATE pipeline_workflows SET native_status='terminated',reconciled_at=?
+   WHERE kind='operation' AND id=?`).run(Date.now(),op.id);
+ const before=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ assert.deepEqual(db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id),before);
+ db.prepare('UPDATE pipeline_workflows SET reconciled_at=NULL WHERE id=?').run(op.id);
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(op.id);
+ const cancelled=db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id);
+ await assert.rejects(workflowStarted(env,'operation',op.id,op.id,op.generation),/WORKFLOW_RESTART_RECONCILIATION_REQUIRED/);
+ assert.deepEqual(db.prepare("SELECT * FROM pipeline_workflows WHERE kind='operation' AND id=?").get(op.id),cancelled);
+});
+
+test('terminal cleanup limits parallel Workflow, Shard and capacity-release RPCs across many renders',async t=>{
+  const {db,env,op}=await fixture(t);
+  const count=12,token='11111111-1111-4111-8111-111111111111';
+  for(let index=0;index<count;index++){
+    const renderId='cleanup-render-'+index,attemptId='cleanup-attempt-'+index;
+    db.prepare(`INSERT INTO pipeline_renders
+      (id,operation_id,generation,request_hash,job_key,status,created_at)
+      VALUES(?,?,?,?,?,'rendering',?)`).run(renderId,op.id,0,'hash-'+index,'renders/'+renderId+'/job.json',Date.now());
+    db.prepare(`INSERT INTO pipeline_attempts
+      (id,render_id,operation_id,generation,mode,instance,status,started_at)
+      VALUES(?,?,?,?,?,?,?,?)`).run(attemptId,renderId,op.id,0,'native_export','standard-3','active',Date.now());
+    db.prepare(`INSERT INTO pipeline_render_admissions
+      (id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,
+       lease_token,admitted_at,attempt_deadline_at)
+      VALUES(?,?,?,?,?,0,'running',?,?,?,?,?)`)
+      .run(attemptId,renderId,op.id,0,op.workspace_id,Date.now(),Date.now()+60_000,token,Date.now(),Date.now()+60_000);
+    db.prepare(`INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine)
+      VALUES('render',?,?,0,?,'huashu')`).run(renderId,op.id,Date.now());
+  }
+  const rates={shard:{active:0,peak:0},workflow:{active:0,peak:0},release:{active:0,peak:0}};
+  const pause=async kind=>{
+    const state=rates[kind];state.active++;state.peak=Math.max(state.peak,state.active);
+    await new Promise(resolve=>setTimeout(resolve,8));state.active--;
+  };
+  env.SHARDS={getByName(){return{async stopAndSettle(){await pause('shard');}};}};
+  const terminated=new Set();
+  env.RENDER_WORKFLOW={get(id){return{
+    async status(){await pause('workflow');return{status:terminated.has(id)?'terminated':'running'};},
+    async terminate(){await pause('workflow');terminated.add(id);},
+  };}};
+  env.COORDINATOR={getByName(){return{
+    async release(){await pause('release');},
+  };}};
+  db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id=?").run(op.id);
+  const result=await reconcileOperation(env,op.id);
+  assert.equal(result.stoppedAttempts,count);
+  assert.equal(result.reconciledRenders,count);
+  assert.equal(result.workflows.length,count);
+  for(const [kind,state] of Object.entries(rates))
+    assert.ok(state.peak<=4,kind+' control RPCs must stay within finite parallelism (observed '+state.peak+')');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts WHERE stopped_at IS NOT NULL').get().n,count);
+});
+
+test('a Queue timeout retains confirmed Workflow stops so its next cancellation attempt can finish',async t=>{
+ const{db,env,op}=await fixture(t),calls=new Map(),background=[];
+ for(let index=0;index<12;index++)db.prepare(`INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine)
+  VALUES('render',?,?,0,?,'huashu')`).run('queued-cleanup-'+index,op.id,Date.now());
+ let release;
+ const stalled=new Promise(resolve=>{release=resolve;});
+ t.after(async()=>{release();await Promise.allSettled(background);});
+ env.RENDER_WORKFLOW={get(id){return{async status(){
+  calls.set(id,(calls.get(id)??0)+1);
+  await new Promise(resolve=>setTimeout(resolve,18));
+  if(Number(id.split('-').at(-1))>=8)await stalled;
+  return{status:'complete'};
+ }}}};
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(op.id);
+ const handled=[],message=()=>({body:{operationId:op.id},ack(){handled.push('ack');},retry(){handled.push('retry');}});
+ const dispatch=msg=>{const work=dispatchOperationCancellation(env,msg.body);background.push(work);return work;};
+ await processQueueMessages([message()],dispatch,55);
+ assert.deepEqual(handled,['retry']);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE native_stop_confirmed_at IS NOT NULL').get().n,8,
+  'the first two native stop waves must be durable before the Queue invocation expires');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,0,
+  'native stop evidence must not be confused with a completed operation cleanup');
+ release();
+ await processQueueMessages([message()],dispatch,300);
+ assert.deepEqual(handled,['retry','ack']);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE native_stop_confirmed_at IS NOT NULL').get().n,12);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,12);
+ for(let index=0;index<8;index++)assert.equal(calls.get('queued-cleanup-'+index),1,'the retry must not recheck an already confirmed stop');
+});
+
+test('a final-render D1 outage leaves terminal cleanup discoverable without re-stopping verified native Workflows',async t=>{
+ for(const status of ['cancelled','failed']){
+  const{db,env,op}=await fixture(t),renderId='tail-render-'+status,attemptId='tail-attempt-'+status;
+  const token='11111111-1111-4111-8111-111111111111';
+  db.prepare("INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at,result_json) VALUES(?,?,?,?,?,'rendering',?,?)")
+   .run(renderId,op.id,0,'tail-'+status,'renders/'+renderId+'/job.json',Date.now(),canonical({stopPending:true}));
+  db.prepare("INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)")
+   .run(attemptId,renderId,op.id,0,'native_export','standard-3','active',Date.now());
+  db.prepare(`INSERT INTO pipeline_render_admissions(id,render_id,operation_id,generation,workspace_id,attempt_index,status,
+   requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,0,'running',?,?,?,?,?)`)
+   .run(attemptId,renderId,op.id,0,op.workspace_id,Date.now(),Date.now()+60_000,token,Date.now(),Date.now()+60_000);
+  db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
+   .run(renderId,op.id,Date.now());
+  db.prepare('UPDATE pipeline_operations SET status=? WHERE id=?').run(status,op.id);
+  let nativeChecks=0,physicalStops=0,leaseReleases=0;
+  env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
+  env.SHARDS={getByName(){return{async stopAndSettle(){physicalStops++;}}}};
+  env.COORDINATOR={getByName(){return{async release(id,lease){
+   assert.equal(id,attemptId);assert.equal(lease,token);leaseReleases++;
+   db.prepare("UPDATE pipeline_render_admissions SET status='released' WHERE id=?").run(id);
+  }}}};
+  let failOnce=true;
+  const prepare=env.DB.prepare.bind(env.DB);
+  env.DB.prepare=sql=>{
+   if(failOnce&&sql.startsWith('UPDATE pipeline_renders SET status=?,finished_at=COALESCE')){
+    failOnce=false;
+    return{bind(){return{async run(){throw Error('SIMULATED_RENDER_FINALIZATION_D1_OUTAGE');}}}};
+   }
+   return prepare(sql);
+  };
+  await assert.rejects(reconcileOperation(env,op.id),/SIMULATED_RENDER_FINALIZATION_D1_OUTAGE/);
+  const checkpoint=db.prepare('SELECT native_status,native_stop_confirmed_at,reconciled_at FROM pipeline_workflows WHERE id=?').get(renderId);
+  assert.equal(checkpoint.native_status,'complete');
+  assert.ok(checkpoint.native_stop_confirmed_at,'a confirmed native stop must survive the failed cleanup');
+  assert.equal(checkpoint.reconciled_at,null,'native stop confirmation must not mark the full operation cleanup complete');
+  assert.equal(db.prepare('SELECT status FROM pipeline_renders WHERE id=?').get(renderId).status,'rendering');
+  assert.equal(db.prepare('SELECT stopped_at FROM pipeline_attempts WHERE id=?').get(attemptId).stopped_at!==null,true);
+  assert.equal(db.prepare('SELECT status FROM pipeline_render_admissions WHERE id=?').get(attemptId).status,'released');
+  assert.ok(physicalStops>=1);assert.ok(leaseReleases>=1);
+  const recovered=await recoverWorkflows(env);
+  assert.ok(recovered.some(row=>row.id===renderId&&row.status==='inspected'),'the sweep must rediscover this terminal operation');
+  assert.equal(nativeChecks,1,'a confirmed native stop is never needlessly queried again');
+  const done=db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get(renderId);
+  assert.equal(done.status,status==='cancelled'?'cancelled':'blocked');
+  assert.equal(parseCanonicalJson(done.result_json).stopPending,false);
+  assert.ok(db.prepare('SELECT reconciled_at FROM pipeline_workflows WHERE id=?').get(renderId).reconciled_at);
+  assert.deepEqual(await recoverWorkflows(env),[],'fully reconciled terminal work leaves the sweep');
+ }
+});
+
+test('a recovery sweep launches only one cleanup for many pending Workflows of the same terminal operation',async t=>{
+ const{db,env,op}=await fixture(t);
+ for(let n=0;n<9;n++)db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
+  .run('sweep-render-'+n,op.id,Date.now());
+ db.prepare("UPDATE pipeline_operations SET status='cancelled' WHERE id=?").run(op.id);
+ let reconciliations=0,nativeChecks=0;
+ env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(sql==='SELECT status FROM pipeline_operations WHERE id=?')reconciliations++;
+  return prepare(sql);
+ };
+ const result=await recoverWorkflows(env);
+ assert.equal(result.length,1,'the sweep must coalesce all pending rows of a terminal operation');
+ assert.equal(reconciliations,1,'terminal cleanup must not race itself across four pool workers');
+ assert.equal(nativeChecks,9,'one reconciliation still stops every native Workflow');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,9);
+ assert.deepEqual(await recoverWorkflows(env),[]);
 });
 
 test('unavailable Workflow status does not strand an admitted no-start lease during reconciliation', async t => {
@@ -142,6 +314,23 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(checkedNativeBytes(env, empty, 240000, {allowEmpty: true}), /SOURCE_IDENTITY_MISMATCH/);
   objects.get(input.files[0].key).customMetadata.sha256 = '0'.repeat(64);
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
+});
+
+test('a direct native child cannot silently drop its parent revision rights',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_parent_asset',sha256:input.files[0].sha256,kind:'image'};
+  const parent=await saveNativeProject(env,op,{...input,resources:[resource]});
+  const childOp={...op,id:'native-child-operation'};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(childOp.id,childOp.workspace_id,childOp.project_id,0,childOp.purpose,'active','child-request',childOp.max_micros,Date.now(),null,null);
+  const child=await saveNativeProject(env,childOp,{...input,resources:[],baseRevision:parent.revisionId});
+  assert.deepEqual(child.project.resources,[resource],
+    'direct project callers must inherit rights metadata, not only the Director helper');
+  await assert.rejects(rights(env,childOp,child.project.resources),/ASSET_RIGHTS_PENDING/,
+    'rendering this child without an owner grant must remain fenced');
+  await assert.rejects(saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId,
+    resources:[{...resource,kind:'video'}]}),/NATIVE_RESOURCE_CONFLICT/,
+  'a child cannot silently reinterpret the inherited license identity');
 });
 
 test('a transient preflight D1 read failure resumes a confirmed unstarted render', async t => {
@@ -192,6 +381,22 @@ test('native render admission stores one job/outbox, preserves idempotency, and 
   db.prepare('UPDATE pipeline_operations SET status=\'cancelled\',generation=1 WHERE id=?').run(op.id);
   await assert.rejects(createNativeRender(env, op, {...request, renderId: 'cancelled-render'}), /OPERATION_FENCED/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_renders').get().n, 1);
+});
+
+test('an independent Director stage aborting during R2 input persistence cannot enqueue a new render',async t=>{
+ const{db,env,op,saved}=await fixture(t);
+ let active=true,stored=false;
+ const put=env.MEDIA.put.bind(env.MEDIA);
+ env.MEDIA.put=async(...args)=>{
+  const result=await put(...args);
+  if(args[0]==='renders/guarded-render/input.json'){stored=true;active=false;}
+  return result;
+ };
+ await assert.rejects(createNativeRender(env,op,{renderId:'guarded-render',revisionId:saved.revisionId,mode:'preview',rendererRelease:'native-release'},
+  ()=>{if(!active)throw Error('DIRECTOR_STAGE_ABORTED');}),/DIRECTOR_STAGE_ABORTED/);
+ assert.equal(stored,true,'the failure is injected after asynchronous request persistence');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_renders').get().n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox').get().n,0);
 });
 
 test('unknown compute usage prevents a physical retry even after stop is confirmed', async t => {
@@ -998,6 +1203,33 @@ test('native publication atomically fences missing and revoked source rights, pr
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pipeline_outbox WHERE kind='render_progress'").get().count,1);
 });
 
+test('Director candidate commit atomically fences source revocation and keeps earlier success immutable',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_candidate',sha256:input.files[0].sha256,kind:'image'};
+  const key=`operations/${op.id}/candidate.json`;
+  await assert.rejects(commitCandidate(env,op,key,[resource]),/ASSET_RIGHTS_PENDING/);
+  const evidence=await immutableBytes(env,'evals/native/candidate-rights.json',new TextEncoder().encode('{}'),'application/json');
+  db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+    .run(op.id,resource.resourceId,resource.sha256,'fixture-license',evidence.key,'internal_eval_only');
+  // The initial rights() read passed, then the owner revoked before the D1 transaction.
+  const batch=env.DB.batch.bind(env.DB);
+  env.DB.batch=async statements=>{
+    db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+    return batch(statements);
+  };
+  await assert.rejects(commitCandidate(env,op,key,[resource]),/ASSET_RIGHTS_PENDING/);
+  assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(op.id).status,'active');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='operation_progress'").get().n,0);
+  env.DB.batch=batch;
+  db.prepare('UPDATE pipeline_rights SET revoked_at=NULL WHERE operation_id=?').run(op.id);
+  await commitCandidate(env,op,key,[resource]);
+  const committed=db.prepare('SELECT status,result_key FROM pipeline_operations WHERE id=?').get(op.id);
+  assert.equal(committed.status,'succeeded');assert.equal(committed.result_key,key);
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await commitCandidate(env,op,key,[resource]); // A later revoke cannot rewrite or un-commit a completed candidate.
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='operation_progress'").get().n,1);
+});
+
 test('Director completion events recover after Queue acknowledgement and exhausted delivery retries', async t => {
   const {db, env, op, saved} = await fixture(t);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
@@ -1333,6 +1565,20 @@ test('cancellation is idempotent only for a real cancelled operation, not a miss
   await cancelOperation(env,op.id);
   assert.equal(db.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').get(op.id).generation,1);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='cancel'").get().n,1);
+});
+
+test('durable cancellation and failure notify live readers before asynchronous cleanup',async t=>{
+ const{db,env,op}=await fixture(t),progress=[];
+ env.OPERATIONS={getByName(){return{async progress(serialized){progress.push(parseCanonicalJson(serialized));}};}};
+ await cancelOperation(env,op.id);
+ await dispatchOperationCancellation(env,{operationId:op.id});
+ assert.deepEqual(progress,[{operationId:op.id,generation:1,status:'cancelled'}]);
+ const failed={...op,id:'failed-native-operation'};
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(failed.id,failed.workspace_id,failed.project_id,0,failed.purpose,'active','failure-request',failed.max_micros,Date.now(),null,null);
+ await failDirector(env,failed,'DIRECTOR_TEST_FAILURE');
+ assert.deepEqual(progress[1],{operationId:failed.id,generation:0,status:'failed',code:'DIRECTOR_TEST_FAILURE'});
+ assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(failed.id).status,'failed');
 });
 
 test('a failed native render stays blocked until physical cleanup is confirmed', async t => {

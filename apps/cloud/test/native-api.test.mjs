@@ -50,6 +50,45 @@ test('all staging clients reject active, queued and malformed capacity snapshots
     assert.throws(()=>requireIdleCapacity(value,'STAGING_BUSY'),/CAPACITY_RESPONSE_INVALID/);
 });
 
+test('operation recovery bounds physical-stop probes and reports unknown when a Shard stalls',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const operationId='recovery-operation',renderId='recovery-render';
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(operationId,'workspace','project',0,'evaluation','active','request',3000000,Date.now(),null,null);
+  db.prepare('INSERT INTO pipeline_renders (id,operation_id,generation,request_hash,job_key,status,created_at,finished_at,result_json) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run(renderId,operationId,0,'request','renders/recovery/job.json','queued',Date.now(),null,null);
+  for(let i=0;i<12;i++)db.prepare(`INSERT INTO pipeline_attempts
+    (id,render_id,operation_id,generation,mode,instance,status,started_at) VALUES(?,?,?,?,?,?,?,?)`)
+    .run('recovery-attempt-'+i,renderId,operationId,0,'native_export','standard-3','active',Date.now()+i);
+  for(const id of ['recovery-attempt-1','untracked-compute'])
+    db.prepare('INSERT INTO cost_reservations VALUES(?,?,?,?,?,?,?,?)')
+      .run(id,operationId,'request','compute','render',1000,'catalog',Date.now());
+
+  const seen=new Map(),live={count:0,peak:0};
+  const SHARDS={getByName(id){return{async isStopped(){
+    seen.set(id,(seen.get(id)??0)+1);
+    live.count++;live.peak=Math.max(live.peak,live.count);
+    if(id==='recovery-attempt-0')return new Promise(()=>{});
+    await new Promise(resolve=>setTimeout(resolve,6));live.count--;
+    return id!=='untracked-compute';
+  }};}};
+  let watchdog;
+  const response=await Promise.race([
+    worker.fetch(new Request('https://worker.example/internal/s1/operations/'+operationId+'/recovery',
+      {headers:{authorization:'Bearer fixture-only'}}),
+      {DB,SHARDS,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},{}),
+    new Promise((_,reject)=>{watchdog=setTimeout(()=>reject(Error('RECOVERY_ROUTE_HUNG')),3_600);}),
+  ]).finally(()=>clearTimeout(watchdog));
+  assert.equal(response.status,200);
+  const state=await response.json();
+  assert.equal(state.attempts.length,12);
+  assert.equal(state.attempts[0].physicallyStopped,null,'a timed-out probe remains unknown');
+  assert.equal(state.attempts[1].physicallyStopped,true);
+  assert.equal(state.costs.find(row=>row.id==='untracked-compute').physicallyStopped,false);
+  assert.equal(seen.get('recovery-attempt-1'),1,'an attempt and its reservation share one probe');
+  assert.ok(live.peak<=4,'a recovery read must not fan out unbounded Shard RPCs');
+});
+
 test('real internal HTTP and Queue routes persist one direction event and ACK only after actual delivery',async t=>{
   const {db,DB}=sqliteD1();t.after(()=>db.close());
   const {MEDIA}=memoryMedia(),sent=[],events=[],background=[];

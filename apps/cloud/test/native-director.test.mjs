@@ -52,14 +52,15 @@ const mockModules={
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
  'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}',
  'native-project.ts':`export const NATIVE_COMMIT='${nativeCommit}';export const saveNativeProject=(...a)=>globalThis.__nativeDirectorFixture.save(...a);export const loadNativeProject=(...a)=>globalThis.__nativeDirectorFixture.load(...a);export const createNativeRender=(...a)=>globalThis.__nativeDirectorFixture.render(...a);export const getNativeRender=(...a)=>globalThis.__nativeDirectorFixture.getRender(...a);export const checkedNativeBytes=(...a)=>globalThis.__nativeDirectorFixture.bytes(...a);`,
- 'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key){await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
+ 'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key,resources){globalThis.__nativeDirectorFixture.committedResources=resources;await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
 };
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
-async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false}={}){
+async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false,parallelDelay=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
+ const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
  const put=async(key,bytes,mediaType)=>{const sha256=sha256Bytes(bytes);await MEDIA.put(key,bytes,{customMetadata:{sha256},httpMetadata:{contentType:mediaType}});return {name:key.split('/').at(-1),key,sha256,byteLength:bytes.length,mediaType};};
  const putJson=(key,value)=>put(key,new TextEncoder().encode(canonical(value)),'application/json');
  const asset={...await put('evals/fixture/product.png',png,'image/png'),resourceId:'res_product',kind:'image',width:1,height:1};
@@ -84,7 +85,10 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
    return renders.get(id);
   },
   async modelStep(_env,operationId,_generation,stage,callId,request,validate){
-   const payload=parseCanonicalJson(request.messages[0].text),tool=request.tools?.[0]?.name;calls.push({operationId,stage,callId,tool,payload});let value;
+   const payload=parseCanonicalJson(request.messages[0].text),tool=request.tools?.[0]?.name;calls.push({operationId,stage,callId,tool,payload,system:request.system});let value;
+   const group=stage==='assets'?'assets':stage==='author'&&callId.includes('-direction-')?'directions':null;
+   if(parallelDelay&&group){const state=parallel[group];state.active++;state.peak=Math.max(state.peak,state.active);
+    try{await new Promise(resolve=>setTimeout(resolve,3));}finally{state.active--;}}
    if(stage==='facts')value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fact_product'],summary:'The provided product does the described work.'};
    else if(stage==='assets')value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:payload.sha256,promptVersion:'native-asset-v1',model:payload.model,assetKind:'screenshot',description:'A supplied product pixel fixture.',regions:[],dominantColors:['#ffffff'],visibleText:[],visualRoles:['Product evidence']};
    else if(stage==='directions')value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map((key,index)=>({key,language:index===1?'3d-object':'kinetic-type',palette:[{color:'#ffffff',role:'bg',source:'Product'},{color:'#111111',role:'ink',source:'Product'}],logline:'Show the real product',feel:{route:'continuous',bpm:120,eventsPerBar:4},sound:'A clear landing',risk:'Keep real material legible',usesDepth:index===1,skeleton:[0,1,2].map(i=>({purpose:'Passage '+i,approach:'Native geometry and typography'}))}))};
@@ -107,12 +111,12 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   }
  };
  globalThis.__nativeDirectorFixture=f;t.after(()=>delete globalThis.__nativeDirectorFixture);
- const create=async(id,extra={})=>{
+ const create=async(id,extra={},readmittedRights=[])=>{
   const context={audience:'software',brief:'Show this product.',videoLanguage:'en',durationSeconds:15,fps:30,aspects:['landscape','portrait'],rendererRelease:'renderer-native',facts:[{id:'fact_product',text:'The product does the described work.'}],confirmedFactIds:['fact_product'],resources:[asset],...extra};
   const request=await putJson('evals/fixture/'+id+'.json',context);
   db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
-  for(const resource of [...context.resources,...(context.audioSources??[])])db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+  for(const resource of [...context.resources,...(context.audioSources??[]),...readmittedRights])db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -132,8 +136,85 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads};
+ return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
 }
+
+test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
+ const f=await fixture(t,{parallelDelay:true});
+ const second={...await f.put('evals/fixture/second.png',png,'image/png'),resourceId:'second',kind:'image',width:1,height:1};
+ const third={...await f.put('evals/fixture/third.png',png,'image/png'),resourceId:'third',kind:'image',width:1,height:1};
+ const candidate=await f.create('bounded-stages',{resources:[f.asset,second,third],aspects:['landscape']});
+ assert.equal(candidate.kind,'native_candidate');
+ assert.equal(f.parallel.assets.peak,2);assert.equal(f.parallel.directions.peak,2);
+ const cardCalls=f.calls.filter(call=>call.stage==='author'&&call.callId.includes('-direction-'));
+ assert.equal(cardCalls.length,3);
+ for(const call of cardCalls){
+  const expected=call.callId.includes('-amplify')?'object-3d/index.html':'kinetic-type/index.html';
+  assert.ok(call.system.includes(expected),`${call.callId} uses its own immutable template, not another parallel card's language`);
+ }
+ const stored=await f.env.MEDIA.get('operations/bounded-stages/direction-previews.json');
+ assert.ok(stored);
+ const previewSet=parseCanonicalJson(new Uint8Array(await stored.arrayBuffer()));
+ assert.deepEqual(previewSet.map(item=>item.direction),['fit','amplify','unexpected']);
+});
+
+test('duplicate material entries keep original positions but never start two identical paid asset calls',async t=>{
+ const f=await fixture(t,{parallelDelay:true});
+ const completed=await f.create('duplicate-materials',{resources:[f.asset,structuredClone(f.asset)],aspects:['landscape']});
+ assert.equal(completed.kind,'native_candidate');
+ const observations=f.calls.filter(call=>call.stage==='assets');
+ assert.equal(observations.length,1,'an identical observation should have one in-flight model call and stable first callId');
+ assert.ok(observations[0].callId.endsWith('asset-0'));
+ assert.equal(f.parallel.assets.peak,1);
+ const directions=f.calls.find(call=>call.stage==='directions');
+ assert.equal(directions.payload.insights.length,2,'the downstream stage still receives an ordered insight for each material');
+ assert.deepEqual(directions.payload.insights[0],directions.payload.insights[1]);
+});
+
+test('a failed parallel asset stops in-flight invalid output from starting a paid correction',async t=>{
+ const f=await fixture(t),original=globalThis.__nativeDirectorFixture.modelStep;
+ let startedSecond,failFirst;
+ const secondStarted=new Promise(resolve=>{startedSecond=resolve;}),firstFailed=new Promise(resolve=>{failFirst=resolve;});
+ const requested=[];
+ globalThis.__nativeDirectorFixture.modelStep=async (...args)=>{
+  const stage=args[3],callId=args[4];requested.push(callId);
+  if(stage==='assets'&&callId.endsWith('-asset-0')){
+   await secondStarted;failFirst();throw Error('ASSET_ZERO_DENIED');
+  }
+  if(stage==='assets'&&callId.endsWith('-asset-1')){
+   startedSecond();await firstFailed;await new Promise(resolve=>setImmediate(resolve));
+   args[6]({schemaVersion:'3.0.0',kind:'invalid_asset_insight'});
+   assert.fail('the invalid response should be rejected by its validator');
+  }
+  return original(...args);
+ };
+ const extra={...await f.put('evals/fixture/extra.png',png,'image/png'),resourceId:'asset_two',kind:'image',width:1,height:1};
+ await assert.rejects(f.create('parallel-asset-failure',{resources:[f.asset,extra],aspects:['landscape']}),/ASSET_ZERO_DENIED/);
+ assert.ok(requested.some(call=>call.endsWith('-asset-0'))&&requested.some(call=>call.endsWith('-asset-1')),'both initial model calls were dispatched and drained');
+ assert.equal(requested.filter(call=>call.endsWith('-asset-1-correct')).length,0,'a failed stage must not authorize another paid correction');
+ assert.equal(f.db.prepare("SELECT status FROM pipeline_operations WHERE id='parallel-asset-failure'").get().status,'failed');
+});
+
+test('a failed parallel direction does not allow another completed author to start a preview render',async t=>{
+ const f=await fixture(t),original=globalThis.__nativeDirectorFixture.modelStep;
+ let startedAmplify,failFit;
+ const amplifyStarted=new Promise(resolve=>{startedAmplify=resolve;}),fitFailed=new Promise(resolve=>{failFit=resolve;});
+ const requested=[];
+ globalThis.__nativeDirectorFixture.modelStep=async (...args)=>{
+  const stage=args[3],callId=args[4];
+  if(stage==='author'&&callId.includes('-direction-')){
+   requested.push(callId);
+   if(callId.endsWith('-direction-fit')){await amplifyStarted;failFit();throw Error('FIT_AUTHOR_DENIED');}
+   if(callId.endsWith('-direction-amplify')){startedAmplify();await fitFailed;await new Promise(resolve=>setImmediate(resolve));}
+  }
+  return original(...args);
+ };
+ await assert.rejects(f.create('parallel-direction-failure',{aspects:['landscape']}),/FIT_AUTHOR_DENIED/);
+ assert.equal(requested.length,2,'already dispatched author requests are awaited, but the third card never starts');
+ assert.equal(f.jobs.filter(job=>job.operationId==='parallel-direction-failure'&&job.mode==='preview').length,0,
+  'a completed in-flight author must not start a new preview after a peer has failed');
+ assert.equal(f.db.prepare("SELECT status FROM pipeline_operations WHERE id='parallel-direction-failure'").get().status,'failed');
+});
 
 test('director completes from durable render receipts when every completion event is lost',async t=>{
  const f=await fixture(t,{dropRenderEvents:true});
@@ -169,6 +250,24 @@ test('native creation renders directions, waits for choice, authors independent 
  assert.ok(revised.files.some(file=>file.sha256===f.asset.sha256),'unchanged source media remains available');
  assert.ok(revised.resources.some(resource=>resource.resourceId===replacement.resourceId&&resource.sha256===replacement.sha256));
  assert.equal(new TextDecoder().decode(await f.bytes(f.env,source)),beforeText,'the parent revision remains unchanged');
+});
+
+test('candidate submission includes rights inherited from an earlier native revision',async t=>{
+ const f=await fixture(t),original=await f.create('candidate-parent',{aspects:['landscape']});
+ const patch=await f.create('candidate-child',{aspects:['landscape'],resources:[],baseRevision:original.projects[0].revisionId,
+  comments:[{text:'Update the title.',frame:90,elementId:'title'}]},[f.asset]);
+ assert.equal(patch.kind,'native_candidate');
+ assert.ok(f.committedResources.some(resource=>resource.resourceId===f.asset.resourceId&&resource.sha256===f.asset.sha256),
+  'a patch must recheck inherited media rights even when the new request has no resources');
+});
+
+test('patching a parent without re-admitting inherited media fails before a paid model call',async t=>{
+ const f=await fixture(t),original=await f.create('rights-parent',{aspects:['landscape']});
+ const paidCalls=f.calls.length;
+ await assert.rejects(f.create('rights-child',{aspects:['landscape'],resources:[],baseRevision:original.projects[0].revisionId,
+  comments:[{text:'Update the title.',frame:90,elementId:'title'}]}),/ASSET_RIGHTS_PENDING/);
+ assert.equal(f.calls.length,paidCalls,'missing inherited rights must not start another author model call');
+ assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('rights-child').status,'failed');
 });
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
  const files=[{path:'index.html',content:'<h1>One</h1><p>One</p>'}],original=structuredClone(files);

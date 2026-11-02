@@ -8,7 +8,8 @@ export function sqliteD1(){
  db.exec(readFileSync('apps/cloud/migrations/0002_workflow_recovery.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0003_directing_method.sql','utf8'));
  db.exec(readFileSync('apps/cloud/migrations/0004_native_projects.sql','utf8'));
-  db.exec(readFileSync('apps/cloud/migrations/0005_render_admissions.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/migrations/0005_render_admissions.sql','utf8'));
+ db.exec(readFileSync('apps/cloud/migrations/0006_workflow_stop_checkpoints.sql','utf8'));
  db.exec(readFileSync('apps/cloud/model-ledger-migrations/0001_model_budget.sql','utf8'));
  const DB={prepare(sql){
   let args=[];

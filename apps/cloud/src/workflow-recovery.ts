@@ -27,7 +27,17 @@ export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status
 
 /** No native restart here: an interrupted paid stage is reconciled, never replayed speculatively. */
 export async function recoverWorkflows(env:PipelineEnv){
- const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE engine=\'huashu\' AND reconciled_at IS NULL ORDER BY COALESCE(last_checked_at,0),registered_at LIMIT 20').all<TrackedWorkflow>();
+ // One terminal operation may have dozens of native-stop checkpoints but only
+ // one remaining compute/lease/render cleanup. Do not race that cleanup against
+ // itself in all four sweep slots or hide independent operations behind it.
+ const rows=await env.DB.prepare(`SELECT * FROM (
+   SELECT w.*,ROW_NUMBER() OVER (
+     PARTITION BY CASE WHEN o.status IN ('failed','cancelled') THEN 'terminal:'||w.operation_id
+       ELSE 'workflow:'||w.kind||':'||w.id END
+     ORDER BY COALESCE(w.last_checked_at,0),w.registered_at,w.kind,w.id
+   ) AS sweep_rank FROM pipeline_workflows w JOIN pipeline_operations o ON o.id=w.operation_id
+   WHERE w.engine='huashu' AND w.reconciled_at IS NULL
+  ) WHERE sweep_rank=1 ORDER BY COALESCE(last_checked_at,0),registered_at LIMIT 20`).all<TrackedWorkflow>();
  const results=await settledPool(rows.results,4,row=>boundedControl(recoverWorkflow(env,row),15_000));
  return Promise.all(results.map(async (result,index)=>{
   const row=rows.results[index]!;

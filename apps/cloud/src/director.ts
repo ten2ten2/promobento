@@ -18,6 +18,8 @@ import {getJson,operation,rights,immutableJson,immutableBytes} from './store.ts'
 import {modelStep,ModelJsonOutputError} from './model-client.ts';
 import {assertModelBudgetReady} from './model-budget.ts';
 import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
+import {analyzeMaterialStage,previewDirectionStage,type StageGuard} from './director-stages.ts';
+import {authorAspectStage,reviewAspectStage} from './director-production.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {renderCompletionEventType} from './render-recovery.ts';
 import {waitForDurableRender} from './workflow-wait.ts';
@@ -115,29 +117,32 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    });
    const material=await materialInputs(this.env,op,context);
    const timingEvidence=normalizeTimingEvidence(context.timingEvidence,material.materials);
+   const candidateResources:Json[]=[...material.resources];
+   const candidateRights=()=>[...new Map(candidateResources.map(resource=>[canonical([resource.resourceId,resource.sha256]),resource])).values()];
    const briefObject=await step.do('brief',noRetry,()=>immutableJson(this.env,`operations/${op.id}/brief.json`,brief));
    const progress=(status:string)=>directorProgress(this.env,op,status);
-   const picture=async(blob:Json)=>({mediaType:blob.mediaType??'image/png',base64:toBase64(await checkedNativeBytes(this.env,blob,8<<20))});
-   const runModel=async(name:string,stage:string,request:Json,validate:(value:Json)=>void):Promise<Json>=>{
+   const picture=async(blob:Json)=>{await rights(this.env,op,candidateRights());return {mediaType:blob.mediaType??'image/png',base64:toBase64(await checkedNativeBytes(this.env,blob,8<<20))};};
+   const runModel=async(name:string,stage:string,request:Json,validate:(value:Json)=>void,methodLanguage=language,stageGuard:StageGuard=()=>{}):Promise<Json>=>{
     let failure:Json|undefined;
     for(let correction=0;correction<2;correction++){
+     stageGuard();
      const result=parseCanonicalJson(await step.do<string>(name+(correction?'-correct':''),{...noRetry,timeout:'12 minutes'},async()=>{
-      await guard();await rights(this.env,op,material.resources);
+      stageGuard();await guard();await rights(this.env,op,candidateRights());stageGuard();
       const prompt={...request,messages:[...request.messages,...(failure?[{role:'user',text:canonical({task:'Correct this completed response to the exact supplied contract. Preserve the Brief and current source.',failure})}]:[])]};
       try{
        const result=await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+op.generation+'-'+name+(correction?'-correct':''),
-        {system:system+'\nFROZEN METHOD:\n'+canonical(recallDirecting(methods,stage,context.audience,language))+(request.schema?'\nRESPONSE SCHEMA:\n'+canonical(request.schema):''),...prompt} as any,
-        validate,deadline(),{directingMethod:methodRef});return canonical({value:result.value});
+        {system:system+'\nFROZEN METHOD:\n'+canonical(recallDirecting(methods,stage,context.audience,methodLanguage))+(request.schema?'\nRESPONSE SCHEMA:\n'+canonical(request.schema):''),...prompt} as any,
+        validate,deadline(),{directingMethod:methodRef,dispatchGuard:stageGuard});return canonical({value:result.value});
       }catch(error){
        if(!(error instanceof DirectorOutputError||error instanceof ModelJsonOutputError))throw error;
        return canonical({invalid:{code:error.message,...(error instanceof DirectorOutputError?{previous:error.previous??null}:{previous:error.completedOutput??null})}});
       }
      })) as Json;
-     if(!result.invalid)return result.value;failure=result.invalid;
+     stageGuard();if(!result.invalid)return result.value;failure=result.invalid;
     }
     throw Error(failure?.code??'DIRECTOR_MODEL_OUTPUT_INVALID');
    };
-   const runTool=async(name:string,stage:string,tool:string,payload:Json,images:Json[]=[],check?:(input:Json)=>void):Promise<Json>=>{
+   const runTool=async(name:string,stage:string,tool:string,payload:Json,images:Json[]=[],check?:(input:Json)=>void,methodLanguage=language,stageGuard:StageGuard=()=>{}):Promise<Json>=>{
     const parameters=(agentTools.$defs as Json)[tool+'Input'];
     const value=await runModel(name,stage,{messages:[{role:'user',text:canonical({...payload,...(['author','treatment'].includes(stage)?{timingEvidence}:{})}),...(images.length?{images}:{})}],
      tools:[{name:tool,description:'Return exactly this native production tool input.',parameters}],maxOutputTokens:stage==='author'?24576:8192},result=>{
@@ -152,12 +157,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
        }
        check?.(input);
       }catch(error){outputError(error instanceof Error?error.message:'NATIVE_TOOL_INVALID',result);}
-     });return value.toolCalls[0].input;
+     },methodLanguage,stageGuard);return value.toolCalls[0].input;
    };
-   const persist=async(name:string,aspect:string,files:SourceFile[],base?:SavedNativeProject):Promise<SavedNativeProject>=>{
+   const persist=async(name:string,aspect:string,files:SourceFile[],base?:SavedNativeProject,stageGuard:StageGuard=()=>{}):Promise<SavedNativeProject>=>{
+    stageGuard();
     assertSourceFiles(files);const shape=(platform.aspectLayouts as Json)[aspect];
     return parseCanonicalJson(await step.do<string>('save-'+name,noRetry,async()=>{
-     await guard();const authored=[];
+     stageGuard();await guard();const authored=[];
      const documents=files.filter(file=>file.path!=='BRIEF.md');
      documents.push({path:'BRIEF.md',content:'# Brief\n\n'+canonical(brief)+'\n'});
      if(!base){const prior=documents.findIndex(file=>file.path==='TREATMENT.md');if(prior>=0)documents.splice(prior,1);documents.push({path:'TREATMENT.md',content:'# Treatment\n\n'+(treatment?.treatment??'Direction exploration; selection pending.')+'\n'});}
@@ -177,7 +183,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(previous&&canonical(previous)!==canonical(resource))throw Error('NATIVE_RESOURCE_CONFLICT');
       if(!previous)resources.set(identity,resource);
      }
-     return canonical(await saveNativeProject(this.env,op,{composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},files:[...assets.values(),...authored],
+     stageGuard();return canonical(await saveNativeProject(this.env,op,{composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},files:[...assets.values(),...authored],
       resources:[...resources.values()],...(base?{baseRevision:base.revisionId}:{})}));
     })) as SavedNativeProject;
    };
@@ -186,11 +192,12 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      files.push({path:file.path,content:new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(await checkedNativeBytes(this.env,file,240000,{allowEmpty:true}))});}
     return assertSourceFiles(files);
    };
-   const render=async(name:string,saved:SavedNativeProject,mode:'preview'|'export',frames?:number[])=>{
+   const render=async(name:string,saved:SavedNativeProject,mode:'preview'|'export',frames?:number[],stageGuard:StageGuard=()=>{})=>{
+    stageGuard();
     const renderId='native-'+digest({operationId:op.id,generation:op.generation,name,revisionId:saved.revisionId,mode}).slice(0,48);
     await step.do('render-submit-'+name,noRetry,async()=>{
-     await guard();await rights(this.env,op,material.resources);
-     await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
+     stageGuard();await guard();await rights(this.env,op,saved.project.resources);stageGuard();
+     await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})},stageGuard);
      return true;
     });
     await waitForDurableRender(step,'render-complete-'+name,renderCompletionEventType(renderId),deadline(),async()=>{
@@ -205,11 +212,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     })) as Json;
    };
    const observe=async(movie:Json)=>{
+    await rights(this.env,op,candidateRights());
     const images=(movie.result?.outputs??[]).filter((output:Json)=>output.mediaType==='image/png');
     if(!images.length||movie.result?.report?.pageErrors?.length)throw Error('NATIVE_PREVIEW_EVIDENCE_MISSING');
     return {frames:images,images:await Promise.all(images.map(picture)),times:movie.result.report?.previewFrameTimes??[]};
    };
    const patchProject=async(name:string,aspect:string,saved:SavedNativeProject,payload:Json)=>{
+    await rights(this.env,op,saved.project.resources);
+    candidateResources.push(...saved.project.resources);
     const files=await sourceFiles(saved),input=await runTool(name,'author','apply_project_patch',{...payload,baseRevision:saved.revisionId,sourceFiles:files,aspect,
      composition:saved.project.composition,materials:publicMaterials(material.materials),builtins},[],candidate=>{applyProjectPatch(files,saved.revisionId,candidate);});
     let next:SourceFile[];try{next=applyProjectPatch(files,saved.revisionId,input);reviewFrameTimes(input.reviewFrames,context.durationSeconds);}catch(error){throw Error(error instanceof Error?error.message:'NATIVE_PATCH_INVALID');}
@@ -221,24 +231,23 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     await progress('facts');facts=await runModel('facts','facts',{messages:[{role:'user',text:canonical({brief,facts:context.facts,task:'Organize these confirmed facts without adding or dropping IDs.'})}],schema:analysisSchema.$defs.facts,maxOutputTokens:4096},value=>{
      if(!validAnalysis(value)||value.kind!=='fact_analysis'||canonical([...value.factIds].sort())!==canonical(context.facts.map((fact:Json)=>fact.id).sort()))outputError('FACT_ANALYSIS_INVALID',value);
     });
-    for(const [index,asset] of material.materials.entries())if(asset.preview){
+    insights=await analyzeMaterialStage(material.materials,policy.director.stageConcurrency.assetAnalyses,async(asset,index,stageGuard)=>{
      const image=await picture(asset.preview);
-     insights.push(await runModel('asset-'+index,'assets',{messages:[{role:'user',text:canonical({task:'Describe only the actual supplied image. For a video this is the poster only; do not infer later action.',resourceId:asset.resourceId,sha256:asset.sha256,model:providers.steps.assets,promptVersion:'native-asset-v1'}),images:[image]}],schema:insightSchema,maxOutputTokens:4096},value=>{
+     return runModel('asset-'+index,'assets',{messages:[{role:'user',text:canonical({task:'Describe only the actual supplied image. For a video this is the poster only; do not infer later action.',resourceId:asset.resourceId,sha256:asset.sha256,model:providers.steps.assets,promptVersion:'native-asset-v1'}),images:[image]}],schema:insightSchema,maxOutputTokens:4096},value=>{
       if(!validInsight(value)||value.sha256!==asset.sha256||value.model!==providers.steps.assets)outputError('ASSET_INSIGHT_INVALID',value);
-     }));
-    }
+     },language,stageGuard);
+    },asset=>canonical([asset.resourceId,asset.sha256,asset.preview.sha256,asset.preview.mediaType??'image/png']));
     await progress('directions');
     const directions=await runModel('directions','directions',{messages:[{role:'user',text:canonical({task:'Propose Fit, Amplify, Unexpected as three distinct native visual directions. Use natural-language shot approaches and actual assets. Exactly one depth option unless the Brief rules depth out.',brief,facts,materials:publicMaterials(material.materials),insights})}],schema:directionSchema,maxOutputTokens:32768},value=>{
      if(!validDirections(value)||canonical(value.cards.map((card:Json)=>card.key).sort())!==canonical(['amplify','fit','unexpected']))outputError('DIRECTIONS_INVALID',value);
     });
-    const previews:Json[]=[],aspect=context.aspects[0],shape=(platform.aspectLayouts as Json)[aspect];
-    for(const card of directions.cards){
-     language=card.language;
+    const aspect=context.aspects[0],shape=(platform.aspectLayouts as Json)[aspect];
+    const previews=await previewDirectionStage(directions.cards,policy.director.stageConcurrency.directionPreviews,async(card,stageGuard)=>{
      const authored=await runTool('direction-'+card.key,'author','write_project',{task:'Create one finished native key-frame composition for this direction, visible at frame 0, using the actual material. This is a real direction preview. Keep a paused timeline of the fixed duration, not a storyboard placeholder.',brief,direction:card,materials:publicMaterials(material.materials),insights,
-      composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},safeInsets:shape.safeInsets,builtins});
-     const saved=await persist('direction-'+card.key,aspect,authored.files),movie=await render('direction-'+card.key,saved,'preview',[0]);
-     const evidence=await observe(movie);previews.push({direction:card.key,aspect,revisionId:saved.revisionId,renderId:movie.renderId,frame:0,...evidence.frames[0]});
-    }
+      composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},safeInsets:shape.safeInsets,builtins},[],undefined,card.language,stageGuard);
+     const saved=await persist('direction-'+card.key,aspect,authored.files,undefined,stageGuard),movie=await render('direction-'+card.key,saved,'preview',[0],stageGuard);
+     const evidence=await observe(movie);return {direction:card.key,aspect,revisionId:saved.revisionId,renderId:movie.renderId,frame:0,...evidence.frames[0]};
+    });
     const directionsHash=digest(directions),waitStarted=await step.do('await-direction',noRetry,async()=>{
      await guard();const object=await immutableJson(this.env,`operations/${op.id}/directions.json`,directions),previewObject=await immutableJson(this.env,`operations/${op.id}/direction-previews.json`,previews);
      await this.env.DB.batch([this.env.DB.prepare('UPDATE pipeline_contexts SET directions_key=?,directions_hash=?,previews_key=? WHERE operation_id=?').bind(object.key,directionsHash,previewObject.key,op.id),
@@ -259,36 +268,18 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    }
    const treatmentObject=await step.do('treatment-document',noRetry,()=>immutableJson(this.env,`operations/${op.id}/treatment.json`,treatment??{kind:'source_revision',comments:context.comments,baseRevisions:context.baseRevisions??{[context.aspects[0]]:context.baseRevision}}));
    for(const aspect of context.aspects){
-    await progress('author-'+aspect);const shape=(platform.aspectLayouts as Json)[aspect];let saved:SavedNativeProject,frames:number[];
-    if(patchMode){
-     const baseRevision=context.baseRevisions?.[aspect]??(context.aspects.length===1?context.baseRevision:undefined);
-     if(!baseRevision)throw Error('DIRECTOR_PATCH_BASE_REQUIRED');const base=await loadNativeProject(this.env,op,baseRevision);
-     if(base.project.composition.width!==shape.width||base.project.composition.height!==shape.height||base.project.composition.durationSeconds!==context.durationSeconds)throw Error('NATIVE_PATCH_TARGET_INVALID');
-     ({saved,frames}=await patchProject('patch-'+aspect,aspect,base,{task:'Apply the user’s frame/element comments to the existing native project. Preserve unrelated source, stable IDs and the current creative direction. Read the Brief and source before editing.',brief,comments:context.comments}));
-    }else if(primary){
-     const authored=await runTool('recompose-'+aspect,'author','write_project',{task:'Recompose this completed native film for this separate platform aspect. Preserve its story, source content, duration and sound. Rebuild geometry and reading hierarchy for the supplied dimensions and safe insets; do not stretch or merely crop the other aspect.',brief,direction,treatment,sourceFiles:await sourceFiles(primary),materials:publicMaterials(material.materials),insights,builtins,composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},safeInsets:shape.safeInsets});
-     saved=await persist('recompose-'+aspect,aspect,authored.files);frames=authored.reviewFrames;
-    }else{
-     const hardest=await runTool('hardest-'+aspect,'author','write_project',{task:'Build the hardest shot in native source first. Implement its actual geometry, assets and end state at its intended film time; keep the exact complete composition duration. Return reviewFrames containing that shot’s landing. This preview must establish the hard visual mechanism before the rest is built.',brief,direction,treatment,
-      materials:publicMaterials(material.materials),insights,builtins,composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},safeInsets:shape.safeInsets});
-     saved=await persist('hardest-'+aspect,aspect,hardest.files);const hardMovie=await render('hardest-'+aspect,saved,'preview',reviewFrameTimes(hardest.reviewFrames,context.durationSeconds)),hardEvidence=await observe(hardMovie);
-     const hardReview=await runTool('hardest-review-'+aspect,'review','submit_review',{task:'Review only the implemented hardest shot and its actual landing. Other unfinished passages are intentionally not yet authored. Identify concrete defects in the hard shot before the author completes the film.',brief,direction,treatment,frames:hardEvidence.frames,times:hardEvidence.times},hardEvidence.images);
-     ({saved,frames}=await patchProject('complete-'+aspect,aspect,saved,{task:'Complete the entire native film around the hardest shot. Address its concrete review findings and implement every passage of the Treatment, sound and readable ending. Preserve the actual assets and exact duration. Do not submit an unfinished hard-shot study.',brief,direction,treatment,hardestReview:hardReview}));
+    const {saved,frames}=await authorAspectStage({aspect,shape:(platform.aspectLayouts as Json)[aspect],context,patchMode,primary,brief,direction,treatment,
+     materials:publicMaterials(material.materials),insights,builtins,progress,loadBase:id=>loadNativeProject(this.env,op,id),runTool,sourceFiles,persist,render,observe,patch:patchProject});
+    const reviewed=await reviewAspectStage({aspect,saved,frames,repairs,repairLimit:policy.limits.maxInternalRepairs,durationSeconds:context.durationSeconds,
+     brief,direction,treatment,comments:patchMode?context.comments:[],progress,render,observe,runTool,patch:patchProject});
+    if(reviewed.kind==='repair_limit'){
+     const draft=await immutableJson(this.env,`operations/${op.id}/native-review-draft.json`,{kind:'native_review_draft',operationId:op.id,generation:op.generation,briefKey:briefObject.key,treatmentKey:treatmentObject.key,projects:[...projects,{aspect,revisionId:reviewed.saved.revisionId,manifestKey:reviewed.saved.manifestKey}],renders:[...renders,{aspect,...reviewed.movie}],review:reviewed.review,preview:reviewed.movie,acceptanceStatus:'unapproved',ownerNormalSpeedReview:'pending'});
+     await failDirector(this.env,op,'DIRECTOR_REPAIR_LIMIT',true,draft.key);return {kind:'native_review_draft',key:draft.key};
     }
-    let finalReview:Json|null=null;
-    for(let round=0;;round++){
-     await progress('review-'+aspect);const movie=await render('review-'+aspect+'-'+round,saved,'preview',reviewFrameTimes(frames,context.durationSeconds)),evidence=await observe(movie);
-     const review=await runTool('review-'+aspect+'-'+round,'review','submit_review',{task:'Review this actual native preview against the complete Brief and Treatment. Judge only supplied frame evidence. Return revise for concrete defects; a pass means sampled-frame review, not whole-motion or listening approval.',brief,direction,treatment,comments:patchMode?context.comments:[],frames:evidence.frames,times:evidence.times,revisionId:saved.revisionId},evidence.images);
-     if((review.verdict==='pass')!==(review.issues.length===0))throw Error('DIRECTOR_REVIEW_INVALID');
-     if(review.verdict==='pass'){finalReview={...review,evidenceRenderId:movie.renderId,scope:'sampled_frames'};break;}
-     if(repairs>=policy.limits.maxInternalRepairs){
-      const draft=await immutableJson(this.env,`operations/${op.id}/native-review-draft.json`,{kind:'native_review_draft',operationId:op.id,generation:op.generation,briefKey:briefObject.key,treatmentKey:treatmentObject.key,projects:[...projects,{aspect,revisionId:saved.revisionId,manifestKey:saved.manifestKey}],renders:[...renders,{aspect,...movie}],review,preview:movie,acceptanceStatus:'unapproved',ownerNormalSpeedReview:'pending'});
-      await failDirector(this.env,op,'DIRECTOR_REPAIR_LIMIT',true,draft.key);return {kind:'native_review_draft',key:draft.key};
-     }
-     repairs++;({saved,frames}=await patchProject('repair-'+aspect+'-'+round,aspect,saved,{task:'Fix these concrete observed defects with scoped native source edits. Preserve the Brief, approved direction and unaffected source. The next preview will check the changed revision.',brief,direction,treatment,review,evidence:{frames:evidence.frames,times:evidence.times}}));
-    }
-    const exported=await render('export-'+aspect,saved,'export');if(!primary)primary=saved;
-    projects.push({aspect,revisionId:saved.revisionId,manifestKey:saved.manifestKey});renders.push({aspect,...exported});reviews.push({aspect,...finalReview});
+    repairs=reviewed.repairs;
+    const exported=await render('export-'+aspect,reviewed.saved,'export');if(!primary)primary=reviewed.saved;
+    candidateResources.push(...reviewed.saved.project.resources);
+    projects.push({aspect,revisionId:reviewed.saved.revisionId,manifestKey:reviewed.saved.manifestKey});renders.push({aspect,...exported});reviews.push({aspect,...reviewed.review});
    }
    await progress('coldReview');
    const encoded=[];
@@ -303,9 +294,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     await failDirector(this.env,op,'COLD_REVIEW_BLOCK',true,draft.key);return {kind:'native_review_draft',key:draft.key};
    }
    return parseCanonicalJson(await step.do<string>('deliver-candidate',noRetry,async()=>{
-    await guard();await rights(this.env,op,material.resources);
+    await guard();
+    const requiredRights=candidateRights();
+    await rights(this.env,op,requiredRights);
     const candidate={kind:'native_candidate',operationId:op.id,generation:op.generation,briefKey:briefObject.key,treatmentKey:treatmentObject.key,directingMethod:methodRef,projects,renders,reviews,coldReview,ownerNormalSpeedReview:'pending',scope:context.scope??'internal_eval_only'};
-    const object=await immutableJson(this.env,`operations/${op.id}/candidate.json`,candidate);await commitCandidate(this.env,op,object.key);return canonical(candidate);
+    const object=await immutableJson(this.env,`operations/${op.id}/candidate.json`,candidate);await commitCandidate(this.env,op,object.key,requiredRights);return canonical(candidate);
    }));
   }catch(error){
    try{await step.do('fail-director',{retries:{limit:3,delay:'1 second'},timeout:'1 minute'},()=>failDirector(this.env,op,directorFailureCode(error),true));}catch{}

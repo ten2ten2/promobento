@@ -86,6 +86,11 @@ export async function markModelDispatched(env:PipelineEnv,id:string){
  const result=await ledger(env).prepare('UPDATE model_budget_reservations SET dispatched_at=? WHERE id=? AND dispatched_at IS NULL AND NOT EXISTS(SELECT 1 FROM model_budget_settlements WHERE reservation_id=?)')
   .bind(Date.now(),id,id).run();if(result.meta.changes!==1)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
 }
+/** Only the same execution that marked dispatch, and has not invoked the provider, may undo its own marker. */
+export async function undoUnsentModelDispatch(env:PipelineEnv,id:string){
+ const result=await ledger(env).prepare('UPDATE model_budget_reservations SET dispatched_at=NULL WHERE id=? AND dispatched_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM model_budget_settlements WHERE reservation_id=?)')
+  .bind(id,id).run();if(result.meta.changes!==1)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+}
 export async function settleModelBudget(env:PipelineEnv,id:string,actual:number,receipt:Json,{notDispatched=false}={}){
  if(!Number.isSafeInteger(actual)||actual<0||notDispatched&&actual!==0)throw Error('COST_SETTLEMENT_INVALID');
  const DB=ledger(env),text=canonical(receipt);

@@ -1,5 +1,5 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
-import {immutableJson,getJson} from './store.ts';
+import {immutableJson,getJson,rights} from './store.ts';
 import {reconcileOperation} from './render-recovery.ts';
 import {boundedControl} from './control-batch.ts';
 import type {PipelineEnv,Operation,Json} from './pipeline-types.ts';
@@ -12,17 +12,23 @@ export async function directorProgress(env:PipelineEnv,op:Operation,status:strin
  try{await boundedControl(env.OPERATIONS.getByName(op.id).progress(canonical(notice(op,status))),3_000);}catch{}
 }
 
-export async function commitCandidate(env:PipelineEnv,op:Operation,key:string){
+export async function commitCandidate(env:PipelineEnv,op:Operation,key:string,resources:Json[]){
  const payload=canonical(notice(op,'succeeded'));
  const changes=await env.DB.batch([
-  env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=?,finished_at=? WHERE id=? AND generation=? AND status='active'")
-   .bind(key,Date.now(),op.id,op.generation),
+  env.DB.prepare(`UPDATE pipeline_operations SET status='succeeded',result_key=?,finished_at=?
+   WHERE id=? AND generation=? AND status='active'
+    AND NOT EXISTS(SELECT 1 FROM json_each(?) resource WHERE NOT EXISTS
+      (SELECT 1 FROM pipeline_rights r WHERE r.operation_id=?
+        AND r.resource_id=json_extract(resource.value,'$.resourceId')
+        AND r.sha256=json_extract(resource.value,'$.sha256') AND r.revoked_at IS NULL))`)
+   .bind(key,Date.now(),op.id,op.generation,canonical(resources),op.id),
   env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_operations WHERE id=? AND generation=? AND status='succeeded' AND result_key=?)")
    .bind(`operation-progress-${op.id}-${op.generation}-succeeded`,op.id,'operation_progress',payload,op.id,op.generation,key)
  ]);
  if(changes[0]!.meta.changes!==1){
   const previous=await env.DB.prepare("SELECT result_key FROM pipeline_operations WHERE id=? AND generation=? AND status='succeeded'").bind(op.id,op.generation).first<Json>();
-  if(!previous)throw Error('OPERATION_FENCED');if(previous.result_key!==key)throw Error('CANDIDATE_COMMIT_CONFLICT');
+  if(!previous){await rights(env,op,resources);throw Error('OPERATION_FENCED');}
+  if(previous.result_key!==key)throw Error('CANDIDATE_COMMIT_CONFLICT');
  }
 }
 
@@ -60,7 +66,19 @@ export async function dispatchDirectorFailure(env:PipelineEnv,item:Json,exceptWo
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Json>();
  if(op?.status!=='failed'||op.generation!==value.generation)return;
  await immutableJson(env,`operations/${item.operationId}/failure.json`,{kind:'director_failure',...value});
+ // The durable failure is already fenced; cleanup can take much longer than
+ // the short SSE connection, so notify connected readers before stopping work.
+ try{await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical(value)),3_000);}catch{}
  await reconcileOperation(env,item.operationId,exceptWorkflow);
+}
+
+export async function dispatchOperationCancellation(env:PipelineEnv,item:Json){
+ const current=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
+  .bind(item.operationId).first<{status:string;generation:number}>();
+ if(current?.status!=='cancelled')return;
+ try{await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical({
+  operationId:item.operationId,generation:current.generation,status:'cancelled'})),3_000);}catch{}
+ await reconcileOperation(env,item.operationId);
 }
 
 export async function dispatchDirectorProgress(env:PipelineEnv,item:Json){

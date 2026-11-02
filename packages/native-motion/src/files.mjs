@@ -90,7 +90,12 @@ export function seedBuiltinFiles(root, upstreamRoot) {
       mkdirSync(to, {recursive: true, mode: 0o2770});
       for (const name of readdirSync(from)) copy(source + '/' + name, path + '/' + name);
     } else {
-      try { if (lstatSync(to).isFile()) return; throw Error('NATIVE_BUILTIN_CONFLICT'); }
+      try {
+        const existing=lstatSync(to);
+        if (!existing.isFile() || existing.size !== stat.size
+          || fileIdentity(to).sha256 !== fileIdentity(from).sha256) throw Error('NATIVE_BUILTIN_CONFLICT');
+        return;
+      }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
       mkdirSync(dirname(to), {recursive: true, mode: 0o2770});
       copyFileSync(from, to);

@@ -53,6 +53,18 @@ const patches = [
       [
         "function localPath(src, root) {\n  if (!src) return null;\n  if (src.startsWith('file:')) return fileURLToPath(src);\n  if (/^[a-z][a-z0-9+.-]*:/i.test(src)) return null; // http(s), data, blob\n  return isAbsolute(src) ? src : resolve(root, src.split(/[?#]/)[0]);\n}",
         "function localPath(src, root) {\n  return safeMediaFile(src, root);\n}"
+      ],
+      [
+        "software = false, onFrame = null,",
+        "software = false, deliveryH264 = false, onFrame = null,"
+      ],
+      [
+        "  if (!['extract', 'seek'].includes(video)) throw new OmError('--video must be extract or seek');",
+        "  if (deliveryH264 && (format !== 'mp4' || fps !== 30 || transparent)) throw new OmError('deliveryH264 requires opaque 30 fps MP4');\n  if (!['extract', 'seek'].includes(video)) throw new OmError('--video must be extract or seek');"
+      ],
+      [
+        "      ...enc0.args, '-r', String(fps), picture];",
+        "      ...enc0.args, ...(deliveryH264 ? ['-profile:v', 'high', '-pix_fmt', 'yuv420p', '-g', '15', '-keyint_min', '15', '-sc_threshold', '0', '-bf', '0', '-flags', '+cgop', '-maxrate', '7000000', '-bufsize', '2000000', '-field_order', 'progressive', '-threads', '2'] : []), '-r', String(fps), picture];"
       ]
     ]
   },
