@@ -13,14 +13,16 @@ export function assertReferenceAnalysis(analysis, evidence) {
     || analysis.sourceSha256 !== evidence.sourceSha256 || analysis.sourceFrameCount !== evidence.sourceFrameCount
     || analysis.audioStatus !== 'not_analyzed' || !same(analysis.sampledFrames, evidence.sampledFrames)
     || !unique(analysis.moments.map(moment => moment.id))) fail('REFERENCE_ANALYSIS_SCOPE_INVALID');
-  const sample = new Set(evidence.sampledFrames), moments = new Set(analysis.moments.map(moment => moment.id));
+  const sample = new Set(evidence.sampledFrames), moments = new Map(analysis.moments.map(moment => [moment.id, moment]));
   for (const moment of analysis.moments) {
     if (!inWindow(moment, evidence.sourceFrameCount) || moment.evidenceFrames.some(frame => !sample.has(frame)
       || frame < moment.startFrame || frame >= moment.endFrame)) fail('REFERENCE_ANALYSIS_EVIDENCE_INVALID');
   }
   for (const link of analysis.relationships) {
-    if (!moments.has(link.fromMomentId) || !moments.has(link.toMomentId)
-      || link.evidenceFrames.some(frame => !sample.has(frame))) fail('REFERENCE_ANALYSIS_RELATION_INVALID');
+    const from = moments.get(link.fromMomentId), to = moments.get(link.toMomentId);
+    if (!from || !to || from === to || link.evidenceFrames.some(frame => !sample.has(frame)
+      || !(frame >= from.startFrame && frame < from.endFrame
+        || frame >= to.startFrame && frame < to.endFrame))) fail('REFERENCE_ANALYSIS_RELATION_INVALID');
   }
   return analysis;
 }
@@ -61,10 +63,21 @@ export function assertNativeScript(script, {durationSeconds, videoLanguage, fact
 
 /** Native HTML/JS must actually contain display copy, rather than only an inert JSON plan. */
 export function assertScriptProjection(files, script) {
-  const source = files.filter(file => file.path === 'index.html' || /^src\/.*\.(?:html|js)$/.test(file.path))
+  const source = files.filter(file => /^(?:index\.(?:html|js)|src\/.*\.(?:html|js))$/.test(file.path))
     .map(file => file.content).join('\n');
+  // HTML escaping is a legitimate representation of visible copy. Do not
+  // require an unsafe literal ampersand or angle bracket in the source.
+  const html = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
+    .map(file => file.content.replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(?:x[\da-f]+|\d+));/gi, entity => {
+      const named = {amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' '};
+      const key = entity.slice(1, -1).toLowerCase();
+      if (Object.hasOwn(named, key)) return named[key];
+      const code = key.startsWith('#x') ? parseInt(key.slice(2), 16) : parseInt(key.slice(1), 10);
+      return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : entity;
+    })).join('\n');
   for (const segment of script.segments) {
-    if (['title', 'caption', 'cta'].includes(segment.role) && !source.includes(segment.displayText))
+    if (['title', 'caption', 'cta'].includes(segment.role)
+      && !source.includes(segment.displayText) && !html.includes(segment.displayText))
       fail('SCRIPT_SOURCE_PROJECTION_MISSING');
   }
   return true;
@@ -73,9 +86,12 @@ export function assertScriptProjection(files, script) {
 /** Each Treatment asset use is bound to one admitted source and locked for the accepted direction. */
 export function assertMaterialSelection(plan, treatment, materials) {
   if (plan.kind !== 'material_selection') fail('MATERIAL_SELECTION_INVALID');
-  const source = new Map(materials.map(item => [item.resourceId, item]));
-  if (materials.some(item => source.get(item.resourceId)?.sha256 !== item.sha256))
-    fail('MATERIAL_SELECTION_SOURCE_AMBIGUOUS');
+  const source = new Map();
+  for (const item of materials) {
+    if (source.has(item.resourceId) && !same(source.get(item.resourceId), item))
+      fail('MATERIAL_SELECTION_SOURCE_AMBIGUOUS');
+    source.set(item.resourceId, item);
+  }
   const beats = new Map(treatment.beats.map(item => [item.id, item]));
   const expected = [...new Set(treatment.beats.flatMap(beat => beat.assetIds.map(id => canonical([beat.id, id]))))].sort();
   const actual = plan.uses.map(item => canonical([item.beatId, item.selectedResourceId])).sort();
@@ -98,10 +114,12 @@ export function assertMaterialSelection(plan, treatment, materials) {
 export function assertLockedMaterialSelection(selection, resources) {
   if (!selection || selection.kind !== 'locked_materials' || !Array.isArray(selection.uses)
     || selection.schemaVersion !== '3.0.0' || selection.selectionHash !== digest(selection.uses)) fail('MATERIAL_LOCK_IDENTITY_INVALID');
-  const sources = new Map(resources.map(item => [item.resourceId, item.sha256]));
+  // Revisions may retain both an old and a new SHA for the same resource ID.
+  // Lock identity is the ID/SHA pair, never whichever entry a Map kept last.
+  const sources = new Set(resources.map(item => canonical([item.resourceId, item.sha256])));
   for (const use of selection.uses) {
-    if (!use.locked || sources.get(use.resourceId) !== use.sha256 || !Array.isArray(use.alternatives)
-      || use.alternatives.some(item => sources.get(item.resourceId) !== item.sha256))
+    if (!use.locked || !sources.has(canonical([use.resourceId, use.sha256])) || !Array.isArray(use.alternatives)
+      || use.alternatives.some(item => !sources.has(canonical([item.resourceId, item.sha256]))))
       fail('MATERIAL_LOCK_IDENTITY_INVALID');
   }
   return selection;
@@ -118,8 +136,9 @@ export function scriptChangeImpact(before, after, aspects, lockedMaterials) {
   const moments = [...after.moments.filter(item => !same(oldMoments.get(item.id) ?? null, item)
     || item.segmentIds.some(id => segments.includes(id))).map(item => item.id),
     ...[...oldMoments.keys()].filter(id => !newMoments.has(id))];
-  const changed = segments.length > 0 || moments.length > 0
-    || before.segments.length !== after.segments.length || before.moments.length !== after.moments.length;
+  // Reordering authored events or changing Script-level metadata changes the
+  // revision even if every individual stable-ID object remains identical.
+  const changed = !same(before, after);
   return {kind: 'script_change_impact', changed, segmentIds: segments, momentIds: moments,
     affectedAspects: changed ? [...aspects] : [], affectedAssetLocks: [],
     selectionHash: lockedMaterials?.selectionHash ?? null, qualityReportsReusable: !changed};

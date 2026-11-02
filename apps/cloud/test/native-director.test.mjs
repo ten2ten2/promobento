@@ -361,6 +361,9 @@ test('malformed Director context is rejected before any model or native render w
   {aspects:[['landscape']]},
   {rendererRelease:['renderer-native']},
   {resources:[null]},
+  {resources:[f.asset,{...f.asset,sha256:'b'.repeat(64)}]},
+  {resources:[f.asset,{...f.asset,kind:'video'}]},
+  {resources:[f.asset],audioSources:[{...f.asset,kind:'audio'}]},
   {audioSources:{toString:null}},
   {audioSources:[{resourceId:'res_audio',sha256:['a'.repeat(64)],key:'evals/audio.wav',byteLength:123}]},
   {baseRevision:'a'.repeat(64),comments:[null]},
@@ -378,6 +381,7 @@ test('stale or ambiguous native patches are atomic, and sampled frames obey the 
  assert.deepEqual(files,original);assert.deepEqual(reviewFrameTimes([90,240],15),[0,3,8,449/30]);assert.throws(()=>reviewFrameTimes([450],15),/NATIVE_REVIEW_FRAMES_INVALID/);
  const source={sha256:'a'.repeat(64),kind:'audio',path:'assets/voice.wav',durationSeconds:3},timing={sourceSha256:source.sha256,durationSeconds:3,words:[{text:'Reveal',start:1,end:1.5}]};
  assert.equal(normalizeTimingEvidence([timing],[source])[0].words[0].start,1);
+ assert.throws(()=>normalizeTimingEvidence([timing,{...timing,words:[{text:'Different',start:2,end:2.5}]}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([{...timing,sourceSha256:'b'.repeat(64)}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([{...timing,durationSeconds:3.1}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([null],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);

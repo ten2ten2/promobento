@@ -28,7 +28,12 @@ test('the authoritative Script validates copy, facts, target frames, and editabl
   assert.equal(validScript(doc),true);
   assert.equal(assertNativeScript(doc,context),doc);
   assert.equal(assertScriptProjection([{path:'index.html',content:'<h1>One clear promise</h1><p>Try PromoBento today</p>'}],doc),true);
+  assert.equal(assertScriptProjection([{path:'index.html',content:'<script src="index.js"></script>'},
+    {path:'index.js',content:'renderTitle("One clear promise"); renderCTA("Try PromoBento today");'}],doc),true);
   assert.throws(()=>assertScriptProjection([{path:'index.html',content:'<h1>One clear promise</h1>'}],doc),/SCRIPT_SOURCE_PROJECTION_MISSING/);
+  const escaped=structuredClone(doc);
+  escaped.segments[0].displayText='One & only <promise>';
+  assert.equal(assertScriptProjection([{path:'index.html',content:'<h1>One &amp; only &lt;promise&gt;</h1><p>Try PromoBento today</p>'}],escaped),true);
   assert.throws(()=>assertNativeScript({...doc,durationFrames:900},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],doc.segments[0]]},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],{...doc.segments[1],displayText:'Different action'}]},context),/SCRIPT_CTA_MISSING/);
@@ -61,6 +66,16 @@ test('measured word clocks require same-source evidence, and edits invalidate ti
   assert.equal(scriptChangeImpact(before,before,['landscape'],locked).qualityReportsReusable,true);
   const removed=structuredClone(before);removed.segments.shift();removed.moments.shift();
   assert.deepEqual(scriptChangeImpact(before,removed,['landscape'],locked).segmentIds,['title-1']);
+  for(const different of [
+    {...before,videoLanguage:'fr'},
+    {...before,segments:[...before.segments].reverse()},
+    {...before,moments:[...before.moments].reverse()}
+  ]){
+    const impact=scriptChangeImpact(before,different,['landscape'],locked);
+    assert.equal(impact.changed,true);
+    assert.equal(impact.qualityReportsReusable,false);
+    assert.deepEqual(impact.affectedAspects,['landscape']);
+  }
 });
 
 test('each Treatment use locks source SHA and alternatives without accepting substitutions',()=>{
@@ -72,6 +87,12 @@ test('each Treatment use locks source SHA and alternatives without accepting sub
   assert.throws(()=>assertMaterialSelection({...proposal,uses:proposal.uses.slice(1)},treatment,materials),/MATERIAL_SELECTION_MISMATCH/);
   assert.throws(()=>assertMaterialSelection({...proposal,uses:[proposal.uses[0],proposal.uses[0]]},treatment,materials),/MATERIAL_SELECTION_MISMATCH/);
   assert.throws(()=>assertMaterialSelection(proposal,treatment,[...materials,{...materials[0],sha256:hash('c')}]),/MATERIAL_SELECTION_SOURCE_AMBIGUOUS/);
+  assert.equal(assertMaterialSelection(proposal,treatment,[...materials,structuredClone(materials[0])]).selectionHash,locked.selectionHash);
+  assert.throws(()=>assertMaterialSelection(proposal,treatment,[...materials,{...materials[0],kind:'video'}]),/MATERIAL_SELECTION_SOURCE_AMBIGUOUS/);
+  assert.equal(assertLockedMaterialSelection(locked,[...materials,{...materials[0],sha256:hash('c')}]),locked,
+    'a later revision of the same resource must not invalidate an existing exact SHA lock');
+  assert.equal(assertLockedMaterialSelection(locked,[{...materials[0],sha256:hash('c')},...materials]),locked,
+    'the order of retained resource revisions must not affect the lock');
   const tampered=structuredClone(locked);tampered.uses[0].sha256=hash('c');
   assert.throws(()=>assertLockedMaterialSelection(tampered,materials),/MATERIAL_LOCK_IDENTITY_INVALID/);
   assert.throws(()=>assertLockedMaterialSelection(locked,[{...materials[0],sha256:hash('c')},materials[1]]),/MATERIAL_LOCK_IDENTITY_INVALID/);
@@ -89,4 +110,11 @@ test('reference observations cite verified sampled frames, never invent audio or
   assert.throws(()=>assertReferenceAnalysis({...observation,audioStatus:'transcribed'},evidence),/REFERENCE_ANALYSIS_SCOPE_INVALID/);
   assert.throws(()=>assertReferenceAnalysis({...observation,moments:[{...observation.moments[0],evidenceFrames:[99]}]},evidence),/REFERENCE_ANALYSIS_EVIDENCE_INVALID/);
   assert.throws(()=>assertReferenceAnalysis({...observation,relationships:[{fromMomentId:'m-1',toMomentId:'missing',description:'Impossible',evidenceFrames:[0]}]},evidence),/REFERENCE_ANALYSIS_RELATION_INVALID/);
+  const another={...observation.moments[0],id:'m-2',startFrame:200,endFrame:450,evidenceFrames:[270]};
+  const valid={...observation,moments:[observation.moments[0],another],relationships:[
+    {fromMomentId:'m-1',toMomentId:'m-2',description:'A visible continuation.',evidenceFrames:[0,270]}]};
+  assert.equal(assertReferenceAnalysis(valid,evidence),valid);
+  assert.throws(()=>assertReferenceAnalysis({...valid,relationships:[{...valid.relationships[0],evidenceFrames:[180]}]},evidence),/REFERENCE_ANALYSIS_RELATION_INVALID/,
+    'a cited sample from neither linked moment cannot support the relationship');
+  assert.throws(()=>assertReferenceAnalysis({...valid,relationships:[{...valid.relationships[0],toMomentId:'m-1'}]},evidence),/REFERENCE_ANALYSIS_RELATION_INVALID/);
 });

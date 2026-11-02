@@ -27,6 +27,8 @@ test('a vision step cannot bind gateway Claude after the image-loss probe', () =
   assert.deepEqual(modelConfigErrors(config, authorization(), imagePolicy,{requireVerified:false}), ['Step author needs vision, which modelswitch/claude-sonnet-5-5 lacks']);
   assert.deepEqual(modelConfigErrors(config,authorization(),policy),[]);
   config.steps.assets='modelswitch/claude-sonnet-5-5';assert.ok(modelConfigErrors(config,authorization(),policy).some(error=>error.startsWith('Step assets needs vision')));
+  config.steps.reference='modelswitch/claude-sonnet-5-5';
+  assert.ok(modelConfigErrors(config,authorization(),policy).includes('Step reference needs vision, which modelswitch/claude-sonnet-5-5 lacks'));
   const invalid=structuredClone(policy);invalid.director.steps.author.inputMode='automatic-fallback';assert.ok(modelConfigErrors(providers(),authorization(),invalid).includes('Unknown author inputMode'));
 });
 

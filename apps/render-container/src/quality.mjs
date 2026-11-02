@@ -10,9 +10,29 @@ export function parseQualitySignals(videoLog, audioLog = null, durationSeconds =
     startSeconds: number(match[1]), endSeconds: number(match[2]), durationSeconds: number(match[3])
   })).filter(item => between(item.startSeconds, 0, durationSeconds)
     && between(item.endSeconds, item.startSeconds, durationSeconds + .05)
-    && finite(item.durationSeconds) && item.durationSeconds >= 0).slice(0, 80);
+    && finite(item.durationSeconds) && item.durationSeconds >= 0
+    && Math.abs(item.endSeconds - item.startSeconds - item.durationSeconds) < .1).slice(0, 80);
   const black = intervals(videoLog, /black_start:\s*([\d.]+)\s+black_end:\s*([\d.]+)\s+black_duration:\s*([\d.]+)/g);
-  const freeze = intervals(videoLog, /freeze_start:\s*([\d.]+)[\s\S]*?freeze_end:\s*([\d.]+)\s*\|\s*(?:lavfi\.freezedetect\.)?freeze_duration:\s*([\d.]+)/g);
+  // FFmpeg logs freeze_start, freeze_duration, freeze_end as separate events, in
+  // that order. A freeze still active at EOF has no freeze_end at all.
+  const freeze = [];
+  let started = null, measured = null;
+  const addFreeze = (end, duration) => {
+    if (started !== null && between(started, 0, durationSeconds)
+      && between(end, started, durationSeconds + .05) && finite(duration)
+      && duration >= 0 && Math.abs(end - started - duration) < .1 && freeze.length < 80)
+      freeze.push({startSeconds: started, endSeconds: end, durationSeconds: duration});
+  };
+  for (const [, event, raw] of videoLog.matchAll(/(?:lavfi\.freezedetect\.)?(freeze_start|freeze_duration|freeze_end):\s*([\d.]+)/g)) {
+    const value = number(raw);
+    if (event === 'freeze_start') {started = value; measured = null;}
+    else if (event === 'freeze_duration' && started !== null) measured = value;
+    else if (event === 'freeze_end' && started !== null) {
+      addFreeze(value, measured ?? value - started);
+      started = null; measured = null;
+    }
+  }
+  if (started !== null) addFreeze(durationSeconds, durationSeconds - started);
   const silence = audioLog === null ? [] : intervals(audioLog, /silence_start:\s*([\d.]+)[\s\S]*?silence_end:\s*([\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)/g);
   const match = audioLog?.match(/\{\s*"input_i"\s*:\s*"([^"]+)"\s*,\s*"input_tp"\s*:\s*"([^"]+)"/);
   const integratedLufs = match ? number(match[1]) : null, truePeakDbtp = match ? number(match[2]) : null;
@@ -40,10 +60,11 @@ export function assessQualitySignals(signals, hasAudio) {
 export async function analyzeEncodedQuality(path, composition, hasAudio) {
   const movie = await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-i', path,
     '-map', '0:v:0', '-vf', 'blackdetect=d=0.4:pix_th=0.10:pic_th=0.98,freezedetect=n=-45dB:d=0.6',
-    '-an', '-f', 'null', '-'], {timeoutMs: 180_000});
+    '-an', '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10});
   const soundtrack = hasAudio ? await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-i', path,
     '-map', '0:a:0', '-vn', '-af', 'silencedetect=noise=-40dB:d=0.6,loudnorm=I=-14:TP=-1:LRA=11:print_format=json',
-    '-f', 'null', '-'], {timeoutMs: 180_000}) : null;
+    '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10}) : null;
+  if (movie.stderrTruncated || soundtrack?.stderrTruncated) throw Error('MEDIA_PROCESS_LOG_TRUNCATED');
   const signals = parseQualitySignals(movie.stderr, soundtrack?.stderr ?? null, composition.durationSeconds);
   const findings = assessQualitySignals(signals, hasAudio);
   return {kind: 'encoded_dynamic_qa',source: 'film.mp4',coverage: hasAudio ? 'full_video_and_audio_decode' : 'full_video_decode_no_audio',

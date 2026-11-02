@@ -24,28 +24,36 @@ async function deadline(work, ms, code, cancel = () => {}) {
 }
 
 /** Trusted executables/argument arrays only. Never accepts shell programs or author modules. */
-function childProcess(command, args, {signal} = {}) {
+function childProcess(command, args, {signal, stderrMaxBytes = 16000} = {}) {
+  if (!Number.isSafeInteger(stderrMaxBytes) || stderrMaxBytes < 1 || stderrMaxBytes > 1 << 20)
+    throw Error('MEDIA_PROCESS_LOG_LIMIT_INVALID');
   const child = spawn(command, args, {stdio: ['pipe', 'pipe', 'pipe'], signal});
-  let stdout = [], bytes = 0, stderr = '';
+  let stdout = [], bytes = 0, stderr = Buffer.alloc(0), stderrTruncated = false;
   child.stdout.on('data', chunk => {
     bytes += chunk.length;
     if (bytes > 32 << 20) child.kill('SIGKILL'); else stdout.push(chunk);
   });
-  child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-16000); });
+  child.stderr.on('data', chunk => {
+    stderr = Buffer.concat([stderr, chunk]);
+    if (stderr.length > stderrMaxBytes) {
+      stderr = stderr.subarray(stderr.length - stderrMaxBytes);
+      stderrTruncated = true;
+    }
+  });
   // A failed process can close stdin before input finishes. Completion remains the authoritative error.
   child.stdin.on('error', () => {});
   const done = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('close', (code, signal) => code === 0
-      ? resolve({stdout: Buffer.concat(stdout), stderr})
-      : reject(Object.assign(Error('MEDIA_PROCESS_FAILED'), {command, code, signal, diagnostic: stderr})));
+      ? resolve({stdout: Buffer.concat(stdout), stderr: stderr.toString('utf8'), stderrTruncated})
+      : reject(Object.assign(Error('MEDIA_PROCESS_FAILED'), {command, code, signal, diagnostic: stderr.toString('utf8')})));
   });
   done.catch(() => {});
   return {child, done};
 }
 
-export async function run(command, args, {input, timeoutMs = 60000, signal} = {}) {
-  const process = childProcess(command, args, {signal});
+export async function run(command, args, {input, timeoutMs = 60000, signal, stderrMaxBytes} = {}) {
+  const process = childProcess(command, args, {signal, stderrMaxBytes});
   process.child.stdin.end(input);
   return deadline(process.done, timeoutMs, 'MEDIA_PROCESS_TIMEOUT', () => process.child.kill('SIGKILL'));
 }

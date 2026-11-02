@@ -120,6 +120,12 @@ function validateContext(context:Json){
     ||!context.resources.some((asset:Json)=>asset.resourceId===ref.resourceId&&asset.kind==='video'&&asset.videoFramePacking))
    ||new Set(context.references.map((ref:Json)=>ref.resourceId)).size!==context.references.length)
   ||typeof context.rendererRelease!=='string'||!context.rendererRelease)throw Error('DIRECTOR_INPUT_INVALID');
+ const materialIds=new Map<string,string>();
+ for(const asset of [...context.resources,...(context.audioSources??[])]){
+  const identity=canonical(asset),previous=materialIds.get(asset.resourceId);
+  if(previous!==undefined&&previous!==identity)throw Error('DIRECTOR_INPUT_INVALID');
+  materialIds.set(asset.resourceId,identity);
+ }
  if(context.scriptEdits!==undefined&&(!Array.isArray(context.scriptEdits)||!context.scriptEdits.length||context.scriptEdits.length>8
   ||!context.baseRevision&&!context.baseRevisions||context.scriptEdits.some((edit:Json)=>!record(edit)
    ||typeof edit.segmentId!=='string'||!edit.segmentId||!['displayText','speechText'].includes(edit.field)

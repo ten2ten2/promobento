@@ -72,7 +72,7 @@ jobs:
           push: false
           cache-from: type=gha,scope=native-renderer
           cache-to: type=gha,mode=max,scope=native-renderer
-      - name: Native preview, direct edit and 15/30 second exports
+      - name: Native preview, encoded quality QA, direct edit and 15/30 second exports
         shell: bash
         run: |
           set -euo pipefail

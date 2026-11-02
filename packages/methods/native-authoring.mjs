@@ -27,6 +27,7 @@ export function applyProjectPatch(files,revisionId,input){
  for(const edit of input.edits){
   assertAuthorPath(edit.path);
   if(edit.path==='BRIEF.md')throw Error('NATIVE_BRIEF_READ_ONLY');
+  if(edit.path==='TREATMENT.md')throw Error('NATIVE_TREATMENT_READ_ONLY');
   if(['script.json','material-selection.json'].includes(edit.path))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
   if(edit.command==='create'){
    if(next.has(edit.path)||typeof edit.content!=='string')throw Error('NATIVE_PATCH_CREATE_CONFLICT');
@@ -53,7 +54,7 @@ export function assertTreatment(value,durationSeconds,resourceIds){
  const total=durationSeconds*30,ids=new Set();
  for(const beat of value.beats){
   if(ids.has(beat.id)||!Number.isInteger(beat.startFrame)||!Number.isInteger(beat.endFrame)||beat.startFrame<0||beat.endFrame>total||beat.endFrame<=beat.startFrame
-   ||beat.assetIds.some(id=>!resourceIds.includes(id)))throw Error('NATIVE_TREATMENT_INVALID');
+   ||new Set(beat.assetIds).size!==beat.assetIds.length||beat.assetIds.some(id=>!resourceIds.includes(id)))throw Error('NATIVE_TREATMENT_INVALID');
   ids.add(beat.id);
  }
  if(!ids.has(value.hardestBeat)||Math.min(...value.beats.map(b=>b.startFrame))!==0||Math.max(...value.beats.map(b=>b.endFrame))!==total)throw Error('NATIVE_TREATMENT_INVALID');
@@ -72,6 +73,7 @@ export function assertTreatment(value,durationSeconds,resourceIds){
 export function normalizeTimingEvidence(entries,materials){
  if(entries===undefined)return [];
  if(!Array.isArray(entries)||entries.length>12)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
+ if(new Set(entries.map(entry=>entry?.sourceSha256)).size!==entries.length)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
  return entries.map(entry=>{
   if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
   const source=materials.find(material=>material.sha256===entry.sourceSha256&&['audio','video'].includes(material.kind));

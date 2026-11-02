@@ -43,3 +43,16 @@ test('the full-file audio decoder measures a normalized AAC track, not a page-si
     assert.notEqual(quality.status,'blocked',JSON.stringify(quality));
   }finally{rmSync(dir,{force:true,recursive:true});}
 });
+
+test('a truly static encoded movie is reported for review even without a freeze_end log',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'promobento-frozen-encoded-'));
+  try{
+    const movie=join(dir,'film.mp4'),composition={durationSeconds:15,fps:30,width:320,height:180};
+    await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi',
+      '-i','color=c=blue:s=320x180:r=30:d=15','-c:v','mpeg4','-q:v','5','-an',movie],{timeoutMs:120_000});
+    const quality=await analyzeEncodedQuality(movie,composition,false);
+    assert.equal(quality.status,'review_required');
+    assert.ok(quality.signals.freeze.some(item=>item.startSeconds===0&&item.endSeconds===15));
+    assert.ok(quality.findings.some(item=>item.kind==='static_segment'&&item.durationSeconds>=14));
+  }finally{rmSync(dir,{force:true,recursive:true});}
+});

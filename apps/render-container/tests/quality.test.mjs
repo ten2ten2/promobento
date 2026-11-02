@@ -7,7 +7,8 @@ test('full-file decoder logs bind black, freeze, silence and measured loudness t
   const video=[
     '[blackdetect @ 0x1] black_start:0.1 black_end:1.5 black_duration:1.4',
     '[freezedetect @ 0x2] lavfi.freezedetect.freeze_start: 2.0',
-    '[freezedetect @ 0x2] lavfi.freezedetect.freeze_end: 4.0 | lavfi.freezedetect.freeze_duration: 2.0',
+    '[freezedetect @ 0x2] lavfi.freezedetect.freeze_duration: 2.0',
+    '[freezedetect @ 0x2] lavfi.freezedetect.freeze_end: 4.0',
     '[blackdetect @ 0x1] black_start:20 black_end:25 black_duration:5'
   ].join('\n');
   const audio=['[silencedetect @ 0x3] silence_start: 5.0',
@@ -27,6 +28,25 @@ test('full-file decoder logs bind black, freeze, silence and measured loudness t
   assert.deepEqual(assessQualitySignals({...signals,truePeakDbtp:null},true).at(-1),
     {kind:'audio_measurement_unavailable',severity:'block'});
   assert.equal(parseQualitySignals('',null,15).integratedLufs,null);
+});
+
+test('freeze detector pairs distinct events and closes a final still frame at EOF',()=>{
+  const log=[
+    '[freezedetect @ 0xa] lavfi.freezedetect.freeze_start: 0',
+    '[freezedetect @ 0xa] lavfi.freezedetect.freeze_duration: 2.5',
+    '[freezedetect @ 0xa] lavfi.freezedetect.freeze_end: 2.5',
+    '[freezedetect @ 0xa] lavfi.freezedetect.freeze_start: 10',
+    'frame=450 fps=0.0 time=00:00:14.96'
+  ].join('\n');
+  const signals=parseQualitySignals(log,null,15);
+  assert.deepEqual(signals.freeze,[
+    {startSeconds:0,endSeconds:2.5,durationSeconds:2.5},
+    {startSeconds:10,endSeconds:15,durationSeconds:5}
+  ]);
+  assert.deepEqual(assessQualitySignals(signals,false).map(item=>item.kind),['static_segment','static_segment']);
+  assert.deepEqual(parseQualitySignals('freeze_start: 3\nfreeze_duration: 1\nfreeze_end: 4\nfreeze_start: 9',null,10).freeze,
+    [{startSeconds:3,endSeconds:4,durationSeconds:1},{startSeconds:9,endSeconds:10,durationSeconds:1}]);
+  assert.deepEqual(parseQualitySignals('freeze_start: 1\nfreeze_duration: 90\nfreeze_end: 2',null,15).freeze,[]);
 });
 
 test('the 4x3 MP4 review samples use 12 exact and evenly spaced delivery frames',()=>{
