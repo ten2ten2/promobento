@@ -59,7 +59,7 @@ try{
  if(!ready)throw Error('MATERIAL_SECRET_PROPAGATION_TIMEOUT');
  const budgetBefore=await call('model-budget');
  await call('operations',{method:'POST',body:{id:operationId,workspaceId:'internal-eval',projectId:'eval-materials',purpose:'evaluation',maxMicros:1000000}});operationCreated=true;
- for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource,artwork,video}of prepared){
+ for(const{asset,bytes,sha256,mediaType,extension,original,explicit,originalSource,normalizedSource,artwork,video}of prepared){
   const reused=previous?.assets.find(item=>item.id===asset.id&&item.topicId===asset.topicId&&item.sha256===sha256&&item.byteLength===bytes.length
    &&item.sourceUrl===asset.sourceUrl&&item.scope==='internal_eval_only'&&item.publicUseCleared===false&&item.licenseRef===licenseRef
    &&(asset.derivation?.kind!=='approved_web_image'||item.approvalRef===asset.approvalRef&&item.imageUrl===asset.imageUrl)
@@ -68,6 +68,7 @@ try{
    &&(!(artwork||video)||item.derivation?.sourceMediaType===asset.derivation.sourceMediaType)
    &&(!artwork||asset.derivation.sourceOrigin!=='inline-svg'||item.derivation?.selector===asset.derivation.selector)
    &&(!artwork||asset.derivation.sourceOrigin!=='web'||item.imageUrl===asset.imageUrl)
+   &&(!normalizedSource||item.derivation?.original?.sha256===asset.derivation.original.sha256&&!!item.originalSourceKey)
    &&(!video||asset.derivation.sourceOrigin!=='web'||item.videoUrl===asset.videoUrl));
   if(reused){
    // Re-admit the exact existing evidence for this operation; do not upload passed material again.
@@ -84,9 +85,11 @@ try{
    licenseNotice=await upload(`${prefix}/${asset.topicId}/${name}`,text,'text/plain');
   }
   const sourceObject=originalSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.svg`,originalSource,'image/svg+xml')
+   :normalizedSource?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.png`,normalizedSource,'image/png')
    :artwork?await upload(`${prefix}/${asset.topicId}/${artworkSourceObjectName(asset)}`,artwork.original,artwork.sourceMediaType)
    :video?await upload(`${prefix}/${asset.topicId}/${asset.id}-source.${({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'webm','image/gif':'gif','image/png':'png','image/webp':'webp','image/avif':'avif'})[asset.derivation.sourceMediaType]}`,video.source,asset.derivation.sourceMediaType):null;
   if((artwork||video)&&sourceObject.sha256!==asset.derivation.sourceSha256)throw Error('MATERIAL_UPLOAD_IDENTITY_MISMATCH');
+  if(normalizedSource&&(sourceObject.sha256!==asset.derivation.original.sha256||sourceObject.byteLength!==normalizedSource.length))throw Error('MATERIAL_UPLOAD_IDENTITY_MISMATCH');
   const preview=video?await upload(`${prefix}/${asset.topicId}/${asset.id}-poster.png`,video.poster,'image/png'):null,framePacks=[];
   if(video){
    if(preview.sha256!==video.manifest.poster.sha256||preview.byteLength!==video.manifest.poster.byteLength)throw Error('VIDEO_UPLOAD_IDENTITY_MISMATCH');
@@ -96,7 +99,8 @@ try{
   const evidence=await upload(`${prefix}/${asset.topicId}/${asset.id}-rights.json`,{kind:'eval_material_rights',resourceId,sha256,licenseRef,scope:'internal_eval_only',approvedBy:'owner',
    source:asset.sourceUrl,basis:original?'Original self-contained factual diagram created for this project; no copied interface, logo, image, portrait or testimonial.':explicit?explicit.basis:topics.rights.rule,
    decisionRef:original||explicit?asset.approvalRef:manifest.rightsDecision,decidedBy:original?original.approvedBy:explicit?explicit.approvedBy:topics.decidedBy,decidedAt:original?original.approvedAt:explicit?explicit.approvedOn:topics.decidedAt,
-   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(artwork?{originalSource:sourceObject}:{}),...(video?{videoSource:sourceObject,preview,framePacks}:{}),
+   ...(original?{origin:asset.origin,factIds:asset.factIds,originalSource:sourceObject}:{}),...(normalizedSource?{originalSource:sourceObject}:{}),
+   ...(artwork?{originalSource:sourceObject}:{}),...(video?{videoSource:sourceObject,preview,framePacks}:{}),
    ...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),
    acquisition:{description:asset.description,...(asset.clip?{clip:asset.clip}:{}),...(asset.derivation?{derivation:asset.derivation}:{}),reviewedBy:'codex',reviewedAt:asset.reviewedAt},publicUseCleared:false});
   await call('rights',{method:'POST',body:{operationId,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:evidence.key}});
@@ -104,7 +108,8 @@ try{
    sourceUrl:asset.sourceUrl,...(asset.imageUrl?{imageUrl:asset.imageUrl}:{}),...(asset.videoUrl?{videoUrl:asset.videoUrl}:{}),description:asset.description,licenseRef,evidenceKey:evidence.key,
    ...(original?{origin:asset.origin,factIds:asset.factIds,originalSourceKey:sourceObject.key,approvalRef:asset.approvalRef}:{}),
    ...(explicit?{approvalRef:asset.approvalRef}:{}),
-   ...(asset.derivation?{derivation:asset.derivation}:{}),...(artwork?{originalSourceKey:sourceObject.key}:{}),...(video?{originalSourceKey:sourceObject.key,videoFramePacking:'webp-pack-v1',preview,framePacks}:{}),
+   ...(asset.derivation?{derivation:asset.derivation}:{}),...(normalizedSource?{originalSourceKey:sourceObject.key}:{}),
+   ...(artwork?{originalSourceKey:sourceObject.key}:{}),...(video?{originalSourceKey:sourceObject.key,videoFramePacking:'webp-pack-v1',preview,framePacks}:{}),
    ...(asset.attribution?{attribution:asset.attribution}:{}),...(licenseNotice?{licenseNoticeKey:licenseNotice.key,licenseSource:asset.licenseSource}:{}),scope:'internal_eval_only',publicUseCleared:false});save();
   console.log(canonical({id:asset.id,key:object.key,byteLength:object.byteLength}));
  }

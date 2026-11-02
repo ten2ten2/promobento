@@ -41,6 +41,22 @@ return selected.assets.map(asset=>{
  const {width,height,extension,mediaType}=imageHeader(bytes);
  if(!asset.file.endsWith('.'+extension)||width!==asset.width||height!==asset.height||extension!=='png'&&asset.mediaType&&asset.mediaType!==mediaType)throw Error('MATERIAL_IDENTITY_INVALID');
  const sha256=sha256Bytes(bytes),artwork=asset.derivation?.kind==='approved_artwork_rasterization'?verifiedArtwork.get(asset.id):undefined,video=asset.derivation?.kind==='approved_video_frame_pack'?verifiedVideos.get(asset.id):undefined;
+ let normalizedSource;
+ if(asset.derivation?.kind==='selected_image_downscale'){
+  const derivation=asset.derivation,sourceName=derivation.originalFile;
+  if(derivation.method!=='inert_PNG_full_image_downscale_no_crop'||typeof derivation.browser!=='string'||!derivation.browser
+   ||typeof sourceName!=='string'||!/^[-a-z0-9]+-[a-f0-9]{64}\.png$/.test(sourceName)
+   ||mediaType!=='image/png'||width>4096||height>4096)throw Error('MATERIAL_DOWNSCALE_INVALID');
+  normalizedSource=readReviewedMaterial(directory,sourceName,8<<20);
+  const original=imageHeader(normalizedSource),scale=Math.min(4096/original.width,4096/original.height);
+  if(original.mediaType!=='image/png'||original.width>8192||original.height>8192
+   ||original.width*original.height>20_000_000||original.width<=4096&&original.height<=4096
+   ||derivation.original?.sha256!==sha256Bytes(normalizedSource)||derivation.original?.byteLength!==normalizedSource.length
+   ||derivation.original?.width!==original.width||derivation.original?.height!==original.height
+   ||width!==Math.max(1,Math.round(original.width*scale))||height!==Math.max(1,Math.round(original.height*scale))
+   ||derivation.output?.sha256!==sha256||derivation.output?.byteLength!==bytes.length
+   ||derivation.output?.width!==width||derivation.output?.height!==height)throw Error('MATERIAL_DOWNSCALE_INVALID');
+ }
  if(asset.derivation?.kind==='approved_video_frame_pack'){
   const web=asset.derivation.sourceOrigin==='web';
   if(!video||!approval.explicit||approval.explicit.sourceUrl!==asset.sourceUrl
@@ -64,6 +80,7 @@ return selected.assets.map(asset=>{
    ||artwork.sourceMediaType!==asset.derivation.sourceMediaType)throw Error('ARTWORK_VERIFICATION_REQUIRED');
  }
  else{assertLocalMaterialIdentity(approval,asset,sha256);assertRemoteMaterialIdentity(approval,asset,sha256);}
- return{asset,bytes,sha256,mediaType,extension,original:approval.original,explicit:approval.explicit,originalSource,...(artwork?{artwork}: {})};
+ return{asset,bytes,sha256,mediaType,extension,original:approval.original,explicit:approval.explicit,originalSource,
+  ...(normalizedSource?{normalizedSource}:{}),...(artwork?{artwork}: {})};
 });
 }

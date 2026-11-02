@@ -38,6 +38,8 @@ mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-c
 mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-current
 ```
 
+重新筛选单一题目时，先在内存中完成全部采集，再以内容哈希文件名保存并一次性提交 `selected.json`；网络中断或某项选择失败不会删掉原来已审看的清单。官方 PNG 若单边超过 4096px、但仍在有界原图范围内，使用禁用网络的 Chromium 画布按完整画面等比缩小，保留原 PNG、输入输出哈希及尺寸衍生记录；入库时重新验证并同时上传原件。批准网页图片的同源缓存重定向会逐跳重新校验 DNS，不接受跨域跳转。
+
 上传原文件、衍生物、授权证据及 manifest 时按**实际发送字节**核对 SHA-256。入库前检查 staging 运行中租约和排队是否为空；异常时停止，不接管其他评测。未审看素材不自动采用，旧源文件和历史证据不覆盖。WebP 视频帧包通过授权证据映射回原视频与海报；海报不代表整片动作，也不会启用旧帧包播放器。
 
 真实词级时间证据可通过 `timingEvidence` 绑定来源 SHA-256、时长与排序后的 `words`。缺失时只使用导演明确给出的事件时间，不伪造 ASR 时间戳；自动转写与完整参考片理解仍未实现。

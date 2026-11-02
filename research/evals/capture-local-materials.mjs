@@ -1,6 +1,6 @@
 // Collect only explicitly approved PNG, JPEG and WebP images from a local project into the existing S1 selection workflow.
 // The source directory is read-only; the collector never runs project code or infers usage rights.
-import {lstatSync,mkdirSync,readFileSync,realpathSync,statSync} from 'node:fs';
+import {closeSync,constants,fstatSync,lstatSync,mkdirSync,openSync,readFileSync,readSync,realpathSync,statSync} from 'node:fs';
 import {resolve,relative,sep,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -10,6 +10,21 @@ import {imageHeader} from './image-header.mjs';
 import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep);
+/** Recheck the opened inode; a size/path preflight is not a bound on readFileSync after a local swap. */
+export function readApprovedLocalFile(path){
+ let fd;
+ try{fd=openSync(path,constants.O_RDONLY|constants.O_NOFOLLOW);}
+ catch{throw Error('LOCAL_MATERIAL_PATH_INVALID');}
+ try{
+  const stat=fstatSync(fd);
+  if(!stat.isFile())throw Error('LOCAL_MATERIAL_PATH_INVALID');
+  if(stat.size>1<<20)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
+  const bytes=Buffer.alloc(stat.size);let offset=0;
+  while(offset<stat.size){const count=readSync(fd,bytes,offset,stat.size-offset,null);if(!count)throw Error('LOCAL_MATERIAL_CHANGED');offset+=count;}
+  if(readSync(fd,Buffer.alloc(1),0,1,null))throw Error('LOCAL_MATERIAL_CHANGED');
+  return bytes;
+ }finally{closeSync(fd);}
+}
 export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
  const source=realpathSync(sourceDir),output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(entry=>entry.id)).size!==entries.length)throw Error('LOCAL_MATERIAL_SELECTION_INVALID');
@@ -27,7 +42,7 @@ export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
   return{entry,path,approvedSha:decision.explicit.sha256};
  });
  const materials=approved.map(({entry,path,approvedSha})=>{
-  const bytes=readFileSync(path);if(bytes.length>1<<20)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');
+  const bytes=readApprovedLocalFile(path);
   if(sha256Bytes(bytes)!==approvedSha)throw Error('LOCAL_MATERIAL_IDENTITY_MISMATCH');
   const {width,height,extension,mediaType}=imageHeader(bytes);
   if(width>4096||height>4096)throw Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED');

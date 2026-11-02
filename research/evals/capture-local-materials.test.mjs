@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
-import {captureApprovedLocal} from './capture-local-materials.mjs';
+import {captureApprovedLocal,readApprovedLocalFile} from './capture-local-materials.mjs';
 import {assertLocalMaterialIdentity,materialApproval} from './material-approval.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 
@@ -54,4 +54,16 @@ test('approved JPEG and WebP keep their original bytes, identity, type and dimen
   bad.assets[0]=structuredClone(selected.assets[0]);bad.assets[0].mediaType='image/png';assert.throws(()=>prepareMaterialSelection(out,bad,topics,{readCard:()=>card}),/MATERIAL_IDENTITY_INVALID/);
   bad.assets[0]=structuredClone(selected.assets[0]);bad.assets[0].review='pending_visual_selection';assert.throws(()=>prepareMaterialSelection(out,bad,topics,{readCard:()=>card}),/MATERIAL_REVIEW_REQUIRED/);
  }finally{rmSync(local,{recursive:true,force:true});rmSync(outputs,{recursive:true,force:true});}
+});
+
+test('opened local material is bounded and rejects a swapped symlink',()=>{
+ const root=mkdtempSync(join(tmpdir(),'pb-local-fd-'));
+ try{
+  const safe=join(root,'image.png'),linked=join(root,'linked.png'),oversized=join(root,'oversized.png');
+  const bytes=pngRgba(1,1,new Uint8Array(4));writeFileSync(safe,bytes);symlinkSync(safe,linked);
+  assert.deepEqual(readApprovedLocalFile(safe),bytes);
+  assert.throws(()=>readApprovedLocalFile(linked),/LOCAL_MATERIAL_PATH_INVALID/);
+  writeFileSync(oversized,Buffer.alloc((1<<20)+1));
+  assert.throws(()=>readApprovedLocalFile(oversized),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
+ }finally{rmSync(root,{recursive:true,force:true});}
 });

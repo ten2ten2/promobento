@@ -90,7 +90,7 @@ export default {
       if (path === '/internal/s1/model-budget/confirm' && request.method === 'POST') {
         const input = await readJson(request);
         if (typeof input.evidenceKey !== 'string' || !input.evidenceKey.startsWith('evals/')) throw Error('MODEL_CONFIRMATION_INVALID');
-        return privateJson(await confirmModelOpening(env, await getJson(env, input.evidenceKey)));
+        return privateJson(await confirmModelOpening(env, await getJson(env, input.evidenceKey, 'MODEL_CONFIRMATION_INVALID')));
       }
       if (path === '/internal/s1/workflows/reconcile' && request.method === 'POST') return privateJson(await recoverWorkflows(env));
       if (request.method === 'GET' && path.startsWith('/internal/s1/artifacts/')) {
@@ -111,9 +111,11 @@ export default {
           || input.scope !== 'internal_eval_only'
           || typeof input.evidenceKey !== 'string' || !/^evals\/[A-Za-z0-9_/-]{4,240}\.json$/.test(input.evidenceKey)
           || input.evidenceKey.split('/').some(part=>part==='..')) throw Error('RIGHTS_INVALID');
-        const evidence = await getJson(env, input.evidenceKey);
+        const evidence = await getJson(env, input.evidenceKey, 'RIGHTS_EVIDENCE_INVALID');
         if (evidence.resourceId !== input.resourceId || evidence.sha256 !== input.sha256 || evidence.licenseRef !== input.licenseRef
-          || evidence.scope !== input.scope || evidence.approvedBy !== 'owner' || !evidence.source || !evidence.basis) throw Error('RIGHTS_EVIDENCE_INVALID');
+          || evidence.scope !== input.scope || evidence.approvedBy !== 'owner'
+          || typeof evidence.source !== 'string' || !evidence.source.trim()
+          || typeof evidence.basis !== 'string' || !evidence.basis.trim()) throw Error('RIGHTS_EVIDENCE_INVALID');
         await env.DB.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
           .bind(op.id, input.resourceId, input.sha256, input.licenseRef, input.evidenceKey, input.scope).run();
         const stored = await env.DB.prepare('SELECT license_ref,evidence_key,scope,revoked_at FROM pipeline_rights WHERE operation_id=? AND resource_id=? AND sha256=?')

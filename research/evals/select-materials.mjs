@@ -3,11 +3,11 @@ import {chromium} from 'playwright-core';
 import {readFileSync,mkdtempSync,rmSync,existsSync,lstatSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {parseCanonicalJson} from '@promobento/contracts/canonical';
 import {evaluationChromeExecutable} from './chrome.mjs';
-import {privateExisting,writePrivateFile} from './private-path.mjs';
+import {privateExisting} from './private-path.mjs';
 import {downloadApprovedImage} from './capture-approved-web-images.mjs';
-import {imageHeader} from './image-header.mjs';
+import {downscaleSelectedPng,stageSelectedFile,commitSelectedMaterials} from './selected-image.mjs';
 const directory=privateExisting(process.argv[2]??'artifacts/eval-materials-2026-10-24');
 const selectedTopic=process.argv[3];
 if(selectedTopic&&!['deepseek','minimax','duolingo','marugoto','hf-llm-course'].includes(selectedTopic))throw Error('CURATED_SELECTION_UNAVAILABLE');
@@ -26,9 +26,34 @@ const capturedSource=id=>{
 };
 const sourceIds={deepseek:['deepseek-0'],minimax:['minimax-1'],duolingo:['duolingo-0'],marugoto:['marugoto-0'],'hf-llm-course':['hf-llm-course-0']};
 for(const id of selectedTopic?sourceIds[selectedTopic]:Object.values(sourceIds).flat())capturedSource(id);
-const selected=selectedTopic&&selectedStat?parseCanonicalJson(readFileSync(privateExisting(selectionFile,'file'))).assets.filter(asset=>asset.topicId!==selectedTopic):[];
-const save=()=>writePrivateFile(selectionFile,canonical({scope:'internal_eval_only',publicUseCleared:false,assets:selected})+'\n');
-const add=(entry,extra)=>{selected.push({...extra,...entry,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false});save();};
+const previous=selectedStat?parseCanonicalJson(readFileSync(privateExisting(selectionFile,'file'))):null;
+const selected=[],stagedFiles=new Map();
+const add=(entry,extra)=>selected.push({...extra,...entry,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false});
+// Never navigate an untrusted image as a document or run its scripts while resizing.
+const rasterize=async(context,bytes,width,height)=>{
+ const page=await context.newPage();
+ try{
+  await page.route('**/*',route=>route.abort());
+  await page.setContent('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:">');
+  const data=Buffer.from(bytes).toString('base64');
+  const encoded=await page.evaluate(async({data,width,height})=>{
+   const img=new Image();img.src='data:image/png;base64,'+data;await img.decode();
+   const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;
+   const ctx=canvas.getContext('2d');if(!ctx)throw Error('SELECTED_IMAGE_DOWNSCALE_INVALID');
+   ctx.drawImage(img,0,0,width,height);
+   return canvas.toDataURL('image/png').split(',')[1];
+  },{data,width,height});
+  return Buffer.from(encoded,'base64');
+ }finally{await page.close();}
+};
+let browserVersion;
+const selectedBrowserVersion=async context=>{
+ if(browserVersion)return browserVersion;
+ if(context.browser()){browserVersion=context.browser().version();return browserVersion;}
+ const page=await context.newPage();
+ try{browserVersion=await page.evaluate(()=>navigator.userAgent);return browserVersion;}
+ finally{await page.close();}
+};
 const profile=mkdtempSync(join(tmpdir(),'promobento-material-selection-'));
 let context;
 try{
@@ -38,8 +63,8 @@ try{
  const deepseek=capturedSource('deepseek-0'),page=await context.newPage();
  try{
   await page.goto(deepseek.sourceUrl,{waitUntil:'domcontentloaded',timeout:45000});await page.waitForTimeout(3000);
-  const clip={x:340,y:402,width:920,height:365},file='deepseek-hero.png';
-  writePrivateFile(join(directory,file),await page.screenshot({type:'png',clip}));
+  const clip={x:340,y:402,width:920,height:365};
+  const file=stageSelectedFile(stagedFiles,'deepseek-hero',await page.screenshot({type:'png',clip}),'png');
   add({id:'deepseek-hero',topicId:'deepseek',file,width:clip.width,height:clip.height,clip,description:'Official homepage interaction area and Chat/API/Harness entry points; announcement with unconfirmed cost/speed claims excluded.'},{sourceUrl:deepseek.sourceUrl});
  }finally{await page.close();}}
  const downloads=[
@@ -51,11 +76,11 @@ try{
   if(selectedTopic&&selectedTopic!==item.topicId)continue;
   const source=capturedSource(item.sourceId),asset=source.images.find(item.image);if(!asset)throw Error('SELECTED_OFFICIAL_IMAGE_MISSING');
   const bytes=await downloadApprovedImage(asset.src,{accept:'image/png',maxBytes:8<<20,timeoutMs:30000});
-  const {width,height,mediaType}=imageHeader(bytes);
-  if(mediaType!=='image/png'||width>4096||height>4096)throw Error('SELECTED_IMAGE_INVALID');
-  const file=item.id+'.png';writePrivateFile(join(directory,file),bytes);
-  add({id:item.id,topicId:item.topicId,file,width,height,description:item.description},
-   {sourceUrl:source.sourceUrl,imageUrl:asset.src,alt:asset.alt});console.log(item.id);
+  const normalized=await downscaleSelectedPng(bytes,{rasterize:(source,width,height)=>rasterize(context,source,width,height),browser:await selectedBrowserVersion(context)});
+  const file=stageSelectedFile(stagedFiles,item.id,normalized.bytes,'png');
+  const derivation=normalized.derivation?{...normalized.derivation,originalFile:stageSelectedFile(stagedFiles,item.id+'-source',normalized.original,'png')}:undefined;
+  add({id:item.id,topicId:item.topicId,file,width:normalized.width,height:normalized.height,description:item.description,
+    ...(derivation?{derivation}:{})},{sourceUrl:source.sourceUrl,imageUrl:asset.src,alt:asset.alt});console.log(item.id);
  }
  if(!selectedTopic||selectedTopic==='hf-llm-course'){
  const hf=capturedSource('hf-llm-course-0'),course=await context.newPage();
@@ -71,12 +96,12 @@ try{
   // The source host serves SVG as text/plain. Render it as an inert image, not a source-code page.
   await course.setContent('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'"><style>html,body{margin:0;padding:0;background:white}img{display:block}</style><img src="data:image/svg+xml;base64,'+svgBytes.toString('base64')+'">');
   await course.locator('img').evaluate(image=>image.decode());
-  const file='hf-course-outline.png',bytes=await course.screenshot({type:'png',fullPage:false});
-  writePrivateFile(join(directory,file),bytes);
+  const bytes=await course.screenshot({type:'png',fullPage:false});
+  const file=stageSelectedFile(stagedFiles,'hf-course-outline',bytes,'png');
   const licenseSource='https://raw.githubusercontent.com/huggingface/course/main/LICENSE';
   const licenseText=(await downloadApprovedImage(licenseSource,{accept:'text/plain',maxBytes:32000,timeoutMs:20000})).toString('utf8');
   if(!licenseText.includes('Apache License'))throw Error('COURSE_LICENSE_INVALID');
-  const licenseFile='hf-course-apache-2.0.txt';writePrivateFile(join(directory,licenseFile),licenseText);
+  const licenseFile=stageSelectedFile(stagedFiles,'hf-license',Buffer.from(licenseText,'utf8'),'txt');
   add({id:'hf-course-outline',topicId:'hf-llm-course',file,width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20),
    description:'Course-authored curriculum diagram rasterized at its original dimensions; no embedded video, author portrait or testimonial.'},{sourceUrl:hf.sourceUrl,imageUrl,
    attribution:'Hugging Face Course contributors; course repository Apache-2.0 notice retained. Screenshot rasterization only; original diagram unaltered.',licenseSource,licenseFile});
@@ -84,6 +109,6 @@ try{
 }finally{
  try{await context?.close();}finally{
   rmSync(profile,{recursive:true,force:true});
-  if(context)save();
  }
 }
+commitSelectedMaterials(directory,previous,selectedTopic,selected,stagedFiles);

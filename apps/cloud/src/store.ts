@@ -68,11 +68,20 @@ export async function immutableStream(env: PipelineEnv, key: string, body: Reada
   if (!matchesStoredUpload(await env.MEDIA.head(key), length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   return {name: key.split('/').at(-1)!, key, sha256, byteLength: length, mediaType};
 }
-export async function getJson(env: PipelineEnv, key: string): Promise<Json> {
+export async function getJson(env: PipelineEnv, key: string,
+  clientEvidenceError?: 'RIGHTS_EVIDENCE_INVALID' | 'MODEL_CONFIRMATION_INVALID'): Promise<Json> {
   const object = await env.MEDIA.get(key); if (!object || object.size > 8 << 20) throw Error('SOURCE_UNAVAILABLE');
   const bytes = new Uint8Array(await object.arrayBuffer());
   if (object.customMetadata?.sha256 && sha256Bytes(bytes) !== object.customMetadata.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
-  return parseCanonicalJson(bytes) as Json;
+  let parsed: unknown;
+  try {parsed = parseCanonicalJson(bytes);}
+  catch (error) {
+    if (clientEvidenceError) throw Error(clientEvidenceError);
+    throw error;
+  }
+  if (clientEvidenceError && (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)))
+    throw Error(clientEvidenceError);
+  return parsed as Json;
 }
 /** Local operation/stage admission, including unresolved costs. MODEL_LEDGER owns the cross-environment model grant. */
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,

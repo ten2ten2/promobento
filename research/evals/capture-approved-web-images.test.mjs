@@ -44,7 +44,7 @@ test('the actual downloader rejects non-HTTPS and literal network addresses befo
 });
 
 
-test('downloader pins public DNS and refuses redirects, private addresses and oversized responses',async()=>{
+test('downloader pins public DNS, follows bounded same-origin redirects and rejects private addresses and oversized responses',async()=>{
  const publicDns=async()=>[{address:'93.184.216.34',family:4}];let calls=0;
  const responder=(status,body,headers={})=>(url,options,callback)=>{
   calls++;assert.equal(url.href,imageUrl);assert.equal(options.method,'GET');
@@ -58,4 +58,32 @@ test('downloader pins public DNS and refuses redirects, private addresses and ov
  for(const address of [{address:'127.0.0.1',family:4},{address:'10.1.2.3',family:4},{address:'169.254.169.254',family:4},{address:'::ffff:127.0.0.1',family:6},{address:'2001:db8::1',family:6}])
   await assert.rejects(downloadApprovedImage(imageUrl,{resolveAddress:async()=>[address],makeRequest:()=>{throw Error('UNEXPECTED_REQUEST');}}),/WEB_MATERIAL_ADDRESS_INVALID/);
  assert.equal(calls,4);
+});
+
+test('Hugging Face-style cache redirects retain DNS pins and reject cross-origin, loops and excess hops',async()=>{
+ const source='https://huggingface.co/datasets/course/resolve/main/summary.svg';
+ const visited=[],addresses=[];
+ const resolveAddress=async hostname=>{addresses.push(hostname);return [{address:'93.184.216.34',family:4}];};
+ const makeRequest=(url,options,callback)=>{
+  visited.push(url.href);
+  options.lookup(url.hostname,{all:true},(error,records)=>{assert.ifError(error);assert.deepEqual(records,[{address:'93.184.216.34',family:4}]);});
+  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{
+   const res=new PassThrough();res.statusCode=visited.length===1?307:200;
+   res.headers=visited.length===1?{location:'/api/resolve-cache/summary.svg?download=true&token=short'}:{};
+   res.on('close',()=>req.emit('close'));callback(res);res.end(visited.length===1?'':png);
+  });req.destroy=error=>req.emit('error',error);req.on('error',()=>req.emit('close'));return req;
+ };
+ assert.deepEqual(await downloadApprovedImage(source,{resolveAddress,makeRequest}),png);
+ assert.deepEqual(visited,[source,'https://huggingface.co/api/resolve-cache/summary.svg?download=true&token=short']);
+ assert.deepEqual(addresses,['huggingface.co','huggingface.co']);
+ const redirect=location=>(url,options,callback)=>{
+  const req=new EventEmitter();req.end=()=>queueMicrotask(()=>{const res=new PassThrough();res.statusCode=307;res.headers={location};res.on('close',()=>req.emit('close'));callback(res);res.end();});
+  req.destroy=error=>req.emit('error',error);req.on('error',()=>req.emit('close'));return req;
+ };
+ for(const target of ['https://example.org/p.png','http://huggingface.co/a','https://user@huggingface.co/a','https://127.0.0.1/a'])
+  await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:redirect(target)}),/WEB_MATERIAL_REDIRECT_INVALID/);
+ await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:redirect(source)}),/WEB_MATERIAL_REDIRECT_LOOP/);
+ let hop=0;
+ await assert.rejects(downloadApprovedImage(source,{resolveAddress,makeRequest:(url,options,callback)=>redirect('/redirect-'+(++hop))(url,options,callback)}),/WEB_MATERIAL_REDIRECT_LIMIT/);
+ assert.equal(hop,4);
 });

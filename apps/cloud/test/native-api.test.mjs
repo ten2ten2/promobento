@@ -112,6 +112,41 @@ test('malformed nested render revision and rights identities return 422 without 
   assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,0,table);
 });
 
+test('uploaded malformed or non-object evidence is rejected as client input on both evidence endpoints',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='uploaded-evidence-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const {MEDIA}=memoryMedia();
+ const env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const base='https://worker.example/internal/s1/';
+ const headers={authorization:'Bearer fixture-only','content-type':'application/json'};
+ const rights={operationId,resourceId:'res_test_resource',sha256:'a'.repeat(64),licenseRef:'owner-approved',
+  scope:'internal_eval_only'};
+ for(const [index,body] of ['null','[]','42','{','{"duplicate":1,"duplicate":2}','"\\ud800"'].entries()){
+  const key=`evals/fixture/invalid-${index}.json`,bytes=new TextEncoder().encode(body);
+  const uploaded=await worker.fetch(new Request(base+'objects/'+key,{method:'PUT',
+   headers:{...headers,...objectUploadHeaders(bytes)},body:bytes}),env,{});
+  assert.equal(uploaded.status,200,body);
+  const registration=await worker.fetch(new Request(base+'rights',{method:'POST',headers,
+   body:canonical({...rights,evidenceKey:key})}),env,{});
+  assert.equal(registration.status,422,body);
+  assert.deepEqual(await registration.json(),{code:'RIGHTS_EVIDENCE_INVALID'},body);
+  const confirmation=await worker.fetch(new Request(base+'model-budget/confirm',{method:'POST',headers,
+   body:canonical({evidenceKey:key})}),env,{});
+  assert.equal(confirmation.status,422,body);
+  assert.deepEqual(await confirmation.json(),{code:'MODEL_CONFIRMATION_INVALID'},body);
+ }
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_rights').get().n,0);
+ const broken={...env,MEDIA:{...MEDIA,async get(){throw Error('private R2 transport failure');}}};
+ for(const [endpoint,input] of [['rights',{...rights,evidenceKey:'evals/fixture/invalid-0.json'}],
+  ['model-budget/confirm',{evidenceKey:'evals/fixture/invalid-0.json'}]]){
+  const response=await worker.fetch(new Request(base+endpoint,{method:'POST',headers,body:canonical(input)}),broken,{});
+  assert.equal(response.status,500,endpoint);
+  assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'},endpoint);
+ }
+});
+
 test('asynchronous recovery, private-artifact and event failures stay inside HTTP error boundary',async()=>{
  const headers={authorization:'Bearer fixture-only'};
  const base='https://worker.example/internal/s1/';
