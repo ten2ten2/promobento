@@ -1,6 +1,6 @@
 # AI 导演、原生制作、素材与改稿
 
-产品规格 **v3.1**、协议 **3.0.0**、NativeProject **1.0.0**。本章规定 huashu 原生创作与 Hypit 导演方法的结合，不引入第二DSL或Runtime；已实现能力见[实施进度](../implementation-status.md)。
+适用产品规格 **v3.1 / 协议 3.0.0**。本章定义从真实素材到完整宣传片的导演和改稿流程。画面由 huashu-motion 原生工程执行，Hypit 提供导演方法；当前实现见[实施状态](../implementation-status.md)。
 
 ## 1 原则：先导演，再写画面
 
@@ -25,7 +25,7 @@
 | Hypit 组件/Studio Companion | 稳定对象和 Inspector、批注/候选/版本恢复；精细轨道与自由拖拽为后续能力，不变成完整 NLE | P0基础/P1高级 |
 | Hypit Results/Review | 成功与未采用结果均可追溯真实工程、实际媒体与证据；失败不丢可复用资产 | P0 |
 
-上游来源、固定方法和版本见[方法 NOTICE](../../packages/methods/NOTICE.md)。多租户、队列、预算、付款、审核与删除属于 PromoBento 控制面（04/05/14），不引入 Hypit 的 SVML/SVS/SVRun、Studio Runtime 或 Provider 系统。上游能力不等于已接入客户服务；**花叔本人肖像、头像、拟人形象、标识及默认作者露出不得进入客户 UI、模板和作品**。
+上游方法和版本见[方法来源](../../packages/methods/NOTICE.md)。多租户、预算、付款、审核和保存期由[04](04-architecture-and-data.md)、[05](05-waffo-billing.md)、[14](14-production-contracts.md)负责；示例素材与作者形象的限制见[09](09-sources-and-licensing.md)。
 
 ## 3 项目内容的唯一归属
 

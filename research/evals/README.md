@@ -55,4 +55,4 @@ bash research/evals/hypit/media.sh <带FFmpeg的已固定镜像> \
   --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/overview.jpg --json
 ```
 
-历史 FilmSpec/分片 runner/Studio 仅见[归档源码](https://github.com/ten2ten2/promobento/tree/c78a51fa748b3029058119b00874b9043f499da0/research/evals)，不得发送给当前 Worker。[recover-case.mjs](recover-case.mjs)只检查或清理**已终止**操作，不恢复旧导演或模型。历史评测、配乐与负责人反馈见[导演证据](../../docs/evidence/2026-10-24-s1-director/README.md)，原始素材、费用和回执不删除。
+[recover-case.mjs](recover-case.mjs)用于检查或清理**已终止**的操作；作品、费用和质量原始证据见[导演评测](../../docs/evidence/2026-10-24-s1-director/README.md)。

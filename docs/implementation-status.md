@@ -1,6 +1,6 @@
 # 当前实施状态
 
-**PRD v3.1 / 协议 3.0.0。S0 完成，S1 尚未通过；不能进入 S2 或开放客户使用。** 生产 `agent-policy.enabled=false`。本页只记录已实现的代码、验收证据和缺口；需求见 [PRD](prd/README.md)，组件用法见下方链接。
+**PRD v3.1 / 协议 3.0.0。S0 完成，S1 尚未通过。** 生产 `agent-policy.enabled=false`。本页只记录现有代码、验证结果和下一步；产品要求见 [PRD](prd/README.md)。
 
 ## 当前代码
 
@@ -16,9 +16,9 @@
 
 ## 验证与部署
 
-- [PR #4 CI](https://github.com/ten2ten2/promobento/actions/runs/41407139188) 在提交 `8fd60e9a7b55ce061499cc197fc0369ee7c1059a` 上通过：契约/类型、原生专项测试、固定 Linux 容器中的真实 Chromium、四画幅、15/30 秒导出与隔离检查。**只证明该 SHA 和测试覆盖范围**；不等于 Cloudflare 部署、真实模型、客户权限或收费验收。
+- [PR #4](https://github.com/ten2ten2/promobento/pull/4) 已于 2026-11-02 合并到 `main`（`c645498`），四阶段重构、全树检查与后续修复都已进入主线。最终 PR 提交 `3067a67` 的 [CI #409](https://github.com/ten2ten2/promobento/actions/runs/41441239115) 通过 contracts 和 browser，包含 15/30 秒原生导出、四画幅与素材处理测试。合并提交本身没有对应的 PR CI；真实云端、模型和客户交易仍须单独验收。
 - 独立合成样本：15 秒原生渲染 46.4 秒、30 秒 84.8 秒（不含最终处理），不是性能分布或 SLA。不同执行架构下的[旧 G1 矩阵](evidence/2026-10-24-s1-performance/README.md)不能用于判定新引擎达标。
-- **最后留证的 staging 还是旧引擎**：源码 `d8ce6903a1b8f65a6683c62f0934986df98bdb4b`、方法 1.19.0、镜像 `sha256:77da1a28945f82e18478e2a2ad9d6c47bba59d3a00793d3198641334d4c27761`（[部署检查](https://github.com/ten2ten2/promobento/actions/runs/41082629756)）。那轮只核对健康/容量/预算，不代表 PR #4 已部署。历史数据库、素材及回执不随重构删除。
+- 最近有部署证据的 staging 仍运行旧引擎，新原生重构尚无可核实的 staging 部署与 G1 测量。旧环境报告见[staging 证据](evidence/2026-10-24-s1-staging/README.md)。
 
 ## S1 作品与质量
 
@@ -28,7 +28,7 @@
 ## 有效授权与费用
 
 - 原始模型授权上限 **$300**，历史供应商总账尚未确认：`openingMicros:null`、`openingConfirmed:false`。最近留存快照（2026-10-30）为已结 **2,769,757**、15 笔未知预留 **1,052,499**，合计 **3,822,256 usd_micros**；不是供应商正式账单。
-- 临时 $5 历史风险预留及最多 $10 新费用占用的放行已于 **2026-10-31（上海时间）过期**。新付费调用须先对账或取得新授权；未知费用不补零、不自动重发。单操作预算不构成额外授权。详见[模型费用证据](evidence/2026-10-23-model-probe/README.md)与[导演回执](evidence/2026-10-24-s1-director/README.md)。
+- 临时费用放行已于 **2026-10-31（上海时间）过期**；下一次付费模型调用需先完成对账或取得有效的新授权。未知费用继续占用预留。原始记录见[模型费用证据](evidence/2026-10-23-model-probe/README.md)和[导演回执](evidence/2026-10-24-s1-director/README.md)。
 
 ## 下一步
 

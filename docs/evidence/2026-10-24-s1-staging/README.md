@@ -18,4 +18,4 @@
 
 环境回执 [environment.json](environment.json)中内存高水位不可用，保持 `null`/`unverified`；不以 RSS 估算，具体见[内存证据](../2026-10-24-s1-performance/README.md#内存列为-s1-平台限制待实际数据补验)。
 
-原始 JSON、私有 R2/Actions 媒体引用、源码身份和许可保留；这些旧测试不包含新引擎、真实付费模型或客户功能。最新能否使用 staging 必须重新按明确部署 SHA 核验。
+原始 JSON、私有媒体引用、源码身份和许可保留；当前 staging 部署状态见[实施状态](../../implementation-status.md)。

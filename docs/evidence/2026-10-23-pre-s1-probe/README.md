@@ -19,7 +19,7 @@ turbo 返回24–31个词时序，但中文同音字、日文N2／数字等仍�
 
 [39916567470](https://github.com/ten2ten2/promobento/actions/runs/39916567470)经/browser-rendering/ REST，用部署Token访问example、Duolingo、DeepSeek、MiniMax、LeetCode。均返回截图／HTTP200，但DeepSeek正文实际是前端报错；不能把200或截图存在当事实／可用素材。原始逐站字节、耗时和计费浏览器时间在报告。
 
-只证明当时接口／账户权限，不证明抓取许可、SSRF 防护或客户入口。正式使用须另行核查素材权利、重定向、实际内容和用户事实。
+正式采集仍需检查素材权利、重定向、实际正文和用户事实。
 
 ## 冷启动：旧模板环境，不能替代正式G1
 

@@ -25,7 +25,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 许可记录保存原文/版本、来源、核对日期及对应资源。已购快照保留当时依据；发现问题后调查和修复，不改写原有记录。私人授权材料按 04 隔离和保留。成片使用、代码再分发和工程源码交付分别判断；依赖与构建要求见 [08](08-codex-execution.md#3-代码责任与可复现工具链)。
 
-原生字体、声音准备和混音来自[固定完整上游安装](../../packages/native-motion/upstream.lock.json)，工程默认补齐 Inter Variable 和 Noto Sans SC 500/900；加载方式见[渲染服务](../../apps/render-container/README.md)。[历史乐器样本清单](../../packages/audio/samples/catalog.json)记录保留样本的固定来源与字节身份，不是当前原生 sound 的音源清单；实际生成产物单独记录所用来源。
+原生字体、声音准备和混音来自[固定上游安装](../../packages/native-motion/upstream.lock.json)，工程默认补齐 Inter Variable 和 Noto Sans SC 500/900；加载方式见[渲染服务](../../apps/render-container/README.md)。实际作品另记录每个音源的来源和使用权。
 
 字体随固定上游字节一并校验，作品通过 `@font-face` 加载原始 WOFF；系统基础字体及工具版本随[环境锁](../../apps/render-container/environment.lock.json)固定。现有字库不保证任意语种无缺字，更广 CJK／Emoji 覆盖、客户选择／回退及准入服务仍须按实际文字验证。
 
@@ -35,7 +35,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 当前引擎固定完整[huashu-motion v0.3.1](https://github.com/alchaincyf/huashu-motion/tree/52467f99c602b76ba86d511d37acdfe93fa1e16e)，提交为`52467f99c602b76ba86d511d37acdfe93fa1e16e`。镜像保留CLI、Studio、runtime、templates、fonts、examples和skills，构建逐一校验[315个原始blob](../../packages/native-motion/upstream.lock.json)，再应用固定的云端I/O与隔离补丁；原生动画、取帧、声音及整片渲染由上游实现。准确执行边界见[适配器](../../packages/native-motion/README.md)与[渲染容器](../../apps/render-container/README.md)，不再维护一份按旧积木裁剪的上游清单。
 
-当前代码已经接入 Hypit 的 Brief/Treatment、参考片分析和语义时间三项原文，固定来源见[方法来源](../../packages/methods/NOTICE.md)。**PRD v3.1 是更完整的目标**：新增参考转换、唯一 Script、素材角色、图片/视频/声音导演、身份锚点、候选复用、语义事件、Studio 组件与审片方法，详见[13](13-agent-native-production.md)。这些目标项不能写成已部署。技术选型不以本次上游版权许可复核为前提；无论示例或上游默认资源如何，**禁止把花叔本人肖像、头像、个人标识、拟人角色及作者片尾露出带入客户产品**。[独立内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)保留`@hypit/hypit@0.3.1`，用于断网探测、切片和抽帧既有媒体；取景桥与`visual-track`入口已经退役。Hypit的DSL、编译器和任务runtime没有接入SaaS主链。
+Hypit 的 Brief/Treatment、参考观察和语义时间方法已用于内部导演；完整的参考转换、正式 Script、素材候选/复用、Studio 组件与审阅仍按[13](13-agent-native-production.md)实施。方法来源见[NOTICE](../../packages/methods/NOTICE.md)，进度见[实施状态](../implementation-status.md)。**客户界面、模板和影片不得使用花叔本人肖像、头像、个人标识、拟人角色或作者片尾。** 独立[媒体工具](../../research/evals/README.md#查看已经生成的媒体)只用于已有媒体的抽帧与检查；主制作链仍使用 huashu-motion。
 
 | 来源范围 | 用途 |
 | --- | --- |
@@ -44,7 +44,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 | 上游Studio、examples | 完整保留本地能力与参考；不把单用户localhost服务直接开放成多租户网站 |
 | PromoBento控制面与容器适配 | 版本、权限、任务、预算、私有素材、broker、隔离、实际产物核验与归档 |
 
-导演原文见[方法来源](../../packages/methods/NOTICE.md)，原生文件来源随固定上游保留。完整安装不表示示例自动成为客户作品；实际素材与生成产物仍绑定各自来源，历史配乐试听入口见[内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)。
+导演原文见[方法来源](../../packages/methods/NOTICE.md)，原生文件来源随固定上游保留。示例素材不会自动进入客户作品；实际采用的素材和生成产物逐项记录来源。
 
 ## 3 适用规则与产品边界
 

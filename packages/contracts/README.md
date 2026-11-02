@@ -28,7 +28,7 @@ const revisionId = await nativeProjectHash(project);
 
 ## 使用边界
 
-客户草稿、权限、购买、冻结与交付尚未实现，详见 [14](../../docs/prd/14-production-contracts.md)。未来客户契约直接引用不可变原生 revision 与可信事务，不恢复旧 FilmSpec、Composition 或 Studio 协议。
+客户草稿、权限、购买与交付将以不可变 revision 和可信事务为基础，规则见[14](../../docs/prd/14-production-contracts.md)。
 
 PNG 工具和视频帧包只服务内部真实素材采集，不能作为第二套影片播放器；[targets](src/targets.mjs) 仍供平台配置与离线经济分析。数据库迁移、真实素材、费用/用量及原始回执不因源码清理而删除。
 

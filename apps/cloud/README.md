@@ -2,7 +2,7 @@
 
 Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调度、恢复与私有结果；完整 huashu-motion HTML/JS 工程是唯一影片源码，Worker 不执行作品代码。
 
-当前仅开放 **`/internal/s1/` 内部评估 API**（`S1_ENABLED=internal_eval` + `EVAL_API_KEY`）；生产 `S1_ENABLED=off`。客户 Studio、认证/ACL、支付和正式交付尚未实现，实际部署状态见[实施状态](../../docs/implementation-status.md)。私有 `evals/` 导入区不可向客户暴露。
+代码提供 **`/internal/s1/` 内部评估 API**，仅在 `S1_ENABLED=internal_eval` 并配置 `EVAL_API_KEY` 后可用；生产配置为 `S1_ENABLED=off`。客户 Studio、认证、支付和正式交付还未接入。实际部署见[实施状态](../../docs/implementation-status.md)；`evals/` 是私有导入区。
 
 ## 工程与任务
 

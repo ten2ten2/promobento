@@ -17,7 +17,7 @@
 
 ## 2 视觉系统与基础组件
 
-[UI tokens](../../config/ui-tokens.json) 维护字体、尺寸、间距、圆角和动效；[主题 tokens](../../config/theme-tokens.json) 维护颜色与对比度。组件读取这些配置，不能在页面另存一套数值。图标、分享图、字标和品牌口号的用法见[品牌素材](../../public/brand/README.md)。所有界面、演示缩略图与模板均不得使用花叔本人头像、肖像化角色或作者身份标记；示例作品也不能被误认为花叔官方代言。字标取 `typography.styles.wordmark`，四周至少留 `spacing.3`。
+[UI tokens](../../config/ui-tokens.json) 维护字体、尺寸、间距、圆角和动效；[主题 tokens](../../config/theme-tokens.json) 维护颜色与对比度。组件读取这些配置，不能在页面另存一套数值。图标、分享图、字标和品牌口号的用法见[品牌素材](../../public/brand/README.md)。演示素材与作者形象的使用边界见[09](09-sources-and-licensing.md)。字标取 `typography.styles.wordmark`，四周至少留 `spacing.3`。
 
 | 用途 | 字体与样式 |
 | --- | --- |

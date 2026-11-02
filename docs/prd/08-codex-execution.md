@@ -16,13 +16,13 @@ bash scripts/agent-setup.sh
 
 验证按 [AGENTS](../../AGENTS.md#验证与提交) 的最小检查规则执行。下表是可用命令及范围，不是每次接手或提交的必跑清单。
 
-setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接受 PATH 中相同的 Node/pnpm，缺工具先给明确提示。工具来源为 [mise 官方](https://mise.jdx.dev/getting-started.html)、[Node 官方发行](https://nodejs.org/en/download)及 [pnpm 官方安装](https://pnpm.io/installation)，也可使用已核验的内部镜像；不因某个沙箱下载方便而接受第三方重打包二进制。无 mise 时使用相同版本执行 `pnpm install --frozen-lockfile`，需要的已登记任务对应 `pnpm run <任务名>`。已预置工具和缓存的环境可设置 `PROMOBENTO_SETUP_OFFLINE=1`，缓存位置用 `PROMOBENTO_PNPM_STORE_DIR`；缺项明确报错，不自动改用系统版本。其他 Node 可用于诊断，但不能据此宣称通过固定工具链验收。
+setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --frozen-lockfile`。没有 mise 时只能使用同版本的工具。离线环境可设置 `PROMOBENTO_SETUP_OFFLINE=1` 和 `PROMOBENTO_PNPM_STORE_DIR`；缺少工具或依赖时直接报错。工具来源见 [mise](https://mise.jdx.dev/getting-started.html)、[Node](https://nodejs.org/en/download) 和 [pnpm](https://pnpm.io/installation)。
 
 | 任务 | 实际范围 |
 | --- | --- |
 | `install` | pnpm 冻结安装 |
-| `check:repo` | 先预编译验证器，再检查当前文档链接、锚点和变量；配置、路由、认证、主题、平台规则版本；PRD/协议版本入口；v2 旧标识符不得出现（方案与留证目录除外）；并执行契约检查 |
-| `check:contracts` | 先预编译验证器，再由 `scripts/check-current-config.mjs` 检查现行原生运行时、固定平台目标、模型配置/授权及价格目录；不再运行旧客户业务参考控制器 |
+| `check:repo` | 预编译验证器，检查文档链接/锚点、版本、配置、路由与契约一致性 |
+| `check:contracts` | 检查原生运行时、平台预设、模型目录及授权配置 |
 | `test` | 先构建验证器，再运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
 | `typecheck` | 先构建契约验证器，再检查 `apps/cloud` 的 TypeScript，包含共享契约导入用例 |
 | `test:browser` | CI 固定镜像内运行完整 huashu 的四画幅真实取帧、原生变量编辑和 15/30 秒有声整片导出；见[原生运行时](../../packages/native-motion/README.md) |
@@ -41,23 +41,23 @@ setup 用 mise 安装精确版本并冻结安装依赖；没有 mise 时只接�
 | 切片 | 实施内容 | 退出条件 |
 | --- | --- | --- |
 | S0 契约与工具链 | 原生工程及所需辅助契约、预编译校验、固定工具链与云骨架 | 相关仓库、契约和类型检查通过；客户业务要求仍待各模块实现 |
-| S1 一条龙 | 完整 huashu 原生创作、参考理解、Brief/Treatment/Script、素材角色/候选、语义作者事件、预览、局部改稿、整片导出；预算／回执／恢复；六题首轮 | G1 真实云端通过；参考与语义/复用的 06 反例通过；创作模型 p50≤$0.70、p95≤$1.20；既定时间目标达标；负责人正常速度视听愿意发布≥4/6 |
+| S1 一条龙 | 完整 huashu 原生创作、参考理解、Brief/Treatment/Script、素材角色/候选、语义作者事件、预览、局部改稿、整片导出；预算／回执／恢复；六题首轮 | G1 真实云端通过；参考与语义/复用的 06 反例通过；创作模型费用达到 [agent-policy.unitCostTargets](../../config/agent-policy.json) 的当前目标；既定时间目标达标；负责人正常速度视听愿意发布≥4/6 |
 | S2 客户预览与完整 QA | 独立域名原生播放器、Script/素材角色界面、候选选择与锁定、直接改值、时间／元素批注、动态 Q0/Q1/Q2、完整攻击语料与四画幅准备 | 成本／时间目标达标；批注/候选/依赖复用与攻击/QA 变异按预期；作品愿意发布≥5/6且两类用户各≥2 |
 | S3 素材与上线准备 | 客户素材处理、来源/参考分析、声音、观测告警；ASR/逐词对齐、受控抓取、生成图片/视频/TTS 和经验作为独立 P1 功能验收 | P0 完整管线关口通过；未验证或 P1 能力不因源码存在自动开放，不以外部生成视频作为 P0 前置条件 |
 | M1 Studio与用户流程 | 两类用户的试用／先购、素材事实、方向、预览、批注、恢复、声音、目标与移动UI | 可自助完成流程，02的UI-01–UI-08通过 |
-| M2 可靠交付 | 客户D1／账本／队列、冻结、Waffo、按需编码和发布版本登记 | 真实并发、计量、补目标、退款、删除与历史重放通过 |
+| M2 可靠交付 | 客户 D1／账本／队列、冻结、Waffo、按需编码和发布版本登记 | 真实并发、计量、补目标、退款、删除及迟到事件重放通过 |
 | M3 团队与运营 | 邀请／审阅／冲突／清理，成本／归因／质量面板与用途页 | **G2**：M1–M3真实集成通过，费用可对账 |
 | M4 上线与有限试运营 | 性能／安全／平台上传、正式收款退款、域名发信／政策／回滚 | 06／12发布条件通过；达到下述G3才扩大获客 |
 
-**S1 原生切换**：已有主线 huashu 创作/预览/改稿/整片路径；参考理解、Script/语义事件、素材候选/锁定与显式复用尚须融入同一原生流程。未上线的旧创作协议可直接替换，不重建兼容层；真实费用、任务与素材仍须保全。攻击语料、动态QA、作品质量及真实云端性能未通过前不得视为SaaS上线。
+**S1 交付范围：** 将参考理解、正式 Script/语义事件、素材候选/锁定与依赖复用接入现有原生创作、预览、改稿和整片流程；结合动态 QA、作品视听与云端性能实测完成验收。实际已完成的部分只在[实施状态](../implementation-status.md)更新。
 
-**G1 云端检查点**：用固定预发布镜像验证真实 broker/R2/D1、独立Chromium沙箱、字体/视频/seek/WebGL、实际2D与WebGL整片、最终编码/声音、取消/重启/物理停止/租约/费用。**强制通过[06的1/4/16/64突发负载和资源矩阵](06-testing-and-release.md#真实高并发内存和经济性关口)**：排队与执行期限分离、事件驱动准入/付费容量、公平退避、流式R2及内存峰值、零重复扣费/幽灵租约、质量不回退；按资源档核对 CPU/内存/磁盘、OOM、端到端p95/p99、合格片单位成本。关键内存指标缺失或任何未解释OOM即不通过，不能用历史平台例外、null或`unverified`替代验收。限额/队列期限/资源档未标定时保持执行关闭，不调高目标或预算掩盖失败。
+**G1 云端检查点：** 使用固定预发布镜像，验证真实 Broker/R2/D1、隔离 Chromium、字体与媒体解码、2D/WebGL 整片、编码与声音、取消、物理停止、恢复、租约和费用。按 [06 的 1/4/16/64 并发及资源矩阵](06-testing-and-release.md#真实高并发内存和经济性关口)记录吞吐、p95/p99、内存峰值、OOM、排队、公平性、每份合格片的总成本和失败恢复。关键观测缺失、未解释的 OOM 或账务/隔离不一致均不得通过；容量与预算要先用实测值标定。
 
 **完整管线关口**：完整原生模板和真实素材四画幅创作、参考分析、正式 Script、命名事件、素材候选/锁定/依赖复用、预览、改稿与声音；固定镜像和 staging 的创建→选择方向→成片→改稿→目标准备与账本；完整动态 QA、隔离攻击、目标用户视听以及既定成本／性能目标。自动生成图片/视频和自动字词对齐需按 P1 自己的门槛验收，不能用它们替换基础真实素材能力。离线 mock 或单个编码样例不能替代。
 
 开放免费云任务前另验身份／素材权限、一次试用领取、费用预留／预算／限流和暂停恢复；未知价格或限额保持关闭。Chromium完整沙箱是自写执行前提，实际降级必须先取得负责人书面决定，不能静默用无沙箱模式。
 
-**费用基准：** 按[07](07-growth-and-experiments.md)以真实账单/操作回执计算通常使用、用满权益、未付款与失败场景及新构图边际成本；预算取 `agent-policy.unitCostTargets`。超标先优化并复测，不自行改商品或授权。
+**费用基准：** 成本目标取 `agent-policy.unitCostTargets`，完整成本核算和优化顺序见[07](07-growth-and-experiments.md)。超标先优化并复测，调整商品须另获批准。
 
 **G3：** 两类用户各至少3个独立、非赠送的付费交付。用户样本观察满30天后，扣除实际成本和剩余付费权益的预计成本，贡献达到事前目标，试用损失不超预算，作品质量和可靠性达标。试运营前确定负责人、样本窗口与止损条件。未达到时停止扩大新增成本，保留查询、退款、既有下载和已收款任务恢复。G1/G2 不要求尚不存在的市场数据。
 
@@ -99,7 +99,7 @@ CI 的 [checks](../../.github/workflows/checks.yml) 包含 `contracts` 与 `brow
 
 长期验收证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或试听材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 
-首次生产冻结时按14建立发布版本登记；当前未发布草稿直接更新，不建 legacy 目录。已购作品的环境继承、修复和保留按14执行，不用浮动 latest 重放。媒体许可见09，关键实测按06留证，不另写迁移日记。
+首次生产冻结和后续修复按[14](14-production-contracts.md)登记发布版本；媒体许可见[09](09-sources-and-licensing.md)，真实验收证据按[06](06-testing-and-release.md)保存。
 
 官方入口：[mise](https://mise.jdx.dev/configuration.html)、[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)、[compatibility date](https://developers.cloudflare.com/workers/configuration/compatibility-dates/)、[Containers](https://developers.cloudflare.com/containers/get-started/)、[浏览器截图差异](https://playwright.dev/docs/test-snapshots)。实施日重新核对。
 
@@ -109,6 +109,6 @@ CI 的 [checks](../../.github/workflows/checks.yml) 包含 `contracts` 与 `brow
 
 appUrl、回调、发信和支持地址取 brand/routes/auth。密钥只交给需要它的可信服务，沙箱不带凭据；新增服务纳入费用预算。完成报告写清变更、实际验证、未实现项、样片/费用和外部条件；仅在能力变化时更新实施进度。
 
-平台规则比较由 [select-ci-baseline.mjs](../../scripts/select-ci-baseline.mjs) 选择main上最近成功祖先，PR用base SHA；API／网络异常和无法证明最近祖先均阻断，不退回HEAD或全零。仓库固定初始基线只用于API明确零成功历史且该提交为严格祖先的情况，不能由环境变量替换。本地可用 `PROMOBENTO_BASE_REF` 指定已核实基线；`origin/main=HEAD` 可比较未提交改动。算法限额与特殊条件在脚本维护，不在文档复制实现。
+CI 基线由 [select-ci-baseline.mjs](../../scripts/select-ci-baseline.mjs) 选择最近成功的 `main` 祖先；无法确认时检查失败，不自动退回当前提交或空基线。本地 `PROMOBENTO_BASE_REF` 只用于指定已核实的基线，具体规则以脚本为准。
 
-失败先读日志和产物，区分代码错误与 runner/网络故障，分别修复代码或环境；是否重验按 AGENTS 判断。生产仅部署最终 SHA 必需检查全部成功的产物，被取消不算成功。推送及远端前移处理同样按 AGENTS。
+失败先读日志和产物，区分代码错误与 runner/网络故障，分别修复代码或环境；是否重验按 AGENTS 判断。生产仅部署最终 SHA 必需检查全部成功的产物，被取消不算成功。推送按 [AGENTS](../../AGENTS.md#验证与提交) 处理远端更新。
