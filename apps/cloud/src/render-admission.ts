@@ -363,7 +363,7 @@ export async function claimRenderAdmission(env: PipelineEnv, op: Operation, inpu
   }
   // SSE progress is best-effort. Once the claim commits, waiting indefinitely
   // here would consume the physical execution deadline without launching Shard.
-  try {await boundedAdmission(env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,renderId:input.renderId,status:'rendering'})));} catch {}
+  try {await boundedAdmission(env.OPERATIONS.getByName(op.id).progress(canonical({operationId:op.id,generation:op.generation,renderId:input.renderId,status:'rendering'})));} catch {}
   return deadlineAt;
 }
 

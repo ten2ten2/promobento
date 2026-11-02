@@ -115,12 +115,23 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   if(worst>stageLimit)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
   const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
+  // Token counting and durable cache/receipt lookups may have consumed the
+  // entire request window. Do not reserve or dispatch a paid call after it.
+  if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
+  let locallyReserved=false;
   try{
     await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
       limits.maxCalls??limits.maxCallsPerAsset??1,true);
+    locallyReserved=true;
     await operation(env,op.id,op.generation);
-  }catch(error){await settleModelBudget(env,reserved,0,{kind:'not_dispatched',reason:'Local admission did not reach the paid request.'},{notDispatched:true});throw error;}
+    if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
+  }catch(error){
+    const unused={kind:'not_dispatched',reason:'Local admission did not reach the paid request.'};
+    await settleModelBudget(env,reserved,0,unused,{notDispatched:true});
+    if(locallyReserved)await settle(env,callId,0,unused);
+    throw error;
+  }
   await markModelDispatched(env,reserved);
   let result;
   try{result=await streamModel({...input,secret},{timeoutMs:Math.max(1,Math.min(policy.limits.requestTimeoutMs,deadlineAt-Date.now()))});}

@@ -98,6 +98,41 @@ test('an empty completed stream retains private raw events and an unknown reserv
  assert.equal(receipt.result.failure,'MODEL_OUTPUT_EMPTY');assert.equal(receipt.quote,null);
  assert.equal(new TextDecoder().decode(objects.get(receipt.rawStreamRef.key).bytes),raw);
 });
+test('an expired model preflight never reserves funds or dispatches a paid request',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  if(!jumped&&sql.startsWith('SELECT * FROM model_budget_openings')){jumped=true;clock+=60_000;}
+  return prepare(sql);
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','expired-preflight',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true,'the test advanced time after model preflight began');
+ assert.equal(requests,0,'no paid provider request may escape after the deadline');
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,0);
+});
+test('a deadline expiring during local admission settles both unused model reservations',async t=>{
+ const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
+ let clock=realNow(),jumped=false,requests=0;
+ Date.now=()=>clock;globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{Date.now=realNow;globalThis.fetch=originalFetch;});
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(!jumped&&sql.startsWith('SELECT operation_id,request_hash,kind,stage,reserved_micros')){jumped=true;clock+=60_000;}
+  return prepare(sql);
+ };
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','expired-admission',request,()=>{},clock+30_000),/OPERATION_DEADLINE/);
+ assert.equal(jumped,true);assert.equal(requests,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,1);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
 for(const mode of ['stream','http'])test(`native author ${mode} 502 preserves unknown cost and never dispatches a fallback`,async t=>{
  const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;if(mode==='http')return new Response('bad gateway',{status:502});

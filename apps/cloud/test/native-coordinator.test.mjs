@@ -29,9 +29,51 @@ test('SSE progress drops stalled readers instead of retaining unbounded queued e
   const response=await operation.watch('sse-operation');
   assert.equal(response.status,200);
   assert.equal(operation.listeners.size,1);
-  for(let index=0;index<30;index++)await operation.progress(canonical({operationId:'sse-operation',stage:index}));
+  for(let index=0;index<30;index++)await operation.progress(canonical({operationId:'sse-operation',generation:0,stage:index}));
   assert.equal(operation.listeners.size,0,'the unread stream is dropped before its queue can grow past the high-water mark');
   assert.equal(memory.get('progress').stage,29,'the latest state remains available for reconnect');
+});
+
+test('SSE reconnects after terminal outcomes and reflects the durable operation state',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('terminal-sse','workspace','project',0,'evaluation','active','request',1000,Date.now(),null,null);
+  const memory=new Map(),operation=Object.create(OperationDO.prototype);
+  operation.env={DB};operation.listeners=new Map();
+  operation.ctx={storage:{async put(key,value){memory.set(key,value);},async get(key){return memory.get(key);}}};
+  await operation.progress(canonical({operationId:'terminal-sse',generation:0,status:'review'}));
+  for(const status of ['succeeded','failed','cancelled']){
+    db.prepare('UPDATE pipeline_operations SET status=? WHERE id=?').run(status,'terminal-sse');
+    let response,error;
+    try{response=await operation.watch('terminal-sse');}catch(cause){error=cause;}
+    assert.equal(error?.message??null,null,'a terminal operation must remain subscribable');
+    assert.equal(response.status,200);
+    const reader=response.body.getReader();const initial=await reader.read();await reader.cancel();
+    const value=parseCanonicalJson(new TextDecoder().decode(initial.value).slice('data: '.length).trim());
+    assert.equal(value.status,status,'a cached in-progress hint cannot mask the durable terminal state');
+    assert.equal(operation.listeners.size,0);
+  }
+});
+
+test('a live SSE reader receives committed terminal progress and ignores stale generations',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run('sse-cancelled','workspace','project',0,'evaluation','active','request',1000,Date.now(),null,null);
+ const memory=new Map(),operation=Object.create(OperationDO.prototype);
+ operation.env={DB};operation.listeners=new Map();
+ operation.ctx={storage:{async put(key,value){memory.set(key,value);},async get(key){return memory.get(key);}}};
+ const response=await operation.watch('sse-cancelled'),reader=response.body.getReader();
+ await reader.read();
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id='sse-cancelled'").run();
+ await operation.progress(canonical({operationId:'sse-cancelled',generation:0,status:'rendering'}));
+ assert.equal(memory.get('progress'),undefined,'stale progress cannot replace the last snapshot');
+ await operation.progress(canonical({operationId:'sse-cancelled',generation:1,status:'cancelled'}));
+ const delivered=await reader.read();
+ assert.equal(parseCanonicalJson(new TextDecoder().decode(delivered.value).slice('data: '.length).trim()).status,'cancelled');
+ assert.equal(memory.get('progress').status,'cancelled');
+ await operation.progress(canonical({operationId:'sse-cancelled',generation:1,status:'review'}));
+ assert.equal(memory.get('progress').status,'cancelled','late hints cannot hide a terminal outcome');
+ await reader.cancel();assert.equal(operation.listeners.size,0);
 });
 
 test('a D1 reservation committed before its response is lost can be stopped and settled without starting a container', async t => {

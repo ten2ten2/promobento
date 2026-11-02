@@ -50,13 +50,23 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
     if (!file.key?.startsWith('evals/') && !file.key?.startsWith('operations/' + op.id + '/') && !inherited)
       throw Error('NATIVE_FILE_SCOPE_INVALID');
   }
+  // Revisions must not shed the parent's rights obligations. Direct API callers
+  // need the same inheritance guarantee as Director-authored revisions.
+  const resources = new Map<string,Json>();
+  for (const resource of [...(parent?.project.resources ?? []),...(input.resources ?? [])]) {
+    const identity = typeof resource.resourceId === 'string' && typeof resource.sha256 === 'string'
+      ? canonical([resource.resourceId,resource.sha256]) : canonical(resource);
+    const previous = resources.get(identity);
+    if (previous && canonical(previous) !== canonical(resource)) throw Error('NATIVE_RESOURCE_CONFLICT');
+    if (!previous) resources.set(identity,resource);
+  }
   const project = {
     schemaVersion: '1.0.0', kind: 'native_project', entry: 'index.html',
     runtime: {name: 'huashu-motion', commit: NATIVE_COMMIT},
     composition: input.composition, files: input.files.map(file => ({
       path: file.path, key: file.key, sha256: file.sha256, byteLength: file.byteLength, mediaType: file.mediaType,
     })).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
-    resources: input.resources ?? [],
+    resources: [...resources.values()],
   };
   await verifyNativeInputs(env, project);
   const revisionId = await nativeProjectHash(project);

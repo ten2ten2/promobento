@@ -5,7 +5,7 @@ import {registerOperation,cancelOperation} from './operation-registration.ts';
 import {operation, rights, readJson, immutableStream, immutableJson, immutableBytes, getJson} from './store.ts';
 import {reconcileOperation, dispatchRender, deliverDirectorEvent, recoverDirectorEvents} from './render-recovery.ts';
 import {chooseDirection} from './director-choice.ts';
-import {dispatchDirectorFailure, dispatchDirectorProgress, getReviewDraft} from './director-recovery.ts';
+import {dispatchDirectorFailure, dispatchDirectorProgress, dispatchOperationCancellation, getReviewDraft} from './director-recovery.ts';
 import {importModelOpening, confirmModelOpening, modelBudgetStatus} from './model-budget.ts';
 import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative, recoverWorkflows} from './workflow-recovery.ts';
@@ -248,7 +248,7 @@ export default {
         else if (item.kind === 'operation_progress') await dispatchDirectorProgress(env, item);
         else if (item.kind === 'operation_failure') await dispatchDirectorFailure(env, item);
         else if (item.kind === 'creative') await dispatchCreative(env, item);
-        else if (item.kind === 'cancel') await reconcileOperation(env, item.operationId);
+        else if (item.kind === 'cancel') await dispatchOperationCancellation(env, item);
         else throw Error('OUTBOX_KIND_INVALID');
     });
   },

@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,immutableStream,reserve,settle} from '../src/store.ts';
+import {immutableBytes,immutableStream,reserve,settle,rights} from '../src/store.ts';
 import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
 import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
@@ -16,7 +16,7 @@ import {flushOutbox} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
-import {getReviewDraft, directorProgress, dispatchDirectorProgress, commitCandidate} from '../src/director-recovery.ts';
+import {getReviewDraft, directorProgress, dispatchDirectorProgress, dispatchOperationCancellation, failDirector, commitCandidate} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -142,6 +142,23 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(checkedNativeBytes(env, empty, 240000, {allowEmpty: true}), /SOURCE_IDENTITY_MISMATCH/);
   objects.get(input.files[0].key).customMetadata.sha256 = '0'.repeat(64);
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
+});
+
+test('a direct native child cannot silently drop its parent revision rights',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_parent_asset',sha256:input.files[0].sha256,kind:'image'};
+  const parent=await saveNativeProject(env,op,{...input,resources:[resource]});
+  const childOp={...op,id:'native-child-operation'};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(childOp.id,childOp.workspace_id,childOp.project_id,0,childOp.purpose,'active','child-request',childOp.max_micros,Date.now(),null,null);
+  const child=await saveNativeProject(env,childOp,{...input,resources:[],baseRevision:parent.revisionId});
+  assert.deepEqual(child.project.resources,[resource],
+    'direct project callers must inherit rights metadata, not only the Director helper');
+  await assert.rejects(rights(env,childOp,child.project.resources),/ASSET_RIGHTS_PENDING/,
+    'rendering this child without an owner grant must remain fenced');
+  await assert.rejects(saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId,
+    resources:[{...resource,kind:'video'}]}),/NATIVE_RESOURCE_CONFLICT/,
+  'a child cannot silently reinterpret the inherited license identity');
 });
 
 test('a transient preflight D1 read failure resumes a confirmed unstarted render', async t => {
@@ -1360,6 +1377,20 @@ test('cancellation is idempotent only for a real cancelled operation, not a miss
   await cancelOperation(env,op.id);
   assert.equal(db.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').get(op.id).generation,1);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='cancel'").get().n,1);
+});
+
+test('durable cancellation and failure notify live readers before asynchronous cleanup',async t=>{
+ const{db,env,op}=await fixture(t),progress=[];
+ env.OPERATIONS={getByName(){return{async progress(serialized){progress.push(parseCanonicalJson(serialized));}};}};
+ await cancelOperation(env,op.id);
+ await dispatchOperationCancellation(env,{operationId:op.id});
+ assert.deepEqual(progress,[{operationId:op.id,generation:1,status:'cancelled'}]);
+ const failed={...op,id:'failed-native-operation'};
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(failed.id,failed.workspace_id,failed.project_id,0,failed.purpose,'active','failure-request',failed.max_micros,Date.now(),null,null);
+ await failDirector(env,failed,'DIRECTOR_TEST_FAILURE');
+ assert.deepEqual(progress[1],{operationId:failed.id,generation:0,status:'failed',code:'DIRECTOR_TEST_FAILURE'});
+ assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(failed.id).status,'failed');
 });
 
 test('a failed native render stays blocked until physical cleanup is confirmed', async t => {

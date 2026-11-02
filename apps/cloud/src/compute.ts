@@ -407,6 +407,12 @@ export class OperationDO extends DurableObject<PipelineEnv> {
   private listeners = new Map<ReadableStreamDefaultController<Uint8Array>,ReturnType<typeof setTimeout>>();
   async progress(serialized: string) {
     const value = parseCanonicalJson(serialized) as Json;
+    const current = await this.env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
+      .bind(value.operationId).first<{status:string;generation:number}>();
+    // A late render/stage hint cannot revive a cancelled generation or erase
+    // the operation's committed terminal outcome in a live SSE connection.
+    if (!current || value.generation !== current.generation
+      || ['succeeded','failed','cancelled'].includes(current.status) && value.status !== current.status) return;
     await this.ctx.storage.put('progress', value);
     const bytes = new TextEncoder().encode('data: ' + canonical(value) + '\n\n');
     for (const [listener,timer] of this.listeners) {
@@ -421,9 +427,15 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     }
   }
   async watch(operationId: string) {
-    await operation(this.env, operationId);
+    // Readers can reconnect after a terminal transition; operation() deliberately
+    // fences terminal records because mutating workflows must no longer run.
+    const current = await this.env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
+      .bind(operationId).first<{status:string;generation:number}>();
+    if (!current) throw Error('OPERATION_NOT_FOUND');
     if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
-    const initial = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
+    const cached = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
+    const initial = ['succeeded','failed','cancelled'].includes(current.status)
+      ? {...cached, operationId, generation:current.generation, status:current.status} : cached;
     let listener: ReadableStreamDefaultController<Uint8Array>, timer: ReturnType<typeof setTimeout>;
     const body = new ReadableStream<Uint8Array>({
       start: controller => {

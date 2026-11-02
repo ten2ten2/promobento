@@ -66,7 +66,19 @@ export async function dispatchDirectorFailure(env:PipelineEnv,item:Json,exceptWo
  const op=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?').bind(item.operationId).first<Json>();
  if(op?.status!=='failed'||op.generation!==value.generation)return;
  await immutableJson(env,`operations/${item.operationId}/failure.json`,{kind:'director_failure',...value});
+ // The durable failure is already fenced; cleanup can take much longer than
+ // the short SSE connection, so notify connected readers before stopping work.
+ try{await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical(value)),3_000);}catch{}
  await reconcileOperation(env,item.operationId,exceptWorkflow);
+}
+
+export async function dispatchOperationCancellation(env:PipelineEnv,item:Json){
+ const current=await env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
+  .bind(item.operationId).first<{status:string;generation:number}>();
+ if(current?.status!=='cancelled')return;
+ try{await boundedControl(env.OPERATIONS.getByName(item.operationId).progress(canonical({
+  operationId:item.operationId,generation:current.generation,status:'cancelled'})),3_000);}catch{}
+ await reconcileOperation(env,item.operationId);
 }
 
 export async function dispatchDirectorProgress(env:PipelineEnv,item:Json){
