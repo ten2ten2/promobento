@@ -94,6 +94,8 @@ jobs:
           cache: false
       - name: Install pinned test dependencies
         run: mise run install
+      - name: Build contract validators for browser evaluations
+        run: mise run build:validators
       - name: Validate approved artwork, video and page observations in the pinned browser
         shell: bash
         run: |
