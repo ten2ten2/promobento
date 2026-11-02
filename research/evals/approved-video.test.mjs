@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {execFileSync} from 'node:child_process';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
-import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader,videoSampleTime} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 // MediaRecorder's wall-clock frame times vary with CI CPU scheduling and can
 // land exactly on a 30 fps sampling boundary. A fixed-timestamp fixture tests
 // the actual browser decoder and byte-for-byte re-verification reproducibly.
@@ -12,6 +12,16 @@ function syntheticVideo(){return execFileSync('ffmpeg',['-hide_banner','-logleve
  '-map','[v]','-c:v','libvpx','-b:v','250k','-threads','1','-an','-f','webm','pipe:1'],
  {timeout:15000,maxBuffer:4<<20});}
 const entry={id:'fixture-video',sourceFile:'test.webm',sourceUrl:'local://fixture',description:'Synthetic footage.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-video'};
+test('30 fps browser samples stay inside target intervals and away from common source-frame boundaries',()=>{
+ for(let index=0;index<1800;index++){
+  const time=videoSampleTime(index);
+  assert.ok(time>index/30&&time<(index+1)/30);
+  for(const fps of [24,25,30,60,120]){
+   const nearest=Math.round(time*fps)/fps;
+   assert.ok(Math.abs(time-nearest)>0.0005,`frame ${index} coincides with a ${fps} fps source boundary`);
+  }
+ }
+});
 test('animated-image headers bound dimensions and reject still or malformed WebP before decoding',()=>{
  const png=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(64,16);png.writeUInt32BE(32,20);
  assert.doesNotThrow(()=>assertVideoSourceHeader(png,'image/png'));png.writeUInt32BE(4097,16);assert.throws(()=>assertVideoSourceHeader(png,'image/png'),/VIDEO_SOURCE_FORMAT_INVALID/);
@@ -71,6 +81,9 @@ test('approved video becomes reproducible 30 fps frames and a source-bound manif
   await assert.rejects(verifyVideoSelections(output,selected,topics),/MATERIAL_REVIEW_REQUIRED/);
   const reviewed=structuredClone(selected);reviewed.assets[0].review='approved_for_internal_eval_by_codex';reviewed.assets[0].reviewedAt='2026-10-31';
   const verified=await verifyVideoSelections(output,reviewed,topics),video=verified.get('fixture-video');assert.ok(video.manifest.frames.length>=46);assert.deepEqual([video.manifest.width,video.manifest.height],[96,64]);
+  const verifiedAgain=await verifyVideoSelections(output,reviewed,topics);
+  assert.deepEqual(verifiedAgain.get('fixture-video').manifestBytes,video.manifestBytes,
+   'two fresh Chromium decoders must reproduce the exact same approved frame pack');
   const first=video.manifest.frames[0],last=video.manifest.frames.at(-1),firstPack=openVideoFramePack(video.manifest,first.pack,video.packs[first.pack]),lastPack=openVideoFramePack(video.manifest,last.pack,video.packs[last.pack]);
   assert.notDeepEqual(firstPack.frame(first.index),lastPack.frame(last.index));
   assert.throws(()=>prepareMaterialSelection(output,reviewed,topics,{readCard:()=>card}),/VIDEO_VERIFICATION_REQUIRED/);

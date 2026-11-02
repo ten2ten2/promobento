@@ -21,6 +21,9 @@ const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
 const isAnimatedSource=type=>['image/gif','image/png','image/webp','image/avif'].includes(type);
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
+// A half-frame seek collides with 24 and 60 fps source-frame boundaries.
+// Stay within each 30 fps output interval but off the common source grids.
+export const videoSampleTime=index=>(index+0.37)/30;
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
  const web=derived?.sourceOrigin==='web';
@@ -105,22 +108,24 @@ async function extractVideo({page,version},source,mediaType){
  const frames=[],packs=[],parts=[];let size=0,total=0,poster;
  const flush=()=>{if(size){packs.push(Buffer.concat(parts,size));parts.length=0;size=0;}};
  for(let index=0;index<count;index++){
-  const result=await bounded(page.evaluate(async({index,mediaType,width,height})=>{
-   // Sample the center of each output frame interval. Exact start-boundary
-   // seeks can pick either adjacent source frame after a fresh decoder launch.
-   const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=(index+0.5)/30;
+  const result=await bounded(page.evaluate(async({index,mediaType,width,height,time})=>{
+   // Avoid common 24/60 fps source-frame boundaries. A boundary seek can
+   // resolve to either adjacent decoded image after a fresh browser launch.
+   const v=document.querySelector('video'),canvas=document.querySelector('canvas');
    canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');
    if(['image/gif','image/png','image/webp','image/avif'].includes(mediaType)){
     const frameIndex=window.__pbAnimatedEnds.findIndex(end=>time*1000000<end);if(frameIndex<0)throw Error('VIDEO_SEEK_FAILED');
     const decoded=await window.__pbAnimatedDecoder.decode({frameIndex,completeFramesOnly:true});try{if(!decoded.complete)throw Error('VIDEO_DECODE_FAILED');ctx.drawImage(decoded.image,0,0);}finally{decoded.image.close();}
    }else{
     if(Math.abs(v.currentTime-time)>1e-7){await new Promise((resolve,reject)=>{const done=()=>{v.removeEventListener('error',bad);resolve();},bad=()=>{v.removeEventListener('seeked',done);reject(Error('VIDEO_SEEK_FAILED'));};v.addEventListener('seeked',done,{once:true});v.addEventListener('error',bad,{once:true});v.currentTime=time;});}
-    if(Math.abs(v.currentTime-time)>.001||v.readyState<2)throw Error('VIDEO_SEEK_FAILED');ctx.drawImage(v,0,0);
+    if(Math.abs(v.currentTime-time)>.001||v.readyState<2)throw Error('VIDEO_SEEK_FAILED');
+    // Let Chromium present the completed seek before taking the canvas pixels.
+    await new Promise(resolve=>requestAnimationFrame(resolve));ctx.drawImage(v,0,0);
    }
    const webp=canvas.toDataURL('image/webp',1),poster=index===0?canvas.toDataURL('image/png'):null;
    if(!webp.startsWith('data:image/webp;base64,')||poster&&!poster.startsWith('data:image/png;base64,'))throw Error('VIDEO_FRAME_ENCODING_UNAVAILABLE');
    return{webp:webp.slice('data:image/webp;base64,'.length),poster:poster?.slice('data:image/png;base64,'.length)};
-  },{index,mediaType,width:info.width,height:info.height}));
+  },{index,mediaType,width:info.width,height:info.height,time:videoSampleTime(index)}));
   const image=Buffer.from(result.webp,'base64'),header=imageHeader(image);if(header.mediaType!=='image/webp'||header.width!==info.width||header.height!==info.height||image.length>maxPack)throw Error('VIDEO_FRAME_ENCODING_INVALID');
   if(index===0){poster=Buffer.from(result.poster,'base64');const p=imageHeader(poster);if(p.width!==info.width||p.height!==info.height||poster.length>1<<20)throw Error('VIDEO_POSTER_INVALID');}
   if(size+image.length>maxPack)flush();frames.push({index,pts:index/30,duration:1/30,pack:packs.length,offset:size,byteLength:image.length});parts.push(image);size+=image.length;total+=image.length;if(total>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
