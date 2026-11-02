@@ -36,6 +36,14 @@ class DirectorOutputError extends Error {constructor(code:string,readonly previo
 const outputError=(code:string,value?:unknown):never=>{throw new DirectorOutputError(code,value);};
 const toBase64=(bytes:Uint8Array)=>{let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(binary);};
 const record=(value:unknown):value is Json=>Boolean(value)&&typeof value==='object'&&!Array.isArray(value);
+const sha256=/^[a-f0-9]{64}$/;
+const materialBlob=(value:unknown):value is Json=>record(value)&&typeof value.key==='string'&&!!value.key
+ &&typeof value.sha256==='string'&&sha256.test(value.sha256)
+ &&Number.isSafeInteger(value.byteLength)&&value.byteLength>=0&&value.byteLength<=(50<<20)
+ &&(value.mediaType===undefined||typeof value.mediaType==='string');
+const materialRecord=(value:unknown)=>materialBlob(value)&&typeof value.resourceId==='string'&&!!value.resourceId
+ &&(value.kind===undefined||typeof value.kind==='string')
+ &&(value.preview===undefined||materialBlob(value.preview));
 const fileExtension=(mediaType:string)=>({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/svg+xml':'svg','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','audio/wav':'wav','audio/x-wav':'wav','audio/mpeg':'mp3','audio/mp4':'m4a','audio/ogg':'ogg'})[mediaType as 'image/png'];
 
 /** Internal evaluation frame-pack evidence resolves to the retained original video before native authoring. */
@@ -50,7 +58,8 @@ async function materialInputs(env:PipelineEnv,op:Operation,context:Json){
    const evidenceRow=await env.DB.prepare('SELECT evidence_key FROM pipeline_rights WHERE operation_id=? AND resource_id=? AND sha256=? AND revoked_at IS NULL').bind(op.id,asset.resourceId,asset.sha256).first<{evidence_key:string}>();
    if(!evidenceRow)throw Error('NATIVE_MEDIA_SOURCE_INVALID');
    const evidence=await getJson(env,evidenceRow.evidence_key);source=evidence.videoSource;preview=evidence.preview;
-   if(!source||source.sha256!==manifest.source?.sha256||source.byteLength!==manifest.source?.byteLength||preview?.sha256!==manifest.poster?.sha256)throw Error('NATIVE_MEDIA_SOURCE_INVALID');
+   if(!materialBlob(source)||!materialBlob(preview)||source.sha256!==manifest.source?.sha256
+    ||source.byteLength!==manifest.source?.byteLength||preview.sha256!==manifest.poster?.sha256)throw Error('NATIVE_MEDIA_SOURCE_INVALID');
    source={...source,mediaType:source.mediaType??({'mp4':'video/mp4','mov':'video/quicktime','webm':'video/webm'} as Json)[source.key?.split('.').at(-1)]};
   }
   const mediaType=source.mediaType??(kind==='audio'?'audio/wav':'image/png'),ext=fileExtension(mediaType);
@@ -75,13 +84,21 @@ function briefFrom(context:Json){
 function validateContext(context:Json){
  if(record(context)&&context.durationSeconds===undefined)context.durationSeconds=30;
  if(!record(context)||!['software','course'].includes(context.audience)||![15,30].includes(context.durationSeconds)||context.fps!==undefined&&context.fps!==30
-  ||typeof context.videoLanguage!=='string'||!context.videoLanguage||!context.brief||!Array.isArray(context.resources)||context.resources.length>12
-  ||!Array.isArray(context.facts)||!context.facts.length||!Array.isArray(context.confirmedFactIds)||context.facts.some((fact:Json)=>!context.confirmedFactIds.includes(fact.id))
+  ||typeof context.videoLanguage!=='string'||!context.videoLanguage.trim()||typeof context.brief!=='string'||!context.brief.trim()
+  ||!Array.isArray(context.resources)||context.resources.length>12||context.resources.some((asset:Json)=>!materialRecord(asset))
+  ||context.audioSources!==undefined&&(!Array.isArray(context.audioSources)||context.audioSources.length>12
+   ||context.audioSources.some((asset:Json)=>!materialRecord(asset)))
+  ||!Array.isArray(context.facts)||!context.facts.length||context.facts.some((fact:Json)=>!record(fact)||typeof fact.id!=='string'||!fact.id||typeof fact.text!=='string'||!fact.text.trim())
+  ||!Array.isArray(context.confirmedFactIds)||context.confirmedFactIds.length!==context.facts.length
+  ||context.confirmedFactIds.some((id:Json)=>typeof id!=='string'||!context.facts.some((fact:Json)=>fact.id===id))
+  ||new Set(context.confirmedFactIds).size!==context.confirmedFactIds.length
   ||!Array.isArray(context.aspects)||!context.aspects.length||context.aspects.length>4||new Set(context.aspects).size!==context.aspects.length
-  ||context.aspects.some((aspect:string)=>!Object.hasOwn(platform.aspectLayouts,aspect))||typeof context.rendererRelease!=='string')throw Error('DIRECTOR_INPUT_INVALID');
+  ||context.aspects.some((aspect:string)=>typeof aspect!=='string'||!Object.hasOwn(platform.aspectLayouts,aspect))
+  ||typeof context.rendererRelease!=='string'||!context.rendererRelease)throw Error('DIRECTOR_INPUT_INVALID');
  if(context.baseRevision||context.baseRevisions){
   if(!Array.isArray(context.comments)||!context.comments.length||context.comments.length>policy.patch.maxCommentsPerRound
-   ||context.comments.some((comment:Json)=>typeof comment.text!=='string'||!comment.text.trim()||comment.frame!==undefined&&(!Number.isInteger(comment.frame)||comment.frame<0||comment.frame>=context.durationSeconds*30))
+   ||context.comments.some((comment:Json)=>!record(comment)||typeof comment.text!=='string'||!comment.text.trim()
+    ||comment.frame!==undefined&&(!Number.isInteger(comment.frame)||comment.frame<0||comment.frame>=context.durationSeconds*30))
    ||context.comments.reduce((n:number,c:Json)=>n+[...c.text].length,0)>policy.patch.maxTotalCommentCodePoints)throw Error('DIRECTOR_PATCH_INVALID');
  }
 }

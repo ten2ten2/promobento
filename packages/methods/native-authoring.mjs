@@ -71,12 +71,13 @@ export function normalizeTimingEvidence(entries,materials){
  if(entries===undefined)return [];
  if(!Array.isArray(entries)||entries.length>12)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
  return entries.map(entry=>{
+  if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
   const source=materials.find(material=>material.sha256===entry.sourceSha256&&['audio','video'].includes(material.kind));
   if(!source||!Number.isFinite(source.durationSeconds)||source.durationSeconds<=0||!Number.isFinite(entry.durationSeconds)
    ||Math.abs(entry.durationSeconds-source.durationSeconds)>1/30||!Array.isArray(entry.words)||entry.words.length>5000)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
   let previous=-1;
   for(const word of entry.words){
-   if(typeof word.text!=='string'||!word.text||!Number.isFinite(word.start)||!Number.isFinite(word.end)||word.start<previous||word.start<0
+   if(!word||typeof word!=='object'||Array.isArray(word)||typeof word.text!=='string'||!word.text||!Number.isFinite(word.start)||!Number.isFinite(word.end)||word.start<previous||word.start<0
     ||word.end<=word.start||word.end>source.durationSeconds)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
    previous=word.start;
   }

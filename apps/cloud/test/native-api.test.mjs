@@ -59,14 +59,45 @@ test('native project HTTP rejects malformed file/resource lists at the input bou
  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
   .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
  const env={DB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const file={path:'index.html',key:'evals/native/index.html',sha256:'a'.repeat(64),byteLength:1,mediaType:'text/html'};
  for(const invalid of [{files:null},{files:[null]},{files:[{path:'index.html'}]},
-  {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12}]){
+  {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12},
+  {files:[file,{...file,path:{toString:null},key:'evals/native/second.js'}]},
+  {files:[{...file,path:['index.html']}]},
+  {files:[file],resources:[{resourceId:{toString:null},sha256:'a'.repeat(64)}]},
+  {files:[file],resources:[{resourceId:'res_invalid',sha256:{toString:null}}]}]){
   const response=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
    method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},
    body:canonical({operationId,...invalid})}),env,{});
   assert.equal(response.status,422,JSON.stringify(invalid));
   assert.deepEqual(await response.json(),{code:'NATIVE_PROJECT_SCHEMA_INVALID'});
  }
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_native_projects').get().n,0);
+});
+
+test('malformed nested render revision and rights identities return 422 without writes',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='typed-identity-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const env={DB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ const request=(path,input)=>worker.fetch(new Request('https://worker.example/internal/s1/'+path,{
+  method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body:canonical({operationId,...input})}),env,{});
+ for(const revisionId of [['a'.repeat(64)],{toString:null}]){
+  const response=await request('renders',{renderId:'invalid-revision-render',revisionId,rendererRelease:'fixture-release',mode:'preview'});
+  assert.equal(response.status,422,JSON.stringify(revisionId));
+  assert.deepEqual(await response.json(),{code:'NATIVE_REVISION_INVALID'});
+ }
+ const rights={resourceId:'res_test_resource',sha256:'a'.repeat(64),licenseRef:'owner-approved',
+  scope:'internal_eval_only',evidenceKey:'evals/fixture/rights.json'};
+ for(const invalid of [{resourceId:{toString:null}},{resourceId:['res_test_resource']},
+  {sha256:{toString:null}},{sha256:['a'.repeat(64)]}]){
+  const response=await request('rights',{...rights,...invalid});
+  assert.equal(response.status,422,JSON.stringify(invalid));
+  assert.deepEqual(await response.json(),{code:'RIGHTS_INVALID'});
+ }
+ for(const table of ['pipeline_renders','pipeline_rights'])
+  assert.equal(db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n,0,table);
 });
 
 test('asynchronous recovery, private-artifact and event failures stay inside HTTP error boundary',async()=>{

@@ -116,7 +116,9 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   const request=await putJson('evals/fixture/'+id+'.json',context);
   db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
-  for(const resource of [...context.resources,...(context.audioSources??[]),...readmittedRights])db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+  const materials=[...(Array.isArray(context.resources)?context.resources:[]),...(Array.isArray(context.audioSources)?context.audioSources:[]),...readmittedRights];
+  for(const resource of materials.filter(value=>value&&typeof value.resourceId==='string'&&typeof value.sha256==='string'))
+   db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -269,6 +271,24 @@ test('patching a parent without re-admitting inherited media fails before a paid
  assert.equal(f.calls.length,paidCalls,'missing inherited rights must not start another author model call');
  assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('rights-child').status,'failed');
 });
+test('malformed Director context is rejected before any model or native render work',async t=>{
+ const f=await fixture(t);
+ const invalid=[
+  {facts:[null]},
+  {facts:[{id:['fact_product'],text:'Invalid identity'}]},
+  {confirmedFactIds:['fact_product','extra_fact']},
+  {aspects:[['landscape']]},
+  {rendererRelease:['renderer-native']},
+  {resources:[null]},
+  {audioSources:{toString:null}},
+  {audioSources:[{resourceId:'res_audio',sha256:['a'.repeat(64)],key:'evals/audio.wav',byteLength:123}]},
+  {baseRevision:'a'.repeat(64),comments:[null]},
+ ];
+ for(const [index,context] of invalid.entries())
+  await assert.rejects(f.create('invalid-context-'+index,context),/DIRECTOR_(?:INPUT|PATCH)_INVALID/);
+ assert.equal(f.calls.length,0);
+ assert.equal(f.jobs.length,0);
+});
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
  const files=[{path:'index.html',content:'<h1>One</h1><p>One</p>'}],original=structuredClone(files);
  assert.throws(()=>applyProjectPatch(files,'a'.repeat(64),{baseRevision:'b'.repeat(64),edits:[]}),/NATIVE_REVISION_CONFLICT/);
@@ -279,6 +299,8 @@ test('stale or ambiguous native patches are atomic, and sampled frames obey the 
  assert.equal(normalizeTimingEvidence([timing],[source])[0].words[0].start,1);
  assert.throws(()=>normalizeTimingEvidence([{...timing,sourceSha256:'b'.repeat(64)}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([{...timing,durationSeconds:3.1}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
+ assert.throws(()=>normalizeTimingEvidence([null],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
+ assert.throws(()=>normalizeTimingEvidence([{...timing,words:[null]}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
 });
 
 test('an export without encoded review evidence never becomes a delivered candidate',async t=>{

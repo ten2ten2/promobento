@@ -105,7 +105,8 @@ export default {
       // Rights evidence is required for native material reads and execution.
       if (request.method === 'POST' && path === '/internal/s1/rights') {
         const input = await readJson(request), op = await operation(env, input.operationId);
-        if (!/^res_[A-Za-z0-9_-]{4,64}$/.test(input.resourceId) || !/^[a-f0-9]{64}$/.test(input.sha256)
+        if (typeof input.resourceId !== 'string' || !/^res_[A-Za-z0-9_-]{4,64}$/.test(input.resourceId)
+          || typeof input.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.sha256)
           || typeof input.licenseRef !== 'string' || !input.licenseRef.trim() || input.licenseRef.length > 2048
           || input.scope !== 'internal_eval_only'
           || typeof input.evidenceKey !== 'string' || !/^evals\/[A-Za-z0-9_/-]{4,240}\.json$/.test(input.evidenceKey)

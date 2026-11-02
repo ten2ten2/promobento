@@ -25,7 +25,12 @@ export async function operation(env: PipelineEnv, id: string, generation?: numbe
   return row;
 }
 export async function rights(env: PipelineEnv, op: Operation, resources: Json[]) {
+  if (!Array.isArray(resources)) throw Error('ASSET_RIGHTS_INVALID');
   for (const resource of resources) {
+    if (!resource || typeof resource !== 'object' || Array.isArray(resource)
+      || typeof resource.resourceId !== 'string' || !resource.resourceId
+      || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256))
+      throw Error('ASSET_RIGHTS_INVALID');
     const row = await env.DB.prepare('SELECT evidence_key,license_ref FROM pipeline_rights WHERE operation_id=? AND resource_id=? AND sha256=? AND revoked_at IS NULL')
       .bind(op.id, resource.resourceId, resource.sha256).first<{evidence_key: string; license_ref: string}>();
     if (!row || !await env.MEDIA.head(row.evidence_key)) throw Error('ASSET_RIGHTS_PENDING');
