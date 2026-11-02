@@ -28,6 +28,17 @@ RUN curl -fsSL --retry 5 --max-time 180 https://codeload.github.com/alchaincyf/h
 COPY packages/contracts/src packages/contracts/src
 COPY packages/native-motion packages/native-motion
 COPY apps/render-container apps/render-container
+# Runtime media extraction imports the precompiled video-frame validator. Build
+# validators and their pinned Ajv runtime dependencies inside the image rather
+# than relying on the gitignored generated/ or host node_modules directories.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/contracts/scripts/build-validators.mjs packages/contracts/scripts/build-validators.mjs
+COPY contracts contracts
+RUN npm install --global --ignore-scripts --no-audit --no-fund pnpm@12.14.0 \
+    && pnpm install --frozen-lockfile --filter @promobento/contracts --prod --ignore-scripts \
+    && node packages/contracts/scripts/build-validators.mjs \
+    && node --input-type=module -e "import('./packages/contracts/src/video-frames.mjs').then(({motionReviewFrames}) => { if (motionReviewFrames(15).length !== 12) process.exit(1); })"
 RUN useradd --uid 10001 --create-home controller && useradd --uid 10002 --create-home chromium && useradd --uid 10003 --no-create-home supervisor \
     && install -d -o 10001 -g 10001 -m 0700 /work \
     && install -d -o 10002 -g 10002 -m 0700 /chrome /chrome/tmp \
