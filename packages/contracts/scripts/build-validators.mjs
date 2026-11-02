@@ -15,7 +15,7 @@ export const VALIDATOR_SCHEMAS = Object.freeze(['native-project', 'direction', '
   'director-analysis', 'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'model-spend']);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
-export function standaloneModule(schema) {
+function standaloneModule(schema) {
   // Same options as packages/contracts/src/validation.mjs, plus source generation.
   const ajv = new Ajv2020({strict: true, allErrors: true, ownProperties: true, coerceTypes: false, removeAdditional: false,
     useDefaults: false, code: {source: true, esm: true}});

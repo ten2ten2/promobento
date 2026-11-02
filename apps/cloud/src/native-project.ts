@@ -9,7 +9,7 @@ import {nativeRenderPolicy} from './native-policy.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
-export type NativeRenderMode = 'preview' | 'export';
+type NativeRenderMode = 'preview' | 'export';
 export const previewFrames = (duration: number) => [0, duration / 3, duration * 2 / 3, duration - 1 / 30];
 export function assertCloudNativeProject(project: unknown) {
   if (!validNativeProject(project)) throw Error('NATIVE_PROJECT_SCHEMA_INVALID');

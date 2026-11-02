@@ -2,7 +2,7 @@ import {NATIVE_PROJECT_SCHEMA_VERSION} from './version.ts';
 import {directingMethodPack, directingMethodRef} from '../../../packages/methods/directing.ts';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {registerOperation,cancelOperation} from './operation-registration.ts';
-import {operation, rights, readJson, immutableStream, immutableJson, immutableBytes, getJson} from './store.ts';
+import {operation, rights, readJson, immutableStream, immutableJson, getJson} from './store.ts';
 import {reconcileOperation, dispatchRender, deliverDirectorEvent, recoverDirectorEvents} from './render-recovery.ts';
 import {chooseDirection} from './director-choice.ts';
 import {dispatchDirectorFailure, dispatchDirectorProgress, dispatchOperationCancellation, getReviewDraft} from './director-recovery.ts';

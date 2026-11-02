@@ -9,7 +9,7 @@ const nativeFailure=(kind:string,status:{status:string;error?:{message?:string}}
  status.error?.message&&/^[A-Z][A-Z0-9_]+$/.test(status.error.message)?status.error.message:
  `${kind==='render'?'RENDER':'OPERATION'}_WORKFLOW_${status.status==='complete'?'INCOMPLETE':status.status.toUpperCase()}`;
 
-export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status?:Awaited<ReturnType<typeof workflowStatus>>){
+async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status?:Awaited<ReturnType<typeof workflowStatus>>){
  const op=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Operation>();
  if(!op)throw Error('WORKFLOW_OPERATION_MISSING');
  if(['failed','cancelled'].includes(op.status))return reconcileOperation(env,op.id);

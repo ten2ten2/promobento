@@ -6,7 +6,7 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelUsageQuote} from '../../packages/contracts/src/models.mjs';
 
-export const probeRuns=['39904369687','39904908372','39919957207','39920866987'];
+const probeRuns=['39904369687','39904908372','39919957207','39920866987'];
 export function historicalModelSpend(root=new URL('../../',import.meta.url)){
  const authorization=parseCanonicalJson(readFileSync(new URL('config/model-authorization.json',root))),providers=parseCanonicalJson(readFileSync(new URL('docs/evidence/2026-10-23-model-probe/pricing-catalog.json',root)));
  const entries=[],sources=[];

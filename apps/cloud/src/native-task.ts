@@ -2,7 +2,6 @@ import {nativeProjectHash} from '@promobento/contracts/native-project';
 import {NATIVE_COMMIT, validateFrameTimes, assertCloudNativeProject} from './native-project.ts';
 import {validId, type Json} from './pipeline-types.ts';
 import {nativeRenderPolicy} from './native-policy.ts';
-export {nativeRenderPolicy} from './native-policy.ts';
 
 export async function assertNativeExecution(task: Json) {
   if (task.schemaVersion !== '1.0.0' || task.kind !== 'native_render_task'

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {dispatchRenderAdmissions, requestRenderAdmission, waitForRenderAdmission, claimRenderAdmission, canRetryUnstartedAdmission, requeueRenderAfterAttempt} from '../src/render-admission.ts';
-import {nativeRenderPolicy} from '../src/native-task.ts';
+import {nativeRenderPolicy} from '../src/native-policy.ts';
 import {recordRenderFailure} from '../src/render-recovery.ts';
 
 function fixture(t) {

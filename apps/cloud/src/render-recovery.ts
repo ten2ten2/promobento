@@ -178,7 +178,7 @@ async function dispatchDirectionChoice(env:PipelineEnv,item:Json){
  }
 }
 
-export async function dispatchRenderTerminal(env:PipelineEnv,item:Json){
+async function dispatchRenderTerminal(env:PipelineEnv,item:Json){
  const value=parseCanonicalJson(item.payloadJson) as Json;
  if(value.operationId!==item.operationId||!['blocked','cancelled'].includes(value.status))throw Error('OUTBOX_SCOPE_INVALID');
  const render=await env.DB.prepare('SELECT operation_id,generation,status FROM pipeline_renders WHERE id=?').bind(value.renderId).first<Json>();
