@@ -201,6 +201,10 @@
   },
   "director": {
     "source": "packages/methods/directing.ts",
+    "stageConcurrency": {
+      "assetAnalyses": 2,
+      "directionPreviews": 2
+    },
     "activeTimeoutMs": {
       "creative": 1200000
     },

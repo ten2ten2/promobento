@@ -57,9 +57,10 @@ const mockModules={
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
-async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false}={}){
+async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false,parallelDelay=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
+ const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
  const put=async(key,bytes,mediaType)=>{const sha256=sha256Bytes(bytes);await MEDIA.put(key,bytes,{customMetadata:{sha256},httpMetadata:{contentType:mediaType}});return {name:key.split('/').at(-1),key,sha256,byteLength:bytes.length,mediaType};};
  const putJson=(key,value)=>put(key,new TextEncoder().encode(canonical(value)),'application/json');
  const asset={...await put('evals/fixture/product.png',png,'image/png'),resourceId:'res_product',kind:'image',width:1,height:1};
@@ -84,7 +85,10 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
    return renders.get(id);
   },
   async modelStep(_env,operationId,_generation,stage,callId,request,validate){
-   const payload=parseCanonicalJson(request.messages[0].text),tool=request.tools?.[0]?.name;calls.push({operationId,stage,callId,tool,payload});let value;
+   const payload=parseCanonicalJson(request.messages[0].text),tool=request.tools?.[0]?.name;calls.push({operationId,stage,callId,tool,payload,system:request.system});let value;
+   const group=stage==='assets'?'assets':stage==='author'&&callId.includes('-direction-')?'directions':null;
+   if(parallelDelay&&group){const state=parallel[group];state.active++;state.peak=Math.max(state.peak,state.active);
+    try{await new Promise(resolve=>setTimeout(resolve,3));}finally{state.active--;}}
    if(stage==='facts')value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fact_product'],summary:'The provided product does the described work.'};
    else if(stage==='assets')value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:payload.sha256,promptVersion:'native-asset-v1',model:payload.model,assetKind:'screenshot',description:'A supplied product pixel fixture.',regions:[],dominantColors:['#ffffff'],visibleText:[],visualRoles:['Product evidence']};
    else if(stage==='directions')value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map((key,index)=>({key,language:index===1?'3d-object':'kinetic-type',palette:[{color:'#ffffff',role:'bg',source:'Product'},{color:'#111111',role:'ink',source:'Product'}],logline:'Show the real product',feel:{route:'continuous',bpm:120,eventsPerBar:4},sound:'A clear landing',risk:'Keep real material legible',usesDepth:index===1,skeleton:[0,1,2].map(i=>({purpose:'Passage '+i,approach:'Native geometry and typography'}))}))};
@@ -132,8 +136,27 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads};
+ return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel};
 }
+
+test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
+ const f=await fixture(t,{parallelDelay:true});
+ const second={...await f.put('evals/fixture/second.png',png,'image/png'),resourceId:'second',kind:'image',width:1,height:1};
+ const third={...await f.put('evals/fixture/third.png',png,'image/png'),resourceId:'third',kind:'image',width:1,height:1};
+ const candidate=await f.create('bounded-stages',{resources:[f.asset,second,third],aspects:['landscape']});
+ assert.equal(candidate.kind,'native_candidate');
+ assert.equal(f.parallel.assets.peak,2);assert.equal(f.parallel.directions.peak,2);
+ const cardCalls=f.calls.filter(call=>call.stage==='author'&&call.callId.includes('-direction-'));
+ assert.equal(cardCalls.length,3);
+ for(const call of cardCalls){
+  const expected=call.callId.includes('-amplify')?'object-3d/index.html':'kinetic-type/index.html';
+  assert.ok(call.system.includes(expected),`${call.callId} uses its own immutable template, not another parallel card's language`);
+ }
+ const stored=await f.env.MEDIA.get('operations/bounded-stages/direction-previews.json');
+ assert.ok(stored);
+ const previewSet=parseCanonicalJson(new Uint8Array(await stored.arrayBuffer()));
+ assert.deepEqual(previewSet.map(item=>item.direction),['fit','amplify','unexpected']);
+});
 
 test('director completes from durable render receipts when every completion event is lost',async t=>{
  const f=await fixture(t,{dropRenderEvents:true});
