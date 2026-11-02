@@ -87,6 +87,12 @@ test('native project HTTP rejects malformed file/resource lists at the input bou
   assert.deepEqual(await response.json(),{code:'NATIVE_PROJECT_SCHEMA_INVALID'});
  }
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_native_projects').get().n,0);
+ const crossOperation=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
+  method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},
+  body:canonical({operationId,files:[],timingEvidenceRef:{key:'operations/another-operation/time.json',
+   sha256:'a'.repeat(64),byteLength:2}})}),env,{});
+ assert.equal(crossOperation.status,422,'a foreign reference without a parent must remain a domain input error');
+ assert.deepEqual(await crossOperation.json(),{code:'NATIVE_TIMING_EVIDENCE_SCOPE_INVALID'});
 });
 
 test('malformed nested render revision and rights identities return 422 without writes',async t=>{

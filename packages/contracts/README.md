@@ -14,7 +14,7 @@ pnpm run build:validators
 
 ## 原生工程
 
-[Schema](../../contracts/native-project.schema.json)与[共享断言](src/native-project.mjs)共同验证固定上游 commit、15/30 秒、30 fps、四个固定画幅，以及普通相对路径、文件冲突、单文件和工程体积限制。可选 `timingEvidenceRef`（key、SHA-256、字节数）把逐词时间证据和媒体版本绑定在不可变 revision 中；跨操作改稿继承时仍校验 R2 实际身份。路径检查不代替实际文件系统的 symlink／realpath 检查，容器仍须重新核对全部输入字节。
+[Schema](../../contracts/native-project.schema.json)与[共享断言](src/native-project.mjs)共同验证固定上游 commit、15/30 秒、30 fps、四个固定画幅，以及普通相对路径、文件冲突、单文件和工程体积限制。可选 `timingEvidenceRef` **只包含** key、SHA-256、字节数，绑定当前工程仍保留的源媒体的逐词证据；跨操作改稿继承时仍校验 R2 实际身份。路径检查不代替实际文件系统的 symlink／realpath 检查，容器仍须重新核对全部输入字节。
 
 `nativeProjectHash` 固定清单字段并按文件路径排序，绑定每个文件的 R2 key、SHA-256、长度及媒体类型。编辑基于显式 `baseRevision` 创建不可变新版本；不同画幅独立生成项目。上游补齐 vendor、字体或声音后，容器保存 `rendered-project.json` 和实际全部文件，分别记录输入身份与实际渲染工程身份。
 

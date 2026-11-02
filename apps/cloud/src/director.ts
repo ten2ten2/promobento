@@ -187,8 +187,6 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    });
    const material=await materialInputs(this.env,op,context);
    let timingEvidence=patchMode?[]:normalizeTimingEvidence(context.timingEvidence,material.materials);
-   let timingEvidenceRef:Json|null=timingEvidence.length?await step.do('timing-evidence',noRetry,
-    ()=>immutableJson(this.env,`operations/${op.id}/timing-evidence.json`,timingEvidence)):null;
    const candidateResources:Json[]=[...material.analysisRights];
    const candidateRights=()=>[...new Map(candidateResources.map(resource=>[canonical([resource.resourceId,resource.sha256]),resource])).values()];
    let script:Json|null=null,lockedSelection:Json|null=null,scriptImpact:Json|null=null;
@@ -277,6 +275,15 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
        permitted.add(resource.sourceSha256??resource.sha256);
       for(const [path,file] of assets)if(/^assets\/[a-f0-9]{24}\./.test(path)&&!permitted.has(file.sha256))assets.delete(path);
      }
+     // A revision may retire an unused audio source. Never preserve timing
+     // evidence for bytes that its later child revision can no longer load.
+     const presentSources=new Set([...assets.values()].map(file=>file.sha256));
+     if(script&&[...script.segments,...script.moments].some(item=>item.timing?.kind==='measured'
+      &&!presentSources.has(item.timing.sourceSha256)))throw Error('SCRIPT_MEASURED_SOURCE_MISSING');
+     const retainedTiming=timingEvidence.filter(item=>presentSources.has(item.sourceSha256));
+     const storedTiming=retainedTiming.length?await immutableJson(this.env,
+      `operations/${op.id}/timing-${digest(retainedTiming)}.json`,retainedTiming):null;
+     const timingEvidenceRef=storedTiming?{key:storedTiming.key,sha256:storedTiming.sha256,byteLength:storedTiming.byteLength}:null;
      stageGuard();return canonical(await saveNativeProject(this.env,op,{composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},files:[...assets.values(),...authored],
       resources:[...resources.values()],...(base?{baseRevision:base.revisionId}:{}),...(timingEvidenceRef?{timingEvidenceRef}:{})}));
     })) as SavedNativeProject;
@@ -324,7 +331,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      if(lockedSelection)assertMaterialProjection(next,lockedSelection,[...saved.project.resources,...material.resources],script);
      for(const replacement of context.materialReplacements??[]){
       const newSource=material.materials.find(item=>item.resourceId===replacement.toResourceId);
-      if(!newSource||!next.some(file=>/^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg))$/.test(file.path)
+      if(!newSource||!next.some(file=>/^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path)
        &&file.content.includes(newSource.path)))throw Error('MATERIAL_REPLACEMENT_NOT_APPLIED');
      }
     }catch(error){throw Error(error instanceof Error?error.message:'NATIVE_PATCH_INVALID');}
@@ -424,8 +431,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      if(priorScript&&!validScript(priorScript))throw Error('SCRIPT_BASE_INVALID');
      if(priorSelection)assertLockedMaterialSelection(priorSelection,base.project.resources);
      const baseMaterials=projectMaterialSources(base.project,priorSelection,priorScript);
-     const currentTiming=base.project.timingEvidenceRef
-      ?normalizeTimingEvidence(parseCanonicalJson(await checkedNativeBytes(this.env,base.project.timingEvidenceRef,6<<20)),baseMaterials):[];
+     let currentTiming:Json[]=[];
+     if(base.project.timingEvidenceRef){
+      const stored=parseCanonicalJson(await checkedNativeBytes(this.env,base.project.timingEvidenceRef,6<<20)) as Json;
+      const available=new Set(baseMaterials.map(item=>item.sha256));
+      currentTiming=normalizeTimingEvidence(Array.isArray(stored)
+       ?stored.filter(item=>!record(item)||available.has(item.sourceSha256)):stored,baseMaterials);
+     }
      if(!first&&(canonical(script)!==canonical(priorScript)||canonical(lockedSelection)!==canonical(priorSelection)))
       throw Error('NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT');
      if(!first&&canonical(priorTiming)!==canonical(currentTiming))throw Error('NATIVE_PATCH_TIMING_CONFLICT');
@@ -443,8 +455,6 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     for(const entry of suppliedTiming){const old=evidence.get(entry.sourceSha256);
      if(old&&canonical(old)!==canonical(entry))throw Error('NATIVE_TIMING_EVIDENCE_CONFLICT');evidence.set(entry.sourceSha256,entry);}
     timingEvidence=[...evidence.values()];
-    if(timingEvidence.length)timingEvidenceRef=await step.do('timing-evidence',noRetry,
-     ()=>immutableJson(this.env,`operations/${op.id}/timing-evidence.json`,timingEvidence));
     if(context.scriptEdits){
      if(!script)throw Error('SCRIPT_BASE_REQUIRED');
      script=applyScriptTextEdits(script,context.scriptEdits);

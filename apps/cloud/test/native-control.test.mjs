@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,immutableStream,reserve,settle,rights} from '../src/store.ts';
+import {immutableBytes,immutableJson,immutableStream,reserve,settle,rights} from '../src/store.ts';
 import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
 import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
@@ -314,6 +314,22 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(checkedNativeBytes(env, empty, 240000, {allowEmpty: true}), /SOURCE_IDENTITY_MISMATCH/);
   objects.get(input.files[0].key).customMetadata.sha256 = '0'.repeat(64);
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
+});
+
+test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const blob=await immutableJson(env,`operations/${op.id}/timing-real.json`,[
+    {sourceSha256:'a'.repeat(64),durationSeconds:2,words:[{text:'Hello',start:0,end:1}]}]);
+  assert.ok(blob.name&&blob.mediaType,'immutableJson returns more metadata than a native project reference accepts');
+  await assert.rejects(saveNativeProject(env,op,{...input,timingEvidenceRef:blob}),/NATIVE_PROJECT_SCHEMA_INVALID/);
+  const {key,sha256,byteLength}=blob;
+  const parent=await saveNativeProject(env,op,{...input,timingEvidenceRef:{key,sha256,byteLength}});
+  assert.deepEqual(parent.project.timingEvidenceRef,{key,sha256,byteLength});
+  const childOp={...op,id:'native-timing-child'};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(childOp.id,childOp.workspace_id,childOp.project_id,0,childOp.purpose,'active','timing-child',childOp.max_micros,Date.now(),null,null);
+  const child=await saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId});
+  assert.deepEqual(child.project.timingEvidenceRef,parent.project.timingEvidenceRef);
 });
 
 test('a direct native child cannot silently drop its parent revision rights',async t=>{

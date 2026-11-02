@@ -59,7 +59,8 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
   const timingEvidenceRef = input.timingEvidenceRef ?? parent?.project.timingEvidenceRef;
   if (timingEvidenceRef && (typeof timingEvidenceRef.key !== 'string'
     || !timingEvidenceRef.key.startsWith('operations/' + op.id + '/')
-    && canonical(timingEvidenceRef) !== canonical(parent?.project.timingEvidenceRef)))
+      && (!parent?.project.timingEvidenceRef
+        || canonical(timingEvidenceRef) !== canonical(parent.project.timingEvidenceRef))))
     throw Error('NATIVE_TIMING_EVIDENCE_SCOPE_INVALID');
   for (const file of input.files) {
     const inherited = parent?.project.files.some((previous: Json) => previous.key === file.key

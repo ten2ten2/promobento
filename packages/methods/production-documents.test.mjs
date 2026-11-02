@@ -41,6 +41,10 @@ test('the authoritative Script validates copy, facts, target frames, and editabl
     {path:'index.js',content:'title.textContent = '+JSON.stringify(escaped.segments[0].displayText)+'; cta.textContent = "Try PromoBento today";'}],escaped),true);
   assert.equal(assertScriptProjection([{path:'index.html',content:'<script src="index.js"></script>'},
     {path:'index.js',content:'title.textContent = "Try \\u0022Pro\\u0022 \\\\ today"; cta.textContent = "Try PromoBento today";'}],escaped),true);
+  assert.equal(assertScriptProjection([{path:'index.html',content:
+    '<script type="module">title.textContent = '+JSON.stringify(escaped.segments[0].displayText)+
+    '; cta.textContent = "Try PromoBento today";</script>'}],escaped),true,
+  'escaped display copy inside a supported inline HTML script remains valid');
   assert.throws(()=>assertNativeScript({...doc,durationFrames:900},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],doc.segments[0]]},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],{...doc.segments[1],displayText:'Different action'}]},context),/SCRIPT_CTA_MISSING/);
@@ -66,11 +70,14 @@ test('measured word clocks require same-source evidence, and edits invalidate ti
   const measured=structuredClone(before);
   measured.segments.push({id:'narration-1',role:'narration',displayText:'Voice over',speechText:'Product costs nine dollars',
     factIds:[],startFrame:30,endFrame:90,timing:{kind:'measured',sourceSha256:hash('c'),firstWord:0,lastWord:3}});
+  measured.moments.push({id:'narrated-moment',kind:'demonstration',startFrame:30,endFrame:90,
+    segmentIds:['narration-1'],resourceIds:['voice'],timing:{kind:'measured',sourceSha256:hash('c'),firstWord:0,lastWord:3}});
   const spokenEvidence=[{sourceSha256:hash('c'),words:[{text:'Product',start:1,end:1.25},{text:'costs',start:1.25,end:1.5},
     {text:'nine',start:1.5,end:2},{text:'dollars',start:2,end:3}]}];
-  assert.equal(assertNativeScript(measured,{...context,timingEvidence:spokenEvidence}),measured);
+  const spokenContext={...context,timingEvidence:spokenEvidence,materials:[...materials,{resourceId:'voice',sha256:hash('c'),kind:'audio'}]};
+  assert.equal(assertNativeScript(measured,spokenContext),measured);
   const unrelated=structuredClone(measured);unrelated.segments.at(-1).speechText='Goodbye forever';
-  assert.throws(()=>assertNativeScript(unrelated,{...context,timingEvidence:spokenEvidence}),/SCRIPT_ALIGNMENT_INVALID/);
+  assert.throws(()=>assertNativeScript(unrelated,spokenContext),/SCRIPT_ALIGNMENT_INVALID/);
   assert.throws(()=>applyScriptTextEdits(measured,[{segmentId:'narration-1',field:'speechText',value:'Product costs nine dollars'}]),/SCRIPT_EDITS_NO_CHANGE/);
   assert.equal(measured.segments.at(-1).timing.kind,'measured','a no-op must not change the original measurement');
   const locked=assertMaterialSelection(selection(),treatment,materials);
@@ -125,7 +132,11 @@ test('explicit source replacement updates Script and lock hashes and rejects mis
   const rights=[{...old,sourcePath:oldPath,sourceSha256:old.sha256},{...next,sourcePath:newPath,sourceSha256:next.sha256},
     {...materials[1],sourcePath:'assets/'+materials[1].sha256.slice(0,24)+'.wav',sourceSha256:materials[1].sha256}];
   assert.doesNotThrow(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${newPath}">`}],updated.selection,rights));
+  assert.doesNotThrow(()=>assertMaterialProjection([{path:'src/assets.json',content:JSON.stringify({productPath:newPath})}],
+    updated.selection,rights),'a same-origin JSON source may supply the selected path');
   assert.throws(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${oldPath}">`}],updated.selection,rights),/MATERIAL_LOCK_PROJECT_MISMATCH/);
+  assert.throws(()=>assertMaterialProjection([{path:'src/assets.json',content:JSON.stringify({productPath:oldPath})}],
+    updated.selection,rights),/MATERIAL_LOCK_PROJECT_MISMATCH/,'JSON cannot smuggle an unselected historical source');
   const voice={resourceId:'voice',sourceSha256:hash('f'),sha256:hash('f'),kind:'audio',sourcePath:'assets/'+hash('f').slice(0,24)+'.wav'};
   const voiced={moments:[{resourceIds:['voice']}]};
   assert.doesNotThrow(()=>assertMaterialProjection([{path:'index.html',content:`<audio src="${voice.sourcePath}">`}],
@@ -148,6 +159,38 @@ test('explicit source replacement updates Script and lock hashes and rejects mis
     {fromResourceId:'new-product',toResourceId:'other-product'}
   ],[next,{resourceId:'other-product',sha256:hash('e')}],materials),
   /MATERIAL_REPLACEMENT_INVALID/,'replacements must not cascade through one another');
+  const withAlternative=structuredClone(prior);
+  withAlternative.uses[0].alternatives.push({resourceId:next.resourceId,sha256:next.sha256});
+  withAlternative.selectionHash=digest(withAlternative.uses);
+  const promoted=replaceLockedMaterials(withAlternative,before,
+    [{fromResourceId:'product',toResourceId:'new-product'}],[next],[...materials,next]);
+  assert.deepEqual(promoted.selection.uses[0].alternatives,[{resourceId:'product',sha256:old.sha256}],
+    'promoting an already registered alternative swaps its position with the old primary');
+  assert.equal(promoted.selection.uses[0].resourceId,next.resourceId);
+  assert.doesNotThrow(()=>assertLockedMaterialSelection(promoted.selection,[...materials,next]));
+});
+
+test('a changed recorded source invalidates its measured Segment and Moment clocks',()=>{
+  const oldAudio={resourceId:'music',sha256:hash('b'),kind:'audio'};
+  const nextAudio={resourceId:'new-voice',sha256:hash('e'),kind:'audio'};
+  const prior=assertMaterialSelection(selection(),treatment,materials);
+  const spoken=script(),clock={kind:'measured',sourceSha256:oldAudio.sha256,firstWord:0,lastWord:1};
+  spoken.segments.push({id:'speech',role:'narration',displayText:'Narration',speechText:'Hello world',factIds:[],
+    startFrame:30,endFrame:60,timing:clock});
+  spoken.moments.push({id:'voiced',kind:'demonstration',startFrame:30,endFrame:60,
+    segmentIds:['speech'],resourceIds:['music'],timing:clock});
+  const measuredContext={...context,materials:[materials[0],oldAudio],timingEvidence:[{sourceSha256:oldAudio.sha256,
+    words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]}]};
+  assert.doesNotThrow(()=>assertNativeScript(spoken,measuredContext));
+  const unbound=structuredClone(spoken);unbound.moments.at(-1).resourceIds=[];
+  assert.throws(()=>assertNativeScript(unbound,measuredContext),/SCRIPT_ALIGNMENT_INVALID/,
+    'measured speech must point to its actual licensed media, not only a matching SHA in unrelated evidence');
+  const changed=replaceLockedMaterials(prior,spoken,[{fromResourceId:'music',toResourceId:'new-voice'}],
+    [nextAudio],[materials[0],oldAudio]);
+  assert.equal(changed.script.moments.at(-1).resourceIds[0],'new-voice');
+  assert.equal(changed.script.moments.at(-1).timing.kind,'authored');
+  assert.equal(changed.script.segments.at(-1).timing.kind,'authored');
+  assert.equal(spoken.segments.at(-1).timing.kind,'measured','parent measured evidence remains untouched');
 });
 
 test('each Treatment use locks source SHA and alternatives without accepting substitutions',()=>{

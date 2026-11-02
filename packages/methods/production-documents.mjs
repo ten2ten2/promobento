@@ -61,6 +61,12 @@ export function assertNativeScript(script, {durationSeconds, videoLanguage, fact
       fail('SCRIPT_MOMENT_INVALID');
     validTiming(event.timing, event.startFrame, event.endFrame, timingEvidence);
   }
+  const measuredSources=new Set(materials.filter(item=>['audio','video'].includes(item.kind))
+    .map(item=>canonical([item.resourceId,item.sha256])));
+  for (const segment of script.segments) if (['narration','dialogue'].includes(segment.role)
+    && segment.timing.kind==='measured' && !script.moments.some(moment=>moment.segmentIds.includes(segment.id)
+      &&moment.resourceIds.some(id=>measuredSources.has(canonical([id,segment.timing.sourceSha256])))))
+    fail('SCRIPT_ALIGNMENT_INVALID');
   if (typeof cta === 'string' && cta.trim() && !script.segments.some(item => item.role === 'cta' && item.displayText.includes(cta.trim())))
     fail('SCRIPT_CTA_MISSING');
   return script;
@@ -83,8 +89,10 @@ export function assertScriptProjection(files, script) {
   // Inspect string literals without evaluating author JavaScript inside the Worker.
   // Escaped quotes, backslashes, hex and Unicode escapes are normal representations
   // of displayed copy (JSON.stringify is a common way to author them).
-  const js = files.filter(file => /^(?:index\.js|src\/.*\.js)$/.test(file.path))
-    .map(file => file.content).join('\n');
+  const inlineJs = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
+    .flatMap(file => [...file.content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => match[1]));
+  const js = [...files.filter(file => /^(?:index\.js|src\/.*\.js)$/.test(file.path))
+    .map(file => file.content), ...inlineJs].join('\n');
   const jsStrings = [...js.matchAll(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g)]
     .map(([literal]) => literal.slice(1, -1).replace(/\\(?:u\{([0-9a-f]{1,6})\}|u([0-9a-f]{4})|x([0-9a-f]{2})|([\s\S]))/gi,
       (match, codepoint, unicode, hex, escaped) => {
@@ -139,7 +147,9 @@ export function assertLockedMaterialSelection(selection, resources) {
   const sources = new Set(resources.map(item => canonical([item.resourceId, item.sourceSha256 ?? item.sha256])));
   for (const use of selection.uses) {
     if (!use.locked || !sources.has(canonical([use.resourceId, use.sha256])) || !Array.isArray(use.alternatives)
-      || use.alternatives.some(item => !sources.has(canonical([item.resourceId, item.sha256]))))
+      || !unique(use.alternatives.map(item => canonical([item.resourceId, item.sha256])))
+      || use.alternatives.some(item => !sources.has(canonical([item.resourceId, item.sha256]))
+        || item.resourceId === use.resourceId && item.sha256 === use.sha256))
       fail('MATERIAL_LOCK_IDENTITY_INVALID');
   }
   return selection;
@@ -179,7 +189,7 @@ export function assertMaterialProjection(files, selection, resources, script = n
   const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
   for (const resource of resources) if (resource.kind === 'audio' && scriptIds.has(resource.resourceId))
     lockedPaths.add(resource.sourcePath);
-  const text = files.filter(file => /^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg))$/.test(file.path))
+  const text = files.filter(file => /^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path))
     .map(file => file.content).join('\n');
   for (const [, path] of text.matchAll(/(?:assets\/)([a-f0-9]{24}\.(?:png|jpg|webp|svg|mp4|mov|webm|wav|mp3|m4a|ogg))/g)) {
     if (!lockedPaths.has('assets/' + path)) fail('MATERIAL_LOCK_PROJECT_MISMATCH');
@@ -196,16 +206,29 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     fail('MATERIAL_REPLACEMENT_INVALID');
   const source = new Map(admitted.map(item => [item.resourceId, item]));
   const uses = structuredClone(selection.uses), moments = structuredClone(script?.moments ?? []);
+  const segments = structuredClone(script?.segments ?? []), displacedSources = new Set();
   for (const item of replacements) {
     const next = source.get(item.toResourceId);
     if (!next || item.fromResourceId === item.toResourceId) fail('MATERIAL_REPLACEMENT_INVALID');
+    for (const old of baseResources.filter(resource => resource.resourceId === item.fromResourceId)) {
+      const sha = old.sourceSha256 ?? old.sha256;
+      if (sha !== next.sha256 && ['audio', 'video'].includes(old.kind)) displacedSources.add(sha);
+    }
     let changed = false;
     for (const use of uses) {
-      if (use.resourceId === item.fromResourceId) {
+      const promoted = use.resourceId === item.fromResourceId;
+      const previous = {resourceId: use.resourceId, sha256: use.sha256};
+      // Promoting an existing alternative swaps its position with the old
+      // selected source; the old source remains a licensed future alternative.
+      use.alternatives = use.alternatives.map(alt => {
+        if (alt.resourceId === item.fromResourceId) {
+          changed = true;
+          return {resourceId: next.resourceId, sha256: next.sha256};
+        }
+        return promoted && alt.resourceId === next.resourceId && alt.sha256 === next.sha256 ? previous : alt;
+      });
+      if (promoted) {
         use.resourceId = next.resourceId; use.sha256 = next.sha256; changed = true;
-      }
-      for (const alt of use.alternatives) if (alt.resourceId === item.fromResourceId) {
-        alt.resourceId = next.resourceId; alt.sha256 = next.sha256; changed = true;
       }
       if (use.alternatives.some(alt => alt.resourceId === use.resourceId && alt.sha256 === use.sha256)
         || !unique(use.alternatives.map(alt => canonical([alt.resourceId, alt.sha256])))) fail('MATERIAL_REPLACEMENT_INVALID');
@@ -216,9 +239,14 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     }
     if (!changed) fail('MATERIAL_REPLACEMENT_INVALID');
   }
+  // A different recording may speak the same words at different timestamps.
+  // Never carry its measured clock into the replacement's authored timeline.
+  for (const event of [...segments, ...moments])
+    if (event.timing?.kind === 'measured' && displacedSources.has(event.timing.sourceSha256))
+      event.timing = {kind: 'authored'};
   if (!unique(uses.map(use => canonical([use.beatId, use.resourceId])))) fail('MATERIAL_REPLACEMENT_INVALID');
   const updated = {...selection, uses, selectionHash: digest(uses)};
-  return {selection: updated, script: script ? {...script, moments} : null};
+  return {selection: updated, script: script ? {...script, segments, moments} : null};
 }
 
 /** Conservative impact accounting; no existing paid result is regenerated merely to change an unrelated target. */
