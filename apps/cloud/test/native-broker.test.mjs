@@ -16,11 +16,12 @@ const {Broker} = await import('data:text/javascript;base64,' + Buffer.from(bundl
 
 function fixture() {
   const objects = new Map();
-  let enabled = true, puts = 0, largestChunk = 0;
+  let enabled = true, rightsValid = true, puts = 0, largestChunk = 0;
   const scope = {token: 'broker-secret', operationId: 'scope-op', generation: 0,
-    reads: ['inputs/verified.dat'], prefix: 'renders/render-one/attempts/attempt-one/out', attemptId: 'attempt-one'};
+    reads: ['inputs/verified.dat'], resources:[{resourceId:'res_broker',sha256:'a'.repeat(64)}],
+    prefix: 'renders/render-one/attempts/attempt-one/out', attemptId: 'attempt-one'};
   const storage = {
-    async head(key) {return objects.get(key) ?? null;},
+    async head(key) {return key === 'rights/broker-evidence' ? {size: 2} : objects.get(key) ?? null;},
     async get(key) {return objects.get(key) ?? null;},
     async put(key, stream, options) {
       puts++;
@@ -48,7 +49,8 @@ function fixture() {
   };
   const broker = Object.create(Broker.prototype);
   broker.ctx = {props: scope};
-  broker.env = {MEDIA: storage, DB: {prepare() {return {bind() {return this;}, async first() {
+  broker.env = {MEDIA: storage, DB: {prepare(sql) {return {bind() {return this;}, async first() {
+    if (sql.includes('FROM pipeline_rights')) return rightsValid ? {evidence_key:'rights/broker-evidence',license_ref:'fixture'} : null;
     return enabled ? {id: scope.operationId, status: 'active', generation: scope.generation} : null;
   }};}}};
   const key = scope.prefix + '/film.mp4';
@@ -61,7 +63,7 @@ function fixture() {
       controller.close();
     }}),
   });
-  return {broker, objects, key, request, scope, setEnabled(value) {enabled = value;},
+  return {broker, objects, key, request, scope, setEnabled(value) {enabled = value;},setRightsValid(value) {rightsValid = value;},
     get puts() {return puts;}, get largestChunk() {return largestChunk;}};
 }
 
@@ -125,4 +127,14 @@ test('broker fences authorization and requires a verified attempt-scoped prefix'
     method: 'PUT', body: bytes, headers: {authorization: 'Bearer ' + scope.token}}))).status, 403);
   assert.equal((await broker.fetch(new Request('http://broker.internal/w/' + scope.prefix + '/film.mp4', {
     method: 'PUT', body: bytes, headers: {authorization: 'Bearer wrong'}}))).status, 403);
+});
+
+test('broker refuses source downloads after rights revocation during an admitted attempt',async()=>{
+  const {broker,objects,scope,setRightsValid}=fixture();
+  const original=Buffer.from('licensed source');
+  objects.set('inputs/verified.dat',{size:original.length,body:new ReadableStream({start(controller){controller.enqueue(original);controller.close();}})});
+  const request=()=>new Request('http://broker.internal/r/inputs/verified.dat',{headers:{authorization:'Bearer '+scope.token}});
+  assert.equal((await broker.fetch(request())).status,200);
+  setRightsValid(false);
+  assert.equal((await broker.fetch(request())).status,403,'a queued source read must not bypass a new revoke');
 });

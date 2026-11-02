@@ -20,7 +20,7 @@ import {assertModelBudgetReady} from './model-budget.ts';
 import {directorProgress,commitCandidate,failDirector,directorFailureCode} from './director-recovery.ts';
 import {workflowStarted} from './workflow-state.ts';
 import {renderCompletionEventType} from './render-recovery.ts';
-import {checkpointWaitSeconds} from './workflow-wait.ts';
+import {waitForDurableRender} from './workflow-wait.ts';
 import {NATIVE_COMMIT,saveNativeProject,loadNativeProject,createNativeRender,getNativeRender,checkedNativeBytes,type SavedNativeProject} from './native-project.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 
@@ -193,11 +193,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
      return true;
     });
-    const seconds=await checkpointWaitSeconds(step,'render-complete-'+name,deadline(),'OPERATION_DEADLINE');
-    await step.waitForEvent('render-complete-'+name,{type:renderCompletionEventType(renderId),timeout:`${seconds} seconds`});
+    await waitForDurableRender(step,'render-complete-'+name,renderCompletionEventType(renderId),deadline(),async()=>{
+     await operation(this.env,op.id,op.generation);
+     const state=await getNativeRender(this.env,op,renderId);
+     return {status:state?.status??null,finishedAt:state?.finished_at??null,code:state?.result?.code??null};
+    });
     return parseCanonicalJson(await step.do<string>('render-receipt-'+name,noRetry,async()=>{
-     await guard();const state=await getNativeRender(this.env,op,renderId);
-     if(state?.status==='passed')return canonical({renderId,result:state.result});
+     await operation(this.env,op.id,op.generation);const state=await getNativeRender(this.env,op,renderId);
+     if(state?.status==='passed'&&Number.isSafeInteger(state.finished_at)&&state.finished_at<=deadline())return canonical({renderId,result:state.result});
      throw Error(state?.result?.code??'NATIVE_RENDER_FAILED');
     })) as Json;
    };

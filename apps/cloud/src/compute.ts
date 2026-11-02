@@ -1,7 +1,7 @@
 import {DurableObject, WorkerEntrypoint} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
-import {operation, reserve, settle} from './store.ts';
+import {operation, rights, reserve, settle} from './store.ts';
 import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
 import {assertNativeExecution, nativeContainerInput, nativeRenderPolicy} from './native-task.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
@@ -17,7 +17,7 @@ const computeMicros = (instance: string, ms: number) => {
   return Math.ceil(ms / 1000 * (cpu * 20 + memory * 2.5 + disk * .07));
 };
 
-type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; prefix: string; attemptId: string};
+type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; resources: Json[]; prefix: string; attemptId: string};
 export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
   async fetch(request: Request): Promise<Response> {
     const scope = this.ctx.props, url = new URL(request.url);
@@ -27,6 +27,7 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
       const key = url.pathname.slice(3).split('/').map(decodeURIComponent).join('/');
       if (key.split('/').some(part => !part || part === '.' || part === '..')) return new Response(null, {status: 403});
       if (request.method === 'GET' && url.pathname.startsWith('/r/') && scope.reads.includes(key)) {
+        await rights(this.env, op, scope.resources);
         const object = await this.env.MEDIA.get(key);
         return object ? new Response(object.body) : new Response(null, {status: 404});
       }
@@ -270,7 +271,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const input = nativeContainerInput(task, this.token);
       const prefix = 'renders/' + task.renderId + '/attempts/' + task.taskId + '/out';
       const broker = this.ctx.exports.Broker({props: {token: this.token, operationId: op.id, generation: op.generation,
-        reads: task.project.files.map((file: Json) => file.key), prefix, attemptId: task.taskId}});
+        reads: task.project.files.map((file: Json) => file.key), resources: task.project.resources, prefix, attemptId: task.taskId}});
       phase = 'broker';
       const brokerStartedAt = Date.now(), brokerDeadline = Math.min(brokerStartedAt + 30000, deadlineAt);
       let brokerTimer: ReturnType<typeof setTimeout> | undefined;

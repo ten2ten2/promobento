@@ -87,6 +87,10 @@ test('resource telemetry is marked by origin and never substitutes controller RS
   assert.equal(monitor.stop(), observed);
   assert.equal(observed.source, 'container_cgroup_v2_and_controller_samples');
   assert.ok(observed.controllerRssSamplePeakBytes > 0);
+  assert.ok(!Object.hasOwn(observed,'diskUsedSamplePeakBytes'),'statfs is not a task-directory usage measurement');
+  assert.equal(observed.filesystemUsedSamplePeakBytes===null,observed.filesystemUsedIncreaseSamplePeakBytes===null);
+  if(observed.filesystemUsedSamplePeakBytes!==null)
+    assert.ok(observed.filesystemUsedIncreaseSamplePeakBytes<=observed.filesystemUsedSamplePeakBytes);
   for (const [key,value] of Object.entries(observed)) {
     if (key.endsWith('Bytes') || key.endsWith('Delta') || key.endsWith('Peak'))
       assert.ok(value === null || Number.isFinite(value) && value >= 0, key);

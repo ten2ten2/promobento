@@ -16,7 +16,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 NativeProject 与 release，形成 R2 中的 `native_render_request`。operation generation 由 D1 渲染记录和内部 `native_render_task` 绑定，不由客户端提交。清单先经预编译 Schema 与共享语义校验，再核对实际文件、画幅和 release；作品不能设置预算、存储权限、编码或付费动作。
 
-`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；失败终态通知与渲染失败状态同事务保存，不等待物理停机确认才写入；事件实际送达结果独立记录，定时 sweep 补发。Queue、Workflow/Director 恢复、停机清理、非关键进度上报和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
+`RenderWorkflow` 负责读取、等待持久化容量准入、运行一次完整任务、核验回执及提交。`pipeline_render_admissions` 将排队记录与物理 `pipeline_attempts` 分开；CoordinatorDO 在全局／工作区限额内授予 generation/token 租约，Workflow 以事件唤醒，并按工作区最早任务公平准入。导演的渲染完成事件与**用户方向选择**均先持久化，再由 Queue 投递；失败终态通知与渲染失败状态同事务保存，不等待物理停机确认才写入；事件实际送达结果独立记录，定时 sweep 补发。完成事件只是唤醒信号：导演最多每 60 秒核查一次 D1 持久渲染终态，丢失通知不能使已按时完成的结果被误判；迟于操作期限的结果仍被拒绝。Queue、Workflow/Director 恢复、停机清理、非关键进度上报和 outbox 采用受限并发及远端调用超时，单个卡住的请求不能挡住其他任务；超时仍按未知结果安全重试，不代表物理任务已停止。
 
 平台故障最多使用两个物理 attempt；只有上一 attempt 的实际停止、计算结算和租约释放均确认后，才允许另一个 attempt。Workflow 观察到的传输失败代码单独保存在 `pipeline_attempts.recovery_code`，供重放预检恢复；Shard 的 `result_json` 仍是更高优先级的执行诊断。若该诊断写入暂时不可用，必须再确认 Shard 无成功结果及全部停机／结算／租约屏障，才允许把缺失诊断归类为可重试失败，未知费用仍禁止重发。claim 前租约失效或预检读取暂时失败时，只有确认同一作用域没有物理执行或费用，才允许复用原 ticket 的剩余排队窗口；不消耗物理重试次数。排队过期不产生物理 attempt；取消和晚到事件受 generation/token 拦截。初始持久等待上限 15 分钟、单次预览／导出执行上限 3／10 分钟，单个渲染总上限 30／45 分钟（含排队、重试及验证）；内部评估值尚未经过真实云端标定，不能当作客户 SLA。
 
@@ -24,7 +24,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 ## 隔离与回执
 
-原生代码与客户创作代码不在 Worker 求值。容器内的可信 controller 接收已核对的文件清单、持有仅本任务有效的 broker token；原生 Node/Chromium 以另一 UID 运行，不持有业务凭据。容器关闭 Internet。broker 只允许读取本次清单列出的 R2 key，并写入 `renders/<renderId>/attempts/<attemptId>/out/`。
+原生代码与客户创作代码不在 Worker 求值。容器内的可信 controller 接收已核对的文件清单、持有仅本任务有效的 broker token；原生 Node/Chromium 以另一 UID 运行，不持有业务凭据。容器关闭 Internet。broker 只允许读取本次清单列出的 R2 key，并写入 `renders/<renderId>/attempts/<attemptId>/out/`。执行前再次检查工程清单中的素材授权；Broker 每次读取素材前也核查授权，最终发布前再次校验，D1 成片提交与 `revoked_at` 校验在同一 SQL 更新中完成，避免并发撤销后发布。
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 
@@ -69,4 +69,4 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 依赖、工具链和 Actions 入口见[08](../../docs/prd/08-codex-execution.md#3-代码责任与可复现工具链)。Worker 入口为 `src/index.ts`，容器构建见 [render-container](../render-container/README.md)。检查不自动部署或发起付费模型评测。
 
-`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、outbox、取消 fence、平台重试、未知计算费用及迁移安全；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256 和竞争身份。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。
+`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、outbox、取消 fence、平台重试、授权撤销竞态、未知计算费用及迁移安全；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。

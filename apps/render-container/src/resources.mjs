@@ -10,6 +10,8 @@ const readCounter = (path, name) => {
 };
 const disk = () => {
   try {
+    // statfs reports the entire filesystem containing /jobs, not the size of
+    // the /jobs directory. Keep the mount-wide scope explicit in telemetry.
     const {bsize, blocks, bfree, bavail} = statfsSync('/jobs');
     return {used: (blocks - bfree) * bsize, available: bavail * bsize};
   } catch {return {used: null, available: null};}
@@ -21,20 +23,23 @@ const delta = (start, end) => start === null || end === null ? null : Math.max(0
 
 /** cgroup counters cover Chromium + FFmpeg + controller, unlike process.memoryUsage(). */
 export function monitorResources(intervalMs = 1000) {
+  const diskBaseline = disk();
   const started = {
     cpu: readCounter('/sys/fs/cgroup/cpu.stat', 'usage_usec'),
     oom: readCounter('/sys/fs/cgroup/memory.events', 'oom'),
     oomKill: readCounter('/sys/fs/cgroup/memory.events', 'oom_kill'),
   };
   let controllerRssPeakBytes = null, cgroupMemorySamplePeakBytes = null;
-  let diskUsedSamplePeakBytes = null, diskAvailableSampleMinBytes = null, controllerFdSamplePeak = null;
+  let filesystemUsedSamplePeakBytes = null, filesystemUsedIncreaseSamplePeakBytes = null;
+  let filesystemAvailableSampleMinBytes = null, controllerFdSamplePeak = null;
   let stopped;
   const sample = () => {
     controllerRssPeakBytes = maxObserved(controllerRssPeakBytes, process.memoryUsage().rss);
     cgroupMemorySamplePeakBytes = maxObserved(cgroupMemorySamplePeakBytes, readNumber('/sys/fs/cgroup/memory.current'));
     const {used, available} = disk();
-    diskUsedSamplePeakBytes = maxObserved(diskUsedSamplePeakBytes, used);
-    diskAvailableSampleMinBytes = minObserved(diskAvailableSampleMinBytes, available);
+    filesystemUsedSamplePeakBytes = maxObserved(filesystemUsedSamplePeakBytes, used);
+    filesystemUsedIncreaseSamplePeakBytes = maxObserved(filesystemUsedIncreaseSamplePeakBytes, delta(diskBaseline.used, used));
+    filesystemAvailableSampleMinBytes = minObserved(filesystemAvailableSampleMinBytes, available);
     controllerFdSamplePeak = maxObserved(controllerFdSamplePeak, fdCount());
   };
   sample();
@@ -52,7 +57,8 @@ export function monitorResources(intervalMs = 1000) {
       cgroupOomDelta: delta(started.oom, readCounter('/sys/fs/cgroup/memory.events', 'oom')),
       cgroupOomKillDelta: delta(started.oomKill, readCounter('/sys/fs/cgroup/memory.events', 'oom_kill')),
       cgroupCpuUsageMicrosDelta: delta(started.cpu, readCounter('/sys/fs/cgroup/cpu.stat', 'usage_usec')),
-      diskUsedSamplePeakBytes, diskAvailableSampleMinBytes, controllerFdSamplePeak,
+      filesystemUsedSamplePeakBytes, filesystemUsedIncreaseSamplePeakBytes,
+      filesystemAvailableSampleMinBytes, controllerFdSamplePeak,
     };
     return stopped;
   }};

@@ -7,7 +7,7 @@ import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
-import {checkpointWaitSeconds} from '../src/workflow-wait.ts';
+import {checkpointWaitSeconds,waitForDurableRender} from '../src/workflow-wait.ts';
 
 const nativeCommit='52467f99c602b76ba86d511d37acdfe93fa1e16e';
 
@@ -16,6 +16,20 @@ test('direction renders replay their checkpointed wait after a 24-hour user-choi
  const before=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()+5000,'OPERATION_DEADLINE');
  const replay=await checkpointWaitSeconds(steps,'render-complete-direction-fit',Date.now()-24*60*60_000,'OPERATION_DEADLINE');
  assert.equal(replay,before);
+});
+test('durable render receipt survives a lost notification, but never accepts a late or blocked result',async()=>{
+ const now=Date.now(),deadline=now+30_000,waits=[];
+ let status='queued';
+ const step={async do(_name,_options,action){return action();},async waitForEvent(_name,options){
+  waits.push(options);status='passed';throw Error('NOTIFICATION_LOST');
+ },async sleep(){}};
+ await waitForDurableRender(step,'render-complete-fixture','native-render-fixture',deadline,async()=>({status,finishedAt:now,code:null}));
+ assert.equal(waits.length,1);
+ assert.equal(waits[0].type,'native-render-fixture');
+ await assert.rejects(waitForDurableRender(step,'render-late','native-render-fixture',deadline,
+  async()=>({status:'passed',finishedAt:deadline+1,code:null})),/OPERATION_DEADLINE/);
+ await assert.rejects(waitForDurableRender(step,'render-blocked','native-render-fixture',deadline,
+  async()=>({status:'blocked',finishedAt:now,code:'RENDER_FAILED'})),/RENDER_FAILED/);
 });
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
@@ -27,9 +41,9 @@ const mockModules={
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
-async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
+async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
- const calls=[],jobs=[],saved=new Map(),renders=new Map();
+ const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[];
  const put=async(key,bytes,mediaType)=>{const sha256=sha256Bytes(bytes);await MEDIA.put(key,bytes,{customMetadata:{sha256},httpMetadata:{contentType:mediaType}});return {name:key.split('/').at(-1),key,sha256,byteLength:bytes.length,mediaType};};
  const putJson=(key,value)=>put(key,new TextEncoder().encode(canonical(value)),'application/json');
  const asset={...await put('evals/fixture/product.png',png,'image/png'),resourceId:'res_product',kind:'image',width:1,height:1};
@@ -47,7 +61,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
    const project=saved.get(input.revisionId);assert.ok(project);jobs.push({...input,operationId:op.id});
    const outputs=[];for(const [index]of (input.mode==='preview'?input.frames:[0]).entries())outputs.push(await put('renders/'+input.renderId+'/'+index+(input.mode==='preview'?'.png':'.mp4'),png,input.mode==='preview'?'image/png':'video/mp4'));
    if(input.mode==='export'&&!missingEncoded)outputs.push({...await put('renders/'+input.renderId+'/review-sheet.jpg',png,'image/jpeg'),name:'review-sheet.jpg'});
-   renders.set(input.renderId,{status:'passed',result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]}}:{})}}});return {renderId:input.renderId};
+   renders.set(input.renderId,{status:dropRenderEvents?'queued':'passed',finished_at:Date.now(),result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]}}:{})}}});return {renderId:input.renderId};
   },
   async getRender(_env,_op,id){return renders.get(id);},
   async modelStep(_env,operationId,_generation,stage,callId,request,validate){
@@ -84,6 +98,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
     assert.ok(completed,'render completion must come from a recorded native result');
+    if(dropRenderEvents){completed[1].status='passed';lostEvents.push(completed[0]);throw Error('SIMULATED_MISSING_RENDER_EVENT');}
     return {payload:{renderId:completed[0],status:completed[1].status}};
    }
    assert.equal(options.type,'direction-choice');
@@ -93,11 +108,19 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false}={}){
    const payload={key:'fit',directionsHash:row.directions_hash};
    db.prepare('UPDATE pipeline_contexts SET choice=?,choice_hash=? WHERE operation_id=?').run(payload.key,digest(payload),id);
    return {payload};
-  }};
+  },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes};
+ return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents};
 }
+
+test('director completes from durable render receipts when every completion event is lost',async t=>{
+ const f=await fixture(t,{dropRenderEvents:true});
+ const candidate=await f.create('lost-render-events',{aspects:['landscape']});
+ assert.equal(candidate.kind,'native_candidate');
+ assert.ok(f.lostEvents.length>=5,'all render stages must pass through a missing event');
+ assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('lost-render-events').status,'succeeded');
+});
 
 test('native creation renders directions, waits for choice, authors independent aspects and exports; comments patch an immutable base',async t=>{
  const f=await fixture(t),candidate=await f.create('creative-fixture');

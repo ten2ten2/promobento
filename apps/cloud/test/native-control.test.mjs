@@ -972,6 +972,32 @@ test('terminal media commit and notification are atomic and replayable; cancella
   assert.equal(delivered, false);
 });
 
+test('native publication atomically fences missing and revoked source rights, preserving completed commits',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_rights',sha256:input.files[0].sha256,kind:'image'};
+  const saved=await saveNativeProject(env,op,{...input,resources:[resource]});
+  await createNativeRender(env,op,{renderId:'rights-render',revisionId:saved.revisionId,mode:'preview',rendererRelease:'native-release'});
+  db.prepare("UPDATE pipeline_renders SET status='verifying' WHERE id='rights-render'").run();
+  const result=canonical({kind:'native_render_result',status:'passed',outputs:[],attemptId:'rights-attempt'});
+  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at,stopped_at) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('rights-attempt','rights-render',op.id,op.generation,'native_preview','standard-3','succeeded',Date.now()-1000,Date.now());
+  db.prepare('INSERT INTO pipeline_render_admissions(id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run('rights-attempt','rights-render',op.id,op.generation,op.workspace_id,0,'released',Date.now()-2000,Date.now()+60000,'22222222-2222-4222-8222-222222222222',Date.now()-1000,Date.now()+60000);
+  await assert.rejects(commitRender(env,'rights-render',op,result,[resource]),/ASSET_RIGHTS_PENDING/,'missing evidence must block a verified film');
+  const evidence=await immutableBytes(env,'evals/native/rights.json',new TextEncoder().encode('{}'),'application/json');
+  db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+    .run(op.id,resource.resourceId,resource.sha256,'fixture-license',evidence.key,'internal_eval_only');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await assert.rejects(commitRender(env,'rights-render',op,result,[resource]),/ASSET_RIGHTS_PENDING/,'revoke/commit races must be fenced inside D1');
+  assert.equal(db.prepare("SELECT status FROM pipeline_renders WHERE id='rights-render'").get().status,'verifying');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=NULL WHERE operation_id=?').run(op.id);
+  await commitRender(env,'rights-render',op,result,[resource]);
+  assert.equal(db.prepare("SELECT status FROM pipeline_renders WHERE id='rights-render'").get().status,'passed');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await commitRender(env,'rights-render',op,result,[resource]);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pipeline_outbox WHERE kind='render_progress'").get().count,1);
+});
+
 test('Director completion events recover after Queue acknowledgement and exhausted delivery retries', async t => {
   const {db, env, op, saved} = await fixture(t);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
