@@ -4,7 +4,7 @@
 
 现行 **PRD v3.1 / 协议 3.0.0**。重构以完整 **huashu-motion 原生 HTML/JS 工程**为唯一动画和音视频引擎，吸收 Hypit 的 Brief/Treatment、参考视频、语义时间、素材角色和精确改稿方法。每个画幅独立创作、预览和导出；NativeProject 1.0.0 只负责文件清单与身份。
 
-**仍在开发**：S0 已完成，S1 尚未通过。主线原生实现没有部署到当前 staging；客户 Studio、上传、登录、Waffo 购买、冻结交付和生产发布均未完成。功能及证据以[实施状态](docs/implementation-status.md)为准，不能根据 PRD 视为已经上线。
+**仍在开发**：S0 已完成，S1 尚未通过；最后留证的 staging 仍是旧引擎。客户功能与原生云端验收缺口以[实施状态](docs/implementation-status.md)为准，不能将 PRD 目标当作已上线能力。
 
 ## 入口
 
