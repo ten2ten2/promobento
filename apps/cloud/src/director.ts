@@ -29,7 +29,8 @@ import {analyzeMaterialStage,previewDirectionStage,runBoundedStage,type StageGua
 import {authorAspectStage,reviewAspectStage} from './director-production.ts';
 import {referenceFrameEvidence} from '../../../packages/methods/reference-evidence.mjs';
 import {assertReferenceAnalysis,assertNativeScript,assertScriptProjection,assertMaterialSelection,assertLockedMaterialSelection,
-  scriptChangeImpact,applyScriptTextEdits,projectMaterialSources,replaceLockedMaterials,assertMaterialProjection} from '../../../packages/methods/production-documents.mjs';
+  scriptChangeImpact,applyScriptTextEdits,projectMaterialSources,replaceLockedMaterials,assertMaterialProjection,
+  lockScriptAudioSources} from '../../../packages/methods/production-documents.mjs';
 import {workflowStarted} from './workflow-state.ts';
 import {renderCompletionEventType} from './render-recovery.ts';
 import {waitForDurableRender} from './workflow-wait.ts';
@@ -145,7 +146,7 @@ function validateContext(context:Json){
  if(context.materialReplacements!==undefined&&(!context.baseRevision&&!context.baseRevisions
   ||!Array.isArray(context.materialReplacements)||!context.materialReplacements.length||context.materialReplacements.length>12
   ||context.materialReplacements.some((item:Json)=>!record(item)||typeof item.fromResourceId!=='string'||!item.fromResourceId
-   ||typeof item.toResourceId!=='string'||!item.toResourceId||item.fromResourceId===item.toResourceId)))
+   ||typeof item.toResourceId!=='string'||!item.toResourceId)))
   throw Error('MATERIAL_REPLACEMENT_INVALID');
 }
 
@@ -190,6 +191,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    const candidateResources:Json[]=[...material.analysisRights];
    const candidateRights=()=>[...new Map(candidateResources.map(resource=>[canonical([resource.resourceId,resource.sha256]),resource])).values()];
    let script:Json|null=null,lockedSelection:Json|null=null,scriptImpact:Json|null=null;
+   let scriptAudioLocks:{resourceId:string;sha256:string}[]=[];
    let referenceAnalyses:Json[]=[];
    const briefObject=await step.do('brief',noRetry,()=>immutableJson(this.env,`operations/${op.id}/brief.json`,brief));
    const progress=(status:string)=>directorProgress(this.env,op,status);
@@ -223,6 +225,13 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       try{
        if(input.reviewFrames)reviewFrameTimes(input.reviewFrames,context.durationSeconds);
        if(tool==='write_project')assertSourceFiles(input.files);
+       // Recomposition is a finished film. Reject invalid output before
+       // modelStep can put it in the successful response cache.
+       if(tool==='write_project'&&name.startsWith('recompose-')){
+        if(script)assertScriptProjection(input.files,script);
+        if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(input.files,lockedSelection,
+         material.resources,script,scriptAudioLocks);
+       }
        if(tool==='write_project'&&input.files.some((file:SourceFile)=>['script.json','material-selection.json'].includes(file.path)))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
        if(tool==='write_treatment')assertTreatment(input,context.durationSeconds,material.materials.map(asset=>asset.resourceId));
        if(tool==='submit_review'){
@@ -265,14 +274,12 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       if(previous&&canonical(previous)!==canonical(resource))throw Error('NATIVE_RESOURCE_CONFLICT');
       if(!previous)resources.set(identity,resource);
      }
-     if(lockedSelection){
-      assertMaterialProjection(documents,lockedSelection,[...resources.values()],script);
+     if(lockedSelection||scriptAudioLocks.length){
+      assertMaterialProjection(documents,lockedSelection,[...resources.values()],script,scriptAudioLocks);
       // Keep historical rights in the revision, but do not make unselected
       // source bytes available to dynamic code as an implicit substitution.
-      const permitted=new Set(lockedSelection.uses.map((use:Json)=>use.sha256));
-      const scriptIds=new Set((script?.moments??[]).flatMap((moment:Json)=>moment.resourceIds));
-      for(const resource of resources.values())if(resource.kind==='audio'&&scriptIds.has(resource.resourceId))
-       permitted.add(resource.sourceSha256??resource.sha256);
+      const permitted=new Set([...(lockedSelection?.uses??[]).map((use:Json)=>use.sha256),
+       ...scriptAudioLocks.map(lock=>lock.sha256)]);
       for(const [path,file] of assets)if(/^assets\/[a-f0-9]{24}\./.test(path)&&!permitted.has(file.sha256))assets.delete(path);
      }
      // A revision may retire an unused audio source. Never preserve timing
@@ -285,7 +292,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       `operations/${op.id}/timing-${digest(retainedTiming)}.json`,retainedTiming):null;
      const timingEvidenceRef=storedTiming?{key:storedTiming.key,sha256:storedTiming.sha256,byteLength:storedTiming.byteLength}:null;
      stageGuard();return canonical(await saveNativeProject(this.env,op,{composition:{durationSeconds:context.durationSeconds,fps:30,width:shape.width,height:shape.height},files:[...assets.values(),...authored],
-      resources:[...resources.values()],...(base?{baseRevision:base.revisionId}:{}),...(timingEvidenceRef?{timingEvidenceRef}:{})}));
+      resources:[...resources.values()],...(base?{baseRevision:base.revisionId}:{}),timingEvidenceRef}));
     })) as SavedNativeProject;
    };
    const sourceFiles=async(saved:SavedNativeProject):Promise<SourceFile[]>=>{
@@ -321,19 +328,22 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    const patchProject=async(name:string,aspect:string,saved:SavedNativeProject,payload:Json)=>{
     await rights(this.env,op,saved.project.resources);
     candidateResources.push(...saved.project.resources);
-    const files=await sourceFiles(saved),input=await runTool(name,'author','apply_project_patch',{...payload,baseRevision:saved.revisionId,sourceFiles:files,aspect,
-     composition:saved.project.composition,materials:publicMaterials(material.materials),script,lockedSelection,builtins},[],candidate=>{
-      const proposed=applyProjectPatch(files,saved.revisionId,candidate);
-      if(script&&!name.startsWith('hardest-'))assertScriptProjection(proposed,script);
-     });
-    let next:SourceFile[];try{
-     next=applyProjectPatch(files,saved.revisionId,input);reviewFrameTimes(input.reviewFrames,context.durationSeconds);
-     if(lockedSelection)assertMaterialProjection(next,lockedSelection,[...saved.project.resources,...material.resources],script);
+    const files=await sourceFiles(saved),verifyPatch=(candidate:Json)=>{
+     const proposed=applyProjectPatch(files,saved.revisionId,candidate);
+     if(script&&!name.startsWith('hardest-'))assertScriptProjection(proposed,script);
+     if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(proposed,lockedSelection,
+      [...saved.project.resources,...material.resources],script,scriptAudioLocks);
      for(const replacement of context.materialReplacements??[]){
       const newSource=material.materials.find(item=>item.resourceId===replacement.toResourceId);
-      if(!newSource||!next.some(file=>/^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path)
+      if(!newSource||!proposed.some(file=>/^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path)
        &&file.content.includes(newSource.path)))throw Error('MATERIAL_REPLACEMENT_NOT_APPLIED');
      }
+     return proposed;
+    };
+    const input=await runTool(name,'author','apply_project_patch',{...payload,baseRevision:saved.revisionId,sourceFiles:files,aspect,
+     composition:saved.project.composition,materials:publicMaterials(material.materials),script,lockedSelection,builtins},[],verifyPatch);
+    let next:SourceFile[];try{
+     next=verifyPatch(input);reviewFrameTimes(input.reviewFrames,context.durationSeconds);
     }catch(error){throw Error(error instanceof Error?error.message:'NATIVE_PATCH_INVALID');}
     return {saved:await persist(name,aspect,next,saved),frames:input.reviewFrames};
    };
@@ -410,6 +420,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      catch(error){outputError(error instanceof Error?error.message:'MATERIAL_SELECTION_INVALID',value);}
     });
     lockedSelection=assertMaterialSelection(selection,treatment,material.materials);
+    scriptAudioLocks=lockScriptAudioSources(script,material.materials,lockedSelection);
    }
    if(patchMode){
     const bases:SavedNativeProject[]=[];
@@ -423,10 +434,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      await rights(this.env,op,base.project.resources);
      const source=await sourceFiles(base),rawScript=source.find(file=>file.path==='script.json')?.content;
      const rawSelection=source.find(file=>file.path==='material-selection.json')?.content;
-     const rawBrief=source.find(file=>file.path==='BRIEF.md')?.content;
-     if(!rawBrief?.startsWith('# Brief\n\n'))throw Error('NATIVE_BASE_BRIEF_INVALID');
-     const originalBrief=parseCanonicalJson(rawBrief.slice('# Brief\n\n'.length)) as Json;
      const priorScript=rawScript?parseCanonicalJson(rawScript):null;
+     const rawBrief=source.find(file=>file.path==='BRIEF.md')?.content;
+     if(priorScript&&!rawBrief?.startsWith('# Brief\n\n'))throw Error('NATIVE_BASE_BRIEF_INVALID');
+     const originalBrief=priorScript?parseCanonicalJson(rawBrief!.slice('# Brief\n\n'.length)) as Json:null;
      const priorSelection=rawSelection?parseCanonicalJson(rawSelection):null;
      if(priorScript&&!validScript(priorScript))throw Error('SCRIPT_BASE_INVALID');
      if(priorSelection)assertLockedMaterialSelection(priorSelection,base.project.resources);
@@ -441,12 +452,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      if(!first&&(canonical(script)!==canonical(priorScript)||canonical(lockedSelection)!==canonical(priorSelection)))
       throw Error('NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT');
      if(!first&&canonical(priorTiming)!==canonical(currentTiming))throw Error('NATIVE_PATCH_TIMING_CONFLICT');
+     const baseAudioLocks=lockScriptAudioSources(priorScript,baseMaterials,priorSelection);
+     if(!first&&canonical(scriptAudioLocks)!==canonical(baseAudioLocks))
+      throw Error('NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT');
      if(priorScript){
-      assertNativeScript(priorScript,{durationSeconds:originalBrief.durationSeconds,videoLanguage:originalBrief.videoLanguage,
-       facts:originalBrief.facts,cta:originalBrief.cta,materials:baseMaterials,timingEvidence:currentTiming});
+      assertNativeScript(priorScript,{durationSeconds:originalBrief!.durationSeconds,videoLanguage:originalBrief!.videoLanguage,
+       facts:originalBrief!.facts,cta:originalBrief!.cta,materials:baseMaterials,timingEvidence:currentTiming});
      }
      script=priorScript as Json|null;lockedSelection=priorSelection as Json|null;
-     if(first){originalScript=priorScript as Json|null;priorTiming=currentTiming;firstBaseMaterials=baseMaterials;}
+     if(first){originalScript=priorScript as Json|null;priorTiming=currentTiming;firstBaseMaterials=baseMaterials;
+      scriptAudioLocks=baseAudioLocks;}
      first=false;
     }
     const admitted=[...material.materials,...firstBaseMaterials];
@@ -461,9 +476,20 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     }
     if(context.materialReplacements){
      if(!lockedSelection)throw Error('MATERIAL_REPLACEMENT_INVALID');
-     const updated=replaceLockedMaterials(lockedSelection,script,context.materialReplacements,material.materials,bases[0]!.project.resources);
+     const updated=replaceLockedMaterials(lockedSelection,script,context.materialReplacements,material.materials,bases[0]!.project.resources,scriptAudioLocks);
      lockedSelection=updated.selection;script=updated.script;
      assertLockedMaterialSelection(lockedSelection,[...bases[0]!.project.resources,...material.resources]);
+     for(const replacement of context.materialReplacements){
+      const index=scriptAudioLocks.findIndex(lock=>lock.resourceId===replacement.fromResourceId);
+      if(index>=0){const source=material.materials.find(item=>item.resourceId===replacement.toResourceId);
+       if(!source||source.kind!=='audio')throw Error('SCRIPT_AUDIO_SOURCE_INVALID');
+       scriptAudioLocks[index]={resourceId:source.resourceId,sha256:source.sha256};}
+     }
+     const uniqueLocks=new Map<string,string>();
+     for(const lock of scriptAudioLocks){const prior=uniqueLocks.get(lock.resourceId);
+      if(prior&&prior!==lock.sha256)throw Error('SCRIPT_AUDIO_SOURCE_AMBIGUOUS');
+      uniqueLocks.set(lock.resourceId,lock.sha256);}
+     scriptAudioLocks=[...uniqueLocks].map(([resourceId,sha256])=>({resourceId,sha256}));
     }
     if(script){
      assertNativeScript(script,{durationSeconds:context.durationSeconds,videoLanguage:context.videoLanguage,

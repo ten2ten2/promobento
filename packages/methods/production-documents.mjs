@@ -72,25 +72,39 @@ export function assertNativeScript(script, {durationSeconds, videoLanguage, fact
   return script;
 }
 
+const normalizedCopy = value => value.replace(/\s+/gu, ' ').trim();
+const htmlEntities = text => text.replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(?:x[\da-f]+|\d+));/gi, entity => {
+  const named = {amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' '};
+  const key = entity.slice(1, -1).toLowerCase();
+  if (Object.hasOwn(named, key)) return named[key];
+  const code = key.startsWith('#x') ? parseInt(key.slice(2), 16) : parseInt(key.slice(1), 10);
+  return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : entity;
+});
+
+/** The text of adjacent inline elements is one visible phrase, unlike comments, attributes, and scripts. */
+function visibleHtmlText(content) {
+  const withoutInert = content.replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const separated = withoutInert.replace(/<\/?(?:address|article|aside|blockquote|br|div|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|section|table|td|th|tr|ul)\b[^>]*>/gi, ' ');
+  return normalizedCopy(htmlEntities(separated.replace(/<[^>]*>/g, '')));
+}
+
 /** Native HTML/JS must actually contain display copy, rather than only an inert JSON plan. */
 export function assertScriptProjection(files, script) {
-  const source = files.filter(file => /^(?:index\.(?:html|js)|src\/.*\.(?:html|js))$/.test(file.path))
-    .map(file => file.content).join('\n');
-  // HTML escaping is a legitimate representation of visible copy. Do not
-  // require an unsafe literal ampersand or angle bracket in the source.
   const html = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
-    .map(file => file.content.replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(?:x[\da-f]+|\d+));/gi, entity => {
-      const named = {amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' '};
-      const key = entity.slice(1, -1).toLowerCase();
-      if (Object.hasOwn(named, key)) return named[key];
-      const code = key.startsWith('#x') ? parseInt(key.slice(2), 16) : parseInt(key.slice(1), 10);
-      return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : entity;
-    })).join('\n');
+    .map(file => visibleHtmlText(file.content));
   // Inspect string literals without evaluating author JavaScript inside the Worker.
   // Escaped quotes, backslashes, hex and Unicode escapes are normal representations
   // of displayed copy (JSON.stringify is a common way to author them).
   const inlineJs = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
-    .flatMap(file => [...file.content.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].map(match => match[1]));
+    .flatMap(file => [...file.content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+      .filter(([,attrs]) => {
+        if (/(?:^|\s)src\s*=/i.test(attrs)) return false;
+        const declared = /(?:^|\s)type\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
+        if (!declared) return true;
+        return ['module','text/javascript','application/javascript','text/ecmascript','application/ecmascript']
+          .includes((declared[1] ?? declared[2] ?? declared[3]).trim().toLowerCase());
+      }).map(match => match[2]));
   const js = [...files.filter(file => /^(?:index\.js|src\/.*\.js)$/.test(file.path))
     .map(file => file.content), ...inlineJs].join('\n');
   const jsStrings = [...js.matchAll(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g)]
@@ -104,11 +118,27 @@ export function assertScriptProjection(files, script) {
       }));
   for (const segment of script.segments) {
     if (['title', 'caption', 'cta'].includes(segment.role)
-      && !source.includes(segment.displayText) && !html.includes(segment.displayText)
+      && !html.some(value => value.includes(normalizedCopy(segment.displayText)))
       && !jsStrings.some(value => value.includes(segment.displayText)))
       fail('SCRIPT_SOURCE_PROJECTION_MISSING');
   }
   return true;
+}
+
+/** Script-only audio is pinned to an exact admitted version, not every SHA sharing its resource ID. */
+export function lockScriptAudioSources(script, materials, selection = null) {
+  const selected = new Set((selection?.uses ?? []).map(use => use.resourceId));
+  const ids = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
+  const locked = [];
+  for (const id of ids) {
+    if (selected.has(id)) continue;
+    const candidates = materials.filter(item => item.kind === 'audio' && item.resourceId === id);
+    if (!candidates.length) continue;
+    const sources = new Set(candidates.map(item => item.sha256));
+    if (sources.size !== 1) fail('SCRIPT_AUDIO_SOURCE_AMBIGUOUS');
+    locked.push({resourceId: id, sha256: candidates[0].sha256});
+  }
+  return locked;
 }
 
 /** Each Treatment asset use is bound to one admitted source and locked for the accepted direction. */
@@ -159,7 +189,14 @@ export function assertLockedMaterialSelection(selection, resources) {
 export function projectMaterialSources(project, selection = null, script = null) {
   if (selection) assertLockedMaterialSelection(selection, project.resources);
   const required = new Set((selection?.uses ?? []).map(use => canonical([use.resourceId, use.sha256])));
+  const runnable = project.resources.filter(item => item.sourcePath && project.files.some(file =>
+    file.path === item.sourcePath && file.sha256 === (item.sourceSha256 ?? item.sha256)));
+  const scriptLocks = lockScriptAudioSources(script, runnable.map(item => ({...item, sha256: item.sourceSha256 ?? item.sha256})), selection);
+  const scriptRequired = new Set(scriptLocks.map(item => canonical([item.resourceId, item.sha256])));
   const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
+  for (const id of scriptIds) if (!(selection?.uses ?? []).some(use => use.resourceId === id)
+    && project.resources.some(item => item.resourceId === id && item.kind === 'audio')
+    && !scriptLocks.some(item => item.resourceId === id)) fail('MATERIAL_SOURCE_IDENTITY_INVALID');
   return project.resources.flatMap(item => {
     const sha256 = item.sourceSha256 ?? item.sha256;
     if (item.sourceSha256) {
@@ -168,7 +205,7 @@ export function projectMaterialSources(project, selection = null, script = null)
       if (!file) {
         // A replaced source retains its historical rights obligation but no
         // longer has runnable bytes. Only retired, unreferenced sources may be absent.
-        if (required.has(canonical([item.resourceId, sha256])) || scriptIds.has(item.resourceId))
+        if (required.has(canonical([item.resourceId, sha256])) || scriptRequired.has(canonical([item.resourceId, sha256])))
           fail('MATERIAL_SOURCE_IDENTITY_INVALID');
         return [];
       }
@@ -180,15 +217,21 @@ export function projectMaterialSources(project, selection = null, script = null)
 }
 
 /** Visual media must be selected; Script-referenced licensed audio can also be played. */
-export function assertMaterialProjection(files, selection, resources, script = null) {
-  if (!selection) return;
-  assertLockedMaterialSelection(selection, resources);
+export function assertMaterialProjection(files, selection, resources, script = null, scriptAudioLocks = []) {
+  if (!selection && !scriptAudioLocks.length) return;
+  if (selection) assertLockedMaterialSelection(selection, resources);
   const admitted = new Map(resources.map(item =>
     [canonical([item.resourceId, item.sourceSha256 ?? item.sha256]), item.sourcePath ?? null]));
-  const lockedPaths = new Set(selection.uses.map(use => admitted.get(canonical([use.resourceId, use.sha256]))));
+  const lockedPaths = new Set((selection?.uses ?? []).map(use => admitted.get(canonical([use.resourceId, use.sha256]))));
   const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
-  for (const resource of resources) if (resource.kind === 'audio' && scriptIds.has(resource.resourceId))
-    lockedPaths.add(resource.sourcePath);
+  for (const lock of scriptAudioLocks) {
+    if (!scriptIds.has(lock.resourceId) || !resources.some(item => item.kind === 'audio'
+      && item.resourceId === lock.resourceId && (item.sourceSha256 ?? item.sha256) === lock.sha256))
+      fail('SCRIPT_AUDIO_SOURCE_INVALID');
+    const path = admitted.get(canonical([lock.resourceId, lock.sha256]));
+    if (!path) fail('SCRIPT_AUDIO_SOURCE_INVALID');
+    lockedPaths.add(path);
+  }
   const text = files.filter(file => /^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path))
     .map(file => file.content).join('\n');
   for (const [, path] of text.matchAll(/(?:assets\/)([a-f0-9]{24}\.(?:png|jpg|webp|svg|mp4|mov|webm|wav|mp3|m4a|ogg))/g)) {
@@ -197,19 +240,29 @@ export function assertMaterialProjection(files, selection, resources, script = n
 }
 
 /** Replacements are explicit user choices; the source SHA (not a video frame-pack SHA) remains locked. */
-export function replaceLockedMaterials(selection, script, replacements, admitted, baseResources) {
+export function replaceLockedMaterials(selection, script, replacements, admitted, baseResources, scriptAudioLocks = []) {
   assertLockedMaterialSelection(selection, baseResources);
   if (!Array.isArray(replacements) || !replacements.length
     || !unique(replacements.map(item => item.fromResourceId))
     || !unique(replacements.map(item => item.toResourceId))
-    || replacements.some(item => replacements.some(other => item.fromResourceId === other.toResourceId)))
+    || replacements.some(item => replacements.some(other => item !== other && item.fromResourceId === other.toResourceId)))
     fail('MATERIAL_REPLACEMENT_INVALID');
   const source = new Map(admitted.map(item => [item.resourceId, item]));
   const uses = structuredClone(selection.uses), moments = structuredClone(script?.moments ?? []);
   const segments = structuredClone(script?.segments ?? []), displacedSources = new Set();
   for (const item of replacements) {
     const next = source.get(item.toResourceId);
-    if (!next || item.fromResourceId === item.toResourceId) fail('MATERIAL_REPLACEMENT_INVALID');
+    if (!next) fail('MATERIAL_REPLACEMENT_INVALID');
+    // A user may explicitly replace A with B under the same resource ID.
+    // The ID alone is ambiguous unless exactly one old SHA is locked.
+    if (item.fromResourceId === item.toResourceId) {
+      const oldSha = new Set([
+        ...uses.flatMap(use => [use.resourceId === item.fromResourceId ? use.sha256 : null,
+          ...use.alternatives.filter(alt => alt.resourceId === item.fromResourceId).map(alt => alt.sha256)]),
+        ...scriptAudioLocks.filter(lock => lock.resourceId === item.fromResourceId).map(lock => lock.sha256),
+      ].filter(Boolean));
+      if (oldSha.size !== 1 || oldSha.has(next.sha256)) fail('MATERIAL_REPLACEMENT_INVALID');
+    }
     for (const old of baseResources.filter(resource => resource.resourceId === item.fromResourceId)) {
       const sha = old.sourceSha256 ?? old.sha256;
       if (sha !== next.sha256 && ['audio', 'video'].includes(old.kind)) displacedSources.add(sha);
@@ -234,7 +287,11 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
         || !unique(use.alternatives.map(alt => canonical([alt.resourceId, alt.sha256])))) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     for (const moment of moments) {
-      moment.resourceIds = moment.resourceIds.map(id => id === item.fromResourceId ? next.resourceId : id);
+      moment.resourceIds = moment.resourceIds.map(id => {
+        if (id !== item.fromResourceId) return id;
+        changed = true;
+        return next.resourceId;
+      });
       if (!unique(moment.resourceIds)) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     if (!changed) fail('MATERIAL_REPLACEMENT_INVALID');

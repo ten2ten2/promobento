@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
+import {assertScriptProjection} from '../../../packages/methods/production-documents.mjs';
 import providers from '../../../config/model-providers.json' with {type:'json'};
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
@@ -437,6 +438,31 @@ test('settled treatment and native author tool responses can be reused in the sa
  assert.equal((await modelStep(env,'new-operation',0,'treatment','new-treatment',treatment,checkSpec)).cached,true);
  assert.equal((await modelStep(env,'new-operation',0,'author','new-layout',layout,checkLayout,Date.now()+60000)).cached,true);
  assert.equal(requests,2);assert.equal((await budget.modelBudgetStatus(env)).currentChargedMicros,before.currentChargedMicros);
+});
+test('a completed author response missing authoritative copy is charged but never cached as successful',async t=>{
+ const{env,local}=await fixture(t),oldFetch=globalThis.fetch;let requests=0;
+ const script={segments:[{role:'title',displayText:'The real promise'}]};
+ globalThis.fetch=async()=>{
+  requests++;
+  const html=requests===1?'<h1>Wrong headline</h1>':'<h1>The real promise</h1>';
+  const response={choices:[{delta:{tool_calls:[{index:0,id:'author',function:{name:'write_project',
+   arguments:canonical({files:[{path:'index.html',content:html}]})}}]},finish_reason:'tool_calls'}],
+   usage:{prompt_tokens:100,completion_tokens:10}};
+  return new Response('data: '+canonical(response)+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{globalThis.fetch=oldFetch;});
+ const request={system:'Offline native author.',messages:[{role:'user',text:'Create a final film.'}],
+  maxOutputTokens:128,tools:[{name:'write_project',description:'Create native source.',parameters:{type:'object'}}]};
+ const validate=value=>assertScriptProjection(value.toolCalls[0].input.files,script);
+ await assert.rejects(modelStep(env,'model-operation',0,'author','incomplete-author',request,validate),
+  /SCRIPT_SOURCE_PROJECTION_MISSING/);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM model_responses').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,1);
+ const corrected={...request,messages:[...request.messages,{role:'user',text:'Correct the missing authoritative copy.'}]};
+ const result=await modelStep(env,'model-operation',0,'author','corrected-author',corrected,validate);
+ assert.equal(result.cached,false);
+ assert.equal(requests,2);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM model_responses').get().n,1);
 });
 test('missing settled receipt stops reuse without silently buying the response again',async t=>{
  const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;

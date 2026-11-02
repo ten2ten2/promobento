@@ -39,7 +39,7 @@ export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
 }
 
 export async function saveNativeProject(env: PipelineEnv, op: Operation, input: {
-  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string; timingEvidenceRef?: Json;
+  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string; timingEvidenceRef?: Json | null;
 }): Promise<SavedNativeProject> {
   await operation(env, op.id, op.generation);
   // Internal HTTP callers still supply untrusted JSON. A malformed list must
@@ -51,12 +51,13 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
         || typeof resource.resourceId !== 'string' || !resource.resourceId
         || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256)))
     || input.baseRevision !== undefined && typeof input.baseRevision !== 'string'
-    || input.timingEvidenceRef !== undefined && (!input.timingEvidenceRef
-      || typeof input.timingEvidenceRef !== 'object' || Array.isArray(input.timingEvidenceRef)
+    || input.timingEvidenceRef != null && (typeof input.timingEvidenceRef !== 'object' || Array.isArray(input.timingEvidenceRef)
       || typeof input.timingEvidenceRef.key !== 'string'))
     throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
   const parent = input.baseRevision ? await loadNativeProject(env, op, input.baseRevision) : null;
-  const timingEvidenceRef = input.timingEvidenceRef ?? parent?.project.timingEvidenceRef;
+  // Omission inherits the parent's evidence; explicit null retires it when its
+  // source audio has been removed by a new native revision.
+  const timingEvidenceRef = input.timingEvidenceRef === undefined ? parent?.project.timingEvidenceRef : input.timingEvidenceRef;
   if (timingEvidenceRef && (typeof timingEvidenceRef.key !== 'string'
     || !timingEvidenceRef.key.startsWith('operations/' + op.id + '/')
       && (!parent?.project.timingEvidenceRef

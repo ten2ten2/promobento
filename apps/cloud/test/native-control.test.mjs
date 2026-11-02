@@ -330,6 +330,10 @@ test('real immutable JSON and native project saving require a three-field measur
     .run(childOp.id,childOp.workspace_id,childOp.project_id,0,childOp.purpose,'active','timing-child',childOp.max_micros,Date.now(),null,null);
   const child=await saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId});
   assert.deepEqual(child.project.timingEvidenceRef,parent.project.timingEvidenceRef);
+  const retired=await saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId,timingEvidenceRef:null});
+  assert.equal(retired.project.timingEvidenceRef,undefined,
+    'removing the last measured source must not inherit the retired parent evidence');
+  assert.notEqual(retired.revisionId,child.revisionId);
 });
 
 test('a direct native child cannot silently drop its parent revision rights',async t=>{

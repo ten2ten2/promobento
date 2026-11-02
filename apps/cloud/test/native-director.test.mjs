@@ -60,8 +60,8 @@ const built=await build({stdin:{contents:'export {OperationWorkflow} from "./app
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
- transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,useAlternative=false,
- jsonMaterial=false,selectVoice=false}={}){
+ transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
+ jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,explicitSameIdAudio=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -117,12 +117,12 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
       {id:'cta',role:'cta',displayText:'Try PromoBento',speechText:null,factIds:[],startFrame:300,endFrame:450,timing:{kind:'authored'}}],
     moments:[{id:'reveal',kind:'reveal',startFrame:0,endFrame:300,segmentIds:['title'],resourceIds:['res_product'],timing:{kind:'authored'}},
       {id:'action',kind:'cta',startFrame:300,endFrame:450,segmentIds:['cta'],resourceIds:[],timing:{kind:'authored'}}]};
-   if(measuredSpeech){
-    const evidence=payload.timingEvidence[0];
+   if(measuredSpeech||authoredSpeech){
+    const timing=measuredSpeech?{kind:'measured',sourceSha256:payload.timingEvidence[0].sourceSha256,firstWord:0,lastWord:1}:{kind:'authored'};
     value.segments.push({id:'voice',role:'narration',displayText:'Voice over',speechText:'Hello world',factIds:[],startFrame:30,endFrame:60,
-      timing:{kind:'measured',sourceSha256:evidence.sourceSha256,firstWord:0,lastWord:1}});
+      timing});
     value.moments.push({id:'spoken',kind:'demonstration',startFrame:30,endFrame:60,segmentIds:['voice'],
-      resourceIds:['res_voice'],timing:{kind:'measured',sourceSha256:evidence.sourceSha256,firstWord:0,lastWord:1}});
+      resourceIds:['res_voice'],timing});
    }
    }
    else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
@@ -134,9 +134,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      const shape=payload.composition,product=payload.materials.find(item=>item.resourceId==='res_product')??payload.materials[0];
      const voice=payload.materials.find(item=>item.resourceId==='res_voice');
      const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${product.path}">`;
-     const audio=selectVoice&&voice?`<audio src="${voice.path}"></audio>`:'';
+     const audio=(selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'';
      const source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1>${image}${audio}<i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};${jsonMaterial?"fetch('src/assets.json').then(r=>r.json()).then(v=>document.querySelector('img').src=v.productPath);":''}</script></body></html>`;
-     input={files:[{path:'index.html',content:source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>')},
+     const html=source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>');
+     input={files:[{path:'index.html',content:invalidRecomposeOnce&&callId.includes('-recompose-')&&!callId.endsWith('-correct')
+      ?html.replace('PROMO_PROMISE','OMITTED_PROMISE'):html},
       ...(jsonMaterial?[{path:'src/assets.json',content:JSON.stringify({productPath:product.path})}]:[])],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
     }else if(tool==='apply_project_patch'){
      const previouslyRevised=payload.sourceFiles.find(file=>file.path==='index.html')?.content.includes('PROMO_REVISED');
@@ -146,8 +148,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      if(replacement&&payload.comments){const targetFile=jsonMaterial?'src/assets.json':'index.html';
       const oldPath=payload.sourceFiles.find(file=>file.path===targetFile).content.match(/assets\/[a-f0-9]{24}\.png/)[0];
       input.edits.push({command:'replace',path:targetFile,oldText:oldPath,newText:replacement.path});}
-     const nextVoice=payload.materials.find(material=>material.resourceId==='res_voice_new');
-     if(nextVoice&&payload.comments){const oldPath=payload.sourceFiles.find(file=>file.path==='index.html').content.match(/assets\/[a-f0-9]{24}\.wav/)[0];
+     const oldVoicePath=payload.sourceFiles.find(file=>file.path==='index.html')?.content.match(/assets\/[a-f0-9]{24}\.wav/)?.[0];
+     const nextVoice=payload.materials.find(material=>material.kind==='audio'
+      &&(material.resourceId==='res_voice_new'||explicitSameIdAudio&&material.resourceId==='res_voice')
+      &&material.path!==oldVoicePath);
+     if(nextVoice&&oldVoicePath&&payload.comments){const oldPath=oldVoicePath;
       input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:nextVoice.path});}
      const revisedCopy=payload.script?.segments?.find(segment=>segment.id==='title')?.displayText;
      if(revisedCopy&&revisedCopy!=='PROMO_PROMISE')input.edits.push({command:'replace',path:'index.html',oldText:'PROMO_PROMISE',newText:revisedCopy});
@@ -188,7 +193,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
+ return {create,calls,jobs,saved,db,env,asset,put,save:f.save,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
 }
 
 test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
@@ -478,6 +483,122 @@ test('replacing a measured audio source clears stale word clocks and keeps only 
  assert.ok(project.files.some(item=>item.sha256===alternate.sha256));
  const retained=parseCanonicalJson(await f.bytes(f.env,project.timingEvidenceRef));
  assert.deepEqual(retained.map(item=>item.sourceSha256),[alternate.sha256]);
+});
+
+test('a geometry patch cannot smuggle a different SHA under a Script-only audio resource ID',async t=>{
+ const f=await fixture(t,{measuredSpeech:true});
+ const voice={...await f.put('evals/fixture/voice-old.wav',Buffer.from('recording A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('locked-voice-parent',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const other={...await f.put('evals/fixture/voice-other.wav',Buffer.from('recording B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const changed=await f.create('locked-voice-child',{aspects:['landscape'],resources:[],audioSources:[other],
+  baseRevision:parent.projects[0].revisionId,comments:[{text:'Move the title 5 pixels.',frame:60}]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(!project.files.some(item=>item.sha256===other.sha256),
+  'a re-admitted same-ID SHA is not automatically made executable by a Script-only audio reference');
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,project.files.find(file=>file.path==='script.json')))
+  .segments.find(item=>item.id==='voice').timing.sourceSha256,voice.sha256);
+ assert.equal(changed.scriptImpact,null);
+});
+
+test('Script-only audio can be explicitly replaced and its obsolete measured clock is retired',async t=>{
+ const f=await fixture(t,{measuredSpeech:true});
+ const voice={...await f.put('evals/fixture/only-voice.wav',Buffer.from('old voice'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const parent=await f.create('script-only-voice-parent',{aspects:['landscape'],audioSources:[voice],
+  timingEvidence:[{sourceSha256:voice.sha256,durationSeconds:3,words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]}]});
+ const replacement={...await f.put('evals/fixture/only-voice-new.wav',Buffer.from('new voice'),'audio/wav'),
+  resourceId:'res_voice_new',kind:'audio',durationSeconds:3};
+ const changed=await f.create('script-only-voice-child',{aspects:['landscape'],resources:[],audioSources:[replacement],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice_new'}],
+  comments:[]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(!project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(project.files.some(item=>item.sha256===replacement.sha256));
+ assert.equal(project.timingEvidenceRef,undefined,'removing the last measured source must clear inherited timing evidence');
+ const script=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.deepEqual(script.moments.find(item=>item.id==='spoken').resourceIds,['res_voice_new']);
+ assert.equal(script.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.equal(changed.scriptImpact.changed,true);
+});
+
+test('an explicit same-ID new-SHA audio replacement is legal, updates executable bytes and retires measured timing',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,explicitSameIdAudio:true});
+ const voice={...await f.put('evals/fixture/same-id-a.wav',Buffer.from('version A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('same-id-a',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const next={...await f.put('evals/fixture/same-id-b.wav',Buffer.from('version B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const changed=await f.create('same-id-b',{aspects:['landscape'],resources:[],audioSources:[next],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice'}],
+  comments:[]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(!project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(project.files.some(item=>item.sha256===next.sha256));
+ assert.equal(project.timingEvidenceRef,undefined);
+ const authored=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.deepEqual(authored.moments.find(item=>item.id==='spoken').resourceIds,['res_voice']);
+ assert.equal(authored.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.equal(authored.moments.find(item=>item.id==='spoken').timing.kind,'authored');
+ assert.equal(changed.scriptImpact.changed,true);
+});
+
+test('multi-aspect patch rejects incompatible Script-only audio SHA locks before author calls',async t=>{
+ const f=await fixture(t,{authoredSpeech:true});
+ const audio={...await f.put('evals/fixture/multi-a.wav',Buffer.from('sound A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const parent=await f.create('multi-voice-base',{audioSources:[audio]});
+ const alt={...await f.put('evals/fixture/multi-b.wav',Buffer.from('sound B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const original=f.saved.get(parent.projects[1].revisionId).project;
+ const originalPath='assets/'+audio.sha256.slice(0,24)+'.wav';
+ const alternatePath='assets/'+alt.sha256.slice(0,24)+'.wav';
+ const oldHtml=new TextDecoder().decode(await f.bytes(f.env,original.files.find(file=>file.path==='index.html')));
+ const html=await f.put('evals/fixture/multi-portrait.html',new TextEncoder().encode(oldHtml.replace(originalPath,alternatePath)),'text/html');
+ const revised=await f.save(f.env,{id:'multi-portrait'},
+  {composition:original.composition,files:[...original.files.filter(file=>file.path!=='index.html'&&file.path!==originalPath),
+   {path:'index.html',key:html.key,sha256:html.sha256,byteLength:html.byteLength,mediaType:html.mediaType},
+   {path:alternatePath,key:alt.key,sha256:alt.sha256,byteLength:alt.byteLength,mediaType:alt.mediaType}],
+   resources:[...original.resources,{resourceId:'res_voice',sha256:alt.sha256,sourceSha256:alt.sha256,
+    sourcePath:alternatePath,kind:'audio',durationSeconds:3}]});
+ const before=f.calls.length;
+ await assert.rejects(f.create('multi-voice-child',{resources:[],baseRevisions:{landscape:parent.projects[0].revisionId,
+  portrait:revised.revisionId},comments:[{text:'Nudge the title.',frame:100}]},[f.asset,audio,alt]),
+ /NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT/);
+ assert.equal(f.calls.length,before);
+});
+
+test('an imported native project without BRIEF.md or Script remains editable',async t=>{
+ const f=await fixture(t);
+ const html=await f.put('evals/fixture/imported.html',new TextEncoder().encode(
+  '<!doctype html><html><body><div data-composition-id="film" data-width="1920" data-height="1080" data-duration="15" data-fps="30"><h1>PROMO_ORIGINAL</h1></div></body></html>'),'text/html');
+ const {key,sha256,byteLength,mediaType}=html;
+ const imported=await f.save(f.env,{id:'imported-base'},
+  {composition:{durationSeconds:15,fps:30,width:1920,height:1080},files:[{path:'index.html',key,sha256,byteLength,mediaType}],resources:[]});
+ assert.ok(!imported.project.files.some(file=>file.path==='BRIEF.md'));
+ const changed=await f.create('imported-child',{aspects:['landscape'],resources:[],baseRevision:imported.revisionId,
+  comments:[{text:'Shift the headline.',frame:30}]});
+ assert.equal(changed.kind,'native_candidate');
+ assert.equal(changed.scriptKey,null);
+ assert.ok(f.saved.get(changed.projects[0].revisionId).project.files.some(file=>file.path==='BRIEF.md'));
+});
+
+test('an incomplete recompose is corrected before it can count as a valid model response',async t=>{
+ const f=await fixture(t,{invalidRecomposeOnce:true});
+ const result=await f.create('recompose-correction',{aspects:['landscape','portrait']});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-recompose-portrait'));
+ assert.equal(attempts.length,2);
+ assert.match(attempts[1].callId,/-correct$/);
+ const project=f.saved.get(result.projects[1].revisionId).project;
+ const file=project.files.find(item=>item.path==='index.html');
+ assert.match(new TextDecoder().decode(await f.bytes(f.env,file)),/PROMO_PROMISE/);
 });
 
 test('candidate submission includes rights inherited from an earlier native revision',async t=>{
