@@ -1,6 +1,6 @@
 // Owner's internal evaluation only. Uses the existing Wrangler connection; never reads or exports credentials.
-import {closeSync,constants,lstatSync,openSync,readFileSync,writeFileSync,realpathSync} from 'node:fs';
-import {resolve,join,sep} from 'node:path';
+import {lstatSync,readFileSync} from 'node:fs';
+import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
@@ -8,10 +8,10 @@ import {objectUploadHeaders,requireIdleCapacity} from '../../apps/cloud/src/inte
 import {prepareMaterialSelection,readReviewedMaterial} from './prepare-material-selection.mjs';
 import {verifyArtworkSelections,artworkSourceObjectName} from './approved-artwork.mjs';
 import {verifyVideoSelections} from './approved-video.mjs';
+import {privateExisting,writePrivateFile} from './private-path.mjs';
 
-const directory=realpathSync(resolve(process.argv[2]??'artifacts/eval-materials-2026-10-24'));
-if(!directory.startsWith(realpathSync('artifacts')+sep))throw Error('PRIVATE_ARTIFACT_DIRECTORY_REQUIRED');
-const selected=parseCanonicalJson(readFileSync(join(directory,'selected.json'))),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
+const directory=privateExisting(process.argv[2]??'artifacts/eval-materials-2026-10-24');
+const selected=parseCanonicalJson(readReviewedMaterial(directory,'selected.json',8<<20)),topics=parseCanonicalJson(readFileSync('research/evals/topics.json'));
 const verifiedArtwork=await verifyArtworkSelections(directory,selected,topics);
 const verifiedVideos=await verifyVideoSelections(directory,selected,topics);
 const prepared=prepareMaterialSelection(directory,selected,topics,{verifiedArtwork,verifiedVideos});
@@ -29,10 +29,7 @@ if(!/^materials-[A-Za-z0-9_-]{8,70}$/.test(operationId))throw Error('MATERIAL_OP
 const prefix='evals/'+operationId,licenseRef='LicenseRef-S1-Internal-Evaluation';
 const manifest={kind:'s1_internal_materials',scope:'internal_eval_only',publicUseCleared:false,operationId,
  rightsDecision:'research/evals/topics.json#/rights',acquiredAt:new Date().toISOString(),assets:[],pending:[]};
-const save=()=>{
- const fd=openSync(receiptPath,constants.O_WRONLY|constants.O_CREAT|constants.O_TRUNC|constants.O_NOFOLLOW,0o600);
- try{writeFileSync(fd,canonical(manifest)+'\n');}finally{closeSync(fd);}
-};
+const save=()=>writePrivateFile(receiptPath,canonical(manifest)+'\n');
 let secretAttempted=false,operationCreated=false;
 const call=async(path,{method='GET',body,mediaType='application/json'}={})=>{
  const until=Date.now()+30000;

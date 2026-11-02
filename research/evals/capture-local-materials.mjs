@@ -1,19 +1,17 @@
 // Collect only explicitly approved PNG, JPEG and WebP images from a local project into the existing S1 selection workflow.
 // The source directory is read-only; the collector never runs project code or infers usage rights.
-import {existsSync,lstatSync,mkdirSync,readFileSync,realpathSync,statSync,writeFileSync} from 'node:fs';
-import {resolve,relative,sep,join,dirname} from 'node:path';
+import {lstatSync,mkdirSync,readFileSync,realpathSync,statSync} from 'node:fs';
+import {resolve,relative,sep,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {materialApproval} from './material-approval.mjs';
 import {imageHeader} from './image-header.mjs';
+import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep);
 export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
- const source=realpathSync(sourceDir),output=resolve(outputDir),artifacts=realpathSync('artifacts');
- if(!within(artifacts,output)||existsSync(output))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- let parent=dirname(output);while(!existsSync(parent)&&parent!==dirname(parent))parent=dirname(parent);
- const actualParent=realpathSync(parent);if(actualParent!==artifacts&&!within(artifacts,actualParent))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
+ const source=realpathSync(sourceDir),output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>60||new Set(entries.map(entry=>entry.id)).size!==entries.length)throw Error('LOCAL_MATERIAL_SELECTION_INVALID');
  if(card.status!=='confirmed_for_s1_eval'||card.confirmation?.confirmedBy!=='owner'||card.confirmation.scope!=='s1-first-internal-evaluation'
   ||card.rights?.scope!=='internal_eval_only'||card.rights.publicUseCleared!==false)throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
@@ -36,16 +34,16 @@ export function captureApprovedLocal({sourceDir,outputDir,card,entries}){
   return{bytes,asset:{id:entry.id,topicId:card.topicId,file:entry.id+'.'+extension,width,height,mediaType,description:entry.description,sourceUrl:entry.sourceUrl,approvalRef:entry.approvalRef,
    derivation:{kind:'approved_local_project_file',sourceFile:relative(source,path).split(sep).join('/')},review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}};
  });
- mkdirSync(output,{recursive:true});if(!within(artifacts,realpathSync(output)))throw Error('NEW_PRIVATE_OUTPUT_REQUIRED');
- for(const {asset,bytes}of materials)writeFileSync(join(output,asset.file),bytes,{flag:'wx'});
+ mkdirSync(output,{recursive:true});privateExisting(output,'directory','NEW_PRIVATE_OUTPUT_REQUIRED');
+ for(const {asset,bytes}of materials)writePrivateFile(join(output,asset.file),bytes,{exclusive:true});
  const result={scope:'internal_eval_only',publicUseCleared:false,assets:materials.map(item=>item.asset)};
- writeFileSync(join(output,'selected.json'),canonical(result)+'\n',{flag:'wx'});return result;
+ writePrivateFile(join(output,'selected.json'),canonical(result)+'\n',{exclusive:true});return result;
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const [outputDir,topicId,sourceDir,manifestFile,...extra]=process.argv.slice(2);
  if(!outputDir||!topicId||!sourceDir||!manifestFile||extra.length)throw Error('LOCAL_CAPTURE_ARGUMENTS_REQUIRED');
- const manifestPath=resolve(manifestFile);if(!within(realpathSync('artifacts'),realpathSync(manifestPath)))throw Error('PRIVATE_MANIFEST_REQUIRED');
+ const manifestPath=privateExisting(manifestFile,'file','PRIVATE_MANIFEST_REQUIRED');
  const topics=parseCanonicalJson(readFileSync('research/evals/topics.json')),topic=topics.topics.find(item=>item.id===topicId&&item.countsTowardGate!==false);
  if(!topic)throw Error('TOPIC_NOT_APPROVED');
  const card=parseCanonicalJson(readFileSync(topic.factCard)),manifest=parseCanonicalJson(readFileSync(manifestPath));

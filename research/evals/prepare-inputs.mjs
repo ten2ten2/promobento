@@ -1,13 +1,14 @@
 // Prepare the existing internal creative API's inputs. No upload, operation, model or render call.
-import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
-import {resolve,join} from 'node:path';
+import {readFileSync,mkdirSync} from 'node:fs';
+import {join} from 'node:path';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {NATIVE_RUNTIME_COMMIT} from '@promobento/contracts/native-project';
+import {privateNewDirectory,writePrivateFile} from './private-path.mjs';
 
-const [directoryArg,rendererRelease,...flags]=process.argv.slice(2),directory=resolve(directoryArg??'');
-if(!directoryArg||!directory.startsWith(resolve('artifacts')+'/')||!/^renderer-[a-f0-9]{12}$/.test(rendererRelease??''))throw Error('EVAL_PRIVATE_DIRECTORY_AND_PINNED_RENDERER_REQUIRED');
+const [directoryArg,rendererRelease,...flags]=process.argv.slice(2);
+if(!directoryArg||!/^renderer-[a-f0-9]{12}$/.test(rendererRelease??''))throw Error('EVAL_PRIVATE_DIRECTORY_AND_PINNED_RENDERER_REQUIRED');
+const directory=privateNewDirectory(directoryArg,'EVAL_PRIVATE_DIRECTORY_AND_PINNED_RENDERER_REQUIRED','EVAL_INPUT_DIRECTORY_EXISTS');
 if(flags.length)throw Error('EVAL_ARGUMENT_INVALID');
-if(existsSync(directory))throw Error('EVAL_INPUT_DIRECTORY_EXISTS');
 const read=path=>parseCanonicalJson(readFileSync(path)),topics=read('research/evals/topics.json'),materials=read('research/evals/materials.json');
 if(topics.rights.scope!=='internal_eval_only'||topics.factConfirmation.confirmedBy!=='owner'||materials.status!=='ingested_internal_eval'
  ||materials.publicUseCleared!==false||materials.pending.length)throw Error('EVAL_CONFIRMED_INPUTS_REQUIRED');
@@ -40,9 +41,9 @@ for(const topic of topics.topics.filter(topic=>topic.countsTowardGate!==false)){
 }
 if(cases.length!==12)throw Error('EVAL_TWELVE_CREATIVE_CASES_REQUIRED');
 mkdirSync(directory,{recursive:true});
-for(const item of cases)writeFileSync(join(directory,item.contextFile),canonical(item.context)+'\n');
+for(const item of cases)writePrivateFile(join(directory,item.contextFile),canonical(item.context)+'\n',{exclusive:true});
 const manifest={schemaVersion:'3.0.0',kind:'s1_eval_prepared_inputs',status:'prepared_not_executed',scope:'internal_eval_only',publicUseCleared:false,
  rendererRelease,creativeBriefVersion:'native-director-v2',materialManifestKey:materials.manifestKey,creativeCases:cases.length,expectedFinalFilms:24,
  cases:cases.map(({context,...item})=>item)};
-writeFileSync(join(directory,'manifest.json'),canonical(manifest)+'\n');
+writePrivateFile(join(directory,'manifest.json'),canonical(manifest)+'\n',{exclusive:true});
 console.log(canonical({status:manifest.status,creativeCases:manifest.creativeCases,expectedFinalFilms:manifest.expectedFinalFilms,manifest:join(directory,'manifest.json')}));
