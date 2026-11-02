@@ -1,15 +1,16 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
-import {chromium} from 'playwright-core';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
+import {execFileSync} from 'node:child_process';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
 import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
-import {evaluationChromeExecutable} from './chrome.mjs';
-async function syntheticVideo(){let browser;try{
- browser=await chromium.launch({executablePath:evaluationChromeExecutable,headless:true,chromiumSandbox:true});const page=await browser.newPage();
- const data=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=96;canvas.height=64;const ctx=canvas.getContext('2d'),stream=canvas.captureStream(10),chunks=[];
-  const recorder=new MediaRecorder(stream,{mimeType:'video/webm;codecs=vp8'});recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};const stopped=new Promise(resolve=>recorder.onstop=resolve);recorder.start();
-  for(let i=0;i<22;i++){ctx.fillStyle=i<11?'#16c930':'#1640e0';ctx.fillRect(0,0,96,64);await new Promise(resolve=>setTimeout(resolve,100));}
-  recorder.stop();await stopped;stream.getTracks().forEach(track=>track.stop());return Array.from(new Uint8Array(await new Blob(chunks,{type:'video/webm'}).arrayBuffer()));});return Buffer.from(data);
- }finally{await browser?.close();}}
+// MediaRecorder's wall-clock frame times vary with CI CPU scheduling and can
+// land exactly on a 30 fps sampling boundary. A fixed-timestamp fixture tests
+// the actual browser decoder and byte-for-byte re-verification reproducibly.
+function syntheticVideo(){return execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-nostdin',
+ '-f','lavfi','-i','color=c=0x16c930:s=96x64:r=24:d=1.125',
+ '-f','lavfi','-i','color=c=0x1640e0:s=96x64:r=24:d=1.125',
+ '-filter_complex','[0:v][1:v]concat=n=2:v=1:a=0,format=yuv420p[v]',
+ '-map','[v]','-c:v','libvpx','-b:v','250k','-threads','1','-an','-f','webm','pipe:1'],
+ {timeout:15000,maxBuffer:4<<20});}
 const entry={id:'fixture-video',sourceFile:'test.webm',sourceUrl:'local://fixture',description:'Synthetic footage.',approvalRef:'research/evals/fact-cards/fixture.json#/materialApprovals/fixture-video'};
 test('animated-image headers bound dimensions and reject still or malformed WebP before decoding',()=>{
  const png=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(64,16);png.writeUInt32BE(32,20);
@@ -61,7 +62,7 @@ test('extensionless web video requires an explicitly approved type before downlo
 });
 test('approved video becomes reproducible 30 fps frames and a source-bound manifest',async()=>{
  const root=mkdtempSync(resolve('artifacts/.approved-video-test-'));
- try{const sourceDir=join(root,'source');mkdirSync(sourceDir);const source=await syntheticVideo();writeFileSync(join(sourceDir,'test.webm'),source);
+ try{const sourceDir=join(root,'source');mkdirSync(sourceDir);const source=syntheticVideo();writeFileSync(join(sourceDir,'test.webm'),source);
   const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],
    materialApprovals:{'fixture-video':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Original synthetic test.',sourceFile:'test.webm',sourceUrl:'local://fixture',sha256:sha256Bytes(source)}}};
   const denied=join(root,'denied');await assert.rejects(captureApprovedLocalVideo({sourceDir,outputDir:denied,card:{...card,materialApprovals:{}},entries:[entry]}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(existsSync(denied),false);

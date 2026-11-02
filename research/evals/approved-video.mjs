@@ -105,7 +105,9 @@ async function extractVideo({page,version},source,mediaType){
  const flush=()=>{if(size){packs.push(Buffer.concat(parts,size));parts.length=0;size=0;}};
  for(let index=0;index<count;index++){
   const result=await bounded(page.evaluate(async({index,mediaType,width,height})=>{
-   const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=index/30;
+   // Sample the center of each output frame interval. Exact start-boundary
+   // seeks can pick either adjacent source frame after a fresh decoder launch.
+   const v=document.querySelector('video'),canvas=document.querySelector('canvas'),time=(index+0.5)/30;
    canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');if(!ctx)throw Error('VIDEO_CANVAS_UNAVAILABLE');
    if(['image/gif','image/png','image/webp','image/avif'].includes(mediaType)){
     const frameIndex=window.__pbAnimatedEnds.findIndex(end=>time*1000000<end);if(frameIndex<0)throw Error('VIDEO_SEEK_FAILED');
