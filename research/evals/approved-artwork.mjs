@@ -12,6 +12,7 @@ import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-image
 import {assertStaticArtwork} from './artwork-format.mjs';
 import {evaluationChromeExecutable} from './chrome.mjs';
 import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
+import {readBoundedApprovedFile} from './read-local-approved.mjs';
 import {readReviewedMaterial} from './prepare-material-selection.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),limit=1<<20;
@@ -138,7 +139,7 @@ export async function captureApprovedArtwork({sourceDir,outputDir,card,entries})
   const path=resolve(source,entry.sourceFile);if(!within(source,path)||relative(source,path).split(sep).join('/')!==entry.sourceFile||!within(source,realpathSync(path))||lstatSync(path).isSymbolicLink()||!statSync(path).isFile())throw Error('LOCAL_MATERIAL_PATH_INVALID');
   if(statSync(path).size>limit)throw Error('ARTWORK_SIZE_INVALID');return{entry,asset,path};
  });
- const inputs=accepted.map(item=>{const bytes=readFileSync(item.path);if(bytes.length>limit)throw Error('ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);return{...item,bytes};});
+ const inputs=accepted.map(item=>{const bytes=readBoundedApprovedFile(item.path,limit,'ARTWORK_SIZE_INVALID');checkIdentity(card,item.asset,bytes);return{...item,bytes};});
  return materializeArtwork(output,inputs);
 }
 async function materializeArtwork(output,inputs){

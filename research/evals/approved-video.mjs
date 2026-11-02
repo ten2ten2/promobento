@@ -13,6 +13,7 @@ import {approvedWebUrl,downloadApprovedImage} from './capture-approved-web-image
 import {evaluationChromeExecutable} from './chrome.mjs';
 import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
 import {readReviewedMaterial} from './prepare-material-selection.mjs';
+import {readBoundedApprovedFile} from './read-local-approved.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep),maxSource=50<<20,maxPack=8<<20,maxTotal=175<<20;
 const kindFor=file=>({'.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.gif':'image/gif','.png':'image/png','.apng':'image/png','.webp':'image/webp','.avif':'image/avif'})[extname(file).toLowerCase()];
@@ -138,7 +139,7 @@ export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entrie
   const path=resolve(source,entry.sourceFile);if(!within(source,path)||relative(source,path).split(sep).join('/')!==entry.sourceFile||!within(source,realpathSync(path))||lstatSync(path).isSymbolicLink()||!statSync(path).isFile())throw Error('LOCAL_MATERIAL_PATH_INVALID');
   if(statSync(path).size>maxSource)throw Error('VIDEO_SOURCE_SIZE_INVALID');return{entry,asset,path};
  });
- const inputs=accepted.map(item=>{const bytes=readFileSync(item.path);checkBytes(card,item.asset,bytes);return{...item,bytes};});
+ const inputs=accepted.map(item=>{const bytes=readBoundedApprovedFile(item.path,maxSource,'VIDEO_SOURCE_SIZE_INVALID');checkBytes(card,item.asset,bytes);return{...item,bytes};});
  return materializeVideo(output,inputs);
 }
 async function materializeVideo(output,inputs){

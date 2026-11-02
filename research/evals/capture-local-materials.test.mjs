@@ -6,6 +6,7 @@ import {join,resolve} from 'node:path';
 import {pngRgba} from '@promobento/contracts/png';
 import {sha256Bytes} from '@promobento/contracts/digest';
 import {captureApprovedLocal,readApprovedLocalFile} from './capture-local-materials.mjs';
+import {readBoundedApprovedFile} from './read-local-approved.mjs';
 import {assertLocalMaterialIdentity,materialApproval} from './material-approval.mjs';
 import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 
@@ -65,5 +66,7 @@ test('opened local material is bounded and rejects a swapped symlink',()=>{
   assert.throws(()=>readApprovedLocalFile(linked),/LOCAL_MATERIAL_PATH_INVALID/);
   writeFileSync(oversized,Buffer.alloc((1<<20)+1));
   assert.throws(()=>readApprovedLocalFile(oversized),/DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED/);
+  assert.throws(()=>readBoundedApprovedFile(oversized,1<<20,'VIDEO_SOURCE_SIZE_INVALID'),/VIDEO_SOURCE_SIZE_INVALID/);
+  assert.throws(()=>readBoundedApprovedFile(oversized,8,'ARTWORK_SIZE_INVALID'),/ARTWORK_SIZE_INVALID/);
  }finally{rmSync(root,{recursive:true,force:true});}
 });
