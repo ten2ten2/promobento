@@ -50,15 +50,18 @@ export async function downloadApprovedImage(value,{resolveAddress=lookup,makeReq
     lookup(_host,options,callback){if(options.all)callback(null,[selected]);else callback(null,selected.address,selected.family);}},response=>{
     response.on('error',fail);response.on('aborted',()=>fail(Error('WEB_MATERIAL_RESPONSE_ABORTED')));
     if([301,302,303,307,308].includes(response.statusCode)){
-     const location=response.headers.location;response.destroy();
+     const location=response.headers.location;
+     // IncomingMessage.destroy() synchronously emits `aborted` for a partial
+     // redirect body. Settle with the redirect result *before* closing it.
      if(typeof location!=='string'||!location)fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));
      else done({location});
+     response.destroy();
      return;
     }
-    if(response.statusCode!==200){response.destroy();fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));return;}
-    const declared=Number(response.headers['content-length']);if(Number.isFinite(declared)&&declared>maxBytes){response.destroy();fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}
+    if(response.statusCode!==200){fail(Error('WEB_MATERIAL_HTTP_'+response.statusCode));response.destroy();return;}
+    const declared=Number(response.headers['content-length']);if(Number.isFinite(declared)&&declared>maxBytes){fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));response.destroy();return;}
     let length=0;const parts=[];
-    response.on('data',chunk=>{length+=chunk.length;if(length>maxBytes){response.destroy(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));return;}parts.push(chunk);});
+    response.on('data',chunk=>{length+=chunk.length;if(length>maxBytes){fail(Error('DIRECTOR_MATERIAL_NORMALIZATION_REQUIRED'));response.destroy();return;}parts.push(chunk);});
     response.on('end',()=>done({bytes:Buffer.concat(parts)}));
    });
    const deadline=setTimeout(()=>req.destroy(Error('WEB_MATERIAL_TIMEOUT')),wait);
