@@ -10,7 +10,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 - `saveNativeProject` 先核对每个私有 R2 对象的大小与摘要，再保存规范化清单。revision 是清单 hash；旧版本永不覆盖。
 - `baseRevision` 表示改稿来源。加载来源须匹配操作的 workspace/project；方向预览、不同画幅及改稿各有独立不可变分支，不用一个全局 head 覆盖其他画幅。
-- `createNativeRender` 在同一 D1 batch 中记录渲染与 outbox。任务生成后立即尝试发送；定时 sweep 重发未入队项，也会对超过 5 分钟仍未登记 Workflow 的活跃创作／排队渲染做有界补派发。已登记的 Workflow 不能重新启动。
+- `createNativeRender` 在同一 D1 batch 中记录渲染与 outbox。任务生成后立即尝试发送；定时 sweep 重发未入队项，也会对超过 5 分钟仍未登记 Workflow 的活跃创作／排队渲染做有界补派发。对于**已登记但尚未确认创建、也未领取执行权**的活跃 Workflow，恢复扫描可补做首次 `create`；任何已创建、已领取执行权或已经停机／清理的实例均不得重新创建。
 - 预览默认取 4 个原生 PNG 帧，也可指定 1–12 个互异秒数，范围为 `[0, durationSeconds - 1/30]`；导出执行原生完整工程，生成一部 MP4。多画幅分别创作和运行，不拉伸复用。
 - 原生 CLI 会刷新运行时文件并可能生成音乐、修改 HTML 音频引用。回执分别记录输入 index 摘要、实际渲染 index 摘要与原清单摘要；导出还保存实际工程清单及全部可服务源文件，以便复现。
 
@@ -32,7 +32,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 
-取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。Workflow 执行权的条件领取与状态更新是同一条 D1 更新，拒绝重复启动时不会抹掉既有终态与 reconciliation 证据。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。模型前置核查可能耗时，实际费用预留前及派发前须重查请求截止时间；派发标记的共享账本写入返回后，还要重查操作代际、期限和负责人授权有效期。确知尚未发送的模型请求撤销派发标记，两层费用预留均结为零；不把不确定的已派发费用冒充零。费用预留和内部操作创建按完整身份进行并发幂等校验。容器传入 SHA-256 和字节数，Broker 限长流式写入 R2，使用 `FixedLengthStream` 保持 Cloudflare R2 所需的运行时已知长度，由 R2 验证 SHA-256；上传完成复核对象大小、摘要元数据及可用的 R2 校验值，竞争写入只能确认实际保存的相同字节。不同摘要不得冒充同一对象；代际撤销后暂存对象不可提交。SSE 进度流对慢读者设置缓冲上限与连接数上限；失败／取消时先推送已提交的终态再清理，乱序或旧 generation 的提示不能覆盖终态，连异步缓存写入期间迟到的旧提示也会被终态屏障拦截；断开后包括已完成操作均可重新订阅 D1 终态快照。
+取消先提高 operation generation，再通过 outbox 停止原生 Workflow 和实际容器；未知或已完成操作不能返回虚假的「取消中」。即使超时、RPC 丢失或平台查询不可用，也不把计算视为已经停止。Workflow 执行权的条件领取与状态更新是同一条 D1 更新，拒绝重复启动时不会抹掉既有终态与 reconciliation 证据。已结束的 Shard 协程单独持久记录，清理失败不丢失终结证据；未确认费用继续占用原预留，不写成 0，不自动重发模型。模型前置核查可能耗时，实际费用预留前及派发前须重查请求截止时间；派发标记的共享账本写入返回后，还要重查操作代际、期限和负责人授权有效期。确知尚未发送的模型请求撤销派发标记，两层费用预留均结为零；不把不确定的已派发费用冒充零。若供应商 SSE 在最终完成标记前失败，期间报告的部分 token 用量仅作为待核查证据，不以它结算最终费用或重新派发；传输清理错误不得覆盖原始解析／网络错误。费用预留和内部操作创建按完整身份进行并发幂等校验。容器传入 SHA-256 和字节数，Broker 限长流式写入 R2，使用 `FixedLengthStream` 保持 Cloudflare R2 所需的运行时已知长度，由 R2 验证 SHA-256；上传完成复核对象大小、摘要元数据及可用的 R2 校验值，竞争写入只能确认实际保存的相同字节。不同摘要不得冒充同一对象；代际撤销后暂存对象不可提交。SSE 进度流对慢读者设置缓冲上限与连接数上限；失败／取消时先推送已提交的终态再清理，乱序或旧 generation 的提示不能覆盖终态，连异步缓存写入期间迟到的旧提示也会被终态屏障拦截；断开后包括已完成操作均可重新订阅 D1 终态快照。
 
 历史模型响应的复用只查真正完成并拥有不可变供应商回执的调用：已经确认 `not_dispatched` 的零费用结算不视作模型结果，允许其他操作首次派发相同请求；真实零费用的已派发调用若缺失回执仍然阻止重发。
 
@@ -75,4 +75,4 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 依赖、工具链和 Actions 入口见[08](../../docs/prd/08-codex-execution.md#3-代码责任与可复现工具链)。Worker 入口为 `src/index.ts`，容器构建见 [render-container](../render-container/README.md)。检查不自动部署或发起付费模型评测。
 
-`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、Workflow 重复启动保护、授权撤销竞态、未知计算费用及迁移安全；`test/recovery-indexes.test.mjs` 验证迁移幂等性与实际查询计划；`test/native-coordinator.test.mjs` 验证终态 SSE 重连、旧代际隔离与异步缓存竞态，`test/model-budget.test.mjs` 验证过期／已撤销请求不派发及未派发费用清算；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。
+`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、Workflow 重复启动保护、**登记后丢失创建消息的补建与已领取执行权禁止重开**、授权撤销竞态、未知计算费用及迁移安全；`test/recovery-indexes.test.mjs` 验证迁移幂等性与实际查询计划；`test/native-api.test.mjs` 校验内部 HTTP 错误边界及预览音频授权撤销；`test/native-coordinator.test.mjs` 验证终态 SSE 重连、旧代际隔离与异步缓存竞态，`test/model-budget.test.mjs` 验证过期／已撤销请求不派发、未派发费用清算及不完整 SSE 用量待确认；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。

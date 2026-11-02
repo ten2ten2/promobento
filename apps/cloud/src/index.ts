@@ -27,6 +27,12 @@ function authorized(request: Request, env: PipelineEnv) {
   return difference === 0;
 }
 
+function privateJson(value: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set('cache-control', 'private, no-store');
+  return Response.json(value, {...init, headers});
+}
+
 /** Internal artifact reads are restricted to native results and the owning operation. */
 async function artifact(env: PipelineEnv, key: string) {
   let owner: Json | null = null, resources: Json[] = [];
@@ -46,7 +52,10 @@ async function artifact(env: PipelineEnv, key: string) {
     if (!previews.some(preview => preview.key === key)) return new Response(null, {status: 404});
     owner = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Json>();
     const request = await getJson(env, context!.request_key);
-    resources = request.resources ?? [];
+    // The Director also accepts separately supplied audio. Direction previews
+    // can contain that audio even when it is absent from the visual resources
+    // list; revoking it must fence artifact reads just like rendered films.
+    resources = [...(request.resources ?? []), ...(request.audioSources ?? [])];
   }
   if (owner?.status === 'failed') {
     const draft = await getReviewDraft(env, owner.id);
@@ -74,16 +83,16 @@ export default {
         const queued = await env.DB.prepare(`SELECT COUNT(*) AS count,MIN(a.requested_at) AS oldest FROM pipeline_render_admissions a
           JOIN pipeline_renders r ON r.id=a.render_id JOIN pipeline_operations o ON o.id=a.operation_id
           WHERE a.status='queued' AND r.status='queued' AND o.status='active' AND o.generation=a.generation`).first<{count:number;oldest:number|null}>();
-        return Response.json({leases,queued:queued?.count??0,oldestWaitMs:queued?.oldest?Date.now()-queued.oldest:null});
+        return privateJson({leases,queued:queued?.count??0,oldestWaitMs:queued?.oldest?Date.now()-queued.oldest:null});
       }
-      if (path === '/internal/s1/model-budget' && request.method === 'GET') return Response.json(await modelBudgetStatus(env));
-      if (path === '/internal/s1/model-budget/import' && request.method === 'POST') return Response.json(await importModelOpening(env, await readJson(request)));
+      if (path === '/internal/s1/model-budget' && request.method === 'GET') return privateJson(await modelBudgetStatus(env));
+      if (path === '/internal/s1/model-budget/import' && request.method === 'POST') return privateJson(await importModelOpening(env, await readJson(request)));
       if (path === '/internal/s1/model-budget/confirm' && request.method === 'POST') {
         const input = await readJson(request);
         if (typeof input.evidenceKey !== 'string' || !input.evidenceKey.startsWith('evals/')) throw Error('MODEL_CONFIRMATION_INVALID');
-        return Response.json(await confirmModelOpening(env, await getJson(env, input.evidenceKey)));
+        return privateJson(await confirmModelOpening(env, await getJson(env, input.evidenceKey)));
       }
-      if (path === '/internal/s1/workflows/reconcile' && request.method === 'POST') return Response.json(await recoverWorkflows(env));
+      if (path === '/internal/s1/workflows/reconcile' && request.method === 'POST') return privateJson(await recoverWorkflows(env));
       if (request.method === 'GET' && path.startsWith('/internal/s1/artifacts/')) {
         let key: string;
         try {key=decodeURIComponent(path.slice('/internal/s1/artifacts/'.length));}
@@ -91,13 +100,14 @@ export default {
         return await artifact(env,key);
       }
       if (request.method === 'POST' && path === '/internal/s1/operations') {
-        return Response.json(await registerOperation(env,await readJson(request)));
+        return privateJson(await registerOperation(env,await readJson(request)));
       }
       // Rights evidence is required for native material reads and execution.
       if (request.method === 'POST' && path === '/internal/s1/rights') {
         const input = await readJson(request), op = await operation(env, input.operationId);
         if (!/^res_[A-Za-z0-9_-]{4,64}$/.test(input.resourceId) || !/^[a-f0-9]{64}$/.test(input.sha256)
-          || typeof input.licenseRef !== 'string' || input.scope !== 'internal_eval_only'
+          || typeof input.licenseRef !== 'string' || !input.licenseRef.trim() || input.licenseRef.length > 2048
+          || input.scope !== 'internal_eval_only'
           || typeof input.evidenceKey !== 'string' || !/^evals\/[A-Za-z0-9_/-]{4,240}\.json$/.test(input.evidenceKey)
           || input.evidenceKey.split('/').some(part=>part==='..')) throw Error('RIGHTS_INVALID');
         const evidence = await getJson(env, input.evidenceKey);
@@ -115,7 +125,7 @@ export default {
       if (releaseRoute && request.method === 'GET') {
         const row = await env.DB.prepare('SELECT * FROM renderer_releases WHERE id=?').bind(releaseRoute[1]).first<Json>();
         if (!row) return new Response(null, {status: 404});
-        return Response.json({...row, currentImageDigest: await env.SHARDS.getByName('release-metadata').imageDigest()});
+        return privateJson({...row, currentImageDigest: await env.SHARDS.getByName('release-metadata').imageDigest()});
       }
       if (request.method === 'POST' && path === '/internal/s1/releases') {
         const input = await readJson(request);
@@ -138,22 +148,22 @@ export default {
         if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) throw Error('OBJECT_TOO_LARGE');
         const mediaType = request.headers.get('content-type') ?? 'application/octet-stream';
         const object = await immutableStream(env,key,request.body,length,request.headers.get('x-content-sha256') ?? '',mediaType);
-        return Response.json({key,sha256:object.sha256,byteLength:object.byteLength,mediaType});
+        return privateJson({key,sha256:object.sha256,byteLength:object.byteLength,mediaType});
       }
       if (request.method === 'POST' && path === '/internal/s1/native/projects') {
         const input = await readJson(request), op = await operation(env, input.operationId);
-        return Response.json(await saveNativeProject(env, op, input as any), {status: 201});
+        return privateJson(await saveNativeProject(env, op, input as any), {status: 201});
       }
       const projectRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/projects\/([a-f0-9]{64})$/.exec(path);
       if (request.method === 'GET' && projectRoute) {
         const op = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=? AND status IN (\'active\',\'awaiting_user\',\'succeeded\')')
           .bind(projectRoute[1]).first<Operation>();
         if (!op) return new Response(null, {status: 404});
-        return Response.json(await loadNativeProject(env, op, projectRoute[2]!), {headers: {'cache-control': 'private, no-store'}});
+        return privateJson(await loadNativeProject(env, op, projectRoute[2]!));
       }
       if (request.method === 'POST' && path === '/internal/s1/renders') {
         const input = await readJson(request), op = await operation(env, input.operationId);
-        return Response.json(await createNativeRender(env, op, input as any), {status: 202});
+        return privateJson(await createNativeRender(env, op, input as any), {status: 202});
       }
       if (request.method === 'POST' && path === '/internal/s1/creative') {
         const input = await readJson(request), op = await operation(env, input.operationId);
@@ -167,14 +177,14 @@ export default {
           env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)').bind('creative-' + op.id, op.id, 'creative', canonical({operationId: op.id, engine: 'huashu'})),
         ]);
         ctx.waitUntil(flushOutbox(env));
-        return Response.json({operationId: op.id}, {status: 202});
+        return privateJson({operationId: op.id}, {status: 202});
       }
       const direction = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/direction$/.exec(path);
       if (direction && request.method === 'POST') {
         const id = direction[1]!, input = await readJson(request);
         const result = await chooseDirection(env, await operation(env, id), input);
         ctx.waitUntil(flushOutbox(env, result.outboxId));
-        return Response.json({operationId: id, key: result.key});
+        return privateJson({operationId: id, key: result.key});
       }
       const candidateRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/candidate$/.exec(path);
       if (candidateRoute && request.method === 'GET') {
@@ -182,18 +192,18 @@ export default {
         if (!owner?.result_key) return new Response(null, {status: 404});
         const candidate = await getJson(env, owner.result_key);
         if (candidate.kind !== 'native_candidate' || candidate.operationId !== owner.id) throw Error('CANDIDATE_SCOPE_INVALID');
-        return Response.json(candidate, {headers: {'cache-control': 'private, no-store'}});
+        return privateJson(candidate);
       }
       const reviewRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/review-draft$/.exec(path);
       if (reviewRoute && request.method === 'GET') {
         const draft = await getReviewDraft(env, reviewRoute[1]!);
-        return draft ? Response.json(draft, {headers: {'cache-control': 'private, no-store'}}) : new Response(null, {status: 404});
+        return draft ? privateJson(draft) : new Response(null, {status: 404});
       }
       const contextRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if (contextRoute && request.method === 'GET') {
         const row = await env.DB.prepare('SELECT o.*,c.directions_key,c.directions_hash,c.previews_key,c.choice FROM pipeline_operations o LEFT JOIN pipeline_contexts c ON c.operation_id=o.id WHERE o.id=?').bind(contextRoute[1]).first<Json>();
         if (!row) return new Response(null, {status: 404});
-        return Response.json({...row, workflows: await workflowInventory(env, row.id),
+        return privateJson({...row, workflows: await workflowInventory(env, row.id),
           ...(row.directions_key ? {directions: await getJson(env, row.directions_key)} : {}),
           ...(row.previews_key ? {previews: await getJson(env, row.previews_key)} : {})});
       }
@@ -206,17 +216,17 @@ export default {
         const row = await env.DB.prepare(`SELECT r.id,r.result_json,
           CASE WHEN r.status='queued' AND EXISTS(SELECT 1 FROM pipeline_render_admissions a WHERE a.render_id=r.id AND a.status='admitted')
             THEN 'admitted' ELSE r.status END AS status FROM pipeline_renders r WHERE r.id=?`).bind(renderRoute[1]).first<Json>();
-        return row ? Response.json(row) : new Response(null, {status: 404});
+        return row ? privateJson(row) : new Response(null, {status: 404});
       }
       const cancel = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/cancel$/.exec(path);
       if (request.method === 'POST' && cancel) {
         const id = cancel[1]!;
         const result = await cancelOperation(env,id);
         ctx.waitUntil(flushOutbox(env));
-        return Response.json(result);
+        return privateJson(result);
       }
       const reconcile = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/reconcile$/.exec(path);
-      if (request.method === 'POST' && reconcile) return Response.json(await reconcileOperation(env, reconcile[1]!));
+      if (request.method === 'POST' && reconcile) return privateJson(await reconcileOperation(env, reconcile[1]!));
       return new Response('Not found', {status: 404});
     } catch (error) {
       // A transport/runtime fault must not masquerade as invalid client input.
@@ -227,7 +237,7 @@ export default {
       const code = known ? (error as Error).message : 'PIPELINE_INTERNAL_ERROR';
       const status = !known ? 500 : code.includes('CONFLICT') ? 409
         : /(?:_TIMEOUT|_UNCONFIRMED|_UNAVAILABLE)$/.test(code) ? 503 : 422;
-      return Response.json({code}, {status,headers:{'cache-control':'private, no-store'}});
+      return privateJson({code}, {status});
     }
   },
   async scheduled(_event: ScheduledController, env: PipelineEnv, ctx: ExecutionContext) {

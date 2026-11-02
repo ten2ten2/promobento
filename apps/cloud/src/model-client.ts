@@ -173,6 +173,10 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   // Keep the original complete stream separately: receipts remain within getJson's size limit.
   const {rawStream,...parsedResult}=result;
   const rawStreamRef=await immutableBytes(env,`operations/${op.id}/model-streams/${digest({callId})}.sse`,rawStream,'text/event-stream');
-  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,rawStreamRef,quote:modelUsageQuote(ref,result.usage,providers),result:parsedResult};
+  // An SSE error can terminate the stream after a partial usage update but
+  // before the provider's completion marker. Those counters are not a final
+  // bill: retain the full reservation and receipt for reconciliation.
+  const quote=result.streamComplete===false?null:modelUsageQuote(ref,result.usage,providers);
+  const receipt={kind:'metered_model_response',callId,requestHash:key,budgetId:reserved,model:ref,...methodEvidence,requestSettings,rawStreamRef,quote,result:parsedResult};
   await immutableJson(env,receiptKey,receipt);return finish(receipt);
 }

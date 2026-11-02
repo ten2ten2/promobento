@@ -55,6 +55,14 @@ export function assertTreatment(value,durationSeconds,resourceIds){
   ids.add(beat.id);
  }
  if(!ids.has(value.hardestBeat)||Math.min(...value.beats.map(b=>b.startFrame))!==0||Math.max(...value.beats.map(b=>b.endFrame))!==total)throw Error('NATIVE_TREATMENT_INVALID');
+ // A first and final beat do not prove a complete timeline. Overlapping
+ // visual/audio beats are valid, but every frame needs an authored intent.
+ let coveredUntil=0;
+ for(const beat of [...value.beats].sort((a,b)=>a.startFrame-b.startFrame)){
+  if(beat.startFrame>coveredUntil)throw Error('NATIVE_TREATMENT_INVALID');
+  coveredUntil=Math.max(coveredUntil,beat.endFrame);
+ }
+ if(coveredUntil!==total)throw Error('NATIVE_TREATMENT_INVALID');
  reviewFrameTimes(value.reviewFrames,durationSeconds);return value;
 }
 

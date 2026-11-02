@@ -2,7 +2,7 @@ import type {PipelineEnv,Json} from './pipeline-types.ts';
 import {boundedControl,settledPool} from './control-batch.ts';
 
 export type WorkflowKind='operation'|'render';
-export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;native_stop_confirmed_at:number|null;reconciled_at:number|null;engine:'legacy'|'huashu'};
+export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;execution_claimed_at:number|null;native_stop_confirmed_at:number|null;reconciled_at:number|null;engine:'legacy'|'huashu'};
 export const nativeTerminal=(status:string)=>['complete','errored','terminated'].includes(status);
 const binding=(env:PipelineEnv,kind:WorkflowKind)=>kind==='render'?env.RENDER_WORKFLOW:env.OPERATION_WORKFLOW;
 
@@ -45,18 +45,26 @@ export async function workflowStatus(env:PipelineEnv,row:TrackedWorkflow){
 
 /** A known instance is never recreated after retention/eviction. Unknown create outcomes are inspected. */
 export async function createTrackedWorkflow(env:PipelineEnv,row:TrackedWorkflow){
- if(row.native_created_at===null){
+ // Registration alone does not prove that Queue managed to create the native
+ // instance. However, a claimed (possibly evicted) instance must never be
+ // created again, even when its creation acknowledgement was lost.
+ const current=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE kind=? AND id=?')
+  .bind(row.kind,row.id).first<TrackedWorkflow>();
+ if(!current||current.operation_id!==row.operation_id||current.generation!==row.generation||current.engine!=='huashu')
+  throw Error('WORKFLOW_IDENTITY_CONFLICT');
+ if(current.native_created_at===null&&current.execution_claimed_at===null
+   &&current.native_stop_confirmed_at===null&&current.reconciled_at===null){
   try{
-   const params=row.kind==='render'?{renderId:row.id}:{operationId:row.id};
-   await boundedControl(binding(env,row.kind).create({id:row.id,params} as any));
+   const params=current.kind==='render'?{renderId:current.id}:{operationId:current.id};
+   await boundedControl(binding(env,current.kind).create({id:current.id,params} as any));
    await env.DB.prepare('UPDATE pipeline_workflows SET native_created_at=COALESCE(native_created_at,?) WHERE kind=? AND id=?')
-    .bind(Date.now(),row.kind,row.id).run();
+    .bind(Date.now(),current.kind,current.id).run();
   }catch(error){
    // Only a successful get/status proves a duplicate. A transport error is not evidence of absence.
-   try{return await workflowStatus(env,row);}catch{throw error;}
+   try{return await workflowStatus(env,current);}catch{throw error;}
   }
  }
- return workflowStatus(env,row);
+ return workflowStatus(env,current);
 }
 
 export async function stopWorkflow(env:PipelineEnv,row:TrackedWorkflow){

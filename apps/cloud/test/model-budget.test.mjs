@@ -121,6 +121,24 @@ test('a completed truncated response is metered and retained, never cached or re
  const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
  assert.equal(receipt.result.failure,'MODEL_OUTPUT_TRUNCATED');assert.equal(receipt.result.text,'{"partial":');
 });
+test('a failed incomplete model stream cannot settle from provisional mid-stream token usage',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response(
+  'data: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:2}})+'\n\n'+
+  'data: '+canonical({error:{code:502,message:'upstream disconnected'}})+'\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ for(let n=0;n<2;n++)await assert.rejects(modelStep(env,'model-operation',0,'facts','incomplete-usage-call',request,()=>{}),
+  /MODEL_CALL_RECONCILIATION_REQUIRED/);
+ assert.equal(requests,1,'an incomplete paid call may never be silently replayed');
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
+ assert.equal(receipt.result.failure,'MODEL_STREAM_FAILED');
+ assert.equal(receipt.result.streamComplete,false);
+ assert.equal(receipt.result.usage.completion_tokens,2);
+ assert.equal(receipt.quote,null,'mid-stream usage is evidence, not final charge confirmation');
+});
 test('an empty completed stream retains private raw events and an unknown reservation without resending',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  const raw='data: '+canonical({choices:[{delta:{reasoning_content:'fixture'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n';

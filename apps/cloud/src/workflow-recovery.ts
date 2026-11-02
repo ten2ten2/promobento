@@ -13,7 +13,20 @@ export async function recoverWorkflow(env:PipelineEnv,row:TrackedWorkflow,status
  const op=await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(row.operation_id).first<Operation>();
  if(!op)throw Error('WORKFLOW_OPERATION_MISSING');
  if(['failed','cancelled'].includes(op.status))return reconcileOperation(env,op.id);
- const native=status??await workflowStatus(env,row);
+ // A Queue may disappear after registering the identity but before calling
+ // Workflow.create(). A delivered outbox row cannot recover this because the
+ // registration already exists. Only an unclaimed, still-queued native job
+ // may complete its initial creation; a paid/claimed instance is never rerun.
+ let eligible=false;
+ if(!status&&op.status==='active'&&op.generation===row.generation
+   &&row.native_created_at===null&&row.execution_claimed_at===null
+   &&row.native_stop_confirmed_at===null&&row.reconciled_at===null){
+  if(row.kind==='render')eligible=!!await env.DB.prepare(`SELECT id FROM pipeline_renders
+    WHERE id=? AND operation_id=? AND generation=? AND status='queued'`).bind(row.id,op.id,row.generation).first();
+  else eligible=!!await env.DB.prepare(`SELECT operation_id FROM pipeline_contexts
+    WHERE operation_id=? AND engine='huashu'`).bind(op.id).first();
+ }
+ const native=status??(eligible?await createTrackedWorkflow(env,row):await workflowStatus(env,row));
  if(!nativeTerminal(native.status))return;
  if(row.kind==='render'){
   const render=await env.DB.prepare('SELECT status FROM pipeline_renders WHERE id=?').bind(row.id).first<Json>();

@@ -1420,6 +1420,44 @@ test('Workflow recovery inspects healthy rows despite a stalled status API', asy
   assert.deepEqual((await sweep).map(row=>row.status),['inspected','inspected']);
 });
 
+test('recovery creates registered but never-started native Workflows after Queue delivery is lost', async t => {
+ const {db,env,op}=await fixture(t);
+ const renderId='orphan-registered-render';
+ db.prepare("INSERT INTO pipeline_contexts(operation_id,request_key,engine) VALUES(?,?,'huashu')")
+  .run(op.id,'evals/native/context.json');
+ db.prepare("INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,'queued',?)")
+  .run(renderId,op.id,op.generation,'orphan-request','renders/'+renderId+'/input.json',Date.now());
+ await registerWorkflow(env,'operation',op.id,op.id,op.generation);
+ await registerWorkflow(env,'render',renderId,op.id,op.generation);
+ const created=[];
+ const binding=kind=>({
+  async create(value){created.push({kind,...value});return {id:value.id};},
+  async get(){return {async status(){return {status:'running'};}};},
+ });
+ env.OPERATION_WORKFLOW=binding('operation');env.RENDER_WORKFLOW=binding('render');
+ assert.deepEqual((await recoverWorkflows(env)).map(row=>row.status),['inspected','inspected']);
+ assert.deepEqual(created.map(value=>value.kind).sort(),['operation','render']);
+ assert.ok(db.prepare('SELECT native_created_at FROM pipeline_workflows WHERE kind=? AND id=?').get('render',renderId).native_created_at);
+ await recoverWorkflows(env);
+ assert.equal(created.length,2,'a recorded native creation is never repeated by the next sweep');
+});
+
+test('recovery never recreates a previously claimed Workflow even if its creation receipt was lost',async t=>{
+ const {db,env,op}=await fixture(t),id='previously-claimed-render';
+ db.prepare("INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,'queued',?)")
+  .run(id,op.id,op.generation,'claimed-request','renders/'+id+'/input.json',Date.now());
+ await registerWorkflow(env,'render',id,op.id,op.generation);
+ db.prepare("UPDATE pipeline_workflows SET execution_claimed_at=? WHERE kind='render' AND id=?")
+  .run(Date.now()-60_000,id);
+ let createCalls=0;
+ env.RENDER_WORKFLOW={async create(){createCalls++;throw Error('MUST_NOT_CREATE');},
+  async get(){return {async status(){return {status:'unknown'};}};}};
+ const result=await recoverWorkflows(env);
+ assert.deepEqual(result.map(row=>row.status),['unconfirmed']);
+ assert.equal(createCalls,0,'a prior D1 execution claim may already have incurred real costs');
+ assert.equal(db.prepare('SELECT native_created_at FROM pipeline_workflows WHERE id=?').get(id).native_created_at,null);
+});
+
 test('outbox sends in bounded parallelism and retries a failed row without skipping healthy rows', async t => {
   const {db,env,op}=await fixture(t);
   for(const id of ['stalled','healthy','failed'])db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)')

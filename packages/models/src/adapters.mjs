@@ -86,11 +86,11 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
       if (data.type === 'message_stop') finished = true;
     }
   };
-  const reader = response.body.getReader(); let readFailed = false;
+  const reader = response.body.getReader();
   try {
     for (;;) {
       let chunk;
-      try { chunk = await reader.read(); } catch (error) { readFailed = true; throw transportError(error); }
+      try { chunk = await reader.read(); } catch (error) { throw transportError(error); }
       const {done, value} = chunk;
       if (done) break;
       received += value.byteLength; if (received > 16 << 20) throw Error('MODEL_RESPONSE_TOO_LARGE');
@@ -116,6 +116,8 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     if(failure)throw new ModelOutputError(failure,result);
     return result;
   } finally {
-    try { await reader.cancel(); } catch (error) { if (!readFailed) throw error; }
+    // A broken upstream stream can also reject its cancellation. Cleanup must
+    // never mask a completed result, parser failure or original transport error.
+    try { await reader.cancel(); } catch {}
   }
 }

@@ -47,6 +47,16 @@ test('invalid SSE JSON remains a parser error, not a network error',async()=>{
  await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
   {fetchImpl:async()=>events(['{'])}),error=>{assert.ok(error instanceof SyntaxError);assert.notEqual(error.message,'MODEL_TRANSPORT_FAILED');return true;});
 });
+test('a failing stream cancellation cannot replace the original provider parse error',async()=>{
+ let cancelled=0;
+ const body=new ReadableStream({
+  start(controller){controller.enqueue(new TextEncoder().encode('data: {\n\n'));},
+  cancel(){cancelled++;throw Error('CANCEL_FAILED');},
+ });
+ await assert.rejects(streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
+  {fetchImpl:async()=>({ok:true,status:200,body})}),error=>error instanceof SyntaxError);
+ assert.equal(cancelled,1);
+});
 test('empty or gateway-error streams retain their original events and never become successful output',async()=>{
  for(const [values,code] of [
   [[{choices:[{delta:{reasoning_content:'thinking'},finish_reason:'stop'}]},'[DONE]'],'MODEL_OUTPUT_EMPTY'],

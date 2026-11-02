@@ -53,6 +53,22 @@ test('HTTP JSON boundary classifies malformed bodies as 422, even with strict ca
  }
 });
 
+test('native project HTTP rejects malformed file/resource lists at the input boundary',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const operationId='input-shape-operation';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(operationId,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+ const env={DB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ for(const invalid of [{files:null},{files:[null]},{files:[{path:'index.html'}]},
+  {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12}]){
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
+   method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},
+   body:canonical({operationId,...invalid})}),env,{});
+  assert.equal(response.status,422,JSON.stringify(invalid));
+  assert.deepEqual(await response.json(),{code:'NATIVE_PROJECT_SCHEMA_INVALID'});
+ }
+});
+
 test('asynchronous recovery, private-artifact and event failures stay inside HTTP error boundary',async()=>{
  const headers={authorization:'Bearer fixture-only'};
  const base='https://worker.example/internal/s1/';
@@ -70,6 +86,29 @@ test('asynchronous recovery, private-artifact and event failures stay inside HTT
  const malformed=await worker.fetch(new Request(base+'artifacts/%ZZ',{headers}),baseEnv,{});
  assert.equal(malformed.status,422);
  assert.deepEqual(await malformed.json(),{code:'OBJECT_KEY_INVALID'});
+});
+
+test('direction-preview artifact reads honor separately supplied audio rights and later revocation',async t=>{
+ const {db,DB}=sqliteD1();t.after(()=>db.close());
+ const {MEDIA}=memoryMedia(),id='audio-preview-operation',key='operations/'+id+'/direction-preview.png';
+ db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+  .run(id,'workspace','project',0,'evaluation','awaiting_user','request',100000,Date.now(),null,null);
+ const audio={resourceId:'res_audio_source',sha256:'a'.repeat(64),kind:'audio'};
+ await MEDIA.put('evals/native/context.json',canonical({resources:[],audioSources:[audio]}));
+ await MEDIA.put('operations/'+id+'/previews.json',canonical([{key}]));
+ await MEDIA.put(key,Uint8Array.from([137,80,78,71]));
+ await MEDIA.put('evals/native/license.json',canonical({approvedBy:'owner'}));
+ db.prepare("INSERT INTO pipeline_contexts(operation_id,request_key,previews_key,engine) VALUES(?,?,?,'huashu')")
+  .run(id,'evals/native/context.json','operations/'+id+'/previews.json');
+ db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+  .run(id,audio.resourceId,audio.sha256,'fixture-license','evals/native/license.json','internal_eval_only');
+ const request=()=>worker.fetch(new Request('https://worker.example/internal/s1/artifacts/'+key,
+  {headers:{authorization:'Bearer fixture-only'}}),{DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},{});
+ assert.equal((await request()).status,200);
+ db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),id);
+ const blocked=await request();
+ assert.equal(blocked.status,422);
+ assert.deepEqual(await blocked.json(),{code:'ASSET_RIGHTS_PENDING'});
 });
 
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
@@ -157,8 +196,14 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   const request=(path,input)=>worker.fetch(new Request('https://worker.example/internal/s1/'+path,
     {method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body:JSON.stringify(input)}),env,ctx);
   const creation={id:'api-operation',workspaceId:'workspace-one',projectId:'project-one',purpose:'evaluation',maxMicros:5000};
+  const created=await request('operations',creation);
+  assert.equal(created.status,200);
+  assert.equal(created.headers.get('cache-control'),'private, no-store');
   assert.equal((await request('operations',creation)).status,200);
-  assert.equal((await request('operations',creation)).status,200);
+  const status=await worker.fetch(new Request('https://worker.example/internal/s1/operations/'+creation.id,
+    {headers:{authorization:'Bearer fixture-only'}}),env,ctx);
+  assert.equal(status.status,200);
+  assert.equal(status.headers.get('cache-control'),'private, no-store');
   const conflict=await request('operations',{...creation,maxMicros:6000});
   assert.equal(conflict.status,409);
   assert.equal((await conflict.json()).code,'IDEMPOTENCY_CONFLICT');
@@ -175,6 +220,9 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   const wrongEvidence=await request('rights',{...rights,evidenceKey:undefined});
   assert.equal(wrongEvidence.status,422);
   assert.equal((await wrongEvidence.json()).code,'RIGHTS_INVALID');
+  const missingLicense=await request('rights',{...rights,licenseRef:''});
+  assert.equal(missingLicense.status,422);
+  assert.equal((await missingLicense.json()).code,'RIGHTS_INVALID');
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',{...rights,evidenceKey:'evals/fixture/rights-other.json'})).status,409);

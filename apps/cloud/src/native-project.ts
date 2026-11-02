@@ -41,6 +41,13 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
   composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string;
 }): Promise<SavedNativeProject> {
   await operation(env, op.id, op.generation);
+  // Internal HTTP callers still supply untrusted JSON. A malformed list must
+  // produce a domain validation error, not a TypeError/500 before Schema checks.
+  if (!Array.isArray(input.files) || input.files.some(file => !file || typeof file !== 'object' || typeof file.key !== 'string')
+    || input.resources !== undefined && (!Array.isArray(input.resources)
+      || input.resources.some(resource => !resource || typeof resource !== 'object' || Array.isArray(resource)))
+    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string')
+    throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
   const parent = input.baseRevision ? await loadNativeProject(env, op, input.baseRevision) : null;
   for (const file of input.files) {
     const inherited = parent?.project.files.some((previous: Json) => previous.key === file.key
