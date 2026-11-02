@@ -6,6 +6,7 @@ import {join} from 'node:path';
 import {normalizeNativeVideo, validateVideo} from '../src/media.mjs';
 import {run} from '../src/process.mjs';
 
+// Real FFmpeg tests run in the pinned browser-test image, not the contracts-only runner.
 const composition = {width:320,height:180,durationSeconds:1,fps:30};
 const compliantVideo = ['-c:v','libx264','-profile:v','high','-pix_fmt','yuv420p','-r','30',
   '-g','15','-keyint_min','15','-sc_threshold','0','-bf','0','-b:v','700000',

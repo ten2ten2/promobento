@@ -41,7 +41,7 @@ ENV OM_CHROME=/opt/chrome-headless-shell-linux64/chrome-headless-shell \
 
 FROM environment AS browser-test
 USER 10002:10002
-CMD ["node", "apps/render-container/tests/native.render.test.mjs"]
+CMD ["sh", "-c", "node --test apps/render-container/tests/media.render.test.mjs && node apps/render-container/tests/native.render.test.mjs"]
 
 FROM environment AS runtime
 USER 0:0

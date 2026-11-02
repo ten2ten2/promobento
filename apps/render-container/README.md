@@ -32,7 +32,7 @@
 
 ## 验证与部署
 
-本地边界与媒体测试：`node --test packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/render-container/tests/media.test.mjs`（需要 FFmpeg）。固定 Linux 镜像的真实浏览器/视频验收：
+本地边界测试：`node --test packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs`；真实 FFmpeg 编码分支测试为 `apps/render-container/tests/media.render.test.mjs`，在固定媒体镜像内随 `native.render.test.mjs` 一起运行。固定 Linux 镜像的真实浏览器/视频验收：
 
 ```bash
 docker build --target browser-test -f apps/render-container/Dockerfile -t promobento-native-test .
