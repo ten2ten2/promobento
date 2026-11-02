@@ -42,6 +42,8 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-c
 
 上传原文件、衍生物、授权证据及 manifest 时按**实际发送字节**核对 SHA-256。入库前检查 staging 运行中租约和排队是否为空；异常时停止，不接管其他评测。未审看素材不自动采用，旧源文件和历史证据不覆盖。WebP 视频帧包通过授权证据映射回原视频与海报；海报不代表整片动作，也不会启用旧帧包播放器。
 
+视频帧包的 `samplingRule` 随新版 manifest 和素材来源记录，用于固定 Chromium 抽帧时点及呈现顺序。旧版未标记的审核帧包仍以当时的抽帧方式逐字节复验；不为通过验证而覆盖既有帧包或授权记录。
+
 真实词级时间证据可通过 `timingEvidence` 绑定来源 SHA-256、时长与排序后的 `words`。缺失时只使用导演明确给出的事件时间，不伪造 ASR 时间戳；自动转写与完整参考片理解仍未实现。
 
 ## 查看已经生成的媒体

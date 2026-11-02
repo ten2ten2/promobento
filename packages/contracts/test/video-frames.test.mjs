@@ -19,6 +19,12 @@ test('QuickTime source identity remains distinct from MP4 and WebM',()=>{
 test('animated image frame packs retain their original source MIME identity',()=>{
  for(const type of ['image/gif','image/png','image/webp']){const {manifest}=fixture();manifest.source.mediaType=type;assert.equal(parse(manifest).source.mediaType,type);}
 });
+test('frame manifests accept explicit sample rules and retain unversioned approved packs',()=>{
+ const {manifest}=fixture();assert.equal(parse(manifest).samplingRule,undefined);
+ manifest.samplingRule='interval-center-v1';assert.equal(parse(manifest).samplingRule,'interval-center-v1');
+ manifest.samplingRule='off-boundary-v2';assert.equal(parse(manifest).samplingRule,'off-boundary-v2');
+ manifest.samplingRule='unknown';assert.throws(()=>parse(manifest),/VIDEO_FRAME_MANIFEST_INVALID/);
+});
 test('reject timing changes, skipped packs, overlaps and hidden bytes',()=>{for(const mutate of [m=>m.frames[1].pts=.5,m=>m.frames[1].offset=2,m=>m.frames[2].pack=0,m=>m.packs[1].byteLength++,m=>m.frames[0].extra=true,m=>m.source.mediaType='text/html']){
  const {manifest}=fixture();mutate(manifest);assert.throws(()=>parse(manifest),/VIDEO_FRAME_MANIFEST_INVALID/);
 }});

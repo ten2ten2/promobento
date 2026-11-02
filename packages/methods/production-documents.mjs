@@ -89,6 +89,41 @@ function visibleHtmlText(content) {
   return normalizedCopy(htmlEntities(separated.replace(/<[^>]*>/g, '')));
 }
 
+/** Native composition variables are display copy only when wired to a text element. */
+function nativeVariableText(content, executableJs) {
+  const clean = content.replace(/<!--[\s\S]*?-->/g, '');
+  const visible = clean.replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const root = /<html\b((?:[^>"']|"[^"]*"|'[^']*')*)>/i.exec(clean)?.[1];
+  const encoded = root && /(?:^|\s)data-composition-variables\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(root);
+  if (!encoded) return [];
+  let variables;
+  try {variables = JSON.parse(htmlEntities(encoded[1] ?? encoded[2]));}
+  catch {return [];}
+  if (!Array.isArray(variables)) return [];
+  const bound = new Set([...visible.matchAll(/\bdata-var-text\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)]
+    .map(match => htmlEntities(match[1] ?? match[2])));
+  // data-om-var only labels a script-built element. It is not a text binding
+  // unless the composition also uses the native variable runtime.
+  if (/\b(?:OM\.vars|__hyperframes\.getVariables)\s*\(\s*\)/.test(executableJs))
+    for (const match of visible.matchAll(/\bdata-om-var\s*=\s*(?:"([^"]*)"|'([^']*)')/gi))
+      bound.add(htmlEntities(match[1] ?? match[2]));
+  // huashu CLIP templates render their application/json cue spec through
+  // CLIP.mount. A {{variable}} in that mounted spec is visible copy; the
+  // same placeholder in unrelated or unmounted metadata is not.
+  if (/\bCLIP\.mount\s*\(/.test(executableJs)) {
+    for (const [, attributes, spec] of clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
+      if (!/\btype\s*=\s*(?:"application\/json"|'application\/json')/i.test(attributes)
+        || !/\bid\s*=\s*(?:"clip-spec"|'clip-spec')/i.test(attributes)) continue;
+      for (const variable of variables)
+        if (typeof variable?.id === 'string' && spec.includes('{{' + variable.id + '}}')) bound.add(variable.id);
+    }
+  }
+  return variables.filter(variable => variable && typeof variable.id === 'string' && bound.has(variable.id)
+    && ['string', 'number', 'boolean', 'enum'].includes(variable.type)
+    && ['string', 'number', 'boolean'].includes(typeof variable.default))
+    .map(variable => normalizedCopy(String(variable.default)));
+}
+
 /** Native HTML/JS must actually contain display copy, rather than only an inert JSON plan. */
 export function assertScriptProjection(files, script) {
   const html = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
@@ -107,8 +142,10 @@ export function assertScriptProjection(files, script) {
       }).map(match => match[2]));
   const js = [...files.filter(file => /^(?:index\.js|src\/.*\.js)$/.test(file.path))
     .map(file => file.content), ...inlineJs].join('\n');
-  const jsStrings = [...js.matchAll(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g)]
-    .map(([literal]) => literal.slice(1, -1).replace(/\\(?:u\{([0-9a-f]{1,6})\}|u([0-9a-f]{4})|x([0-9a-f]{2})|([\s\S]))/gi,
+  const token = /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g;
+  const executableJs = js.replace(token, ' ');
+  const jsStrings = [...js.matchAll(token)].map(([literal]) => literal).filter(literal => !literal.startsWith('/'))
+    .map(literal => literal.slice(1, -1).replace(/\\(?:u\{([0-9a-f]{1,6})\}|u([0-9a-f]{4})|x([0-9a-f]{2})|([\s\S]))/gi,
       (match, codepoint, unicode, hex, escaped) => {
         if (codepoint || unicode || hex) {
           const number = parseInt(codepoint ?? unicode ?? hex, 16);
@@ -116,9 +153,12 @@ export function assertScriptProjection(files, script) {
         }
         return ({n:'\n',r:'\r',t:'\t',b:'\b',f:'\f',v:'\v',0:'\0'}[escaped] ?? escaped);
       }));
+  const nativeText = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
+    .flatMap(file => nativeVariableText(file.content, executableJs));
   for (const segment of script.segments) {
     if (['title', 'caption', 'cta'].includes(segment.role)
       && !html.some(value => value.includes(normalizedCopy(segment.displayText)))
+      && !nativeText.some(value => value.includes(normalizedCopy(segment.displayText)))
       && !jsStrings.some(value => value.includes(segment.displayText)))
       fail('SCRIPT_SOURCE_PROJECTION_MISSING');
   }
@@ -177,9 +217,9 @@ export function assertLockedMaterialSelection(selection, resources) {
   const sources = new Set(resources.map(item => canonical([item.resourceId, item.sourceSha256 ?? item.sha256])));
   for (const use of selection.uses) {
     if (!use.locked || !sources.has(canonical([use.resourceId, use.sha256])) || !Array.isArray(use.alternatives)
-      || !unique(use.alternatives.map(item => canonical([item.resourceId, item.sha256])))
+      || !unique(use.alternatives.map(item => item.resourceId))
       || use.alternatives.some(item => !sources.has(canonical([item.resourceId, item.sha256]))
-        || item.resourceId === use.resourceId && item.sha256 === use.sha256))
+        || item.resourceId === use.resourceId))
       fail('MATERIAL_LOCK_IDENTITY_INVALID');
   }
   return selection;
@@ -249,7 +289,7 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     fail('MATERIAL_REPLACEMENT_INVALID');
   const source = new Map(admitted.map(item => [item.resourceId, item]));
   const uses = structuredClone(selection.uses), moments = structuredClone(script?.moments ?? []);
-  const segments = structuredClone(script?.segments ?? []), displacedSources = new Set();
+  const segments = structuredClone(script?.segments ?? []), affectedMoments = new Map();
   for (const item of replacements) {
     const next = source.get(item.toResourceId);
     if (!next) fail('MATERIAL_REPLACEMENT_INVALID');
@@ -263,44 +303,61 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
       ].filter(Boolean));
       if (oldSha.size !== 1 || oldSha.has(next.sha256)) fail('MATERIAL_REPLACEMENT_INVALID');
     }
-    for (const old of baseResources.filter(resource => resource.resourceId === item.fromResourceId)) {
-      const sha = old.sourceSha256 ?? old.sha256;
-      if (sha !== next.sha256 && ['audio', 'video'].includes(old.kind)) displacedSources.add(sha);
-    }
+    const replacedSha = new Set([
+      ...uses.filter(use => use.resourceId === item.fromResourceId).map(use => use.sha256),
+      ...scriptAudioLocks.filter(lock => lock.resourceId === item.fromResourceId).map(lock => lock.sha256),
+    ].filter(sha => sha !== next.sha256));
     let changed = false;
     for (const use of uses) {
       const promoted = use.resourceId === item.fromResourceId;
+      const replacingAlternative = use.alternatives.some(alt => alt.resourceId === item.fromResourceId);
+      if (!promoted && !replacingAlternative) continue;
+      if (!promoted && use.resourceId === next.resourceId && use.sha256 !== next.sha256)
+        fail('MATERIAL_REPLACEMENT_INVALID');
       const previous = {resourceId: use.resourceId, sha256: use.sha256};
       // Promoting an existing alternative swaps its position with the old
-      // selected source; the old source remains a licensed future alternative.
-      use.alternatives = use.alternatives.map(alt => {
-        if (alt.resourceId === item.fromResourceId) {
-          changed = true;
-          return {resourceId: next.resourceId, sha256: next.sha256};
-        }
-        return promoted && alt.resourceId === next.resourceId && alt.sha256 === next.sha256 ? previous : alt;
+      // selected source. A superseded SHA under the promoted ID must not
+      // remain as a duplicate alternative that makes the next edit ambiguous.
+      let inserted = false;
+      use.alternatives = use.alternatives.flatMap(alt => {
+        if (alt.resourceId !== item.fromResourceId && alt.resourceId !== next.resourceId) return [alt];
+        if (inserted) return [];
+        inserted = true;
+        if (promoted) return item.fromResourceId === next.resourceId ? [] : [previous];
+        return use.resourceId === next.resourceId ? [] : [{resourceId: next.resourceId, sha256: next.sha256}];
       });
       if (promoted) {
         use.resourceId = next.resourceId; use.sha256 = next.sha256; changed = true;
       }
-      if (use.alternatives.some(alt => alt.resourceId === use.resourceId && alt.sha256 === use.sha256)
-        || !unique(use.alternatives.map(alt => canonical([alt.resourceId, alt.sha256])))) fail('MATERIAL_REPLACEMENT_INVALID');
+      if (replacingAlternative) changed = true;
+      if (use.alternatives.some(alt => alt.resourceId === use.resourceId)
+        || !unique(use.alternatives.map(alt => alt.resourceId))) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     for (const moment of moments) {
       moment.resourceIds = moment.resourceIds.map(id => {
         if (id !== item.fromResourceId) return id;
         changed = true;
+        if (replacedSha.size) {
+          const affected = affectedMoments.get(moment.id) ?? new Set();
+          for (const sha of replacedSha) affected.add(sha);
+          affectedMoments.set(moment.id, affected);
+        }
         return next.resourceId;
       });
       if (!unique(moment.resourceIds)) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     if (!changed) fail('MATERIAL_REPLACEMENT_INVALID');
   }
-  // A different recording may speak the same words at different timestamps.
-  // Never carry its measured clock into the replacement's authored timeline.
-  for (const event of [...segments, ...moments])
-    if (event.timing?.kind === 'measured' && displacedSources.has(event.timing.sourceSha256))
-      event.timing = {kind: 'authored'};
+  // A newly selected recording may speak the same words at different times.
+  // Invalidate the clocks of affected Moments and their Segments, but retain
+  // measurements of untouched Moments that still use the original bytes.
+  for (const moment of moments) {
+    const affected = affectedMoments.get(moment.id);
+    if (affected?.has(moment.timing?.sourceSha256)) moment.timing = {kind: 'authored'};
+    if (!affected?.size) continue;
+    for (const segment of segments.filter(segment => moment.segmentIds.includes(segment.id)))
+      if (affected.has(segment.timing?.sourceSha256)) segment.timing = {kind: 'authored'};
+  }
   if (!unique(uses.map(use => canonical([use.beatId, use.resourceId])))) fail('MATERIAL_REPLACEMENT_INVALID');
   const updated = {...selection, uses, selectionHash: digest(uses)};
   return {selection: updated, script: script ? {...script, segments, moments} : null};

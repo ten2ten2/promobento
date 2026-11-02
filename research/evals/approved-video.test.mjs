@@ -1,7 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {mkdtempSync,mkdirSync,readFileSync,rmSync,writeFileSync,existsSync} from 'node:fs';import {join,resolve} from 'node:path';
 import {execFileSync} from 'node:child_process';import {sha256Bytes} from '@promobento/contracts/digest';import {openVideoFramePack} from '@promobento/contracts/video-frames';
-import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader,videoSampleTime} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
+import {canonical} from '@promobento/contracts/canonical';
+import {captureApprovedLocalVideo,captureApprovedWebVideo,verifyVideoSelections,assertVideoSourceHeader,
+ videoSampleTime,LEGACY_VIDEO_SAMPLING,CURRENT_VIDEO_SAMPLING} from './approved-video.mjs';import {prepareMaterialSelection} from './prepare-material-selection.mjs';
 // MediaRecorder's wall-clock frame times vary with CI CPU scheduling and can
 // land exactly on a 30 fps sampling boundary. A fixed-timestamp fixture tests
 // the actual browser decoder and byte-for-byte re-verification reproducibly.
@@ -21,6 +23,46 @@ test('30 fps browser samples stay inside target intervals and away from common s
    assert.ok(Math.abs(time-nearest)>0.0005,`frame ${index} coincides with a ${fps} fps source boundary`);
   }
  }
+ assert.equal(videoSampleTime(2,LEGACY_VIDEO_SAMPLING),(2+0.5)/30);
+ assert.equal(videoSampleTime(2,CURRENT_VIDEO_SAMPLING),(2+0.37)/30);
+ assert.throws(()=>videoSampleTime(2,'unknown'),/VIDEO_SAMPLING_RULE_INVALID/);
+});
+test('already approved unversioned center-sample animations still reverify by exact bytes',async()=>{
+ const root=mkdtempSync(resolve('artifacts/.legacy-approved-video-test-'));
+ try{
+  const sourceDir=join(root,'source');mkdirSync(sourceDir);
+  const source=execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-nostdin','-f','lavfi',
+   '-i','testsrc2=s=48x48:r=25:d=1','-f','gif','pipe:1'],{timeout:15000,maxBuffer:4<<20});
+  writeFileSync(join(sourceDir,'test.gif'),source);
+  const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},
+   rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}],
+   materialApprovals:{'fixture-video':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',
+    publicUseCleared:false,approvedOn:'2026-10-31',basis:'Original synthetic GIF.',sourceFile:'test.gif',sourceUrl:'local://fixture',sha256:sha256Bytes(source)}}};
+  const selected=await captureApprovedLocalVideo({sourceDir,outputDir:join(root,'old'),card,
+   entries:[{...entry,sourceFile:'test.gif'}],samplingRule:LEGACY_VIDEO_SAMPLING});
+  assert.equal(selected.assets[0].derivation.samplingRule,undefined,'existing approval metadata had no sampling version');
+  const manifest=JSON.parse(readFileSync(join(root,'old','fixture-video.video.json'),'utf8'));
+  assert.equal(manifest.samplingRule,undefined);
+  selected.assets[0].review='approved_for_internal_eval_by_codex';selected.assets[0].reviewedAt='2026-10-31';
+  const cardPath=join(root,'card.json');writeFileSync(cardPath,JSON.stringify(card));
+  const topics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:cardPath}]};
+  const verified=await verifyVideoSelections(join(root,'old'),selected,topics);
+  assert.ok(verified.get('fixture-video').manifest.frames.length>0);
+  const altered=structuredClone(selected);altered.assets[0].derivation.samplingRule=CURRENT_VIDEO_SAMPLING;
+  await assert.rejects(verifyVideoSelections(join(root,'old'),altered,topics),/VIDEO_DERIVATION_MISMATCH/,
+   'a later manifest rule cannot be silently assigned to historical approved bytes');
+  // The immediately preceding capture release already used .37 + rAF but
+  // did not record the change. Its approved bytes must still reverify.
+  const transient=await captureApprovedLocalVideo({sourceDir,outputDir:join(root,'transient'),card,
+   entries:[{...entry,sourceFile:'test.gif'}]});
+  delete transient.assets[0].derivation.samplingRule;
+  transient.assets[0].review='approved_for_internal_eval_by_codex';transient.assets[0].reviewedAt='2026-10-31';
+  const transientPath=join(root,'transient','fixture-video.video.json');
+  const transientManifest=JSON.parse(readFileSync(transientPath,'utf8'));delete transientManifest.samplingRule;
+  writeFileSync(transientPath,canonical(transientManifest));
+  assert.ok((await verifyVideoSelections(join(root,'transient'),transient,topics)).has('fixture-video'),
+   'unversioned off-boundary packs are recovered by exact evidence instead of being discarded');
+ }finally{rmSync(root,{recursive:true,force:true});}
 });
 test('animated-image headers bound dimensions and reject still or malformed WebP before decoding',()=>{
  const png=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(13,8);png.write('IHDR',12);png.writeUInt32BE(64,16);png.writeUInt32BE(32,20);
@@ -77,6 +119,7 @@ test('approved video becomes reproducible 30 fps frames and a source-bound manif
    materialApprovals:{'fixture-video':{status:'approved',approvedBy:'owner',scope:'internal_eval_only',storage:'staging_R2',publicUseCleared:false,approvedOn:'2026-10-31',basis:'Original synthetic test.',sourceFile:'test.webm',sourceUrl:'local://fixture',sha256:sha256Bytes(source)}}};
   const denied=join(root,'denied');await assert.rejects(captureApprovedLocalVideo({sourceDir,outputDir:denied,card:{...card,materialApprovals:{}},entries:[entry]}),/MATERIAL_EXPLICIT_APPROVAL_REQUIRED/);assert.equal(existsSync(denied),false);
   const output=join(root,'out'),selected=await captureApprovedLocalVideo({sourceDir,outputDir:output,card,entries:[entry]});assert.equal(selected.assets[0].review,'pending_visual_selection');
+  assert.equal(selected.assets[0].derivation.samplingRule,CURRENT_VIDEO_SAMPLING);
   const cardPath=join(root,'card.json');writeFileSync(cardPath,JSON.stringify(card));const topics={factConfirmation:{confirmedBy:'owner'},topics:[{id:'fixture',factCard:cardPath}]};
   await assert.rejects(verifyVideoSelections(output,selected,topics),/MATERIAL_REVIEW_REQUIRED/);
   const reviewed=structuredClone(selected);reviewed.assets[0].review='approved_for_internal_eval_by_codex';reviewed.assets[0].reviewedAt='2026-10-31';

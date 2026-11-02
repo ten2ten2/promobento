@@ -61,7 +61,7 @@ const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
- jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,explicitSameIdAudio=false}={}){
+ jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -132,8 +132,10 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
     if(tool==='write_treatment')input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats:[{id:'hero',purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:selectVoice?['res_product','res_voice']:['res_product']}],hardestBeat:'hero',reviewFrames:[0,90,240,449]};
     else if(tool==='write_project'){
      const shape=payload.composition,product=payload.materials.find(item=>item.resourceId==='res_product')??payload.materials[0];
+     const unselected=payload.materials.find(item=>item.resourceId==='res_product_new');
      const voice=payload.materials.find(item=>item.resourceId==='res_voice');
-     const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${product.path}">`;
+     const wrongHardest=invalidHardestOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct');
+     const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${wrongHardest&&unselected?unselected.path:product.path}">`;
      const audio=(selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'';
      const source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1>${image}${audio}<i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};${jsonMaterial?"fetch('src/assets.json').then(r=>r.json()).then(v=>document.querySelector('img').src=v.productPath);":''}</script></body></html>`;
      const html=source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>');
@@ -599,6 +601,21 @@ test('an incomplete recompose is corrected before it can count as a valid model 
  const project=f.saved.get(result.projects[1].revisionId).project;
  const file=project.files.find(item=>item.path==='index.html');
  assert.match(new TextDecoder().decode(await f.bytes(f.env,file)),/PROMO_PROMISE/);
+});
+
+test('hardest-shot source mismatch enters correction before a successful model cache response',async t=>{
+ const f=await fixture(t,{invalidHardestOnce:true});
+ const alternate={...await f.put('evals/fixture/unselected.png',readFileSync('public/icon-192.png'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:192,height:192};
+ // An admitted asset is not automatically a selected Treatment source.
+ const result=await f.create('hardest-source-correction',{aspects:['landscape'],resources:[f.asset,alternate]});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-hardest-landscape'));
+ assert.equal(attempts.length,2);
+ assert.match(attempts[1].callId,/-correct$/);
+ const project=f.saved.get(result.projects[0].revisionId).project;
+ const html=new TextDecoder().decode(await f.bytes(f.env,project.files.find(file=>file.path==='index.html')));
+ assert.ok(html.includes('assets/'+f.asset.sha256.slice(0,24)+'.png'));
 });
 
 test('candidate submission includes rights inherited from an earlier native revision',async t=>{

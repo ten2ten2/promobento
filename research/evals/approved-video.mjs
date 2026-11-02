@@ -21,9 +21,15 @@ const extension=type=>({'video/mp4':'mp4','video/quicktime':'mov','video/webm':'
 const validCard=card=>card.status==='confirmed_for_s1_eval'&&card.confirmation?.confirmedBy==='owner'&&card.confirmation.scope==='s1-first-internal-evaluation'&&card.rights?.scope==='internal_eval_only'&&card.rights.publicUseCleared===false;
 const isAnimatedSource=type=>['image/gif','image/png','image/webp','image/avif'].includes(type);
 const blob=bytes=>({sha256:sha256Bytes(bytes),byteLength:bytes.length});
-// A half-frame seek collides with 24 and 60 fps source-frame boundaries.
-// Stay within each 30 fps output interval but off the common source grids.
-export const videoSampleTime=index=>(index+0.37)/30;
+// Bind sample coordinates and decoder presentation behavior to the approved
+// frame pack. Older unversioned packs used the interval center without rAF.
+export const LEGACY_VIDEO_SAMPLING='interval-center-v1';
+export const CURRENT_VIDEO_SAMPLING='off-boundary-v2';
+export const videoSampleTime=(index,rule=CURRENT_VIDEO_SAMPLING)=>{
+ if(!Number.isSafeInteger(index)||index<0||index>=1800||![LEGACY_VIDEO_SAMPLING,CURRENT_VIDEO_SAMPLING].includes(rule))
+  throw Error('VIDEO_SAMPLING_RULE_INVALID');
+ return (index+(rule===LEGACY_VIDEO_SAMPLING?0.5:0.37))/30;
+};
 function approved(card,asset){
  const decision=materialApproval(card,asset),derived=asset.derivation;
  const web=derived?.sourceOrigin==='web';
@@ -66,7 +72,8 @@ async function openBrowser(){
   await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; media-src blob:"><video muted playsinline preload="auto"></video><canvas></canvas>`);return{browser,page,version:browser.version(),async close(){try{await context.close();}finally{await browser.close();}}};
  }catch(error){try{await context?.close();}finally{await browser.close();}throw error;}
 }
-async function extractVideo({page,version},source,mediaType){
+async function extractVideo({page,version},source,mediaType,{samplingRule=CURRENT_VIDEO_SAMPLING,versioned=true}={}){
+ videoSampleTime(0,samplingRule);
  assertVideoSourceHeader(source,mediaType);
  if(isAnimatedSource(mediaType)){
   // WebCodecs is secure-context-only. This origin is fulfilled entirely by
@@ -108,7 +115,7 @@ async function extractVideo({page,version},source,mediaType){
  const frames=[],packs=[],parts=[];let size=0,total=0,poster;
  const flush=()=>{if(size){packs.push(Buffer.concat(parts,size));parts.length=0;size=0;}};
  for(let index=0;index<count;index++){
-  const result=await bounded(page.evaluate(async({index,mediaType,width,height,time})=>{
+  const result=await bounded(page.evaluate(async({index,mediaType,width,height,time,waitForPresentation})=>{
    // Avoid common 24/60 fps source-frame boundaries. A boundary seek can
    // resolve to either adjacent decoded image after a fresh browser launch.
    const v=document.querySelector('video'),canvas=document.querySelector('canvas');
@@ -119,21 +126,25 @@ async function extractVideo({page,version},source,mediaType){
    }else{
     if(Math.abs(v.currentTime-time)>1e-7){await new Promise((resolve,reject)=>{const done=()=>{v.removeEventListener('error',bad);resolve();},bad=()=>{v.removeEventListener('seeked',done);reject(Error('VIDEO_SEEK_FAILED'));};v.addEventListener('seeked',done,{once:true});v.addEventListener('error',bad,{once:true});v.currentTime=time;});}
     if(Math.abs(v.currentTime-time)>.001||v.readyState<2)throw Error('VIDEO_SEEK_FAILED');
-    // Let Chromium present the completed seek before taking the canvas pixels.
-    await new Promise(resolve=>requestAnimationFrame(resolve));ctx.drawImage(v,0,0);
+    // The original center-sample algorithm drew immediately after seeking.
+    // Preserve that behavior when replaying its exact historical frame bytes.
+    if(waitForPresentation)await new Promise(resolve=>requestAnimationFrame(resolve));
+    ctx.drawImage(v,0,0);
    }
    const webp=canvas.toDataURL('image/webp',1),poster=index===0?canvas.toDataURL('image/png'):null;
    if(!webp.startsWith('data:image/webp;base64,')||poster&&!poster.startsWith('data:image/png;base64,'))throw Error('VIDEO_FRAME_ENCODING_UNAVAILABLE');
    return{webp:webp.slice('data:image/webp;base64,'.length),poster:poster?.slice('data:image/png;base64,'.length)};
-  },{index,mediaType,width:info.width,height:info.height,time:videoSampleTime(index)}));
+  },{index,mediaType,width:info.width,height:info.height,time:videoSampleTime(index,samplingRule),
+   waitForPresentation:samplingRule!==LEGACY_VIDEO_SAMPLING}));
   const image=Buffer.from(result.webp,'base64'),header=imageHeader(image);if(header.mediaType!=='image/webp'||header.width!==info.width||header.height!==info.height||image.length>maxPack)throw Error('VIDEO_FRAME_ENCODING_INVALID');
   if(index===0){poster=Buffer.from(result.poster,'base64');const p=imageHeader(poster);if(p.width!==info.width||p.height!==info.height||poster.length>1<<20)throw Error('VIDEO_POSTER_INVALID');}
   if(size+image.length>maxPack)flush();frames.push({index,pts:index/30,duration:1/30,pack:packs.length,offset:size,byteLength:image.length});parts.push(image);size+=image.length;total+=image.length;if(total>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
  }
- flush();const manifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',source:{...blob(source),mediaType},browserVersion:version,width:info.width,height:info.height,poster:blob(poster),packs:packs.map(blob),frames};
+ flush();const manifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',source:{...blob(source),mediaType},browserVersion:version,
+  ...(versioned?{samplingRule}:{}),width:info.width,height:info.height,poster:blob(poster),packs:packs.map(blob),frames};
  const raw=Buffer.from(canonical(manifest));parseVideoFrameManifest(raw,sha256Bytes(raw));return{manifest,raw,poster,packs};
 }
-export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entries}){
+export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entries,samplingRule=CURRENT_VIDEO_SAMPLING}){
  const source=realpathSync(sourceDir),output=privateNewDirectory(outputDir,'NEW_PRIVATE_OUTPUT_REQUIRED');
  if(!validCard(card))throw Error('INTERNAL_SOURCE_APPROVAL_REQUIRED');
  if(!Array.isArray(entries)||!entries.length||entries.length>12||new Set(entries.map(item=>item.id)).size!==entries.length)throw Error('VIDEO_SELECTION_INVALID');
@@ -145,13 +156,16 @@ export async function captureApprovedLocalVideo({sourceDir,outputDir,card,entrie
   if(statSync(path).size>maxSource)throw Error('VIDEO_SOURCE_SIZE_INVALID');return{entry,asset,path};
  });
  const inputs=accepted.map(item=>{const bytes=readBoundedApprovedFile(item.path,maxSource,'VIDEO_SOURCE_SIZE_INVALID');checkBytes(card,item.asset,bytes);return{...item,bytes};});
- return materializeVideo(output,inputs);
+ return materializeVideo(output,inputs,samplingRule);
 }
-async function materializeVideo(output,inputs){
+async function materializeVideo(output,inputs,samplingRule=CURRENT_VIDEO_SAMPLING){
+ videoSampleTime(0,samplingRule);
  let runner;const collected=[];let totalPackBytes=0;
- try{runner=await openBrowser();for(const input of inputs){const out=await extractVideo(runner,input.bytes,input.asset.derivation.sourceMediaType);
+ try{runner=await openBrowser();for(const input of inputs){const out=await extractVideo(runner,input.bytes,input.asset.derivation.sourceMediaType,
+  {samplingRule,versioned:samplingRule!==LEGACY_VIDEO_SAMPLING});
   totalPackBytes+=out.packs.reduce((sum,pack)=>sum+pack.length,0);if(totalPackBytes>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');
-  const ext=extension(input.asset.derivation.sourceMediaType);if(!ext)throw Error('VIDEO_SOURCE_FORMAT_INVALID');const derivation={...input.asset.derivation,originalFile:input.entry.id+'.source.'+ext,manifestFile:input.entry.id+'.video.json',packFiles:out.packs.map((_,i)=>input.entry.id+'.pack-'+i+'.bin'),browserVersion:runner.version};
+  const ext=extension(input.asset.derivation.sourceMediaType);if(!ext)throw Error('VIDEO_SOURCE_FORMAT_INVALID');const derivation={...input.asset.derivation,originalFile:input.entry.id+'.source.'+ext,manifestFile:input.entry.id+'.video.json',packFiles:out.packs.map((_,i)=>input.entry.id+'.pack-'+i+'.bin'),browserVersion:runner.version,
+   ...(samplingRule!==LEGACY_VIDEO_SAMPLING?{samplingRule}:{})};
   collected.push({source:input.bytes,...out,asset:{...input.asset,derivation,file:input.entry.id+'.png',width:out.manifest.width,height:out.manifest.height,mediaType:'image/png',description:input.entry.description,review:'pending_visual_selection',scope:'internal_eval_only',publicUseCleared:false}});
  }}finally{await runner?.close();}
  mkdirSync(output,{recursive:true});privateExisting(output,'directory','NEW_PRIVATE_OUTPUT_REQUIRED');
@@ -194,7 +208,8 @@ export async function verifyVideoSelections(directory,selected,topics){
    const bytes=readReviewedMaterial(root,name,12<<20);packBytes+=bytes.length;
    if(packBytes>maxTotal)throw Error('VIDEO_FRAME_BUDGET_EXCEEDED');return bytes;
   });
-  if(manifest.source.sha256!==asset.derivation.sourceSha256||manifest.source.byteLength!==source.length||manifest.source.mediaType!==asset.derivation.sourceMediaType
+  if((manifest.samplingRule??null)!==(asset.derivation.samplingRule??null)
+   ||manifest.source.sha256!==asset.derivation.sourceSha256||manifest.source.byteLength!==source.length||manifest.source.mediaType!==asset.derivation.sourceMediaType
    ||manifest.browserVersion!==asset.derivation.browserVersion||manifest.width!==asset.width||manifest.height!==asset.height
    ||manifest.poster.sha256!==sha256Bytes(poster)||manifest.poster.byteLength!==poster.length||packs.length!==manifest.packs.length
    ||packs.some((pack,i)=>pack.length!==manifest.packs[i].byteLength||sha256Bytes(pack)!==manifest.packs[i].sha256))throw Error('VIDEO_DERIVATION_MISMATCH');
@@ -203,9 +218,20 @@ export async function verifyVideoSelections(directory,selected,topics){
  let runner;const verified=new Map();
  try{runner=await openBrowser();for(const {asset,source,manifestBytes,poster,packs}of paths){
   if(asset.derivation.browserVersion!==runner.version)throw Error('VIDEO_RENDERER_CHANGED');
-  const result=await extractVideo(runner,source,asset.derivation.sourceMediaType);
-  if(!result.raw.equals(manifestBytes)||!result.poster.equals(poster)||result.packs.length!==packs.length||result.packs.some((pack,index)=>!pack.equals(packs[index])))throw Error('VIDEO_DERIVATION_MISMATCH');
-  verified.set(asset.id,{source,manifest:result.manifest,manifestBytes,poster,packs});
+  // Unversioned approved packs predate samplingRule. Most used the center,
+  // while a short-lived capture release used the new offset without recording
+  // it. Exact frame/poster/pack bytes determine which one was actually approved.
+  const rules=asset.derivation.samplingRule?[asset.derivation.samplingRule]:[LEGACY_VIDEO_SAMPLING,CURRENT_VIDEO_SAMPLING];
+  let match=null;
+  for(const samplingRule of rules){
+   try{const result=await extractVideo(runner,source,asset.derivation.sourceMediaType,
+    {samplingRule,versioned:asset.derivation.samplingRule!==undefined});
+    if(result.raw.equals(manifestBytes)&&result.poster.equals(poster)&&result.packs.length===packs.length
+     &&result.packs.every((pack,index)=>pack.equals(packs[index]))){match=result;break;}
+   }catch(error){if(asset.derivation.samplingRule)throw error;}
+  }
+  if(!match)throw Error('VIDEO_DERIVATION_MISMATCH');
+  verified.set(asset.id,{source,manifest:match.manifest,manifestBytes,poster,packs});
  }}finally{await runner?.close();}return verified;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

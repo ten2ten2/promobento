@@ -225,10 +225,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       try{
        if(input.reviewFrames)reviewFrameTimes(input.reviewFrames,context.durationSeconds);
        if(tool==='write_project')assertSourceFiles(input.files);
-       // Recomposition is a finished film. Reject invalid output before
-       // modelStep can put it in the successful response cache.
-       if(tool==='write_project'&&name.startsWith('recompose-')){
-        if(script)assertScriptProjection(input.files,script);
+       // A hardest-shot study is not a finished Script, but its selected
+       // sources are already locked. Validate both stages before a successful
+       // response can enter modelStep's cache.
+       if(tool==='write_project'&&(name.startsWith('recompose-')||name.startsWith('hardest-'))){
+        if(script&&!name.startsWith('hardest-'))assertScriptProjection(input.files,script);
         if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(input.files,lockedSelection,
          material.resources,script,scriptAudioLocks);
        }

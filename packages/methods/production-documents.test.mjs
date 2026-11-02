@@ -4,6 +4,7 @@ import {digest} from '@promobento/contracts/digest';
 import {validate as validScript} from '@promobento/contracts/validators/native-script';
 import {validate as validSelection} from '@promobento/contracts/validators/material-selection';
 import {validate as validReference} from '@promobento/contracts/validators/reference-analysis';
+import huashu from './huashu-motion/source.mjs';
 import {assertReferenceAnalysis, assertNativeScript, assertScriptProjection, assertMaterialSelection,
   assertLockedMaterialSelection, scriptChangeImpact, applyScriptTextEdits,replaceLockedMaterials,
   projectMaterialSources,assertMaterialProjection,lockScriptAudioSources} from './production-documents.mjs';
@@ -60,6 +61,43 @@ test('the authoritative Script validates copy, facts, target frames, and editabl
   assert.throws(()=>assertScriptProjection([{path:'index.html',content:
     '<script src="src/main.js">title.textContent="One clear promise";cta.textContent="Try PromoBento today";</script>'}],doc),
   /SCRIPT_SOURCE_PROJECTION_MISSING/,'inline code is inert when the script has a src attribute');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:'<h1></h1><p>Try PromoBento today</p>'},
+    {path:'index.js',content:'// "One clear promise"\n/* title.textContent="One clear promise"; */'}],doc),
+  /SCRIPT_SOURCE_PROJECTION_MISSING/,'JavaScript comments cannot establish visible copy');
+  assert.equal(assertScriptProjection([{path:'index.html',content:'<h1></h1><p>Try PromoBento today</p>'},
+    {path:'index.js',content:'title.textContent = "One clear promise"; // an actual binding'}],doc),true,
+  'a real JavaScript string literal remains recognized alongside comments');
+  const variables='[{"id":"title","type":"string","default":"One clear promise"}]';
+  assert.equal(assertScriptProjection([{path:'index.html',content:
+    `<html data-composition-variables='${variables}'><body><h1 data-var-text="title"></h1><p>Try PromoBento today</p></body></html>`}],doc),true,
+  'the native variable text binding renders its approved default');
+  assert.equal(assertScriptProjection([{path:'index.html',content:
+    `<html data-composition-variables='${variables}'><body><h1 data-om-var="title"></h1><p>Try PromoBento today</p><script>const V=OM.vars(); title.textContent=V.title;</script></body></html>`}],doc),true,
+  'a native script can build the visible title from its declared variable');
+  for (const [name, content] of Object.entries(huashu.templateSources).filter(([,html]) => /CLIP\.mount\s*\(/.test(html))) {
+    const root=/<html\b[^>]*data-composition-variables='([\s\S]*?)'>/.exec(content);
+    const defaults=JSON.parse(root[1]);
+    const title=defaults.find(variable => typeof variable.default === 'string' &&
+      content.includes('{{' + variable.id + '}}') && variable.default.length>2);
+    assert.ok(title,`native CLIP template ${name} exposes visible cue copy`);
+    assert.doesNotThrow(()=>assertScriptProjection([{path:'index.html',content}],{segments:[{role:'title',displayText:title.default}]}),
+      `${name} passes with its real CLIP-mounted variable binding`);
+  }
+  for(const content of [
+    `<html data-composition-variables='${variables}'><body><h1></h1><p>Try PromoBento today</p></body></html>`,
+    `<html data-composition-variables='${variables}'><body><!-- <h1 data-var-text="title"></h1> --><p>Try PromoBento today</p></body></html>`,
+    `<html data-composition-variables='${variables}'><body><h1 data-om-var="title"></h1><p>Try PromoBento today</p></body></html>`
+  ]) assert.throws(()=>assertScriptProjection([{path:'index.html',content}],doc),/SCRIPT_SOURCE_PROJECTION_MISSING/,
+    'unbound composition metadata is not proof that text is rendered');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:
+    `<html data-composition-variables='${variables}'><body><script type="application/json" id="clip-spec">{"text":"{{title}}"}</script><p>Try PromoBento today</p></body></html>`}],doc),
+    /SCRIPT_SOURCE_PROJECTION_MISSING/,'an unmounted CLIP-like JSON spec must not satisfy Script projection');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:
+    `<html data-composition-variables='${variables}'><body><script type="application/json" id="clip-spec">{"text":"{{title}}"}</script><p>Try PromoBento today</p><script>/* CLIP.mount({}) */ const note="CLIP.mount";</script></body></html>`}],doc),
+    /SCRIPT_SOURCE_PROJECTION_MISSING/,'a comment or literal mentioning the renderer does not mount the cue spec');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:
+    `<html data-composition-variables='${variables}'><body><script type="application/json">{"data-var-text":"title"}</script><p>Try PromoBento today</p></body></html>`}],doc),
+    /SCRIPT_SOURCE_PROJECTION_MISSING/,'inert JSON must not impersonate a data-var-text attribute');
   assert.throws(()=>assertNativeScript({...doc,durationFrames:900},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],doc.segments[0]]},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],{...doc.segments[1],displayText:'Different action'}]},context),/SCRIPT_CTA_MISSING/);
@@ -184,6 +222,37 @@ test('explicit source replacement updates Script and lock hashes and rejects mis
     'promoting an already registered alternative swaps its position with the old primary');
   assert.equal(promoted.selection.uses[0].resourceId,next.resourceId);
   assert.doesNotThrow(()=>assertLockedMaterialSelection(promoted.selection,[...materials,next]));
+  const alternateV1={resourceId:'new-product',sha256:hash('c')};
+  const alternateV2={resourceId:'new-product',sha256:hash('e')};
+  const alternateV3={resourceId:'new-product',sha256:hash('f')};
+  const withOlderAlternative=structuredClone(prior);
+  withOlderAlternative.uses[0].alternatives.push({resourceId:alternateV1.resourceId,sha256:alternateV1.sha256});
+  withOlderAlternative.selectionHash=digest(withOlderAlternative.uses);
+  const upgraded=replaceLockedMaterials(withOlderAlternative,before,
+    [{fromResourceId:'product',toResourceId:'new-product'}],[alternateV2],[...materials,alternateV1]);
+  assert.deepEqual(upgraded.selection.uses[0].alternatives,[{resourceId:'product',sha256:old.sha256}],
+    'promoting a newer SHA retires the older alternative version instead of duplicating its resource ID');
+  const nextVersion=replaceLockedMaterials(upgraded.selection,upgraded.script,
+    [{fromResourceId:'new-product',toResourceId:'new-product'}],[alternateV3],
+    [...materials,alternateV1,alternateV2]);
+  assert.equal(nextVersion.selection.uses[0].sha256,alternateV3.sha256,
+    'a second same-ID version upgrade must remain possible');
+  const switchedAgain=replaceLockedMaterials(upgraded.selection,upgraded.script,
+    [{fromResourceId:'new-product',toResourceId:'third-product'}],
+    [{resourceId:'third-product',sha256:hash('f')}],[...materials,alternateV1,alternateV2]);
+  assert.equal(switchedAgain.selection.uses[0].resourceId,'third-product',
+    'a second replacement to a new resource ID must remain possible');
+  const duplicate=structuredClone(upgraded.selection);
+  duplicate.uses[0].alternatives.push({resourceId:'third-product',sha256:hash('c')},
+    {resourceId:'third-product',sha256:hash('d')});
+  duplicate.selectionHash=digest(duplicate.uses);
+  assert.throws(()=>assertLockedMaterialSelection(duplicate,[...materials,
+    {resourceId:'third-product',sha256:hash('c')},{resourceId:'third-product',sha256:hash('d')},alternateV2]),
+  /MATERIAL_LOCK_IDENTITY_INVALID/,'one resource ID cannot appear under multiple alternative SHAs');
+  assert.throws(()=>replaceLockedMaterials(withOlderAlternative,before,
+    [{fromResourceId:'new-product',toResourceId:'product'}],[{resourceId:'product',sha256:hash('d')}],
+    [...materials,alternateV1]),/MATERIAL_REPLACEMENT_INVALID/,
+  'replacing an alternative must not silently discard a new SHA under the still-selected ID');
   const scriptVoice={resourceId:'voice',sha256:hash('e'),kind:'audio'};
   const scriptOnly=structuredClone(before);
   scriptOnly.moments[0].resourceIds.push('voice');
@@ -242,6 +311,15 @@ test('a changed recorded source invalidates its measured Segment and Moment cloc
   assert.equal(changed.script.moments.at(-1).timing.kind,'authored');
   assert.equal(changed.script.segments.at(-1).timing.kind,'authored');
   assert.equal(spoken.segments.at(-1).timing.kind,'measured','parent measured evidence remains untouched');
+  const shared=structuredClone(spoken),otherVoice={resourceId:'other-voice',sha256:oldAudio.sha256,kind:'audio'};
+  shared.segments.push({...shared.segments.at(-1),id:'untouched-speech'});
+  shared.moments.push({...shared.moments.at(-1),id:'untouched-moment',segmentIds:['untouched-speech'],resourceIds:['other-voice']});
+  assert.doesNotThrow(()=>assertNativeScript(shared,{...measuredContext,materials:[materials[0],oldAudio,otherVoice]}));
+  const scoped=replaceLockedMaterials(prior,shared,[{fromResourceId:'music',toResourceId:'new-voice'}],
+    [nextAudio],[...materials,oldAudio,otherVoice]);
+  assert.equal(scoped.script.moments.at(-1).timing.kind,'measured',
+    'an unaffected Moment using the original audio bytes keeps its measured clock');
+  assert.equal(scoped.script.segments.at(-1).timing.kind,'measured');
 });
 
 test('each Treatment use locks source SHA and alternatives without accepting substitutions',()=>{
