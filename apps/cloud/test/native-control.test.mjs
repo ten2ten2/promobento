@@ -16,7 +16,7 @@ import {flushOutbox} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
-import {getReviewDraft, directorProgress, dispatchDirectorProgress} from '../src/director-recovery.ts';
+import {getReviewDraft, directorProgress, dispatchDirectorProgress, commitCandidate} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 
@@ -996,6 +996,33 @@ test('native publication atomically fences missing and revoked source rights, pr
   db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
   await commitRender(env,'rights-render',op,result,[resource]);
   assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pipeline_outbox WHERE kind='render_progress'").get().count,1);
+});
+
+test('Director candidate commit atomically fences source revocation and keeps earlier success immutable',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_candidate',sha256:input.files[0].sha256,kind:'image'};
+  const key=`operations/${op.id}/candidate.json`;
+  await assert.rejects(commitCandidate(env,op,key,[resource]),/ASSET_RIGHTS_PENDING/);
+  const evidence=await immutableBytes(env,'evals/native/candidate-rights.json',new TextEncoder().encode('{}'),'application/json');
+  db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+    .run(op.id,resource.resourceId,resource.sha256,'fixture-license',evidence.key,'internal_eval_only');
+  // The initial rights() read passed, then the owner revoked before the D1 transaction.
+  const batch=env.DB.batch.bind(env.DB);
+  env.DB.batch=async statements=>{
+    db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+    return batch(statements);
+  };
+  await assert.rejects(commitCandidate(env,op,key,[resource]),/ASSET_RIGHTS_PENDING/);
+  assert.equal(db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get(op.id).status,'active');
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='operation_progress'").get().n,0);
+  env.DB.batch=batch;
+  db.prepare('UPDATE pipeline_rights SET revoked_at=NULL WHERE operation_id=?').run(op.id);
+  await commitCandidate(env,op,key,[resource]);
+  const committed=db.prepare('SELECT status,result_key FROM pipeline_operations WHERE id=?').get(op.id);
+  assert.equal(committed.status,'succeeded');assert.equal(committed.result_key,key);
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await commitCandidate(env,op,key,[resource]); // A later revoke cannot rewrite or un-commit a completed candidate.
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM pipeline_outbox WHERE kind='operation_progress'").get().n,1);
 });
 
 test('Director completion events recover after Queue acknowledgement and exhausted delivery retries', async t => {

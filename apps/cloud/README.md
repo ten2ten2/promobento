@@ -26,7 +26,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 ## 隔离与回执
 
-原生代码与客户创作代码不在 Worker 求值。容器内的可信 controller 接收已核对的文件清单、持有仅本任务有效的 broker token；原生 Node/Chromium 以另一 UID 运行，不持有业务凭据。容器关闭 Internet。broker 只允许读取本次清单列出的 R2 key，并写入 `renders/<renderId>/attempts/<attemptId>/out/`。执行前再次检查工程清单中的素材授权；Broker 每次读取素材前也核查授权，最终发布前再次校验，D1 成片提交与 `revoked_at` 校验在同一 SQL 更新中完成，避免并发撤销后发布。
+原生代码与客户创作代码不在 Worker 求值。容器内的可信 controller 接收已核对的文件清单、持有仅本任务有效的 broker token；原生 Node/Chromium 以另一 UID 运行，不持有业务凭据。容器关闭 Internet。broker 只允许读取本次清单列出的 R2 key，并写入 `renders/<renderId>/attempts/<attemptId>/out/`。执行前再次检查工程清单中的素材授权；Broker 每次读取素材前也核查授权，最终发布前再次校验，D1 成片提交与 `revoked_at` 校验在同一 SQL 更新中完成，避免并发撤销后发布。导演的最终候选提交也在同一 D1 更新中校验所有结果工程的素材授权，包括从父 revision 继承、但当前改稿请求未重复列出的资源。
 
 成功响应须同时具备完整 R2 对象、匹配的 native commit/工程 hash、无页面错误，以及存储中的 JSON 回执。预览检查全部指定 PNG 的尺寸与帧时刻；导出检查实际 ffprobe 的编码、尺寸、30 fps、15/30 秒及 450/900 帧，并核对实际工程清单。报告和全部输出写入 R2、字节身份匹配且 operation generation 仍有效后才原子提交。审片另使用最终 MP4 解码的 4 帧 PNG 和 2×2 JPEG 拼图；页面截图不能冒充编码结果。模型冷审基于该抽样，负责人正常速度视听另行验收；抽样通过不代表全片质量通过。
 

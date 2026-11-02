@@ -58,12 +58,16 @@ export async function validateVideo(path, composition, hasAudio) {
 export async function normalizeNativeVideo(nativePath, outputPath, composition) {
   const started = performance.now();
   const native = await probe(nativePath), video = native.streams.find(stream => stream.codec_type === 'video');
-  if (!video || video.width !== composition.width || video.height !== composition.height || !Number.isFinite(Number(native.format.duration)) || Math.abs(Number(native.format.duration) - composition.durationSeconds) > 2 / FPS) throw Error('NATIVE_OUTPUT_MISMATCH');
+  // Container format duration is the *longest* track. A music bed can extend
+  // beyond the film, so validate picture duration independently of the audio.
+  if (!video || video.width !== composition.width || video.height !== composition.height || !Number.isFinite(Number(video.duration)) || Math.abs(Number(video.duration) - composition.durationSeconds) > 2 / FPS) throw Error('NATIVE_OUTPUT_MISMATCH');
   const audioStreams = native.streams.filter(stream => stream.codec_type === 'audio');
   if (audioStreams.length > 1) throw Error('NATIVE_AUDIO_TRACKS_INVALID');
   const hasAudio = audioStreams.length === 1;
   const args = ['-hide_banner', '-loglevel', 'error', '-y', '-i', nativePath, '-map', '0:v:0', '-map', '0:a:0?'];
-  const audioArgs = hasAudio ? ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', '2', '-b:a', '128000', '-af', 'loudnorm=I=-14:TP=-1:LRA=11'] : ['-an'];
+  // A voice-over or effect can end before the picture; keep one full-length AAC
+  // track by padding silence after loudness normalization, then trim with -t.
+  const audioArgs = hasAudio ? ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', '48000', '-ac', '2', '-b:a', '128000', '-af', 'loudnorm=I=-14:TP=-1:LRA=11,apad'] : ['-an'];
   const outputArgs = ['-t', String(composition.durationSeconds), '-movflags', '+faststart', outputPath];
   let copyRejection = null;
   try {

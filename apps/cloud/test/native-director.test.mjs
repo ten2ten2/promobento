@@ -52,7 +52,7 @@ const mockModules={
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
  'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}',
  'native-project.ts':`export const NATIVE_COMMIT='${nativeCommit}';export const saveNativeProject=(...a)=>globalThis.__nativeDirectorFixture.save(...a);export const loadNativeProject=(...a)=>globalThis.__nativeDirectorFixture.load(...a);export const createNativeRender=(...a)=>globalThis.__nativeDirectorFixture.render(...a);export const getNativeRender=(...a)=>globalThis.__nativeDirectorFixture.getRender(...a);export const checkedNativeBytes=(...a)=>globalThis.__nativeDirectorFixture.bytes(...a);`,
- 'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key){await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
+ 'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key,resources){globalThis.__nativeDirectorFixture.committedResources=resources;await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
 };
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
@@ -111,12 +111,12 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   }
  };
  globalThis.__nativeDirectorFixture=f;t.after(()=>delete globalThis.__nativeDirectorFixture);
- const create=async(id,extra={})=>{
+ const create=async(id,extra={},readmittedRights=[])=>{
   const context={audience:'software',brief:'Show this product.',videoLanguage:'en',durationSeconds:15,fps:30,aspects:['landscape','portrait'],rendererRelease:'renderer-native',facts:[{id:'fact_product',text:'The product does the described work.'}],confirmedFactIds:['fact_product'],resources:[asset],...extra};
   const request=await putJson('evals/fixture/'+id+'.json',context);
   db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
-  for(const resource of [...context.resources,...(context.audioSources??[])])db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+  for(const resource of [...context.resources,...(context.audioSources??[]),...readmittedRights])db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -136,7 +136,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel};
+ return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
 }
 
 test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
@@ -192,6 +192,24 @@ test('native creation renders directions, waits for choice, authors independent 
  assert.ok(revised.files.some(file=>file.sha256===f.asset.sha256),'unchanged source media remains available');
  assert.ok(revised.resources.some(resource=>resource.resourceId===replacement.resourceId&&resource.sha256===replacement.sha256));
  assert.equal(new TextDecoder().decode(await f.bytes(f.env,source)),beforeText,'the parent revision remains unchanged');
+});
+
+test('candidate submission includes rights inherited from an earlier native revision',async t=>{
+ const f=await fixture(t),original=await f.create('candidate-parent',{aspects:['landscape']});
+ const patch=await f.create('candidate-child',{aspects:['landscape'],resources:[],baseRevision:original.projects[0].revisionId,
+  comments:[{text:'Update the title.',frame:90,elementId:'title'}]},[f.asset]);
+ assert.equal(patch.kind,'native_candidate');
+ assert.ok(f.committedResources.some(resource=>resource.resourceId===f.asset.resourceId&&resource.sha256===f.asset.sha256),
+  'a patch must recheck inherited media rights even when the new request has no resources');
+});
+
+test('patching a parent without re-admitting inherited media fails before a paid model call',async t=>{
+ const f=await fixture(t),original=await f.create('rights-parent',{aspects:['landscape']});
+ const paidCalls=f.calls.length;
+ await assert.rejects(f.create('rights-child',{aspects:['landscape'],resources:[],baseRevision:original.projects[0].revisionId,
+  comments:[{text:'Update the title.',frame:90,elementId:'title'}]}),/ASSET_RIGHTS_PENDING/);
+ assert.equal(f.calls.length,paidCalls,'missing inherited rights must not start another author model call');
+ assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('rights-child').status,'failed');
 });
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
  const files=[{path:'index.html',content:'<h1>One</h1><p>One</p>'}],original=structuredClone(files);

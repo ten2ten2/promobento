@@ -117,14 +117,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    });
    const material=await materialInputs(this.env,op,context);
    const timingEvidence=normalizeTimingEvidence(context.timingEvidence,material.materials);
+   const candidateResources:Json[]=[...material.resources];
+   const candidateRights=()=>[...new Map(candidateResources.map(resource=>[canonical([resource.resourceId,resource.sha256]),resource])).values()];
    const briefObject=await step.do('brief',noRetry,()=>immutableJson(this.env,`operations/${op.id}/brief.json`,brief));
    const progress=(status:string)=>directorProgress(this.env,op,status);
-   const picture=async(blob:Json)=>({mediaType:blob.mediaType??'image/png',base64:toBase64(await checkedNativeBytes(this.env,blob,8<<20))});
+   const picture=async(blob:Json)=>{await rights(this.env,op,candidateRights());return {mediaType:blob.mediaType??'image/png',base64:toBase64(await checkedNativeBytes(this.env,blob,8<<20))};};
    const runModel=async(name:string,stage:string,request:Json,validate:(value:Json)=>void,methodLanguage=language):Promise<Json>=>{
     let failure:Json|undefined;
     for(let correction=0;correction<2;correction++){
      const result=parseCanonicalJson(await step.do<string>(name+(correction?'-correct':''),{...noRetry,timeout:'12 minutes'},async()=>{
-      await guard();await rights(this.env,op,material.resources);
+      await guard();await rights(this.env,op,candidateRights());
       const prompt={...request,messages:[...request.messages,...(failure?[{role:'user',text:canonical({task:'Correct this completed response to the exact supplied contract. Preserve the Brief and current source.',failure})}]:[])]};
       try{
        const result=await modelStep(this.env,op.id,op.generation,stage,op.id+'-'+op.generation+'-'+name+(correction?'-correct':''),
@@ -191,7 +193,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
    const render=async(name:string,saved:SavedNativeProject,mode:'preview'|'export',frames?:number[])=>{
     const renderId='native-'+digest({operationId:op.id,generation:op.generation,name,revisionId:saved.revisionId,mode}).slice(0,48);
     await step.do('render-submit-'+name,noRetry,async()=>{
-     await guard();await rights(this.env,op,material.resources);
+     await guard();await rights(this.env,op,saved.project.resources);
      await createNativeRender(this.env,op,{renderId,revisionId:saved.revisionId,mode,rendererRelease:context.rendererRelease,...(frames?{frames}:{})});
      return true;
     });
@@ -207,11 +209,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     })) as Json;
    };
    const observe=async(movie:Json)=>{
+    await rights(this.env,op,candidateRights());
     const images=(movie.result?.outputs??[]).filter((output:Json)=>output.mediaType==='image/png');
     if(!images.length||movie.result?.report?.pageErrors?.length)throw Error('NATIVE_PREVIEW_EVIDENCE_MISSING');
     return {frames:images,images:await Promise.all(images.map(picture)),times:movie.result.report?.previewFrameTimes??[]};
    };
    const patchProject=async(name:string,aspect:string,saved:SavedNativeProject,payload:Json)=>{
+    await rights(this.env,op,saved.project.resources);
+    candidateResources.push(...saved.project.resources);
     const files=await sourceFiles(saved),input=await runTool(name,'author','apply_project_patch',{...payload,baseRevision:saved.revisionId,sourceFiles:files,aspect,
      composition:saved.project.composition,materials:publicMaterials(material.materials),builtins},[],candidate=>{applyProjectPatch(files,saved.revisionId,candidate);});
     let next:SourceFile[];try{next=applyProjectPatch(files,saved.revisionId,input);reviewFrameTimes(input.reviewFrames,context.durationSeconds);}catch(error){throw Error(error instanceof Error?error.message:'NATIVE_PATCH_INVALID');}
@@ -270,6 +275,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     }
     repairs=reviewed.repairs;
     const exported=await render('export-'+aspect,reviewed.saved,'export');if(!primary)primary=reviewed.saved;
+    candidateResources.push(...reviewed.saved.project.resources);
     projects.push({aspect,revisionId:reviewed.saved.revisionId,manifestKey:reviewed.saved.manifestKey});renders.push({aspect,...exported});reviews.push({aspect,...reviewed.review});
    }
    await progress('coldReview');
@@ -285,9 +291,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     await failDirector(this.env,op,'COLD_REVIEW_BLOCK',true,draft.key);return {kind:'native_review_draft',key:draft.key};
    }
    return parseCanonicalJson(await step.do<string>('deliver-candidate',noRetry,async()=>{
-    await guard();await rights(this.env,op,material.resources);
+    await guard();
+    const requiredRights=candidateRights();
+    await rights(this.env,op,requiredRights);
     const candidate={kind:'native_candidate',operationId:op.id,generation:op.generation,briefKey:briefObject.key,treatmentKey:treatmentObject.key,directingMethod:methodRef,projects,renders,reviews,coldReview,ownerNormalSpeedReview:'pending',scope:context.scope??'internal_eval_only'};
-    const object=await immutableJson(this.env,`operations/${op.id}/candidate.json`,candidate);await commitCandidate(this.env,op,object.key);return canonical(candidate);
+    const object=await immutableJson(this.env,`operations/${op.id}/candidate.json`,candidate);await commitCandidate(this.env,op,object.key,requiredRights);return canonical(candidate);
    }));
   }catch(error){
    try{await step.do('fail-director',{retries:{limit:3,delay:'1 second'},timeout:'1 minute'},()=>failDirector(this.env,op,directorFailureCode(error),true));}catch{}

@@ -37,6 +37,31 @@ test('stream-copying valid video still normalizes source PCM audio to one AAC tr
  assert.equal((await validateVideo(output,composition,true)).audioSampleRate,48000);
 });
 
+test('a shorter source audio track is padded to the full film duration',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-short-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=0.25',...compliantVideo,
+  '-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');
+ assert.equal(result.audioCodec,'aac');
+ assert.deepEqual(await videoBytes(output),await videoBytes(input),'short audio must not force video re-encoding');
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
+});
+
+test('an overlong source audio track is trimmed without rejecting a valid picture',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-long-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=1.5',...compliantVideo,
+  '-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');
+ assert.deepEqual(await videoBytes(output),await videoBytes(input));
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
+});
+
 test('noncompliant native codecs still take the trusted full-encode fallback',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'promobento-media-fallback-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
@@ -46,6 +71,18 @@ test('noncompliant native codecs still take the trusted full-encode fallback',as
  assert.equal(result.videoEncoding,'transcoded');assert.equal(result.copyRejection,'OUTPUT_VIDEO_INVALID');
  assert.ok(Number.isSafeInteger(result.processingElapsedMs)&&result.processingElapsedMs>=0);
  assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
+test('full video transcode also pads a short audio track without truncating the picture',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-fallback-audio-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mov'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=0.25',
+  '-c:v','mpeg4','-q:v','4','-c:a','pcm_s16le','-ac','2',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'transcoded');
+ assert.equal(result.audioCodec,'aac');
+ assert.equal((await validateVideo(output,composition,true)).frameCount,30);
 });
 
 test('H.264 alone is insufficient: noncompliant keyframe cadence must be re-encoded',async t=>{

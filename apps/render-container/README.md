@@ -18,7 +18,7 @@
 
 素材从 Broker 流式落盘并边传边校验长度/SHA-256；输出按固定 64 KiB 文件块计算身份，再从文件流上传，Worker/R2 独立核验。下载与上传各最多两个并行文件，不再为媒体对象生成整文件 Buffer；受限的 JSON、Chromium/CDP 资源交互仍可使用小缓冲。成功报告包含 `resourceUsage`，失败控制器回执也附带同一采样：容器 cgroup 内存峰值/上限、OOM 计数增量、CPU 使用量及控制器 RSS、文件描述符和 `/jobs` 所在**文件系统**的已用／可用字节及相对任务启动时的已用增量。`statfs` 不能测量 `/jobs` 目录本身的占用；`filesystemUsedIncreaseSamplePeakBytes` 也只是整个挂载点的差值，不可当成精确的任务临时盘用量。缺失指标为 `null`，不能用控制器 RSS 冒充容器峰值。容器尚未在真实 Cloudflare 上取得 G1 所需的实测数据。
 
-导出先检验原生视频的真实解码帧/PTS、GOP、H.264 High/YUV420P、BT.709 与一秒窗口码率。符合条件则 FFmpeg 只复制视频流并重新封装为 faststart MP4；有音频仍按 -14 LUFS 目标归一、编码为 AAC-LC 48 kHz 双声道，不跳过声音处理。不符合条件或封装后的完整校验不通过时，回退到固定 `libx264` 完整转码。两条路径都重新验证**最终文件**的画幅、30 fps、450/900 帧、时长、编码、音轨与 50 MB 上限，并照常从最终文件解码审阅帧；报告 `media.videoEncoding` 记录 `stream_copy` / `transcoded`，`media.processingElapsedMs` 记录核验与交付处理耗时，回退原因记录在 `media.copyRejection`。这是减少重复编码的代码路径，尚无实际云端 CPU/费用节省结论。成功的回执仍须由 Worker 复验私有 R2 字节后提交。
+导出先检验原生视频的真实解码帧/PTS、GOP、H.264 High/YUV420P、BT.709 与一秒窗口码率。符合条件则 FFmpeg 只复制视频流并重新封装为 faststart MP4；有音频仍按 -14 LUFS 目标归一、编码为 AAC-LC 48 kHz 双声道，不跳过声音处理。以视频轨而非最长音轨判断原生画面时长；配音或音效提前结束时，在音量处理后补静音至影片时长，过长音乐按影片时长截断。不符合条件或封装后的完整校验不通过时，回退到固定 `libx264` 完整转码。两条路径都重新验证**最终文件**的画幅、30 fps、450/900 帧、时长、编码、音轨与 50 MB 上限，并照常从最终文件解码审阅帧；报告 `media.videoEncoding` 记录 `stream_copy` / `transcoded`，`media.processingElapsedMs` 记录核验与交付处理耗时，回退原因记录在 `media.copyRejection`。这是减少重复编码的代码路径，尚无实际云端 CPU/费用节省结论。成功的回执仍须由 Worker 复验私有 R2 字节后提交。
 
 ## 原生文件和隔离
 
