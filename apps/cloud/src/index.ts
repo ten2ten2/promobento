@@ -10,7 +10,7 @@ import {importModelOpening, confirmModelOpening, modelBudgetStatus} from './mode
 import {workflowInventory} from './workflow-state.ts';
 import {dispatchCreative, recoverWorkflows} from './workflow-recovery.ts';
 import {saveNativeProject, loadNativeProject, createNativeRender, NATIVE_COMMIT} from './native-project.ts';
-import {flushOutbox} from './outbox.ts';
+import {flushOutbox,recoverUnregisteredDispatches} from './outbox.ts';
 import {dispatchRenderAdmissions} from './render-admission.ts';
 import {processQueueMessages} from './control-batch.ts';
 import {operationRecoverySnapshot} from './recovery-api.ts';
@@ -84,7 +84,12 @@ export default {
         return Response.json(await confirmModelOpening(env, await getJson(env, input.evidenceKey)));
       }
       if (path === '/internal/s1/workflows/reconcile' && request.method === 'POST') return Response.json(await recoverWorkflows(env));
-      if (request.method === 'GET' && path.startsWith('/internal/s1/artifacts/')) return artifact(env, decodeURIComponent(path.slice('/internal/s1/artifacts/'.length)));
+      if (request.method === 'GET' && path.startsWith('/internal/s1/artifacts/')) {
+        let key: string;
+        try {key=decodeURIComponent(path.slice('/internal/s1/artifacts/'.length));}
+        catch {throw Error('OBJECT_KEY_INVALID');}
+        return await artifact(env,key);
+      }
       if (request.method === 'POST' && path === '/internal/s1/operations') {
         return Response.json(await registerOperation(env,await readJson(request)));
       }
@@ -92,7 +97,9 @@ export default {
       if (request.method === 'POST' && path === '/internal/s1/rights') {
         const input = await readJson(request), op = await operation(env, input.operationId);
         if (!/^res_[A-Za-z0-9_-]{4,64}$/.test(input.resourceId) || !/^[a-f0-9]{64}$/.test(input.sha256)
-          || typeof input.licenseRef !== 'string' || input.scope !== 'internal_eval_only') throw Error('RIGHTS_INVALID');
+          || typeof input.licenseRef !== 'string' || input.scope !== 'internal_eval_only'
+          || typeof input.evidenceKey !== 'string' || !/^evals\/[A-Za-z0-9_/-]{4,240}\.json$/.test(input.evidenceKey)
+          || input.evidenceKey.split('/').some(part=>part==='..')) throw Error('RIGHTS_INVALID');
         const evidence = await getJson(env, input.evidenceKey);
         if (evidence.resourceId !== input.resourceId || evidence.sha256 !== input.sha256 || evidence.licenseRef !== input.licenseRef
           || evidence.scope !== input.scope || evidence.approvedBy !== 'owner' || !evidence.source || !evidence.basis) throw Error('RIGHTS_EVIDENCE_INVALID');
@@ -191,9 +198,9 @@ export default {
           ...(row.previews_key ? {previews: await getJson(env, row.previews_key)} : {})});
       }
       const recoveryRoute = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/recovery$/.exec(path);
-      if (recoveryRoute && request.method === 'GET') return operationRecoverySnapshot(env,recoveryRoute[1]!);
+      if (recoveryRoute && request.method === 'GET') return await operationRecoverySnapshot(env,recoveryRoute[1]!);
       const events = /^\/internal\/s1\/operations\/([A-Za-z0-9_-]{4,96})\/events$/.exec(path);
-      if (request.method === 'GET' && events) return env.OPERATIONS.getByName(events[1]!).watch(events[1]!);
+      if (request.method === 'GET' && events) return await env.OPERATIONS.getByName(events[1]!).watch(events[1]!);
       const renderRoute = /^\/internal\/s1\/renders\/([A-Za-z0-9_-]{4,96})$/.exec(path);
       if (request.method === 'GET' && renderRoute) {
         const row = await env.DB.prepare(`SELECT r.id,r.result_json,
@@ -214,17 +221,19 @@ export default {
     } catch (error) {
       // A transport/runtime fault must not masquerade as invalid client input.
       // Do not expose raw exception messages to the future Studio API.
-      const known = error instanceof Error && /^[A-Z][A-Z0-9_]+$/.test(error.message);
+      // Match codes from the pipeline domain, not arbitrary uppercase errors
+      // returned by D1, R2 or another runtime component.
+      const known = error instanceof Error && /^(?:ASSET|BODY|CANDIDATE|CAPACITY|COMPUTE|CONTROL|COST|DIRECTION|DIRECTOR|EXECUTION|IDEMPOTENCY|IMMUTABLE|LEASE|LEGACY|MODEL|NATIVE|OBJECT|OPERATION|OUTBOX|RELEASE|RENDER|REVIEW|RIGHTS|SOURCE|TASK|WORKFLOW)_[A-Z0-9_]+$/.test(error.message);
       const code = known ? (error as Error).message : 'PIPELINE_INTERNAL_ERROR';
       const status = !known ? 500 : code.includes('CONFLICT') ? 409
         : /(?:_TIMEOUT|_UNCONFIRMED|_UNAVAILABLE)$/.test(code) ? 503 : 422;
-      return Response.json({code}, {status});
+      return Response.json({code}, {status,headers:{'cache-control':'private, no-store'}});
     }
   },
   async scheduled(_event: ScheduledController, env: PipelineEnv, ctx: ExecutionContext) {
     if (env.S1_ENABLED === 'internal_eval') ctx.waitUntil((async () => {
       // Independent recovery lanes: a Queue outage must not stop Director wake-up retries.
-      const results = await Promise.allSettled([flushOutbox(env),dispatchRenderAdmissions(env),recoverDirectorEvents(env),recoverWorkflows(env)]);
+      const results = await Promise.allSettled([flushOutbox(env),dispatchRenderAdmissions(env),recoverDirectorEvents(env),recoverWorkflows(env),recoverUnregisteredDispatches(env)]);
       const failed = results.find(result => result.status === 'rejected');
       if (failed?.status === 'rejected') throw failed.reason;
     })());

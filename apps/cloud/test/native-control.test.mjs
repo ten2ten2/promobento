@@ -13,7 +13,7 @@ import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admiss
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
 import {registerWorkflow,workflowStarted} from '../src/workflow-state.ts';
 import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOperation, deliverDirectorEvent, recoverDirectorEvents} from '../src/render-recovery.ts';
-import {flushOutbox} from '../src/outbox.ts';
+import {flushOutbox,recoverUnregisteredDispatches} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
@@ -1441,6 +1441,56 @@ test('outbox sends in bounded parallelism and retries a failed row without skipp
   assert.deepEqual(sent.sort(),['healthy','stalled']);
   assert.equal(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='failed'").get().delivered_at,null);
   assert.ok(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='healthy'").get().delivered_at);
+});
+
+test('slow recovery re-enqueues only live creative/render outbox entries without a registered Workflow',async t=>{
+ const {db,env,op,sent}=await fixture(t);
+ const old=Date.now()-6*60_000;
+ db.prepare("INSERT INTO pipeline_contexts(operation_id,request_key,engine) VALUES(?,?,'huashu')")
+  .run(op.id,'evals/native/context.json');
+ const addOutbox=(id,kind,delivered=old,engine='huashu')=>db.prepare('INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json,delivered_at) VALUES(?,?,?,?,?)')
+  .run(id,op.id,kind,canonical({operationId:op.id,engine,...(kind==='render'?{renderId:id.slice('render-'.length)}:{})}),delivered);
+ const addRender=(id,status='queued')=>db.prepare('INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,?,?)')
+  .run(id,op.id,0,id,'renders/'+id+'/input.json',status,Date.now());
+ addOutbox('creative-'+op.id,'creative');
+ for(const id of ['orphan-render','tracked-render','passed-render','unsent-render','legacy-render','malformed-render'])addRender(id,id==='passed-render'?'passed':'queued');
+ addOutbox('render-orphan-render','render');
+ addOutbox('render-tracked-render','render');
+ addOutbox('render-passed-render','render');
+ addOutbox('render-unsent-render','render',null);
+ addOutbox('render-legacy-render','render',old,'legacy');
+ db.prepare("INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json,delivered_at) VALUES(?,?,'render',?,?)")
+  .run('render-malformed-render',op.id,'{',old);
+ db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,?,?, 'huashu')")
+  .run('tracked-render',op.id,0,Date.now());
+ await recoverUnregisteredDispatches(env);
+ assert.deepEqual(sent.map(item=>item.id).sort(),['creative-'+op.id,'render-orphan-render']);
+ const requeuedAt=db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='render-orphan-render'").get().delivered_at;
+ assert.ok(requeuedAt>old,'a successful requeue records its own backoff timestamp');
+ await recoverUnregisteredDispatches(env);
+ assert.equal(sent.length,2,'a periodic sweep must not flood the Queue with duplicate work');
+ db.prepare("UPDATE pipeline_outbox SET delivered_at=? WHERE id='render-orphan-render'").run(old);
+ db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,?,?, 'huashu')")
+  .run('orphan-render',op.id,0,Date.now());
+ await recoverUnregisteredDispatches(env);
+ assert.equal(sent.length,2,'once a Workflow identity exists, never start another physical workflow');
+});
+
+test('slow outbox recovery keeps a failed send eligible while other jobs progress',async t=>{
+ const {db,env,op}=await fixture(t);
+ const old=Date.now()-6*60_000;
+ for(const id of ['fail-render','good-render']){
+  db.prepare('INSERT INTO pipeline_renders(id,operation_id,generation,request_hash,job_key,status,created_at) VALUES(?,?,?,?,?,?,?)')
+   .run(id,op.id,0,id,'renders/'+id+'/job.json','queued',Date.now());
+  db.prepare("INSERT INTO pipeline_outbox(id,operation_id,kind,payload_json,delivered_at) VALUES(?,?,'render',?,?)")
+   .run('render-'+id,op.id,canonical({operationId:op.id,renderId:id,engine:'huashu'}),old);
+ }
+ const sent=[];
+ env.OUTBOX={async send(item){if(item.id==='render-fail-render')throw Error('QUEUE_UNAVAILABLE');sent.push(item.id);}};
+ await assert.rejects(recoverUnregisteredDispatches(env),/OUTBOX_REDELIVERY_UNCONFIRMED/);
+ assert.deepEqual(sent,['render-good-render']);
+ assert.equal(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='render-fail-render'").get().delivered_at,old);
+ assert.ok(db.prepare("SELECT delivered_at FROM pipeline_outbox WHERE id='render-good-render'").get().delivered_at>old);
 });
 
 test('Queue batches ACK healthy messages while other handlers hang or fail, and time out an isolated RPC', async () => {

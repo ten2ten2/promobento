@@ -1,7 +1,7 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
 import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
-import type {PipelineEnv, Operation, BlobRef, Json} from './pipeline-types.ts';
+import {validId,type PipelineEnv, type Operation, type BlobRef, type Json} from './pipeline-types.ts';
 
 export async function readJson(request: Request, limit = 4 << 20): Promise<Json> {
   if (!request.body) throw Error('BODY_REQUIRED');
@@ -10,9 +10,16 @@ export async function readJson(request: Request, limit = 4 << 20): Promise<Json>
     if (size > limit) throw Error('BODY_TOO_LARGE'); chunks.push(value); } }
   finally { await reader.cancel(); }
   const bytes = new Uint8Array(size); let offset = 0; for (const chunk of chunks) {bytes.set(chunk, offset); offset += chunk.length;}
-  return parseCanonicalJson(bytes) as Json;
+  // Syntax, UTF-8 and canonical-JSON failures all describe malformed client
+  // input. Keep failures from reading the transport stream outside this catch.
+  let parsed: unknown;
+  try {parsed = parseCanonicalJson(bytes);}
+  catch {throw Error('BODY_JSON_INVALID');}
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw Error('BODY_JSON_OBJECT_REQUIRED');
+  return parsed as Json;
 }
 export async function operation(env: PipelineEnv, id: string, generation?: number): Promise<Operation> {
+  if (!validId(id)) throw Error('OPERATION_INVALID');
   const row = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(id).first<Operation>();
   if (!row || !['active', 'awaiting_user'].includes(row.status) || generation !== undefined && row.generation !== generation) throw Error('OPERATION_FENCED');
   return row;

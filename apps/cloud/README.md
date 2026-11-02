@@ -10,7 +10,7 @@ Cloudflare 保存操作、不可变工程版本、预算、任务状态与私有
 
 - `saveNativeProject` 先核对每个私有 R2 对象的大小与摘要，再保存规范化清单。revision 是清单 hash；旧版本永不覆盖。
 - `baseRevision` 表示改稿来源。加载来源须匹配操作的 workspace/project；方向预览、不同画幅及改稿各有独立不可变分支，不用一个全局 head 覆盖其他画幅。
-- `createNativeRender` 在同一 D1 batch 中记录渲染与 outbox。任务生成后立即尝试发送，定时 sweep 负责未发送项。
+- `createNativeRender` 在同一 D1 batch 中记录渲染与 outbox。任务生成后立即尝试发送；定时 sweep 重发未入队项，也会对超过 5 分钟仍未登记 Workflow 的活跃创作／排队渲染做有界补派发。已登记的 Workflow 不能重新启动。
 - 预览默认取 4 个原生 PNG 帧，也可指定 1–12 个互异秒数，范围为 `[0, durationSeconds - 1/30]`；导出执行原生完整工程，生成一部 MP4。多画幅分别创作和运行，不拉伸复用。
 - 原生 CLI 会刷新运行时文件并可能生成音乐、修改 HTML 音频引用。回执分别记录输入 index 摘要、实际渲染 index 摘要与原清单摘要；导出还保存实际工程清单及全部可服务源文件，以便复现。
 
@@ -38,7 +38,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 ## 部署标识与账本
 
-迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；`0005_render_admissions.sql` 添加独立排队记录和排队／单任务总期限；`0006_workflow_stop_checkpoints.sql` 分离原生停机证据与完整清理完成状态；`0007_recovery_query_indexes.sql` 优化恢复扫描、未停止计算和 outbox 查询，不改写历史费用或成片记录。旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
+迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；`0005_render_admissions.sql` 添加独立排队记录和排队／单任务总期限；`0006_workflow_stop_checkpoints.sql` 分离原生停机证据与完整清理完成状态；`0007_recovery_query_indexes.sql` 用实际查询计划验证待恢复 Workflow、活跃操作、待渲染任务、未停止计算及 outbox 的索引，不改写历史费用或成片记录。旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
 
 `SHARDS` / `ShardDO` 是 Cloudflare 已登记的 Durable Object 绑定/类名，**目前承载的是完整 native job**，不能仅凭名称删除。更名须单独规划 DO 迁移，确保执行中的真实容器和费用可结算。旧 `shard_index` 只存在于已应用的数据库迁移/历史行，当前任务与 API 不使用它。
 
@@ -75,4 +75,4 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 依赖、工具链和 Actions 入口见[08](../../docs/prd/08-codex-execution.md#3-代码责任与可复现工具链)。Worker 入口为 `src/index.ts`，容器构建见 [render-container](../render-container/README.md)。检查不自动部署或发起付费模型评测。
 
-`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、Workflow 重复启动保护、授权撤销竞态、未知计算费用及迁移安全；`test/native-coordinator.test.mjs` 验证终态 SSE 重连、旧代际隔离与异步缓存竞态，`test/model-budget.test.mjs` 验证过期／已撤销请求不派发及未派发费用清算；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。
+`test/native-control.test.mjs` 用 SQLite 事务和内存 R2 验证不可变版本、父 revision 授权继承、outbox、取消 fence、平台重试、Workflow 重复启动保护、授权撤销竞态、未知计算费用及迁移安全；`test/recovery-indexes.test.mjs` 验证迁移幂等性与实际查询计划；`test/native-coordinator.test.mjs` 验证终态 SSE 重连、旧代际隔离与异步缓存竞态，`test/model-budget.test.mjs` 验证过期／已撤销请求不派发及未派发费用清算；`test/native-render-workflow.test.mjs` 注入执行前／执行后撤销，`test/native-director.test.mjs` 注入完成事件丢失；`test/native-broker.test.mjs` 覆盖流式写入、长度/SHA-256、并发身份与授权读取。媒体/进程隔离由容器检查。离线检查不构成真实云端、付费模型或客户功能验收。

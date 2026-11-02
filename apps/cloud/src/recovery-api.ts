@@ -27,5 +27,6 @@ export async function operationRecoverySnapshot(env:PipelineEnv,id:string):Promi
  const costStates=costs.results.map(row=>row.kind==='compute'?{...row,physicallyStopped:stopped.get(row.id)??null}:row);
  return Response.json({operation:op,workflows:await workflowInventory(env,id),attempts,costs:costStates,
   failure:notice?{...parseCanonicalJson(notice.payload_json) as Json,
-   evidenceStored:!!await env.MEDIA.head('operations/'+id+'/failure.json')}:null});
+   evidenceStored:!!await env.MEDIA.head('operations/'+id+'/failure.json')}:null},
+  {headers:{'cache-control':'private, no-store'}});
 }

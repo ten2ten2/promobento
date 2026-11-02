@@ -23,10 +23,53 @@ test('internal API distinguishes runtime failure from invalid input without leak
  const headers={authorization:'Bearer fixture-only'};
  const failed=await worker.fetch(new Request(base+'capacity',{headers}),env,{});
  assert.equal(failed.status,500);
+ assert.equal(failed.headers.get('cache-control'),'private, no-store');
  assert.deepEqual(await failed.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const masked=await worker.fetch(new Request(base+'capacity',{headers}),
+  {...env,COORDINATOR:{getByName(){return {async counts(){throw Error('SQLITE_BUSY');}};}}},{});
+ assert.equal(masked.status,500);
+ assert.deepEqual(await masked.json(),{code:'PIPELINE_INTERNAL_ERROR'});
  const invalid=await worker.fetch(new Request(base+'objects/evals/test/a.bin',{method:'PUT',headers:{...headers,'content-length':'0'}}),env,{});
  assert.equal(invalid.status,422);
  assert.deepEqual(await invalid.json(),{code:'OBJECT_SHA256_REQUIRED'});
+});
+
+test('HTTP JSON boundary classifies malformed bodies as 422, even with strict canonical parsing',async()=>{
+ const base='https://worker.example/internal/s1/operations';
+ const env={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+ for(const [body,code] of [['{','BODY_JSON_INVALID'],['{"a":1,"a":2}','BODY_JSON_INVALID'],
+  ['"\\ud800"','BODY_JSON_INVALID'],['null','BODY_JSON_OBJECT_REQUIRED'],
+  ['[]','BODY_JSON_OBJECT_REQUIRED'],['42','BODY_JSON_OBJECT_REQUIRED']]){
+  const response=await worker.fetch(new Request(base,{method:'POST',
+   headers:{authorization:'Bearer fixture-only','content-type':'application/json'},body}),env,{});
+  assert.equal(response.status,422,body);
+  assert.deepEqual(await response.json(),{code},body);
+ }
+ for(const path of ['native/projects','renders','creative','rights']){
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/'+path,
+   {method:'POST',headers:{authorization:'Bearer fixture-only'},body:'{}'}),env,{});
+  assert.equal(response.status,422,path);
+  assert.deepEqual(await response.json(),{code:'OPERATION_INVALID'},path);
+ }
+});
+
+test('asynchronous recovery, private-artifact and event failures stay inside HTTP error boundary',async()=>{
+ const headers={authorization:'Bearer fixture-only'};
+ const base='https://worker.example/internal/s1/';
+ const brokenDB={prepare(){return {bind(){return this;},async first(){throw Error('private D1 error');}};}};
+ const baseEnv={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',DB:brokenDB};
+ for(const path of ['operations/a123/recovery','artifacts/renders/a123/result.mp4']){
+  const response=await worker.fetch(new Request(base+path,{headers}),baseEnv,{});
+  assert.equal(response.status,500,path);
+  assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'},path);
+ }
+ const eventsEnv={...baseEnv,OPERATIONS:{getByName(){return {async watch(){throw Error('private SSE error');}};}}};
+ const response=await worker.fetch(new Request(base+'operations/a123/events',{headers}),eventsEnv,{});
+ assert.equal(response.status,500);
+ assert.deepEqual(await response.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const malformed=await worker.fetch(new Request(base+'artifacts/%ZZ',{headers}),baseEnv,{});
+ assert.equal(malformed.status,422);
+ assert.deepEqual(await malformed.json(),{code:'OBJECT_KEY_INVALID'});
 });
 
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
@@ -93,6 +136,7 @@ test('operation recovery bounds physical-stop probes and reports unknown when a 
     new Promise((_,reject)=>{watchdog=setTimeout(()=>reject(Error('RECOVERY_ROUTE_HUNG')),3_600);}),
   ]).finally(()=>clearTimeout(watchdog));
   assert.equal(response.status,200);
+  assert.equal(response.headers.get('cache-control'),'private, no-store');
   const state=await response.json();
   assert.equal(state.attempts.length,12);
   assert.equal(state.attempts[0].physicallyStopped,null,'a timed-out probe remains unknown');
@@ -128,6 +172,9 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   const rights={operationId:creation.id,resourceId,sha256,licenseRef,scope:'internal_eval_only',evidenceKey:'evals/fixture/rights.json'};
   await MEDIA.put(rights.evidenceKey,JSON.stringify(evidence));
   await MEDIA.put('evals/fixture/rights-other.json',JSON.stringify(evidence));
+  const wrongEvidence=await request('rights',{...rights,evidenceKey:undefined});
+  assert.equal(wrongEvidence.status,422);
+  assert.equal((await wrongEvidence.json()).code,'RIGHTS_INVALID');
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',rights)).status,201);
   assert.equal((await request('rights',{...rights,evidenceKey:'evals/fixture/rights-other.json'})).status,409);

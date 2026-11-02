@@ -48,4 +48,4 @@ run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
 [tasks."test:native"]
 description = "Check native project boundaries, director orchestration, recovery and model accounting"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && node --test packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/cloud/test/director-stages.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-budget.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/png.test.mjs packages/methods/directing.test.mjs"
+run = "pnpm run build:validators && node --test packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/cloud/test/director-stages.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/recovery-indexes.test.mjs apps/cloud/test/model-budget.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/png.test.mjs packages/methods/directing.test.mjs"
