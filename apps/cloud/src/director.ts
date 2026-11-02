@@ -40,10 +40,10 @@ const sha256=/^[a-f0-9]{64}$/;
 const materialBlob=(value:unknown):value is Json=>record(value)&&typeof value.key==='string'&&!!value.key
  &&typeof value.sha256==='string'&&sha256.test(value.sha256)
  &&Number.isSafeInteger(value.byteLength)&&value.byteLength>=0&&value.byteLength<=(50<<20)
- &&(value.mediaType===undefined||typeof value.mediaType==='string');
+ &&(value.mediaType==null||typeof value.mediaType==='string');
 const materialRecord=(value:unknown)=>materialBlob(value)&&typeof value.resourceId==='string'&&!!value.resourceId
- &&(value.kind===undefined||typeof value.kind==='string')
- &&(value.preview===undefined||materialBlob(value.preview));
+ &&(value.kind==null||typeof value.kind==='string')
+ &&(value.preview==null||materialBlob(value.preview));
 const fileExtension=(mediaType:string)=>({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/svg+xml':'svg','video/mp4':'mp4','video/webm':'webm','video/quicktime':'mov','audio/wav':'wav','audio/x-wav':'wav','audio/mpeg':'mp3','audio/mp4':'m4a','audio/ogg':'ogg'})[mediaType as 'image/png'];
 
 /** Internal evaluation frame-pack evidence resolves to the retained original video before native authoring. */
@@ -86,7 +86,7 @@ function validateContext(context:Json){
  if(!record(context)||!['software','course'].includes(context.audience)||![15,30].includes(context.durationSeconds)||context.fps!==undefined&&context.fps!==30
   ||typeof context.videoLanguage!=='string'||!context.videoLanguage.trim()||typeof context.brief!=='string'||!context.brief.trim()
   ||!Array.isArray(context.resources)||context.resources.length>12||context.resources.some((asset:Json)=>!materialRecord(asset))
-  ||context.audioSources!==undefined&&(!Array.isArray(context.audioSources)||context.audioSources.length>12
+  ||context.audioSources!=null&&(!Array.isArray(context.audioSources)||context.audioSources.length>12
    ||context.audioSources.some((asset:Json)=>!materialRecord(asset)))
   ||!Array.isArray(context.facts)||!context.facts.length||context.facts.some((fact:Json)=>!record(fact)||typeof fact.id!=='string'||!fact.id||typeof fact.text!=='string'||!fact.text.trim())
   ||!Array.isArray(context.confirmedFactIds)||context.confirmedFactIds.length!==context.facts.length

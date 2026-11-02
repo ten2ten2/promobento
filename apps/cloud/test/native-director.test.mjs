@@ -143,9 +143,9 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
 
 test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
  const f=await fixture(t,{parallelDelay:true});
- const second={...await f.put('evals/fixture/second.png',png,'image/png'),resourceId:'second',kind:'image',width:1,height:1};
+ const second={...await f.put('evals/fixture/second.png',png,'image/png'),resourceId:'second',kind:'image',width:1,height:1,preview:null};
  const third={...await f.put('evals/fixture/third.png',png,'image/png'),resourceId:'third',kind:'image',width:1,height:1};
- const candidate=await f.create('bounded-stages',{resources:[f.asset,second,third],aspects:['landscape']});
+ const candidate=await f.create('bounded-stages',{resources:[f.asset,second,third],aspects:['landscape'],audioSources:null});
  assert.equal(candidate.kind,'native_candidate');
  assert.equal(f.parallel.assets.peak,2);assert.equal(f.parallel.directions.peak,2);
  const cardCalls=f.calls.filter(call=>call.stage==='author'&&call.callId.includes('-direction-'));
