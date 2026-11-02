@@ -97,6 +97,49 @@ test('terminal native cleanup and draft reads require no retired Studio handle o
   assert.deepEqual(result.pendingCosts, []);
 });
 
+test('terminal cleanup limits parallel Workflow, Shard and capacity-release RPCs across many renders',async t=>{
+  const {db,env,op}=await fixture(t);
+  const count=12,token='11111111-1111-4111-8111-111111111111';
+  for(let index=0;index<count;index++){
+    const renderId='cleanup-render-'+index,attemptId='cleanup-attempt-'+index;
+    db.prepare(`INSERT INTO pipeline_renders
+      (id,operation_id,generation,request_hash,job_key,status,created_at)
+      VALUES(?,?,?,?,?,'rendering',?)`).run(renderId,op.id,0,'hash-'+index,'renders/'+renderId+'/job.json',Date.now());
+    db.prepare(`INSERT INTO pipeline_attempts
+      (id,render_id,operation_id,generation,mode,instance,status,started_at)
+      VALUES(?,?,?,?,?,?,?,?)`).run(attemptId,renderId,op.id,0,'native_export','standard-3','active',Date.now());
+    db.prepare(`INSERT INTO pipeline_render_admissions
+      (id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,
+       lease_token,admitted_at,attempt_deadline_at)
+      VALUES(?,?,?,?,?,0,'running',?,?,?,?,?)`)
+      .run(attemptId,renderId,op.id,0,op.workspace_id,Date.now(),Date.now()+60_000,token,Date.now(),Date.now()+60_000);
+    db.prepare(`INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine)
+      VALUES('render',?,?,0,?,'huashu')`).run(renderId,op.id,Date.now());
+  }
+  const rates={shard:{active:0,peak:0},workflow:{active:0,peak:0},release:{active:0,peak:0}};
+  const pause=async kind=>{
+    const state=rates[kind];state.active++;state.peak=Math.max(state.peak,state.active);
+    await new Promise(resolve=>setTimeout(resolve,8));state.active--;
+  };
+  env.SHARDS={getByName(){return{async stopAndSettle(){await pause('shard');}};}};
+  const terminated=new Set();
+  env.RENDER_WORKFLOW={get(id){return{
+    async status(){await pause('workflow');return{status:terminated.has(id)?'terminated':'running'};},
+    async terminate(){await pause('workflow');terminated.add(id);},
+  };}};
+  env.COORDINATOR={getByName(){return{
+    async release(){await pause('release');},
+  };}};
+  db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id=?").run(op.id);
+  const result=await reconcileOperation(env,op.id);
+  assert.equal(result.stoppedAttempts,count);
+  assert.equal(result.reconciledRenders,count);
+  assert.equal(result.workflows.length,count);
+  for(const [kind,state] of Object.entries(rates))
+    assert.ok(state.peak<=4,kind+' control RPCs must stay within finite parallelism (observed '+state.peak+')');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts WHERE stopped_at IS NOT NULL').get().n,count);
+});
+
 test('unavailable Workflow status does not strand an admitted no-start lease during reconciliation', async t => {
   const {db, env, op, saved} = await fixture(t);
   fakeAdmission(env);

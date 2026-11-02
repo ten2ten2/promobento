@@ -1,5 +1,5 @@
 import type {PipelineEnv,Json} from './pipeline-types.ts';
-import {boundedControl} from './control-batch.ts';
+import {boundedControl,settledPool} from './control-batch.ts';
 
 export type WorkflowKind='operation'|'render';
 export type TrackedWorkflow={kind:WorkflowKind;id:string;operation_id:string;generation:number;native_created_at:number|null;reconciled_at:number|null;engine:'legacy'|'huashu'};
@@ -66,7 +66,7 @@ export async function stopWorkflow(env:PipelineEnv,row:TrackedWorkflow){
 
 export async function stopOperationWorkflows(env:PipelineEnv,operationId:string,except?:{kind:WorkflowKind;id:string}){
  const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE operation_id=? AND reconciled_at IS NULL').bind(operationId).all<TrackedWorkflow>();
- const statuses=await Promise.allSettled(rows.results.filter(row=>!(except?.kind===row.kind&&except.id===row.id)).map(row=>stopWorkflow(env,row)));
+ const statuses=await settledPool(rows.results.filter(row=>!(except?.kind===row.kind&&except.id===row.id)),4,row=>stopWorkflow(env,row));
  if(statuses.some(result=>result.status==='rejected'))throw Error('WORKFLOW_STOP_UNCONFIRMED');
  return statuses.map(result=>(result as PromiseFulfilledResult<{kind:WorkflowKind;id:string;status:string}>).value);
 }

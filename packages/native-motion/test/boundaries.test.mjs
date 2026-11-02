@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
+import {mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {sha256Bytes} from '../../contracts/src/digest.mjs';
 import {frameTimes, assertSourceComposition, assertBrowserComposition, projectPath, verifyProjectFiles} from '../src/index.mjs';
+import {seedBuiltinFiles} from '../src/files.mjs';
 
 const composition = {durationSeconds: 15, fps: 30, width: 1920, height: 1080};
 const html = '<div data-width="1920" data-composition-id="film" data-height="1080" data-duration="15" data-fps="30"></div>';
@@ -40,4 +41,17 @@ test('hydrated files are confined, ordinary, declared and checked by raw byte id
     assert.throws(() => projectPath(root, 'assets/passwd'), /SYMLINK/);
     assert.throws(() => verifyProjectFiles(root, manifest), /SYMLINK/);
   } finally { rmSync(root, {recursive: true, force: true}); }
+});
+
+test('project files cannot shadow a pinned built-in runtime asset',() => {
+ const root=mkdtempSync(join(tmpdir(),'native-builtin-project-'));
+ const upstream=mkdtempSync(join(tmpdir(),'native-builtin-upstream-'));
+ try{
+  mkdirSync(join(root,'vendor'),{recursive:true});
+  mkdirSync(join(upstream,'templates/blank/vendor'),{recursive:true});
+  writeFileSync(join(root,'vendor/gsap.min.js'),'untrusted replacement');
+  writeFileSync(join(upstream,'templates/blank/vendor/gsap.min.js'),'pinned library');
+  assert.throws(()=>seedBuiltinFiles(root,upstream),/NATIVE_BUILTIN_CONFLICT/,
+   'the native adapter must reject a different caller-supplied built-in before opening Chromium');
+ }finally{rmSync(root,{recursive:true,force:true});rmSync(upstream,{recursive:true,force:true});}
 });

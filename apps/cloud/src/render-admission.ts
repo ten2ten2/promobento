@@ -1,6 +1,7 @@
 import {canonical} from '@promobento/contracts/canonical';
 import {operation} from './store.ts';
 import {nativeRenderPolicy} from './native-policy.ts';
+import {settledPool} from './control-batch.ts';
 import type {WorkflowStep} from 'cloudflare:workers';
 import type {PipelineEnv, Json, Operation} from './pipeline-types.ts';
 
@@ -388,11 +389,11 @@ export async function requeueRenderAfterAttempt(env: PipelineEnv, op: Operation,
 export async function stopRenderAdmissions(env: PipelineEnv, renderId: string) {
   const rows = await boundedAdmission(env.DB.prepare("SELECT id,lease_token FROM pipeline_render_admissions WHERE render_id=? AND status IN ('admitted','running')")
     .bind(renderId).all<{id: string; lease_token: string}>());
-  const stopped = await Promise.allSettled(rows.results.map(async row => {
+  const stopped = await settledPool(rows.results, 4, async row => {
     // Both barriers are remote. A stuck stop must keep its lease counted, not
     // prevent unrelated tickets from completing their notification round.
     await boundedAdmission(env.SHARDS.getByName(row.id).stopAndSettle());
     await boundedAdmission(coordinator(env).release(row.id, row.lease_token));
-  }));
+  });
   if (stopped.some(item => item.status === 'rejected')) throw Error('COMPUTE_STOP_UNCONFIRMED');
 }

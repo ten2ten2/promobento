@@ -2,7 +2,7 @@
 
 This package executes the complete pinned huashu-motion project contract. `index.html` and local project files are the creative source; the SaaS manifest only transports verified files and states product output limits.
 
-- `prepareNativeProject(directory, manifest)` checks file identity, installs missing pinned native libraries, validates root dimensions/duration, and runs the upstream source check.
+- `prepareNativeProject(directory, manifest)` checks file identity, installs missing pinned native libraries, rejects any pre-existing runtime/font asset whose bytes differ from the pinned installation, validates root dimensions/duration, and runs the upstream source check.
 - `previewNativeProject(prepared, composition, times?)` uses upstream Chrome capture, returning PNGs, exact times, native browser metadata and page errors.
 - `renderNativeProject(prepared, composition, out, onLog?)` runs upstream runtime refresh, soundtrack preparation, full-video renderer and mix. One browser worker is used initially.
 - `editNativeProject(directory, {html | values, baseToken, label?})` uses native optimistic writes and history.
