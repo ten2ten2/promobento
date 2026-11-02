@@ -14,7 +14,7 @@ const providers: Json=providersInput, policy: Json=policyInput;
 export class ModelJsonOutputError extends Error {
   constructor(code='MODEL_OUTPUT_JSON_INVALID',readonly completedOutput?:{text:string;toolCalls:Json[]}){super(code);}
 }
-type ModelContext={directingMethod?:{id:string;version:string;contentHash:string}};
+type ModelContext={directingMethod?:{id:string;version:string;contentHash:string};dispatchGuard?:()=>void};
 export async function modelStep(env: PipelineEnv, operationId: string, generation: number, stage: string, callId: string,
   request: Omit<ModelRequest,'provider'|'model'|'effort'>, validate: (value: Json) => void, deadlineAt = Date.now()+policy.limits.requestTimeoutMs,
   context:ModelContext={}) {
@@ -71,9 +71,12 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
   // A parser/validator repair must not pay for the same completed answer again. Scope reuse to
   // the same workspace/project/purpose, exact request/model/catalog and an immutable settled receipt.
+  // An explicitly proven not_dispatched settlement has no response to reuse; exclude that
+  // evidence by its signed-off reason, never merely by a zero actual charge.
   const completed=await env.DB.prepare(`SELECT r.id,r.operation_id,s.actual_micros FROM cost_reservations r
     JOIN cost_settlements s ON s.reservation_id=r.id JOIN pipeline_operations p ON p.id=r.operation_id
     WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=? AND p.workspace_id=? AND p.project_id=? AND p.purpose=?
+    AND NOT (s.actual_micros=0 AND COALESCE(json_extract(s.usage_json,'$.kind'),'')='not_dispatched')
     ORDER BY r.created_at,r.id`).bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).all<Json>();
   let missingReceipt=false;
   for(const previous of completed.results){
@@ -118,14 +121,17 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   // Token counting and durable cache/receipt lookups may have consumed the
   // entire request window. Do not reserve or dispatch a paid call after it.
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
+  context.dispatchGuard?.();
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
   let locallyReserved=false;
   try{
+    context.dispatchGuard?.();
     await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
       limits.maxCalls??limits.maxCallsPerAsset??1,true);
     locallyReserved=true;
     await operation(env,op.id,op.generation);
     if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
+    context.dispatchGuard?.();
   }catch(error){
     const unused={kind:'not_dispatched',reason:'Local admission did not reach the paid request.'};
     await settleModelBudget(env,reserved,0,unused,{notDispatched:true});
@@ -141,6 +147,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     transportWindow=deadlineAt-Date.now();
     if(transportWindow<=0)throw Error('OPERATION_DEADLINE');
     if(Date.now()>=authorizationBasis.expiresAt)throw Error('MODEL_NOT_AUTHORIZED');
+    context.dispatchGuard?.();
   }catch(error){
     await undoUnsentModelDispatch(env,reserved);
     const unused={kind:'not_dispatched',reason:'The operation was fenced before the provider transport started.'};

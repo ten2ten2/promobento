@@ -95,7 +95,8 @@ export function validateFrameTimes(project: Json, mode: NativeRenderMode, reques
 
 export async function createNativeRender(env: PipelineEnv, op: Operation, input: {
   renderId: string; revisionId: string; mode: NativeRenderMode; rendererRelease: string; runtimeVersion?: string; frames?: number[];
-}) {
+}, beforeCommit:()=>void=()=>{}) {
+  beforeCommit();
   await operation(env, op.id, op.generation);
   if (!validId(input.renderId) || !validId(input.rendererRelease)) throw Error('NATIVE_RENDER_INVALID');
   const saved = await loadNativeProject(env, op, input.revisionId);
@@ -117,6 +118,9 @@ export async function createNativeRender(env: PipelineEnv, op: Operation, input:
     return {renderId: input.renderId};
   }
   const object = await immutableJson(env, 'renders/' + input.renderId + '/input.json', request);
+  // An independent Director item may fail while the request is being verified
+  // or written to R2. Do not enqueue new compute after that stage has aborted.
+  beforeCommit();
   const payload = canonical({renderId: input.renderId, engine: 'huashu'}), outboxId = 'render-' + input.renderId;
   const createdAt = Date.now(), queueDeadlineAt = createdAt + nativeRenderPolicy.queueWaitMs;
   const operationDeadlineAt = createdAt + (input.mode === 'preview' ? nativeRenderPolicy.previewOperationMs : nativeRenderPolicy.exportOperationMs);

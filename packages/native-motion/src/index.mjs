@@ -71,7 +71,7 @@ export async function renderNativeProject(prepared, composition, out, onLog = ()
       return rewrote;
     };
   } else prepare = async page => { assertBrowserComposition(page.info, composition); return false; };
-  const file = await native.renderer.render(project, {format: 'mp4', fps: 30, out, workers: 1, video: 'extract', frameFormat: 'png', tune: {software: true}, prepare, onLog, onWarn: onLog});
+  const file = await native.renderer.render(project, {format: 'mp4', fps: 30, out, workers: 1, video: 'extract', frameFormat: 'png', tune: {software: true, deliveryH264: true}, prepare, onLog, onWarn: onLog});
   return {file, renderedSourceSha256: sha256Bytes(readFileSync(join(project.root, 'index.html')))};
 }
 

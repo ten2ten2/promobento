@@ -13,6 +13,19 @@ const compliantVideo = ['-c:v','libx264','-profile:v','high','-pix_fmt','yuv420p
   '-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709'];
 const videoBytes=async path=>(await run('ffmpeg',['-v','error','-i',path,'-map','0:v:0','-c:v','copy','-f','h264','pipe:1'])).stdout;
 
+test('the pinned upstream delivery override makes its original CRF/GOP defaults eligible for stream copy',async t=>{
+ const dir=mkdtempSync(join(tmpdir(),'promobento-media-native-delivery-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
+ const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');
+ await run('ffmpeg',['-v','error','-y','-f','lavfi','-i','testsrc2=s=320x180:r=30:d=1',
+  '-c:v','libx264','-preset','veryfast','-crf','16','-g','60','-colorspace','bt709','-color_primaries','bt709','-color_trc','bt709','-color_range','tv','-movflags','+faststart',
+  '-profile:v','high','-pix_fmt','yuv420p','-g','15','-keyint_min','15','-sc_threshold','0','-bf','0','-flags','+cgop',
+  '-maxrate','7000000','-bufsize','2000000','-field_order','progressive','-threads','2','-r','30','-an',input]);
+ const result=await normalizeNativeVideo(input,output,composition);
+ assert.equal(result.videoEncoding,'stream_copy');assert.equal(result.copyRejection,undefined);
+ assert.deepEqual(await videoBytes(output),await videoBytes(input));
+ assert.equal((await validateVideo(output,composition,false)).frameCount,30);
+});
+
 test('compliant native H.264 retains video packets while the final MP4 is verified',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'promobento-media-copy-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const input=join(dir,'native.mp4'),output=join(dir,'film.mp4');

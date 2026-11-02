@@ -71,12 +71,19 @@ export async function stopWorkflow(env:PipelineEnv,row:TrackedWorkflow){
 
 export async function stopOperationWorkflows(env:PipelineEnv,operationId:string,except?:{kind:WorkflowKind;id:string}){
  const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE operation_id=? AND reconciled_at IS NULL').bind(operationId).all<TrackedWorkflow>();
- const statuses=await settledPool(rows.results.filter(row=>!(except?.kind===row.kind&&except.id===row.id)),4,row=>stopWorkflow(env,row));
+ // Each confirmed native stop is durable before claiming the next batch slot.
+ // Queue handlers can time out before all waves finish; retries must resume
+ // from remaining rows without assuming an unawaited promise survived.
+ const statuses=await settledPool(rows.results.filter(row=>!(except?.kind===row.kind&&except.id===row.id)),4,async row=>{
+  const result=await stopWorkflow(env,row);
+  await resolveWorkflow(env,row);
+  return result;
+ });
  if(statuses.some(result=>result.status==='rejected'))throw Error('WORKFLOW_STOP_UNCONFIRMED');
  return statuses.map(result=>(result as PromiseFulfilledResult<{kind:WorkflowKind;id:string;status:string}>).value);
 }
 export async function resolveWorkflow(env:PipelineEnv,row:{kind:WorkflowKind;id:string}){
- await env.DB.prepare('UPDATE pipeline_workflows SET reconciled_at=? WHERE kind=? AND id=?').bind(Date.now(),row.kind,row.id).run();
+ await env.DB.prepare('UPDATE pipeline_workflows SET reconciled_at=COALESCE(reconciled_at,?) WHERE kind=? AND id=?').bind(Date.now(),row.kind,row.id).run();
 }
 export async function workflowInventory(env:PipelineEnv,operationId:string){
  const rows=await env.DB.prepare('SELECT * FROM pipeline_workflows WHERE operation_id=? ORDER BY registered_at,kind,id').bind(operationId).all<Json>();return rows.results;

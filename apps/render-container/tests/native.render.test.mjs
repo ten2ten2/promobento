@@ -97,6 +97,7 @@ for (const item of cases) {
     const nativePath = join(root, item.name + '-native.mp4'), filmPath = join(artifacts, item.name + '.mp4');
     await renderNativeProject(prepared, composition, nativePath, line => console.log(item.name + ': ' + line));
     result.media = await normalizeNativeVideo(nativePath, filmPath, composition);
+    assert.equal(result.media.videoEncoding, 'stream_copy', 'the actual pinned native renderer must satisfy the final H.264 copy contract');
     assert.equal(result.media.frameCount, item.durationSeconds * 30);
     assert.equal(result.media.audioCodec, 'aac');
     const review = await extractEncodedFrames(filmPath, join(artifacts, item.name + '-encoded'), composition);

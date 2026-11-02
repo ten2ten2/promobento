@@ -158,6 +158,51 @@ test('director overlaps only independent stages, freezes per-card method languag
  assert.deepEqual(previewSet.map(item=>item.direction),['fit','amplify','unexpected']);
 });
 
+test('a failed parallel asset stops in-flight invalid output from starting a paid correction',async t=>{
+ const f=await fixture(t),original=globalThis.__nativeDirectorFixture.modelStep;
+ let startedSecond,failFirst;
+ const secondStarted=new Promise(resolve=>{startedSecond=resolve;}),firstFailed=new Promise(resolve=>{failFirst=resolve;});
+ const requested=[];
+ globalThis.__nativeDirectorFixture.modelStep=async (...args)=>{
+  const stage=args[3],callId=args[4];requested.push(callId);
+  if(stage==='assets'&&callId.endsWith('-asset-0')){
+   await secondStarted;failFirst();throw Error('ASSET_ZERO_DENIED');
+  }
+  if(stage==='assets'&&callId.endsWith('-asset-1')){
+   startedSecond();await firstFailed;await new Promise(resolve=>setImmediate(resolve));
+   args[6]({schemaVersion:'3.0.0',kind:'invalid_asset_insight'});
+   assert.fail('the invalid response should be rejected by its validator');
+  }
+  return original(...args);
+ };
+ const extra={...await f.put('evals/fixture/extra.png',png,'image/png'),resourceId:'asset_two',kind:'image',width:1,height:1};
+ await assert.rejects(f.create('parallel-asset-failure',{resources:[f.asset,extra],aspects:['landscape']}),/ASSET_ZERO_DENIED/);
+ assert.ok(requested.some(call=>call.endsWith('-asset-0'))&&requested.some(call=>call.endsWith('-asset-1')),'both initial model calls were dispatched and drained');
+ assert.equal(requested.filter(call=>call.endsWith('-asset-1-correct')).length,0,'a failed stage must not authorize another paid correction');
+ assert.equal(f.db.prepare("SELECT status FROM pipeline_operations WHERE id='parallel-asset-failure'").get().status,'failed');
+});
+
+test('a failed parallel direction does not allow another completed author to start a preview render',async t=>{
+ const f=await fixture(t),original=globalThis.__nativeDirectorFixture.modelStep;
+ let startedAmplify,failFit;
+ const amplifyStarted=new Promise(resolve=>{startedAmplify=resolve;}),fitFailed=new Promise(resolve=>{failFit=resolve;});
+ const requested=[];
+ globalThis.__nativeDirectorFixture.modelStep=async (...args)=>{
+  const stage=args[3],callId=args[4];
+  if(stage==='author'&&callId.includes('-direction-')){
+   requested.push(callId);
+   if(callId.endsWith('-direction-fit')){await amplifyStarted;failFit();throw Error('FIT_AUTHOR_DENIED');}
+   if(callId.endsWith('-direction-amplify')){startedAmplify();await fitFailed;await new Promise(resolve=>setImmediate(resolve));}
+  }
+  return original(...args);
+ };
+ await assert.rejects(f.create('parallel-direction-failure',{aspects:['landscape']}),/FIT_AUTHOR_DENIED/);
+ assert.equal(requested.length,2,'already dispatched author requests are awaited, but the third card never starts');
+ assert.equal(f.jobs.filter(job=>job.operationId==='parallel-direction-failure'&&job.mode==='preview').length,0,
+  'a completed in-flight author must not start a new preview after a peer has failed');
+ assert.equal(f.db.prepare("SELECT status FROM pipeline_operations WHERE id='parallel-direction-failure'").get().status,'failed');
+});
+
 test('director completes from durable render receipts when every completion event is lost',async t=>{
  const f=await fixture(t,{dropRenderEvents:true});
  const candidate=await f.create('lost-render-events',{aspects:['landscape']});

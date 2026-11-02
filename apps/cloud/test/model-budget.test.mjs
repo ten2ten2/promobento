@@ -197,6 +197,67 @@ test('an owner authorization expiring after reservation cannot dispatch a paid m
  assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
  assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
 });
+test('a proven unsent settlement must not prevent a different operation from making its first paid request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let marked=false,failedOnce=false,requests=0;
+ const prepareLedger=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER),prepareLocal=env.DB.prepare.bind(env.DB);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepareLedger(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();marked=true;return result;
+  }};}};
+ };
+ env.DB.prepare=sql=>{
+  if(sql.startsWith('SELECT * FROM pipeline_operations')&&marked&&!failedOnce){failedOnce=true;throw Error('Network connection lost.');}
+  return prepareLocal(sql);
+ };
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"fresh"}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','unsent-original',request,()=>{}),/Network connection lost/);
+ assert.equal(marked,true);assert.equal(failedOnce,true);assert.equal(requests,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-model-operation','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ const result=await modelStep(env,'new-model-operation',0,'facts','fresh-call',request,value=>assert.equal(value.value,'fresh'));
+ assert.equal(result.value.value,'fresh');assert.equal(requests,1);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+test('a parallel-stage failure during shared dispatch bookkeeping fences transport and releases known-unsent cost',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;
+ let allowed=true,requests=0,marked=false;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('UPDATE model_budget_reservations SET dispatched_at='))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();marked=true;allowed=false;return result;
+  }};}};
+ };
+ const request={system:'Offline parallel stage.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','stage-fenced',request,()=>{},Date.now()+30_000,
+  {dispatchGuard:()=>{if(!allowed)throw Error('DIRECTOR_STAGE_ABORTED');}}),/DIRECTOR_STAGE_ABORTED/);
+ assert.equal(marked,true);assert.equal(requests,0);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+});
+test('a genuine zero-price completed request still requires its immutable provider receipt',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"value":"zero"}'},finish_reason:'stop'}],usage:{prompt_tokens:0,completion_tokens:0}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline zero-cost fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await modelStep(env,'model-operation',0,'facts','zero-cost-original',request,()=>{});
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ const receiptKey=[...objects.keys()].find(key=>key.includes('/model-calls/')&&key.endsWith('.json'));
+ assert.ok(receiptKey);objects.delete(receiptKey);
+ local.db.prepare('DELETE FROM model_responses').run();
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('zero-cost-next','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'zero-cost-next',0,'facts','zero-cost-next-call',request,()=>{}),/MODEL_RECEIPT_UNAVAILABLE/);
+ assert.equal(requests,1,'a known completed call with a missing receipt is not silently sent again');
+});
 for(const mode of ['stream','http'])test(`native author ${mode} 502 preserves unknown cost and never dispatches a fallback`,async t=>{
  const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;if(mode==='http')return new Response('bad gateway',{status:502});

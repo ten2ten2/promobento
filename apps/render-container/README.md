@@ -20,6 +20,8 @@
 
 导出先检验原生视频的真实解码帧/PTS、GOP、**逐行扫描**、H.264 High/YUV420P、BT.709 与一秒窗口码率。符合条件则 FFmpeg 只复制视频流并重新封装为 faststart MP4；隔行素材不能误走复制路径，须在完整转码时先经 `bwdif` 去隔行，最终仍检查逐行扫描。有音频仍按 -14 LUFS 目标归一、编码为 AAC-LC 48 kHz 双声道，不跳过声音处理。以视频轨而非最长音轨判断原生画面时长；配音或音效提前结束时，在音量处理后补静音至影片时长，过长音乐按影片时长截断。不符合条件或封装后的完整校验不通过时，回退到固定 `libx264` 完整转码。两条路径都重新验证**最终文件**的画幅、30 fps、450/900 帧、时长、编码、音轨与 50 MB 上限，并照常从最终文件解码审阅帧；报告 `media.videoEncoding` 记录 `stream_copy` / `transcoded`，`media.processingElapsedMs` 记录核验与交付处理耗时，回退原因记录在 `media.copyRejection`。这是减少重复编码的代码路径，尚无实际云端 CPU/费用节省结论。成功的回执仍须由 Worker 复验私有 R2 字节后提交。
 
+正常原生导出通过受检的上游 `deliveryH264` 编码选项，直接生成符合复制条件的逐行 H.264，而非事后重复编码。对于编码类型、B 帧等元数据已知不合规的输入，先跳过多余的逐帧探测再执行可信转码；所有可复制的输入仍须检查真实帧和最终 MP4。实际 Cloudflare 性能节省仍待 A/B 验证。
+
 ## 原生文件和隔离
 
 - `index.html` 的 composition root 声明 `data-composition-id/width/height/duration/fps`；容器核对浏览器实际值及 `window.__timelines[rootId]` 的暂停和精确时长。源代码改稿使用上游 `readSource/setVariables/writeSource`、`baseToken` 和历史；模型不能越过原生工程清单调用主机命令。

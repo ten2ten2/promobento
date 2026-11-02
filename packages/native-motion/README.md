@@ -4,7 +4,7 @@ This package executes the complete pinned huashu-motion project contract. `index
 
 - `prepareNativeProject(directory, manifest)` checks file identity, installs missing pinned native libraries, rejects any pre-existing runtime/font asset whose bytes differ from the pinned installation, validates root dimensions/duration, and runs the upstream source check.
 - `previewNativeProject(prepared, composition, times?)` uses upstream Chrome capture, returning PNGs, exact times, native browser metadata and page errors.
-- `renderNativeProject(prepared, composition, out, onLog?)` runs upstream runtime refresh, soundtrack preparation, full-video renderer and mix. One browser worker is used initially.
+- `renderNativeProject(prepared, composition, out, onLog?)` runs upstream runtime refresh, soundtrack preparation, full-video renderer and mix. Its checked cloud patch selects 30 fps progressive H.264, 15-frame GOP, no B frames and a capped bitrate so compliant pictures can be copied at final delivery. One browser worker is used initially.
 - `editNativeProject(directory, {html | values, baseToken, label?})` uses native optimistic writes and history.
 
 Every Node import comes from trusted application/upstream code. Author HTML/JS only executes in sandboxed Chromium. The container controller owns broker authorization; this package never receives a bearer or calls a model.

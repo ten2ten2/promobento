@@ -106,7 +106,6 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
  }
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
- for(const workflow of workflows[0]!.value)await resolveWorkflow(env,workflow);
  return {operationId,stoppedAttempts:attempts.results.length,reconciledRenders:renders.results.length,workflows:workflows[0]!.value,pendingCosts:pending.results};
 }
 

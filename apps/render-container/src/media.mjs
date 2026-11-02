@@ -27,14 +27,19 @@ async function peakWindowBitrate(path) {
   return max;
 }
 
-async function validateVideoTrack(path, composition) {
-  const data = await probe(path, true), video = data.streams.find(stream => stream.codec_type === 'video');
-  const totalFrames = composition.durationSeconds * FPS;
+function assertVideoMetadata(video, composition) {
   if (!video || video.codec_name !== 'h264' || video.profile !== 'High' || video.width !== composition.width || video.height !== composition.height
     || video.pix_fmt !== 'yuv420p' || video.r_frame_rate !== '30/1' || video.avg_frame_rate !== '30/1'
     || video.field_order !== 'progressive'
     || video.color_space !== 'bt709' || video.color_transfer !== 'bt709' || video.color_primaries !== 'bt709'
-    || video.has_b_frames !== 0 || data.frames?.length !== totalFrames) throw Error('OUTPUT_VIDEO_INVALID');
+    || video.has_b_frames !== 0) throw Error('OUTPUT_VIDEO_INVALID');
+}
+
+async function validateVideoTrack(path, composition) {
+  const data = await probe(path, true), video = data.streams.find(stream => stream.codec_type === 'video');
+  const totalFrames = composition.durationSeconds * FPS;
+  assertVideoMetadata(video, composition);
+  if (data.frames?.length !== totalFrames) throw Error('OUTPUT_VIDEO_INVALID');
   data.frames.forEach((frame, index) => {
     if (!Number.isFinite(Number(frame.best_effort_timestamp_time)) || Math.abs(Number(frame.best_effort_timestamp_time) - index / FPS) > 1e-4 || Boolean(frame.key_frame) !== (index % 15 === 0)) throw Error('OUTPUT_FRAME_TIMING_INVALID');
   });
@@ -73,7 +78,9 @@ export async function normalizeNativeVideo(nativePath, outputPath, composition) 
   const outputArgs = ['-t', String(composition.durationSeconds), '-movflags', '+faststart', outputPath];
   let copyRejection = null;
   try {
-    // Validate the actual decoded frames, PTS, GOP, colour and bitrate, not codec metadata alone.
+    // Reject visibly incompatible codec metadata before the expensive full-frame probe.
+    // Metadata alone never grants stream copy; candidates still need decoded PTS/GOP validation.
+    assertVideoMetadata(video, composition);
     await validateVideoTrack(nativePath, composition);
     await run('ffmpeg', [...args, '-c:v', 'copy', ...audioArgs, ...outputArgs], {timeoutMs: 300_000});
     return {...await validateVideo(outputPath, composition, hasAudio), videoEncoding: 'stream_copy', processingElapsedMs: Math.round(performance.now() - started)};

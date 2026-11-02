@@ -167,6 +167,33 @@ test('terminal cleanup limits parallel Workflow, Shard and capacity-release RPCs
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_attempts WHERE stopped_at IS NOT NULL').get().n,count);
 });
 
+test('a Queue timeout retains confirmed Workflow stops so its next cancellation attempt can finish',async t=>{
+ const{db,env,op}=await fixture(t),calls=new Map(),background=[];
+ for(let index=0;index<12;index++)db.prepare(`INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine)
+  VALUES('render',?,?,0,?,'huashu')`).run('queued-cleanup-'+index,op.id,Date.now());
+ let release;
+ const stalled=new Promise(resolve=>{release=resolve;});
+ t.after(async()=>{release();await Promise.allSettled(background);});
+ env.RENDER_WORKFLOW={get(id){return{async status(){
+  calls.set(id,(calls.get(id)??0)+1);
+  await new Promise(resolve=>setTimeout(resolve,18));
+  if(Number(id.split('-').at(-1))>=8)await stalled;
+  return{status:'complete'};
+ }}}};
+ db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(op.id);
+ const handled=[],message=()=>({body:{operationId:op.id},ack(){handled.push('ack');},retry(){handled.push('retry');}});
+ const dispatch=msg=>{const work=dispatchOperationCancellation(env,msg.body);background.push(work);return work;};
+ await processQueueMessages([message()],dispatch,55);
+ assert.deepEqual(handled,['retry']);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,8,
+  'the first two confirmed waves must be durable before the Queue invocation expires');
+ release();
+ await processQueueMessages([message()],dispatch,300);
+ assert.deepEqual(handled,['retry','ack']);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,12);
+ for(let index=0;index<8;index++)assert.equal(calls.get('queued-cleanup-'+index),1,'the retry must not recheck an already confirmed stop');
+});
+
 test('unavailable Workflow status does not strand an admitted no-start lease during reconciliation', async t => {
   const {db, env, op, saved} = await fixture(t);
   fakeAdmission(env);
@@ -279,6 +306,22 @@ test('native render admission stores one job/outbox, preserves idempotency, and 
   db.prepare('UPDATE pipeline_operations SET status=\'cancelled\',generation=1 WHERE id=?').run(op.id);
   await assert.rejects(createNativeRender(env, op, {...request, renderId: 'cancelled-render'}), /OPERATION_FENCED/);
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_renders').get().n, 1);
+});
+
+test('an independent Director stage aborting during R2 input persistence cannot enqueue a new render',async t=>{
+ const{db,env,op,saved}=await fixture(t);
+ let active=true,stored=false;
+ const put=env.MEDIA.put.bind(env.MEDIA);
+ env.MEDIA.put=async(...args)=>{
+  const result=await put(...args);
+  if(args[0]==='renders/guarded-render/input.json'){stored=true;active=false;}
+  return result;
+ };
+ await assert.rejects(createNativeRender(env,op,{renderId:'guarded-render',revisionId:saved.revisionId,mode:'preview',rendererRelease:'native-release'},
+  ()=>{if(!active)throw Error('DIRECTOR_STAGE_ABORTED');}),/DIRECTOR_STAGE_ABORTED/);
+ assert.equal(stored,true,'the failure is injected after asynchronous request persistence');
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_renders').get().n,0);
+ assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox').get().n,0);
 });
 
 test('unknown compute usage prevents a physical retry even after stop is confirmed', async t => {
