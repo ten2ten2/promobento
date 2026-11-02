@@ -16,6 +16,19 @@ const built=await build({stdin:{contents:'export {default as worker} from "./app
   }}]});
 const {worker}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 
+test('internal API distinguishes runtime failure from invalid input without leaking exception details',async()=>{
+ const base='https://worker.example/internal/s1/';
+ const env={S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',
+  COORDINATOR:{getByName(){return {async counts(){throw Error('private database connection details');}};}}};
+ const headers={authorization:'Bearer fixture-only'};
+ const failed=await worker.fetch(new Request(base+'capacity',{headers}),env,{});
+ assert.equal(failed.status,500);
+ assert.deepEqual(await failed.json(),{code:'PIPELINE_INTERNAL_ERROR'});
+ const invalid=await worker.fetch(new Request(base+'objects/evals/test/a.bin',{method:'PUT',headers:{...headers,'content-length':'0'}}),env,{});
+ assert.equal(invalid.status,422);
+ assert.deepEqual(await invalid.json(),{code:'OBJECT_SHA256_REQUIRED'});
+});
+
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
   const {db,DB}=sqliteD1();t.after(()=>db.close());
   const {MEDIA}=memoryMedia(),env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};

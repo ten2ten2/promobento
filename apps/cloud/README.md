@@ -38,7 +38,7 @@ HTTP 请求按下表提交版本与渲染参数；Worker 从可信存储读取 N
 
 ## 部署标识与账本
 
-迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；`0005_render_admissions.sql` 添加独立排队记录和排队／单任务总期限；`0006_workflow_stop_checkpoints.sql` 分离原生停机证据与完整清理完成状态，不改写历史费用或成片记录。旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
+迁移 `0004_native_projects.sql` 引入原生 revision 表和 `engine` 审计标记；`0005_render_admissions.sql` 添加独立排队记录和排队／单任务总期限；`0006_workflow_stop_checkpoints.sql` 分离原生停机证据与完整清理完成状态；`0007_recovery_query_indexes.sql` 优化恢复扫描、未停止计算和 outbox 查询，不改写历史费用或成片记录。旧行不会在新引擎重放，恢复只处理 `huashu`。现有 D1/R2/账本和未知用量按原始身份保存，不提供旧协议的创作或读取接口。
 
 `SHARDS` / `ShardDO` 是 Cloudflare 已登记的 Durable Object 绑定/类名，**目前承载的是完整 native job**，不能仅凭名称删除。更名须单独规划 DO 迁移，确保执行中的真实容器和费用可结算。旧 `shard_index` 只存在于已应用的数据库迁移/历史行，当前任务与 API 不使用它。
 
