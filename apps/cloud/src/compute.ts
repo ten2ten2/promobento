@@ -1,7 +1,8 @@
 import {DurableObject, WorkerEntrypoint} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
-import {digest, sha256Bytes} from '@promobento/contracts/digest';
-import {operation, reserve, settle, readExactBytes} from './store.ts';
+import {digest} from '@promobento/contracts/digest';
+import {operation, rights, reserve, settle} from './store.ts';
+import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
 import {assertNativeExecution, nativeContainerInput, nativeRenderPolicy} from './native-task.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
@@ -16,7 +17,7 @@ const computeMicros = (instance: string, ms: number) => {
   return Math.ceil(ms / 1000 * (cpu * 20 + memory * 2.5 + disk * .07));
 };
 
-type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; prefix: string; attemptId: string};
+type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; resources: Json[]; prefix: string; attemptId: string};
 export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
   async fetch(request: Request): Promise<Response> {
     const scope = this.ctx.props, url = new URL(request.url);
@@ -26,21 +27,33 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
       const key = url.pathname.slice(3).split('/').map(decodeURIComponent).join('/');
       if (key.split('/').some(part => !part || part === '.' || part === '..')) return new Response(null, {status: 403});
       if (request.method === 'GET' && url.pathname.startsWith('/r/') && scope.reads.includes(key)) {
+        await rights(this.env, op, scope.resources);
         const object = await this.env.MEDIA.get(key);
         return object ? new Response(object.body) : new Response(null, {status: 404});
       }
       if (request.method !== 'PUT' || !url.pathname.startsWith('/w/') || !key.startsWith(scope.prefix + '/')) return new Response(null, {status: 403});
       const declared = request.headers.get('content-length'), length = Number(declared);
+      const hash = request.headers.get('x-content-sha256');
       if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) return new Response(null, {status: 413});
-      let bytes:Uint8Array;
-      try{bytes=await readExactBytes(request,length);}catch{return new Response(null,{status:413});}
-      const hash = sha256Bytes(bytes), previous = await this.env.MEDIA.head(key);
-      if (previous && previous.customMetadata?.sha256 !== hash) return new Response(null, {status: 409});
-      if (!previous) await this.env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}),
-        customMetadata: {sha256: hash, operationId: op.id, attemptId: scope.attemptId},
-        httpMetadata: {contentType: request.headers.get('content-type') ?? 'application/octet-stream'}});
+      if (!hash || !/^[a-f0-9]{64}$/.test(hash)) return new Response(null, {status: 400});
+      const previous = await this.env.MEDIA.head(key);
+      if (previous && !matchesStoredUpload(previous, length, hash)) return new Response(null, {status: 409});
+      try {
+        if (previous) await verifyUploadStream(request.body, length, hash);
+        else {
+          // R2 validates the declared SHA-256 before committing the object.
+          // Both the worker's bounded transform and R2's checksum must pass.
+          const created = await putBoundedUpload(this.env.MEDIA, key, request.body, length, {
+            onlyIf: new Headers({'If-None-Match': '*'}), sha256: hash,
+            customMetadata: {sha256: hash, operationId: op.id, attemptId: scope.attemptId},
+            httpMetadata: {contentType: request.headers.get('content-type') ?? 'application/octet-stream'},
+          });
+          // A lost conditional race may not consume the incoming stream. Require a fresh retry.
+          if (!created) return new Response(null, {status: 409});
+        }
+      } catch { return new Response(null, {status: 422}); }
       const actual = await this.env.MEDIA.head(key);
-      if (actual?.customMetadata?.sha256 !== hash || actual.size !== length) return new Response(null, {status: 409});
+      if (!matchesStoredUpload(actual, length, hash)) return new Response(null, {status: 409});
       // A cancellation may leave a staged object. Only generation-fenced workflow commits publish it.
       await operation(this.env, scope.operationId, scope.generation);
       return new Response(null, {status: 201});
@@ -236,6 +249,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     await coordinator(this.env).assertLease(task.taskId, op.workspace_id, op.generation, task.leaseToken);
     let startedAt: number | undefined;
     let failed = false, failure: unknown, phase: 'startup' | 'broker' | 'dispatch' | 'execute' = 'startup';
+    let failedResourceUsage: Json | undefined;
     try {
       const capacityWaitMs = Number(admission.admitted_at) - Number(task.queuedAt ?? admission.admitted_at);
       await operation(this.env, op.id, op.generation);
@@ -257,7 +271,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const input = nativeContainerInput(task, this.token);
       const prefix = 'renders/' + task.renderId + '/attempts/' + task.taskId + '/out';
       const broker = this.ctx.exports.Broker({props: {token: this.token, operationId: op.id, generation: op.generation,
-        reads: task.project.files.map((file: Json) => file.key), prefix, attemptId: task.taskId}});
+        reads: task.project.files.map((file: Json) => file.key), resources: task.project.resources, prefix, attemptId: task.taskId}});
       phase = 'broker';
       const brokerStartedAt = Date.now(), brokerDeadline = Math.min(brokerStartedAt + 30000, deadlineAt);
       let brokerTimer: ReturnType<typeof setTimeout> | undefined;
@@ -307,6 +321,9 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         const response = await this.call('/result', undefined, AbortSignal.timeout(Math.max(1, Math.min(15000, deadlineAt - Date.now()))));
         if (!response.ok) throw Error('RENDER_CONTROLLER_UNAVAILABLE');
         const value = await response.json<Json>();
+        if (value.status === 'failed' || value.status === 'cancelled') {
+          if (value.resourceUsage && typeof value.resourceUsage === 'object') failedResourceUsage = value.resourceUsage;
+        }
         if (value.status === 'failed') {
           const code = value.error?.code ?? value.code;
           throw Error(typeof code === 'string' && /^[A-Z][A-Z0-9_]+$/.test(code) ? code : 'NATIVE_RENDER_FAILED');
@@ -327,7 +344,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const code = known ?? message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR';
       try {
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=COALESCE(result_json,?) WHERE id=?')
-          .bind(canonical({status: 'failed', code, phase}), task.taskId).run();
+          .bind(canonical({status: 'failed', code, phase, ...(failedResourceUsage ? {resourceUsage: failedResourceUsage} : {})}), task.taskId).run();
       } catch { /* Diagnostics never replace the first execution failure. */ }
       throw failure;
     } finally {

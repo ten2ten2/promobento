@@ -44,6 +44,8 @@ mise exec -- node research/evals/select-materials.mjs artifacts/eval-materials-c
 mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-current
 ```
 
+入库时每个文件、原始素材、授权证据和 manifest 都使用实际发送字节的 SHA-256 上传；开始前同时检查 staging 的运行中租约和排队任务，发现未清空或响应格式异常即停止，不接管其他评测会话。
+
 每条采集入口仍按自身参数检查限定题目、来源和精确字节，不执行目标项目的代码。未审看文件保持待选状态；旧图、原视频和已记录证据不被新一轮采集覆盖。针对现有 WebP 帧包输入，原生导演从绑定证据读取实际原视频及海报；不会运行旧分片/帧包播放器。海报只说明首帧，不能用它推断后续动作。
 
 实际词级对齐证据通过 `timingEvidence` 输入，绑定真实来源的 SHA-256、测得时长和按时间排序的 `words`；没有这类证据就用作者明确写出的事件时间，不伪造旁白词时间戳。自动 ASR 与完整参考片理解仍是待实现功能。

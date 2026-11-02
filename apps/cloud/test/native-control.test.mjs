@@ -5,7 +5,9 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,readExactBytes,reserve,settle} from '../src/store.ts';
+import {immutableBytes,immutableStream,reserve,settle} from '../src/store.ts';
+import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
+import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
@@ -970,6 +972,32 @@ test('terminal media commit and notification are atomic and replayable; cancella
   assert.equal(delivered, false);
 });
 
+test('native publication atomically fences missing and revoked source rights, preserving completed commits',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const resource={resourceId:'res_rights',sha256:input.files[0].sha256,kind:'image'};
+  const saved=await saveNativeProject(env,op,{...input,resources:[resource]});
+  await createNativeRender(env,op,{renderId:'rights-render',revisionId:saved.revisionId,mode:'preview',rendererRelease:'native-release'});
+  db.prepare("UPDATE pipeline_renders SET status='verifying' WHERE id='rights-render'").run();
+  const result=canonical({kind:'native_render_result',status:'passed',outputs:[],attemptId:'rights-attempt'});
+  db.prepare('INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at,stopped_at) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run('rights-attempt','rights-render',op.id,op.generation,'native_preview','standard-3','succeeded',Date.now()-1000,Date.now());
+  db.prepare('INSERT INTO pipeline_render_admissions(id,render_id,operation_id,generation,workspace_id,attempt_index,status,requested_at,queue_deadline_at,lease_token,admitted_at,attempt_deadline_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run('rights-attempt','rights-render',op.id,op.generation,op.workspace_id,0,'released',Date.now()-2000,Date.now()+60000,'22222222-2222-4222-8222-222222222222',Date.now()-1000,Date.now()+60000);
+  await assert.rejects(commitRender(env,'rights-render',op,result,[resource]),/ASSET_RIGHTS_PENDING/,'missing evidence must block a verified film');
+  const evidence=await immutableBytes(env,'evals/native/rights.json',new TextEncoder().encode('{}'),'application/json');
+  db.prepare('INSERT INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)')
+    .run(op.id,resource.resourceId,resource.sha256,'fixture-license',evidence.key,'internal_eval_only');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await assert.rejects(commitRender(env,'rights-render',op,result,[resource]),/ASSET_RIGHTS_PENDING/,'revoke/commit races must be fenced inside D1');
+  assert.equal(db.prepare("SELECT status FROM pipeline_renders WHERE id='rights-render'").get().status,'verifying');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=NULL WHERE operation_id=?').run(op.id);
+  await commitRender(env,'rights-render',op,result,[resource]);
+  assert.equal(db.prepare("SELECT status FROM pipeline_renders WHERE id='rights-render'").get().status,'passed');
+  db.prepare('UPDATE pipeline_rights SET revoked_at=? WHERE operation_id=?').run(Date.now(),op.id);
+  await commitRender(env,'rights-render',op,result,[resource]);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM pipeline_outbox WHERE kind='render_progress'").get().count,1);
+});
+
 test('Director completion events recover after Queue acknowledgement and exhausted delivery retries', async t => {
   const {db, env, op, saved} = await fixture(t);
   await createNativeRender(env, op, {renderId: 'native-render', revisionId: saved.revisionId, mode: 'export', rendererRelease: 'native-release'});
@@ -1218,13 +1246,56 @@ test('simultaneous cost reservations are idempotent only for the same full cost 
   assert.equal(db.prepare('SELECT reserved_micros FROM cost_reservations WHERE id=?').get('reservation-race').reserved_micros,300);
 });
 
-test('streamed object uploads stop at declared length instead of buffering oversized request bodies', async () => {
+test('bounded R2 upload streams reject short, oversized and falsely declared object bodies', async () => {
   const request=chunks=>new Request('https://broker.internal/w/output',{method:'PUT',duplex:'half',
     body:new ReadableStream({start(controller){for(const chunk of chunks)controller.enqueue(new Uint8Array(chunk));controller.close();}})});
-  assert.deepEqual(await readExactBytes(request([[1,2],[3]]),3),new Uint8Array([1,2,3]));
-  await assert.rejects(readExactBytes(request([[1,2,3,4,5,6]]),3),/OBJECT_LENGTH_MISMATCH/);
-  await assert.rejects(readExactBytes(request([[1,2]]),3),/OBJECT_LENGTH_MISMATCH/);
-  await assert.rejects(readExactBytes(request([[1]]),50*(1<<20)+1),/OBJECT_TOO_LARGE/);
+  const read=(chunks,length)=>{
+    const upload=boundedUploadStream(request(chunks).body,length);
+    assert.equal(fixedLengthOf(upload.readable),length);
+    return new Response(upload.readable).arrayBuffer();
+  };
+  assert.deepEqual(new Uint8Array(await read([[1,2],[3]],3)),new Uint8Array([1,2,3]));
+  await assert.rejects(read([[1,2,3,4,5,6]],3),/OBJECT_LENGTH_MISMATCH/);
+  await assert.rejects(read([[1,2]],3),/OBJECT_LENGTH_MISMATCH/);
+  assert.throws(()=>boundedUploadStream(request([[1]]).body,50*(1<<20)+1),/OBJECT_TOO_LARGE/);
+  assert.deepEqual(new Uint8Array(await new Response(boundedUploadStream(null,0).readable).arrayBuffer()),new Uint8Array());
+});
+
+test('an early R2 rejection or conditional miss aborts its unconsumed input stream', async () => {
+  for (const outcome of ['rejected', 'conditional-miss']) {
+    let cancelled = false;
+    const body = new ReadableStream({start(controller) {controller.enqueue(new Uint8Array(1));},
+      cancel() {cancelled = true;}});
+    const bucket = {async put(_key, readable) {
+      assert.equal(fixedLengthOf(readable), 1000);
+      if (outcome === 'rejected') throw Error('R2_REFUSED');
+      return null;
+    }};
+    const pending = putBoundedUpload(bucket, 'evals/test/file.png', body, 1000, {});
+    if (outcome === 'rejected') await assert.rejects(pending, /R2_REFUSED/);
+    else assert.equal(await pending, null);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cancelled, true, outcome);
+  }
+});
+
+test('internal eval file ingress verifies SHA-256 in R2 and never trusts an incomplete object', async () => {
+  const {MEDIA,objects}=memoryMedia(),key='evals/native/streamed.mp4';
+  const bytes=new Uint8Array(3<<20).fill(7),sha256=sha256Bytes(bytes);
+  const upload=(data,length,hash)=>immutableStream({MEDIA},key,new ReadableStream({start(controller) {
+    for(let offset=0;offset<data.length;offset+=8192)controller.enqueue(data.subarray(offset,offset+8192));
+    controller.close();
+  }}),length,hash,'video/mp4');
+  await assert.rejects(upload(bytes,bytes.length-1,sha256),/OBJECT_LENGTH_MISMATCH/);
+  assert.equal(objects.size,0);
+  await assert.rejects(upload(bytes,bytes.length,'0'.repeat(64)),/R2_CHECKSUM_MISMATCH/);
+  assert.equal(objects.size,0);
+  const blob=await upload(bytes,bytes.length,sha256);
+  assert.equal(blob.sha256,sha256);
+  assert.equal(objects.get(key).bytes.length,bytes.length);
+  await upload(bytes,bytes.length,sha256);
+  await assert.rejects(upload(new Uint8Array(bytes.length),bytes.length,sha256),/OBJECT_IDENTITY_MISMATCH/);
+  await assert.rejects(upload(bytes,bytes.length,'1'.repeat(64)),/IMMUTABLE_OBJECT_CONFLICT/);
 });
 
 test('conditional immutable uploads cannot falsely ACK the losing bytes of a concurrent write', async () => {

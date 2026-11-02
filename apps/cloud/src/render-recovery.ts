@@ -1,5 +1,6 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
+import {rights} from './store.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import {registerWorkflow,createTrackedWorkflow,stopWorkflow,stopOperationWorkflows,resolveWorkflow,type WorkflowKind} from './workflow-state.ts';
 import {stopRenderAdmissions} from './render-admission.ts';
@@ -50,7 +51,7 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
 }
 
 /** Commit and its notification outbox are one transaction. A failed progress RPC cannot undo a film. */
-export async function commitRender(env:PipelineEnv,renderId:string,op:Operation,resultJson:string){
+export async function commitRender(env:PipelineEnv,renderId:string,op:Operation,resultJson:string,resources:Json[]=[]){
  const result=parseCanonicalJson(resultJson) as Json;
  if(typeof result.attemptId!=='string')throw Error('RENDER_LEASE_FENCED');
  const payload=canonical({operationId:op.id,renderId,generation:op.generation,status:'passed'});
@@ -61,15 +62,20 @@ export async function commitRender(env:PipelineEnv,renderId:string,op:Operation,
       AND EXISTS(SELECT 1 FROM pipeline_attempts p JOIN pipeline_render_admissions a ON a.id=p.id
         WHERE p.id=? AND p.render_id=? AND p.operation_id=? AND p.generation=?
           AND p.status='succeeded' AND p.stopped_at IS NOT NULL AND a.status='released'
-          AND a.lease_token IS NOT NULL AND a.attempt_deadline_at IS NOT NULL)`)
-   .bind(resultJson,Date.now(),renderId,op.id,op.generation,op.id,op.generation,result.attemptId,renderId,op.id,op.generation),
+          AND a.lease_token IS NOT NULL AND a.attempt_deadline_at IS NOT NULL)
+      AND NOT EXISTS(SELECT 1 FROM json_each(?) resource WHERE NOT EXISTS
+        (SELECT 1 FROM pipeline_rights r WHERE r.operation_id=?
+          AND r.resource_id=json_extract(resource.value,'$.resourceId')
+          AND r.sha256=json_extract(resource.value,'$.sha256') AND r.revoked_at IS NULL))`)
+   .bind(resultJson,Date.now(),renderId,op.id,op.generation,op.id,op.generation,result.attemptId,renderId,op.id,op.generation,canonical(resources),op.id),
   env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.operation_id=? AND r.generation=? AND r.status='passed' AND r.result_json=? AND o.generation=? AND o.status='active')")
    .bind('progress-'+renderId,op.id,'render_progress',payload,renderId,op.id,op.generation,resultJson,op.generation)
  ]);
  if(changed[0]!.meta.changes!==1){
   const previous=await env.DB.prepare("SELECT result_json FROM pipeline_renders WHERE id=? AND status='passed' AND operation_id=? AND generation=?")
    .bind(renderId,op.id,op.generation).first<{result_json:string}>();
-  if(!previous)throw Error('OPERATION_FENCED');if(previous.result_json!==resultJson)throw Error('RENDER_COMMIT_CONFLICT');
+  if(!previous){await rights(env,op,resources);throw Error('OPERATION_FENCED');}
+  if(previous.result_json!==resultJson)throw Error('RENDER_COMMIT_CONFLICT');
  }
 }
 

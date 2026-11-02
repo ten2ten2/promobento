@@ -2,7 +2,7 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join, resolve} from 'node:path';
 import {canonical, parseCanonicalJson} from '../../../packages/contracts/src/canonical.mjs';
 import {nativeProjectHash} from '../../../packages/contracts/src/native-project.mjs';
-import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
+import {fileIdentity} from '../../../packages/native-motion/src/files.mjs';
 import {NATIVE_COMMIT, prepareNativeProject, previewNativeProject, renderNativeProject, projectFiles} from '../../../packages/native-motion/src/index.mjs';
 import {normalizeNativeVideo, extractEncodedFrames} from './media.mjs';
 
@@ -47,8 +47,8 @@ if (task.mode === 'export') {
 } else if (task.mode !== 'preview') throw Error('NATIVE_MODE_INVALID');
 report.elapsedMs = Math.round(performance.now() - started);
 for (const output of localOutputs) {
-  const bytes = readFileSync(output.path);
-  output.sha256 = sha256Bytes(bytes); output.byteLength = bytes.length;
+  const {sha256, byteLength} = fileIdentity(output.path);
+  output.sha256 = sha256; output.byteLength = byteLength;
 }
 writeFileSync(join(base, 'result.json'), canonical({report, localOutputs}) + '\n');
 } catch (error) {

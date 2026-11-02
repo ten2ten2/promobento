@@ -1,7 +1,7 @@
 import {WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {nativeProjectHash} from '@promobento/contracts/native-project';
-import {operation, getJson} from './store.ts';
+import {operation, getJson, rights} from './store.ts';
 import {advanceRenderStage, commitRender, recordRenderFailure, renderFailureCode} from './render-recovery.ts';
 import {verifyNativeResult} from './render-verification.ts';
 import {workflowStarted} from './workflow-state.ts';
@@ -26,6 +26,7 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
       const op = await operation(this.env, row.operation_id, row.generation);
       if (input.operationId !== op.id || input.renderId !== row.id || input.runtimeVersion !== NATIVE_COMMIT) throw Error('RENDER_SCOPE_INVALID');
       await verifyNativeInputs(this.env, input.project);
+      await rights(this.env, op, input.project.resources);
       if (await nativeProjectHash(input.project) !== input.revisionId) throw Error('SOURCE_IDENTITY_MISMATCH');
       validateFrameTimes(input.project, input.mode, input.frames);
       const release = await this.env.DB.prepare('SELECT image_digest,runtime_version FROM renderer_releases WHERE id=? AND status=\'active\'')
@@ -47,7 +48,8 @@ export class RenderWorkflow extends WorkflowEntrypoint<PipelineEnv, {renderId: s
         const serialized = canonical(result);
         if (Date.now() >= operationDeadlineAt) throw Error('RENDER_OPERATION_DEADLINE');
         await operation(this.env, op.id, op.generation);
-        await commitRender(this.env, row.id, op, serialized);
+        await rights(this.env, op, input.project.resources);
+        await commitRender(this.env, row.id, op, serialized, input.project.resources);
         return serialized;
       })) as Json;
       try {await flushOutbox(this.env,'progress-'+row.id);}catch{ /* The outbox sweep retries delivery. */ }

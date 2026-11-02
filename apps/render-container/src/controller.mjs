@@ -3,10 +3,11 @@ import {existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, wri
 import {dirname, join, relative} from 'node:path';
 import {canonical, parseCanonicalJson} from '../../../packages/contracts/src/canonical.mjs';
 import {assertNativeProject, assertNativePath, nativeProjectHash} from '../../../packages/contracts/src/native-project.mjs';
-import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
 import {NATIVE_COMMIT, frameTimes, projectPath} from '../../../packages/native-motion/src/index.mjs';
+import {fileIdentity} from '../../../packages/native-motion/src/files.mjs';
 import {brokerClient} from './broker.mjs';
 import {mapIO} from './process.mjs';
+import {monitorResources} from './resources.mjs';
 
 if (process.getuid() !== 10001) throw Error('CONTROLLER_UID_REQUIRED');
 process.umask(0o007);
@@ -34,15 +35,15 @@ function launcher(path, data = {}) {
 async function execute(task, brokerToken, state) {
   const base = '/jobs/' + task.taskId, projectDir = join(base, 'project');
   const broker = brokerClient(brokerToken, state.abort.signal);
+  const resources = monitorResources();
   try {
     mkdirSync(base, {recursive: false, mode: 0o2770});
     mkdirSync(projectDir, {mode: 0o2770});
     await mapIO(task.project.files, async file => {
       const full = projectPath(projectDir, file.path);
       mkdirSync(dirname(full), {recursive: true, mode: 0o2770});
-      const bytes = await broker.read(file);
-      writeFileSync(full, bytes, {flag: 'wx', mode: 0o660});
-    });
+      await broker.readToFile(file, full);
+    }, 2);
     // The broker bearer never reaches disk, native Node, Chromium, an argument or an inherited environment.
     writeFileSync(join(base, 'request.json'), canonical(task), {flag: 'wx', mode: 0o640});
     state.abort.signal.throwIfAborted();
@@ -61,11 +62,11 @@ async function execute(task, brokerToken, state) {
       assertNativePath(output.name);
       const full = realpathSync(output.path), inside = relative(base, full);
       if (!inside || inside.startsWith('../') || inside.startsWith('/') || !statSync(full).isFile() || statSync(full).size > 50_000_000) throw Error('NATIVE_OUTPUT_PATH_INVALID');
-      const bytes = readFileSync(full);
-      if (bytes.length !== output.byteLength || sha256Bytes(bytes) !== output.sha256) throw Error('NATIVE_OUTPUT_IDENTITY_MISMATCH');
-      const blob = await broker.write(prefix + output.name, bytes, output.mediaType);
+      const identity = fileIdentity(full);
+      if (identity.byteLength !== output.byteLength || identity.sha256 !== output.sha256) throw Error('NATIVE_OUTPUT_IDENTITY_MISMATCH');
+      const blob = await broker.writeFile(prefix + output.name, full, identity, output.mediaType);
       return {name: output.name, ...blob};
-    });
+    }, 2);
     if (task.mode === 'export') {
       const files = localOutputs.filter(output => output.projectPath).map(output => {
         const blob = outputs.find(item => item.name === output.name);
@@ -76,12 +77,14 @@ async function execute(task, brokerToken, state) {
       outputs.push({name: 'rendered-project.json', ...await broker.write(prefix + 'rendered-project.json', Buffer.from(canonical(renderedProject)), 'application/json')});
       report.renderedProjectHash = await nativeProjectHash(renderedProject);
     }
+    report.resourceUsage = resources.stop();
     outputs.push({name: 'report.json', ...await broker.write(prefix + 'report.json', Buffer.from(canonical(report)), 'application/json')});
     state.result = {status: 'succeeded', outputs, report};
   } catch (error) {
-    state.result = {status: state.abort.signal.aborted ? 'cancelled' : 'failed', error: {code: safeCode(error.message), ...(error.detail ? {detail: error.detail} : {})}};
+    state.result = {status: state.abort.signal.aborted ? 'cancelled' : 'failed', error: {code: safeCode(error.message), ...(error.detail ? {detail: error.detail} : {})}, resourceUsage: resources.stop()};
     await launcher('/cancel').catch(() => {});
   } finally {
+    resources.stop();
     brokerToken = null;
     // The task container is stopped by its DO after a terminal receipt; no next task can reuse its directory.
     rmSync(base, {recursive: true, force: true});

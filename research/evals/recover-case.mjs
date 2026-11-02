@@ -4,6 +4,7 @@ import {resolve} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
+import {requireIdleCapacity} from '../../apps/cloud/src/internal-eval-client.mjs';
 const [arg,...extra]=process.argv.slice(2),file=resolve(arg??'');
 if(!arg||extra.length||!file.startsWith(resolve('artifacts')+'/')||!file.endsWith('/report.json'))throw Error('PRIVATE_CASE_REPORT_REQUIRED');
 const report=parseCanonicalJson(readFileSync(file));
@@ -33,7 +34,8 @@ try{
  report.cost={chargedMicros:report.recovery.costs.reduce((sum,cost)=>sum+(cost.actual_micros??cost.reserved_micros),0),
   unresolved:report.recovery.costs.filter(cost=>cost.actual_micros===null).map(cost=>({id:cost.id,kind:cost.kind,reservedMicros:cost.reserved_micros}))};
  report.cleanupRecoveredAt=new Date().toISOString();save();
- if(report.capacity.length||report.recovery.costs.some(cost=>cost.kind==='compute'&&(cost.actual_micros===null||cost.physicallyStopped!==true)))throw Error('EVAL_COMPUTE_CLEANUP_UNCONFIRMED');
+ requireIdleCapacity(report.capacity,'EVAL_COMPUTE_CLEANUP_UNCONFIRMED');
+ if(report.recovery.costs.some(cost=>cost.kind==='compute'&&(cost.actual_micros===null||cost.physicallyStopped!==true)))throw Error('EVAL_COMPUTE_CLEANUP_UNCONFIRMED');
  report.cleanupStatus='confirmed';save();
  console.log(canonical({operationId:report.operationId,status:state.status,cost:report.cost,capacity:report.capacity,scope:'terminal_cleanup_only_no_model_or_render_calls'}));
 }catch(error){report.cleanupStatus='unconfirmed';report.cleanupRecoveryError=String(error.stack??error);save();throw error;}

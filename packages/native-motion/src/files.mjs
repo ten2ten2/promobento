@@ -1,10 +1,27 @@
-import {copyFileSync, lstatSync, mkdirSync, readdirSync, readFileSync} from 'node:fs';
+import {closeSync, constants, copyFileSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync} from 'node:fs';
+import {createSha256} from '../../contracts/src/digest.mjs';
 import {dirname, extname, join, relative, resolve, sep} from 'node:path';
 import {assertNativePath, NATIVE_SOURCE_LIMITS} from '../../contracts/src/native-project.mjs';
-import {sha256Bytes} from '../../contracts/src/digest.mjs';
 
 export const SOURCE_LIMITS = NATIVE_SOURCE_LIMITS;
 const SKIP = new Set(['.om', 'out', 'snapshots', 'node_modules', '.git']);
+/** Identity of a local regular file, with a fixed 64 KiB read buffer. */
+export function fileIdentity(path, maxBytes = 50_000_000) {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > maxBytes) throw Error('NATIVE_FILE_TOO_LARGE');
+    const hash = createSha256(), buffer = Buffer.allocUnsafe(64 << 10);
+    let byteLength = 0, count;
+    while ((count = readSync(fd, buffer, 0, buffer.length, null)) !== 0) {
+      byteLength += count;
+      if (byteLength > maxBytes) throw Error('NATIVE_FILE_TOO_LARGE');
+      hash.update(buffer.subarray(0, count));
+    }
+    if (byteLength !== stat.size) throw Error('NATIVE_FILE_CHANGED');
+    return {sha256: hash.hex(), byteLength};
+  } finally {closeSync(fd);}
+}
 export function projectPath(root, path) {
   assertNativePath(path);
   const full = resolve(root, path), rel = relative(resolve(root), full);
@@ -42,7 +59,8 @@ export function verifyProjectFiles(root, manifest) {
   if (actual.length !== expected.size || actual.some(file => !expected.has(file.path))) throw Error('NATIVE_UNDECLARED_FILE');
   for (const file of manifest.files) {
     const full = projectPath(root, file.path), stat = lstatSync(full);
-    if (!stat.isFile() || stat.size !== file.byteLength || sha256Bytes(readFileSync(full)) !== file.sha256) throw Error('NATIVE_INPUT_IDENTITY_MISMATCH');
+    if (!stat.isFile() || stat.size !== file.byteLength || fileIdentity(full, SOURCE_LIMITS.fileBytes).sha256 !== file.sha256)
+      throw Error('NATIVE_INPUT_IDENTITY_MISMATCH');
   }
 }
 

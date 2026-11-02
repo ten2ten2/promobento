@@ -1,4 +1,7 @@
-import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
+import {createReadStream, createWriteStream, constants} from 'node:fs';
+import {createSha256, sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
+import {Readable, Transform} from 'node:stream';
+import {pipeline} from 'node:stream/promises';
 
 /** Token lives only in this closure, not files, URLs, child environments, or diagnostics. */
 export function brokerClient(token, signal) {
@@ -8,26 +11,38 @@ export function brokerClient(token, signal) {
     return key.split('/').map(encodeURIComponent).join('/');
   };
   const headers = {authorization: 'Bearer ' + token};
+  const upload = async (key, body, byteLength, sha256, mediaType) => {
+    const response = await fetch('http://broker.internal/w/' + keyPath(key), {method: 'PUT', signal, duplex: 'half',
+      headers: {...headers, 'content-type': mediaType, 'content-length': String(byteLength), 'x-content-sha256': sha256}, body});
+    if (!response.ok) throw Error('BROKER_WRITE_DENIED');
+    return {key, sha256, byteLength, mediaType};
+  };
   return {
-    async read({key, sha256, byteLength}, maxBytes = 40 << 20) {
+    async readToFile({key, sha256, byteLength}, path, maxBytes = 40 << 20) {
       if (!/^[a-f0-9]{64}$/.test(sha256) || !Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > maxBytes) throw Error('BROKER_INPUT_INVALID');
       const response = await fetch('http://broker.internal/r/' + keyPath(key), {headers, signal});
       if (!response.ok || !response.body) throw Error('BROKER_READ_DENIED');
-      const chunks = []; let size = 0;
-      for await (const chunk of response.body) {
-        size += chunk.length;
-        if (size > byteLength) throw Error('BROKER_INPUT_TOO_LARGE');
-        chunks.push(chunk);
-      }
-      const bytes = Buffer.concat(chunks);
-      if (size !== byteLength || sha256Bytes(bytes) !== sha256) throw Error('BROKER_INPUT_IDENTITY_MISMATCH');
-      return bytes;
+      let size = 0;
+      const hash = createSha256();
+      await pipeline(Readable.fromWeb(response.body), new Transform({
+        transform(chunk, _encoding, done) {
+          size += chunk.length;
+          if (size > byteLength) return done(Error('BROKER_INPUT_TOO_LARGE'));
+          hash.update(chunk);
+          done(null, chunk);
+        },
+      }), createWriteStream(path, {flags: 'wx', mode: 0o660}), {signal});
+      if (size !== byteLength || hash.hex() !== sha256) throw Error('BROKER_INPUT_IDENTITY_MISMATCH');
     },
     async write(key, bytes, mediaType) {
-      const response = await fetch('http://broker.internal/w/' + keyPath(key), {method: 'PUT', signal,
-        headers: {...headers, 'content-type': mediaType, 'content-length': String(bytes.byteLength)}, body: bytes});
-      if (!response.ok) throw Error('BROKER_WRITE_DENIED');
-      return {key, sha256: sha256Bytes(bytes), byteLength: bytes.byteLength, mediaType};
+      if (!(bytes instanceof Uint8Array) || bytes.byteLength > 4 << 20) throw Error('BROKER_OUTPUT_INVALID');
+      return upload(key, bytes, bytes.byteLength, sha256Bytes(bytes), mediaType);
+    },
+    async writeFile(key, path, {sha256, byteLength}, mediaType) {
+      if (!/^[a-f0-9]{64}$/.test(sha256) || !Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > 50_000_000)
+        throw Error('BROKER_OUTPUT_INVALID');
+      const body = Readable.toWeb(createReadStream(path, {flags: constants.O_RDONLY | constants.O_NOFOLLOW, highWaterMark: 64 << 10}));
+      return upload(key, body, byteLength, sha256, mediaType);
     }
   };
 }

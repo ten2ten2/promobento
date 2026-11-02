@@ -4,6 +4,8 @@ import {build} from 'esbuild';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {NATIVE_COMMIT} from '../src/native-project.ts';
+import {objectUploadHeaders,requireIdleCapacity} from '../src/internal-eval-client.mjs';
+import {canonical} from '@promobento/contracts/canonical';
 
 const built=await build({stdin:{contents:'export {default as worker} from "./apps/cloud/src/index.ts";',resolveDir:process.cwd()},
   bundle:true,write:false,platform:'node',format:'esm',target:'node26',
@@ -13,6 +15,40 @@ const built=await build({stdin:{contents:'export {default as worker} from "./app
       'export class DurableObject{} export class WorkerEntrypoint{} export class WorkflowEntrypoint{}',loader:'js'}));
   }}]});
 const {worker}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
+
+test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const {MEDIA}=memoryMedia(),env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+  const payloads=[
+    {name:'picture.bin',type:'application/octet-stream',bytes:Uint8Array.from([0,255,1,128,7])},
+    {name:'rights.json',type:'application/json',bytes:new TextEncoder().encode(canonical({kind:'eval_material_rights',approvedBy:'owner'}))},
+  ];
+  for(const {name,type,bytes}of payloads){
+    const url='https://worker.example/internal/s1/objects/evals/ingest-fixture/'+name;
+    // fetch sets this for a fixed Uint8Array body; Request-only local dispatch does not.
+    const common={authorization:'Bearer fixture-only','content-type':type,'content-length':String(bytes.length)};
+    const request=headers=>worker.fetch(new Request(url,{method:'PUT',headers,body:bytes}),env,{});
+    const old=await request(common);
+    assert.equal(old.status,422,'the old ingestion client lacks required hash evidence');
+    assert.equal((await old.json()).code,'OBJECT_SHA256_REQUIRED');
+    const result=await request({...common,...objectUploadHeaders(bytes)});
+    assert.equal(result.status,200);
+    const saved=await result.json();
+    assert.equal(saved.byteLength,bytes.length);
+    assert.equal(saved.sha256,objectUploadHeaders(bytes)['x-content-sha256']);
+    const stored=await MEDIA.get(saved.key);
+    assert.deepEqual(new Uint8Array(await stored.arrayBuffer()),bytes);
+  }
+});
+
+test('all staging clients reject active, queued and malformed capacity snapshots',()=>{
+  assert.doesNotThrow(()=>requireIdleCapacity({leases:[],queued:0,oldestWaitMs:null},'STAGING_BUSY'));
+  for(const value of [{leases:[{workspace:'one',count:1}],queued:0},
+    {leases:[],queued:1,oldestWaitMs:5000}])
+    assert.throws(()=>requireIdleCapacity(value,'STAGING_BUSY'),/STAGING_BUSY/);
+  for(const value of [[],{leases:[]},{leases:null,queued:0},{leases:[],queued:-1}])
+    assert.throws(()=>requireIdleCapacity(value,'STAGING_BUSY'),/CAPACITY_RESPONSE_INVALID/);
+});
 
 test('real internal HTTP and Queue routes persist one direction event and ACK only after actual delivery',async t=>{
   const {db,DB}=sqliteD1();t.after(()=>db.close());
