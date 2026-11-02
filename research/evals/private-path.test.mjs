@@ -4,6 +4,7 @@ import {existsSync,linkSync,mkdirSync,mkdtempSync,readFileSync,rmSync,symlinkSyn
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {spawnSync} from 'node:child_process';
+import {canonical} from '@promobento/contracts/canonical';
 import {privateExisting,privateNewDirectory,privateWritableDirectory,writePrivateFile} from './private-path.mjs';
 
 test('private directory and report admission rejects symlinks and escaped parent paths',()=>{
@@ -91,6 +92,16 @@ test('legacy capture and selection refuse linked output manifests before launchi
    assert.equal(readFileSync(victim,'utf8'),'unchanged');
   }
  }finally{rmSync(directory,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
+});
+
+test('selection validates the official capture source before browser navigation',()=>{
+ mkdirSync('artifacts',{recursive:true});
+ const directory=mkdtempSync(join(resolve('artifacts'),'capture-provenance-'));
+ try{
+  writeFileSync(join(directory,'capture.json'),canonical({assets:[{id:'deepseek-0',sourceUrl:'http://127.0.0.1/private'}]}));
+  const result=spawnSync(process.execPath,['research/evals/select-materials.mjs',directory,'deepseek'],{encoding:'utf8',timeout:10000});
+  assert.equal(result.status,1);assert.match(result.stderr,/CAPTURE_SOURCE_MISMATCH/);
+ }finally{rmSync(directory,{recursive:true,force:true});}
 });
 
 test('a new private input directory can be prepared in a checkout without artifacts yet',()=>{
