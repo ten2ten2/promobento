@@ -8,6 +8,7 @@ import {fileIdentity} from '../../../packages/native-motion/src/files.mjs';
 import {brokerClient} from './broker.mjs';
 import {mapIO} from './process.mjs';
 import {monitorResources} from './resources.mjs';
+import {persistQualityFailure} from './quality-failure.mjs';
 
 if (process.getuid() !== 10001) throw Error('CONTROLLER_UID_REQUIRED');
 process.umask(0o007);
@@ -81,7 +82,16 @@ async function execute(task, brokerToken, state) {
     outputs.push({name: 'report.json', ...await broker.write(prefix + 'report.json', Buffer.from(canonical(report)), 'application/json')});
     state.result = {status: 'succeeded', outputs, report};
   } catch (error) {
-    state.result = {status: state.abort.signal.aborted ? 'cancelled' : 'failed', error: {code: safeCode(error.message), ...(error.detail ? {detail: error.detail} : {})}, resourceUsage: resources.stop()};
+    const code=safeCode(error.message);let qaEvidence=null,qaPersistenceError=false;
+    const qa=error.detail?.qualityFailure;
+    if(code==='NATIVE_DYNAMIC_QA_BLOCKED'&&!state.abort.signal.aborted&&qa?.kind==='encoded_quality_failure'){
+      try{
+        qaEvidence=await persistQualityFailure({task,base,evidence:qa,broker});
+      }catch{qaPersistenceError=true;}
+    }
+    state.result = {status: state.abort.signal.aborted ? 'cancelled' : 'failed',
+      error: {code,...(qaEvidence?{qaEvidence}:{}),...(qaPersistenceError?{qaEvidencePersisted:false}:{})},
+      resourceUsage: resources.stop()};
     await launcher('/cancel').catch(() => {});
   } finally {
     resources.stop();

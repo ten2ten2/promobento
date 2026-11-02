@@ -8,7 +8,7 @@
   "properties": {
     "schemaVersion": {"const": "3.0.0"},
     "kind": {"const": "material_selection"},
-    "uses": {"type": "array", "maxItems": 80, "items": {"type": "object", "additionalProperties": false, "required": ["beatId", "role", "selectedResourceId", "alternativeResourceIds", "reason", "locked"], "properties": {
+    "uses": {"type": "array", "maxItems": 144, "items": {"type": "object", "additionalProperties": false, "required": ["beatId", "role", "selectedResourceId", "alternativeResourceIds", "reason", "locked"], "properties": {
       "beatId": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"},
       "role": {"enum": ["a_roll", "b_roll", "product_demo", "caption", "typography", "motion_graphics", "audio"]},
       "selectedResourceId": {"type": "string", "minLength": 1, "maxLength": 120},

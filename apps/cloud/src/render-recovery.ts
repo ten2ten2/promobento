@@ -40,6 +40,16 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
   env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.status='blocked' AND o.status='active' AND o.generation=r.generation)")
    .bind('render-terminal-'+renderId,row.operation_id,'render_terminal',canonical({renderId,operationId:row.operation_id,generation:row.generation,status}),renderId),
  ]);
+ // Keep trustworthy failed-QA artifact identities discoverable from the render
+ // receipt after the task container has been destroyed; never mark them deliverable.
+ if(status==='blocked'&&code==='NATIVE_DYNAMIC_QA_BLOCKED'){
+  const attempts=await env.DB.prepare('SELECT result_json FROM pipeline_attempts WHERE render_id=? AND result_json IS NOT NULL ORDER BY stopped_at DESC LIMIT 4')
+   .bind(renderId).all<{result_json:string}>();
+  const failed=attempts.results.map(item=>parseCanonicalJson(item.result_json) as Json)
+   .find(item=>item.status==='failed'&&item.code===code&&item.qaEvidence?.report?.sha256);
+  if(failed)await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.qaEvidence',json(?)) WHERE id=? AND status='blocked'")
+   .bind(canonical(failed.qaEvidence),renderId).run();
+ }
  await env.DB.prepare("UPDATE pipeline_render_admissions SET status='cancelled' WHERE render_id=? AND status='queued'")
   .bind(renderId).run();
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE render_id=? AND stopped_at IS NULL').bind(renderId).all<{id:string}>();

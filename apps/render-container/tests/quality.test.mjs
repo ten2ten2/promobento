@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseQualitySignals,assessQualitySignals} from '../src/quality.mjs';
 import {motionReviewFrames} from '../../../packages/contracts/src/video-frames.mjs';
+import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {nativeProjectHash,NATIVE_RUNTIME_COMMIT} from '../../../packages/contracts/src/native-project.mjs';
+import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
+import {persistQualityFailure} from '../src/quality-failure.mjs';
 
 test('full-file decoder logs bind black, freeze, silence and measured loudness to time ranges',()=>{
   const video=[
@@ -57,4 +63,34 @@ test('the 4x3 MP4 review samples use 12 exact and evenly spaced delivery frames'
     assert.ok(frames.every((frame,index)=>index===0||frame>frames[index-1]));
   }
   assert.throws(()=>motionReviewFrames(12),/VIDEO_DURATION_INVALID/);
+});
+
+test('a blocked loudness result stores a SHA-bound private diagnostic and never a delivery output',async()=>{
+ const base=mkdtempSync(join(tmpdir(),'promobento-qa-failure-'));
+ try{
+  mkdirSync(join(base,'out'));const filmPath=join(base,'out','film.mp4'),bytes=Buffer.from('final broken-loudness fixture');
+  writeFileSync(filmPath,bytes);
+  const sha256=sha256Bytes(bytes),project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',
+   runtime:{name:'huashu-motion',commit:NATIVE_RUNTIME_COMMIT},composition:{durationSeconds:15,fps:30,width:1920,height:1080},
+   files:[{path:'index.html',key:'operations/example/index.html',sha256:'a'.repeat(64),byteLength:30,mediaType:'text/html'}],resources:[]};
+  const task={taskId:'attempt',renderId:'render',project};
+  const evidence={kind:'encoded_quality_failure',projectHash:await nativeProjectHash(project),
+   composition:project.composition,film:{name:'film.mp4',sha256,byteLength:bytes.length},
+   dynamicQuality:{kind:'encoded_dynamic_qa',source:'film.mp4',status:'blocked',signals:{integratedLufs:-21.78,truePeakDbtp:-20.76},
+    findings:[{kind:'audio_loudness_out_of_range',severity:'block'}]}};
+  const saved=[];
+  const broker={writeFile:async(key,path,identity,type)=>{saved.push({key,path,type});return{key,...identity,mediaType:type};},
+   write:async(key,body,type)=>{saved.push({key,body,type});return{key,sha256:sha256Bytes(body),byteLength:body.length,mediaType:type};}};
+  const result=await persistQualityFailure({base,task,evidence,broker});
+  assert.equal(saved.length,2);
+  assert.equal(result.film.key,'renders/render/attempts/attempt/failed/film.mp4');
+  assert.equal(result.report.key,'renders/render/attempts/attempt/failed/qa.json');
+  assert.deepEqual(result.signals,evidence.dynamicQuality.signals);
+  const stored=JSON.parse(saved[1].body.toString());
+  assert.equal(stored.film.sha256,sha256);
+  assert.equal(stored.dynamicQuality.findings[0].kind,'audio_loudness_out_of_range');
+  await assert.rejects(persistQualityFailure({base,task,evidence:{...evidence,film:{...evidence.film,sha256:'b'.repeat(64)}},broker}),
+   /NATIVE_QA_EVIDENCE_INVALID/);
+  assert.equal(saved.length,2,'no upload is permitted after an identity mismatch');
+ }finally{rmSync(base,{recursive:true,force:true});}
 });

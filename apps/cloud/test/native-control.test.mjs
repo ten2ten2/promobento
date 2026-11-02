@@ -1685,6 +1685,27 @@ test('a failed native render stays blocked until physical cleanup is confirmed',
   assert.equal(parseCanonicalJson(row.result_json).stopPending, false);
 });
 
+test('a terminal dynamic-QA block retains the SHA-bound private failure report in its render receipt',async t=>{
+  const {db,env,op,saved}=await fixture(t);
+  await createNativeRender(env,op,{renderId:'native-render',revisionId:saved.revisionId,
+    mode:'export',rendererRelease:'native-release'});
+  const qaEvidence={film:{key:'renders/native-render/attempts/attempt-one/failed/film.mp4',sha256:'a'.repeat(64),byteLength:123,mediaType:'video/mp4'},
+    report:{key:'renders/native-render/attempts/attempt-one/failed/qa.json',sha256:'b'.repeat(64),byteLength:234,mediaType:'application/json'},
+    signals:{integratedLufs:-22},findings:[{kind:'audio_loudness_out_of_range',severity:'block'}]};
+  db.prepare(`INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at,stopped_at,result_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run('attempt-one','native-render',op.id,op.generation,
+    'native_export','standard-3','failed',Date.now()-100,Date.now(),
+    canonical({status:'failed',code:'NATIVE_DYNAMIC_QA_BLOCKED',qaEvidence}));
+  await recordRenderFailure(env,'native-render','NATIVE_DYNAMIC_QA_BLOCKED');
+  const row=db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get('native-render');
+  assert.equal(row.status,'blocked');
+  const result=parseCanonicalJson(row.result_json);
+  assert.equal(result.code,'NATIVE_DYNAMIC_QA_BLOCKED');
+  assert.deepEqual(result.qaEvidence,qaEvidence);
+  assert.equal(result.stopPending,false);
+  assert.equal(Object.hasOwn(result,'outputs'),false,'diagnostics are never successful output artifacts');
+});
+
 test('a hung physical stop preserves terminal notification and leaves cleanup retryable', async t => {
   const {db, env, op, saved, sent} = await fixture(t);
   await createNativeRender(env, op, {renderId:'native-render',revisionId:saved.revisionId,

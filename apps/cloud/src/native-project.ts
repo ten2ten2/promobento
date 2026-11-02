@@ -31,6 +31,7 @@ export async function loadNativeProject(env: PipelineEnv, op: Operation, revisio
 /** Check every immutable input before allocating paid compute. No source is evaluated in Workers. */
 export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
   assertCloudNativeProject(project);
+  if (project.timingEvidenceRef) await checkedNativeBytes(env, project.timingEvidenceRef, 6 << 20);
   for (const file of project.files) {
     const head = await env.MEDIA.head(file.key);
     if (!head || head.size !== file.byteLength || head.customMetadata?.sha256 !== file.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
@@ -38,7 +39,7 @@ export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
 }
 
 export async function saveNativeProject(env: PipelineEnv, op: Operation, input: {
-  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string;
+  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string; timingEvidenceRef?: Json;
 }): Promise<SavedNativeProject> {
   await operation(env, op.id, op.generation);
   // Internal HTTP callers still supply untrusted JSON. A malformed list must
@@ -49,9 +50,17 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
       || input.resources.some(resource => !resource || typeof resource !== 'object' || Array.isArray(resource)
         || typeof resource.resourceId !== 'string' || !resource.resourceId
         || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256)))
-    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string')
+    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string'
+    || input.timingEvidenceRef !== undefined && (!input.timingEvidenceRef
+      || typeof input.timingEvidenceRef !== 'object' || Array.isArray(input.timingEvidenceRef)
+      || typeof input.timingEvidenceRef.key !== 'string'))
     throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
   const parent = input.baseRevision ? await loadNativeProject(env, op, input.baseRevision) : null;
+  const timingEvidenceRef = input.timingEvidenceRef ?? parent?.project.timingEvidenceRef;
+  if (timingEvidenceRef && (typeof timingEvidenceRef.key !== 'string'
+    || !timingEvidenceRef.key.startsWith('operations/' + op.id + '/')
+    && canonical(timingEvidenceRef) !== canonical(parent?.project.timingEvidenceRef)))
+    throw Error('NATIVE_TIMING_EVIDENCE_SCOPE_INVALID');
   for (const file of input.files) {
     const inherited = parent?.project.files.some((previous: Json) => previous.key === file.key
       && previous.sha256 === file.sha256 && previous.byteLength === file.byteLength);
@@ -76,7 +85,7 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
     composition: input.composition, files: input.files.map(file => ({
       path: file.path, key: file.key, sha256: file.sha256, byteLength: file.byteLength, mediaType: file.mediaType,
     })).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
-    resources: [...resources.values()],
+    resources: [...resources.values()], ...(timingEvidenceRef ? {timingEvidenceRef} : {}),
   };
   await verifyNativeInputs(env, project);
   const revisionId = await nativeProjectHash(project);

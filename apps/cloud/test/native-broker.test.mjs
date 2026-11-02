@@ -19,7 +19,8 @@ function fixture() {
   let enabled = true, rightsValid = true, puts = 0, largestChunk = 0;
   const scope = {token: 'broker-secret', operationId: 'scope-op', generation: 0,
     reads: ['inputs/verified.dat'], resources:[{resourceId:'res_broker',sha256:'a'.repeat(64)}],
-    prefix: 'renders/render-one/attempts/attempt-one/out', attemptId: 'attempt-one'};
+    prefix: 'renders/render-one/attempts/attempt-one/out',
+    failurePrefix: 'renders/render-one/attempts/attempt-one/failed', attemptId: 'attempt-one'};
   const storage = {
     async head(key) {return key === 'rights/broker-evidence' ? {size: 2} : objects.get(key) ?? null;},
     async get(key) {return objects.get(key) ?? null;},
@@ -127,6 +128,18 @@ test('broker fences authorization and requires a verified attempt-scoped prefix'
     method: 'PUT', body: bytes, headers: {authorization: 'Bearer ' + scope.token}}))).status, 403);
   assert.equal((await broker.fetch(new Request('http://broker.internal/w/' + scope.prefix + '/film.mp4', {
     method: 'PUT', body: bytes, headers: {authorization: 'Bearer wrong'}}))).status, 403);
+});
+
+test('blocked QA evidence may write exactly two private objects within its own attempt',async()=>{
+  const {broker,objects,scope}=fixture(),bytes=Buffer.from('blocked QA evidence');
+  const write=key=>broker.fetch(new Request('http://broker.internal/w/'+key,{method:'PUT',duplex:'half',body:bytes,
+    headers:{authorization:'Bearer '+scope.token,'content-length':String(bytes.length),
+      'x-content-sha256':sha256Bytes(bytes),'content-type':'application/json'}}));
+  assert.equal((await write(scope.failurePrefix+'/film.mp4')).status,201);
+  assert.equal((await write(scope.failurePrefix+'/qa.json')).status,201);
+  for(const key of [scope.failurePrefix+'/secret.json',scope.failurePrefix+'/qa.json/extra',
+    'renders/other/attempts/attempt-one/failed/qa.json'])assert.equal((await write(key)).status,403,key);
+  assert.deepEqual([...objects.keys()].sort(),[scope.failurePrefix+'/film.mp4',scope.failurePrefix+'/qa.json'].sort());
 });
 
 test('broker refuses source downloads after rights revocation during an admitted attempt',async()=>{

@@ -3,5 +3,8 @@ export function assertNativeScript(script:any,context:any):any;
 export function assertScriptProjection(files:Array<{path:string;content:string}>,script:any):boolean;
 export function assertMaterialSelection(plan:any,treatment:any,materials:any[]):any;
 export function assertLockedMaterialSelection(selection:any,resources:any[]):any;
+export function projectMaterialSources(project:any,selection?:any,script?:any):any[];
+export function assertMaterialProjection(files:Array<{path:string;content:string}>,selection:any,resources:any[],script?:any):void;
+export function replaceLockedMaterials(selection:any,script:any,replacements:any[],admitted:any[],baseResources:any[]):{selection:any;script:any};
 export function scriptChangeImpact(before:any,after:any,aspects:string[],lockedMaterials:any):any;
 export function applyScriptTextEdits(script:any,edits:any[]):any;

@@ -12,7 +12,7 @@
 
 - `preview` 返回四个默认时刻（首帧、1/3、2/3、末帧）的 PNG，或 1–12 个指定帧。
 - `export` 返回 `film.mp4`、从最终 MP4 解码的四张 `review-frames`、`review-sheet.jpg`、12 帧的 `motion-sheet.jpg`、`rendered-project.json` 和实际使用的项目文件。15/30 秒分别是 450/900 帧、30 fps；原生预览和最终编码审片不可混淆。
-- 输出限定到 `renders/<renderId>/attempts/<taskId>/out/`；R2 key、SHA-256、字节数、媒体类型以及输入清单、输入 HTML、声音刷新后 HTML 和实际渲染清单的身份都记录在回执中。
+- 通过的输出限定到 `renders/<renderId>/attempts/<taskId>/out/`；R2 key、SHA-256、字节数、媒体类型以及输入清单、输入 HTML、声音刷新后 HTML 和实际渲染清单的身份都记录在回执中。若导出因响度等动态 QA 技术信号阻断，可信 controller 会在任务目录清理前将失败的最终影片和 QA 信号／发现分别写入受限的 `failed/film.mp4` 与 `failed/qa.json`，在阻断 render receipt 中保留 SHA 引用，但两者都不是可交付 `outputs`。
 
 素材下载和结果上传以有界文件流及共享 SHA-256 验证，每方向最多两个并行文件；不把整部媒体缓存为 Buffer。容器采样 cgroup 内存高水位/OOM/CPU、控制器 RSS/FD 和任务挂载文件系统用量，缺测填 `null`。**文件系统已用量增量不是 `/jobs` 目录精确大小**，控制器 RSS 也不能代替容器内存峰值；真实云端数据仍待验收。
 
@@ -22,7 +22,7 @@
 
 音频仍归一到约 -14 LUFS、编码 AAC-LC 48 kHz 立体声；短音轨补静音、长音轨截断至视频时长。两条视频处理路径均再次检查画幅、30 fps、450/900 帧、15/30 秒、音轨和 50 MB 上限，并从**最终 MP4** 解码审片图。回执记录 `media.videoEncoding`（`stream_copy`/`transcoded`）、处理时间和复制拒绝原因。流复制的本地功能已有验证，云端 CPU/费用节省尚无实测结论。
 
-导出后独立执行全片视频和音频 FFmpeg 解码，记录黑屏、静止、静音区间及响度/真峰值；响度缺测或超过 -14 LUFS ±0.5 与 -1 dBTP 上限是技术阻断，长黑屏/静止/静音标记为 `review_required`，不猜测导演意图。`motion-sheet.jpg` 均匀取最终视频的十二个不同时间点，辅助发现接缝和节奏问题；回执 `dynamicQuality.ownerNormalSpeedReview` 一律为 `pending`，不冒充真实的连贯观看、听感与人工批准。
+导出后独立执行全片视频和音频 FFmpeg 解码（`-xerror`、`-err_detect explode` 及解码错误日志兜底检查，避免 FFmpeg 返回 0 却跳过损坏 H.264 包），记录黑屏、静止、静音区间及响度/真峰值；响度缺测或超过 -14 LUFS ±0.5 与 -1 dBTP 上限是技术阻断，长黑屏/静止/静音标记为 `review_required`，不猜测导演意图。`motion-sheet.jpg` 均匀取最终视频的十二个不同时间点，辅助发现接缝和节奏问题；回执 `dynamicQuality.ownerNormalSpeedReview` 一律为 `pending`，不冒充真实的连贯观看、听感与人工批准。
 
 ## 文件与沙箱
 

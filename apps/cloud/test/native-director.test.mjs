@@ -1,6 +1,7 @@
 // Offline control-flow evidence. Models and the native container are fixture adapters, not quality/paid-call evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
@@ -57,7 +58,7 @@ const mockModules={
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
-async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false,parallelDelay=false}={}){
+async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false,parallelDelay=false,measuredSpeech=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -70,7 +71,8 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
  const f={
   async bytes(_env,blob){const value=await MEDIA.get(blob.key);assert.ok(value);const bytes=new Uint8Array(await value.arrayBuffer());assert.equal(sha256Bytes(bytes),blob.sha256);return bytes;},
   async save(_env,op,input){
-   const project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',runtime:{name:'huashu-motion',commit:nativeCommit},composition:input.composition,files:input.files,resources:input.resources};
+   const project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',runtime:{name:'huashu-motion',commit:nativeCommit},composition:input.composition,files:input.files,resources:input.resources,
+    ...(input.timingEvidenceRef?{timingEvidenceRef:input.timingEvidenceRef}:{})};
    const revisionId=digest(project),manifest=await putJson('operations/'+op.id+'/native/'+revisionId+'/project.json',project),record={revisionId,manifestKey:manifest.key,project};saved.set(revisionId,record);return record;
   },
   async load(_env,_op,id){assert.ok(saved.has(id),'revision must already exist');return saved.get(id);},
@@ -105,11 +107,20 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
       visualSystem:'Product UI.',limitations:'Between-sample motion and all audio were not examined.'},
     moments:[{id:'source-hook',startFrame:0,endFrame:payload.sourceFrameCount,evidenceFrames:payload.sampledFrames,
       visible:'The sampled product appears.',interpretation:null,visibleText:[]}],relationships:[]};
-   else if(stage==='script')value={schemaVersion:'3.0.0',kind:'native_script',videoLanguage:'en',durationFrames:450,
+   else if(stage==='script'){
+    value={schemaVersion:'3.0.0',kind:'native_script',videoLanguage:'en',durationFrames:450,
     segments:[{id:'title',role:'title',displayText:'PROMO_PROMISE',speechText:null,factIds:['fact_product'],startFrame:0,endFrame:300,timing:{kind:'authored'}},
       {id:'cta',role:'cta',displayText:'Try PromoBento',speechText:null,factIds:[],startFrame:300,endFrame:450,timing:{kind:'authored'}}],
     moments:[{id:'reveal',kind:'reveal',startFrame:0,endFrame:300,segmentIds:['title'],resourceIds:['res_product'],timing:{kind:'authored'}},
       {id:'action',kind:'cta',startFrame:300,endFrame:450,segmentIds:['cta'],resourceIds:[],timing:{kind:'authored'}}]};
+   if(measuredSpeech){
+    const evidence=payload.timingEvidence[0];
+    value.segments.push({id:'voice',role:'narration',displayText:'Voice over',speechText:'Hello world',factIds:[],startFrame:30,endFrame:60,
+      timing:{kind:'measured',sourceSha256:evidence.sourceSha256,firstWord:0,lastWord:1}});
+    value.moments.push({id:'spoken',kind:'demonstration',startFrame:30,endFrame:60,segmentIds:['voice'],
+      resourceIds:['res_voice'],timing:{kind:'measured',sourceSha256:evidence.sourceSha256,firstWord:0,lastWord:1}});
+   }
+   }
    else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
     beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:[],reason:'This licensed source is needed by the beat.',locked:true})))};
    else{
@@ -119,12 +130,15 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      const shape=payload.composition,source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1><img data-om-id="product" src="${payload.materials[0].path}"><i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};</script></body></html>`;
      input={files:[{path:'index.html',content:source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>')}],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
     }else if(tool==='apply_project_patch'){
-     const target=payload.comments?'PROMO_ORIGINAL':payload.review?'COMPLETE_STAGE':'HARD_STAGE';
-     input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?'PROMO_REVISED':payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
+     const previouslyRevised=payload.sourceFiles.find(file=>file.path==='index.html')?.content.includes('PROMO_REVISED');
+     const target=payload.comments?(previouslyRevised?'PROMO_REVISED':'PROMO_ORIGINAL'):payload.review?'COMPLETE_STAGE':'HARD_STAGE';
+     input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?(previouslyRevised?'PROMO_REVISED_AGAIN':'PROMO_REVISED'):payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
      const replacement=payload.materials.find(material=>material.resourceId==='res_product_new');
      if(replacement){const oldPath=payload.sourceFiles.find(file=>file.path==='index.html').content.match(/src="(assets\/[^\"]+\.png)"/)[1];input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:replacement.path});}
      const revisedCopy=payload.script?.segments?.find(segment=>segment.id==='title')?.displayText;
      if(revisedCopy&&revisedCopy!=='PROMO_PROMISE')input.edits.push({command:'replace',path:'index.html',oldText:'PROMO_PROMISE',newText:revisedCopy});
+     const revisedCta=payload.script?.segments?.find(segment=>segment.id==='cta')?.displayText;
+     if(revisedCta&&revisedCta!=='Try PromoBento')input.edits.push({command:'replace',path:'index.html',oldText:'Try PromoBento',newText:revisedCta});
     }else if(tool==='submit_review')input={verdict:reviewAlwaysRevise?'revise':'pass',issues:reviewAlwaysRevise?[{detail:'Observed title overlap.',frames:[90]}]:[],note:'The supplied fixture frames received this mocked review.'};
     else throw Error('Unexpected fixture tool '+tool);
     value={toolCalls:[{id:'fixture',name:tool,arguments:canonical(input),input}]};
@@ -133,10 +147,10 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   }
  };
  globalThis.__nativeDirectorFixture=f;t.after(()=>delete globalThis.__nativeDirectorFixture);
- const create=async(id,extra={},readmittedRights=[])=>{
+ const create=async(id,extra={},readmittedRights=[],maxMicros=10000000)=>{
   const context={audience:'software',brief:'Show this product.',videoLanguage:'en',durationSeconds:15,fps:30,aspects:['landscape','portrait'],rendererRelease:'renderer-native',facts:[{id:'fact_product',text:'The product does the described work.'}],confirmedFactIds:['fact_product'],resources:[asset],...extra};
   const request=await putJson('evals/fixture/'+id+'.json',context);
-  db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
+  db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,maxMicros,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
   const materials=[...(Array.isArray(context.resources)?context.resources:[]),...(Array.isArray(context.audioSources)?context.audioSources:[]),...readmittedRights];
   for(const resource of materials.filter(value=>value&&typeof value.resourceId==='string'&&typeof value.sha256==='string'))
@@ -193,6 +207,21 @@ test('duplicate material entries keep original positions but never start two ide
  const directions=f.calls.find(call=>call.stage==='directions');
  assert.equal(directions.payload.insights.length,2,'the downstream stage still receives an ordered insight for each material');
  assert.deepEqual(directions.payload.insights[0],directions.payload.insights[1]);
+});
+
+test('the cold-review upper bound admits four aspects and rejects an impossible budget before model work',async t=>{
+  const f=await fixture(t);
+  // The context keys are the fixed platform presets; the cold-review cost is
+  // conservatively based on eight encoded images, not a four-image assumption.
+  const configs=JSON.parse(readFileSync('config/platform-presets.json','utf8'));
+  const targets=Object.keys(configs.aspectLayouts);
+  assert.equal(targets.length,4);
+  const candidate=await f.create('four-aspects',{aspects:targets});
+  assert.equal(candidate.kind,'native_candidate');
+  const prior=f.calls.length;
+  await assert.rejects(f.create('four-aspects-low-budget',{aspects:targets},[],100000),
+    /MODEL_COLD_REVIEW_BUDGET_INSUFFICIENT/);
+  assert.equal(f.calls.length,prior,'no paid stage starts after a failed cold-review preflight');
 });
 
 test('source-frame-bound reference analysis informs the film but never grants use of reference footage',async t=>{
@@ -302,14 +331,67 @@ test('native creation renders directions, waits for choice, authors independent 
  const original=candidate.projects[0],before=f.saved.get(original.revisionId),source=before.project.files.find(file=>file.path==='index.html');
  const beforeText=new TextDecoder().decode(await f.bytes(f.env,source));assert.match(beforeText,/COMPLETE_STAGE/);assert.doesNotMatch(beforeText,/PB\.scene/);
  const replacement={...await f.put('evals/fixture/product-new.png',Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQEBAKU1mS0AAAAASUVORK5CYII=','base64')),'image/png'),resourceId:'res_product_new',kind:'image',width:1,height:1};
- const patch=await f.create('patch-fixture',{aspects:['landscape'],resources:[f.asset,replacement],baseRevision:original.revisionId,comments:[{text:'Change the headline and use the new screenshot.',frame:90,elementId:'title'}]});
+ const patch=await f.create('patch-fixture',{aspects:['landscape'],resources:[f.asset,replacement],baseRevision:original.revisionId,
+  materialReplacements:[{fromResourceId:'res_product',toResourceId:'res_product_new'}],
+  comments:[{text:'Change the headline and use the new screenshot.',frame:90,elementId:'title'}]});
  assert.notEqual(patch.projects[0].revisionId,original.revisionId);assert.equal(f.calls.filter(call=>call.operationId==='patch-fixture'&&call.stage==='directions').length,0);
  const changed=f.saved.get(patch.projects[0].revisionId).project.files.find(file=>file.path==='index.html');assert.match(new TextDecoder().decode(await f.bytes(f.env,changed)),/PROMO_REVISED/);
  const revised=f.saved.get(patch.projects[0].revisionId).project;
  assert.ok(revised.files.some(file=>file.sha256===replacement.sha256),'newly admitted media is included in the patched project');
- assert.ok(revised.files.some(file=>file.sha256===f.asset.sha256),'unchanged source media remains available');
+ assert.ok(!revised.files.some(file=>file.sha256===f.asset.sha256),'replaced source bytes cannot be loaded dynamically by the patched project');
+ assert.ok(revised.resources.some(resource=>resource.resourceId===f.asset.resourceId),'historical rights obligations remain auditable');
  assert.ok(revised.resources.some(resource=>resource.resourceId===replacement.resourceId&&resource.sha256===replacement.sha256));
+ const locked=parseCanonicalJson(await f.bytes(f.env,revised.files.find(file=>file.path==='material-selection.json')));
+ assert.equal(locked.uses[0].resourceId,replacement.resourceId);
+ assert.equal(locked.uses[0].sha256,replacement.sha256);
+ assert.notEqual(locked.selectionHash,parseCanonicalJson(await f.bytes(f.env,before.project.files.find(file=>file.path==='material-selection.json'))).selectionHash);
+ assert.ok(patch.scriptImpact.affectedAssetLocks.includes('res_product'));
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,revised.files.find(file=>file.path==='script.json'))).moments[0].resourceIds[0],replacement.resourceId);
  assert.equal(new TextDecoder().decode(await f.bytes(f.env,source)),beforeText,'the parent revision remains unchanged');
+ const followup=await f.create('replacement-followup',{aspects:['landscape'],resources:[],
+  baseRevision:patch.projects[0].revisionId,comments:[{text:'Adjust only the headline layout.',frame:90}]},[f.asset,replacement]);
+ const final=f.saved.get(followup.projects[0].revisionId).project;
+ assert.ok(final.files.some(file=>file.sha256===replacement.sha256),'later edits keep the current material');
+ assert.ok(!final.files.some(file=>file.sha256===f.asset.sha256),'retired material cannot reappear in a later patch');
+});
+
+test('a patch cannot silently substitute a source without an explicit replacement lock',async t=>{
+ const f=await fixture(t),parent=await f.create('locked-parent',{aspects:['landscape']});
+ const replacement={...await f.put('evals/fixture/new.png',Buffer.from('new image'),'image/png'),resourceId:'res_product_new',kind:'image',width:1,height:1};
+ await assert.rejects(f.create('unlocked-child',{aspects:['landscape'],resources:[replacement],
+  baseRevision:parent.projects[0].revisionId,comments:[{text:'Replace the screenshot.',frame:60}]},[f.asset]),
+ /MATERIAL_LOCK_PROJECT_MISMATCH/);
+});
+
+test('patches validate the base CTA with its saved Brief, then the edited Script with the new CTA',async t=>{
+ const f=await fixture(t),parent=await f.create('cta-parent',{aspects:['landscape'],cta:'Try PromoBento'});
+ const changed=await f.create('cta-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  cta:'Start your free trial',comments:[],scriptEdits:[{segmentId:'cta',field:'displayText',value:'Start your free trial'}]},[f.asset]);
+ assert.equal(changed.kind,'native_candidate');
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ const updated=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.equal(updated.segments.find(item=>item.id==='cta').displayText,'Start your free trial');
+});
+
+test('measured Script and its authorized media survive a geometry-only child revision',async t=>{
+ const f=await fixture(t,{measuredSpeech:true});
+ const voice={...await f.put('evals/fixture/voice.wav',Buffer.from('voice fixture'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('speech-parent',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const original=f.saved.get(parent.projects[0].revisionId).project;
+ assert.ok(original.timingEvidenceRef);
+ assert.ok(original.files.some(item=>item.sha256===voice.sha256),'the original Script-referenced voice source remains playable');
+ const changed=await f.create('speech-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  comments:[{text:'Move the headline slightly.',frame:30}]},[f.asset,voice]);
+ assert.equal(changed.kind,'native_candidate');
+ const next=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(next.files.some(item=>item.sha256===voice.sha256),'a geometry patch must retain referenced voice bytes');
+ const kept=parseCanonicalJson(await f.bytes(f.env,next.files.find(item=>item.path==='script.json')));
+ assert.equal(kept.segments.find(item=>item.id==='voice').timing.kind,'measured');
+ assert.equal(next.timingEvidenceRef.sha256,original.timingEvidenceRef.sha256);
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,next.timingEvidenceRef)).length,1);
 });
 
 test('candidate submission includes rights inherited from an earlier native revision',async t=>{

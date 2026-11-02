@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {digest} from '@promobento/contracts/digest';
 import {validate as validScript} from '@promobento/contracts/validators/native-script';
 import {validate as validSelection} from '@promobento/contracts/validators/material-selection';
 import {validate as validReference} from '@promobento/contracts/validators/reference-analysis';
 import {assertReferenceAnalysis, assertNativeScript, assertScriptProjection, assertMaterialSelection,
-  assertLockedMaterialSelection, scriptChangeImpact, applyScriptTextEdits} from './production-documents.mjs';
+  assertLockedMaterialSelection, scriptChangeImpact, applyScriptTextEdits,replaceLockedMaterials,
+  projectMaterialSources,assertMaterialProjection} from './production-documents.mjs';
 
 const hash = char => char.repeat(64);
 const materials = [{resourceId:'product', sha256:hash('a')}, {resourceId:'music', sha256:hash('b')}];
@@ -34,6 +36,11 @@ test('the authoritative Script validates copy, facts, target frames, and editabl
   const escaped=structuredClone(doc);
   escaped.segments[0].displayText='One & only <promise>';
   assert.equal(assertScriptProjection([{path:'index.html',content:'<h1>One &amp; only &lt;promise&gt;</h1><p>Try PromoBento today</p>'}],escaped),true);
+  escaped.segments[0].displayText='Try "Pro" \\ today';
+  assert.equal(assertScriptProjection([{path:'index.html',content:'<script src="index.js"></script>'},
+    {path:'index.js',content:'title.textContent = '+JSON.stringify(escaped.segments[0].displayText)+'; cta.textContent = "Try PromoBento today";'}],escaped),true);
+  assert.equal(assertScriptProjection([{path:'index.html',content:'<script src="index.js"></script>'},
+    {path:'index.js',content:'title.textContent = "Try \\u0022Pro\\u0022 \\\\ today"; cta.textContent = "Try PromoBento today";'}],escaped),true);
   assert.throws(()=>assertNativeScript({...doc,durationFrames:900},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],doc.segments[0]]},context),/SCRIPT_SCOPE_INVALID/);
   assert.throws(()=>assertNativeScript({...doc,segments:[doc.segments[0],{...doc.segments[1],displayText:'Different action'}]},context),/SCRIPT_CTA_MISSING/);
@@ -56,6 +63,16 @@ test('measured word clocks require same-source evidence, and edits invalidate ti
   assert.equal(before.segments[0].displayText,'One clear promise');
   assert.throws(()=>applyScriptTextEdits(before,[{segmentId:'cta-1',field:'speechText',value:'Nope'}]),/SCRIPT_EDITS_INVALID/);
   assert.throws(()=>applyScriptTextEdits(before,[{segmentId:'cta-1',field:'displayText',value:'Try PromoBento today'}]),/SCRIPT_EDITS_NO_CHANGE/);
+  const measured=structuredClone(before);
+  measured.segments.push({id:'narration-1',role:'narration',displayText:'Voice over',speechText:'Product costs nine dollars',
+    factIds:[],startFrame:30,endFrame:90,timing:{kind:'measured',sourceSha256:hash('c'),firstWord:0,lastWord:3}});
+  const spokenEvidence=[{sourceSha256:hash('c'),words:[{text:'Product',start:1,end:1.25},{text:'costs',start:1.25,end:1.5},
+    {text:'nine',start:1.5,end:2},{text:'dollars',start:2,end:3}]}];
+  assert.equal(assertNativeScript(measured,{...context,timingEvidence:spokenEvidence}),measured);
+  const unrelated=structuredClone(measured);unrelated.segments.at(-1).speechText='Goodbye forever';
+  assert.throws(()=>assertNativeScript(unrelated,{...context,timingEvidence:spokenEvidence}),/SCRIPT_ALIGNMENT_INVALID/);
+  assert.throws(()=>applyScriptTextEdits(measured,[{segmentId:'narration-1',field:'speechText',value:'Product costs nine dollars'}]),/SCRIPT_EDITS_NO_CHANGE/);
+  assert.equal(measured.segments.at(-1).timing.kind,'measured','a no-op must not change the original measurement');
   const locked=assertMaterialSelection(selection(),treatment,materials);
   const impact=scriptChangeImpact(before,changed,['landscape','portrait'],locked);
   assert.deepEqual(impact.segmentIds,['title-1']);
@@ -76,6 +93,61 @@ test('measured word clocks require same-source evidence, and edits invalidate ti
     assert.equal(impact.qualityReportsReusable,false);
     assert.deepEqual(impact.affectedAspects,['landscape']);
   }
+});
+
+test('selection covers all 144 legal Treatment uses and preserves verified video-source identity',()=>{
+  const sources=Array.from({length:12},(_,index)=>({resourceId:'asset-'+index,sha256:hash('a')}));
+  const dense={beats:Array.from({length:12},(_,index)=>({id:'beat-'+index,assetIds:sources.map(item=>item.resourceId)}))};
+  const uses=dense.beats.flatMap(beat=>beat.assetIds.map(id=>({beatId:beat.id,role:'b_roll',selectedResourceId:id,
+    alternativeResourceIds:[],reason:'Licensed',locked:true})));
+  assert.equal(uses.length,144);assert.equal(validSelection({schemaVersion:'3.0.0',kind:'material_selection',uses}),true);
+  assert.equal(assertMaterialSelection({kind:'material_selection',uses},dense,sources).uses.length,144);
+  const manifest=hash('b'),original=hash('c'),path='assets/'+original.slice(0,24)+'.mp4';
+  const resource={resourceId:'video',sha256:manifest,sourceSha256:original,sourcePath:path,kind:'video',durationSeconds:15};
+  const project={resources:[resource],files:[{path,sha256:original}]};
+  assert.deepEqual(projectMaterialSources(project),[{resourceId:'video',sha256:original,path,kind:'video',durationSeconds:15}]);
+  const plan={kind:'locked_materials',schemaVersion:'3.0.0',uses:[{beatId:'beat-1',resourceId:'video',sha256:original,
+    role:'b_roll',alternatives:[],reason:'Licensed',locked:true}]};
+  plan.selectionHash=digest(plan.uses);
+  assert.equal(assertLockedMaterialSelection(plan,project.resources),plan);
+  assert.throws(()=>projectMaterialSources({resources:[resource],files:[{path,sha256:manifest}]}),/MATERIAL_SOURCE_IDENTITY_INVALID/);
+});
+
+test('explicit source replacement updates Script and lock hashes and rejects mismatched author code',()=>{
+  const before=script();const old=materials[0],next={resourceId:'new-product',sha256:hash('d')};
+  const oldPath='assets/'+old.sha256.slice(0,24)+'.png',newPath='assets/'+next.sha256.slice(0,24)+'.png';
+  const prior=assertMaterialSelection(selection(),treatment,materials);
+  const updated=replaceLockedMaterials(prior,before,[{fromResourceId:'product',toResourceId:'new-product'}],[next],materials);
+  assert.equal(updated.selection.uses[0].resourceId,'new-product');
+  assert.equal(updated.selection.uses[0].sha256,next.sha256);
+  assert.notEqual(updated.selection.selectionHash,prior.selectionHash);
+  assert.deepEqual(updated.script.moments[0].resourceIds,['new-product']);
+  const rights=[{...old,sourcePath:oldPath,sourceSha256:old.sha256},{...next,sourcePath:newPath,sourceSha256:next.sha256},
+    {...materials[1],sourcePath:'assets/'+materials[1].sha256.slice(0,24)+'.wav',sourceSha256:materials[1].sha256}];
+  assert.doesNotThrow(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${newPath}">`}],updated.selection,rights));
+  assert.throws(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${oldPath}">`}],updated.selection,rights),/MATERIAL_LOCK_PROJECT_MISMATCH/);
+  const voice={resourceId:'voice',sourceSha256:hash('f'),sha256:hash('f'),kind:'audio',sourcePath:'assets/'+hash('f').slice(0,24)+'.wav'};
+  const voiced={moments:[{resourceIds:['voice']}]};
+  assert.doesNotThrow(()=>assertMaterialProjection([{path:'index.html',content:`<audio src="${voice.sourcePath}">`}],
+    updated.selection,[...rights,voice],voiced),'Script-referenced licensed voice need not be a visual Treatment use');
+  assert.throws(()=>assertMaterialProjection([{path:'index.html',content:`<audio src="${voice.sourcePath}">`}],
+    updated.selection,[...rights,voice],{moments:[{resourceIds:[]}]}),/MATERIAL_LOCK_PROJECT_MISMATCH/);
+  assert.throws(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${oldPath}">`}],
+    updated.selection,[...rights,voice],voiced),/MATERIAL_LOCK_PROJECT_MISMATCH/,'Script audio cannot authorize a substituted image');
+  const retired={resources:rights,files:[{path:newPath,sha256:next.sha256},
+    {path:rights[2].sourcePath,sha256:materials[1].sha256}]};
+  assert.deepEqual(projectMaterialSources(retired,updated.selection,updated.script).map(item=>item.resourceId),
+    ['new-product','music'],'retained old rights need no longer retain discarded source bytes');
+  assert.throws(()=>projectMaterialSources({...retired,files:[]},updated.selection,updated.script),
+    /MATERIAL_SOURCE_IDENTITY_INVALID/,'a missing currently selected source cannot be silently retired');
+  assert.throws(()=>replaceLockedMaterials(prior,before,[{fromResourceId:'missing',toResourceId:'new-product'}],[next],materials),/MATERIAL_REPLACEMENT_INVALID/);
+  assert.throws(()=>replaceLockedMaterials(prior,before,[{fromResourceId:'music',toResourceId:'product'}],materials,materials),
+    /MATERIAL_REPLACEMENT_INVALID/,'two locked uses of one beat cannot collapse into one asset');
+  assert.throws(()=>replaceLockedMaterials(prior,before,[
+    {fromResourceId:'product',toResourceId:'new-product'},
+    {fromResourceId:'new-product',toResourceId:'other-product'}
+  ],[next,{resourceId:'other-product',sha256:hash('e')}],materials),
+  /MATERIAL_REPLACEMENT_INVALID/,'replacements must not cascade through one another');
 });
 
 test('each Treatment use locks source SHA and alternatives without accepting substitutions',()=>{

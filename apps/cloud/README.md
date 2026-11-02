@@ -8,9 +8,9 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 
 - [NativeProject](../../packages/contracts/README.md)把原生文件的 key、SHA-256、大小、媒体类型与固定 runtime 绑定；先验真实 R2 字节，再保存不可变 revision。修改需显式 `baseRevision`，父版本必须属于同一 workspace/project；多画幅各有独立版本，不使用会覆盖其他画幅的全局 head。
 - `createNativeRender` 在同一 D1 事务记录渲染及 outbox。预览默认四张原生 PNG，也可指定 1–12 个互异合法时刻（`0 ≤ t ≤ durationSeconds - 1/30`）；整片输出 15/30 秒 H.264/AAC MP4。原生 CLI 可能刷新 vendor/音频和 HTML：报告同时保留输入清单、输入源码及实际渲染工程的身份。
-- 导演依次进行素材观察、可选的参考片证据分析、三方向原生预览、选择、Treatment、**权威 Script 与语义 Moments、素材候选锁定**、最难镜头、各画幅制作/改稿、成片与独立冷审、候选提交。Script 与锁定表由 Worker 验证后作为只读生产文件保留；改稿沿用未变更素材的 SHA 锁，显式 Script 文本编辑保留稳定 ID 并使既有质量报告失效。独立素材与方向任务单操作最多两路并行（`agent-policy.director.stageConcurrency`），参考片观察最多一路；稳定的 Workflow step、callId 和 revision 保持幂等。一个并行任务失败，已派出的付费调用和渲染仍须收回回执，但不得追加新纠错或候选。
+- 导演依次进行素材观察、可选的参考片证据分析、三方向原生预览、选择、Treatment、**权威 Script 与语义 Moments、素材候选锁定**、最难镜头、各画幅制作/改稿、成片与独立冷审、候选提交。Script 与锁定表由 Worker 验证后作为只读生产文件保留；改稿沿用未变更素材的原始 SHA 锁，视频帧包 Manifest 的授权 SHA 与原始视频文件 SHA 分别记录。实测逐词对齐证据以 `timingEvidenceRef` 的 R2 内容身份绑定到不可变 NativeProject，后续几何改稿继承该证据；Script 实测旁白/对白还须与匹配词区间的文本一致。显式 Script 文本编辑保留稳定 ID，对实际修改转为 authored 时钟并使既有质量报告失效。独立素材与方向任务单操作最多两路并行（`agent-policy.director.stageConcurrency`），参考片观察最多一路；稳定的 Workflow step、callId 和 revision 保持幂等。一个并行任务失败，已派出的付费调用和渲染仍须收回回执，但不得追加新纠错或候选。
 - 同一素材/预览字节只做一次模型观察；来源、授权及父 revision 的素材在读取、渲染和最终候选提交时重新检查。导演方向预览也检查独立传入音频的授权。
-- 参考视频在请求的 `resources` 中使用既有 `webp-pack-v1` 帧包证据，并在 `references` 提供 `{resourceId,purpose,notes}`（最多三条）。源视频与帧包、帧时间、源 SHA 和可见画面逐项校验；帧间变化与声音不宣称已观察。参考片不会自动进入成片素材清单；如需实际使用该视频，需作为独立已授权制作素材提交。`scriptEdits` 可在基于版本的改稿中单独提交，字段为 `{segmentId,field,value}`；画面文本仍必须实际存在于可编辑原生源码。
+- 参考视频在请求的 `resources` 中使用既有 `webp-pack-v1` 帧包证据，并在 `references` 提供 `{resourceId,purpose,notes}`（最多三条）。源视频与帧包、帧时间、源 SHA 和可见画面逐项校验；帧间变化与声音不宣称已观察。参考片不会自动进入成片素材清单；如需实际使用该视频，需作为独立已授权制作素材提交。`scriptEdits` 可在基于版本的改稿中单独提交，字段为 `{segmentId,field,value}`；**素材替换**必须另行声明 `materialReplacements:[{fromResourceId,toResourceId}]` 并提交对应授权素材。锁定表、Script Moment 引用和实际原生素材路径必须一致；未选候选不代表可擅自替换。基础 Script 的 CTA/事实先对基础 Brief 验证，改稿后的 Script 再对新 Brief 验证。独立冷审的两张成片图／画幅费用在昂贵步骤之前预算预检。
 
 ## 准入、取消与恢复
 
@@ -22,8 +22,8 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 
 ## 隔离、结果与持久数据
 
-- 容器可信 controller 持有任务专用 Broker token；原生 Node/Chromium 使用不同 UID、无业务密钥、无公网。Broker 只读清单列出的 R2 对象，只写 `renders/<renderId>/attempts/<attemptId>/out/`；执行前、每次素材读和最终 D1 提交均核查授权撤销。
-- 入口 `PUT objects/evals/...` 要求准确 `Content-Length` 与 SHA-256；按流校验、用 `FixedLengthStream` 写 R2，核对对象字节身份。结果须具备完整 R2 文件、原生工程 hash、实际编码及错误检查；导出验证 30 fps、15/30 秒、450/900 帧、H.264/AAC 和最终 MP4 的解码审片帧、12 帧时间线拼图与全片 FFmpeg 技术检测。黑屏、冻结、长静音为需要人工复核的信号；响度缺测或越限直接阻断，负责人正常速度视听始终为 `pending`。
+- 容器可信 controller 持有任务专用 Broker token；原生 Node/Chromium 使用不同 UID、无业务密钥、无公网。Broker 只读清单列出的 R2 对象，正常交付只写 `renders/<renderId>/attempts/<attemptId>/out/`；另仅允许同 attempt 的 `failed/film.mp4` 和 `failed/qa.json` 私有技术阻断诊断写入，绝不放入通过结果的 `outputs`。执行前、每次素材读和最终 D1 提交均核查授权撤销。
+- 入口 `PUT objects/evals/...` 要求准确 `Content-Length` 与 SHA-256；按流校验、用 `FixedLengthStream` 写 R2，核对对象字节身份。结果须具备完整 R2 文件、原生工程 hash、实际编码及错误检查；导出验证 30 fps、15/30 秒、450/900 帧、H.264/AAC 和最终 MP4 的解码审片帧、12 帧时间线拼图与全片 FFmpeg 技术检测。FFmpeg 严格解码并检查即使返回零退出码仍出现的 H.264 错误日志；黑屏、冻结、长静音为需要人工复核的信号；响度缺测或越限直接阻断并留存 SHA 绑定的私有失败影片与 QA 报告，负责人正常速度视听始终为 `pending`。
 - 内部 JSON 响应禁止缓存；错误输入为 422、身份冲突为 409、暂时无法确认的远端控制为 503、非业务异常为 500，不暴露原始运行时信息。SSE 进度可在终态后重连，迟到旧代际事件不能覆盖 D1 终态。
 - 迁移 `0004`–`0007` 分别管理原生 revision、独立准入、Workflow 停机检查点及经查询计划验证的恢复索引。历史 D1/R2、真实素材、权利、费用和未知用量原样保留；旧执行协议不在新引擎重放。现有 `ShardDO` 绑定承载完整原生任务，更名需单独迁移，不能按名字删除。
 

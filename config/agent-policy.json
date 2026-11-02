@@ -237,7 +237,7 @@
       },
       "coldReview": {
         "maxCalls": 2,
-        "maxMicros": 50000,
+        "maxMicros": 200000,
         "effort": "none"
       },
       "treatment": {

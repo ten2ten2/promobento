@@ -35,11 +35,14 @@ function privateJson(value: unknown, init: ResponseInit = {}) {
 
 /** Internal artifact reads are restricted to native results and the owning operation. */
 async function artifact(env: PipelineEnv, key: string) {
-  let owner: Json | null = null, resources: Json[] = [];
+  let owner: Json | null = null, resources: Json[] = [], blockedQa = false;
   if (key.startsWith('renders/')) {
-    const row = await env.DB.prepare('SELECT * FROM pipeline_renders WHERE id=? AND status=\'passed\'').bind(key.split('/')[1]).first<Json>();
+    const row = await env.DB.prepare("SELECT * FROM pipeline_renders WHERE id=? AND status IN ('passed','blocked')").bind(key.split('/')[1]).first<Json>();
     const result = row?.result_json ? parseCanonicalJson(row.result_json) as Json : null;
-    if (!result?.outputs?.some((output: Json) => output.key === key)) return new Response(null, {status: 404});
+    blockedQa = row?.status === 'blocked' && key.includes('/failed/')
+      && [result?.qaEvidence?.film?.key,result?.qaEvidence?.report?.key].includes(key);
+    if (!blockedQa && !(row?.status === 'passed' && result?.outputs?.some((output: Json) => output.key === key)))
+      return new Response(null, {status: 404});
     owner = await env.DB.prepare('SELECT * FROM pipeline_operations WHERE id=?').bind(row!.operation_id).first<Json>();
     if (owner?.generation !== row!.generation) return new Response(null, {status: 404});
     const input = await getJson(env, row!.job_key);
@@ -57,11 +60,12 @@ async function artifact(env: PipelineEnv, key: string) {
     // list; revoking it must fence artifact reads just like rendered films.
     resources = [...(request.resources ?? []), ...(request.audioSources ?? [])];
   }
-  if (owner?.status === 'failed') {
+  if (owner?.status === 'failed' && !blockedQa) {
     const draft = await getReviewDraft(env, owner.id);
     const outputs = (draft?.renders ?? []).flatMap((entry: Json) => entry.result?.outputs ?? []);
     if (!outputs.some((output: Json) => output.key === key)) return new Response(null, {status: 404});
-  } else if (!owner || !['active', 'awaiting_user', 'succeeded'].includes(owner.status)) return new Response(null, {status: 404});
+  } else if (!owner || !['active', 'awaiting_user', 'succeeded',...(blockedQa?['failed']:[])].includes(owner.status))
+    return new Response(null, {status: 404});
   await rights(env, owner as Operation, resources);
   const object = await env.MEDIA.get(key);
   if (!object) return new Response(null, {status: 404});
@@ -236,7 +240,7 @@ export default {
       // Do not expose raw exception messages to the future Studio API.
       // Match codes from the pipeline domain, not arbitrary uppercase errors
       // returned by D1, R2 or another runtime component.
-      const known = error instanceof Error && /^(?:ASSET|BODY|CANDIDATE|CAPACITY|COMPUTE|CONTROL|COST|DIRECTION|DIRECTOR|EXECUTION|IDEMPOTENCY|IMMUTABLE|LEASE|LEGACY|MODEL|NATIVE|OBJECT|OPERATION|OUTBOX|RELEASE|RENDER|REVIEW|RIGHTS|SOURCE|TASK|WORKFLOW)_[A-Z0-9_]+$/.test(error.message);
+      const known = error instanceof Error && /^(?:ASSET|BODY|CANDIDATE|CAPACITY|COMPUTE|CONTROL|COST|DIRECTION|DIRECTOR|EXECUTION|IDEMPOTENCY|IMMUTABLE|LEASE|LEGACY|MATERIAL|MEDIA|MODEL|NATIVE|OBJECT|OPERATION|OUTBOX|RELEASE|RENDER|REVIEW|RIGHTS|SCRIPT|SOURCE|TASK|WORKFLOW)_[A-Z0-9_]+$/.test(error.message);
       const code = known ? (error as Error).message : 'PIPELINE_INTERNAL_ERROR';
       const status = !known ? 500 : code.includes('CONFLICT') ? 409
         : /(?:_TIMEOUT|_UNCONFIRMED|_UNAVAILABLE)$/.test(code) ? 503 : 422;

@@ -76,6 +76,8 @@ test('native project HTTP rejects malformed file/resource lists at the input bou
   {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12},
   {files:[file,{...file,path:{toString:null},key:'evals/native/second.js'}]},
   {files:[{...file,path:['index.html']}]},
+  {files:[],timingEvidenceRef:{key:{toString:null}}},
+  {files:[],timingEvidenceRef:['operations/input-shape-operation/timing.json']},
   {files:[file],resources:[{resourceId:{toString:null},sha256:'a'.repeat(64)}]},
   {files:[file],resources:[{resourceId:'res_invalid',sha256:{toString:null}}]}]){
   const response=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
@@ -187,6 +189,28 @@ test('direction-preview artifact reads honor separately supplied audio rights an
  const blocked=await request();
  assert.equal(blocked.status,422);
  assert.deepEqual(await blocked.json(),{code:'ASSET_RIGHTS_PENDING'});
+});
+
+test('only an owning blocked render may read its exact private QA film and report',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const {MEDIA}=memoryMedia(),id='blocked-qa-op',renderId='blocked-qa-render';
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','failed','request',100000,Date.now(),Date.now(),null);
+  const prefix=`renders/${renderId}/attempts/qa-attempt/failed/`;
+  const film=prefix+'film.mp4',report=prefix+'qa.json',other=prefix+'private.json';
+  await MEDIA.put('renders/'+renderId+'/input.json',canonical({kind:'native_render_request',project:{resources:[]}}));
+  for(const key of [film,report,other])await MEDIA.put(key,Buffer.from('fixture'));
+  db.prepare(`INSERT INTO pipeline_renders (id,operation_id,generation,request_hash,job_key,status,created_at,finished_at,result_json)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run(renderId,id,0,'request','renders/'+renderId+'/input.json','blocked',Date.now(),Date.now(),
+    canonical({status:'blocked',code:'NATIVE_DYNAMIC_QA_BLOCKED',qaEvidence:{film:{key:film},report:{key:report}}}));
+  const env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+  const get=key=>worker.fetch(new Request('https://worker.example/internal/s1/artifacts/'+key,
+    {headers:{authorization:'Bearer fixture-only'}}),env,{});
+  assert.equal((await get(film)).status,200);
+  assert.equal((await get(report)).status,200);
+  assert.equal((await get(other)).status,404);
+  db.prepare('UPDATE pipeline_renders SET status=? WHERE id=?').run('passed',renderId);
+  assert.equal((await get(film)).status,404,'blocked diagnostics never become normal deliverables');
 });
 
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{

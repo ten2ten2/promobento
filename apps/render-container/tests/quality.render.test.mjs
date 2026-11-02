@@ -56,3 +56,25 @@ test('a truly static encoded movie is reported for review even without a freeze_
     assert.ok(quality.findings.some(item=>item.kind==='static_segment'&&item.durationSeconds>=14));
   }finally{rmSync(dir,{force:true,recursive:true});}
 });
+
+test('corrupt H.264 packets are rejected even when FFmpeg ordinarily exits successfully after decoding errors',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'promobento-corrupt-encoded-'));
+  try{
+    const clean=join(dir,'clean.mp4'),corrupt=join(dir,'corrupt.mp4'),composition={durationSeconds:15,fps:30,width:320,height:180};
+    await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi',
+      '-i','testsrc2=size=320x180:rate=30:duration=15','-c:v','libx264','-preset','ultrafast',
+      '-g','30','-pix_fmt','yuv420p','-an',clean],{timeoutMs:120_000});
+    const packets=JSON.parse((await run('ffprobe',['-v','error','-select_streams','v:0',
+      '-show_entries','packet=pos,size','-of','json',clean])).stdout.toString()).packets;
+    assert.ok(packets.length>200);
+    const bytes=Buffer.from(readFileSync(clean)),packet=packets[Math.floor(packets.length/2)];
+    const pos=Number(packet.pos);
+    assert.ok(Number.isSafeInteger(pos)&&pos>0&&pos+4<bytes.length);
+    bytes.writeUInt32BE(0x7fffffff,pos); // Impossible length-prefixed NAL, but valid MP4 container.
+    writeFileSync(corrupt,bytes);
+    const ordinary=await run('ffmpeg',['-hide_banner','-loglevel','error','-i',corrupt,
+      '-map','0:v:0','-an','-f','null','-'],{timeoutMs:120_000});
+    assert.match(ordinary.stderr,/NAL unit|error|invalid/i);
+    await assert.rejects(analyzeEncodedQuality(corrupt,composition,false),/MEDIA_DECODE_CORRUPT/);
+  }finally{rmSync(dir,{force:true,recursive:true});}
+});

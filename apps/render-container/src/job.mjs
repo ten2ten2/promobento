@@ -17,6 +17,7 @@ const base = resolve(requestPath, '..'), projectDir = join(base, 'project'), out
 mkdirSync(outputDir, {recursive: true, mode: 0o2770});
 const started = performance.now();
 const log = line => process.stderr.write(String(line).slice(0, 1000) + '\n');
+let qualityFailure = null;
 try {
 const prepared = await prepareNativeProject(projectDir, task.project);
 const captured = await previewNativeProject(prepared, task.project.composition, task.mode === 'preview' ? task.frames : undefined);
@@ -37,7 +38,12 @@ if (task.mode === 'export') {
   report.renderedSourceSha256 = rendered.renderedSourceSha256;
   report.media = await normalizeNativeVideo(nativePath, finalPath, task.project.composition);
   report.dynamicQuality = await analyzeEncodedQuality(finalPath,task.project.composition,Boolean(report.media.audioCodec));
-  if(report.dynamicQuality.status==='blocked')throw Error('NATIVE_DYNAMIC_QA_BLOCKED');
+  if(report.dynamicQuality.status==='blocked') {
+    qualityFailure = {kind:'encoded_quality_failure',projectHash:report.projectHash,
+      film:{name:'film.mp4',...fileIdentity(finalPath)},composition:task.project.composition,
+      renderedSourceSha256:report.renderedSourceSha256,media:report.media,dynamicQuality:report.dynamicQuality};
+    throw Error('NATIVE_DYNAMIC_QA_BLOCKED');
+  }
   report.frames = report.media.frameCount;
   localOutputs.push({name: 'film.mp4', path: finalPath, mediaType: 'video/mp4'});
   const review = await extractEncodedFrames(finalPath, join(outputDir, 'review-frames'), task.project.composition);
@@ -59,7 +65,8 @@ for (const output of localOutputs) {
 writeFileSync(join(base, 'result.json'), canonical({report, localOutputs}) + '\n');
 } catch (error) {
   const code = /^[A-Z][A-Z0-9_]{2,80}$/.test(error.message || '') ? error.message : 'NATIVE_JOB_FAILED';
-  writeFileSync(join(base, 'failure.json'), canonical({code, ...(error.findings ? {findings: error.findings} : {}), ...(error.pageErrors ? {pageErrors: error.pageErrors} : {})}) + '\n');
+  writeFileSync(join(base, 'failure.json'), canonical({code, ...(qualityFailure ? {qualityFailure} : {}),
+    ...(error.findings ? {findings: error.findings} : {}), ...(error.pageErrors ? {pageErrors: error.pageErrors} : {})}) + '\n');
   log(error.stack || error.message);
   process.exitCode = 1;
 }

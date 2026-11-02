@@ -56,15 +56,25 @@ export function assessQualitySignals(signals, hasAudio) {
   return findings;
 }
 
+// Some FFmpeg demuxer/decoder errors are emitted only on stderr even with
+// -xerror and -err_detect explode: the process still exits zero after partial
+// H.264 recovery. A claimed full-file scan must reject these diagnostics.
+const corruptDecode = /(?:invalid NAL unit size|error splitting the input into NAL units|error submitting packet to decoder|error while decoding (?:stream|MB)|invalid data found when processing input|corrupt decoded frame|decode_slice_header error|invalid frame size|packet corrupt)/i;
+function assertDecodedWithoutErrors(log) {
+  if (corruptDecode.test(log)) throw Error('MEDIA_DECODE_CORRUPT');
+}
+
 /** Full-file decode is measurable evidence, not a claim that anyone watched or liked the film. */
 export async function analyzeEncodedQuality(path, composition, hasAudio) {
-  const movie = await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-i', path,
+  const movie = await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
     '-map', '0:v:0', '-vf', 'blackdetect=d=0.4:pix_th=0.10:pic_th=0.98,freezedetect=n=-45dB:d=0.6',
     '-an', '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10});
-  const soundtrack = hasAudio ? await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-i', path,
+  const soundtrack = hasAudio ? await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
     '-map', '0:a:0', '-vn', '-af', 'silencedetect=noise=-40dB:d=0.6,loudnorm=I=-14:TP=-1:LRA=11:print_format=json',
     '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10}) : null;
   if (movie.stderrTruncated || soundtrack?.stderrTruncated) throw Error('MEDIA_PROCESS_LOG_TRUNCATED');
+  assertDecodedWithoutErrors(movie.stderr);
+  if (soundtrack) assertDecodedWithoutErrors(soundtrack.stderr);
   const signals = parseQualitySignals(movie.stderr, soundtrack?.stderr ?? null, composition.durationSeconds);
   const findings = assessQualitySignals(signals, hasAudio);
   return {kind: 'encoded_dynamic_qa',source: 'film.mp4',coverage: hasAudio ? 'full_video_and_audio_decode' : 'full_video_decode_no_audio',
