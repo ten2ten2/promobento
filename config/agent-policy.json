@@ -203,6 +203,7 @@
     "source": "packages/methods/directing.ts",
     "stageConcurrency": {
       "assetAnalyses": 2,
+      "referenceAnalyses": 1,
       "directionPreviews": 2
     },
     "activeTimeoutMs": {
@@ -217,6 +218,11 @@
       "assets": {
         "maxCallsPerAsset": 2,
         "maxMicros": 40000,
+        "effort": "low"
+      },
+      "reference": {
+        "maxCallsPerAsset": 2,
+        "maxMicros": 200000,
         "effort": "low"
       },
       "directions": {
@@ -238,6 +244,16 @@
         "maxCalls": 3,
         "maxMicros": 400000,
         "effort": "high"
+      },
+      "script": {
+        "maxCalls": 2,
+        "maxMicros": 250000,
+        "effort": "high"
+      },
+      "selection": {
+        "maxCalls": 2,
+        "maxMicros": 80000,
+        "effort": "low"
       },
       "author": {
         "maxCalls": 12,

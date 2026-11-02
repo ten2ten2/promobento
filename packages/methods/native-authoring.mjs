@@ -1,6 +1,6 @@
 import {assertNativePath} from '@promobento/contracts/native-project';
 
-const textPath=/^(index\.(?:html|js|css)|src\/[A-Za-z0-9_./-]+\.(?:html|js|css|svg|json)|BRIEF\.md|TREATMENT\.md|script\.json)$/;
+const textPath=/^(index\.(?:html|js|css)|src\/[A-Za-z0-9_./-]+\.(?:html|js|css|svg|json)|BRIEF\.md|TREATMENT\.md|script\.json|material-selection\.json)$/;
 export function assertAuthorPath(path){assertNativePath(path);if(!textPath.test(path))throw Error('NATIVE_AUTHOR_PATH_INVALID');return path;}
 export function nativeTextType(path){
  const ext=path.split('.').at(-1);return ({html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',svg:'image/svg+xml',md:'text/markdown'})[ext]??'text/plain';
@@ -25,7 +25,9 @@ export function applyProjectPatch(files,revisionId,input){
  if(!Array.isArray(input.edits)||!input.edits.length||input.edits.length>32)throw Error('NATIVE_PATCH_INVALID');
  const next=new Map(files.map(file=>[file.path,file.content]));
  for(const edit of input.edits){
-  assertAuthorPath(edit.path);if(edit.path==='BRIEF.md')throw Error('NATIVE_BRIEF_READ_ONLY');
+  assertAuthorPath(edit.path);
+  if(edit.path==='BRIEF.md')throw Error('NATIVE_BRIEF_READ_ONLY');
+  if(['script.json','material-selection.json'].includes(edit.path))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
   if(edit.command==='create'){
    if(next.has(edit.path)||typeof edit.content!=='string')throw Error('NATIVE_PATCH_CREATE_CONFLICT');
    next.set(edit.path,edit.content);

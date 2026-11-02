@@ -6,3 +6,4 @@ export interface VideoFrameManifest {
 }
 export function parseVideoFrameManifest(raw:string|Uint8Array,expectedSha:string):VideoFrameManifest;
 export function openVideoFramePack(manifest:VideoFrameManifest,packIndex:number,pack:Uint8Array):{frame(index:number):Uint8Array};
+export function motionReviewFrames(durationSeconds:number):number[];

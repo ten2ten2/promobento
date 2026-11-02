@@ -223,8 +223,11 @@
           "required": [
             "facts",
             "assets",
+            "reference",
             "directions",
             "treatment",
+            "script",
+            "selection",
             "author",
             "review",
             "coldReview"
@@ -234,6 +237,9 @@
               "$ref": "#/$defs/modelRef"
             },
             "assets": {
+              "$ref": "#/$defs/modelRef"
+            },
+            "reference": {
               "$ref": "#/$defs/modelRef"
             },
             "directions": {
@@ -246,6 +252,12 @@
               "$ref": "#/$defs/modelRef"
             },
             "treatment": {
+              "$ref": "#/$defs/modelRef"
+            },
+            "script": {
+              "$ref": "#/$defs/modelRef"
+            },
+            "selection": {
               "$ref": "#/$defs/modelRef"
             },
             "author": {

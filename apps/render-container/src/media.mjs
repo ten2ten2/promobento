@@ -1,6 +1,7 @@
 import {mkdirSync, statSync} from 'node:fs';
 import {join} from 'node:path';
 import {parseCanonicalJson} from '../../../packages/contracts/src/canonical.mjs';
+import {motionReviewFrames} from '../../../packages/contracts/src/video-frames.mjs';
 import {run} from './process.mjs';
 
 const MAX_BYTES = 50_000_000;
@@ -116,4 +117,17 @@ export async function extractEncodedFrames(path, directory, composition) {
     '-frames:v', '1', '-q:v', '2', '-pix_fmt', 'yuvj420p', '-threads', '1', sheet]);
   if (statSync(sheet).size < 8) throw Error('ENCODED_REVIEW_SHEET_MISSING');
   return {times, files, sheet};
+}
+
+/** Twelve spread-out actual MP4 frames complement the original four high-resolution review frames. */
+export async function extractMotionReviewSheet(path, directory, composition) {
+  const frames=motionReviewFrames(composition.durationSeconds);
+  mkdirSync(directory,{recursive:true,mode:0o2770});
+  const sheet=join(directory,'motion-sheet.jpg');
+  const select=frames.map(frame=>'eq(n\\,'+frame+')').join('+');
+  await run('ffmpeg',['-v','error','-y','-i',path,'-vf','select='+select+
+    ',scale=480:360:force_original_aspect_ratio=decrease:flags=lanczos,pad=480:360:(ow-iw)/2:(oh-ih)/2:color=black,tile=4x3',
+    '-fps_mode','vfr','-frames:v','1','-q:v','3','-pix_fmt','yuvj420p','-threads','1',sheet],{timeoutMs:120_000});
+  if(statSync(sheet).size<8)throw Error('ENCODED_MOTION_REVIEW_MISSING');
+  return {sheet,frames,times:frames.map(frame=>frame/30)};
 }

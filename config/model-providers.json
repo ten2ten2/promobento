@@ -129,10 +129,13 @@
   "steps": {
     "facts": "modelswitch/deepseek-v4.1-flash-1017",
     "assets": "modelswitch/deepseek-v4.1-flash-1017",
+    "reference": "modelswitch/deepseek-v4.1-flash-1017",
     "directions": "modelswitch/deepseek-v4.1-flash-1017",
     "review": "modelswitch/deepseek-v4.1-flash-1017",
     "coldReview": "modelswitch/deepseek-v4.1-flash-1017",
     "treatment": "modelswitch/claude-opus-5-5",
+    "script": "modelswitch/claude-opus-5-5",
+    "selection": "modelswitch/deepseek-v4.1-flash-1017",
     "author": "modelswitch/claude-opus-5-5"
   }
 }

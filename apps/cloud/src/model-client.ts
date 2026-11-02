@@ -117,7 +117,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
   if(worst>stageLimit)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
-  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
+  const budgetStage=['assets','reference'].includes(stage)?stage+':'+digest(request.messages.slice(0,1)).slice(0,32):stage;
   // Token counting and durable cache/receipt lookups may have consumed the
   // entire request window. Do not reserve or dispatch a paid call after it.
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');

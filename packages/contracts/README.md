@@ -10,6 +10,8 @@ pnpm run build:validators
 
 所有 `contracts/*.schema.json` 预编译为 `generated/<name>.mjs` 与类型声明，Workers 导入 `@promobento/contracts/validators/<name>`，不在请求中编译 Ajv。原始 JSON 先用 `parseCanonicalJson` 拒绝重复键和非法 Unicode；`canonical` 实现 JCS，`digest` 用于规范 JSON。原始文件和媒体的身份均来自这里的 `sha256Bytes`、`createSha256` 或 `sha256Stream`，流式和文件块校验不各自实现 SHA-256。
 
+第一阶段导演新增三份产品协议 3.0.0 的独立契约：[参考片分析](../../contracts/reference-analysis.schema.json)绑定源 SHA、实际采样帧和可见观察；[权威 Script](../../contracts/native-script.schema.json)定义稳定 copy Segment、语义 Moment 和 authored/measured 时钟；[素材候选](../../contracts/material-selection.schema.json)将 Treatment 每次引用绑定到已授权候选与锁定意图。跨文档关系和已确认事实仍由 [生产文档断言](../methods/production-documents.mjs)核查，不以 Schema 验证替代身份检查。
+
 ## 原生工程
 
 [Schema](../../contracts/native-project.schema.json)与[共享断言](src/native-project.mjs)共同验证固定上游 commit、15/30 秒、30 fps、四个固定画幅，以及普通相对路径、文件冲突、单文件和工程体积限制。路径检查不代替实际文件系统的 symlink／realpath 检查，容器仍须重新核对全部输入字节。

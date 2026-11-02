@@ -1,5 +1,45 @@
 [
   {
+    "schema": "native-script",
+    "value": {
+      "schemaVersion": "3.0.0",
+      "kind": "native_script",
+      "videoLanguage": "en",
+      "durationFrames": 450,
+      "segments": [
+        {"id": "cta", "role": "cta", "displayText": "Try it", "speechText": null, "factIds": [], "startFrame": 300, "endFrame": 450, "timing": {"kind": "authored"}}
+      ],
+      "moments": [
+        {"id": "action", "kind": "cta", "startFrame": 300, "endFrame": 450, "segmentIds": ["cta"], "resourceIds": [], "timing": {"kind": "authored"}}
+      ]
+    }
+  },
+  {
+    "schema": "material-selection",
+    "value": {
+      "schemaVersion": "3.0.0",
+      "kind": "material_selection",
+      "uses": [
+        {"beatId": "hero", "role": "product_demo", "selectedResourceId": "product", "alternativeResourceIds": [], "reason": "This is the confirmed source.", "locked": true}
+      ]
+    }
+  },
+  {
+    "schema": "reference-analysis",
+    "value": {
+      "schemaVersion": "3.0.0",
+      "kind": "reference_analysis",
+      "resourceId": "reference",
+      "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceFrameCount": 450,
+      "sampledFrames": [0, 90, 180, 270, 449],
+      "audioStatus": "not_analyzed",
+      "summary": {"hook": "Visual hook.", "progression": "Visual transition.", "payoff": "Visible payoff.", "visualSystem": "Kinetic titles.", "limitations": "Audio and between-sample motion unobserved."},
+      "moments": [{"id": "hook", "startFrame": 0, "endFrame": 91, "evidenceFrames": [0, 90], "visible": "Title is visible.", "interpretation": null, "visibleText": ["Title"]}],
+      "relationships": []
+    }
+  },
+  {
     "schema": "video-frame-manifest",
     "value": {
       "schemaVersion": "3.0.0",

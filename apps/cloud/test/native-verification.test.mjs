@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {deflateSync} from 'node:zlib';
 import {canonical} from '@promobento/contracts/canonical';
 import {sha256Bytes} from '@promobento/contracts/digest';
+import {motionReviewFrames} from '@promobento/contracts/video-frames';
 import {nativeProjectHash} from '@promobento/contracts/native-project';
 import {verifyNativeResult} from '../src/render-verification.ts';
 import {NATIVE_COMMIT, previewFrames, checkedNativeBytes} from '../src/native-project.ts';
@@ -57,6 +58,13 @@ async function fixture(mode) {
     report.reviewSheet = {name: 'review-sheet.jpg', columns: 2, rows: 2, source: 'film.mp4',
       times: report.reviewFrameTimes, frames: report.reviewFrameTimes.map(time => Math.round(time * composition.fps))};
     await put('review-sheet.jpg', Buffer.from('synthetic ffmpeg-verified contact sheet'), 'image/jpeg');
+    const motionFrames=motionReviewFrames(composition.durationSeconds);
+    report.motionReview={name:'motion-sheet.jpg',columns:4,rows:3,source:'film.mp4',
+      frames:motionFrames,times:motionFrames.map(frame=>frame/composition.fps)};
+    await put('motion-sheet.jpg',Buffer.from('synthetic MP4-backed 12-frame contact sheet'),'image/jpeg');
+    report.dynamicQuality={kind:'encoded_dynamic_qa',source:'film.mp4',coverage:'full_video_and_audio_decode',
+      status:'clear',signals:{black:[],freeze:[],silence:[],integratedLufs:-14,truePeakDbtp:-1.1},
+      findings:[],ownerNormalSpeedReview:'pending'};
     const actualIndex = await put('project/index.html', Buffer.from('<html>Rendered fixture</html>'), 'text/html');
     const emptyStyle = await put('project/empty.css', Buffer.alloc(0), 'text/css');
     report.renderedSourceSha256 = actualIndex.sha256;
@@ -98,6 +106,10 @@ test('native export requires measured frame count and a matching, locally scoped
   await assert.rejects(verifyNativeResult(env, input, liveTimeline), /NATIVE_RENDER_EVIDENCE_INVALID/);
   const missing = structuredClone(result); missing.outputs = missing.outputs.filter(value => value.name !== 'rendered-project.json');
   await assert.rejects(verifyNativeResult(env, input, missing), /RENDER_OUTPUT_MISSING/);
+  const noMotion = structuredClone(result); noMotion.outputs=noMotion.outputs.filter(output=>output.name!=='motion-sheet.jpg');
+  await assert.rejects(verifyNativeResult(env,input,noMotion),/RENDER_OUTPUT_MISSING/);
+  const fakeQuality = structuredClone(result); fakeQuality.report.dynamicQuality.coverage='page_snapshot_only';
+  await assert.rejects(verifyNativeResult(env,input,fakeQuality),/NATIVE_RENDER_EVIDENCE_INVALID/);
   const movie = result.outputs.find(value => value.name === 'film.mp4');
   const bad = structuredClone(result); bad.outputs.find(value => value.name === 'film.mp4').sha256 = sha256Bytes(Buffer.from('different'));
   await assert.rejects(verifyNativeResult(env, input, bad), /SOURCE_IDENTITY_MISMATCH/);

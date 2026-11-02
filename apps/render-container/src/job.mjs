@@ -4,7 +4,8 @@ import {canonical, parseCanonicalJson} from '../../../packages/contracts/src/can
 import {nativeProjectHash} from '../../../packages/contracts/src/native-project.mjs';
 import {fileIdentity} from '../../../packages/native-motion/src/files.mjs';
 import {NATIVE_COMMIT, prepareNativeProject, previewNativeProject, renderNativeProject, projectFiles} from '../../../packages/native-motion/src/index.mjs';
-import {normalizeNativeVideo, extractEncodedFrames} from './media.mjs';
+import {normalizeNativeVideo, extractEncodedFrames,extractMotionReviewSheet} from './media.mjs';
+import {analyzeEncodedQuality} from './quality.mjs';
 
 // Only this trusted module executes in Node. Project source is loaded solely inside native Chromium.
 if (process.platform !== 'linux' || process.getuid() !== 10002) throw Error('NATIVE_JOB_UID_REQUIRED');
@@ -35,6 +36,8 @@ if (task.mode === 'export') {
   const rendered = await renderNativeProject(prepared, task.project.composition, nativePath, log);
   report.renderedSourceSha256 = rendered.renderedSourceSha256;
   report.media = await normalizeNativeVideo(nativePath, finalPath, task.project.composition);
+  report.dynamicQuality = await analyzeEncodedQuality(finalPath,task.project.composition,Boolean(report.media.audioCodec));
+  if(report.dynamicQuality.status==='blocked')throw Error('NATIVE_DYNAMIC_QA_BLOCKED');
   report.frames = report.media.frameCount;
   localOutputs.push({name: 'film.mp4', path: finalPath, mediaType: 'video/mp4'});
   const review = await extractEncodedFrames(finalPath, join(outputDir, 'review-frames'), task.project.composition);
@@ -42,6 +45,9 @@ if (task.mode === 'export') {
   for (const [index, frame] of review.files.entries()) localOutputs.push({name: `review-frames/${String(index).padStart(3, '0')}.png`, path: frame.file, mediaType: 'image/png'});
   localOutputs.push({name: 'review-sheet.jpg', path: review.sheet, mediaType: 'image/jpeg'});
   report.reviewSheet = {name: 'review-sheet.jpg', columns: 2, rows: 2, frames: review.files.map(frame => frame.frame), times: review.times, source: 'film.mp4'};
+  const motionReview=await extractMotionReviewSheet(finalPath,join(outputDir,'motion-review'),task.project.composition);
+  localOutputs.push({name:'motion-sheet.jpg',path:motionReview.sheet,mediaType:'image/jpeg'});
+  report.motionReview={name:'motion-sheet.jpg',columns:4,rows:3,frames:motionReview.frames,times:motionReview.times,source:'film.mp4'};
   // Capture refreshed source/audio and all native libraries for deterministic replay of this render.
   for (const file of projectFiles(projectDir)) localOutputs.push({name: 'project/' + file.path, path: file.file, projectPath: file.path, mediaType: file.mediaType});
 } else if (task.mode !== 'preview') throw Error('NATIVE_MODE_INVALID');

@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {run} from '../src/process.mjs';
+import {analyzeEncodedQuality} from '../src/quality.mjs';
+import {extractMotionReviewSheet} from '../src/media.mjs';
+
+test('dynamic QA decodes the delivered MP4 and builds an actual 12-frame image',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'promobento-dynamic-review-'));
+  try{
+    const movie=join(dir,'film.mp4'),composition={durationSeconds:15,fps:30,width:320,height:180};
+    await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi',
+      '-i','testsrc2=size=320x180:rate=30:duration=15','-c:v','mpeg4','-q:v','5','-an',movie],{timeoutMs:120_000});
+    const quality=await analyzeEncodedQuality(movie,composition,false);
+    assert.equal(quality.kind,'encoded_dynamic_qa');
+    assert.equal(quality.coverage,'full_video_decode_no_audio');
+    assert.equal(quality.ownerNormalSpeedReview,'pending');
+    assert.notEqual(quality.status,'blocked');
+    const review=await extractMotionReviewSheet(movie,join(dir,'review'),composition);
+    assert.equal(review.frames.length,12);
+    assert.deepEqual([...readFileSync(review.sheet).subarray(0,3)],[0xff,0xd8,0xff]);
+    const invalid=join(dir,'invalid.mp4');writeFileSync(invalid,'this is not an MP4');
+    await assert.rejects(analyzeEncodedQuality(invalid,composition,false),/MEDIA_PROCESS_FAILED/);
+  }finally{rmSync(dir,{force:true,recursive:true});}
+});
+
+test('the full-file audio decoder measures a normalized AAC track, not a page-side volume claim',async()=>{
+  const dir=mkdtempSync(join(tmpdir(),'promobento-encoded-audio-'));
+  try{
+    const movie=join(dir,'film.mp4'),composition={durationSeconds:15,fps:30,width:320,height:180};
+    await run('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi',
+      '-i','testsrc2=size=320x180:rate=30:duration=15','-f','lavfi',
+      '-i','sine=frequency=440:sample_rate=48000:duration=15',
+      '-c:v','mpeg4','-q:v','5','-c:a','aac','-ar','48000','-ac','2','-af','loudnorm=I=-14:TP=-1:LRA=11','-t','15',movie],
+      {timeoutMs:120_000});
+    const quality=await analyzeEncodedQuality(movie,composition,true);
+    assert.equal(quality.coverage,'full_video_and_audio_decode');
+    assert.equal(quality.signals.black.length,0);
+    assert.ok(Number.isFinite(quality.signals.integratedLufs));
+    assert.ok(Number.isFinite(quality.signals.truePeakDbtp));
+    assert.notEqual(quality.status,'blocked',JSON.stringify(quality));
+  }finally{rmSync(dir,{force:true,recursive:true});}
+});

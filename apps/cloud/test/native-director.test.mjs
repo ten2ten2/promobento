@@ -77,8 +77,15 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   async render(_env,op,input){
    const project=saved.get(input.revisionId);assert.ok(project);jobs.push({...input,operationId:op.id});
    const outputs=[];for(const [index]of (input.mode==='preview'?input.frames:[0]).entries())outputs.push(await put('renders/'+input.renderId+'/'+index+(input.mode==='preview'?'.png':'.mp4'),png,input.mode==='preview'?'image/png':'video/mp4'));
-   if(input.mode==='export'&&!missingEncoded)outputs.push({...await put('renders/'+input.renderId+'/review-sheet.jpg',png,'image/jpeg'),name:'review-sheet.jpg'});
-   renders.set(input.renderId,{status:dropRenderEvents||transientRenderStatus?'queued':'passed',finished_at:Date.now(),result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]}}:{})}}});return {renderId:input.renderId};
+   if(input.mode==='export'&&!missingEncoded){
+    outputs.push({...await put('renders/'+input.renderId+'/review-sheet.jpg',png,'image/jpeg'),name:'review-sheet.jpg'});
+    outputs.push({...await put('renders/'+input.renderId+'/motion-sheet.jpg',png,'image/jpeg'),name:'motion-sheet.jpg'});
+   }
+   renders.set(input.renderId,{status:dropRenderEvents||transientRenderStatus?'queued':'passed',finished_at:Date.now(),result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{
+    reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]},
+    motionReview:{source:'film.mp4',columns:4,rows:3,frames:Array.from({length:12},(_,index)=>Math.round(index*449/11))},
+    dynamicQuality:{coverage:'full_video_and_audio_decode',status:'clear',findings:[],ownerNormalSpeedReview:'pending'}
+   }:{})}}});return {renderId:input.renderId};
   },
   async getRender(_env,_op,id){const reads=(renderReads.get(id)??0)+1;renderReads.set(id,reads);
    if(transientRenderStatus&&reads===2){failedReads.push(id);throw Error('Network connection lost.');}
@@ -92,17 +99,32 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
    if(stage==='facts')value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fact_product'],summary:'The provided product does the described work.'};
    else if(stage==='assets')value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:payload.sha256,promptVersion:'native-asset-v1',model:payload.model,assetKind:'screenshot',description:'A supplied product pixel fixture.',regions:[],dominantColors:['#ffffff'],visibleText:[],visualRoles:['Product evidence']};
    else if(stage==='directions')value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map((key,index)=>({key,language:index===1?'3d-object':'kinetic-type',palette:[{color:'#ffffff',role:'bg',source:'Product'},{color:'#111111',role:'ink',source:'Product'}],logline:'Show the real product',feel:{route:'continuous',bpm:120,eventsPerBar:4},sound:'A clear landing',risk:'Keep real material legible',usesDepth:index===1,skeleton:[0,1,2].map(i=>({purpose:'Passage '+i,approach:'Native geometry and typography'}))}))};
+   else if(stage==='reference')value={schemaVersion:'3.0.0',kind:'reference_analysis',resourceId:payload.reference.resourceId,
+    sourceSha256:payload.sourceSha256,sourceFrameCount:payload.sourceFrameCount,sampledFrames:payload.sampledFrames,
+    audioStatus:'not_analyzed',summary:{hook:'Visible product hook.',progression:'Source progression.',payoff:'Closing visual.',
+      visualSystem:'Product UI.',limitations:'Between-sample motion and all audio were not examined.'},
+    moments:[{id:'source-hook',startFrame:0,endFrame:payload.sourceFrameCount,evidenceFrames:payload.sampledFrames,
+      visible:'The sampled product appears.',interpretation:null,visibleText:[]}],relationships:[]};
+   else if(stage==='script')value={schemaVersion:'3.0.0',kind:'native_script',videoLanguage:'en',durationFrames:450,
+    segments:[{id:'title',role:'title',displayText:'PROMO_PROMISE',speechText:null,factIds:['fact_product'],startFrame:0,endFrame:300,timing:{kind:'authored'}},
+      {id:'cta',role:'cta',displayText:'Try PromoBento',speechText:null,factIds:[],startFrame:300,endFrame:450,timing:{kind:'authored'}}],
+    moments:[{id:'reveal',kind:'reveal',startFrame:0,endFrame:300,segmentIds:['title'],resourceIds:['res_product'],timing:{kind:'authored'}},
+      {id:'action',kind:'cta',startFrame:300,endFrame:450,segmentIds:['cta'],resourceIds:[],timing:{kind:'authored'}}]};
+   else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
+    beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:[],reason:'This licensed source is needed by the beat.',locked:true})))};
    else{
     let input;
     if(tool==='write_treatment')input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats:[{id:'hero',purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:['res_product']}],hardestBeat:'hero',reviewFrames:[0,90,240,449]};
     else if(tool==='write_project'){
      const shape=payload.composition,source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1><img data-om-id="product" src="${payload.materials[0].path}"><i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};</script></body></html>`;
-     input={files:[{path:'index.html',content:source}],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
+     input={files:[{path:'index.html',content:source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>')}],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
     }else if(tool==='apply_project_patch'){
      const target=payload.comments?'PROMO_ORIGINAL':payload.review?'COMPLETE_STAGE':'HARD_STAGE';
      input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?'PROMO_REVISED':payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
      const replacement=payload.materials.find(material=>material.resourceId==='res_product_new');
      if(replacement){const oldPath=payload.sourceFiles.find(file=>file.path==='index.html').content.match(/src="(assets\/[^\"]+\.png)"/)[1];input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:replacement.path});}
+     const revisedCopy=payload.script?.segments?.find(segment=>segment.id==='title')?.displayText;
+     if(revisedCopy&&revisedCopy!=='PROMO_PROMISE')input.edits.push({command:'replace',path:'index.html',oldText:'PROMO_PROMISE',newText:revisedCopy});
     }else if(tool==='submit_review')input={verdict:reviewAlwaysRevise?'revise':'pass',issues:reviewAlwaysRevise?[{detail:'Observed title overlap.',frames:[90]}]:[],note:'The supplied fixture frames received this mocked review.'};
     else throw Error('Unexpected fixture tool '+tool);
     value={toolCalls:[{id:'fixture',name:tool,arguments:canonical(input),input}]};
@@ -118,7 +140,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
   const materials=[...(Array.isArray(context.resources)?context.resources:[]),...(Array.isArray(context.audioSources)?context.audioSources:[]),...readmittedRights];
   for(const resource of materials.filter(value=>value&&typeof value.resourceId==='string'&&typeof value.sha256==='string'))
-   db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+   db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture',resource.rightsEvidenceKey??'evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -171,6 +193,42 @@ test('duplicate material entries keep original positions but never start two ide
  const directions=f.calls.find(call=>call.stage==='directions');
  assert.equal(directions.payload.insights.length,2,'the downstream stage still receives an ordered insight for each material');
  assert.deepEqual(directions.payload.insights[0],directions.payload.insights[1]);
+});
+
+test('source-frame-bound reference analysis informs the film but never grants use of reference footage',async t=>{
+ const f=await fixture(t),frame=index=>{
+  const bytes=Buffer.alloc(20,index);bytes.write('RIFF',0);bytes.writeUInt32LE(12,4);bytes.write('WEBP',8);return bytes;
+ };
+ const rawFrames=[frame(1),frame(2)],packBytes=Buffer.concat(rawFrames);
+ const original=await f.put('evals/fixture/reference-source.mp4',Buffer.from('original reference movie'),'video/mp4');
+ const poster=await f.put('evals/fixture/reference-poster.webp',rawFrames[0],'image/webp');
+ const pack=await f.put('evals/fixture/reference-pack.bin',packBytes,'application/octet-stream');
+ const manifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',
+  source:{sha256:original.sha256,byteLength:original.byteLength,mediaType:'video/mp4'},
+  browserVersion:'156.0.8078.74',width:1,height:1,poster:{sha256:poster.sha256,byteLength:poster.byteLength},
+  packs:[{sha256:pack.sha256,byteLength:pack.byteLength}],
+  frames:rawFrames.map((bytes,index)=>({index,pts:index/30,duration:1/30,pack:0,offset:index*20,byteLength:bytes.length}))};
+ const assetManifest=await f.put('evals/fixture/reference-manifest.json',new TextEncoder().encode(canonical(manifest)),'application/json');
+ const evidenceKey='evals/fixture/reference-rights.json';
+ await f.put(evidenceKey,new TextEncoder().encode(canonical({videoSource:original,preview:poster,
+  framePacks:[{key:pack.key,sha256:pack.sha256,byteLength:pack.byteLength}]})),'application/json');
+ const reference={...assetManifest,resourceId:'source-reference',kind:'video',width:1,height:1,
+  videoFramePacking:'webp-pack-v1',rightsEvidenceKey:evidenceKey,
+  framePacks:[{key:pack.key,sha256:pack.sha256,byteLength:pack.byteLength}]};
+ const candidate=await f.create('reference-film',{aspects:['landscape'],resources:[f.asset,reference],
+  references:[{resourceId:reference.resourceId,purpose:'pacing',notes:'Observe only source frames.'}]});
+ assert.equal(candidate.kind,'native_candidate');
+ assert.equal(candidate.referenceAnalysisKey!==null,true);
+ const analysis=f.calls.find(call=>call.stage==='reference');
+ assert.ok(analysis);assert.equal(analysis.payload.sourceSha256,original.sha256);
+ assert.deepEqual(analysis.payload.sampledFrames,[0,1]);
+ assert.equal(analysis.payload.audioStatus,'not_analyzed');
+ const directions=f.calls.find(call=>call.stage==='directions');
+ assert.equal(directions.payload.referenceAnalyses[0].audioStatus,'not_analyzed');
+ const saved=f.saved.get(candidate.projects[0].revisionId).project;
+ assert.ok(saved.resources.some(resource=>resource.resourceId===f.asset.resourceId));
+ assert.ok(!saved.resources.some(resource=>resource.resourceId===reference.resourceId),
+  'analyzing a source is not licensing its inclusion in the film');
 });
 
 test('a failed parallel asset stops in-flight invalid output from starting a paid correction',async t=>{
@@ -261,6 +319,29 @@ test('candidate submission includes rights inherited from an earlier native revi
  assert.equal(patch.kind,'native_candidate');
  assert.ok(f.committedResources.some(resource=>resource.resourceId===f.asset.resourceId&&resource.sha256===f.asset.sha256),
   'a patch must recheck inherited media rights even when the new request has no resources');
+});
+
+test('Script-only user edits preserve locked assets and create a new revision with explicit QA invalidation',async t=>{
+ const f=await fixture(t),parent=await f.create('script-parent',{aspects:['landscape']});
+ const original=f.saved.get(parent.projects[0].revisionId).project;
+ const child=await f.create('script-child',{aspects:['landscape'],resources:[f.asset],baseRevision:parent.projects[0].revisionId,
+  comments:[],scriptEdits:[{segmentId:'title',field:'displayText',value:'PROMO_IMPROVED'}]});
+ assert.equal(child.kind,'native_candidate');
+ assert.equal(child.scriptImpact.changed,true);
+ assert.equal(child.scriptImpact.qualityReportsReusable,false);
+ assert.deepEqual(child.scriptImpact.segmentIds,['title']);
+ assert.deepEqual(child.scriptImpact.affectedAssetLocks,[]);
+ assert.equal(child.selectionKey!==null,true);
+ assert.equal(child.scriptKey!==null,true);
+ assert.equal(child.referenceAnalysisKey,null);
+ const next=f.saved.get(child.projects[0].revisionId).project;
+ assert.deepEqual(next.resources,original.resources);
+ const html=next.files.find(file=>file.path==='index.html');
+ const text=new TextDecoder().decode(await f.bytes(f.env,html));assert.match(text,/PROMO_IMPROVED/);
+ const scriptDoc=next.files.find(file=>file.path==='script.json');
+ const updated=parseCanonicalJson(await f.bytes(f.env,scriptDoc));
+ assert.equal(updated.segments[0].displayText,'PROMO_IMPROVED');
+ assert.equal(f.calls.filter(call=>call.operationId==='script-child'&&['script','selection','directions'].includes(call.stage)).length,0);
 });
 
 test('patching a parent without re-admitting inherited media fails before a paid model call',async t=>{

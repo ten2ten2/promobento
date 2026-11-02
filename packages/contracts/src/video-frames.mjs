@@ -5,6 +5,12 @@ import {sha256Bytes} from './digest.mjs';
 import {validate} from '../generated/video-frame-manifest.mjs';
 const hash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const integer=(value,min,max)=>Number.isSafeInteger(value)&&value>=min&&value<=max;
+/** Evenly spaced decoded frames for an additional source-bound motion/continuity review. */
+export function motionReviewFrames(durationSeconds) {
+ if(![15,30].includes(durationSeconds))throw Error('VIDEO_DURATION_INVALID');
+ const last=durationSeconds*30-1;
+ return Array.from({length:12},(_,index)=>Math.round(index*last/11));
+}
 /** Read inert bytes only. Callers separately verify the original's rights and each referenced blob. */
 export function parseVideoFrameManifest(raw,expectedSha){
  if(!(typeof raw==='string'||raw instanceof Uint8Array)||typeof raw==='string'&&raw.length>1<<20||raw instanceof Uint8Array&&raw.byteLength>1<<20)throw Error('VIDEO_FRAME_MANIFEST_INVALID');
