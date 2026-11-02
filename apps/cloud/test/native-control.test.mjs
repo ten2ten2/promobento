@@ -6,7 +6,8 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
 import {immutableBytes,immutableStream,reserve,settle} from '../src/store.ts';
-import {boundedUploadStream} from '../src/upload-stream.ts';
+import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
+import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
 import {claimRenderAdmission, requestRenderAdmission} from '../src/render-admission.ts';
 import {recoverWorkflows} from '../src/workflow-recovery.ts';
@@ -1222,12 +1223,34 @@ test('simultaneous cost reservations are idempotent only for the same full cost 
 test('bounded R2 upload streams reject short, oversized and falsely declared object bodies', async () => {
   const request=chunks=>new Request('https://broker.internal/w/output',{method:'PUT',duplex:'half',
     body:new ReadableStream({start(controller){for(const chunk of chunks)controller.enqueue(new Uint8Array(chunk));controller.close();}})});
-  const read=(chunks,length)=>new Response(boundedUploadStream(request(chunks).body,length)).arrayBuffer();
+  const read=(chunks,length)=>{
+    const upload=boundedUploadStream(request(chunks).body,length);
+    assert.equal(fixedLengthOf(upload.readable),length);
+    return new Response(upload.readable).arrayBuffer();
+  };
   assert.deepEqual(new Uint8Array(await read([[1,2],[3]],3)),new Uint8Array([1,2,3]));
   await assert.rejects(read([[1,2,3,4,5,6]],3),/OBJECT_LENGTH_MISMATCH/);
   await assert.rejects(read([[1,2]],3),/OBJECT_LENGTH_MISMATCH/);
   assert.throws(()=>boundedUploadStream(request([[1]]).body,50*(1<<20)+1),/OBJECT_TOO_LARGE/);
-  assert.deepEqual(new Uint8Array(await new Response(boundedUploadStream(null,0)).arrayBuffer()),new Uint8Array());
+  assert.deepEqual(new Uint8Array(await new Response(boundedUploadStream(null,0).readable).arrayBuffer()),new Uint8Array());
+});
+
+test('an early R2 rejection or conditional miss aborts its unconsumed input stream', async () => {
+  for (const outcome of ['rejected', 'conditional-miss']) {
+    let cancelled = false;
+    const body = new ReadableStream({start(controller) {controller.enqueue(new Uint8Array(1));},
+      cancel() {cancelled = true;}});
+    const bucket = {async put(_key, readable) {
+      assert.equal(fixedLengthOf(readable), 1000);
+      if (outcome === 'rejected') throw Error('R2_REFUSED');
+      return null;
+    }};
+    const pending = putBoundedUpload(bucket, 'evals/test/file.png', body, 1000, {});
+    if (outcome === 'rejected') await assert.rejects(pending, /R2_REFUSED/);
+    else assert.equal(await pending, null);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cancelled, true, outcome);
+  }
 });
 
 test('internal eval file ingress verifies SHA-256 in R2 and never trusts an incomplete object', async () => {

@@ -1,5 +1,5 @@
 import {closeSync, constants, copyFileSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, readdirSync} from 'node:fs';
-import {createHash} from 'node:crypto';
+import {createSha256} from '../../contracts/src/digest.mjs';
 import {dirname, extname, join, relative, resolve, sep} from 'node:path';
 import {assertNativePath, NATIVE_SOURCE_LIMITS} from '../../contracts/src/native-project.mjs';
 
@@ -11,7 +11,7 @@ export function fileIdentity(path, maxBytes = 50_000_000) {
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > maxBytes) throw Error('NATIVE_FILE_TOO_LARGE');
-    const hash = createHash('sha256'), buffer = Buffer.allocUnsafe(64 << 10);
+    const hash = createSha256(), buffer = Buffer.allocUnsafe(64 << 10);
     let byteLength = 0, count;
     while ((count = readSync(fd, buffer, 0, buffer.length, null)) !== 0) {
       byteLength += count;
@@ -19,7 +19,7 @@ export function fileIdentity(path, maxBytes = 50_000_000) {
       hash.update(buffer.subarray(0, count));
     }
     if (byteLength !== stat.size) throw Error('NATIVE_FILE_CHANGED');
-    return {sha256: hash.digest('hex'), byteLength};
+    return {sha256: hash.hex(), byteLength};
   } finally {closeSync(fd);}
 }
 export function projectPath(root, path) {

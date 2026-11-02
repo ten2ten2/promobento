@@ -1,6 +1,6 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest, sha256Bytes} from '@promobento/contracts/digest';
-import {boundedUploadStream, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
+import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
 import type {PipelineEnv, Operation, BlobRef, Json} from './pipeline-types.ts';
 
 export async function readJson(request: Request, limit = 4 << 20): Promise<Json> {
@@ -45,7 +45,7 @@ export async function immutableStream(env: PipelineEnv, key: string, body: Reada
   if (previous && !matchesStoredUpload(previous, length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   if (previous) await verifyUploadStream(body, length, sha256);
   else {
-    const created = await env.MEDIA.put(key, boundedUploadStream(body, length), {
+    const created = await putBoundedUpload(env.MEDIA, key, body, length, {
       sha256, onlyIf: new Headers({'If-None-Match': '*'}),
       customMetadata: {sha256}, httpMetadata: {contentType: mediaType},
     });

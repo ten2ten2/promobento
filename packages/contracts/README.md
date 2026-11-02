@@ -8,7 +8,7 @@
 pnpm run build:validators
 ```
 
-所有 `contracts/*.schema.json` 预编译为 `generated/<name>.mjs` 与类型声明，Workers 导入 `@promobento/contracts/validators/<name>`，不在请求中编译 Ajv。原始 JSON 先用 `parseCanonicalJson` 拒绝重复键和非法 Unicode；`canonical` 实现 JCS，`digest` 用于规范 JSON，`sha256Bytes` 用于原始文件字节。
+所有 `contracts/*.schema.json` 预编译为 `generated/<name>.mjs` 与类型声明，Workers 导入 `@promobento/contracts/validators/<name>`，不在请求中编译 Ajv。原始 JSON 先用 `parseCanonicalJson` 拒绝重复键和非法 Unicode；`canonical` 实现 JCS，`digest` 用于规范 JSON。原始文件和媒体的身份均来自这里的 `sha256Bytes`、`createSha256` 或 `sha256Stream`，流式和文件块校验不各自实现 SHA-256。
 
 ## 原生工程
 

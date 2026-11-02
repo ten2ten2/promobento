@@ -2,7 +2,7 @@ import {DurableObject, WorkerEntrypoint} from 'cloudflare:workers';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {operation, reserve, settle} from './store.ts';
-import {boundedUploadStream, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
+import {putBoundedUpload, matchesStoredUpload, verifyUploadStream} from './upload-stream.ts';
 import {assertNativeExecution, nativeContainerInput, nativeRenderPolicy} from './native-task.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
@@ -42,7 +42,7 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
         else {
           // R2 validates the declared SHA-256 before committing the object.
           // Both the worker's bounded transform and R2's checksum must pass.
-          const created = await this.env.MEDIA.put(key, boundedUploadStream(request.body, length), {
+          const created = await putBoundedUpload(this.env.MEDIA, key, request.body, length, {
             onlyIf: new Headers({'If-None-Match': '*'}), sha256: hash,
             customMetadata: {sha256: hash, operationId: op.id, attemptId: scope.attemptId},
             httpMetadata: {contentType: request.headers.get('content-type') ?? 'application/octet-stream'},

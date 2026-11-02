@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {sha256Bytes} from '@promobento/contracts/digest';
+import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 
 const bundle = await build({
   stdin: {contents: 'export {Broker} from "./apps/cloud/src/compute.ts";', resolveDir: process.cwd()},
@@ -24,6 +25,8 @@ function fixture() {
     async put(key, stream, options) {
       puts++;
       assert.ok(stream instanceof ReadableStream, 'R2 receives a backpressured stream, not a whole-file buffer');
+      assert.ok(Number.isSafeInteger(fixedLengthOf(stream)),
+        'R2 must receive a runtime-known length, not an ordinary TransformStream');
       assert.equal(typeof options.sha256, 'string');
       assert.equal(options.onlyIf.get('If-None-Match'), '*');
       let length = 0;
@@ -32,6 +35,7 @@ function fixture() {
         largestChunk = Math.max(largestChunk, chunk.length);
         length += chunk.length; chunks.push(chunk);
       }
+      assert.equal(length, fixedLengthOf(stream));
       const bytes = Buffer.concat(chunks, length), hash = sha256Bytes(bytes);
       if (hash !== options.sha256) throw Error('R2_CHECKSUM_MISMATCH');
       if (objects.has(key)) return null;

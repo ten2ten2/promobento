@@ -1,11 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {sha256Bytes} from '../src/digest.mjs';
+import {createSha256, sha256Bytes, sha256Stream} from '../src/digest.mjs';
 import {assertNativeProject, assertNativePath, nativeProjectHash, NATIVE_RUNTIME_COMMIT} from '../src/native-project.mjs';
 import {validate} from '@promobento/contracts/validators/native-project';
 
 const file = (path, text) => ({path, key: 'operations/op/native/source/' + path, sha256: sha256Bytes(text), byteLength: Buffer.byteLength(text), mediaType: path.endsWith('.html') ? 'text/html' : 'text/javascript'});
 const project = () => ({schemaVersion: '1.0.0', kind: 'native_project', entry: 'index.html', runtime: {name: 'huashu-motion', commit: NATIVE_RUNTIME_COMMIT}, composition: {durationSeconds: 15, fps: 30, width: 1920, height: 1080}, files: [file('index.html', '<div data-composition-id="film"></div>'), file('src/main.js', 'window.ready=true;')], resources: []});
+
+test('shared incremental SHA-256 gives identical file, byte and streaming identities across chunk boundaries', async () => {
+  const bytes = Buffer.alloc(3 * 65536 + 17, 0x7f);
+  bytes[0] = 0; bytes[bytes.length - 1] = 255;
+  const chunks = [bytes.subarray(0, 1), bytes.subarray(1, 65534), bytes.subarray(65534, 131077), bytes.subarray(131077)];
+  const hash = createSha256();
+  for (const chunk of chunks) hash.update(chunk);
+  assert.equal(hash.hex(), sha256Bytes(bytes));
+  assert.equal(await sha256Stream((async function* () {yield* chunks;})()), sha256Bytes(bytes));
+});
 
 test('project identity binds immutable source bytes and storage references, independent of file ordering', async () => {
   const value = project(), before = structuredClone(value);

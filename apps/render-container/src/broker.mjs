@@ -1,8 +1,7 @@
 import {createReadStream, createWriteStream, constants} from 'node:fs';
-import {createHash} from 'node:crypto';
+import {createSha256, sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
 import {Readable, Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
-import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
 
 /** Token lives only in this closure, not files, URLs, child environments, or diagnostics. */
 export function brokerClient(token, signal) {
@@ -24,7 +23,7 @@ export function brokerClient(token, signal) {
       const response = await fetch('http://broker.internal/r/' + keyPath(key), {headers, signal});
       if (!response.ok || !response.body) throw Error('BROKER_READ_DENIED');
       let size = 0;
-      const hash = createHash('sha256');
+      const hash = createSha256();
       await pipeline(Readable.fromWeb(response.body), new Transform({
         transform(chunk, _encoding, done) {
           size += chunk.length;
@@ -33,7 +32,7 @@ export function brokerClient(token, signal) {
           done(null, chunk);
         },
       }), createWriteStream(path, {flags: 'wx', mode: 0o660}), {signal});
-      if (size !== byteLength || hash.digest('hex') !== sha256) throw Error('BROKER_INPUT_IDENTITY_MISMATCH');
+      if (size !== byteLength || hash.hex() !== sha256) throw Error('BROKER_INPUT_IDENTITY_MISMATCH');
     },
     async write(key, bytes, mediaType) {
       if (!(bytes instanceof Uint8Array) || bytes.byteLength > 4 << 20) throw Error('BROKER_OUTPUT_INVALID');
