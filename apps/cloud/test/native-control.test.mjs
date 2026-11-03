@@ -16,6 +16,8 @@ import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOper
 import {flushOutbox,recoverUnregisteredDispatches} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
+import {assertNativeSnapshotHeadroom, nativeSoundtrackBytes} from '../src/native-policy.ts';
+import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
 import {getReviewDraft, directorProgress, dispatchDirectorProgress, dispatchOperationCancellation, failDirector, commitCandidate} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
@@ -320,7 +322,7 @@ test('direct native saves reserve runtime files and duration-dependent synthesiz
   const {env,op,input}=await fixture(t);
   // A direct /native/projects caller bypasses the Director's intake budget.
   // Large inputs are modeled by HEAD metadata so this test allocates no large buffers.
-  const additions=[40,40,38].map((size,index)=>({path:`assets/source-${index}.mp4`,
+  const additions=[40,40,39].map((size,index)=>({path:`assets/source-${index}.mp4`,
     key:`evals/native/source-${index}.mp4`,sha256:String(index+1).repeat(64),byteLength:size<<20,mediaType:'video/mp4'}));
   const originals=new Map(additions.map(file=>[file.key,file]));
   const head=env.MEDIA.head.bind(env.MEDIA);
@@ -336,6 +338,28 @@ test('direct native saves reserve runtime files and duration-dependent synthesiz
     key:`evals/native/f${index}.js`,sha256:'a'.repeat(64),byteLength:0,mediaType:'text/javascript'}))];
   await assert.rejects(saveNativeProject(env,op,{...input,files:many}),/NATIVE_PROJECT_TOO_LARGE/,
     'room for the 37 pinned builtin files and generated sound must also be reserved');
+});
+
+test('native snapshot headroom does not double-count pinned files or an existing soundtrack', () => {
+  assert.equal(pinnedBuiltinFiles.length, 37);
+  assert.equal(pinnedBuiltinFiles.reduce((total, file) => total + file.byteLength, 0), 4298698);
+  const composition = {durationSeconds: 30};
+  const soundtrack = {path:'assets/sound.wav',byteLength:nativeSoundtrackBytes(30)};
+  const included = [{path:'index.html',byteLength:1024}, ...pinnedBuiltinFiles, soundtrack];
+  const nearFileLimit = [...included, ...Array.from({length:512-included.length},(_,i)=>({path:`src/asset-${i}.js`,byteLength:0}))];
+  assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition,files:nearFileLimit}),
+    'an imported native project already containing its pinned runtime may use every source slot');
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:[...nearFileLimit,{path:'extra.js',byteLength:0}]}),
+    /NATIVE_PROJECT_TOO_LARGE/);
+  const hugeFiles = [{path:'index.html',byteLength:30<<20},...pinnedBuiltinFiles,soundtrack,
+    ...Array.from({length:2},(_,i)=>({path:`assets/big-${i}.mp4`,byteLength:30<<20})),
+    {path:'assets/last.mp4',byteLength:28<<20}];
+  assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition,files:hugeFiles}),
+    'an import can use its already-materialized builtins without reserving a second copy of their bytes');
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:hugeFiles.map(file=>file.path===pinnedBuiltinFiles[0].path
+    ?{...file,byteLength:file.byteLength+1}:file)}),/NATIVE_BUILTIN_CONFLICT/);
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:[...hugeFiles,{path:'assets/overflow.mp4',byteLength:2<<20}]}),
+    /NATIVE_PROJECT_TOO_LARGE/);
 });
 
 test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{
