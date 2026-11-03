@@ -83,6 +83,22 @@ test('the authoritative Script validates copy, facts, target frames, and editabl
     assert.doesNotThrow(()=>assertScriptProjection([{path:'index.html',content}],{segments:[{role:'title',displayText:title.default}]}),
       `${name} passes with its real CLIP-mounted variable binding`);
   }
+  const literalCue='<html><body><script type="application/json" id="clip-spec">'+
+    '{"grammar":"y5_kinetic_type","data":{"palette":"white"},"cues":[{"kind":"title","text":"One clear promise"},'+
+    '{"kind":"point","text":"Try PromoBento today"}]}</script><script>CLIP.mount({id:"film"})</script></body></html>';
+  assert.doesNotThrow(()=>assertScriptProjection([{path:'index.html',content:literalCue}],doc),
+    'mounted CLIP cues may render literal display copy without composition variables');
+  const kinetic=huashu.templateSources['kinetic-type/index.html'];
+  const editedKinetic=kinetic.replace(/("text"\s*:\s*)"\{\{titleWord\}\}"/,'$1"A literal product headline"');
+  assert.notEqual(editedKinetic,kinetic,'the pinned kinetic-type template must expose a replaceable title cue');
+  assert.doesNotThrow(()=>assertScriptProjection([{path:'index.html',content:editedKinetic}],
+    {segments:[{role:'title',displayText:'A literal product headline'}]}),
+  'the actual pinned kinetic-type template accepts a directly authored cue');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:literalCue.replace('CLIP.mount','CLIP.unmounted')}],doc),
+    /SCRIPT_SOURCE_PROJECTION_MISSING/,'unmounted cue JSON cannot authorize literal copy');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:literalCue.replace('"text":"One clear promise"',
+    '"metadata":"One clear promise"')}],doc),/SCRIPT_SOURCE_PROJECTION_MISSING/,
+  'metadata unrelated to a rendered cue cannot authorize display copy');
   for(const content of [
     `<html data-composition-variables='${variables}'><body><h1></h1><p>Try PromoBento today</p></body></html>`,
     `<html data-composition-variables='${variables}'><body><!-- <h1 data-var-text="title"></h1> --><p>Try PromoBento today</p></body></html>`,
@@ -299,6 +315,9 @@ test('a changed recorded source invalidates its measured Segment and Moment cloc
     startFrame:30,endFrame:60,timing:clock});
   spoken.moments.push({id:'voiced',kind:'demonstration',startFrame:30,endFrame:60,
     segmentIds:['speech'],resourceIds:['music'],timing:clock});
+  spoken.segments.push({id:'unlinked-caption',role:'caption',displayText:'Hello world',speechText:null,factIds:[],
+    startFrame:30,endFrame:60,timing:clock});
+  spoken.moments[0].segmentIds.push('unlinked-caption');
   const measuredContext={...context,materials:[materials[0],oldAudio],timingEvidence:[{sourceSha256:oldAudio.sha256,
     words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]}]};
   assert.doesNotThrow(()=>assertNativeScript(spoken,measuredContext));
@@ -310,16 +329,20 @@ test('a changed recorded source invalidates its measured Segment and Moment cloc
   assert.equal(changed.script.moments.at(-1).resourceIds[0],'new-voice');
   assert.equal(changed.script.moments.at(-1).timing.kind,'authored');
   assert.equal(changed.script.segments.at(-1).timing.kind,'authored');
+  assert.equal(changed.script.segments.find(segment=>segment.id==='unlinked-caption').timing.kind,'authored',
+    'a measured caption must retire with source bytes even if its Moment only lists a visual resource');
   assert.equal(spoken.segments.at(-1).timing.kind,'measured','parent measured evidence remains untouched');
   const shared=structuredClone(spoken),otherVoice={resourceId:'other-voice',sha256:oldAudio.sha256,kind:'audio'};
-  shared.segments.push({...shared.segments.at(-1),id:'untouched-speech'});
+  shared.segments.push({...shared.segments.find(segment=>segment.id==='speech'),id:'untouched-speech'});
   shared.moments.push({...shared.moments.at(-1),id:'untouched-moment',segmentIds:['untouched-speech'],resourceIds:['other-voice']});
   assert.doesNotThrow(()=>assertNativeScript(shared,{...measuredContext,materials:[materials[0],oldAudio,otherVoice]}));
   const scoped=replaceLockedMaterials(prior,shared,[{fromResourceId:'music',toResourceId:'new-voice'}],
-    [nextAudio],[...materials,oldAudio,otherVoice]);
+    [nextAudio],[...materials,oldAudio,otherVoice],[{resourceId:'other-voice',sha256:oldAudio.sha256}]);
   assert.equal(scoped.script.moments.at(-1).timing.kind,'measured',
     'an unaffected Moment using the original audio bytes keeps its measured clock');
   assert.equal(scoped.script.segments.at(-1).timing.kind,'measured');
+  assert.equal(scoped.script.segments.find(segment=>segment.id==='unlinked-caption').timing.kind,'measured',
+    'the unlinked caption keeps its measured time when another locked resource still retains the same bytes');
 });
 
 test('each Treatment use locks source SHA and alternatives without accepting substitutions',()=>{
