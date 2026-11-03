@@ -7,7 +7,7 @@ import {validate as validReference} from '@promobento/contracts/validators/refer
 import huashu from './huashu-motion/source.mjs';
 import {assertReferenceAnalysis, assertNativeScript, assertScriptProjection, assertMaterialSelection,
   assertLockedMaterialSelection, scriptChangeImpact, applyScriptTextEdits,replaceLockedMaterials,
-  projectMaterialSources,assertMaterialProjection,lockScriptAudioSources} from './production-documents.mjs';
+  projectMaterialSources,assertMaterialProjection,lockScriptAudioSources,assertScriptAudioLocks,assertScriptTreatmentSources} from './production-documents.mjs';
 
 const hash = char => char.repeat(64);
 const materials = [{resourceId:'product', sha256:hash('a')}, {resourceId:'music', sha256:hash('b')}];
@@ -328,6 +328,33 @@ test('a Script-only recording locks one runnable ID/SHA and cannot authorize ano
   assert.throws(()=>replaceLockedMaterials(blank,voiceScript,[{fromResourceId:'voice',toResourceId:'voice'}],
     [{resourceId:'voice',sha256:b,kind:'audio'}],[old],[]),/MATERIAL_REPLACEMENT_INVALID/,
     'an ambiguous baseline without an exact lock cannot authorize a same-ID replacement');
+});
+
+test('persisted Script-only audio locks restore the active version when historical bytes remain runnable',()=>{
+  const old=hash('a'),next=hash('b');
+  const oldPath='assets/'+old.slice(0,24)+'.wav',nextPath='assets/'+next.slice(0,24)+'.wav';
+  const project={resources:[
+    {resourceId:'voice',sha256:old,sourceSha256:old,sourcePath:oldPath,kind:'audio'},
+    {resourceId:'voice',sha256:next,sourceSha256:next,sourcePath:nextPath,kind:'audio'},
+    {resourceId:'other',sha256:old,sourceSha256:old,sourcePath:oldPath,kind:'audio'}],
+    files:[{path:oldPath,sha256:old},{path:nextPath,sha256:next}]};
+  const selectionUses=[{beatId:'b',resourceId:'other',sha256:old,alternatives:[],locked:true}];
+  const selection={schemaVersion:'3.0.0',kind:'locked_materials',uses:selectionUses,selectionHash:digest(selectionUses)};
+  const sourceScript={moments:[{resourceIds:['voice','other']}]};
+  assert.throws(()=>projectMaterialSources(project,selection,sourceScript),/SCRIPT_AUDIO_SOURCE_AMBIGUOUS/);
+  const locks=[{resourceId:'voice',sha256:next}];
+  assert.equal(projectMaterialSources(project,selection,sourceScript,locks).length,3);
+  assert.deepEqual(assertScriptAudioLocks(sourceScript,project.resources,selection,locks),locks);
+  assert.throws(()=>projectMaterialSources(project,selection,sourceScript,[{resourceId:'voice',sha256:hash('c')}]),/SCRIPT_AUDIO_SOURCE_INVALID/);
+  assert.throws(()=>projectMaterialSources({...project,files:[{path:oldPath,sha256:old}]},selection,sourceScript,locks),/SCRIPT_AUDIO_SOURCE_INVALID/);
+});
+
+test('Script validation rejects an unselected visual before caching but permits independent audio',()=>{
+  const treatment={beats:[{assetIds:['selected']}]};
+  const admitted=[{resourceId:'selected',kind:'image'},{resourceId:'unselected',kind:'image'},{resourceId:'voice',kind:'audio'}];
+  const source={moments:[{resourceIds:['selected','voice']}]};
+  assert.doesNotThrow(()=>assertScriptTreatmentSources(source,treatment,admitted));
+  assert.throws(()=>assertScriptTreatmentSources({moments:[{resourceIds:['unselected']}]},treatment,admitted),/MATERIAL_LOCK_PROJECT_MISMATCH/);
 });
 
 test('a changed recorded source invalidates its measured Segment and Moment clocks',()=>{

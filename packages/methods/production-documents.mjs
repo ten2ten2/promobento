@@ -211,6 +211,30 @@ export function lockScriptAudioSources(script, materials, selection = null) {
   return locked;
 }
 
+/** A persisted lock identifies the active recording, even if old licensed bytes remain. */
+export function assertScriptAudioLocks(script, materials, selection, locks) {
+  if (!Array.isArray(locks) || locks.some(lock => !lock || typeof lock.resourceId !== 'string'
+    || !/^[a-f0-9]{64}$/.test(lock.sha256))) fail('SCRIPT_AUDIO_SOURCE_INVALID');
+  const selected = new Set((selection?.uses ?? []).map(use => use.resourceId));
+  const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
+  const audioIds = new Set(materials.filter(item => item.kind === 'audio').map(item => item.resourceId));
+  const expected = [...scriptIds].filter(id => !selected.has(id) && audioIds.has(id));
+  if (!unique(locks.map(lock => lock.resourceId)) || !same([...locks.map(lock => lock.resourceId)].sort(), expected.sort())
+    || locks.some(lock => !materials.some(item => item.kind === 'audio'
+      && item.resourceId === lock.resourceId && item.sha256 === lock.sha256))) fail('SCRIPT_AUDIO_SOURCE_INVALID');
+  assertActiveLockVersions(selection, locks);
+  return locks;
+}
+
+/** Treat the Treatment's exact beat assets as active; other Moments may use only audio. */
+export function assertScriptTreatmentSources(script, treatment, materials) {
+  const selected = new Set(treatment.beats.flatMap(beat => beat.assetIds));
+  const audio = new Set(materials.filter(item => item.kind === 'audio').map(item => item.resourceId));
+  for (const moment of script.moments) for (const id of moment.resourceIds)
+    if (!selected.has(id) && !audio.has(id)) fail('MATERIAL_LOCK_PROJECT_MISMATCH');
+  return script;
+}
+
 /** Each Treatment asset use is bound to one admitted source and locked for the accepted direction. */
 export function assertMaterialSelection(plan, treatment, materials) {
   if (plan.kind !== 'material_selection') fail('MATERIAL_SELECTION_INVALID');
@@ -257,12 +281,15 @@ export function assertLockedMaterialSelection(selection, resources) {
 }
 
 /** Project rights refer to frame-pack manifests, but actual author media and timing use original bytes. */
-export function projectMaterialSources(project, selection = null, script = null) {
+export function projectMaterialSources(project, selection = null, script = null, persistedAudioLocks = null) {
   if (selection) assertLockedMaterialSelection(selection, project.resources);
   const required = new Set((selection?.uses ?? []).map(use => canonical([use.resourceId, use.sha256])));
   const runnable = project.resources.filter(item => item.sourcePath && project.files.some(file =>
     file.path === item.sourcePath && file.sha256 === (item.sourceSha256 ?? item.sha256)));
-  const scriptLocks = lockScriptAudioSources(script, runnable.map(item => ({...item, sha256: item.sourceSha256 ?? item.sha256})), selection);
+  const runnableMaterials = runnable.map(item => ({...item, sha256: item.sourceSha256 ?? item.sha256}));
+  const scriptLocks = persistedAudioLocks === null
+    ? lockScriptAudioSources(script, runnableMaterials, selection)
+    : assertScriptAudioLocks(script, runnableMaterials, selection, persistedAudioLocks);
   const scriptRequired = new Set(scriptLocks.map(item => canonical([item.resourceId, item.sha256])));
   const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
   for (const id of scriptIds) if (!(selection?.uses ?? []).some(use => use.resourceId === id)

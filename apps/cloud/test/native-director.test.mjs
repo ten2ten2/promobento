@@ -62,7 +62,7 @@ const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1H
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
  jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
- unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false}={}){
+ unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -132,6 +132,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
    }
    if(scriptOnlyOtherAudio)value.moments.push({id:'other-audio',kind:'demonstration',startFrame:60,endFrame:90,
      segmentIds:[],resourceIds:['res_voice_other'],timing:{kind:'authored'}});
+   if(invalidScriptVisualOnce&&!callId.endsWith('-correct'))value.moments[0].resourceIds=['res_product_new'];
    }
    else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
     beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:useAlternative&&assetId==='res_product'?['res_product_new']:[],reason:'This licensed source is needed by the beat.',locked:true})))};
@@ -579,6 +580,20 @@ test('an explicit same-ID new-SHA audio replacement is legal, updates executable
  assert.equal(authored.segments.find(item=>item.id==='voice').timing.kind,'authored');
  assert.equal(authored.moments.find(item=>item.id==='spoken').timing.kind,'authored');
  assert.equal(changed.scriptImpact.changed,true);
+ const followup=await f.create('same-id-b-geometry',{aspects:['landscape'],resources:[],
+  baseRevision:changed.projects[0].revisionId,comments:[{text:'Move title 5 pixels.',frame:60}]},[f.asset,voice,next]);
+ assert.equal(followup.kind,'native_candidate','the persisted new-SHA lock must survive a later geometry patch');
+});
+
+test('an unselected Script visual triggers model correction before success can be cached',async t=>{
+ const f=await fixture(t,{useAlternative:true,invalidScriptVisualOnce:true});
+ const alternative={...await f.put('evals/fixture/other-product.png',Buffer.from('different source image'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:1,height:1};
+ const result=await f.create('script-unselected-visual',{resources:[f.asset,alternative],aspects:['landscape']});
+ assert.equal(result.kind,'native_candidate');
+ const calls=f.calls.filter(call=>call.stage==='script');
+ assert.equal(calls.length,2,'invalid Script is not committed as a successful model response');
+ assert.ok(calls[1].callId.endsWith('-script-correct'));
 });
 
 test('multi-aspect patch rejects incompatible Script-only audio SHA locks before author calls',async t=>{
@@ -602,7 +617,7 @@ test('multi-aspect patch rejects incompatible Script-only audio SHA locks before
  const before=f.calls.length;
  await assert.rejects(f.create('multi-voice-child',{resources:[],baseRevisions:{landscape:parent.projects[0].revisionId,
   portrait:revised.revisionId},comments:[{text:'Nudge the title.',frame:100}]},[f.asset,audio,alt]),
- /NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT/);
+ /SCRIPT_AUDIO_SOURCE_INVALID/,'a replaced audio file cannot satisfy the persisted ID/SHA lock');
  assert.equal(f.calls.length,before);
 });
 

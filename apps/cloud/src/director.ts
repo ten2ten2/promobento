@@ -31,7 +31,7 @@ import {authorAspectStage,reviewAspectStage} from './director-production.ts';
 import {referenceFrameEvidence} from '../../../packages/methods/reference-evidence.mjs';
 import {assertReferenceAnalysis,assertNativeScript,assertScriptProjection,assertMaterialSelection,assertLockedMaterialSelection,
   scriptChangeImpact,applyScriptTextEdits,projectMaterialSources,replaceLockedMaterials,assertMaterialProjection,
-  lockScriptAudioSources} from '../../../packages/methods/production-documents.mjs';
+  lockScriptAudioSources,assertScriptAudioLocks,assertScriptTreatmentSources} from '../../../packages/methods/production-documents.mjs';
 import {workflowStarted} from './workflow-state.ts';
 import {renderCompletionEventType} from './render-recovery.ts';
 import {waitForDurableRender} from './workflow-wait.ts';
@@ -246,7 +246,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
         if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(input.files,lockedSelection,
          material.resources,script,scriptAudioLocks);
        }
-       if(tool==='write_project'&&input.files.some((file:SourceFile)=>['script.json','material-selection.json'].includes(file.path)))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
+       if(tool==='write_project'&&input.files.some((file:SourceFile)=>['script.json','material-selection.json','script-audio-locks.json'].includes(file.path)))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
        if(tool==='write_treatment')assertTreatment(input,context.durationSeconds,material.materials.map(asset=>asset.resourceId));
        if(tool==='submit_review'){
         if((input.verdict==='pass')!==(input.issues.length===0)||input.issues.some((issue:Json)=>issue.frames.some((frame:number)=>frame>=context.durationSeconds*30)))throw Error('DIRECTOR_REVIEW_INVALID');
@@ -268,6 +268,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      if(lockedSelection) {
       const at=documents.findIndex(file=>file.path==='material-selection.json');if(at>=0)documents.splice(at,1);
       documents.push({path:'material-selection.json',content:canonical(lockedSelection)+'\n'});
+     }
+     if(script){
+      const at=documents.findIndex(file=>file.path==='script-audio-locks.json');if(at>=0)documents.splice(at,1);
+      documents.push({path:'script-audio-locks.json',content:canonical(scriptAudioLocks)+'\n'});
      }
      documents.push({path:'BRIEF.md',content:'# Brief\n\n'+canonical(brief)+'\n'});
      if(!base){const prior=documents.findIndex(file=>file.path==='TREATMENT.md');if(prior>=0)documents.splice(prior,1);documents.push({path:'TREATMENT.md',content:'# Treatment\n\n'+(treatment?.treatment??'Direction exploration; selection pending.')+'\n'});}
@@ -424,7 +428,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     script=await runModel('script','script',{messages:[{role:'user',text:canonical({task:'Write the single authoritative target Script with stable segments, display/speech copy, confirmed fact IDs, semantic Moments and integer authored frames. Preserve the exact CTA. Never use reference timestamps as target timestamps or claim measured word alignment without the supplied same-source evidence.',brief,facts:context.facts,direction,treatment,
      referenceAnalyses,materials:publicMaterials(material.materials),timingEvidence})}],schema:scriptSchema,maxOutputTokens:8192},value=>{
      try{if(!validScript(value))throw Error('SCRIPT_SCHEMA_INVALID');assertNativeScript(value,{durationSeconds:context.durationSeconds,videoLanguage:context.videoLanguage,
-      facts:context.facts,cta:context.cta,materials:material.materials,timingEvidence});}
+      facts:context.facts,cta:context.cta,materials:material.materials,timingEvidence});
+      assertScriptTreatmentSources(value,treatment,material.materials);}
      catch(error){outputError(error instanceof Error?error.message:'SCRIPT_INVALID',value);}
     });
     await progress('selection');
@@ -451,6 +456,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      await rights(this.env,op,base.project.resources);
      const source=await sourceFiles(base),rawScript=source.find(file=>file.path==='script.json')?.content;
      const rawSelection=source.find(file=>file.path==='material-selection.json')?.content;
+     const rawAudioLocks=source.find(file=>file.path==='script-audio-locks.json')?.content;
      const priorScript=rawScript?parseCanonicalJson(rawScript):null;
      const rawBrief=source.find(file=>file.path==='BRIEF.md')?.content;
      if(priorScript&&!rawBrief?.startsWith('# Brief\n\n'))throw Error('NATIVE_BASE_BRIEF_INVALID');
@@ -458,7 +464,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      const priorSelection=rawSelection?parseCanonicalJson(rawSelection):null;
      if(priorScript&&!validScript(priorScript))throw Error('SCRIPT_BASE_INVALID');
      if(priorSelection)assertLockedMaterialSelection(priorSelection,base.project.resources);
-     const baseMaterials=projectMaterialSources(base.project,priorSelection,priorScript);
+     const persistedAudioLocks=rawAudioLocks?parseCanonicalJson(rawAudioLocks) as {resourceId:string;sha256:string}[]:null;
+     const baseMaterials=projectMaterialSources(base.project,priorSelection,priorScript,persistedAudioLocks);
      let currentTiming:Json[]=[];
      if(base.project.timingEvidenceRef){
       const stored=parseCanonicalJson(await checkedNativeBytes(this.env,base.project.timingEvidenceRef,6<<20)) as Json;
@@ -469,7 +476,8 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      if(!first&&(canonical(script)!==canonical(priorScript)||canonical(lockedSelection)!==canonical(priorSelection)))
       throw Error('NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT');
      if(!first&&canonical(priorTiming)!==canonical(currentTiming))throw Error('NATIVE_PATCH_TIMING_CONFLICT');
-     const baseAudioLocks=lockScriptAudioSources(priorScript,baseMaterials,priorSelection);
+     const baseAudioLocks=persistedAudioLocks===null?lockScriptAudioSources(priorScript,baseMaterials,priorSelection)
+      :assertScriptAudioLocks(priorScript,baseMaterials,priorSelection,persistedAudioLocks);
      if(!first&&canonical(scriptAudioLocks)!==canonical(baseAudioLocks))
       throw Error('NATIVE_PATCH_PRODUCTION_DOCUMENT_CONFLICT');
      if(priorScript){
