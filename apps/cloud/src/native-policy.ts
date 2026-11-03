@@ -1,6 +1,27 @@
 /** Initial internal-evaluation capacity ceilings; not measured production promises. */
 import {NATIVE_SOURCE_LIMITS} from '@promobento/contracts/native-project';
 import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
+import {assertAuthorPath} from '../../../packages/methods/native-authoring.mjs';
+
+export type MediaFile={path:string;sha256:string;byteLength:number;mediaType:string};
+type MediaSelection={uses?:{sha256:string}[]}|null;
+
+/** Use the same inheritance, de-duplication and retired-lock rules for paid
+ * patch preflight and for the eventual immutable native snapshot. */
+export function activeNativeMediaFiles(baseFiles:MediaFile[],freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[]):MediaFile[]{
+ const assets=new Map<string,MediaFile>();
+ for(const file of [...baseFiles.filter(file=>{try{assertAuthorPath(file.path);return false;}catch{return true;}}),...freshFiles]){
+  const previous=assets.get(file.path);
+  if(previous&&(previous.sha256!==file.sha256||previous.byteLength!==file.byteLength||previous.mediaType!==file.mediaType))
+   throw Error('NATIVE_ASSET_PATH_CONFLICT');
+  if(!previous)assets.set(file.path,file);
+ }
+ if(selection||audioLocks.length){
+  const permitted=new Set([...(selection?.uses??[]).map(use=>use.sha256),...audioLocks.map(lock=>lock.sha256)]);
+  for(const [path,file] of assets)if(/^assets\/[a-f0-9]{24}\./.test(path)&&!permitted.has(file.sha256))assets.delete(path);
+ }
+ return [...assets.values()];
+}
 
 // The pinned runtime seeds 37 files (4,298,698 bytes). Keep headroom for
 // those files and authored text, plus the PCM WAV that `om sound` may create.
@@ -29,6 +50,15 @@ export function assertNativeSnapshotHeadroom(project: {
   if (total + missingBytes + soundGrowth + generatedHtmlHeadroom > NATIVE_SOURCE_LIMITS.bytes
     || project.files.length + missingFiles + (existingSound ? 0 : 1) > NATIVE_SOURCE_LIMITS.files)
     throw Error('NATIVE_PROJECT_TOO_LARGE');
+}
+
+/** Check every patch aspect before a paid author call. The real author may use
+ * 24 text files totaling 1 MiB, so budget the full permitted source envelope. */
+export function assertNativePatchHeadroom(project:{composition:{durationSeconds:number};files:MediaFile[]},
+ freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[]){
+ const assets=activeNativeMediaFiles(project.files,freshFiles,selection,audioLocks);
+ const authorSlots=Array.from({length:24},(_,index)=>({path:`src/__author_slot_${index}.css`,byteLength:index===0?1<<20:0}));
+ assertNativeSnapshotHeadroom({composition:project.composition,files:[...assets,...authorSlots]});
 }
 
 export const nativeRenderPolicy = {

@@ -16,7 +16,7 @@ import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOper
 import {flushOutbox,recoverUnregisteredDispatches} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
-import {assertNativeSnapshotHeadroom, nativeSoundtrackBytes} from '../src/native-policy.ts';
+import {assertNativeSnapshotHeadroom,assertNativePatchHeadroom,activeNativeMediaFiles,nativeSoundtrackBytes} from '../src/native-policy.ts';
 import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
 import {getReviewDraft, directorProgress, dispatchDirectorProgress, dispatchOperationCancellation, failDirector, commitCandidate} from '../src/director-recovery.ts';
@@ -360,6 +360,24 @@ test('native snapshot headroom does not double-count pinned files or an existing
     ?{...file,byteLength:file.byteLength+1}:file)}),/NATIVE_BUILTIN_CONFLICT/);
   assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:[...hugeFiles,{path:'assets/overflow.mp4',byteLength:2<<20}]}),
     /NATIVE_PROJECT_TOO_LARGE/);
+});
+
+test('a paid native patch preflights the final active assets after explicit replacement and source retirement',()=>{
+ const media=(name,bytes,sha,mediaType='video/mp4')=>({path:'assets/'+sha.slice(0,24)+(mediaType==='video/mp4'?'.mp4':'.png'),
+  sha256:sha,byteLength:bytes,mediaType});
+ const videos=[media('a',40<<20,'a'.repeat(64)),media('b',40<<20,'b'.repeat(64)),media('c',20<<20,'c'.repeat(64))];
+ const old=media('old',89,'d'.repeat(64),'image/png'),replacement=media('new',40<<20,'e'.repeat(64),'image/png');
+ const project={composition:{durationSeconds:30},files:[...videos,old]};
+ const selection={uses:[...videos,replacement].map(file=>({sha256:file.sha256}))};
+ const active=activeNativeMediaFiles(project.files,[replacement],selection,[]);
+ assert.equal(active.reduce((sum,file)=>sum+file.byteLength,0),140<<20);
+ assert.ok(!active.some(file=>file.sha256===old.sha256),'retired bytes must not be counted');
+ assert.throws(()=>assertNativePatchHeadroom(project,[replacement],selection,[]),/NATIVE_PROJECT_TOO_LARGE/,
+  'the author cannot make an oversized immutable asset set fit by changing source code');
+ const small=media('small',512,'f'.repeat(64),'image/png');
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[small],
+  {uses:[...videos,small].map(file=>({sha256:file.sha256}))},[]),
+  'a valid replacement excludes the retired asset and does not double-count it');
 });
 
 test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{

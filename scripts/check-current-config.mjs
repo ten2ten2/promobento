@@ -24,6 +24,8 @@ try {
   for(const stage of stages) {
     const limits=policy.director.steps[stage];
     expect(positive(limits?.maxMicros)&&positive(limits?.maxCalls??limits?.maxCallsPerAsset),'Invalid native model budget: '+stage);
+    if(limits?.maxTotalMicros!==undefined)expect(positive(limits.maxTotalMicros)&&limits.maxTotalMicros>=limits.maxMicros
+      &&limits.maxTotalMicros<=authorization.maxUsdMicros,'Invalid aggregate model budget: '+stage);
   }
   expect(Number.isSafeInteger(policy.limits.maxInternalRepairs)&&policy.limits.maxInternalRepairs>=0,'Invalid internal repair limit');
   expect(positive(policy.limits.requestTimeoutMs)&&positive(policy.director.activeTimeoutMs.creative)

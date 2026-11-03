@@ -72,7 +72,10 @@ export function assertTreatment(value,durationSeconds,resourceIds){
 /** Accept timing only for the exact admitted media, on its measured local clock. */
 export function normalizeTimingEvidence(entries,materials){
  if(entries===undefined)return [];
- if(!Array.isArray(entries)||entries.length>12)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
+ // A patch can retain measurements from earlier revisions while adding new
+ // tracks. The saved collection is bounded by native-project.resources (128),
+ // not by a single request's 12+12 admitted material lists.
+ if(!Array.isArray(entries)||entries.length>128)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
  if(new Set(entries.map(entry=>entry?.sourceSha256)).size!==entries.length)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
  return entries.map(entry=>{
   if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('NATIVE_TIMING_EVIDENCE_INVALID');

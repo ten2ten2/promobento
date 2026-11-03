@@ -9,6 +9,7 @@ import providers from '../../../config/model-providers.json' with {type:'json'};
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {historicalModelSpend} from '../../../research/model-probe/history.mjs';
+import {reconcileOperation} from '../src/render-recovery.ts';
 
 async function load(path){const{outputFiles}=await build({entryPoints:[path],bundle:true,write:false,platform:'node',format:'esm',target:'node26'});
  return import('data:text/javascript;base64,'+Buffer.from(outputFiles[0].text).toString('base64'));}
@@ -54,6 +55,32 @@ test('identical concurrent observations share one metered request while other op
  const reused=await modelStep(env,'other-operation',0,'assets','other-asset-0',request,check);
  assert.equal(reused.cached,true,'a settled response with a receipt is safely reusable');
  assert.equal(requests,1);
+});
+
+test('two simultaneous direction author previews fit their aggregate stage budget without weakening per-call reserves',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;
+ let started=0,release,signalStarted;
+ const held=new Promise(resolve=>{release=resolve;}),bothStarted=new Promise(resolve=>{signalStarted=resolve;});
+ globalThis.fetch=async()=>{
+  if(++started===2)signalStarted();
+  await held;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],
+   usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{release();globalThis.fetch=originalFetch;});
+ const author=key=>modelStep(env,'model-operation',0,'author','model-operation-direction-'+key,
+  {system:'Offline native preview.',messages:[{role:'user',text:'Build direction '+key+' A'.repeat(100000)}],maxOutputTokens:24576},
+  value=>assert.equal(value.ok,true));
+ const work=Promise.all([author('fit'),author('amplify')]);
+ try{
+  await Promise.race([bothStarted,new Promise((_,reject)=>setTimeout(()=>reject(Error('AUTHOR_PREVIEW_ADMISSION_FAILED')),1000))]);
+  const reserved=local.db.prepare("SELECT SUM(reserved_micros) AS total FROM cost_reservations WHERE stage='author'").get().total;
+  assert.ok(reserved>350000,'two valid worst-case author reservations must coexist');
+  assert.ok(reserved<=4200000,'the aggregate author allowance is still bounded');
+ }finally{release();}
+ const results=await work;
+ assert.equal(results.length,2);assert.equal(started,2);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS count FROM cost_settlements').get().count,2);
 });
 
 test('historical primary reports inventory every request; unknown prices/usage never become a zero opening',async t=>{
@@ -251,6 +278,38 @@ for(const cleanupUnavailable of [false,true])test(`committed local admission wit
  local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('after-unsent','workspace','project',0,'calibration','active','after-unsent',10000000,Date.now(),null,null);
  await modelStep(env,'after-unsent',0,'facts','after-unsent-call',request,check);
  assert.equal(requests,1,'proven unsent local cost cannot permanently block a later authorized request');
+});
+
+test('terminal reconciliation finishes a known-unsent local admission after failed cleanup without replaying the provider',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;
+ let lostAck=true,lostCleanup=true,requests=0;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],
+  usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(sql.startsWith('SELECT operation_id,request_hash,kind,catalog_version')&&lostCleanup){lostCleanup=false;throw Error('LOCAL_CLEANUP_UNAVAILABLE');}
+  const statement=prepare(sql);
+  if(!sql.startsWith('INSERT OR IGNORE INTO cost_reservations'))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();if(lostAck){lostAck=false;throw Error('LOCAL_ADMISSION_ACK_LOST');}return result;
+  }};}};
+ };
+ const request={system:'Never dispatched due to a lost acknowledgement.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const validate=value=>assert.equal(value.ok,true);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','terminal-unsent-call',request,validate),/LOCAL_CLEANUP_UNAVAILABLE/);
+ assert.equal(requests,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ local.db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id='model-operation'").run();
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','terminal-unsent-call',request,validate),/OPERATION_FENCED/);
+ const cleaned=await reconcileOperation(env,'model-operation');
+ assert.deepEqual(cleaned.pendingCosts,[]);
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ await reconcileOperation(env,'model-operation');
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,1,'cleanup is idempotent');
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('new-after-terminal','workspace','project',0,'calibration','active','new-request',10000000,Date.now(),null,null);
+ const later=await modelStep(env,'new-after-terminal',0,'facts','new-after-terminal-call',request,validate);
+ assert.equal(later.cached,false);assert.equal(requests,1);
 });
 test('an expired dispatch-marker response cannot start a late paid model request',async t=>{
  const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;

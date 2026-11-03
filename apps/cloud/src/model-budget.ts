@@ -2,7 +2,8 @@ import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {validate} from '@promobento/contracts/validators/model-spend';
 import {validate as validAuthorization} from '@promobento/contracts/validators/model-config';
-import authorization from '../../../config/model-authorization.json';
+import authorization from '../../../config/model-authorization.json' with {type:'json'};
+import {settle} from './store.ts';
 import type {PipelineEnv,Json} from './pipeline-types.ts';
 
 // Catalog/bindings may change within a grant. They must not create a fresh spending allowance.
@@ -99,6 +100,22 @@ export async function modelUnsentReceipt(env:PipelineEnv,id:string,operationId:s
  if(row.origin!==env.PIPELINE_ENVIRONMENT||row.operation_id!==operationId||row.request_hash!==requestHash)throw Error('MODEL_RECEIPT_CONFLICT');
  const receipt=parseCanonicalJson(row.receipt_json) as Json;
  return receipt.kind==='not_dispatched'?receipt:null;
+}
+
+/** Terminal operations cannot re-enter modelStep. Repair only local reservations
+ * whose exact call identity has a committed, never-dispatched shared zero receipt. */
+export async function reconcileUnsentModelCosts(env:PipelineEnv,operationId:string){
+ const pending=await env.DB.prepare(`SELECT r.id,r.request_hash FROM cost_reservations r
+  LEFT JOIN cost_settlements s ON s.reservation_id=r.id
+  WHERE r.operation_id=? AND r.kind='model' AND s.reservation_id IS NULL`).bind(operationId).all<{id:string;request_hash:string}>();
+ let settled=0;
+ for(const row of pending.results){
+  const receipt=await modelUnsentReceipt(env,modelBudgetId(env.PIPELINE_ENVIRONMENT,row.id),operationId,row.request_hash);
+  if(!receipt)continue; // Dispatched or unknown requests must retain their full reservation.
+  await settle(env,row.id,0,receipt);
+  settled++;
+ }
+ return settled;
 }
 export async function settleModelBudget(env:PipelineEnv,id:string,actual:number,receipt:Json,{notDispatched=false}={}){
  if(!Number.isSafeInteger(actual)||actual<0||notDispatched&&actual!==0)throw Error('COST_SETTLEMENT_INVALID');

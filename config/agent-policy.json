@@ -258,6 +258,7 @@
       "author": {
         "maxCalls": 12,
         "maxMicros": 350000,
+        "maxTotalMicros": 4200000,
         "effort": "high",
         "inputMode": "asset-insights"
       }

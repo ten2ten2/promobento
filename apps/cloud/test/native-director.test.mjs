@@ -52,7 +52,7 @@ test('temporary D1 status outages rearm the durable wait, while a fenced operati
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
- 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}',
+ 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}export async function reconcileUnsentModelCosts(){return 0;}',
  'native-project.ts':`export const NATIVE_COMMIT='${nativeCommit}';export const saveNativeProject=(...a)=>globalThis.__nativeDirectorFixture.save(...a);export const loadNativeProject=(...a)=>globalThis.__nativeDirectorFixture.load(...a);export const createNativeRender=(...a)=>globalThis.__nativeDirectorFixture.render(...a);export const getNativeRender=(...a)=>globalThis.__nativeDirectorFixture.getRender(...a);export const checkedNativeBytes=(...a)=>globalThis.__nativeDirectorFixture.bytes(...a);`,
  'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key,resources){globalThis.__nativeDirectorFixture.committedResources=resources;await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
 };
@@ -63,7 +63,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
  jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
  unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false,audioReplacementIds=null,
- authorBoundaryOnce=null}={}){
+ authorBoundaryOnce=null,selectAllAudio=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -139,7 +139,12 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
     beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:useAlternative&&assetId==='res_product'?['res_product_new']:[],reason:'This licensed source is needed by the beat.',locked:true})))};
    else{
     let input;
-    if(tool==='write_treatment')input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats:[{id:'hero',purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:selectVoice?['res_product','res_voice']:['res_product']}],hardestBeat:'hero',reviewFrames:[0,90,240,449]};
+    if(tool==='write_treatment'){
+     const ids=selectAllAudio?payload.materials.map(item=>item.resourceId):selectVoice?['res_product','res_voice']:['res_product'];
+     const beats=Array.from({length:Math.ceil(ids.length/12)},(_,i)=>({id:i?'audio-bed-'+i:'hero',
+      purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:ids.slice(i*12,(i+1)*12)}));
+     input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats,hardestBeat:'hero',reviewFrames:[0,90,240,449]};
+    }
     else if(tool==='write_project'){
      const shape=payload.composition,product=payload.materials.find(item=>item.resourceId==='res_product')??payload.materials[0];
      const unselected=payload.materials.find(item=>item.resourceId==='res_product_new');
@@ -147,7 +152,8 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      const otherVoice=payload.materials.find(item=>item.resourceId==='res_voice_other');
      const wrongHardest=invalidHardestOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct');
      const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${wrongHardest&&unselected?unselected.path:product.path}">`;
-     const audio=((selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'')+
+     const audio=selectAllAudio?payload.materials.filter(item=>item.kind==='audio').map(item=>`<audio src="${item.path}"></audio>`).join(''):
+       ((selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'')+
        (scriptOnlyOtherAudio&&otherVoice?`<audio src="${otherVoice.path}"></audio>`:'');
      const source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1>${image}${audio}<i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};${jsonMaterial?"fetch('src/assets.json').then(r=>r.json()).then(v=>document.querySelector('img').src=v.productPath);":''}</script></body></html>`;
      const html=source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>');
@@ -473,6 +479,28 @@ test('measured Script and its authorized media survive a geometry-only child rev
  assert.equal(next.timingEvidenceRef.sha256,original.timingEvidenceRef.sha256);
  assert.equal(parseCanonicalJson(await f.bytes(f.env,next.timingEvidenceRef)).length,1);
  assert.deepEqual(Object.keys(next.timingEvidenceRef).sort(),['byteLength','key','sha256']);
+});
+
+test('a thirteenth retained audio clock survives a second patch and remains readable',async t=>{
+ const f=await fixture(t,{selectAllAudio:true});
+ const sounds=[];
+ for(let i=0;i<13;i++)sounds.push({...await f.put(`evals/fixture/clock-${i}.wav`,Buffer.from(`voice ${i}`),'audio/wav'),
+  resourceId:`clock_${i}`,kind:'audio',durationSeconds:3});
+ const timing=sounds.map((sound,i)=>({sourceSha256:sound.sha256,durationSeconds:3,
+  words:[{text:`word${i}`,start:1,end:2}]}));
+ const parent=await f.create('clock-parent',{aspects:['landscape'],resources:[f.asset,sounds[0]],
+  audioSources:sounds.slice(1),timingEvidence:timing.slice(0,12)});
+ const first=f.saved.get(parent.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,first.timingEvidenceRef)).length,12);
+ const child=await f.create('clock-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  timingEvidence:[timing[12]],comments:[{text:'Move the title.',frame:30}]},[f.asset,...sounds]);
+ const second=f.saved.get(child.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,second.timingEvidenceRef)).length,13);
+ const next=await f.create('clock-next',{aspects:['landscape'],resources:[],baseRevision:child.projects[0].revisionId,
+  comments:[{text:'Shift the subtitle.',frame:60}]},[f.asset,...sounds]);
+ assert.equal(next.kind,'native_candidate','a successfully saved revision must remain editable');
+ const third=f.saved.get(next.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,third.timingEvidenceRef)).length,13);
 });
 
 test('unused audio and its historical measured evidence cannot poison a later geometry patch',async t=>{

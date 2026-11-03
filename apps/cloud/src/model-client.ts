@@ -2,9 +2,9 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
 import {providerRequest, streamModel, ModelOutputError, parseModelJson, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
-import providersInput from '../../../config/model-providers.json';
-import authorization from '../../../config/model-authorization.json';
-import policyInput from '../../../config/agent-policy.json';
+import providersInput from '../../../config/model-providers.json' with {type:'json'};
+import authorization from '../../../config/model-authorization.json' with {type:'json'};
+import policyInput from '../../../config/agent-policy.json' with {type:'json'};
 import {operation, reserve, settle, getJson, immutableJson, immutableBytes} from './store.ts';
 import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId,modelUnsentReceipt} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
@@ -32,6 +32,11 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const limits=policy.director.steps[stage];
   if(!limits)throw Error('MODEL_STAGE_UNKNOWN');
   const stageLimit=limits.maxMicros;
+  // maxMicros caps each request; author previews can overlap, so their combined
+  // reservation needs its own bounded allowance while the operation cap remains authoritative.
+  const stageTotalLimit=limits.maxTotalMicros??stageLimit;
+  if(!Number.isSafeInteger(stageTotalLimit)||stageTotalLimit<stageLimit||stageTotalLimit>authorization.maxUsdMicros)
+    throw Error('MODEL_STAGE_BUDGET_INVALID');
   const methodEvidence=context.directingMethod?{directingMethod:context.directingMethod}:{};
   if(request.messages.some(message=>message.images?.length)&&!model.capabilities.vision)throw Error('MODEL_VISION_UNAVAILABLE');
   if(request.tools?.length&&!model.capabilities.tools)throw Error('MODEL_TOOLS_UNAVAILABLE');
@@ -149,7 +154,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
   try{
     context.dispatchGuard?.();
-    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
+    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageTotalLimit,
       limits.maxCalls??limits.maxCallsPerAsset??1,true,observedRequests?.count??0);
     await operation(env,op.id,op.generation);
     if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
