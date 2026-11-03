@@ -4,7 +4,7 @@ import {digest} from '@promobento/contracts/digest';
 
 /** Current native method; source references and templates are pinned with each operation. */
 export const directingMethodPack = {
-  id: 'native-product-directing', version: '2.0.1', huashuSource, hypitSource,
+  id: 'native-product-directing', version: '2.1.0', huashuSource, hypitSource,
   sources: [
     {ref: `https://github.com/alchaincyf/huashu-motion/tree/${huashuSource.revision}`, scope: 'Native HTML, GSAP, Canvas, SVG and Three.js authoring, original templates, preview, editing and whole-film rendering.'},
     {ref: `https://github.com/hypit-ai/hypit/tree/${hypitSource.revision}`, scope: 'Brief versus Treatment, source-backed material selection, semantic events and actual-media timing. No second execution runtime.'}
@@ -13,6 +13,9 @@ export const directingMethodPack = {
     'The authored film is a native huashu-motion project: index.html plus local JS/CSS/assets. JSON carries production context and immutable file manifests, never a second film language. Use native GSAP, Canvas, SVG or Three.js freely inside the isolated browser.',
     'Use only confirmed product facts and actual supplied material. Preserve requested language, exact names, required wording and CTA. Captured interfaces are evidence; original staging is packaging. Do not invent an interaction, result, metric or testimonial.',
     'The Brief records the user’s goal, audience, facts, replacements, references and fixed delivery/budget constraints. The Treatment records your complete creative answer: hook, reveal, payoff, visual relationships, rhythm and sound. An implementation repair changes source; change Treatment only when the design changes, and Brief only when user truth changes.',
+    'The formal Script alone owns final display and speech copy. Its stable Segments and named Moments map to actual 30 fps authored frames; measured word timing requires the exact admitted audio bytes and word alignment. Implement Script copy in native source, never a divergent second text.',
+    'A video reference is only a source of observed director relationships. Every claim about its frames needs the supplied source-frame evidence; unexamined audio is unknown, and reference footage is not licensed for output merely because it was analyzed.',
+    'Selected production materials have immutable resource SHA identities, explicit creative roles and locked beat uses. Preserve these across aspects and scoped revisions; changing shared Script or a selected source invalidates affected checks.',
     'Choose a message shape that fits the material: workflow, mechanism, evidence, transformation, character or showcase. Motion must express that shape. Keep the product legible and give the hook, important evidence and ending distinct compositions.',
     'PromoBento delivery is exactly 15 or 30 seconds at 30 fps, one supported platform aspect per project. Set matching data-duration, data-fps, data-width and data-height on the composition. Author a complete timeline of that duration. Recompose for each aspect; never stretch a finished frame.',
     'Use only supplied local asset paths and the fixed bundled vendor/font paths. No external URLs, downloads, package installs or secrets. The trusted host never evaluates authored code; all visual work runs in the isolated native browser.',
@@ -27,6 +30,10 @@ export const directingMethodPack = {
   stages: {
     facts: ['Organize the supplied confirmed facts without adding or changing them. The Brief preserves user authority; creative choices belong in Treatment.'],
     assets: ['Describe only what the supplied pixels or timed evidence establish. Record readable content, useful regions, identity anchors and limitations. A poster frame cannot establish later video action.'],
+    reference: [
+      'Inspect only the exact source-video frames presented, in source order. Analyze overall hook, progression, payoff, visual system, text and director relationships; distinguish visible evidence from interpretation. Cite exact supplied frame indices for every moment, without guessing unseen intervals.',
+      'No audio was decoded for this observation. Say audio is not analyzed; do not invent dialogue, sound effects, speech timing or a source-video transcript. Source timecodes never become target film timing.'
+    ],
     directions: [
       'Propose Fit, Amplify and Unexpected using the same actual content. Make them differ in visual language, material or story construction. Include a depth option unless the Brief explicitly excludes it; do not assume depth is the preferred answer.',
       'Each chosen visual hypothesis is built as native source and rendered to a real key frame before the user chooses. Source-backed palette and truthful material matter more than decorative variation.'
@@ -35,6 +42,14 @@ export const directingMethodPack = {
       'Write the selected direction as a complete creative design, with a beat map and the hook, hero, densest and ending review frames. Name the hardest shot and the continuity relationship that must survive each handoff.',
       'Select material by its role in the story. Separate observed source-media times from intended authored events. Use supplied alignment evidence for spoken Moments and Selections; pure animation needs no pretend transcript.',
       'Choose music and effects to support the direction. Default to an authored native OM score or supported procedural sound unless the user requested silence; supplied voice/music remain actual local files. Linux TTS is not assumed.'
+    ],
+    script: [
+      'Write one authoritative Script for the accepted Brief, confirmed facts, direction and Treatment. Use stable Segment IDs, displayText, optional speechText, fact IDs and named Moment IDs. The Script is production copy, not a second film DSL or another independent timeline.',
+      'All target moments and intervals use integer 30 fps authored frames unless matching source-audio word evidence was supplied. Preserve exact CTA and mandatory wording, and do not infer speech timing from a reference video.'
+    ],
+    selection: [
+      'For every Treatment beat and its actual assetIds choose the appropriate production role, legitimate alternatives and an explicit locked selected resource. Refer only to admitted visual or audio production resources. Reference-only media is not a production asset.',
+      'Protect stable source SHA identity and selected candidates across target recomposition. Do not regenerate unrelated assets to satisfy an HTML/CSS/Script adjustment.'
     ],
     author: [
       'Write complete native index.html, using a single paused timeline in window.__timelines[compositionId]. Keep all text and drawing in the original HTML/JS representation. Use the selected original template directly when it fits; replace its demonstration content with this project’s facts and assets.',
@@ -65,7 +80,10 @@ export function recallDirecting(pack:DirectingMethodPack,stage:string,audience:'
   if(pack.id!==directingMethodPack.id||pack.version!==directingMethodPack.version||!Object.hasOwn(directingMethodPack.stages,stage)||!Object.hasOwn(pack.stages,stage))throw Error('DIRECTING_METHOD_UNSUPPORTED');
   const refs:Record<string,string[]>={
     directions:['references/director.md','references/visual-direction.md','references/library/formats.md'],
+    reference:['references/director.md','references/product-demo-continuity.md'],
     treatment:['references/director.md','references/rhythm.md','references/product-demo-continuity.md','references/music.md'],
+    script:['references/rhythm.md','references/product-demo-continuity.md'],
+    selection:['references/product-demo-continuity.md','references/provenance.md'],
     author:['references/contract.md','references/craft.md','references/product-demo-continuity.md','references/sound.md'],
     review:['references/verification.md','references/product-demo-continuity.md'],
     coldReview:['references/verification.md']
@@ -75,7 +93,7 @@ export function recallDirecting(pack:DirectingMethodPack,stage:string,audience:'
   if(language&&pack.huashuSource.references['references/library/languages/'+language+'.md'])paths.push('references/library/languages/'+language+'.md');
   if(stage==='directions')paths.push(...Object.keys(pack.huashuSource.references).filter(p=>p.startsWith('references/library/languages/')).sort());
   const templatePath=(selected??'blank')+'/index.html';
-  const hypitPaths=stage==='treatment'||stage==='author'?['references/creation/brief.md','references/creation/script-and-time.md']:['references/creation/brief.md'];
+  const hypitPaths=['treatment','script','selection','author','reference'].includes(stage)?['references/creation/brief.md','references/creation/script-and-time.md']:['references/creation/brief.md'];
   return {id:pack.id,version:pack.version,common:pack.common,audience:pack.audiences[audience],stage,guidance:pack.stages[stage],
     huashu:{revision:pack.huashuSource.revision,references:paths.map(path=>({path,content:pack.huashuSource.references[path]})),
       ...(stage==='author'?{template:{path:templatePath,content:pack.huashuSource.templateSources?.[templatePath],usage:'Native starting source. Keep its original APIs and author this project’s exact content, duration and local assets.'}}:{})},

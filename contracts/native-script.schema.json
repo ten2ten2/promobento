@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/native-script/3.0.0",
+  "title": "Authoritative copy and authored/measured semantic events",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "videoLanguage", "durationFrames", "segments", "moments"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "native_script"},
+    "videoLanguage": {"type": "string", "minLength": 1, "maxLength": 32},
+    "durationFrames": {"enum": [450, 900]},
+    "segments": {"type": "array", "maxItems": 32, "items": {"type": "object", "additionalProperties": false, "required": ["id", "role", "displayText", "speechText", "factIds", "startFrame", "endFrame", "timing"], "properties": {
+      "id": {"$ref": "#/$defs/id"},
+      "role": {"enum": ["title", "caption", "narration", "dialogue", "cta"]},
+      "displayText": {"type": "string", "minLength": 1, "maxLength": 500},
+      "speechText": {"type": ["string", "null"], "maxLength": 500},
+      "factIds": {"type": "array", "maxItems": 20, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
+      "startFrame": {"type": "integer", "minimum": 0, "maximum": 899},
+      "endFrame": {"type": "integer", "minimum": 1, "maximum": 900},
+      "timing": {"$ref": "#/$defs/timing"}
+    }}},
+    "moments": {"type": "array", "minItems": 1, "maxItems": 48, "items": {"type": "object", "additionalProperties": false, "required": ["id", "kind", "startFrame", "endFrame", "segmentIds", "resourceIds", "timing"], "properties": {
+      "id": {"$ref": "#/$defs/id"},
+      "kind": {"enum": ["hook", "question", "reveal", "demonstration", "selection", "transition", "sound_hit", "cta"]},
+      "startFrame": {"type": "integer", "minimum": 0, "maximum": 899},
+      "endFrame": {"type": "integer", "minimum": 1, "maximum": 900},
+      "segmentIds": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+      "resourceIds": {"type": "array", "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
+      "timing": {"$ref": "#/$defs/timing"}
+    }}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"},
+    "timing": {"oneOf": [
+      {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "authored"}}},
+      {"type": "object", "additionalProperties": false, "required": ["kind", "sourceSha256", "firstWord", "lastWord"], "properties": {
+        "kind": {"const": "measured"},
+        "sourceSha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "firstWord": {"type": "integer", "minimum": 0, "maximum": 4999},
+        "lastWord": {"type": "integer", "minimum": 0, "maximum": 4999}
+      }}
+    ]}
+  }
+}

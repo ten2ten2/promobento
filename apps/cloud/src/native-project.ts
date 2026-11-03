@@ -5,7 +5,7 @@ import {validate as validNativeProject} from '@promobento/contracts/validators/n
 import {getJson, immutableJson, operation} from './store.ts';
 import {flushOutbox} from './outbox.ts';
 import {validId, type PipelineEnv, type Operation, type Json} from './pipeline-types.ts';
-import {nativeRenderPolicy} from './native-policy.ts';
+import {assertNativeSnapshotHeadroom, nativeRenderPolicy} from './native-policy.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
@@ -31,6 +31,8 @@ export async function loadNativeProject(env: PipelineEnv, op: Operation, revisio
 /** Check every immutable input before allocating paid compute. No source is evaluated in Workers. */
 export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
   assertCloudNativeProject(project);
+  assertNativeSnapshotHeadroom(project as Parameters<typeof assertNativeSnapshotHeadroom>[0]);
+  if (project.timingEvidenceRef) await checkedNativeBytes(env, project.timingEvidenceRef, 6 << 20);
   for (const file of project.files) {
     const head = await env.MEDIA.head(file.key);
     if (!head || head.size !== file.byteLength || head.customMetadata?.sha256 !== file.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
@@ -38,7 +40,7 @@ export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
 }
 
 export async function saveNativeProject(env: PipelineEnv, op: Operation, input: {
-  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string;
+  composition: Json; files: Json[]; resources?: Json[]; baseRevision?: string; timingEvidenceRef?: Json | null;
 }): Promise<SavedNativeProject> {
   await operation(env, op.id, op.generation);
   // Internal HTTP callers still supply untrusted JSON. A malformed list must
@@ -49,9 +51,19 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
       || input.resources.some(resource => !resource || typeof resource !== 'object' || Array.isArray(resource)
         || typeof resource.resourceId !== 'string' || !resource.resourceId
         || typeof resource.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(resource.sha256)))
-    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string')
+    || input.baseRevision !== undefined && typeof input.baseRevision !== 'string'
+    || input.timingEvidenceRef != null && (typeof input.timingEvidenceRef !== 'object' || Array.isArray(input.timingEvidenceRef)
+      || typeof input.timingEvidenceRef.key !== 'string'))
     throw Error('NATIVE_PROJECT_SCHEMA_INVALID');
   const parent = input.baseRevision ? await loadNativeProject(env, op, input.baseRevision) : null;
+  // Omission inherits the parent's evidence; explicit null retires it when its
+  // source audio has been removed by a new native revision.
+  const timingEvidenceRef = input.timingEvidenceRef === undefined ? parent?.project.timingEvidenceRef : input.timingEvidenceRef;
+  if (timingEvidenceRef && (typeof timingEvidenceRef.key !== 'string'
+    || !timingEvidenceRef.key.startsWith('operations/' + op.id + '/')
+      && (!parent?.project.timingEvidenceRef
+        || canonical(timingEvidenceRef) !== canonical(parent.project.timingEvidenceRef))))
+    throw Error('NATIVE_TIMING_EVIDENCE_SCOPE_INVALID');
   for (const file of input.files) {
     const inherited = parent?.project.files.some((previous: Json) => previous.key === file.key
       && previous.sha256 === file.sha256 && previous.byteLength === file.byteLength);
@@ -76,7 +88,7 @@ export async function saveNativeProject(env: PipelineEnv, op: Operation, input: 
     composition: input.composition, files: input.files.map(file => ({
       path: file.path, key: file.key, sha256: file.sha256, byteLength: file.byteLength, mediaType: file.mediaType,
     })).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0),
-    resources: [...resources.values()],
+    resources: [...resources.values()], ...(timingEvidenceRef ? {timingEvidenceRef} : {}),
   };
   await verifyNativeInputs(env, project);
   const revisionId = await nativeProjectHash(project);

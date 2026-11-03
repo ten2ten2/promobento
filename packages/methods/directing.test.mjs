@@ -5,7 +5,7 @@ import source from './huashu-motion/source.mjs';
 
 test('native stage recall preserves upstream references and the selected original template',()=>{
  const treatment=recallDirecting(directingMethodPack,'treatment','software');
- assert.equal(treatment.version,'2.0.1');assert.match(treatment.audience,/workflow/);
+ assert.equal(treatment.version,'2.1.0');assert.match(treatment.audience,/workflow/);
  assert.ok(treatment.hypit.references.some(ref=>ref.path==='references/creation/script-and-time.md'&&ref.content.length>0));
  const author=recallDirecting(directingMethodPack,'author','software','cursor-demo');
  assert.equal(author.huashu.revision,'52467f99c602b76ba86d511d37acdfe93fa1e16e');

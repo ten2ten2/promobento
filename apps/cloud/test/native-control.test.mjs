@@ -5,7 +5,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
-import {immutableBytes,immutableStream,reserve,settle,rights} from '../src/store.ts';
+import {immutableBytes,immutableJson,immutableStream,reserve,settle,rights} from '../src/store.ts';
 import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
 import {fixedLengthOf} from './fixtures/fixed-length.mjs';
 import {runNativeRenderTask} from '../src/render-task.ts';
@@ -16,6 +16,8 @@ import {commitRender, dispatchRenderProgress, recordRenderFailure, reconcileOper
 import {flushOutbox,recoverUnregisteredDispatches} from '../src/outbox.ts';
 import {chooseDirection} from '../src/director-choice.ts';
 import {registerOperation,cancelOperation} from '../src/operation-registration.ts';
+import {assertNativeSnapshotHeadroom,assertNativePatchHeadroom,activeNativeMediaFiles,nativeSoundtrackBytes} from '../src/native-policy.ts';
+import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {boundedControl,processQueueMessages} from '../src/control-batch.ts';
 import {getReviewDraft, directorProgress, dispatchDirectorProgress, dispatchOperationCancellation, failDirector, commitCandidate} from '../src/director-recovery.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
@@ -254,17 +256,12 @@ test('a recovery sweep launches only one cleanup for many pending Workflows of t
  for(let n=0;n<9;n++)db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
   .run('sweep-render-'+n,op.id,Date.now());
  db.prepare("UPDATE pipeline_operations SET status='cancelled' WHERE id=?").run(op.id);
- let reconciliations=0,nativeChecks=0;
- env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
- const prepare=env.DB.prepare.bind(env.DB);
- env.DB.prepare=sql=>{
-  if(sql==='SELECT status FROM pipeline_operations WHERE id=?')reconciliations++;
-  return prepare(sql);
- };
+ const nativeChecks=[];
+ env.RENDER_WORKFLOW={get(id){return{async status(){nativeChecks.push(id);return{status:'complete'};}}}};
  const result=await recoverWorkflows(env);
  assert.equal(result.length,1,'the sweep must coalesce all pending rows of a terminal operation');
- assert.equal(reconciliations,1,'terminal cleanup must not race itself across four pool workers');
- assert.equal(nativeChecks,9,'one reconciliation still stops every native Workflow');
+ assert.deepEqual(nativeChecks.sort(),Array.from({length:9},(_,n)=>'sweep-render-'+n),
+  'one cleanup must inspect every native Workflow exactly once, regardless of internal terminal checks');
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,9);
  assert.deepEqual(await recoverWorkflows(env),[]);
 });
@@ -314,6 +311,125 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(checkedNativeBytes(env, empty, 240000, {allowEmpty: true}), /SOURCE_IDENTITY_MISMATCH/);
   objects.get(input.files[0].key).customMetadata.sha256 = '0'.repeat(64);
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
+});
+
+test('direct native saves reserve runtime files and duration-dependent synthesized audio before paid rendering',async t=>{
+  const {env,op,input}=await fixture(t);
+  // A direct /native/projects caller bypasses the Director's intake budget.
+  // Large inputs are modeled by HEAD metadata so this test allocates no large buffers.
+  const additions=[40,40,39].map((size,index)=>({path:`assets/source-${index}.mp4`,
+    key:`evals/native/source-${index}.mp4`,sha256:String(index+1).repeat(64),byteLength:size<<20,mediaType:'video/mp4'}));
+  const originals=new Map(additions.map(file=>[file.key,file]));
+  const head=env.MEDIA.head.bind(env.MEDIA);
+  env.MEDIA.head=async key=>originals.has(key)
+    ?{size:originals.get(key).byteLength,customMetadata:{sha256:originals.get(key).sha256}}
+    :head(key);
+  const files=[...input.files,...additions];
+  await assert.rejects(saveNativeProject(env,op,{...input,composition:{...input.composition,durationSeconds:30},files}),
+    /NATIVE_PROJECT_TOO_LARGE/,'30 seconds of PCM audio would exceed the 128 MiB renderer snapshot');
+  const saved=await saveNativeProject(env,op,{...input,files});
+  assert.equal(saved.project.composition.durationSeconds,15,'the same sources fit with the shorter soundtrack');
+  const many=[...input.files,...Array.from({length:474},(_,index)=>({path:`src/f${index}.js`,
+    key:`evals/native/f${index}.js`,sha256:'a'.repeat(64),byteLength:0,mediaType:'text/javascript'}))];
+  await assert.rejects(saveNativeProject(env,op,{...input,files:many}),/NATIVE_PROJECT_TOO_LARGE/,
+    'room for the 37 pinned builtin files and generated sound must also be reserved');
+});
+
+test('native snapshot headroom does not double-count pinned files or an existing soundtrack', () => {
+  assert.equal(pinnedBuiltinFiles.length, 37);
+  assert.equal(pinnedBuiltinFiles.reduce((total, file) => total + file.byteLength, 0), 4298698);
+  const composition = {durationSeconds: 30};
+  const soundtrack = {path:'assets/sound.wav',byteLength:nativeSoundtrackBytes(30)};
+  const included = [{path:'index.html',byteLength:1024}, ...pinnedBuiltinFiles, soundtrack];
+  const nearFileLimit = [...included, ...Array.from({length:512-included.length},(_,i)=>({path:`src/asset-${i}.js`,byteLength:0}))];
+  assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition,files:nearFileLimit}),
+    'an imported native project already containing its pinned runtime may use every source slot');
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:[...nearFileLimit,{path:'extra.js',byteLength:0}]}),
+    /NATIVE_PROJECT_TOO_LARGE/);
+  const hugeFiles = [{path:'index.html',byteLength:30<<20},...pinnedBuiltinFiles,soundtrack,
+    ...Array.from({length:2},(_,i)=>({path:`assets/big-${i}.mp4`,byteLength:30<<20})),
+    {path:'assets/last.mp4',byteLength:28<<20}];
+  assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition,files:hugeFiles}),
+    'an import can use its already-materialized builtins without reserving a second copy of their bytes');
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:hugeFiles.map(file=>file.path===pinnedBuiltinFiles[0].path
+    ?{...file,byteLength:file.byteLength+1}:file)}),/NATIVE_BUILTIN_CONFLICT/);
+  assert.throws(()=>assertNativeSnapshotHeadroom({composition,files:[...hugeFiles,{path:'assets/overflow.mp4',byteLength:2<<20}]}),
+    /NATIVE_PROJECT_TOO_LARGE/);
+});
+
+test('a paid native patch preflights the final active assets after explicit replacement and source retirement',()=>{
+ const media=(name,bytes,sha,mediaType='video/mp4')=>({path:'assets/'+sha.slice(0,24)+(mediaType==='video/mp4'?'.mp4':'.png'),
+  sha256:sha,byteLength:bytes,mediaType});
+ const videos=[media('a',40<<20,'a'.repeat(64)),media('b',40<<20,'b'.repeat(64)),media('c',20<<20,'c'.repeat(64))];
+ const old=media('old',89,'d'.repeat(64),'image/png'),replacement=media('new',40<<20,'e'.repeat(64),'image/png');
+ const project={composition:{durationSeconds:30},files:[...videos,old]};
+ const selection={uses:[...videos,replacement].map(file=>({sha256:file.sha256}))};
+ const active=activeNativeMediaFiles(project.files,[replacement],selection,[]);
+ assert.equal(active.reduce((sum,file)=>sum+file.byteLength,0),140<<20);
+ assert.ok(!active.some(file=>file.sha256===old.sha256),'retired bytes must not be counted');
+ assert.throws(()=>assertNativePatchHeadroom(project,[replacement],selection,[]),/NATIVE_PROJECT_TOO_LARGE/,
+  'the author cannot make an oversized immutable asset set fit by changing source code');
+ const small=media('small',512,'f'.repeat(64),'image/png');
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[small],
+  {uses:[...videos,small].map(file=>({sha256:file.sha256}))},[]),
+  'a valid replacement excludes the retired asset and does not double-count it');
+});
+
+test('patch preflight keeps tight but editable native snapshots and validates actual authored growth',()=>{
+ const composition={durationSeconds:30};
+ const authorPaths=['index.html','BRIEF.md','TREATMENT.md','script.json','material-selection.json','script-audio-locks.json'];
+ const authors=authorPaths.map(path=>({path,sha256:'f'.repeat(64),byteLength:512,mediaType:'text/plain'}));
+ const media=Array.from({length:467},(_,i)=>({path:`assets/${i.toString(16).padStart(24,'0')}.png`,
+  sha256:i.toString(16).padStart(64,'0'),byteLength:8,mediaType:'image/png'}));
+ const project={composition,files:[...authors,...media]};
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(project));
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[],null,[]),
+  'optional author slots must not reject a legal 511-file patch');
+ const unchanged=authorPaths.map(path=>({path,content:'a'.repeat(512)}));
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[],null,[],unchanged));
+ assert.throws(()=>assertNativePatchHeadroom(project,[],null,[],[
+  ...unchanged,{path:'src/new.js',content:'x'},{path:'src/another.js',content:'y'}]),/NATIVE_PROJECT_TOO_LARGE/,
+  'the actual response must still be limited before it can enter the model cache');
+ const missingLock={composition,files:[...authors.filter(file=>file.path!=='script-audio-locks.json'),
+  ...media,...Array.from({length:2},(_,i)=>({path:`assets/spare-${i}.png`,sha256:'e'.repeat(64),byteLength:1,mediaType:'image/png'}))]};
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(missingLock));
+ assert.throws(()=>assertNativePatchHeadroom(missingLock,[],null,[]),/NATIVE_PROJECT_TOO_LARGE/,
+  'a Script parent without a lock document must budget the lock document the service will generate');
+
+ const reserve=pinnedBuiltinFiles.reduce((sum,file)=>sum+file.byteLength,0)+nativeSoundtrackBytes(30)+(64<<10);
+ const mediaBudget=(128<<20)-reserve-2560;
+ const large=[39<<20,39<<20,39<<20,mediaBudget-(117<<20)].map((byteLength,i)=>({
+  path:`assets/${'abcd'[i].repeat(24)}.mp4`,sha256:'abcd'[i].repeat(64),byteLength,mediaType:'video/mp4'}));
+ const close={composition,files:[...authors,...large]};
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(close,[],null,[]),
+  'a potential 1 MiB author response is not an unavoidable 1 MiB cost');
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(512)}]));
+ assert.throws(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(4096)}]),
+  /NATIVE_PROJECT_TOO_LARGE/,'actual oversized source bytes must be rejected');
+ const frozen=authorPaths.filter(path=>path!=='index.html').map(path=>({path,content:'a'.repeat(512)}));
+ assert.throws(()=>assertNativePatchHeadroom(close,[],null,[],undefined,frozen),
+  /NATIVE_PROJECT_TOO_LARGE/,
+  'known read-only documents use their actual UTF-8 bytes even before the paid author responds');
+});
+
+test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{
+  const {db,env,op,input}=await fixture(t);
+  const blob=await immutableJson(env,`operations/${op.id}/timing-real.json`,[
+    {sourceSha256:'a'.repeat(64),durationSeconds:2,words:[{text:'Hello',start:0,end:1}]}]);
+  assert.ok(blob.name&&blob.mediaType,'immutableJson returns more metadata than a native project reference accepts');
+  await assert.rejects(saveNativeProject(env,op,{...input,timingEvidenceRef:blob}),/NATIVE_PROJECT_SCHEMA_INVALID/);
+  const {key,sha256,byteLength}=blob;
+  const parent=await saveNativeProject(env,op,{...input,timingEvidenceRef:{key,sha256,byteLength}});
+  assert.deepEqual(parent.project.timingEvidenceRef,{key,sha256,byteLength});
+  const childOp={...op,id:'native-timing-child'};
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(childOp.id,childOp.workspace_id,childOp.project_id,0,childOp.purpose,'active','timing-child',childOp.max_micros,Date.now(),null,null);
+  const child=await saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId});
+  assert.deepEqual(child.project.timingEvidenceRef,parent.project.timingEvidenceRef);
+  const retired=await saveNativeProject(env,childOp,{...input,baseRevision:parent.revisionId,timingEvidenceRef:null});
+  assert.equal(retired.project.timingEvidenceRef,undefined,
+    'removing the last measured source must not inherit the retired parent evidence');
+  assert.notEqual(retired.revisionId,child.revisionId);
 });
 
 test('a direct native child cannot silently drop its parent revision rights',async t=>{
@@ -1683,6 +1799,27 @@ test('a failed native render stays blocked until physical cleanup is confirmed',
   row = db.prepare('SELECT status,result_json FROM pipeline_renders').get();
   assert.equal(parseCanonicalJson(row.result_json).code, 'NATIVE_RENDER_FAILED');
   assert.equal(parseCanonicalJson(row.result_json).stopPending, false);
+});
+
+test('a terminal dynamic-QA block retains the SHA-bound private failure report in its render receipt',async t=>{
+  const {db,env,op,saved}=await fixture(t);
+  await createNativeRender(env,op,{renderId:'native-render',revisionId:saved.revisionId,
+    mode:'export',rendererRelease:'native-release'});
+  const qaEvidence={film:{key:'renders/native-render/attempts/attempt-one/failed/film.mp4',sha256:'a'.repeat(64),byteLength:123,mediaType:'video/mp4'},
+    report:{key:'renders/native-render/attempts/attempt-one/failed/qa.json',sha256:'b'.repeat(64),byteLength:234,mediaType:'application/json'},
+    signals:{integratedLufs:-22},findings:[{kind:'audio_loudness_out_of_range',severity:'block'}]};
+  db.prepare(`INSERT INTO pipeline_attempts(id,render_id,operation_id,generation,mode,instance,status,started_at,stopped_at,result_json)
+    VALUES(?,?,?,?,?,?,?,?,?,?)`).run('attempt-one','native-render',op.id,op.generation,
+    'native_export','standard-3','failed',Date.now()-100,Date.now(),
+    canonical({status:'failed',code:'NATIVE_DYNAMIC_QA_BLOCKED',qaEvidence}));
+  await recordRenderFailure(env,'native-render','NATIVE_DYNAMIC_QA_BLOCKED');
+  const row=db.prepare('SELECT status,result_json FROM pipeline_renders WHERE id=?').get('native-render');
+  assert.equal(row.status,'blocked');
+  const result=parseCanonicalJson(row.result_json);
+  assert.equal(result.code,'NATIVE_DYNAMIC_QA_BLOCKED');
+  assert.deepEqual(result.qaEvidence,qaEvidence);
+  assert.equal(result.stopPending,false);
+  assert.equal(Object.hasOwn(result,'outputs'),false,'diagnostics are never successful output artifacts');
 });
 
 test('a hung physical stop preserves terminal notification and leaves cleanup retryable', async t => {

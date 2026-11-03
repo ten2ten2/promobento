@@ -203,6 +203,7 @@
     "source": "packages/methods/directing.ts",
     "stageConcurrency": {
       "assetAnalyses": 2,
+      "referenceAnalyses": 1,
       "directionPreviews": 2
     },
     "activeTimeoutMs": {
@@ -219,6 +220,11 @@
         "maxMicros": 40000,
         "effort": "low"
       },
+      "reference": {
+        "maxCallsPerAsset": 2,
+        "maxMicros": 200000,
+        "effort": "low"
+      },
       "directions": {
         "maxCalls": 3,
         "maxMicros": 400000,
@@ -231,7 +237,7 @@
       },
       "coldReview": {
         "maxCalls": 2,
-        "maxMicros": 50000,
+        "maxMicros": 200000,
         "effort": "none"
       },
       "treatment": {
@@ -239,9 +245,20 @@
         "maxMicros": 400000,
         "effort": "high"
       },
+      "script": {
+        "maxCalls": 2,
+        "maxMicros": 250000,
+        "effort": "high"
+      },
+      "selection": {
+        "maxCalls": 2,
+        "maxMicros": 80000,
+        "effort": "low"
+      },
       "author": {
         "maxCalls": 12,
         "maxMicros": 350000,
+        "maxTotalMicros": 4200000,
         "effort": "high",
         "inputMode": "asset-insights"
       }

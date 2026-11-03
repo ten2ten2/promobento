@@ -1,4 +1,5 @@
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
+import {motionReviewFrames} from '@promobento/contracts/video-frames';
 import {assertNativePath, nativeProjectHash} from '@promobento/contracts/native-project';
 import {checkedNativeBytes, NATIVE_COMMIT, validateFrameTimes, previewFrames, assertCloudNativeProject} from './native-project.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
@@ -71,6 +72,19 @@ export async function verifyNativeResult(env: PipelineEnv, input: Json, result: 
   const sheetBlob = output('review-sheet.jpg');
   if (sheetBlob.mediaType !== 'image/jpeg') throw Error('NATIVE_REVIEW_EVIDENCE_INVALID');
   await checkedNativeBytes(env, sheetBlob, 12 << 20);
+  const motion = report.motionReview, motionFrames=motionReviewFrames(composition.durationSeconds);
+  if (!motion || motion.name !== 'motion-sheet.jpg' || motion.columns !== 4 || motion.rows !== 3 || motion.source !== 'film.mp4'
+    || canonical(motion.frames) !== canonical(motionFrames)
+    || canonical(motion.times) !== canonical(motionFrames.map(frame => frame / composition.fps)))
+    throw Error('NATIVE_MOTION_EVIDENCE_INVALID');
+  const motionSheet=output('motion-sheet.jpg');
+  if (motionSheet.mediaType !== 'image/jpeg') throw Error('NATIVE_MOTION_EVIDENCE_INVALID');
+  await checkedNativeBytes(env,motionSheet,12<<20);
+  const quality=report.dynamicQuality;
+  if(!quality || quality.kind!=='encoded_dynamic_qa' || quality.source!=='film.mp4'
+    || quality.coverage!==(media.audioCodec?'full_video_and_audio_decode':'full_video_decode_no_audio') || quality.ownerNormalSpeedReview!=='pending'
+    || !['clear','review_required'].includes(quality.status) || !Array.isArray(quality.findings)
+    || !quality.signals || typeof quality.signals!=='object')throw Error('NATIVE_DYNAMIC_QA_INVALID');
   const renderedProject = parseCanonicalJson(await checkedNativeBytes(env, output('rendered-project.json'), 4 << 20)) as Json;
   assertCloudNativeProject(renderedProject);
   if (canonical(renderedProject.composition) !== canonical(composition)

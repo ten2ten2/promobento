@@ -21,6 +21,10 @@
       "types": "./src/digest.d.mts",
       "default": "./src/digest.mjs"
     },
+    "./models": {
+      "types": "./src/models.d.mts",
+      "default": "./src/models.mjs"
+    },
     "./targets": "./src/targets.mjs",
     "./video-frames": {
       "types": "./src/video-frames.d.mts",

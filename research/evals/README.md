@@ -4,7 +4,7 @@
 
 ## 原生评测输入
 
-方法 2.0.1 以完整 huashu-motion HTML/JS 工程制作三方向预览、Treatment、各画幅原生影片及改稿，使用[内部 API](../../apps/cloud/README.md#内部-api)，不是已上线的 Studio。输入 `contextKey` 指向私有 JSON，包含确认事实、素材、授权、语言、CTA、15/30 秒、平台预设和固定 renderer release。
+方法 2.1.0 以完整 huashu-motion HTML/JS 工程制作三方向预览、Treatment、Script、各画幅原生影片及改稿，使用[内部 API](../../apps/cloud/README.md#内部-api)，不是已上线的 Studio。输入 `contextKey` 指向私有 JSON，包含确认事实、素材、授权、语言、CTA、15/30 秒、平台预设和固定 renderer release。
 
 改稿以 `baseRevisions: {landscape: "<revisionId>", ...}`、`comments: [{text,frame?,elementId?}]` 指定；单画幅也接受 `baseRevision`。父版本必须属于同一 workspace/project，不能覆盖已付费或已生成的历史版本。共享模型账本保留未知费用预留；此前临时授权过期，当前不提供自动付费 runner。
 
@@ -42,6 +42,8 @@ mise exec -- node research/evals/ingest-materials.mjs artifacts/eval-materials-c
 
 上传原文件、衍生物、授权证据及 manifest 时按**实际发送字节**核对 SHA-256。入库前检查 staging 运行中租约和排队是否为空；异常时停止，不接管其他评测。未审看素材不自动采用，旧源文件和历史证据不覆盖。WebP 视频帧包通过授权证据映射回原视频与海报；海报不代表整片动作，也不会启用旧帧包播放器。
 
+视频帧包的 `samplingRule` 随新版 manifest 和素材来源记录，用于固定 Chromium 抽帧时点及呈现顺序。旧版未标记的审核帧包仍以当时的抽帧方式逐字节复验；不为通过验证而覆盖既有帧包或授权记录。
+
 真实词级时间证据可通过 `timingEvidence` 绑定来源 SHA-256、时长与排序后的 `words`。缺失时只使用导演明确给出的事件时间，不伪造 ASR 时间戳；自动转写与完整参考片理解仍未实现。
 
 ## 查看已经生成的媒体
@@ -55,4 +57,4 @@ bash research/evals/hypit/media.sh <带FFmpeg的已固定镜像> \
   --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/overview.jpg --json
 ```
 
-[recover-case.mjs](recover-case.mjs)用于检查或清理**已终止**的操作；作品、费用和质量原始证据见[导演评测](../../docs/evidence/2026-10-24-s1-director/README.md)。
+[recover-case.mjs](recover-case.mjs)用于检查或清理**已终止**的操作；即使临时密钥写入后 CLI 未收到确认，也会尝试撤销并记录结果。作品、费用和质量原始证据见[导演评测](../../docs/evidence/2026-10-24-s1-director/README.md)。

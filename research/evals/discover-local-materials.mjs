@@ -5,6 +5,7 @@ import {resolve,relative,sep,join,extname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {privateExisting,privateNewDirectory,writePrivateFile} from './private-path.mjs';
+import {readBoundedApprovedFile} from './read-local-approved.mjs';
 
 const within=(root,path)=>path.startsWith(root+sep);
 const skipped=new Set(['node_modules','.git','dist','build','out','.om','_archive','.next','coverage','vendor','Pods','DerivedData','.cache']);
@@ -25,7 +26,7 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
    .map(item=>item.name).sort((a,b)=>a.localeCompare(b,'en'))[0];
   if(name){const path=join(root,name),stat=lstatSync(path);
    if(stat.isSymbolicLink()||!stat.isFile()||!within(root,realpathSync(path))||stat.size>256<<10)throw Error('LOCAL_README_INVALID');
-   const text=readFileSync(path,'utf8'),expressions=[/!\[[^\]\r\n]{0,256}\]\(\s*<?([^\s)>]{1,2048})>?/gi,/<img\b[^>\r\n]{0,2048}\bsrc\s*=\s*["']([^"'\r\n]{1,2048})["']/gi];
+   const text=readBoundedApprovedFile(path,256<<10,'LOCAL_README_INVALID').toString('utf8'),expressions=[/!\[[^\]\r\n]{0,256}\]\(\s*<?([^\s)>]{1,2048})>?/gi,/<img\b[^>\r\n]{0,2048}\bsrc\s*=\s*["']([^"'\r\n]{1,2048})["']/gi];
    for(const expression of expressions)for(const match of text.matchAll(expression)){
     let ref=match[1].split(/[?#]/)[0];try{ref=decodeURIComponent(ref);}catch{continue;}
     if(!ref||ref.includes('\0')||ref.startsWith('/')||/^[a-z][a-z0-9+.-]*:/i.test(ref))continue;
@@ -50,7 +51,8 @@ export function discoverLocalMaterials({sourceDir,sourceUrl,outputDir,card,obser
    if(observeStyles&&['.css','.scss','.less'].includes(ext)){
     const stat=lstatSync(path);if(!stat.isFile()||stat.isSymbolicLink()||!within(root,realpathSync(path)))throw Error('LOCAL_MATERIAL_PATH_INVALID');
     if(styleFiles>=100||stat.size>256<<10||styleBytes+stat.size>2<<20){if(!missing.includes('style_limit'))missing.push('style_limit');continue;}
-    styleFiles++;styleBytes+=stat.size;const css=readFileSync(path,'utf8').replace(/\/\*[\s\S]*?\*\//g,''),source=relative(root,path).split(sep).join('/');
+    const bytes=readBoundedApprovedFile(path,Math.min(256<<10,(2<<20)-styleBytes),'LOCAL_STYLE_INVALID');
+    styleFiles++;styleBytes+=bytes.length;const css=bytes.toString('utf8').replace(/\/\*[\s\S]*?\*\//g,''),source=relative(root,path).split(sep).join('/');
     for(const match of css.matchAll(/:\s*(#[0-9a-f]{8}|#[0-9a-f]{6}|#[0-9a-f]{4}|#[0-9a-f]{3})(?![0-9a-z_-])|:\s*((?:rgba?|hsla?|oklch)\([^()\r\n]{1,128}\))/gi))add(colours,(match[1]??match[2]).replace(/\s+/g,' ').toLowerCase(),source);
     for(const match of css.matchAll(/(?:^|[;{])\s*font-family\s*:\s*(['"]?)([a-z][a-z0-9 -]{0,59})\1\s*(?=[,;}])/gi))add(fonts,match[2].trim(),source);
     continue;

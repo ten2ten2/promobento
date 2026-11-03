@@ -76,6 +76,8 @@ test('native project HTTP rejects malformed file/resource lists at the input bou
   {files:[],resources:{}},{files:[],resources:[null]},{files:[],baseRevision:12},
   {files:[file,{...file,path:{toString:null},key:'evals/native/second.js'}]},
   {files:[{...file,path:['index.html']}]},
+  {files:[],timingEvidenceRef:{key:{toString:null}}},
+  {files:[],timingEvidenceRef:['operations/input-shape-operation/timing.json']},
   {files:[file],resources:[{resourceId:{toString:null},sha256:'a'.repeat(64)}]},
   {files:[file],resources:[{resourceId:'res_invalid',sha256:{toString:null}}]}]){
   const response=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
@@ -85,6 +87,12 @@ test('native project HTTP rejects malformed file/resource lists at the input bou
   assert.deepEqual(await response.json(),{code:'NATIVE_PROJECT_SCHEMA_INVALID'});
  }
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_native_projects').get().n,0);
+ const crossOperation=await worker.fetch(new Request('https://worker.example/internal/s1/native/projects',{
+  method:'POST',headers:{authorization:'Bearer fixture-only','content-type':'application/json'},
+  body:canonical({operationId,files:[],timingEvidenceRef:{key:'operations/another-operation/time.json',
+   sha256:'a'.repeat(64),byteLength:2}})}),env,{});
+ assert.equal(crossOperation.status,422,'a foreign reference without a parent must remain a domain input error');
+ assert.deepEqual(await crossOperation.json(),{code:'NATIVE_TIMING_EVIDENCE_SCOPE_INVALID'});
 });
 
 test('malformed nested render revision and rights identities return 422 without writes',async t=>{
@@ -187,6 +195,28 @@ test('direction-preview artifact reads honor separately supplied audio rights an
  const blocked=await request();
  assert.equal(blocked.status,422);
  assert.deepEqual(await blocked.json(),{code:'ASSET_RIGHTS_PENDING'});
+});
+
+test('only an owning blocked render may read its exact private QA film and report',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const {MEDIA}=memoryMedia(),id='blocked-qa-op',renderId='blocked-qa-render';
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','failed','request',100000,Date.now(),Date.now(),null);
+  const prefix=`renders/${renderId}/attempts/qa-attempt/failed/`;
+  const film=prefix+'film.mp4',report=prefix+'qa.json',other=prefix+'private.json';
+  await MEDIA.put('renders/'+renderId+'/input.json',canonical({kind:'native_render_request',project:{resources:[]}}));
+  for(const key of [film,report,other])await MEDIA.put(key,Buffer.from('fixture'));
+  db.prepare(`INSERT INTO pipeline_renders (id,operation_id,generation,request_hash,job_key,status,created_at,finished_at,result_json)
+    VALUES(?,?,?,?,?,?,?,?,?)`).run(renderId,id,0,'request','renders/'+renderId+'/input.json','blocked',Date.now(),Date.now(),
+    canonical({status:'blocked',code:'NATIVE_DYNAMIC_QA_BLOCKED',qaEvidence:{film:{key:film},report:{key:report}}}));
+  const env={DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'};
+  const get=key=>worker.fetch(new Request('https://worker.example/internal/s1/artifacts/'+key,
+    {headers:{authorization:'Bearer fixture-only'}}),env,{});
+  assert.equal((await get(film)).status,200);
+  assert.equal((await get(report)).status,200);
+  assert.equal((await get(other)).status,404);
+  db.prepare('UPDATE pipeline_renders SET status=? WHERE id=?').run('passed',renderId);
+  assert.equal((await get(film)).status,404,'blocked diagnostics never become normal deliverables');
 });
 
 test('active material ingestion sends a SHA-256 over exact binary and JSON bytes to the real R2 endpoint',async t=>{
@@ -326,4 +356,63 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   assert.equal(db.prepare('SELECT generation FROM pipeline_operations WHERE id=?').get(creation.id).generation,1);
   assert.equal((await request('operations/'+creation.id+'/cancel',{})).status,200);
   await Promise.all(background);
+});
+
+test('concurrent first creative requests acknowledge only the durably stored context',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const id='creative-concurrent-operation',background=[],sent=[];
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+  let reads=0,release;
+  const firstReads=new Promise(resolve=>{release=resolve;});
+  const racingDB={...DB,prepare(sql){
+    const statement=DB.prepare(sql);
+    if(sql==='SELECT request_key,engine FROM pipeline_contexts WHERE operation_id=?'){
+      const first=statement.first.bind(statement);
+      statement.first=async()=>{
+        const value=await first();
+        if(++reads<=2){if(reads===2)release();await firstReads;}
+        return value;
+      };
+    }
+    return statement;
+  }};
+  const env={DB:racingDB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',
+    OUTBOX:{async send(item){sent.push(item);}}};
+  const request=contextKey=>worker.fetch(new Request('https://worker.example/internal/s1/creative',{
+    method:'POST',headers:{authorization:'Bearer fixture-only'},body:canonical({operationId:id,contextKey}),
+  }),env,{waitUntil(promise){background.push(promise);}});
+  const keys=['evals/fixture/context-one.json','evals/fixture/context-two.json'];
+  const responses=await Promise.all(keys.map(request));
+  assert.deepEqual(responses.map(response=>response.status).sort(),[202,409]);
+  const winner=responses.findIndex(response=>response.status===202);
+  assert.equal(db.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').get(id).request_key,keys[winner]);
+  assert.deepEqual(await responses[1-winner].json(),{code:'IDEMPOTENCY_CONFLICT'});
+  await Promise.all(background);
+  assert.equal(sent.length,1);
+  assert.equal((await request(keys[winner])).status,202,'the identical request remains idempotent');
+  await Promise.all(background);
+  assert.equal(sent.length,1,'the existing dispatch is not replaced');
+});
+
+test('a cancellation during creative setup cannot persist a late context or dispatch',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const id='creative-cancelled-operation';
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+  const {MEDIA}=memoryMedia(),put=MEDIA.put.bind(MEDIA);
+  MEDIA.put=async(...args)=>{
+    const result=await put(...args);
+    db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(id);
+    return result;
+  };
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/creative',{
+    method:'POST',headers:{authorization:'Bearer fixture-only'},
+    body:canonical({operationId:id,contextKey:'evals/fixture/context.json'}),
+  }),{DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},
+    {waitUntil(){assert.fail('fenced creative request must not dispatch');}});
+  assert.equal(response.status,422);
+  assert.deepEqual(await response.json(),{code:'OPERATION_FENCED'});
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_contexts').get().n,0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox').get().n,0);
 });

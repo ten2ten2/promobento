@@ -1,6 +1,6 @@
 # 导演方法来源
 
-当前只执行方法 **2.0.1**：直接生成原生 huashu-motion HTML/JS 工程及单一时间线，不转写镜头 DSL。旧方法不再运行；旧调用回执只供对账。
+当前只执行方法 **2.1.0**：直接生成原生 huashu-motion HTML/JS 工程及单一时间线；参考分析、正式 Script 与素材锁定只是制作文档，不是影片 DSL。旧调用回执只供对账。
 
 [固定 huashu 源码](huashu-motion/source.mjs)保留 `52467f99c602b76ba86d511d37acdfe93fa1e16e` 的原始 SKILL、40 篇参考和 11 个模板 HTML。`directing.ts` 按创作阶段召回相关原文；选中语言的原始模板直接作为原生工程起点。运行容器固定同一上游提交，提供原版 vendor、字体、检查、取帧、声音与整片渲染工具。已有上游声明仍保存在 [huashu-motion](huashu-motion/)。
 

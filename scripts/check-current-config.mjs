@@ -18,12 +18,14 @@ try {
   for(const [name,value] of Object.entries({providers,authorization}))
     expect(validModelConfig(value),'Invalid model '+name+': '+JSON.stringify(validModelConfig.errors));
   failures.push(...modelConfigErrors(providers,authorization,policy));
-  const stages=['facts','assets','directions','treatment','author','review','coldReview'];
+  const stages=['facts','assets','reference','directions','treatment','script','selection','author','review','coldReview'];
   expect(same(Object.keys(providers.steps).sort(),[...stages].sort()),'Model bindings differ from native director stages');
   expect(same(Object.keys(policy.director.steps).sort(),[...stages].sort()),'Stage budgets differ from native director stages');
   for(const stage of stages) {
     const limits=policy.director.steps[stage];
     expect(positive(limits?.maxMicros)&&positive(limits?.maxCalls??limits?.maxCallsPerAsset),'Invalid native model budget: '+stage);
+    if(limits?.maxTotalMicros!==undefined)expect(positive(limits.maxTotalMicros)&&limits.maxTotalMicros>=limits.maxMicros
+      &&limits.maxTotalMicros<=authorization.maxUsdMicros,'Invalid aggregate model budget: '+stage);
   }
   expect(Number.isSafeInteger(policy.limits.maxInternalRepairs)&&policy.limits.maxInternalRepairs>=0,'Invalid internal repair limit');
   expect(positive(policy.limits.requestTimeoutMs)&&positive(policy.director.activeTimeoutMs.creative)

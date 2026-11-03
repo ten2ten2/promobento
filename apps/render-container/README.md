@@ -11,8 +11,8 @@
 | `POST /cancel` | 请求退出；以 Durable Object 确认的物理停止为准 |
 
 - `preview` 返回四个默认时刻（首帧、1/3、2/3、末帧）的 PNG，或 1–12 个指定帧。
-- `export` 返回 `film.mp4`、从最终 MP4 解码的四张 `review-frames`、`review-sheet.jpg`、`rendered-project.json` 和实际使用的项目文件。15/30 秒分别是 450/900 帧、30 fps；原生预览和最终编码审片不可混淆。
-- 输出限定到 `renders/<renderId>/attempts/<taskId>/out/`；R2 key、SHA-256、字节数、媒体类型以及输入清单、输入 HTML、声音刷新后 HTML 和实际渲染清单的身份都记录在回执中。
+- `export` 返回 `film.mp4`、从最终 MP4 解码的四张 `review-frames`、`review-sheet.jpg`、12 帧的 `motion-sheet.jpg`、`rendered-project.json` 和实际使用的项目文件。15/30 秒分别是 450/900 帧、30 fps；原生预览和最终编码审片不可混淆。
+- 通过的输出限定到 `renders/<renderId>/attempts/<taskId>/out/`；R2 key、SHA-256、字节数、媒体类型以及输入清单、输入 HTML、声音刷新后 HTML 和实际渲染清单的身份都记录在回执中。若导出因响度等动态 QA 技术信号阻断，可信 controller 会在任务目录清理前将失败的最终影片和 QA 信号／发现分别写入受限的 `failed/film.mp4` 与 `failed/qa.json`，在阻断 render receipt 中保留 SHA 引用，但两者都不是可交付 `outputs`。解码失败、超时或日志截断同样保存失败证据，标记 `incomplete_decode` 并保留有界诊断，不声称完成全片扫描。
 
 素材下载和结果上传以有界文件流及共享 SHA-256 验证，每方向最多两个并行文件；不把整部媒体缓存为 Buffer。容器采样 cgroup 内存高水位/OOM/CPU、控制器 RSS/FD 和任务挂载文件系统用量，缺测填 `null`。**文件系统已用量增量不是 `/jobs` 目录精确大小**，控制器 RSS 也不能代替容器内存峰值；真实云端数据仍待验收。
 
@@ -22,9 +22,12 @@
 
 音频仍归一到约 -14 LUFS、编码 AAC-LC 48 kHz 立体声；短音轨补静音、长音轨截断至视频时长。两条视频处理路径均再次检查画幅、30 fps、450/900 帧、15/30 秒、音轨和 50 MB 上限，并从**最终 MP4** 解码审片图。回执记录 `media.videoEncoding`（`stream_copy`/`transcoded`）、处理时间和复制拒绝原因。流复制的本地功能已有验证，云端 CPU/费用节省尚无实测结论。
 
+导出后独立执行全片视频和音频 FFmpeg 解码（`-xerror`、`-err_detect explode` 及解码错误日志兜底检查，避免 FFmpeg 返回 0 却跳过损坏 H.264 包），记录黑屏、静止、静音区间及响度/真峰值；响度缺测或超过 -14 LUFS ±0.5 与 -1 dBTP 上限是技术阻断，长黑屏/静止/静音标记为 `review_required`，不猜测导演意图。`motion-sheet.jpg` 均匀取最终视频的十二个不同时间点，辅助发现接缝和节奏问题；回执 `dynamicQuality.ownerNormalSpeedReview` 一律为 `pending`，不冒充真实的连贯观看、听感与人工批准。
+
 ## 文件与沙箱
 
 - `index.html` 的 composition root 须声明 ID、尺寸、时长、帧率；实际 DOM 和 `window.__timelines[rootId]` 的暂停/时长重新验证。编辑使用原生 `readSource/setVariables/writeSource` 与乐观 `baseToken`。
+- 声轨合成也绑定 composition root 对应的时间线；先登记的辅助时间线不能改变声音的时长、场景标签或生成文件容量。并发提交 `/task` 时只允许一个请求领取容器，后续请求返回 409。
 - 固定 GSAP、OM/OM3、Three、camera rig、clip、Inter 和 Noto Sans SC 从原生上游安装，预存同名文件必须字节一致；浏览器实际字体也受测试。Linux 系统 fallback 不可冒充已加载的项目字体。
 - controller 为 UID **10001**，Node/Chromium 为 **10002**，PID 1 为 **10003**。任务专用 broker token 只在可信 controller 内存；原生进程无业务密钥。容器断网，Broker 只按本次授权清单读写，客户源码只在保留 Chromium 沙箱的浏览器执行。
 - 当前工程使用受检的虚拟 HTTP origin 与 CSP，阻止外网、`file://`、iframe、Worker、对象嵌入及任意主机命令；复核真实路径、symlink、媒体头和 FFmpeg demuxer，超时清理进程树。这些是明确的隔离措施，**不等于任意恶意代码的全面安全认证**。客户影片不得引入花叔本人形象。

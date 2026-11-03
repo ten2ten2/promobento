@@ -12,7 +12,7 @@
     "check:repo": "pnpm run build:validators && node scripts/check-repo.mjs",
     "check:contracts": "pnpm run build:validators && node scripts/check-current-config.mjs",
     "test": "pnpm run build:validators && node scripts/run-tests.mjs",
-    "test:browser": "node --test apps/render-container/tests/media.render.test.mjs && node apps/render-container/tests/native.render.test.mjs",
+    "test:browser": "node --test apps/render-container/tests/media.render.test.mjs apps/render-container/tests/quality.render.test.mjs && node apps/render-container/tests/native.render.test.mjs",
     "test:cloud-local": "node --test apps/cloud/test/native-control.test.mjs apps/cloud/test/native-verification.test.mjs apps/cloud/test/native-director.test.mjs",
     "build:validators": "node packages/contracts/scripts/build-validators.mjs",
     "typecheck": "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck",

@@ -2,6 +2,7 @@ import {closeSync, constants, copyFileSync, fstatSync, lstatSync, mkdirSync, ope
 import {createSha256} from '../../contracts/src/digest.mjs';
 import {dirname, extname, join, relative, resolve, sep} from 'node:path';
 import {assertNativePath, NATIVE_SOURCE_LIMITS} from '../../contracts/src/native-project.mjs';
+import {builtinSources} from './builtins.mjs';
 
 const SKIP = new Set(['.om', 'out', 'snapshots', 'node_modules', '.git']);
 /** Identity of a local regular file, with a fixed 64 KiB read buffer. */
@@ -63,23 +64,6 @@ export function verifyProjectFiles(root, manifest) {
   }
 }
 
-const BUILTINS = [
-  ['templates/blank/vendor/gsap.min.js', 'vendor/gsap.min.js'],
-  ['templates/blank/vendor/GSAP-LICENSE.txt', 'vendor/GSAP-LICENSE.txt'],
-  ['templates/blank/vendor/GSAP-LICENSE.html', 'vendor/GSAP-LICENSE.html'],
-  ['runtime/om.js', 'vendor/om.js'],
-  ['runtime/camera-rig.js', 'vendor/camera-rig.js'],
-  ['runtime/three/three.min.js', 'vendor/three.min.js'],
-  ['runtime/three/om-three.js', 'vendor/om-three.js'],
-  ['runtime/three/LICENSE', 'vendor/THREE-LICENSE'],
-  ['runtime/clip', 'vendor/clip'],
-  ['fonts/NotoSansSC-500.woff', 'assets/fonts/NotoSansSC-500.woff'],
-  ['fonts/NotoSansSC-900.woff', 'assets/fonts/NotoSansSC-900.woff'],
-  ['fonts/Inter-var.woff', 'assets/fonts/Inter-var.woff'],
-  ['fonts/OFL.txt', 'assets/fonts/OFL.txt'],
-  ['fonts/LICENSES.md', 'assets/fonts/LICENSES.md'],
-];
-
 /** Native library files are materialized from the pinned installation, never produced by a model. */
 export function seedBuiltinFiles(root, upstreamRoot) {
   const copy = (source, path) => {
@@ -100,7 +84,7 @@ export function seedBuiltinFiles(root, upstreamRoot) {
       copyFileSync(from, to);
     }
   };
-  for (const [source, path] of BUILTINS) copy(source, path);
+  for (const [source, path] of builtinSources) copy(source, path);
   projectFiles(root);
 }
 

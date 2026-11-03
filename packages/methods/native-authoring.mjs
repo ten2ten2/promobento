@@ -1,6 +1,6 @@
 import {assertNativePath} from '@promobento/contracts/native-project';
 
-const textPath=/^(index\.(?:html|js|css)|src\/[A-Za-z0-9_./-]+\.(?:html|js|css|svg|json)|BRIEF\.md|TREATMENT\.md|script\.json)$/;
+const textPath=/^(index\.(?:html|js|css)|src\/[A-Za-z0-9_./-]+\.(?:html|js|css|svg|json)|BRIEF\.md|TREATMENT\.md|script\.json|material-selection\.json|script-audio-locks\.json)$/;
 export function assertAuthorPath(path){assertNativePath(path);if(!textPath.test(path))throw Error('NATIVE_AUTHOR_PATH_INVALID');return path;}
 export function nativeTextType(path){
  const ext=path.split('.').at(-1);return ({html:'text/html',js:'text/javascript',css:'text/css',json:'application/json',svg:'image/svg+xml',md:'text/markdown'})[ext]??'text/plain';
@@ -12,6 +12,7 @@ export function assertSourceFiles(files){
  for(const file of files){
   assertAuthorPath(file.path);
   if(paths.has(file.path.toLowerCase())||typeof file.content!=='string'||new TextEncoder().encode(file.content).length>240000)throw Error('NATIVE_SOURCE_FILES_INVALID');
+  if(file.path==='index.html'&&!file.content.length)throw Error('NATIVE_ENTRY_INVALID');
   paths.add(file.path.toLowerCase());bytes+=new TextEncoder().encode(file.content).length;
  }
  for(const file of files){const parts=file.path.toLowerCase().split('/');parts.pop();while(parts.length){if(paths.has(parts.join('/')))throw Error('NATIVE_SOURCE_FILES_INVALID');parts.pop();}}
@@ -25,7 +26,10 @@ export function applyProjectPatch(files,revisionId,input){
  if(!Array.isArray(input.edits)||!input.edits.length||input.edits.length>32)throw Error('NATIVE_PATCH_INVALID');
  const next=new Map(files.map(file=>[file.path,file.content]));
  for(const edit of input.edits){
-  assertAuthorPath(edit.path);if(edit.path==='BRIEF.md')throw Error('NATIVE_BRIEF_READ_ONLY');
+  assertAuthorPath(edit.path);
+  if(edit.path==='BRIEF.md')throw Error('NATIVE_BRIEF_READ_ONLY');
+  if(edit.path==='TREATMENT.md')throw Error('NATIVE_TREATMENT_READ_ONLY');
+  if(['script.json','material-selection.json','script-audio-locks.json'].includes(edit.path))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
   if(edit.command==='create'){
    if(next.has(edit.path)||typeof edit.content!=='string')throw Error('NATIVE_PATCH_CREATE_CONFLICT');
    next.set(edit.path,edit.content);
@@ -51,7 +55,7 @@ export function assertTreatment(value,durationSeconds,resourceIds){
  const total=durationSeconds*30,ids=new Set();
  for(const beat of value.beats){
   if(ids.has(beat.id)||!Number.isInteger(beat.startFrame)||!Number.isInteger(beat.endFrame)||beat.startFrame<0||beat.endFrame>total||beat.endFrame<=beat.startFrame
-   ||beat.assetIds.some(id=>!resourceIds.includes(id)))throw Error('NATIVE_TREATMENT_INVALID');
+   ||new Set(beat.assetIds).size!==beat.assetIds.length||beat.assetIds.some(id=>!resourceIds.includes(id)))throw Error('NATIVE_TREATMENT_INVALID');
   ids.add(beat.id);
  }
  if(!ids.has(value.hardestBeat)||Math.min(...value.beats.map(b=>b.startFrame))!==0||Math.max(...value.beats.map(b=>b.endFrame))!==total)throw Error('NATIVE_TREATMENT_INVALID');
@@ -69,7 +73,11 @@ export function assertTreatment(value,durationSeconds,resourceIds){
 /** Accept timing only for the exact admitted media, on its measured local clock. */
 export function normalizeTimingEvidence(entries,materials){
  if(entries===undefined)return [];
- if(!Array.isArray(entries)||entries.length>12)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
+ // A patch can retain measurements from earlier revisions while adding new
+ // tracks. The saved collection is bounded by native-project.resources (128),
+ // not by a single request's 12+12 admitted material lists.
+ if(!Array.isArray(entries)||entries.length>128)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
+ if(new Set(entries.map(entry=>entry?.sourceSha256)).size!==entries.length)throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
  return entries.map(entry=>{
   if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('NATIVE_TIMING_EVIDENCE_INVALID');
   const source=materials.find(material=>material.sha256===entry.sourceSha256&&['audio','video'].includes(material.kind));

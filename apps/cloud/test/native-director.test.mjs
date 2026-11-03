@@ -1,12 +1,16 @@
 // Offline control-flow evidence. Models and the native container are fixture adapters, not quality/paid-call evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
+import {assertNativeProject} from '@promobento/contracts/native-project';
+import {assertNativeSnapshotHeadroom,nativeSoundtrackBytes} from '../src/native-policy.ts';
+import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
-import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
+import {assertAuthorPath,assertSourceFiles,applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
 import {checkpointWaitSeconds,waitForDurableRender} from '../src/workflow-wait.ts';
 
 const nativeCommit='52467f99c602b76ba86d511d37acdfe93fa1e16e';
@@ -50,14 +54,18 @@ test('temporary D1 status outages rearm the durable wait, while a fenced operati
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
- 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}',
+ 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}export async function reconcileModelCosts(){return 0;}',
  'native-project.ts':`export const NATIVE_COMMIT='${nativeCommit}';export const saveNativeProject=(...a)=>globalThis.__nativeDirectorFixture.save(...a);export const loadNativeProject=(...a)=>globalThis.__nativeDirectorFixture.load(...a);export const createNativeRender=(...a)=>globalThis.__nativeDirectorFixture.render(...a);export const getNativeRender=(...a)=>globalThis.__nativeDirectorFixture.getRender(...a);export const checkedNativeBytes=(...a)=>globalThis.__nativeDirectorFixture.bytes(...a);`,
  'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key,resources){globalThis.__nativeDirectorFixture.committedResources=resources;await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
 };
 const built=await build({stdin:{contents:'export {OperationWorkflow} from "./apps/cloud/src/director.ts";export {directingMethodPack} from "./packages/methods/directing.ts";',resolveDir:process.cwd()},bundle:true,write:false,platform:'node',format:'esm',target:'node26',plugins:[{name:'offline-native-edges',setup(b){b.onResolve({filter:/.*/},args=>{const name=args.path.split('/').at(-1),key=Object.hasOwn(mockModules,args.path)?args.path:Object.hasOwn(mockModules,name)?name:null;return key?{path:key,namespace:'fixture'}:undefined;});b.onLoad({filter:/.*/,namespace:'fixture'},args=>({contents:mockModules[args.path],loader:'js'}));}}]});
 const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript;base64,'+Buffer.from(built.outputFiles[0].text).toString('base64'));
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
-async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,transientRenderStatus=false,parallelDelay=false}={}){
+async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
+ transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
+ jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
+ unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false,audioReplacementIds=null,
+ authorBoundaryOnce=null,selectAllAudio=false,dropOptionalSource=null}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -70,15 +78,24 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
  const f={
   async bytes(_env,blob){const value=await MEDIA.get(blob.key);assert.ok(value);const bytes=new Uint8Array(await value.arrayBuffer());assert.equal(sha256Bytes(bytes),blob.sha256);return bytes;},
   async save(_env,op,input){
-   const project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',runtime:{name:'huashu-motion',commit:nativeCommit},composition:input.composition,files:input.files,resources:input.resources};
+   const project={schemaVersion:'1.0.0',kind:'native_project',entry:'index.html',runtime:{name:'huashu-motion',commit:nativeCommit},composition:input.composition,files:input.files,resources:input.resources,
+    ...(input.timingEvidenceRef?{timingEvidenceRef:input.timingEvidenceRef}:{})};
+   assertNativeProject(project);
    const revisionId=digest(project),manifest=await putJson('operations/'+op.id+'/native/'+revisionId+'/project.json',project),record={revisionId,manifestKey:manifest.key,project};saved.set(revisionId,record);return record;
   },
   async load(_env,_op,id){assert.ok(saved.has(id),'revision must already exist');return saved.get(id);},
   async render(_env,op,input){
    const project=saved.get(input.revisionId);assert.ok(project);jobs.push({...input,operationId:op.id});
    const outputs=[];for(const [index]of (input.mode==='preview'?input.frames:[0]).entries())outputs.push(await put('renders/'+input.renderId+'/'+index+(input.mode==='preview'?'.png':'.mp4'),png,input.mode==='preview'?'image/png':'video/mp4'));
-   if(input.mode==='export'&&!missingEncoded)outputs.push({...await put('renders/'+input.renderId+'/review-sheet.jpg',png,'image/jpeg'),name:'review-sheet.jpg'});
-   renders.set(input.renderId,{status:dropRenderEvents||transientRenderStatus?'queued':'passed',finished_at:Date.now(),result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]}}:{})}}});return {renderId:input.renderId};
+   if(input.mode==='export'&&!missingEncoded){
+    outputs.push({...await put('renders/'+input.renderId+'/review-sheet.jpg',png,'image/jpeg'),name:'review-sheet.jpg'});
+    outputs.push({...await put('renders/'+input.renderId+'/motion-sheet.jpg',png,'image/jpeg'),name:'motion-sheet.jpg'});
+   }
+   renders.set(input.renderId,{status:dropRenderEvents||transientRenderStatus?'queued':'passed',finished_at:Date.now(),result:{outputs,report:{pageErrors:[],previewFrameTimes:input.frames??[],projectHash:input.revisionId,...(input.mode==='export'?{
+    reviewSheet:{source:'film.mp4',columns:2,rows:2,frames:[0,150,300,449],times:[0,5,10,449/30]},
+    motionReview:{source:'film.mp4',columns:4,rows:3,frames:Array.from({length:12},(_,index)=>Math.round(index*449/11))},
+    dynamicQuality:{coverage:'full_video_and_audio_decode',status:'clear',findings:[],ownerNormalSpeedReview:'pending'}
+   }:{})}}});return {renderId:input.renderId};
   },
   async getRender(_env,_op,id){const reads=(renderReads.get(id)??0)+1;renderReads.set(id,reads);
    if(transientRenderStatus&&reads===2){failedReads.push(id);throw Error('Network connection lost.');}
@@ -92,17 +109,94 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
    if(stage==='facts')value={schemaVersion:'3.0.0',kind:'fact_analysis',factIds:['fact_product'],summary:'The provided product does the described work.'};
    else if(stage==='assets')value={schemaVersion:'3.0.0',kind:'asset_insight',sha256:payload.sha256,promptVersion:'native-asset-v1',model:payload.model,assetKind:'screenshot',description:'A supplied product pixel fixture.',regions:[],dominantColors:['#ffffff'],visibleText:[],visualRoles:['Product evidence']};
    else if(stage==='directions')value={schemaVersion:'3.0.0',kind:'direction_set',cards:['fit','amplify','unexpected'].map((key,index)=>({key,language:index===1?'3d-object':'kinetic-type',palette:[{color:'#ffffff',role:'bg',source:'Product'},{color:'#111111',role:'ink',source:'Product'}],logline:'Show the real product',feel:{route:'continuous',bpm:120,eventsPerBar:4},sound:'A clear landing',risk:'Keep real material legible',usesDepth:index===1,skeleton:[0,1,2].map(i=>({purpose:'Passage '+i,approach:'Native geometry and typography'}))}))};
+   else if(stage==='reference')value={schemaVersion:'3.0.0',kind:'reference_analysis',resourceId:payload.reference.resourceId,
+    sourceSha256:payload.sourceSha256,sourceFrameCount:payload.sourceFrameCount,sampledFrames:payload.sampledFrames,
+    audioStatus:'not_analyzed',summary:{hook:'Visible product hook.',progression:'Source progression.',payoff:'Closing visual.',
+      visualSystem:'Product UI.',limitations:'Between-sample motion and all audio were not examined.'},
+    moments:[{id:'source-hook',startFrame:0,endFrame:payload.sourceFrameCount,evidenceFrames:payload.sampledFrames,
+      visible:'The sampled product appears.',interpretation:null,visibleText:[]}],relationships:[]};
+   else if(stage==='script'){
+    value={schemaVersion:'3.0.0',kind:'native_script',videoLanguage:'en',durationFrames:450,
+    segments:[{id:'title',role:'title',displayText:'PROMO_PROMISE',speechText:null,factIds:['fact_product'],startFrame:0,endFrame:300,timing:{kind:'authored'}},
+      {id:'cta',role:'cta',displayText:'Try PromoBento',speechText:null,factIds:[],startFrame:300,endFrame:450,timing:{kind:'authored'}}],
+    moments:[{id:'reveal',kind:'reveal',startFrame:0,endFrame:300,segmentIds:['title'],resourceIds:['res_product'],timing:{kind:'authored'}},
+      {id:'action',kind:'cta',startFrame:300,endFrame:450,segmentIds:['cta'],resourceIds:[],timing:{kind:'authored'}}]};
+   if(measuredSpeech||authoredSpeech){
+    const timing=measuredSpeech?{kind:'measured',sourceSha256:payload.timingEvidence[0].sourceSha256,firstWord:0,lastWord:1}:{kind:'authored'};
+    value.segments.push({id:'voice',role:'narration',displayText:'Voice over',speechText:'Hello world',factIds:[],startFrame:30,endFrame:60,
+      timing});
+    value.moments.push({id:'spoken',kind:'demonstration',startFrame:30,endFrame:60,segmentIds:['voice'],
+      resourceIds:['res_voice'],timing});
+    if(unlinkedMeasuredCaption){
+     value.segments.push({id:'timed-caption',role:'caption',displayText:'PROMO_PROMISE',speechText:null,factIds:[],
+       startFrame:30,endFrame:60,timing});
+     value.moments[0].segmentIds.push('timed-caption');
+    }
+   }
+   if(scriptOnlyOtherAudio)value.moments.push({id:'other-audio',kind:'demonstration',startFrame:60,endFrame:90,
+     segmentIds:[],resourceIds:['res_voice_other'],timing:{kind:'authored'}});
+   if(invalidScriptVisualOnce&&!callId.endsWith('-correct'))value.moments[0].resourceIds=['res_product_new'];
+   }
+   else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
+    beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:useAlternative&&assetId==='res_product'?['res_product_new']:[],reason:'This licensed source is needed by the beat.',locked:true})))};
    else{
     let input;
-    if(tool==='write_treatment')input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats:[{id:'hero',purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:['res_product']}],hardestBeat:'hero',reviewFrames:[0,90,240,449]};
+    if(tool==='write_treatment'){
+     const ids=selectAllAudio?payload.materials.map(item=>item.resourceId):selectVoice?['res_product','res_voice']:['res_product'];
+     const beats=Array.from({length:Math.ceil(ids.length/12)},(_,i)=>({id:i?'audio-bed-'+i:'hero',
+      purpose:'Show the product and useful result',startFrame:0,endFrame:450,assetIds:ids.slice(i*12,(i+1)*12)}));
+     input={treatment:'The supplied product is the hero; a continuous reveal leads to the CTA.',beats,hardestBeat:'hero',reviewFrames:[0,90,240,449]};
+    }
     else if(tool==='write_project'){
-     const shape=payload.composition,source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1><img data-om-id="product" src="${payload.materials[0].path}"><i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};</script></body></html>`;
-     input={files:[{path:'index.html',content:source}],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
+     const shape=payload.composition,product=payload.materials.find(item=>item.resourceId==='res_product')??payload.materials[0];
+     const unselected=payload.materials.find(item=>item.resourceId==='res_product_new');
+     const voice=payload.materials.find(item=>item.resourceId==='res_voice');
+     const otherVoice=payload.materials.find(item=>item.resourceId==='res_voice_other');
+     const wrongHardest=invalidHardestOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct');
+     const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${wrongHardest&&unselected?unselected.path:product.path}">`;
+     const audio=selectAllAudio?payload.materials.filter(item=>item.kind==='audio').map(item=>`<audio src="${item.path}"></audio>`).join(''):
+       ((selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'')+
+       (scriptOnlyOtherAudio&&otherVoice?`<audio src="${otherVoice.path}"></audio>`:'');
+     const source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1>${image}${audio}<i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};${jsonMaterial?"fetch('src/assets.json').then(r=>r.json()).then(v=>document.querySelector('img').src=v.productPath);":''}</script></body></html>`;
+     const html=source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>');
+     input={files:[{path:'index.html',content:invalidRecomposeOnce&&callId.includes('-recompose-')&&!callId.endsWith('-correct')
+      ?html.replace('PROMO_PROMISE','OMITTED_PROMISE'):html},
+      ...(jsonMaterial?[{path:'src/assets.json',content:JSON.stringify({productPath:product.path})}]:[])],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
+     if(authorBoundaryOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct')){
+      if(authorBoundaryOnce==='files')for(let i=0;i<23;i++)input.files.push({path:`src/filler-${i}.css`,content:'/* author */'});
+      else{
+       let remaining=1048576-Buffer.byteLength(html);
+       for(let i=0;remaining>0;i++){
+        const bytes=Math.min(240000,remaining);remaining-=bytes;
+        input.files.push({path:`src/filler-${i}.css`,content:' '.repeat(bytes)});
+       }
+      }
+     }
     }else if(tool==='apply_project_patch'){
-     const target=payload.comments?'PROMO_ORIGINAL':payload.review?'COMPLETE_STAGE':'HARD_STAGE';
-     input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?'PROMO_REVISED':payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
+     const previouslyRevised=payload.sourceFiles.find(file=>file.path==='index.html')?.content.includes('PROMO_REVISED');
+     const target=payload.comments?(previouslyRevised?'PROMO_REVISED':'PROMO_ORIGINAL'):payload.review?'COMPLETE_STAGE':'HARD_STAGE';
+     input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?(previouslyRevised?'PROMO_REVISED_AGAIN':'PROMO_REVISED'):payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
+     if(dropOptionalSource&&payload.comments&&payload.sourceFiles.some(file=>file.path===dropOptionalSource))
+      input.edits.unshift({command:'delete',path:dropOptionalSource});
      const replacement=payload.materials.find(material=>material.resourceId==='res_product_new');
-     if(replacement){const oldPath=payload.sourceFiles.find(file=>file.path==='index.html').content.match(/src="(assets\/[^\"]+\.png)"/)[1];input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:replacement.path});}
+     if(replacement&&payload.comments){const targetFile=jsonMaterial?'src/assets.json':'index.html';
+      const oldPath=payload.sourceFiles.find(file=>file.path===targetFile).content.match(/assets\/[a-f0-9]{24}\.png/)[0];
+      input.edits.push({command:'replace',path:targetFile,oldText:oldPath,newText:replacement.path});}
+     const oldVoicePath=payload.sourceFiles.find(file=>file.path==='index.html')?.content.match(/assets\/[a-f0-9]{24}\.wav/)?.[0];
+     const nextVoice=payload.materials.find(material=>material.kind==='audio'
+      &&(material.resourceId==='res_voice_new'||explicitSameIdAudio&&material.resourceId==='res_voice')
+      &&material.path!==oldVoicePath);
+     if(nextVoice&&oldVoicePath&&payload.comments){const oldPath=oldVoicePath;
+      input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:nextVoice.path});}
+     if(audioReplacementIds&&payload.comments){
+      const next=payload.materials.find(item=>item.resourceId===audioReplacementIds[1]);
+      const old=saved.get(payload.baseRevision).project.resources.find(item=>item.resourceId===audioReplacementIds[0]);
+      if(next&&old)input.edits.push({command:'replace',path:'index.html',oldText:old.sourcePath,newText:next.path});
+     }
+     const revisedCopy=payload.script?.segments?.find(segment=>segment.id==='title')?.displayText;
+     if(revisedCopy&&revisedCopy!=='PROMO_PROMISE')input.edits.push({command:'replace',path:'index.html',oldText:'PROMO_PROMISE',newText:revisedCopy});
+     const revisedCta=payload.script?.segments?.find(segment=>segment.id==='cta')?.displayText;
+     if(revisedCta&&revisedCta!=='Try PromoBento')input.edits.push({command:'replace',path:'index.html',oldText:'Try PromoBento',newText:revisedCta});
     }else if(tool==='submit_review')input={verdict:reviewAlwaysRevise?'revise':'pass',issues:reviewAlwaysRevise?[{detail:'Observed title overlap.',frames:[90]}]:[],note:'The supplied fixture frames received this mocked review.'};
     else throw Error('Unexpected fixture tool '+tool);
     value={toolCalls:[{id:'fixture',name:tool,arguments:canonical(input),input}]};
@@ -111,14 +205,14 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   }
  };
  globalThis.__nativeDirectorFixture=f;t.after(()=>delete globalThis.__nativeDirectorFixture);
- const create=async(id,extra={},readmittedRights=[])=>{
+ const create=async(id,extra={},readmittedRights=[],maxMicros=10000000)=>{
   const context={audience:'software',brief:'Show this product.',videoLanguage:'en',durationSeconds:15,fps:30,aspects:['landscape','portrait'],rendererRelease:'renderer-native',facts:[{id:'fact_product',text:'The product does the described work.'}],confirmedFactIds:['fact_product'],resources:[asset],...extra};
   const request=await putJson('evals/fixture/'+id+'.json',context);
-  db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,10000000,Date.now());
+  db.prepare('INSERT INTO pipeline_operations(id,workspace_id,project_id,generation,purpose,status,request_hash,max_micros,created_at) VALUES(?,?,?,?,?,?,?,?,?)').run(id,'workspace','project',0,'evaluation','active',id,maxMicros,Date.now());
   db.prepare('INSERT INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,?)').run(id,request.key,'evals/fixture/method.json',extra.legacyEngine?'legacy':'huashu');
   const materials=[...(Array.isArray(context.resources)?context.resources:[]),...(Array.isArray(context.audioSources)?context.audioSources:[]),...readmittedRights];
   for(const resource of materials.filter(value=>value&&typeof value.resourceId==='string'&&typeof value.sha256==='string'))
-   db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture','evals/fixture/evidence.json','internal_eval_only');
+   db.prepare('INSERT OR IGNORE INTO pipeline_rights(operation_id,resource_id,sha256,license_ref,evidence_key,scope) VALUES(?,?,?,?,?,?)').run(id,resource.resourceId,resource.sha256,'fixture',resource.rightsEvidenceKey??'evals/fixture/evidence.json','internal_eval_only');
   const steps={async do(_name,options,action){return (action??options)();},async waitForEvent(_name,options){
    if(options.type.startsWith('native-render-')){
     const completed=[...renders.entries()].find(([renderId])=>'native-render-'+digest(renderId).slice(0,32)===options.type);
@@ -138,7 +232,12 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   },async sleep(){}};
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
- return {create,calls,jobs,saved,db,env,asset,put,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
+ return {create,calls,jobs,saved,db,env,asset,put,save:f.save,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
+}
+
+async function readAuthoredSources(f,project){
+ const files=project.files.filter(file=>{try{assertAuthorPath(file.path);return true;}catch{return false;}});
+ return Promise.all(files.map(async file=>({path:file.path,content:new TextDecoder().decode(await f.bytes(f.env,file))})));
 }
 
 test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
@@ -171,6 +270,57 @@ test('duplicate material entries keep original positions but never start two ide
  const directions=f.calls.find(call=>call.stage==='directions');
  assert.equal(directions.payload.insights.length,2,'the downstream stage still receives an ordered insight for each material');
  assert.deepEqual(directions.payload.insights[0],directions.payload.insights[1]);
+});
+
+test('the cold-review upper bound admits four aspects and rejects an impossible budget before model work',async t=>{
+  const f=await fixture(t);
+  // The context keys are the fixed platform presets; the cold-review cost is
+  // conservatively based on eight encoded images, not a four-image assumption.
+  const configs=JSON.parse(readFileSync('config/platform-presets.json','utf8'));
+  const targets=Object.keys(configs.aspectLayouts);
+  assert.equal(targets.length,4);
+  const candidate=await f.create('four-aspects',{aspects:targets});
+  assert.equal(candidate.kind,'native_candidate');
+  const prior=f.calls.length;
+  await assert.rejects(f.create('four-aspects-low-budget',{aspects:targets},[],100000),
+    /MODEL_COLD_REVIEW_BUDGET_INSUFFICIENT/);
+  assert.equal(f.calls.length,prior,'no paid stage starts after a failed cold-review preflight');
+});
+
+test('source-frame-bound reference analysis informs the film but never grants use of reference footage',async t=>{
+ const f=await fixture(t),frame=index=>{
+  const bytes=Buffer.alloc(20,index);bytes.write('RIFF',0);bytes.writeUInt32LE(12,4);bytes.write('WEBP',8);return bytes;
+ };
+ const rawFrames=[frame(1),frame(2)],packBytes=Buffer.concat(rawFrames);
+ const original=await f.put('evals/fixture/reference-source.mp4',Buffer.from('original reference movie'),'video/mp4');
+ const poster=await f.put('evals/fixture/reference-poster.webp',rawFrames[0],'image/webp');
+ const pack=await f.put('evals/fixture/reference-pack.bin',packBytes,'application/octet-stream');
+ const manifest={schemaVersion:'3.0.0',kind:'video_frame_manifest',
+  source:{sha256:original.sha256,byteLength:original.byteLength,mediaType:'video/mp4'},
+  browserVersion:'156.0.8078.74',width:1,height:1,poster:{sha256:poster.sha256,byteLength:poster.byteLength},
+  packs:[{sha256:pack.sha256,byteLength:pack.byteLength}],
+  frames:rawFrames.map((bytes,index)=>({index,pts:index/30,duration:1/30,pack:0,offset:index*20,byteLength:bytes.length}))};
+ const assetManifest=await f.put('evals/fixture/reference-manifest.json',new TextEncoder().encode(canonical(manifest)),'application/json');
+ const evidenceKey='evals/fixture/reference-rights.json';
+ await f.put(evidenceKey,new TextEncoder().encode(canonical({videoSource:original,preview:poster,
+  framePacks:[{key:pack.key,sha256:pack.sha256,byteLength:pack.byteLength}]})),'application/json');
+ const reference={...assetManifest,resourceId:'source-reference',kind:'video',width:1,height:1,
+  videoFramePacking:'webp-pack-v1',rightsEvidenceKey:evidenceKey,
+  framePacks:[{key:pack.key,sha256:pack.sha256,byteLength:pack.byteLength}]};
+ const candidate=await f.create('reference-film',{aspects:['landscape'],resources:[f.asset,reference],
+  references:[{resourceId:reference.resourceId,purpose:'pacing',notes:'Observe only source frames.'}]});
+ assert.equal(candidate.kind,'native_candidate');
+ assert.equal(candidate.referenceAnalysisKey!==null,true);
+ const analysis=f.calls.find(call=>call.stage==='reference');
+ assert.ok(analysis);assert.equal(analysis.payload.sourceSha256,original.sha256);
+ assert.deepEqual(analysis.payload.sampledFrames,[0,1]);
+ assert.equal(analysis.payload.audioStatus,'not_analyzed');
+ const directions=f.calls.find(call=>call.stage==='directions');
+ assert.equal(directions.payload.referenceAnalyses[0].audioStatus,'not_analyzed');
+ const saved=f.saved.get(candidate.projects[0].revisionId).project;
+ assert.ok(saved.resources.some(resource=>resource.resourceId===f.asset.resourceId));
+ assert.ok(!saved.resources.some(resource=>resource.resourceId===reference.resourceId),
+  'analyzing a source is not licensing its inclusion in the film');
 });
 
 test('a failed parallel asset stops in-flight invalid output from starting a paid correction',async t=>{
@@ -244,14 +394,571 @@ test('native creation renders directions, waits for choice, authors independent 
  const original=candidate.projects[0],before=f.saved.get(original.revisionId),source=before.project.files.find(file=>file.path==='index.html');
  const beforeText=new TextDecoder().decode(await f.bytes(f.env,source));assert.match(beforeText,/COMPLETE_STAGE/);assert.doesNotMatch(beforeText,/PB\.scene/);
  const replacement={...await f.put('evals/fixture/product-new.png',Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQEBAKU1mS0AAAAASUVORK5CYII=','base64')),'image/png'),resourceId:'res_product_new',kind:'image',width:1,height:1};
- const patch=await f.create('patch-fixture',{aspects:['landscape'],resources:[f.asset,replacement],baseRevision:original.revisionId,comments:[{text:'Change the headline and use the new screenshot.',frame:90,elementId:'title'}]});
+ const patch=await f.create('patch-fixture',{aspects:['landscape'],resources:[f.asset,replacement],baseRevision:original.revisionId,
+  materialReplacements:[{fromResourceId:'res_product',toResourceId:'res_product_new'}],
+  comments:[{text:'Change the headline and use the new screenshot.',frame:90,elementId:'title'}]});
  assert.notEqual(patch.projects[0].revisionId,original.revisionId);assert.equal(f.calls.filter(call=>call.operationId==='patch-fixture'&&call.stage==='directions').length,0);
  const changed=f.saved.get(patch.projects[0].revisionId).project.files.find(file=>file.path==='index.html');assert.match(new TextDecoder().decode(await f.bytes(f.env,changed)),/PROMO_REVISED/);
  const revised=f.saved.get(patch.projects[0].revisionId).project;
  assert.ok(revised.files.some(file=>file.sha256===replacement.sha256),'newly admitted media is included in the patched project');
- assert.ok(revised.files.some(file=>file.sha256===f.asset.sha256),'unchanged source media remains available');
+ assert.ok(!revised.files.some(file=>file.sha256===f.asset.sha256),'replaced source bytes cannot be loaded dynamically by the patched project');
+ assert.ok(revised.resources.some(resource=>resource.resourceId===f.asset.resourceId),'historical rights obligations remain auditable');
  assert.ok(revised.resources.some(resource=>resource.resourceId===replacement.resourceId&&resource.sha256===replacement.sha256));
+ const locked=parseCanonicalJson(await f.bytes(f.env,revised.files.find(file=>file.path==='material-selection.json')));
+ assert.equal(locked.uses[0].resourceId,replacement.resourceId);
+ assert.equal(locked.uses[0].sha256,replacement.sha256);
+ assert.notEqual(locked.selectionHash,parseCanonicalJson(await f.bytes(f.env,before.project.files.find(file=>file.path==='material-selection.json'))).selectionHash);
+ assert.ok(patch.scriptImpact.affectedAssetLocks.includes('res_product'));
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,revised.files.find(file=>file.path==='script.json'))).moments[0].resourceIds[0],replacement.resourceId);
  assert.equal(new TextDecoder().decode(await f.bytes(f.env,source)),beforeText,'the parent revision remains unchanged');
+ const followup=await f.create('replacement-followup',{aspects:['landscape'],resources:[],
+  baseRevision:patch.projects[0].revisionId,comments:[{text:'Adjust only the headline layout.',frame:90}]},[f.asset,replacement]);
+ const final=f.saved.get(followup.projects[0].revisionId).project;
+ assert.ok(final.files.some(file=>file.sha256===replacement.sha256),'later edits keep the current material');
+ assert.ok(!final.files.some(file=>file.sha256===f.asset.sha256),'retired material cannot reappear in a later patch');
+});
+
+test('tight 511-file parent can be patched; oversized author output is corrected before caching',async t=>{
+ const f=await fixture(t),candidate=await f.create('tight-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const retained=Array.from({length:473-original.files.length},(_,i)=>({
+  path:`assets/retained-${i.toString().padStart(4,'0')}.png`,key:`evals/fixture/retained-${i}.png`,
+  sha256:i.toString(16).padStart(64,'0'),byteLength:0,mediaType:'image/png'}));
+ const files=[...original.files,...retained];
+ assert.equal(files.length,473);
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition:original.composition,files}));
+ const parent=await f.save(f.env,{id:'tight-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const real=globalThis.__nativeDirectorFixture.modelStep;
+ globalThis.__nativeDirectorFixture.modelStep=async(...args)=>{
+  if(args[3]==='author'&&args[4].includes('-patch-landscape')&&!args[4].endsWith('-correct')){
+   const validate=args[6];
+   args[6]=value=>{
+    value.toolCalls[0].input.edits.push({command:'create',path:'src/overflow-a.js',content:'x'},
+     {command:'create',path:'src/overflow-b.js',content:'y'});
+    validate(value);
+   };
+  }
+  return real(...args);
+ };
+ const edited=await f.create('tight-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[{text:'Shift the title by a few pixels.',frame:90}]},[f.asset]);
+ assert.equal(edited.kind,'native_candidate');
+ assert.ok(f.calls.some(call=>call.callId.includes('tight-child')&&call.callId.endsWith('-patch-landscape-correct')),
+  'the file-growth error must trigger the existing correction step');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!result.files.some(file=>file.path==='src/overflow-a.js'),
+  'invalid output must never be persisted as an immutable candidate');
+});
+
+test('an empty direction entry is corrected before its model response can succeed',async t=>{
+ const f=await fixture(t),real=globalThis.__nativeDirectorFixture.modelStep;
+ globalThis.__nativeDirectorFixture.modelStep=async(...args)=>{
+  if(args[3]==='author'&&args[4].endsWith('-direction-fit')){
+   const validate=args[6];
+   args[6]=value=>{
+    value.toolCalls[0].input.files.find(file=>file.path==='index.html').content='';
+    validate(value);
+   };
+  }
+  return real(...args);
+ };
+ const candidate=await f.create('empty-direction',{aspects:['landscape']});
+ assert.equal(candidate.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-direction-fit'));
+ assert.equal(attempts.length,2);
+ assert.ok(attempts[1].callId.endsWith('-direction-fit-correct'));
+ assert.ok([...f.saved.values()].every(saved=>saved.project.files.find(file=>file.path==='index.html').byteLength>0),
+  'the rejected empty entry must never reach immutable source storage');
+});
+
+test('a near-1MiB source can shrink while projecting a longer immutable Script',async t=>{
+ const f=await fixture(t,{dropOptionalSource:'src/optional-0.css'});
+ const candidate=await f.create('source-bytes-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const source=await readAuthoredSources(f,original),files=[...original.files];
+ let remaining=(1<<20)-100-source.reduce((bytes,file)=>bytes+Buffer.byteLength(file.content),0);
+ for(let i=0;remaining>0;i++){
+  const byteLength=Math.min(240000,remaining);remaining-=byteLength;
+  const path=`src/optional-${i}.css`,content='/*'+' '.repeat(byteLength-4)+'*/';
+  const blob=await f.put(`evals/fixture/large-optional-${i}.css`,Buffer.from(content),'text/css');
+  files.push({path,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType});
+  source.push({path,content});
+ }
+ assert.equal(source.reduce((bytes,file)=>bytes+Buffer.byteLength(file.content),0),(1<<20)-100);
+ assert.doesNotThrow(()=>assertSourceFiles(source));
+ const parent=await f.save(f.env,{id:'source-bytes-import'},
+  {composition:original.composition,files,resources:original.resources});
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(parent.project));
+ const title='中文标题'.repeat(125);
+ const edited=await f.create('source-bytes-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[],scriptEdits:[{segmentId:'title',field:'displayText',value:title}]},[f.asset]);
+ assert.equal(edited.kind,'native_candidate');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ const revised=await readAuthoredSources(f,result);
+ assert.doesNotThrow(()=>assertSourceFiles(revised));
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!revised.some(file=>file.path==='src/optional-0.css'),'editable source can free space for fixed copy');
+ assert.ok(revised.find(file=>file.path==='index.html').content.includes(title));
+ assert.equal(parseCanonicalJson(revised.find(file=>file.path==='script.json').content).segments[0].displayText,title);
+ assert.ok(parent.project.files.some(file=>file.path==='src/optional-0.css'),'the parent remains immutable');
+});
+
+test('a legacy 24-file source can free an editable slot for its immutable audio lock',async t=>{
+ const f=await fixture(t,{authoredSpeech:true,dropOptionalSource:'src/optional-0.css'});
+ const voice={...await f.put('evals/fixture/capped-voice.wav',Buffer.from('voice'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const candidate=await f.create('source-count-parent',{aspects:['landscape'],audioSources:[voice]});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const files=original.files.filter(file=>file.path!=='script-audio-locks.json');
+ const source=await readAuthoredSources(f,{files});
+ for(let i=0;source.length<24;i++){
+  const path=`src/optional-${i}.css`,content='/* optional unused style */';
+  const blob=await f.put(`evals/fixture/optional-${i}.css`,Buffer.from(content),'text/css');
+  files.push({path,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType});
+  source.push({path,content});
+ }
+ assert.equal(source.length,24);assert.doesNotThrow(()=>assertSourceFiles(source));
+ const parent=await f.save(f.env,{id:'source-count-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const edited=await f.create('source-count-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[{text:'Shift the title and remove unused CSS if needed.',frame:90}]},[f.asset,voice]);
+ assert.equal(edited.kind,'native_candidate');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ const revised=await readAuthoredSources(f,result);
+ assert.equal(revised.length,24);assert.doesNotThrow(()=>assertSourceFiles(revised));
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!revised.some(file=>file.path==='src/optional-0.css'));
+ assert.deepEqual(parseCanonicalJson(revised.find(file=>file.path==='script-audio-locks.json').content),
+  [{resourceId:voice.resourceId,sha256:voice.sha256}]);
+ const followup=await f.create('source-count-next',{aspects:['landscape'],resources:[],baseRevision:edited.projects[0].revisionId,
+  comments:[{text:'Move the title a little further.',frame:90}]},[f.asset,voice]);
+ assert.equal(followup.kind,'native_candidate','the migrated audio lock must remain editable');
+});
+
+test('a known immutable Script growth that cannot fit stops before any paid patch or correction',async t=>{
+ const f=await fixture(t),candidate=await f.create('fixed-document-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const used=original.files.reduce((bytes,file)=>bytes+file.byteLength,0);
+ const missingRuntime=pinnedBuiltinFiles.filter(file=>!original.files.some(existing=>existing.path===file.path))
+  .reduce((bytes,file)=>bytes+file.byteLength,0);
+ const sound=original.files.some(file=>file.path==='assets/sound.wav')?0:nativeSoundtrackBytes(15);
+ const available=(128<<20)-used-missingRuntime-sound-(64<<10)-700;
+ const chunks=[39<<20,39<<20,39<<20,available-(117<<20)];
+ assert.ok(chunks.every(bytes=>bytes>0&&bytes<=40<<20));
+ const filler=chunks.map((byteLength,i)=>({path:`assets/retained-big-${i}.mp4`,
+  key:`evals/fixture/retained-big-${i}.mp4`,sha256:(i+1).toString(16).repeat(64),
+  byteLength,mediaType:'video/mp4'}));
+ const files=[...original.files,...filler];
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition:original.composition,files}));
+ const parent=await f.save(f.env,{id:'fixed-document-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const count=f.calls.length;
+ await assert.rejects(f.create('fixed-document-overflow',{aspects:['landscape'],resources:[],
+  baseRevision:parent.revisionId,comments:[],
+  scriptEdits:[{segmentId:'title',field:'displayText',value:'中文标题'.repeat(125)}]},[f.asset]),
+  /NATIVE_PROJECT_TOO_LARGE/);
+ assert.equal(f.calls.length,count,'impossible immutable Script bytes must not trigger a paid model or correction');
+});
+
+for(const mismatch of ['dimensions','duration'])
+test(`all patch targets are checked before authoring when a later target has wrong ${mismatch}`,async t=>{
+ const f=await fixture(t),candidate=await f.create('target-parent');
+ const bases=Object.fromEntries(candidate.projects.map(project=>[project.aspect,project.revisionId]));
+ if(mismatch==='dimensions')bases.portrait=bases.landscape;
+ else{
+  // Both imports omit Script so document compatibility cannot mask a late
+  // target check. The portrait source and manifest genuinely last 30 seconds.
+  for(const aspect of ['landscape','portrait']){
+   const original=f.saved.get(bases[aspect]).project;
+   const files=original.files.filter(file=>!['BRIEF.md','script.json','material-selection.json','script-audio-locks.json'].includes(file.path));
+   const durationSeconds=aspect==='portrait'?30:15;
+   if(aspect==='portrait'){
+    const at=files.findIndex(file=>file.path==='index.html');
+    const html=new TextDecoder().decode(await f.bytes(f.env,files[at]))
+     .replace('data-duration="15"','data-duration="30"').replace('duration:15','duration:30');
+    const blob=await f.put('evals/fixture/long-portrait.html',Buffer.from(html),'text/html');
+    files[at]={path:'index.html',key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType};
+   }
+   const imported=await f.save(f.env,{id:'target-import-'+aspect},
+    {composition:{...original.composition,durationSeconds},files,resources:original.resources});
+   bases[aspect]=imported.revisionId;
+  }
+ }
+ const calls=f.calls.length,jobs=f.jobs.length;
+ await assert.rejects(f.create('target-mismatch',{resources:[],baseRevisions:bases,
+  comments:[{text:'Shift the headline in both versions.',frame:90}]},[f.asset]),/NATIVE_PATCH_TARGET_INVALID/);
+ assert.equal(f.calls.length,calls,'a known invalid later target must not start authoring earlier targets');
+ assert.equal(f.jobs.length,jobs,'no aspect may render before every base target is checked');
+});
+
+test('a patch cannot silently substitute a source without an explicit replacement lock',async t=>{
+ const f=await fixture(t),parent=await f.create('locked-parent',{aspects:['landscape']});
+ const replacement={...await f.put('evals/fixture/new.png',Buffer.from('new image'),'image/png'),resourceId:'res_product_new',kind:'image',width:1,height:1};
+ await assert.rejects(f.create('unlocked-child',{aspects:['landscape'],resources:[replacement],
+  baseRevision:parent.projects[0].revisionId,comments:[{text:'Replace the screenshot.',frame:60}]},[f.asset]),
+ /MATERIAL_LOCK_PROJECT_MISMATCH/);
+});
+
+test('a previously registered alternative can be promoted without duplicate lock identities',async t=>{
+ const f=await fixture(t,{useAlternative:true});
+ const alternate={...await f.put('evals/fixture/registered-alternate.png',Buffer.from('alternate screenshot'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:1,height:1};
+ const parent=await f.create('registered-alternative-parent',{aspects:['landscape'],resources:[f.asset,alternate]});
+ const old=f.saved.get(parent.projects[0].revisionId).project;
+ const prior=parseCanonicalJson(await f.bytes(f.env,old.files.find(item=>item.path==='material-selection.json')));
+ assert.equal(prior.uses[0].alternatives[0].resourceId,'res_product_new');
+ const changed=await f.create('registered-alternative-child',{aspects:['landscape'],resources:[alternate],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_product',toResourceId:'res_product_new'}],
+  comments:[]},[f.asset]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ const lock=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='material-selection.json')));
+ assert.equal(lock.uses[0].resourceId,'res_product_new');
+ assert.equal(lock.uses[0].alternatives[0].resourceId,'res_product');
+ assert.ok(project.files.some(item=>item.sha256===alternate.sha256));
+});
+
+test('an authorized material replacement may live only in native src/assets.json',async t=>{
+ const f=await fixture(t,{jsonMaterial:true});
+ const parent=await f.create('json-source-parent',{aspects:['landscape']});
+ const alternate={...await f.put('evals/fixture/json-replacement.png',Buffer.from('json screenshot'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:1,height:1};
+ const changed=await f.create('json-source-child',{aspects:['landscape'],resources:[alternate],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_product',toResourceId:'res_product_new'}],
+  comments:[{text:'Use the new product image referenced in JSON.',frame:60}]},[f.asset]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ const manifest=new TextDecoder().decode(await f.bytes(f.env,project.files.find(item=>item.path==='src/assets.json')));
+ assert.equal(JSON.parse(manifest).productPath,'assets/'+alternate.sha256.slice(0,24)+'.png');
+ assert.ok(project.files.some(item=>item.sha256===alternate.sha256));
+});
+
+test('patches validate the base CTA with its saved Brief, then the edited Script with the new CTA',async t=>{
+ const f=await fixture(t),parent=await f.create('cta-parent',{aspects:['landscape'],cta:'Try PromoBento'});
+ const changed=await f.create('cta-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  cta:'Start your free trial',comments:[],scriptEdits:[{segmentId:'cta',field:'displayText',value:'Start your free trial'}]},[f.asset]);
+ assert.equal(changed.kind,'native_candidate');
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ const updated=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.equal(updated.segments.find(item=>item.id==='cta').displayText,'Start your free trial');
+});
+
+test('measured Script and its authorized media survive a geometry-only child revision',async t=>{
+ const f=await fixture(t,{measuredSpeech:true});
+ const voice={...await f.put('evals/fixture/voice.wav',Buffer.from('voice fixture'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('speech-parent',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const original=f.saved.get(parent.projects[0].revisionId).project;
+ assert.ok(original.timingEvidenceRef);
+ assert.ok(original.files.some(item=>item.sha256===voice.sha256),'the original Script-referenced voice source remains playable');
+ const changed=await f.create('speech-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  comments:[{text:'Move the headline slightly.',frame:30}]},[f.asset,voice]);
+ assert.equal(changed.kind,'native_candidate');
+ const next=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(next.files.some(item=>item.sha256===voice.sha256),'a geometry patch must retain referenced voice bytes');
+ const kept=parseCanonicalJson(await f.bytes(f.env,next.files.find(item=>item.path==='script.json')));
+ assert.equal(kept.segments.find(item=>item.id==='voice').timing.kind,'measured');
+ assert.equal(next.timingEvidenceRef.sha256,original.timingEvidenceRef.sha256);
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,next.timingEvidenceRef)).length,1);
+ assert.deepEqual(Object.keys(next.timingEvidenceRef).sort(),['byteLength','key','sha256']);
+});
+
+test('a thirteenth retained audio clock survives a second patch and remains readable',async t=>{
+ const f=await fixture(t,{selectAllAudio:true});
+ const sounds=[];
+ for(let i=0;i<13;i++)sounds.push({...await f.put(`evals/fixture/clock-${i}.wav`,Buffer.from(`voice ${i}`),'audio/wav'),
+  resourceId:`clock_${i}`,kind:'audio',durationSeconds:3});
+ const timing=sounds.map((sound,i)=>({sourceSha256:sound.sha256,durationSeconds:3,
+  words:[{text:`word${i}`,start:1,end:2}]}));
+ const parent=await f.create('clock-parent',{aspects:['landscape'],resources:[f.asset,sounds[0]],
+  audioSources:sounds.slice(1),timingEvidence:timing.slice(0,12)});
+ const first=f.saved.get(parent.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,first.timingEvidenceRef)).length,12);
+ const child=await f.create('clock-child',{aspects:['landscape'],resources:[],baseRevision:parent.projects[0].revisionId,
+  timingEvidence:[timing[12]],comments:[{text:'Move the title.',frame:30}]},[f.asset,...sounds]);
+ const second=f.saved.get(child.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,second.timingEvidenceRef)).length,13);
+ const next=await f.create('clock-next',{aspects:['landscape'],resources:[],baseRevision:child.projects[0].revisionId,
+  comments:[{text:'Shift the subtitle.',frame:60}]},[f.asset,...sounds]);
+ assert.equal(next.kind,'native_candidate','a successfully saved revision must remain editable');
+ const third=f.saved.get(next.projects[0].revisionId).project;
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,third.timingEvidenceRef)).length,13);
+});
+
+test('unused audio and its historical measured evidence cannot poison a later geometry patch',async t=>{
+ const f=await fixture(t);
+ const unused={...await f.put('evals/fixture/unused-voice.wav',Buffer.from('not used in the film'),'audio/wav'),
+  resourceId:'res_unused_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:unused.sha256,durationSeconds:3,words:[{text:'Unused',start:1,end:2}]};
+ const parent=await f.create('unused-timing-parent',{aspects:['landscape'],audioSources:[unused],timingEvidence:[evidence]});
+ const original=f.saved.get(parent.projects[0].revisionId).project;
+ assert.ok(!original.files.some(item=>item.sha256===unused.sha256));
+ assert.equal(original.timingEvidenceRef,undefined,'unused evidence is not stored in the final revision');
+ const changed=await f.create('unused-timing-child',{aspects:['landscape'],resources:[],
+  baseRevision:parent.projects[0].revisionId,comments:[{text:'Shift the layout a few pixels.',frame:90}]},[f.asset,unused]);
+ assert.equal(changed.kind,'native_candidate');
+});
+
+test('replacing a measured audio source clears stale word clocks and keeps only retained evidence',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,selectVoice:true});
+ const voice={...await f.put('evals/fixture/old-timed-voice.wav',Buffer.from('old timed voice'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const first={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('timed-voice-parent',{aspects:['landscape'],audioSources:[voice],timingEvidence:[first]});
+ const alternate={...await f.put('evals/fixture/new-timed-voice.wav',Buffer.from('new timed voice'),'audio/wav'),
+  resourceId:'res_voice_new',kind:'audio',durationSeconds:3};
+ const second={sourceSha256:alternate.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:2,end:2.5},{text:'world',start:2.5,end:3}]};
+ const changed=await f.create('timed-voice-child',{aspects:['landscape'],resources:[],audioSources:[alternate],
+  timingEvidence:[second],baseRevision:parent.projects[0].revisionId,
+  materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice_new'}],comments:[]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ const script=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.equal(script.moments.find(item=>item.id==='spoken').resourceIds[0],alternate.resourceId);
+ assert.equal(script.moments.find(item=>item.id==='spoken').timing.kind,'authored');
+ assert.equal(script.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.ok(!project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(project.files.some(item=>item.sha256===alternate.sha256));
+ const retained=parseCanonicalJson(await f.bytes(f.env,project.timingEvidenceRef));
+ assert.deepEqual(retained.map(item=>item.sourceSha256),[alternate.sha256]);
+});
+
+test('a geometry patch cannot smuggle a different SHA under a Script-only audio resource ID',async t=>{
+ const f=await fixture(t,{measuredSpeech:true});
+ const voice={...await f.put('evals/fixture/voice-old.wav',Buffer.from('recording A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('locked-voice-parent',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const other={...await f.put('evals/fixture/voice-other.wav',Buffer.from('recording B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const changed=await f.create('locked-voice-child',{aspects:['landscape'],resources:[],audioSources:[other],
+  baseRevision:parent.projects[0].revisionId,comments:[{text:'Move the title 5 pixels.',frame:60}]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(!project.files.some(item=>item.sha256===other.sha256),
+  'a re-admitted same-ID SHA is not automatically made executable by a Script-only audio reference');
+ assert.equal(parseCanonicalJson(await f.bytes(f.env,project.files.find(file=>file.path==='script.json')))
+  .segments.find(item=>item.id==='voice').timing.sourceSha256,voice.sha256);
+ assert.equal(changed.scriptImpact,null);
+});
+
+test('Script-only audio replacement retires both linked speech and unrelated measured captions',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,unlinkedMeasuredCaption:true});
+ const voice={...await f.put('evals/fixture/only-voice.wav',Buffer.from('old voice'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const parent=await f.create('script-only-voice-parent',{aspects:['landscape'],audioSources:[voice],
+  timingEvidence:[{sourceSha256:voice.sha256,durationSeconds:3,words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]}]});
+ const replacement={...await f.put('evals/fixture/only-voice-new.wav',Buffer.from('new voice'),'audio/wav'),
+  resourceId:'res_voice_new',kind:'audio',durationSeconds:3};
+ const changed=await f.create('script-only-voice-child',{aspects:['landscape'],resources:[],audioSources:[replacement],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice_new'}],
+  comments:[]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(!project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(project.files.some(item=>item.sha256===replacement.sha256));
+ assert.equal(project.timingEvidenceRef,undefined,'removing the last measured source must clear inherited timing evidence');
+ const script=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.deepEqual(script.moments.find(item=>item.id==='spoken').resourceIds,['res_voice_new']);
+ assert.equal(script.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.equal(script.segments.find(item=>item.id==='timed-caption').timing.kind,'authored',
+  'a caption on a visual Moment cannot keep a clock from retired voice bytes');
+ assert.equal(changed.scriptImpact.changed,true);
+});
+
+test('conflicting selected and Script-only audio versions are rejected before paid author work',async t=>{
+ const f=await fixture(t,{authoredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true});
+ const a={...await f.put('evals/fixture/selected-a.wav',Buffer.from('recording A'),'audio/wav'),
+   resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const b1={...await f.put('evals/fixture/other-v1.wav',Buffer.from('recording B v1'),'audio/wav'),
+   resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const parent=await f.create('two-voice-parent',{aspects:['landscape'],audioSources:[a,b1]});
+ const b2={...await f.put('evals/fixture/other-v2.wav',Buffer.from('recording B v2'),'audio/wav'),
+   resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const previousCalls=f.calls.length;
+ await assert.rejects(f.create('two-voice-conflict',{aspects:['landscape'],resources:[],audioSources:[b2],
+   baseRevision:parent.projects[0].revisionId,
+   materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice_other'}],comments:[]},[f.asset,a,b1]),
+ /MATERIAL_LOCK_VERSION_CONFLICT/);
+ assert.equal(f.calls.length,previousCalls,'a conflicting revision must not start paid model work');
+ assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('two-voice-conflict').status,'failed');
+});
+
+for(const [from,to] of [['res_voice','res_voice_other'],['res_voice_other','res_voice']])
+test(`merging ${from} into ${to} normalizes audio locks and remains editable`,async t=>{
+ const f=await fixture(t,{authoredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true,audioReplacementIds:[from,to]});
+ const a={...await f.put('evals/fixture/merge-a.wav',Buffer.from('selected recording'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const b={...await f.put('evals/fixture/merge-b.wav',Buffer.from('Script-only recording'),'audio/wav'),
+  resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const parent=await f.create('merge-parent',{aspects:['landscape'],audioSources:[a,b]});
+ const child=await f.create('merge-child',{aspects:['landscape'],resources:[],audioSources:[to===a.resourceId?a:b],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:from,toResourceId:to}],comments:[]},[f.asset,a,b]);
+ const project=f.saved.get(child.projects[0].revisionId).project;
+ assert.deepEqual(parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script-audio-locks.json'))),[],
+  'the surviving source is selected by Treatment and needs no separate Script-only lock');
+ const next=await f.create('merge-geometry',{aspects:['landscape'],resources:[],baseRevision:child.projects[0].revisionId,
+  comments:[{text:'Shift the headline.',frame:30}]},[f.asset,a,b]);
+ assert.equal(next.kind,'native_candidate');
+});
+
+test('an explicit same-ID new-SHA audio replacement is legal, updates executable bytes and retires measured timing',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,explicitSameIdAudio:true});
+ const voice={...await f.put('evals/fixture/same-id-a.wav',Buffer.from('version A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const evidence={sourceSha256:voice.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const parent=await f.create('same-id-a',{aspects:['landscape'],audioSources:[voice],timingEvidence:[evidence]});
+ const next={...await f.put('evals/fixture/same-id-b.wav',Buffer.from('version B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const changed=await f.create('same-id-b',{aspects:['landscape'],resources:[],audioSources:[next],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice'}],
+  comments:[]},[f.asset,voice]);
+ const project=f.saved.get(changed.projects[0].revisionId).project;
+ assert.ok(!project.files.some(item=>item.sha256===voice.sha256));
+ assert.ok(project.files.some(item=>item.sha256===next.sha256));
+ assert.equal(project.timingEvidenceRef,undefined);
+ const authored=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
+ assert.deepEqual(authored.moments.find(item=>item.id==='spoken').resourceIds,['res_voice']);
+ assert.equal(authored.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.equal(authored.moments.find(item=>item.id==='spoken').timing.kind,'authored');
+ assert.equal(changed.scriptImpact.changed,true);
+ const followup=await f.create('same-id-b-geometry',{aspects:['landscape'],resources:[],
+  baseRevision:changed.projects[0].revisionId,comments:[{text:'Move title 5 pixels.',frame:60}]},[f.asset,voice,next]);
+ assert.equal(followup.kind,'native_candidate','the persisted new-SHA lock must survive a later geometry patch');
+});
+
+test('an unselected Script visual triggers model correction before success can be cached',async t=>{
+ const f=await fixture(t,{useAlternative:true,invalidScriptVisualOnce:true});
+ const alternative={...await f.put('evals/fixture/other-product.png',Buffer.from('different source image'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:1,height:1};
+ const result=await f.create('script-unselected-visual',{resources:[f.asset,alternative],aspects:['landscape']});
+ assert.equal(result.kind,'native_candidate');
+ const calls=f.calls.filter(call=>call.stage==='script');
+ assert.equal(calls.length,2,'invalid Script is not committed as a successful model response');
+ assert.ok(calls[1].callId.endsWith('-script-correct'));
+});
+
+test('multi-aspect patch rejects incompatible Script-only audio SHA locks before author calls',async t=>{
+ const f=await fixture(t,{authoredSpeech:true});
+ const audio={...await f.put('evals/fixture/multi-a.wav',Buffer.from('sound A'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const parent=await f.create('multi-voice-base',{audioSources:[audio]});
+ const alt={...await f.put('evals/fixture/multi-b.wav',Buffer.from('sound B'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const original=f.saved.get(parent.projects[1].revisionId).project;
+ const originalPath='assets/'+audio.sha256.slice(0,24)+'.wav';
+ const alternatePath='assets/'+alt.sha256.slice(0,24)+'.wav';
+ const oldHtml=new TextDecoder().decode(await f.bytes(f.env,original.files.find(file=>file.path==='index.html')));
+ const html=await f.put('evals/fixture/multi-portrait.html',new TextEncoder().encode(oldHtml.replace(originalPath,alternatePath)),'text/html');
+ const revised=await f.save(f.env,{id:'multi-portrait'},
+  {composition:original.composition,files:[...original.files.filter(file=>file.path!=='index.html'&&file.path!==originalPath),
+   {path:'index.html',key:html.key,sha256:html.sha256,byteLength:html.byteLength,mediaType:html.mediaType},
+   {path:alternatePath,key:alt.key,sha256:alt.sha256,byteLength:alt.byteLength,mediaType:alt.mediaType}],
+   resources:[...original.resources,{resourceId:'res_voice',sha256:alt.sha256,sourceSha256:alt.sha256,
+    sourcePath:alternatePath,kind:'audio',durationSeconds:3}]});
+ const before=f.calls.length;
+ await assert.rejects(f.create('multi-voice-child',{resources:[],baseRevisions:{landscape:parent.projects[0].revisionId,
+  portrait:revised.revisionId},comments:[{text:'Nudge the title.',frame:100}]},[f.asset,audio,alt]),
+ /SCRIPT_AUDIO_SOURCE_INVALID/,'a replaced audio file cannot satisfy the persisted ID/SHA lock');
+ assert.equal(f.calls.length,before);
+});
+
+test('imported measured speech must use an active audio lock even when another source retains its old bytes',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true});
+ const selected={...await f.put('evals/fixture/retained-voice.wav',Buffer.from('retained recording'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const current={...await f.put('evals/fixture/current-other.wav',Buffer.from('current other recording'),'audio/wav'),
+  resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const historical={...selected,resourceId:current.resourceId};
+ const timing={sourceSha256:selected.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const candidate=await f.create('active-clock-parent',{aspects:['landscape'],audioSources:[selected,current],timingEvidence:[timing]});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const oldScript=original.files.find(file=>file.path==='script.json');
+ const authoritative=parseCanonicalJson(await f.bytes(f.env,oldScript));
+ const history={...original.resources.find(resource=>resource.resourceId===selected.resourceId),resourceId:current.resourceId};
+ for(const active of [false,true]){
+  const script=structuredClone(authoritative);
+  // The same measured bytes remain legal through the selected source, but
+  // cannot authorize the other ID's retired version over its current lock.
+  script.moments.find(moment=>moment.id==='spoken').resourceIds=[active?selected.resourceId:current.resourceId];
+  const blob=await f.put(`evals/fixture/imported-clock-${active}.json`,Buffer.from(canonical(script)+'\n'),'application/json');
+  const files=original.files.map(file=>file.path==='script.json'
+   ?{...file,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength}:file);
+  const imported=await f.save(f.env,{id:'active-clock-import-'+active},
+   {composition:original.composition,files,resources:[...original.resources,history],timingEvidenceRef:original.timingEvidenceRef});
+  const calls=f.calls.length,jobs=f.jobs.length;
+  const patch=f.create('active-clock-child-'+active,{aspects:['landscape'],resources:[],baseRevision:imported.revisionId,
+   comments:[{text:'Move the title.',frame:30}]},[f.asset,selected,current,historical]);
+  if(!active){
+   await assert.rejects(patch,/SCRIPT_ALIGNMENT_INVALID/);
+   assert.equal(f.calls.length,calls,'an inactive historical speech source must fail before author calls');
+   assert.equal(f.jobs.length,jobs);
+  }else{
+   const edited=await patch;assert.equal(edited.kind,'native_candidate');
+   const result=f.saved.get(edited.projects[0].revisionId).project;
+   const preserved=parseCanonicalJson(await f.bytes(f.env,result.files.find(file=>file.path==='script.json')));
+   assert.equal(preserved.segments.find(segment=>segment.id==='voice').timing.sourceSha256,selected.sha256);
+   assert.equal(preserved.segments.find(segment=>segment.id==='voice').timing.kind,'measured');
+   assert.equal(parseCanonicalJson(await f.bytes(f.env,result.timingEvidenceRef))[0].sourceSha256,selected.sha256);
+  }
+ }
+});
+
+test('an imported native project without BRIEF.md or Script remains editable',async t=>{
+ const f=await fixture(t);
+ const html=await f.put('evals/fixture/imported.html',new TextEncoder().encode(
+  '<!doctype html><html><body><div data-composition-id="film" data-width="1920" data-height="1080" data-duration="15" data-fps="30"><h1>PROMO_ORIGINAL</h1></div></body></html>'),'text/html');
+ const {key,sha256,byteLength,mediaType}=html;
+ const imported=await f.save(f.env,{id:'imported-base'},
+  {composition:{durationSeconds:15,fps:30,width:1920,height:1080},files:[{path:'index.html',key,sha256,byteLength,mediaType}],resources:[]});
+ assert.ok(!imported.project.files.some(file=>file.path==='BRIEF.md'));
+ const changed=await f.create('imported-child',{aspects:['landscape'],resources:[],baseRevision:imported.revisionId,
+  comments:[{text:'Shift the headline.',frame:30}]});
+ assert.equal(changed.kind,'native_candidate');
+ assert.equal(changed.scriptKey,null);
+ assert.ok(f.saved.get(changed.projects[0].revisionId).project.files.some(file=>file.path==='BRIEF.md'));
+});
+
+test('an incomplete recompose is corrected before it can count as a valid model response',async t=>{
+ const f=await fixture(t,{invalidRecomposeOnce:true});
+ const result=await f.create('recompose-correction',{aspects:['landscape','portrait']});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-recompose-portrait'));
+ assert.equal(attempts.length,2);
+ assert.match(attempts[1].callId,/-correct$/);
+ const project=f.saved.get(result.projects[1].revisionId).project;
+ const file=project.files.find(item=>item.path==='index.html');
+ assert.match(new TextDecoder().decode(await f.bytes(f.env,file)),/PROMO_PROMISE/);
+});
+
+for(const authorBoundaryOnce of ['files','bytes'])
+test(`author ${authorBoundaryOnce} capacity includes generated production documents before success caching`,async t=>{
+ const f=await fixture(t,{authorBoundaryOnce});
+ const result=await f.create('author-capacity',{aspects:['landscape']});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-hardest-landscape'));
+ assert.equal(attempts.length,2,'an overflowing final source set must enter the model correction loop');
+ assert.match(attempts[1].callId,/-correct$/);
+});
+
+test('hardest-shot source mismatch enters correction before a successful model cache response',async t=>{
+ const f=await fixture(t,{invalidHardestOnce:true});
+ const alternate={...await f.put('evals/fixture/unselected.png',readFileSync('public/icon-192.png'),'image/png'),
+  resourceId:'res_product_new',kind:'image',width:192,height:192};
+ // An admitted asset is not automatically a selected Treatment source.
+ const result=await f.create('hardest-source-correction',{aspects:['landscape'],resources:[f.asset,alternate]});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-hardest-landscape'));
+ assert.equal(attempts.length,2);
+ assert.match(attempts[1].callId,/-correct$/);
+ const project=f.saved.get(result.projects[0].revisionId).project;
+ const html=new TextDecoder().decode(await f.bytes(f.env,project.files.find(file=>file.path==='index.html')));
+ assert.ok(html.includes('assets/'+f.asset.sha256.slice(0,24)+'.png'));
 });
 
 test('candidate submission includes rights inherited from an earlier native revision',async t=>{
@@ -261,6 +968,29 @@ test('candidate submission includes rights inherited from an earlier native revi
  assert.equal(patch.kind,'native_candidate');
  assert.ok(f.committedResources.some(resource=>resource.resourceId===f.asset.resourceId&&resource.sha256===f.asset.sha256),
   'a patch must recheck inherited media rights even when the new request has no resources');
+});
+
+test('Script-only user edits preserve locked assets and create a new revision with explicit QA invalidation',async t=>{
+ const f=await fixture(t),parent=await f.create('script-parent',{aspects:['landscape']});
+ const original=f.saved.get(parent.projects[0].revisionId).project;
+ const child=await f.create('script-child',{aspects:['landscape'],resources:[f.asset],baseRevision:parent.projects[0].revisionId,
+  comments:[],scriptEdits:[{segmentId:'title',field:'displayText',value:'PROMO_IMPROVED'}]});
+ assert.equal(child.kind,'native_candidate');
+ assert.equal(child.scriptImpact.changed,true);
+ assert.equal(child.scriptImpact.qualityReportsReusable,false);
+ assert.deepEqual(child.scriptImpact.segmentIds,['title']);
+ assert.deepEqual(child.scriptImpact.affectedAssetLocks,[]);
+ assert.equal(child.selectionKey!==null,true);
+ assert.equal(child.scriptKey!==null,true);
+ assert.equal(child.referenceAnalysisKey,null);
+ const next=f.saved.get(child.projects[0].revisionId).project;
+ assert.deepEqual(next.resources,original.resources);
+ const html=next.files.find(file=>file.path==='index.html');
+ const text=new TextDecoder().decode(await f.bytes(f.env,html));assert.match(text,/PROMO_IMPROVED/);
+ const scriptDoc=next.files.find(file=>file.path==='script.json');
+ const updated=parseCanonicalJson(await f.bytes(f.env,scriptDoc));
+ assert.equal(updated.segments[0].displayText,'PROMO_IMPROVED');
+ assert.equal(f.calls.filter(call=>call.operationId==='script-child'&&['script','selection','directions'].includes(call.stage)).length,0);
 });
 
 test('patching a parent without re-admitting inherited media fails before a paid model call',async t=>{
@@ -280,6 +1010,9 @@ test('malformed Director context is rejected before any model or native render w
   {aspects:[['landscape']]},
   {rendererRelease:['renderer-native']},
   {resources:[null]},
+  {resources:[f.asset,{...f.asset,sha256:'b'.repeat(64)}]},
+  {resources:[f.asset,{...f.asset,kind:'video'}]},
+  {resources:[f.asset],audioSources:[{...f.asset,kind:'audio'}]},
   {audioSources:{toString:null}},
   {audioSources:[{resourceId:'res_audio',sha256:['a'.repeat(64)],key:'evals/audio.wav',byteLength:123}]},
   {baseRevision:'a'.repeat(64),comments:[null]},
@@ -289,6 +1022,36 @@ test('malformed Director context is rejected before any model or native render w
  assert.equal(f.calls.length,0);
  assert.equal(f.jobs.length,0);
 });
+test('native media size limits reject sources before director models or renders are charged',async t=>{
+ const f=await fixture(t),head=f.env.MEDIA.head.bind(f.env.MEDIA);
+ const fake=new Map();
+ f.env.MEDIA.head=async key=>fake.get(key)??head(key);
+ const source=(id,bytes)=>{
+  const sha256=String(id).repeat(64);
+  const asset={...f.asset,resourceId:'large-'+id,key:'evals/fixture/large-'+id+'.png',sha256,
+   byteLength:bytes,kind:'image',preview:f.asset};
+  fake.set(asset.key,{size:bytes,customMetadata:{sha256}});
+  return asset;
+ };
+ await assert.rejects(f.create('one-large-source',{resources:[source('a',41<<20)],aspects:['landscape']}),
+  /NATIVE_MEDIA_SOURCE_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'a valid ingest size does not make an oversized native project legal');
+ await assert.rejects(f.create('source-total-too-large',{resources:[source('b',35<<20),source('c',35<<20),
+  source('d',35<<20),source('e',35<<20)],aspects:['landscape']}),/NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'aggregate size rejection must precede paid calls');
+ assert.equal(f.jobs.length,0);
+ // 122 MiB used to pass the 6 MiB reserve but fails after the upstream
+ // 30-second stereo PCM soundtrack adds another 5,760,044 bytes.
+ await assert.rejects(f.create('soundtrack-no-space',{resources:[source('b',40<<20),source('c',40<<20),
+  source('d',40<<20),source('e',2<<20)],aspects:['landscape']}),/NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'a sound-induced overflow must fail before any paid director model');
+ const nearLimit=[f.asset,source('b',40<<20),source('c',40<<20),source('d',38<<20)];
+ await assert.rejects(f.create('long-soundtrack-boundary',{resources:nearLimit,aspects:['landscape'],durationSeconds:30}),
+  /NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'30 seconds need twice the 15-second WAV reserve');
+ const short=await f.create('short-soundtrack-boundary',{resources:nearLimit,aspects:['landscape'],durationSeconds:15});
+ assert.equal(short.kind,'native_candidate','the same 118 MiB inputs fit with a 15-second soundtrack reserve');
+});
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
  const files=[{path:'index.html',content:'<h1>One</h1><p>One</p>'}],original=structuredClone(files);
  assert.throws(()=>applyProjectPatch(files,'a'.repeat(64),{baseRevision:'b'.repeat(64),edits:[]}),/NATIVE_REVISION_CONFLICT/);
@@ -297,6 +1060,7 @@ test('stale or ambiguous native patches are atomic, and sampled frames obey the 
  assert.deepEqual(files,original);assert.deepEqual(reviewFrameTimes([90,240],15),[0,3,8,449/30]);assert.throws(()=>reviewFrameTimes([450],15),/NATIVE_REVIEW_FRAMES_INVALID/);
  const source={sha256:'a'.repeat(64),kind:'audio',path:'assets/voice.wav',durationSeconds:3},timing={sourceSha256:source.sha256,durationSeconds:3,words:[{text:'Reveal',start:1,end:1.5}]};
  assert.equal(normalizeTimingEvidence([timing],[source])[0].words[0].start,1);
+ assert.throws(()=>normalizeTimingEvidence([timing,{...timing,words:[{text:'Different',start:2,end:2.5}]}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([{...timing,sourceSha256:'b'.repeat(64)}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([{...timing,durationSeconds:3.1}],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);
  assert.throws(()=>normalizeTimingEvidence([null],[source]),/NATIVE_TIMING_EVIDENCE_INVALID/);

@@ -1,6 +1,7 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {rights} from './store.ts';
+import {reconcileModelCosts} from './model-budget.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import {registerWorkflow,createTrackedWorkflow,stopWorkflow,stopOperationWorkflows,resolveWorkflow,type WorkflowKind} from './workflow-state.ts';
 import {stopRenderAdmissions} from './render-admission.ts';
@@ -40,6 +41,16 @@ export async function recordRenderFailure(env:PipelineEnv,renderId:string,code:s
   env.DB.prepare("INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_renders r JOIN pipeline_operations o ON o.id=r.operation_id WHERE r.id=? AND r.status='blocked' AND o.status='active' AND o.generation=r.generation)")
    .bind('render-terminal-'+renderId,row.operation_id,'render_terminal',canonical({renderId,operationId:row.operation_id,generation:row.generation,status}),renderId),
  ]);
+ // Keep trustworthy failed-QA artifact identities discoverable from the render
+ // receipt after the task container has been destroyed; never mark them deliverable.
+ if(status==='blocked'&&code==='NATIVE_DYNAMIC_QA_BLOCKED'){
+  const attempts=await env.DB.prepare('SELECT result_json FROM pipeline_attempts WHERE render_id=? AND result_json IS NOT NULL ORDER BY stopped_at DESC LIMIT 4')
+   .bind(renderId).all<{result_json:string}>();
+  const failed=attempts.results.map(item=>parseCanonicalJson(item.result_json) as Json)
+   .find(item=>item.status==='failed'&&item.code===code&&item.qaEvidence?.report?.sha256);
+  if(failed)await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.qaEvidence',json(?)) WHERE id=? AND status='blocked'")
+   .bind(canonical(failed.qaEvidence),renderId).run();
+ }
  await env.DB.prepare("UPDATE pipeline_render_admissions SET status='cancelled' WHERE render_id=? AND status='queued'")
   .bind(renderId).run();
  const attempts=await env.DB.prepare('SELECT id FROM pipeline_attempts WHERE render_id=? AND stopped_at IS NULL').bind(renderId).all<{id:string}>();
@@ -104,6 +115,9 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
    .bind(status,Date.now(),status,previous.code??(op.status==='cancelled'?'OPERATION_CANCELLED':'OPERATION_FAILED'),row.id).run();
   if(!terminal.has(row.status))await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.reconciledFrom',COALESCE(json_extract(result_json,'$.reconciledFrom'),?)) WHERE id=? AND status<>'passed'").bind(row.status,row.id).run();
  }
+ // Once an operation is terminal, modelStep refuses to re-enter it. Complete
+ // immutable completed bills and shared-ledger-proven unsent calls during recovery.
+ await reconcileModelCosts(env,operationId);
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
  // Only full cleanup completion may retire recovery-scannable Workflow rows.

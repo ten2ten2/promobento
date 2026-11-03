@@ -18,7 +18,8 @@ const computeMicros = (instance: string, ms: number) => {
   return Math.ceil(ms / 1000 * (cpu * 20 + memory * 2.5 + disk * .07));
 };
 
-type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; resources: Json[]; prefix: string; attemptId: string};
+type BrokerProps = {token: string; operationId: string; generation: number; reads: string[]; resources: Json[];
+  prefix: string; failurePrefix: string; attemptId: string};
 export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
   async fetch(request: Request): Promise<Response> {
     const scope = this.ctx.props, url = new URL(request.url);
@@ -32,7 +33,9 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
         const object = await this.env.MEDIA.get(key);
         return object ? new Response(object.body) : new Response(null, {status: 404});
       }
-      if (request.method !== 'PUT' || !url.pathname.startsWith('/w/') || !key.startsWith(scope.prefix + '/')) return new Response(null, {status: 403});
+      const diagnostic = key === scope.failurePrefix + '/film.mp4' || key === scope.failurePrefix + '/qa.json';
+      if (request.method !== 'PUT' || !url.pathname.startsWith('/w/') || !key.startsWith(scope.prefix + '/') && !diagnostic)
+        return new Response(null, {status: 403});
       const declared = request.headers.get('content-length'), length = Number(declared);
       const hash = request.headers.get('x-content-sha256');
       if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) return new Response(null, {status: 413});
@@ -250,7 +253,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
     await coordinator(this.env).assertLease(task.taskId, op.workspace_id, op.generation, task.leaseToken);
     let startedAt: number | undefined;
     let failed = false, failure: unknown, phase: 'startup' | 'broker' | 'dispatch' | 'execute' = 'startup';
-    let failedResourceUsage: Json | undefined;
+    let failedResourceUsage: Json | undefined, failedQaEvidence: Json | undefined;
     try {
       const capacityWaitMs = Number(admission.admitted_at) - Number(task.queuedAt ?? admission.admitted_at);
       await operation(this.env, op.id, op.generation);
@@ -270,9 +273,11 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       await this.ctx.storage.setAlarm(deadlineAt);
       this.token = crypto.randomUUID() + crypto.randomUUID();
       const input = nativeContainerInput(task, this.token);
-      const prefix = 'renders/' + task.renderId + '/attempts/' + task.taskId + '/out';
+      const attemptPrefix = 'renders/' + task.renderId + '/attempts/' + task.taskId;
+      const prefix = attemptPrefix + '/out';
       const broker = this.ctx.exports.Broker({props: {token: this.token, operationId: op.id, generation: op.generation,
-        reads: task.project.files.map((file: Json) => file.key), resources: task.project.resources, prefix, attemptId: task.taskId}});
+        reads: task.project.files.map((file: Json) => file.key), resources: task.project.resources,
+        prefix, failurePrefix: attemptPrefix + '/failed', attemptId: task.taskId}});
       phase = 'broker';
       const brokerStartedAt = Date.now(), brokerDeadline = Math.min(brokerStartedAt + 30000, deadlineAt);
       let brokerTimer: ReturnType<typeof setTimeout> | undefined;
@@ -324,6 +329,7 @@ export class ShardDO extends DurableObject<PipelineEnv> {
         const value = await response.json<Json>();
         if (value.status === 'failed' || value.status === 'cancelled') {
           if (value.resourceUsage && typeof value.resourceUsage === 'object') failedResourceUsage = value.resourceUsage;
+          if (value.status === 'failed' && value.error?.qaEvidence) failedQaEvidence = value.error.qaEvidence;
         }
         if (value.status === 'failed') {
           const code = value.error?.code ?? value.code;
@@ -345,7 +351,8 @@ export class ShardDO extends DurableObject<PipelineEnv> {
       const code = known ?? message.match(/^([A-Z][A-Z0-9_]+)(?::|$)/)?.[1] ?? 'RENDER_INTERNAL_ERROR';
       try {
         await this.env.DB.prepare('UPDATE pipeline_attempts SET result_json=COALESCE(result_json,?) WHERE id=?')
-          .bind(canonical({status: 'failed', code, phase, ...(failedResourceUsage ? {resourceUsage: failedResourceUsage} : {})}), task.taskId).run();
+          .bind(canonical({status: 'failed', code, phase, ...(failedResourceUsage ? {resourceUsage: failedResourceUsage} : {}),
+            ...(failedQaEvidence ? {qaEvidence: failedQaEvidence} : {})}), task.taskId).run();
       } catch { /* Diagnostics never replace the first execution failure. */ }
       throw failure;
     } finally {
@@ -444,8 +451,10 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     const current = await this.env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
       .bind(operationId).first<{status:string;generation:number}>();
     if (!current) throw Error('OPERATION_NOT_FOUND');
-    if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
     const cached = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
+    // Storage reads yield to other watch requests. Enforce the cap only after
+    // the last await, immediately before synchronously registering a reader.
+    if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
     const initial = ['succeeded','failed','cancelled'].includes(current.status)
       ? {...cached, operationId, generation:current.generation, status:current.status} : cached;
     if (['succeeded','failed','cancelled'].includes(current.status)) this.terminalProgress = initial;

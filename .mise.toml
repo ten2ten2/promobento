@@ -28,7 +28,7 @@ run = "pnpm run build:validators && node scripts/run-tests.mjs"
 [tasks."test:browser"]
 description = "Render real native 15/30 second films and previews inside the isolated CI image"
 dir = "{{config_root}}"
-run = "node --test apps/render-container/tests/media.render.test.mjs && node apps/render-container/tests/native.render.test.mjs"
+run = "node --test apps/render-container/tests/media.render.test.mjs apps/render-container/tests/quality.render.test.mjs && node apps/render-container/tests/native.render.test.mjs"
 
 [tasks."test:cloud-local"]
 description = "Exercise native creation, revisions, exports and durable recovery with offline fixtures"

@@ -24,7 +24,8 @@ export function assertNativePath(path) {
 
 /** This envelope transports native files; it never describes or evaluates scenes. */
 export function assertNativeProject(project) {
-  keys(project, ['schemaVersion', 'kind', 'entry', 'runtime', 'composition', 'files', 'resources']);
+  keys(project, ['schemaVersion', 'kind', 'entry', 'runtime', 'composition', 'files', 'resources',
+    ...(project?.timingEvidenceRef === undefined ? [] : ['timingEvidenceRef'])]);
   if (project.schemaVersion !== '1.0.0' || project.kind !== 'native_project' || project.entry !== 'index.html') throw Error('NATIVE_PROJECT_INVALID');
   keys(project.runtime, ['name', 'commit']);
   if (project.runtime.name !== 'huashu-motion' || project.runtime.commit !== NATIVE_RUNTIME_COMMIT) throw Error('NATIVE_RUNTIME_MISMATCH');
@@ -57,6 +58,14 @@ export function assertNativeProject(project) {
   }
   if (!Array.isArray(project.resources) || project.resources.length > 128 || project.resources.some(resource => !record(resource))) throw Error('NATIVE_RESOURCES_INVALID');
   if (encoder.encode(canonical(project.resources)).byteLength > 1 << 20) throw Error('NATIVE_RESOURCES_INVALID');
+  if (project.timingEvidenceRef !== undefined) {
+    const ref = project.timingEvidenceRef;
+    keys(ref, ['key', 'sha256', 'byteLength']);
+    if (typeof ref.key !== 'string' || !ref.key || encoder.encode(ref.key).byteLength > 1024
+      || /[\\\u0000-\u001f\u007f?#%]/u.test(ref.key) || ref.key.split('/').some(part => !part || part === '.' || part === '..')
+      || !hash.test(ref.sha256) || !Number.isSafeInteger(ref.byteLength) || ref.byteLength < 1 || ref.byteLength > 6 << 20)
+      throw Error('NATIVE_TIMING_EVIDENCE_REF_INVALID');
+  }
   canonical(project); // Reject accessors, non-JSON objects, cycles and invalid Unicode before identity.
   return project;
 }

@@ -155,6 +155,16 @@
       "items": {
         "type": "object"
       }
+    },
+    "timingEvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "sha256", "byteLength"],
+      "properties": {
+        "key": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "byteLength": {"type": "integer", "minimum": 1, "maximum": 6291456}
+      }
     }
   }
 }

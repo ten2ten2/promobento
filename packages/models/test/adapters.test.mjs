@@ -57,6 +57,22 @@ test('a failing stream cancellation cannot replace the original provider parse e
   {fetchImpl:async()=>({ok:true,status:200,body})}),error=>error instanceof SyntaxError);
  assert.equal(cancelled,1);
 });
+test('an unresponsive stream cancellation cannot pin a failed model request indefinitely',async()=>{
+ let cancelled=0;
+ const body=new ReadableStream({
+  start(controller){controller.enqueue(new TextEncoder().encode('data: {\n\n'));},
+  cancel(){cancelled++;return new Promise(()=>{});},
+ });
+ let timeout;
+ const outcome=await Promise.race([
+  streamModel({...base,provider:{kind:'openai-compatible',baseUrl:'https://provider.invalid'},secret:'fixture-secret'},
+   {fetchImpl:async()=>({ok:true,status:200,body})}).then(()=>null,error=>error),
+  new Promise(resolve=>{timeout=setTimeout(()=>resolve('CANCEL_STALLED'),500);}),
+ ]);
+ clearTimeout(timeout);
+ assert.ok(outcome instanceof SyntaxError,'the original parse error must survive stalled stream cleanup');
+ assert.equal(cancelled,1);
+});
 test('empty or gateway-error streams retain their original events and never become successful output',async()=>{
  for(const [values,code] of [
   [[{choices:[{delta:{reasoning_content:'thinking'},finish_reason:'stop'}]},'[DONE]'],'MODEL_OUTPUT_EMPTY'],

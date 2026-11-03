@@ -79,6 +79,13 @@ for (const item of cases) {
     let film;
     try {
       film = await prepared.native.capture.openFilm(prepared.project.index);
+      // A helper registered first must not supply the soundtrack's duration or scene labels.
+      await film.evaluate(`(() => { const main = window.__timelines.film; window.__timelines = {helper: gsap.timeline({paused: true}).to({}, {duration: 30}), film: main}; })()`);
+      const soundPlan = await prepared.native.sound.probe(prepared.project, html, film);
+      assert.equal(soundPlan.id, 'film');
+      assert.equal(soundPlan.duration, composition.durationSeconds);
+      assert.equal(soundPlan.labels['scene:opening'], 0);
+      await film.evaluate('delete window.__timelines.helper');
       const targets = [pathToFileURL(canary).href, 'file:///etc/passwd', `http://127.0.0.1:${localServer.address().port}/canary`, 'http://broker.internal/r/not-authorized', 'https://example.com/'];
       const blocked = await film.evaluate(`Promise.all(${JSON.stringify(targets)}.map(async url => {try {const r=await fetch(url); await r.arrayBuffer(); return false;} catch {return true;}}))`);
       assert.deepEqual(blocked, [true, true, true, true, true]);

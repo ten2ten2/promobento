@@ -4,6 +4,8 @@ import {mkdtempSync,mkdirSync,readFileSync,rmSync,symlinkSync,writeFileSync,exis
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {discoverLocalMaterials} from './discover-local-materials.mjs';
+import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
 
 test('local media discovery lists private candidates without copying bytes or granting rights',()=>{
  const local=mkdtempSync(join(tmpdir(),'pb-discovery-')),outputs=mkdtempSync(resolve('artifacts/.local-discovery-test-'));
@@ -40,4 +42,23 @@ test('local media discovery lists private candidates without copying bytes or gr
   assert.equal(limited.styleObservations.colours.length,100);assert.ok(limited.missing.includes('style_value_limit'));
   assert.throws(()=>discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:out,card}),/NEW_PRIVATE_OUTPUT_REQUIRED/);
  }finally{rmSync(local,{recursive:true,force:true});rmSync(outputs,{recursive:true,force:true});}
+});
+
+test('README and stylesheet discovery reject a file swapped to an outside symlink after preflight',t=>{
+ const local=mkdtempSync(join(tmpdir(),'pb-discovery-swap-')),outputs=mkdtempSync(resolve('artifacts/.discovery-swap-test-'));
+ const card={topicId:'fixture',status:'confirmed_for_s1_eval',confirmation:{confirmedBy:'owner',scope:'s1-first-internal-evaluation'},rights:{scope:'internal_eval_only',publicUseCleared:false},assetSources:[{kind:'local_project_media',url:'local://fixture'}]};
+ try{for(const [name,flags] of [['README.md',{preferReadme:true}],['theme.css',{observeStyles:true}]]){
+  const source=join(local,name+'-source');mkdirSync(source);
+  const target=join(source,name),outside=join(local,name);writeFileSync(target,'approved local text');writeFileSync(outside,'private text outside the approved project');
+  const realpath=fs.realpathSync;let swapped=false;
+  t.mock.method(fs,'realpathSync',(path,...args)=>{
+   const actual=realpath(path,...args);
+   if(path===target&&!swapped){fs.unlinkSync(target);symlinkSync(outside,target);swapped=true;}
+   return actual;
+  });syncBuiltinESMExports();
+  try{
+   assert.throws(()=>discoverLocalMaterials({sourceDir:source,sourceUrl:'local://fixture',outputDir:join(outputs,name),card,...flags}),/LOCAL_MATERIAL_PATH_INVALID/);
+   assert.equal(swapped,true);
+  }finally{t.mock.restoreAll();syncBuiltinESMExports();}
+ }}finally{rmSync(local,{recursive:true,force:true});rmSync(outputs,{recursive:true,force:true});}
 });

@@ -2,11 +2,11 @@ import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros,modelUsageQuote} from '../../../packages/contracts/src/models.mjs';
 import {providerRequest, streamModel, ModelOutputError, parseModelJson, type ModelRequest} from '../../../packages/models/src/adapters.mjs';
-import providersInput from '../../../config/model-providers.json';
-import authorization from '../../../config/model-authorization.json';
-import policyInput from '../../../config/agent-policy.json';
+import providersInput from '../../../config/model-providers.json' with {type:'json'};
+import authorization from '../../../config/model-authorization.json' with {type:'json'};
+import policyInput from '../../../config/agent-policy.json' with {type:'json'};
 import {operation, reserve, settle, getJson, immutableJson, immutableBytes} from './store.ts';
-import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId} from './model-budget.ts';
+import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId,modelUnsentReceipt,modelReceiptUsage} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
@@ -27,12 +27,16 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
   const op=await operation(env,operationId,generation), ref=providers.steps[stage], model=providers.models[ref], provider=providers.providers[ref?.split('/')[0]];
   if(!ref||!model?.capabilities.verified||!authorization.models.includes(ref)||!authorization.purposes.includes(op.purpose)
-    ||Date.now()>=Date.parse(authorization.expiresAt)||providers.catalogVersion!==authorization.catalogVersion)throw Error('MODEL_NOT_AUTHORIZED');
+    ||providers.catalogVersion!==authorization.catalogVersion)throw Error('MODEL_NOT_AUTHORIZED');
   const secret=provider.secret==='ANTHROPIC_API_KEY'?env.ANTHROPIC_API_KEY:env.MODEL_COMPAT_API_KEY;
-  if(!secret)throw Error('MODEL_SECRET_MISSING');
   const limits=policy.director.steps[stage];
   if(!limits)throw Error('MODEL_STAGE_UNKNOWN');
   const stageLimit=limits.maxMicros;
+  // maxMicros caps each request; author previews can overlap, so their combined
+  // reservation needs its own bounded allowance while the operation cap remains authoritative.
+  const stageTotalLimit=limits.maxTotalMicros??stageLimit;
+  if(!Number.isSafeInteger(stageTotalLimit)||stageTotalLimit<stageLimit||stageTotalLimit>authorization.maxUsdMicros)
+    throw Error('MODEL_STAGE_BUDGET_INVALID');
   const methodEvidence=context.directingMethod?{directingMethod:context.directingMethod}:{};
   if(request.messages.some(message=>message.images?.length)&&!model.capabilities.vision)throw Error('MODEL_VISION_UNAVAILABLE');
   if(request.tools?.length&&!model.capabilities.tools)throw Error('MODEL_TOOLS_UNAVAILABLE');
@@ -41,6 +45,12 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   const identity={promptVersion:'native-director-v2',catalogVersion:providers.catalogVersion,ref,request:input,...methodEvidence}, key=digest(identity);
   const cacheKey=digest({kind:'model-response-cache-v2',requestHash:key,workspaceId:op.workspace_id,projectId:op.project_id,purpose:op.purpose});
   const receiptKey=`operations/${op.id}/model-calls/${digest({callId})}.json`,budgetId=modelBudgetId(env.PIPELINE_ENVIRONMENT,callId);
+  const settleUnsentLocal=async(receipt:Json)=>{
+    const local=await env.DB.prepare('SELECT operation_id,request_hash,kind,catalog_version FROM cost_reservations WHERE id=?').bind(callId).first<Json>();
+    if(!local)return;
+    if(local.operation_id!==op.id||local.request_hash!==key||local.kind!=='model'||local.catalog_version!==providers.catalogVersion)throw Error('IDEMPOTENCY_CONFLICT');
+    await settle(env,callId,0,receipt);
+  };
   const decode=(result:Json)=>{
     if(result.failure==='MODEL_TOOL_JSON_INVALID')throw new ModelJsonOutputError(result.failure,{text:result.text,toolCalls:result.toolCalls});
     if(result.failure)throw Error(result.failure);
@@ -51,7 +61,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
     if(receipt.quote){
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
-      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence,...(receipt.requestSettings?{requestSettings:receipt.requestSettings}:{})});
+      await settle(env,callId,receipt.quote.usdMicros,modelReceiptUsage(receipt));
     }
     let value:Json;
     try{value=decode(receipt.result);validate(value);}catch(error){
@@ -64,11 +74,25 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
   };
   // A durable response may complete bookkeeping after a crash. An absent response never permits resending.
   if(await env.DB.prepare('SELECT id FROM cost_reservations WHERE id=?').bind(callId).first()){
-    if(!await env.MEDIA.head(receiptKey))throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    if(!await env.MEDIA.head(receiptKey)){
+      const unsent=await modelUnsentReceipt(env,budgetId,op.id,key);
+      if(unsent)await settleUnsentLocal(unsent);
+      throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    }
     return finish(await getJson(env,receiptKey),true);
   }
   const cached=await env.DB.prepare('SELECT response_key FROM model_responses WHERE cache_key=?').bind(cacheKey).first<{response_key:string}>();
   if(cached){const value=await getJson(env,cached.response_key);validate(value);return{value,cached:true};}
+  // Preserve the history observed before receipt recovery. A concurrent call can
+  // settle between this preflight and local admission, so checking only pending
+  // reservations at the INSERT would allow paying for its completed answer twice.
+  const observedRequests=await env.DB.prepare(`SELECT COUNT(*) AS count,SUM(CASE WHEN s.reservation_id IS NULL THEN 1 ELSE 0 END) AS pending FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+    LEFT JOIN cost_settlements s ON s.reservation_id=r.id
+    WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=? AND p.workspace_id=? AND p.project_id=? AND p.purpose=?`)
+    .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first<{count:number;pending:number|null}>();
+  // Read count and pending state in the same snapshot: a pending row can settle
+  // without changing count while the later completed-receipt query is in flight.
+  if(observedRequests?.pending)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
   // A parser/validator repair must not pay for the same completed answer again. Scope reuse to
   // the same workspace/project/purpose, exact request/model/catalog and an immutable settled receipt.
   // An explicitly proven not_dispatched settlement has no response to reuse; exclude that
@@ -99,6 +123,10 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
     .bind(key,providers.catalogVersion,op.workspace_id,op.project_id,op.purpose).first();
   if(pending)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+  // Existing immutable receipts and settled cache entries need no provider
+  // access. Expiry/key removal must not strand their outstanding bookkeeping.
+  if(Date.now()>=Date.parse(authorization.expiresAt))throw Error('MODEL_NOT_AUTHORIZED');
+  if(!secret)throw Error('MODEL_SECRET_MISSING');
   const authorizationBasis=await assertModelBudgetReady(env);
   let inputTokens=new TextEncoder().encode(canonical({...input,messages:input.messages.map(message=>({...message,images:message.images?.map(image=>({...image,base64:''}))??[]}))})).length+2048;
   if(provider.kind==='anthropic'){
@@ -112,30 +140,31 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     // Reserve a 128k-token surcharge for registered hidden-prompt routes, not only the ~6.8k baseline.
     if(model.capabilities.hiddenPromptTokens)inputTokens+=Math.max(131072,model.capabilities.hiddenPromptTokens);
   }
-  const usage=provider.kind==='anthropic'?{input_tokens:0,cache_creation:{ephemeral_1h_input_tokens:inputTokens},output_tokens:input.maxOutputTokens}
-    :{prompt_tokens:inputTokens,completion_tokens:input.maxOutputTokens};
-  const worst=modelCallCostMicros(ref,usage,providers).usdMicros;
+  // The gateway can add cache writes without exposing their TTL. Estimate with
+  // the highest admitted input/cache-write price instead of assuming plain input.
+  const usage=provider.kind==='anthropic'?{input_tokens:inputTokens}:{prompt_tokens:inputTokens};
+  const worst=modelCallCostMicros(ref,usage,providers,{maxOutputTokens:input.maxOutputTokens}).usdMicros;
   if(worst>stageLimit)throw Error('MODEL_REQUEST_EXCEEDS_STAGE_BUDGET');
   // The first asset message is the original image/input; later validation feedback must not create a fresh per-asset budget.
-  const budgetStage=stage==='assets'?'assets:'+digest(request.messages.slice(0,1)).slice(0,32):stage;
+  const budgetStage=['assets','reference'].includes(stage)?stage+':'+digest(request.messages.slice(0,1)).slice(0,32):stage;
   // Token counting and durable cache/receipt lookups may have consumed the
   // entire request window. Do not reserve or dispatch a paid call after it.
   if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
   context.dispatchGuard?.();
   const reserved=await reserveModelBudget(env,callId,op.id,worst,identity,providers.catalogVersion);
-  let locallyReserved=false;
   try{
     context.dispatchGuard?.();
-    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageLimit,
-      limits.maxCalls??limits.maxCallsPerAsset??1,true);
-    locallyReserved=true;
+    await reserve(env,op,callId,'model',budgetStage,worst,identity,providers.catalogVersion,authorization.maxUsdMicros,stageTotalLimit,
+      limits.maxCalls??limits.maxCallsPerAsset??1,true,observedRequests?.count??0);
     await operation(env,op.id,op.generation);
     if(Date.now()>=deadlineAt)throw Error('OPERATION_DEADLINE');
     context.dispatchGuard?.();
   }catch(error){
     const unused={kind:'not_dispatched',reason:'Local admission did not reach the paid request.'};
     await settleModelBudget(env,reserved,0,unused,{notDispatched:true});
-    if(locallyReserved)await settle(env,callId,0,unused);
+    // INSERT may have committed even if D1 lost its response. Verify the local
+    // identity instead of relying on an in-memory acknowledgement flag.
+    await settleUnsentLocal(unused);
     throw error;
   }
   await markModelDispatched(env,reserved);

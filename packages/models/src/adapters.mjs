@@ -117,7 +117,7 @@ export async function streamModel({provider, secret, ...input}, {fetchImpl = fet
     return result;
   } finally {
     // A broken upstream stream can also reject its cancellation. Cleanup must
-    // never mask a completed result, parser failure or original transport error.
-    try { await reader.cancel(); } catch {}
+    // never mask or indefinitely delay the original result or parser error.
+    try { void reader.cancel().catch(() => {}); } catch {}
   }
 }

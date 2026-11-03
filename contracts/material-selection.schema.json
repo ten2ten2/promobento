@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/material-selection/3.0.0",
+  "title": "Source-backed material roles and immutable candidate locks",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "uses"],
+  "properties": {
+    "schemaVersion": {"const": "3.0.0"},
+    "kind": {"const": "material_selection"},
+    "uses": {"type": "array", "maxItems": 144, "items": {"type": "object", "additionalProperties": false, "required": ["beatId", "role", "selectedResourceId", "alternativeResourceIds", "reason", "locked"], "properties": {
+      "beatId": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$"},
+      "role": {"enum": ["a_roll", "b_roll", "product_demo", "caption", "typography", "motion_graphics", "audio"]},
+      "selectedResourceId": {"type": "string", "minLength": 1, "maxLength": 120},
+      "alternativeResourceIds": {"type": "array", "maxItems": 12, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 120}},
+      "reason": {"type": "string", "minLength": 1, "maxLength": 500},
+      "locked": {"const": true}
+    }}}
+  }
+}

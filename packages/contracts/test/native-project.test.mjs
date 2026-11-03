@@ -29,6 +29,11 @@ test('project identity binds immutable source bytes and storage references, inde
     assert.notEqual(await nativeProjectHash(changed), original);
   }
   assert.deepEqual(value, before);
+  const withEvidence={...value,timingEvidenceRef:{key:'operations/op/timing-evidence.json',sha256:'c'.repeat(64),byteLength:123}};
+  assert.equal(validate(withEvidence),true);
+  assert.equal(assertNativeProject(withEvidence),withEvidence);
+  assert.notEqual(await nativeProjectHash(withEvidence),original,'restoring alignment evidence changes the immutable project identity');
+  assert.throws(()=>assertNativeProject({...value,timingEvidenceRef:{...withEvidence.timingEvidenceRef,sha256:'invalid'}}),/NATIVE_TIMING_EVIDENCE_REF_INVALID/);
 });
 
 test('path traversal, Unicode/case collisions, files as parents and engine control directories are rejected', () => {

@@ -8,7 +8,7 @@ import {sha256Bytes} from '../../../packages/contracts/src/digest.mjs';
 import {fileIdentity} from '../../../packages/native-motion/src/files.mjs';
 import {brokerClient} from '../src/broker.mjs';
 import {monitorResources} from '../src/resources.mjs';
-import {mapIO} from '../src/process.mjs';
+import {mapIO,run} from '../src/process.mjs';
 
 test('authorized I/O stays bounded, preserves file order and drains already-started work before cleanup',async()=>{
  let active=0,max=0;
@@ -26,6 +26,15 @@ test('authorized I/O stays bounded, preserves file order and drains already-star
  active=0;max=0;
  await mapIO([0,1,2,3,4],async()=>{active++;max=Math.max(max,active);await setImmediate();active--;},2);
  assert.equal(max,2);
+});
+
+test('a bounded process log explicitly reports lost evidence instead of silently returning a tail',async()=>{
+ const output=await run('/bin/sh',['-c','printf "%32768s" "" >&2'],{stderrMaxBytes:1024});
+ assert.equal(output.stderr.length,1024);
+ assert.equal(output.stderrTruncated,true);
+ const complete=await run('/bin/sh',['-c','printf "freeze_start: 0" >&2'],{stderrMaxBytes:1024});
+ assert.equal(complete.stderr,'freeze_start: 0');
+ assert.equal(complete.stderrTruncated,false);
 });
 
 test('streamed broker downloads authenticate length and hash before the file can be used', async t => {
