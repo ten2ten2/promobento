@@ -6,7 +6,8 @@ import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {assertNativeProject} from '@promobento/contracts/native-project';
-import {assertNativeSnapshotHeadroom} from '../src/native-policy.ts';
+import {assertNativeSnapshotHeadroom,nativeSoundtrackBytes} from '../src/native-policy.ts';
+import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
@@ -442,6 +443,31 @@ test('tight 511-file parent can be patched; oversized author output is corrected
  assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
  assert.ok(!result.files.some(file=>file.path==='src/overflow-a.js'),
   'invalid output must never be persisted as an immutable candidate');
+});
+
+test('a known immutable Script growth that cannot fit stops before any paid patch or correction',async t=>{
+ const f=await fixture(t),candidate=await f.create('fixed-document-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const used=original.files.reduce((bytes,file)=>bytes+file.byteLength,0);
+ const missingRuntime=pinnedBuiltinFiles.filter(file=>!original.files.some(existing=>existing.path===file.path))
+  .reduce((bytes,file)=>bytes+file.byteLength,0);
+ const sound=original.files.some(file=>file.path==='assets/sound.wav')?0:nativeSoundtrackBytes(15);
+ const available=(128<<20)-used-missingRuntime-sound-(64<<10)-700;
+ const chunks=[39<<20,39<<20,39<<20,available-(117<<20)];
+ assert.ok(chunks.every(bytes=>bytes>0&&bytes<=40<<20));
+ const filler=chunks.map((byteLength,i)=>({path:`assets/retained-big-${i}.mp4`,
+  key:`evals/fixture/retained-big-${i}.mp4`,sha256:(i+1).toString(16).repeat(64),
+  byteLength,mediaType:'video/mp4'}));
+ const files=[...original.files,...filler];
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition:original.composition,files}));
+ const parent=await f.save(f.env,{id:'fixed-document-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const count=f.calls.length;
+ await assert.rejects(f.create('fixed-document-overflow',{aspects:['landscape'],resources:[],
+  baseRevision:parent.revisionId,comments:[],
+  scriptEdits:[{segmentId:'title',field:'displayText',value:'中文标题'.repeat(125)}]},[f.asset]),
+  /NATIVE_PROJECT_TOO_LARGE/);
+ assert.equal(f.calls.length,count,'impossible immutable Script bytes must not trigger a paid model or correction');
 });
 
 test('a patch cannot silently substitute a source without an explicit replacement lock',async t=>{

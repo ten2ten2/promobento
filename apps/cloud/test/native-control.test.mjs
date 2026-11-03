@@ -411,6 +411,10 @@ test('patch preflight keeps tight but editable native snapshots and validates ac
  assert.doesNotThrow(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(512)}]));
  assert.throws(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(4096)}]),
   /NATIVE_PROJECT_TOO_LARGE/,'actual oversized source bytes must be rejected');
+ const frozen=authorPaths.filter(path=>path!=='index.html').map(path=>({path,content:'a'.repeat(512)}));
+ assert.throws(()=>assertNativePatchHeadroom(close,[],null,[],undefined,frozen),
+  /NATIVE_PROJECT_TOO_LARGE/,
+  'known read-only documents use their actual UTF-8 bytes even before the paid author responds');
 });
 
 test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{

@@ -55,17 +55,21 @@ export function assertNativeSnapshotHeadroom(project: {
 /** Before authoring, reject only snapshots that cannot fit even with minimal
  * source. Once the author responds, check its actual files before caching it. */
 export function assertNativePatchHeadroom(project:{composition:{durationSeconds:number};files:MediaFile[]},
- freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[],authored?:{path:string;content:string}[]){
+ freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[],authored?:{path:string;content:string}[],
+ frozenDocuments?:{path:string;content:string}[]){
  const assets=activeNativeMediaFiles(project.files,freshFiles,selection,audioLocks);
  const inherited=new Set(project.files.map(file=>file.path));
+ const frozenPaths=new Set(['BRIEF.md','TREATMENT.md','script.json','material-selection.json','script-audio-locks.json']);
+ const frozenBytes=new Map(frozenDocuments?.filter(file=>frozenPaths.has(file.path))
+  .map(file=>[file.path,new TextEncoder().encode(file.content).byteLength])??[]);
  const source=authored
   ? authored.map(file=>({path:file.path,byteLength:new TextEncoder().encode(file.content).byteLength}))
   : [...new Set(['index.html','BRIEF.md',
      ...(inherited.has('script.json')?['script-audio-locks.json']:[]),
      ...(selection?['material-selection.json']:[]),
      ...project.files.filter(file=>
-     ['TREATMENT.md','script.json','material-selection.json','script-audio-locks.json'].includes(file.path))
-    .map(file=>file.path)])].map(path=>({path,byteLength:1}));
+     frozenPaths.has(file.path)).map(file=>file.path),...frozenBytes.keys()])]
+    .map(path=>({path,byteLength:frozenBytes.get(path)??1}));
  assertNativeSnapshotHeadroom({composition:project.composition,files:[...assets,...source]});
 }
 

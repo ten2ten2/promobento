@@ -456,9 +456,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      bases.push(await loadNativeProject(this.env,op,id));
     }
     let first=true,originalScript:Json|null=null,priorTiming:Json[]=[],firstBaseMaterials:Json[]=[];
+    const baseSources:SourceFile[][]=[];
     for(const base of bases){
      await rights(this.env,op,base.project.resources);
      const source=await sourceFiles(base),rawScript=source.find(file=>file.path==='script.json')?.content;
+     baseSources.push(source);
      const rawSelection=source.find(file=>file.path==='material-selection.json')?.content;
      const rawAudioLocks=source.find(file=>file.path==='script-audio-locks.json')?.content;
      const priorScript=rawScript?parseCanonicalJson(rawScript):null;
@@ -545,11 +547,15 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      }
     }
     // A replacement may turn an otherwise valid parent into a snapshot that
-    // cannot fit even with minimal authored source. Check all target aspects
-    // before asking the paid model to generate an impossible revision.
-    for(const base of bases){
+    // cannot fit even with minimal authored source. The Brief, Script, locks
+    // and inherited Treatment are already fixed at this point: charge their
+    // actual UTF-8 bytes, leaving only editable author source at its minimum.
+    // Check all target aspects before asking the paid model to generate an
+    // impossible revision.
+    for(const [index,base] of bases.entries()){
+     const frozenDocuments=productionDocuments(baseSources[index]!,true);
      assertNativePatchHeadroom(base.project as {composition:{durationSeconds:number};files:MediaFile[]},
-      material.files as MediaFile[],lockedSelection,scriptAudioLocks);
+      material.files as MediaFile[],lockedSelection,scriptAudioLocks,undefined,frozenDocuments);
      const identities=new Set([...base.project.resources,...material.resources]
       .map((resource:Json)=>canonical([resource.resourceId,resource.sha256])));
      if(identities.size>128)throw Error('NATIVE_PROJECT_TOO_LARGE');
