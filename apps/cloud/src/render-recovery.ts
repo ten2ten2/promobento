@@ -1,7 +1,7 @@
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {rights} from './store.ts';
-import {reconcileUnsentModelCosts} from './model-budget.ts';
+import {reconcileModelCosts} from './model-budget.ts';
 import type {PipelineEnv,Json,Operation} from './pipeline-types.ts';
 import {registerWorkflow,createTrackedWorkflow,stopWorkflow,stopOperationWorkflows,resolveWorkflow,type WorkflowKind} from './workflow-state.ts';
 import {stopRenderAdmissions} from './render-admission.ts';
@@ -116,8 +116,8 @@ export async function reconcileOperation(env:PipelineEnv,operationId:string,exce
   if(!terminal.has(row.status))await env.DB.prepare("UPDATE pipeline_renders SET result_json=json_set(result_json,'$.reconciledFrom',COALESCE(json_extract(result_json,'$.reconciledFrom'),?)) WHERE id=? AND status<>'passed'").bind(row.status,row.id).run();
  }
  // Once an operation is terminal, modelStep refuses to re-enter it. Complete
- // only shared-ledger-proven unsent local reservations during normal recovery.
- await reconcileUnsentModelCosts(env,operationId);
+ // immutable completed bills and shared-ledger-proven unsent calls during recovery.
+ await reconcileModelCosts(env,operationId);
  const pending=await env.DB.prepare('SELECT r.id,r.kind,r.reserved_micros FROM cost_reservations r LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.operation_id=? AND s.reservation_id IS NULL')
   .bind(operationId).all<Json>();
  // Only full cleanup completion may retire recovery-scannable Workflow rows.

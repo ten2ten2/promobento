@@ -10,7 +10,7 @@ import {assertNativeSnapshotHeadroom,nativeSoundtrackBytes} from '../src/native-
 import {pinnedBuiltinFiles} from '../../../packages/native-motion/src/builtins.mjs';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
-import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
+import {assertAuthorPath,assertSourceFiles,applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
 import {checkpointWaitSeconds,waitForDurableRender} from '../src/workflow-wait.ts';
 
 const nativeCommit='52467f99c602b76ba86d511d37acdfe93fa1e16e';
@@ -54,7 +54,7 @@ test('temporary D1 status outages rearm the durable wait, while a fenced operati
 const mockModules={
  'cloudflare:workers':'export class WorkflowEntrypoint{constructor(_ctx,env){this.env=env;}}',
  'model-client.ts':`export class ModelJsonOutputError extends Error{};export const modelStep=(...args)=>globalThis.__nativeDirectorFixture.modelStep(...args);`,
- 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}export async function reconcileUnsentModelCosts(){return 0;}',
+ 'model-budget.ts':'export async function assertModelBudgetReady(){return {mode:"confirmed"};}export async function reconcileModelCosts(){return 0;}',
  'native-project.ts':`export const NATIVE_COMMIT='${nativeCommit}';export const saveNativeProject=(...a)=>globalThis.__nativeDirectorFixture.save(...a);export const loadNativeProject=(...a)=>globalThis.__nativeDirectorFixture.load(...a);export const createNativeRender=(...a)=>globalThis.__nativeDirectorFixture.render(...a);export const getNativeRender=(...a)=>globalThis.__nativeDirectorFixture.getRender(...a);export const checkedNativeBytes=(...a)=>globalThis.__nativeDirectorFixture.bytes(...a);`,
  'director-recovery.ts':`export const directorFailureCode=e=>e.message;export async function directorProgress(){};export async function commitCandidate(env,op,key,resources){globalThis.__nativeDirectorFixture.committedResources=resources;await env.DB.prepare("UPDATE pipeline_operations SET status='succeeded',result_key=? WHERE id=?").bind(key,op.id).run();}export async function failDirector(env,op,code,inside,key){await env.DB.prepare("UPDATE pipeline_operations SET status='failed',result_key=? WHERE id=?").bind(key??code,op.id).run();}`
 };
@@ -65,7 +65,7 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
  jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
  unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false,audioReplacementIds=null,
- authorBoundaryOnce=null,selectAllAudio=false}={}){
+ authorBoundaryOnce=null,selectAllAudio=false,dropOptionalSource=null}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -176,6 +176,8 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      const previouslyRevised=payload.sourceFiles.find(file=>file.path==='index.html')?.content.includes('PROMO_REVISED');
      const target=payload.comments?(previouslyRevised?'PROMO_REVISED':'PROMO_ORIGINAL'):payload.review?'COMPLETE_STAGE':'HARD_STAGE';
      input={baseRevision:payload.baseRevision,edits:[{command:'replace',path:'index.html',oldText:target,newText:payload.comments?(previouslyRevised?'PROMO_REVISED_AGAIN':'PROMO_REVISED'):payload.review?'COMPLETE_STAGE_REPAIRED':'COMPLETE_STAGE'}],reviewFrames:[90,240],note:'Exact native source revision.'};
+     if(dropOptionalSource&&payload.comments&&payload.sourceFiles.some(file=>file.path===dropOptionalSource))
+      input.edits.unshift({command:'delete',path:dropOptionalSource});
      const replacement=payload.materials.find(material=>material.resourceId==='res_product_new');
      if(replacement&&payload.comments){const targetFile=jsonMaterial?'src/assets.json':'index.html';
       const oldPath=payload.sourceFiles.find(file=>file.path===targetFile).content.match(/assets\/[a-f0-9]{24}\.png/)[0];
@@ -231,6 +233,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
   return new OperationWorkflow({},env).run({payload:{operationId:id}},steps);
  };
  return {create,calls,jobs,saved,db,env,asset,put,save:f.save,bytes:f.bytes,lostEvents,failedReads,parallel,get committedResources(){return f.committedResources;}};
+}
+
+async function readAuthoredSources(f,project){
+ const files=project.files.filter(file=>{try{assertAuthorPath(file.path);return true;}catch{return false;}});
+ return Promise.all(files.map(async file=>({path:file.path,content:new TextDecoder().decode(await f.bytes(f.env,file))})));
 }
 
 test('director overlaps only independent stages, freezes per-card method language, and waits for all previews',async t=>{
@@ -445,6 +452,91 @@ test('tight 511-file parent can be patched; oversized author output is corrected
   'invalid output must never be persisted as an immutable candidate');
 });
 
+test('an empty direction entry is corrected before its model response can succeed',async t=>{
+ const f=await fixture(t),real=globalThis.__nativeDirectorFixture.modelStep;
+ globalThis.__nativeDirectorFixture.modelStep=async(...args)=>{
+  if(args[3]==='author'&&args[4].endsWith('-direction-fit')){
+   const validate=args[6];
+   args[6]=value=>{
+    value.toolCalls[0].input.files.find(file=>file.path==='index.html').content='';
+    validate(value);
+   };
+  }
+  return real(...args);
+ };
+ const candidate=await f.create('empty-direction',{aspects:['landscape']});
+ assert.equal(candidate.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-direction-fit'));
+ assert.equal(attempts.length,2);
+ assert.ok(attempts[1].callId.endsWith('-direction-fit-correct'));
+ assert.ok([...f.saved.values()].every(saved=>saved.project.files.find(file=>file.path==='index.html').byteLength>0),
+  'the rejected empty entry must never reach immutable source storage');
+});
+
+test('a near-1MiB source can shrink while projecting a longer immutable Script',async t=>{
+ const f=await fixture(t,{dropOptionalSource:'src/optional-0.css'});
+ const candidate=await f.create('source-bytes-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const source=await readAuthoredSources(f,original),files=[...original.files];
+ let remaining=(1<<20)-100-source.reduce((bytes,file)=>bytes+Buffer.byteLength(file.content),0);
+ for(let i=0;remaining>0;i++){
+  const byteLength=Math.min(240000,remaining);remaining-=byteLength;
+  const path=`src/optional-${i}.css`,content='/*'+' '.repeat(byteLength-4)+'*/';
+  const blob=await f.put(`evals/fixture/large-optional-${i}.css`,Buffer.from(content),'text/css');
+  files.push({path,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType});
+  source.push({path,content});
+ }
+ assert.equal(source.reduce((bytes,file)=>bytes+Buffer.byteLength(file.content),0),(1<<20)-100);
+ assert.doesNotThrow(()=>assertSourceFiles(source));
+ const parent=await f.save(f.env,{id:'source-bytes-import'},
+  {composition:original.composition,files,resources:original.resources});
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(parent.project));
+ const title='中文标题'.repeat(125);
+ const edited=await f.create('source-bytes-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[],scriptEdits:[{segmentId:'title',field:'displayText',value:title}]},[f.asset]);
+ assert.equal(edited.kind,'native_candidate');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ const revised=await readAuthoredSources(f,result);
+ assert.doesNotThrow(()=>assertSourceFiles(revised));
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!revised.some(file=>file.path==='src/optional-0.css'),'editable source can free space for fixed copy');
+ assert.ok(revised.find(file=>file.path==='index.html').content.includes(title));
+ assert.equal(parseCanonicalJson(revised.find(file=>file.path==='script.json').content).segments[0].displayText,title);
+ assert.ok(parent.project.files.some(file=>file.path==='src/optional-0.css'),'the parent remains immutable');
+});
+
+test('a legacy 24-file source can free an editable slot for its immutable audio lock',async t=>{
+ const f=await fixture(t,{authoredSpeech:true,dropOptionalSource:'src/optional-0.css'});
+ const voice={...await f.put('evals/fixture/capped-voice.wav',Buffer.from('voice'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const candidate=await f.create('source-count-parent',{aspects:['landscape'],audioSources:[voice]});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const files=original.files.filter(file=>file.path!=='script-audio-locks.json');
+ const source=await readAuthoredSources(f,{files});
+ for(let i=0;source.length<24;i++){
+  const path=`src/optional-${i}.css`,content='/* optional unused style */';
+  const blob=await f.put(`evals/fixture/optional-${i}.css`,Buffer.from(content),'text/css');
+  files.push({path,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType});
+  source.push({path,content});
+ }
+ assert.equal(source.length,24);assert.doesNotThrow(()=>assertSourceFiles(source));
+ const parent=await f.save(f.env,{id:'source-count-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const edited=await f.create('source-count-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[{text:'Shift the title and remove unused CSS if needed.',frame:90}]},[f.asset,voice]);
+ assert.equal(edited.kind,'native_candidate');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ const revised=await readAuthoredSources(f,result);
+ assert.equal(revised.length,24);assert.doesNotThrow(()=>assertSourceFiles(revised));
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!revised.some(file=>file.path==='src/optional-0.css'));
+ assert.deepEqual(parseCanonicalJson(revised.find(file=>file.path==='script-audio-locks.json').content),
+  [{resourceId:voice.resourceId,sha256:voice.sha256}]);
+ const followup=await f.create('source-count-next',{aspects:['landscape'],resources:[],baseRevision:edited.projects[0].revisionId,
+  comments:[{text:'Move the title a little further.',frame:90}]},[f.asset,voice]);
+ assert.equal(followup.kind,'native_candidate','the migrated audio lock must remain editable');
+});
+
 test('a known immutable Script growth that cannot fit stops before any paid patch or correction',async t=>{
  const f=await fixture(t),candidate=await f.create('fixed-document-parent',{aspects:['landscape']});
  const original=f.saved.get(candidate.projects[0].revisionId).project;
@@ -468,6 +560,37 @@ test('a known immutable Script growth that cannot fit stops before any paid patc
   scriptEdits:[{segmentId:'title',field:'displayText',value:'中文标题'.repeat(125)}]},[f.asset]),
   /NATIVE_PROJECT_TOO_LARGE/);
  assert.equal(f.calls.length,count,'impossible immutable Script bytes must not trigger a paid model or correction');
+});
+
+for(const mismatch of ['dimensions','duration'])
+test(`all patch targets are checked before authoring when a later target has wrong ${mismatch}`,async t=>{
+ const f=await fixture(t),candidate=await f.create('target-parent');
+ const bases=Object.fromEntries(candidate.projects.map(project=>[project.aspect,project.revisionId]));
+ if(mismatch==='dimensions')bases.portrait=bases.landscape;
+ else{
+  // Both imports omit Script so document compatibility cannot mask a late
+  // target check. The portrait source and manifest genuinely last 30 seconds.
+  for(const aspect of ['landscape','portrait']){
+   const original=f.saved.get(bases[aspect]).project;
+   const files=original.files.filter(file=>!['BRIEF.md','script.json','material-selection.json','script-audio-locks.json'].includes(file.path));
+   const durationSeconds=aspect==='portrait'?30:15;
+   if(aspect==='portrait'){
+    const at=files.findIndex(file=>file.path==='index.html');
+    const html=new TextDecoder().decode(await f.bytes(f.env,files[at]))
+     .replace('data-duration="15"','data-duration="30"').replace('duration:15','duration:30');
+    const blob=await f.put('evals/fixture/long-portrait.html',Buffer.from(html),'text/html');
+    files[at]={path:'index.html',key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType};
+   }
+   const imported=await f.save(f.env,{id:'target-import-'+aspect},
+    {composition:{...original.composition,durationSeconds},files,resources:original.resources});
+   bases[aspect]=imported.revisionId;
+  }
+ }
+ const calls=f.calls.length,jobs=f.jobs.length;
+ await assert.rejects(f.create('target-mismatch',{resources:[],baseRevisions:bases,
+  comments:[{text:'Shift the headline in both versions.',frame:90}]},[f.asset]),/NATIVE_PATCH_TARGET_INVALID/);
+ assert.equal(f.calls.length,calls,'a known invalid later target must not start authoring earlier targets');
+ assert.equal(f.jobs.length,jobs,'no aspect may render before every base target is checked');
 });
 
 test('a patch cannot silently substitute a source without an explicit replacement lock',async t=>{
@@ -742,6 +865,48 @@ test('multi-aspect patch rejects incompatible Script-only audio SHA locks before
   portrait:revised.revisionId},comments:[{text:'Nudge the title.',frame:100}]},[f.asset,audio,alt]),
  /SCRIPT_AUDIO_SOURCE_INVALID/,'a replaced audio file cannot satisfy the persisted ID/SHA lock');
  assert.equal(f.calls.length,before);
+});
+
+test('imported measured speech must use an active audio lock even when another source retains its old bytes',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true});
+ const selected={...await f.put('evals/fixture/retained-voice.wav',Buffer.from('retained recording'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const current={...await f.put('evals/fixture/current-other.wav',Buffer.from('current other recording'),'audio/wav'),
+  resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const historical={...selected,resourceId:current.resourceId};
+ const timing={sourceSha256:selected.sha256,durationSeconds:3,
+  words:[{text:'Hello',start:1,end:1.5},{text:'world',start:1.5,end:2}]};
+ const candidate=await f.create('active-clock-parent',{aspects:['landscape'],audioSources:[selected,current],timingEvidence:[timing]});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const oldScript=original.files.find(file=>file.path==='script.json');
+ const authoritative=parseCanonicalJson(await f.bytes(f.env,oldScript));
+ const history={...original.resources.find(resource=>resource.resourceId===selected.resourceId),resourceId:current.resourceId};
+ for(const active of [false,true]){
+  const script=structuredClone(authoritative);
+  // The same measured bytes remain legal through the selected source, but
+  // cannot authorize the other ID's retired version over its current lock.
+  script.moments.find(moment=>moment.id==='spoken').resourceIds=[active?selected.resourceId:current.resourceId];
+  const blob=await f.put(`evals/fixture/imported-clock-${active}.json`,Buffer.from(canonical(script)+'\n'),'application/json');
+  const files=original.files.map(file=>file.path==='script.json'
+   ?{...file,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength}:file);
+  const imported=await f.save(f.env,{id:'active-clock-import-'+active},
+   {composition:original.composition,files,resources:[...original.resources,history],timingEvidenceRef:original.timingEvidenceRef});
+  const calls=f.calls.length,jobs=f.jobs.length;
+  const patch=f.create('active-clock-child-'+active,{aspects:['landscape'],resources:[],baseRevision:imported.revisionId,
+   comments:[{text:'Move the title.',frame:30}]},[f.asset,selected,current,historical]);
+  if(!active){
+   await assert.rejects(patch,/SCRIPT_ALIGNMENT_INVALID/);
+   assert.equal(f.calls.length,calls,'an inactive historical speech source must fail before author calls');
+   assert.equal(f.jobs.length,jobs);
+  }else{
+   const edited=await patch;assert.equal(edited.kind,'native_candidate');
+   const result=f.saved.get(edited.projects[0].revisionId).project;
+   const preserved=parseCanonicalJson(await f.bytes(f.env,result.files.find(file=>file.path==='script.json')));
+   assert.equal(preserved.segments.find(segment=>segment.id==='voice').timing.sourceSha256,selected.sha256);
+   assert.equal(preserved.segments.find(segment=>segment.id==='voice').timing.kind,'measured');
+   assert.equal(parseCanonicalJson(await f.bytes(f.env,result.timingEvidenceRef))[0].sourceSha256,selected.sha256);
+  }
+ }
 });
 
 test('an imported native project without BRIEF.md or Script remains editable',async t=>{

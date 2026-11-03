@@ -12,6 +12,7 @@ export function assertSourceFiles(files){
  for(const file of files){
   assertAuthorPath(file.path);
   if(paths.has(file.path.toLowerCase())||typeof file.content!=='string'||new TextEncoder().encode(file.content).length>240000)throw Error('NATIVE_SOURCE_FILES_INVALID');
+  if(file.path==='index.html'&&!file.content.length)throw Error('NATIVE_ENTRY_INVALID');
   paths.add(file.path.toLowerCase());bytes+=new TextEncoder().encode(file.content).length;
  }
  for(const file of files){const parts=file.path.toLowerCase().split('/');parts.pop();while(parts.length){if(paths.has(parts.join('/')))throw Error('NATIVE_SOURCE_FILES_INVALID');parts.pop();}}

@@ -6,7 +6,7 @@ import providersInput from '../../../config/model-providers.json' with {type:'js
 import authorization from '../../../config/model-authorization.json' with {type:'json'};
 import policyInput from '../../../config/agent-policy.json' with {type:'json'};
 import {operation, reserve, settle, getJson, immutableJson, immutableBytes} from './store.ts';
-import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId,modelUnsentReceipt} from './model-budget.ts';
+import {assertModelBudgetReady,reserveModelBudget,markModelDispatched,undoUnsentModelDispatch,settleModelBudget,modelBudgetId,modelUnsentReceipt,modelReceiptUsage} from './model-budget.ts';
 import type {PipelineEnv, Json} from './pipeline-types.ts';
 
 const providers: Json=providersInput, policy: Json=policyInput;
@@ -61,7 +61,7 @@ async function modelStepOnce(env: PipelineEnv, operationId: string, generation: 
     if(receipt.kind!=='metered_model_response'||receipt.callId!==callId||receipt.requestHash!==key||receipt.budgetId!==budgetId||receipt.model!==ref)throw Error('MODEL_RECEIPT_CONFLICT');
     if(receipt.quote){
       await settleModelBudget(env,budgetId,receipt.quote.usdMicros,receipt);
-      await settle(env,callId,receipt.quote.usdMicros,{model:ref,usage:receipt.result.usage,quote:receipt.quote,firstTokenMs:receipt.result.firstTokenMs,totalMs:receipt.result.totalMs,...methodEvidence,...(receipt.requestSettings?{requestSettings:receipt.requestSettings}:{})});
+      await settle(env,callId,receipt.quote.usdMicros,modelReceiptUsage(receipt));
     }
     let value:Json;
     try{value=decode(receipt.result);validate(value);}catch(error){

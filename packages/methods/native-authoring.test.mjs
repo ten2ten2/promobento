@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assertTreatment,applyProjectPatch} from './native-authoring.mjs';
+import {assertSourceFiles,assertTreatment,applyProjectPatch} from './native-authoring.mjs';
+
+test('source writes and atomic patches reject an empty native entry but permit empty auxiliary files',()=>{
+ const files=[{path:'index.html',content:'<h1>Keep the entry</h1>'},
+  {path:'src/style.css',content:'body{}'},{path:'src/empty.js',content:''}];
+ assert.equal(assertSourceFiles(files),files);
+ assert.throws(()=>assertSourceFiles([{path:'index.html',content:''}]),/NATIVE_ENTRY_INVALID/);
+ assert.throws(()=>applyProjectPatch(files,'revision-1',{baseRevision:'revision-1',edits:[
+  {command:'replace',path:'index.html',oldText:files[0].content,newText:''}]}),/NATIVE_ENTRY_INVALID/);
+ assert.equal(files[0].content,'<h1>Keep the entry</h1>','a rejected patch must preserve its parent');
+ const changed=applyProjectPatch(files,'revision-1',{baseRevision:'revision-1',edits:[
+  {command:'replace',path:'src/style.css',oldText:'body{}',newText:''}]});
+ assert.equal(changed.find(file=>file.path==='src/style.css').content,'');
+ assert.doesNotThrow(()=>assertSourceFiles([{path:'index.html',content:' '},
+  {path:'src/empty.css',content:''},{path:'src/empty.js',content:''}]));
+});
 
 test('native Treatment spans every film frame while allowing overlapping layers',()=>{
  const beat=(id,startFrame,endFrame)=>({id,purpose:'Native shot',startFrame,endFrame,assetIds:[]});

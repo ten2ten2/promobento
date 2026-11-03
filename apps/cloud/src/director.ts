@@ -453,7 +453,10 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     for(const aspect of context.aspects){
      const id=context.baseRevisions?.[aspect]??(context.aspects.length===1?context.baseRevision:null);
      if(typeof id!=='string'||!id)throw Error('DIRECTOR_PATCH_BASE_REQUIRED');
-     bases.push(await loadNativeProject(this.env,op,id));
+     const base=await loadNativeProject(this.env,op,id),shape=(platform.aspectLayouts as Json)[aspect];
+     if(base.project.composition.width!==shape.width||base.project.composition.height!==shape.height
+      ||base.project.composition.durationSeconds!==context.durationSeconds)throw Error('NATIVE_PATCH_TARGET_INVALID');
+     bases.push(base);
     }
     let first=true,originalScript:Json|null=null,priorTiming:Json[]=[],firstBaseMaterials:Json[]=[];
     const baseSources:SourceFile[][]=[];
@@ -553,7 +556,14 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     // Check all target aspects before asking the paid model to generate an
     // impossible revision.
     for(const [index,base] of bases.entries()){
-     const frozenDocuments=productionDocuments(baseSources[index]!,true);
+     // The author can shrink or remove old editable files. Validate only the
+     // unavoidable documents and one minimal entry here; otherwise adding a
+     // Script/lock could reject a valid patch before the author can free space.
+     const frozenDocuments=productionDocuments([
+      {path:'index.html',content:' '},
+      ...baseSources[index]!.filter(file=>
+       ['BRIEF.md','TREATMENT.md','script.json','material-selection.json','script-audio-locks.json'].includes(file.path)),
+     ],true);
      assertNativePatchHeadroom(base.project as {composition:{durationSeconds:number};files:MediaFile[]},
       material.files as MediaFile[],lockedSelection,scriptAudioLocks,undefined,frozenDocuments);
      const identities=new Set([...base.project.resources,...material.resources]

@@ -396,6 +396,60 @@ test('persisted Script-only audio locks restore the active version when historic
   assert.throws(()=>projectMaterialSources({...project,files:[{path:oldPath,sha256:old}]},selection,sourceScript,locks),/SCRIPT_AUDIO_SOURCE_INVALID/);
 });
 
+test('measured speech follows active ID/SHA locks while other sources retain historical clocks',()=>{
+  const old=hash('a'),next=hash('b');
+  const resource=(resourceId,sha256)=>({resourceId,sha256,sourceSha256:sha256,
+    sourcePath:'assets/'+sha256.slice(0,24)+'.wav',kind:'audio'});
+  const resources=[resource('voice',old),resource('voice',next),resource('other',old)];
+  const locked=uses=>({schemaVersion:'3.0.0',kind:'locked_materials',uses,selectionHash:digest(uses)});
+  const use=(resourceId,sha256)=>({beatId:resourceId,resourceId,sha256,alternatives:[],locked:true});
+  for(const role of ['narration','dialogue']) for(const mode of ['script-only','selected','no-selection']){
+    const selection=mode==='no-selection'?null:locked([
+      use('other',old),...(mode==='selected'?[use('voice',next)]:[])]);
+    const audioLocks=mode==='selected'?[]:[{resourceId:'voice',sha256:next},
+      ...(mode==='no-selection'?[{resourceId:'other',sha256:old}]:[])];
+    const clock={kind:'measured',sourceSha256:old,firstWord:0,lastWord:0};
+    const source={segments:[{id:'speech',role,timing:clock},
+      {id:'caption',role:'caption',timing:clock},{id:'title',role:'title',timing:clock}],moments:[
+      {id:'spoken',segmentIds:['speech'],resourceIds:['voice'],timing:clock},
+      {id:'retained',segmentIds:[],resourceIds:['other'],timing:clock},
+      {id:'visual',segmentIds:['caption','title'],resourceIds:[],timing:clock}]};
+    assert.throws(()=>assertMaterialProjection([],selection,resources,source,audioLocks),
+      /SCRIPT_ALIGNMENT_INVALID/,`${role} cannot use historical voice bytes with ${mode} locks`);
+    const current=structuredClone(source);
+    current.segments[0].timing={...clock,sourceSha256:next};
+    current.moments.push({id:'extra-visual',segmentIds:['speech'],resourceIds:[],timing:{kind:'authored'}});
+    assert.doesNotThrow(()=>assertMaterialProjection([],selection,resources,current,audioLocks),
+      'one correctly bound speech Moment suffices; captions, titles and visual Moments retain their clocks');
+    const retained=structuredClone(source);
+    retained.moments[1].segmentIds=['speech'];
+    assert.doesNotThrow(()=>assertMaterialProjection([],selection,resources,retained,audioLocks),
+      'the old measured speech is still legal when a linked Moment actually uses the retained old recording');
+    assert.equal(source.segments[0].timing.sourceSha256,old,'validation must not rewrite historical evidence');
+    assert.equal(resources.length,3,'historical rights are retained');
+  }
+});
+
+test('measured selected media uses original video bytes and preserves the imported audio kind default',()=>{
+  const original=hash('a'),manifest=hash('b');
+  const video={resourceId:'media',sha256:manifest,sourceSha256:original,
+    sourcePath:'assets/'+original.slice(0,24)+'.mp4',kind:'video'};
+  const uses=[{beatId:'spoken',resourceId:'media',sha256:original,alternatives:[],locked:true}];
+  const selection={schemaVersion:'3.0.0',kind:'locked_materials',uses,selectionHash:digest(uses)};
+  const source={segments:[{id:'speech',role:'narration',timing:{kind:'measured',sourceSha256:original}}],
+    moments:[{segmentIds:['speech'],resourceIds:['media']}]};
+  assert.doesNotThrow(()=>assertMaterialProjection([],selection,[video],source));
+  source.segments[0].timing.sourceSha256=manifest;
+  assert.throws(()=>assertMaterialProjection([],selection,[video],source),/SCRIPT_ALIGNMENT_INVALID/);
+  source.segments[0].timing.sourceSha256=original;
+  const {kind,...audio}=video;
+  audio.sourcePath='assets/'+original.slice(0,24)+'.wav';audio.sha256=original;
+  assert.doesNotThrow(()=>assertMaterialProjection([],selection,[audio],source),
+    'projectMaterialSources treats an imported resource without a kind as audio');
+  assert.throws(()=>assertMaterialProjection([],selection,[{...audio,kind:'image'}],source),
+    /SCRIPT_ALIGNMENT_INVALID/,'an explicitly visual source cannot authorize measured speech');
+});
+
 test('Script validation rejects an unselected visual before caching but permits independent audio',()=>{
   const treatment={beats:[{assetIds:['selected']}]};
   const admitted=[{resourceId:'selected',kind:'image'},{resourceId:'unselected',kind:'image'},{resourceId:'voice',kind:'audio'}];

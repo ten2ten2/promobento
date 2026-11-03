@@ -157,6 +157,100 @@ for(const fence of ['expired','key-removed'])test(`durable model receipts finish
   fence==='expired'?/MODEL_NOT_AUTHORIZED/:/MODEL_SECRET_MISSING/);
  assert.equal(requests,1,'bookkeeping recovery never re-enables new provider calls');
 });
+for(const side of ['local','shared'])for(const ackLost of [false,true])
+test(`terminal recovery settles a completed ${side} ledger ${ackLost?'lost acknowledgement':'write failure'} without another model request`,async t=>{
+ const{env,local,shared,objects}=await fixture(t),oldFetch=globalThis.fetch;
+ let requests=0,fail=true;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],
+  usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=oldFetch;});
+ const DB=side==='local'?env.DB:env.MODEL_LEDGER,prepare=DB.prepare.bind(DB);
+ const prefix=side==='local'?'INSERT OR IGNORE INTO cost_settlements':'INSERT OR IGNORE INTO model_budget_settlements';
+ DB.prepare=sql=>{const statement=prepare(sql);if(!sql.startsWith(prefix))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   if(fail&&!ackLost){fail=false;throw Error('SETTLEMENT_INTERRUPTED');}
+   const result=await bound.run();if(fail){fail=false;throw Error('SETTLEMENT_INTERRUPTED');}return result;
+  }};}};};
+ const request={system:'Offline completed terminal bill.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','completed-terminal',request,()=>{}),/SETTLEMENT_INTERRUPTED/);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
+ local.db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id='model-operation'").run();
+ delete env.MODEL_COMPAT_API_KEY;
+ const cleaned=await Promise.all([reconcileOperation(env,'model-operation'),reconcileOperation(env,'model-operation')]);
+ assert.ok(cleaned.every(result=>result.pendingCosts.length===0));
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,receipt.quote.usdMicros);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,receipt.quote.usdMicros);
+ assert.equal(local.db.prepare('SELECT COUNT(*) n FROM model_responses').get().n,0,'accounting recovery does not approve model output');
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','completed-terminal',request,()=>{}),/OPERATION_FENCED/);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('receipt-followup','workspace','project',0,'calibration','active','next',10000000,Date.now(),null,null);
+ const reused=await modelStep(env,'receipt-followup',0,'facts','reuse-completed',request,value=>assert.equal(value.ok,true));
+ assert.equal(reused.cached,true);assert.equal(requests,1,'a new operation can validate the existing paid receipt without provider access');
+});
+test('terminal recovery refuses mismatched completed source identity and preserves unknown bills',async t=>{
+ const{env,local,shared,objects}=await fixture(t),oldFetch=globalThis.fetch;
+ let fail=true;
+ globalThis.fetch=async()=>new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');
+ t.after(()=>{globalThis.fetch=oldFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{if(sql.startsWith('INSERT OR IGNORE INTO model_budget_settlements')&&fail){fail=false;throw Error('SETTLEMENT_INTERRUPTED');}return prepare(sql);};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','source-bound-bill',
+  {system:'Offline source identity.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},()=>{}),/SETTLEMENT_INTERRUPTED/);
+ local.db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id='model-operation'").run();
+ const [key,object]=[...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'));
+ const receipt=parseCanonicalJson(object.bytes),replace=value=>{
+  const bytes=new TextEncoder().encode(canonical(value));objects.set(key,{bytes,customMetadata:{sha256:sha256Bytes(bytes)}});
+ };
+ for(const patch of [{callId:'wrong-call'},{requestHash:'a'.repeat(64)},{budgetId:'b'.repeat(64)},
+  {rawStreamRef:{...receipt.rawStreamRef,key:'operations/other/model-streams/other.sse'}}]){
+  replace({...receipt,...patch});await assert.rejects(reconcileOperation(env,'model-operation'),/MODEL_RECEIPT_CONFLICT/);
+ }
+ for(const patch of [{quote:null},{result:{...receipt.result,streamComplete:false}}]){
+  replace({...receipt,...patch});assert.equal((await reconcileOperation(env,'model-operation')).pendingCosts.length,1);
+ }
+ assert.equal(local.db.prepare('SELECT COUNT(*) n FROM cost_settlements').get().n,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) n FROM model_budget_settlements').get().n,0);
+ replace(receipt);assert.deepEqual((await reconcileOperation(env,'model-operation')).pendingCosts,[]);
+});
+test('terminal recovery releases a shared admission with a lost acknowledgement and no local row',async t=>{
+ const{env,local,shared}=await fixture(t),oldFetch=globalThis.fetch;let requests=0,loseAck=true,loseCleanupAck=true;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PROVIDER_CALL');};t.after(()=>{globalThis.fetch=oldFetch;});
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);
+ env.MODEL_LEDGER.prepare=sql=>{const statement=prepare(sql);
+  if(!sql.startsWith('INSERT INTO model_budget_reservations')&&!sql.startsWith('INSERT OR IGNORE INTO model_budget_settlements'))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){const result=await bound.run();
+   if(sql.startsWith('INSERT INTO model_budget_reservations')&&loseAck){loseAck=false;throw Error('SHARED_ADMISSION_ACK_LOST');}
+   if(sql.startsWith('INSERT OR IGNORE INTO model_budget_settlements')&&loseCleanupAck){loseCleanupAck=false;throw Error('SHARED_CLEANUP_ACK_LOST');}
+   return result;
+  }};}};};
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','orphan-admission',
+  {system:'Offline shared admission.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64},()=>{}),/SHARED_ADMISSION_ACK_LOST/);
+ assert.equal(local.db.prepare('SELECT COUNT(*) n FROM cost_reservations').get().n,0);
+ await assert.rejects(budget.reconcileModelCosts(env,'model-operation'),/OPERATION_NOT_TERMINAL/);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+ local.db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id='model-operation'").run();
+ await assert.rejects(reconcileOperation(env,'model-operation'),/SHARED_CLEANUP_ACK_LOST/);
+ assert.deepEqual((await reconcileOperation(env,'model-operation')).pendingCosts,[]);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) n FROM model_budget_settlements').get().n,1);
+ assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
+ assert.equal(requests,0);
+});
+test('orphan recovery scopes the grant, origin and operation and cannot beat a committed dispatch marker',async t=>{
+ const{env,local,shared}=await fixture(t);
+ const intended=await budget.reserveModelBudget(env,'marker-race','model-operation',100,{},providers.catalogVersion);
+ await budget.reserveModelBudget({...env,PIPELINE_ENVIRONMENT:'production'},'other-origin','model-operation',100,{},providers.catalogVersion);
+ await budget.reserveModelBudget(env,'other-operation','another-operation',100,{},providers.catalogVersion);
+ local.db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=1 WHERE id='model-operation'").run();
+ const prepare=env.MODEL_LEDGER.prepare.bind(env.MODEL_LEDGER);let marked=false;
+ env.MODEL_LEDGER.prepare=sql=>{
+  if(sql.startsWith('INSERT OR IGNORE INTO model_budget_settlements')&&!marked){marked=true;
+   shared.db.prepare('UPDATE model_budget_reservations SET dispatched_at=? WHERE id=?').run(Date.now(),intended);}
+  return prepare(sql);
+ };
+ assert.deepEqual((await reconcileOperation(env,'model-operation')).pendingCosts,[]);
+ assert.equal(marked,true);assert.equal(shared.db.prepare('SELECT COUNT(*) n FROM model_budget_settlements').get().n,0);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,3,'a marker winner and other scopes remain reserved');
+});
 test('a completed truncated response is metered and retained, never cached or resent as a correction',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]})+'\n\ndata: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\ndata: [DONE]\n\n');};

@@ -49,6 +49,13 @@ function validTiming(timing, frameStart, frameEnd, alignment, spokenText = null)
     fail('SCRIPT_ALIGNMENT_INVALID');
 }
 
+function assertMeasuredSpeechSources(script, sources) {
+  for (const segment of script?.segments ?? []) if (['narration', 'dialogue'].includes(segment.role)
+    && segment.timing?.kind === 'measured' && !(script.moments ?? []).some(moment => moment.segmentIds?.includes(segment.id)
+      && moment.resourceIds.some(id => sources.has(canonical([id, segment.timing.sourceSha256])))))
+    fail('SCRIPT_ALIGNMENT_INVALID');
+}
+
 /** A single authoritative Script with stable IDs; reference clocks are never target clocks. */
 export function assertNativeScript(script, {durationSeconds, videoLanguage, facts, cta, materials, timingEvidence = []}) {
   const total = durationSeconds * 30;
@@ -72,10 +79,7 @@ export function assertNativeScript(script, {durationSeconds, videoLanguage, fact
   }
   const measuredSources=new Set(materials.filter(item=>['audio','video'].includes(item.kind))
     .map(item=>canonical([item.resourceId,item.sha256])));
-  for (const segment of script.segments) if (['narration','dialogue'].includes(segment.role)
-    && segment.timing.kind==='measured' && !script.moments.some(moment=>moment.segmentIds.includes(segment.id)
-      &&moment.resourceIds.some(id=>measuredSources.has(canonical([id,segment.timing.sourceSha256])))))
-    fail('SCRIPT_ALIGNMENT_INVALID');
+  assertMeasuredSpeechSources(script, measuredSources);
   if (typeof cta === 'string' && cta.trim() && !script.segments.some(item => item.role === 'cta' && item.displayText.includes(cta.trim())))
     fail('SCRIPT_CTA_MISSING');
   return script;
@@ -340,6 +344,15 @@ export function assertMaterialProjection(files, selection, resources, script = n
     if (!path) fail('SCRIPT_AUDIO_SOURCE_INVALID');
     lockedPaths.add(path);
   }
+  // Historical versions can remain runnable under another resource's lock.
+  // Spoken alignment must match the version currently selected for its own
+  // Moment resource ID, not merely an old ID/SHA pair in the rights history.
+  const active = new Set([...(selection?.uses ?? []), ...scriptAudioLocks]
+    .map(lock => canonical([lock.resourceId, lock.sha256])));
+  const measuredSources = new Set(resources.filter(item => ['audio', 'video'].includes(item.kind ?? 'audio'))
+    .map(item => canonical([item.resourceId, item.sourceSha256 ?? item.sha256]))
+    .filter(identity => active.has(identity)));
+  assertMeasuredSpeechSources(script, measuredSources);
   const text = files.filter(file => /^(?:index\.(?:html|js|css)|src\/.*\.(?:html|js|css|svg|json))$/.test(file.path))
     .map(file => file.content).join('\n');
   for (const [, path] of text.matchAll(/(?:assets\/)([a-f0-9]{24}\.(?:png|jpg|webp|svg|mp4|mov|webm|wav|mp3|m4a|ogg))/g)) {
