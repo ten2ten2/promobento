@@ -8,7 +8,7 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 
 - [NativeProject](../../packages/contracts/README.md)把原生文件的 key、SHA-256、大小、媒体类型与固定 runtime 绑定；先验真实 R2 字节，再保存不可变 revision。修改需显式 `baseRevision`，父版本必须属于同一 workspace/project；多画幅各有独立版本，不使用会覆盖其他画幅的全局 head。
 - `createNativeRender` 在同一 D1 事务记录渲染及 outbox。预览默认四张原生 PNG，也可指定 1–12 个互异合法时刻（`0 ≤ t ≤ durationSeconds - 1/30`）；整片输出 15/30 秒 H.264/AAC MP4。原生 CLI 可能刷新 vendor/音频和 HTML：报告同时保留输入清单、输入源码及实际渲染工程的身份。
-- 导演流程为素材/参考观察 → 三方向预览或直接制作 → Treatment 与正式 Script → 选择并锁定素材 → 最难镜头 → 各画幅创作/改稿 → 成片与冷审。Worker 校验生产文档和素材锁；改稿复用未变资源。独立素材与方向阶段最多两路并行，参考片观察一路；失败后收集已派发的费用与渲染回执，不再追加付费步骤。
+- 导演首次创作流程为素材/参考观察 → 三方向预览 → 用户选择方向 → Treatment 与正式 Script → 选择并锁定素材 → 最难镜头 → 各画幅创作 → 成片与冷审。当前尚不支持跳过方向选择直接制作。Worker 校验生产文档和素材锁；改稿基于已有版本复用未变资源。独立素材与方向阶段最多两路并行，参考片观察一路；失败后收集已派发的费用与渲染回执，不再追加付费步骤。
 - 同一素材/预览字节只做一次模型观察；来源、授权及父 revision 的素材在读取、渲染和最终候选提交时重新检查。导演方向预览也检查独立传入音频的授权。
 - 参考视频通过 `resources` 中的 `webp-pack-v1` 帧包和最多三条 `references:{resourceId,purpose,notes}` 传入；核对源视频、抽帧和 SHA，现阶段只观察实际取到的画面。参考片若要成为成片素材须另获授权。`scriptEdits:[{segmentId,field,value}]` 更新正式台词；`materialReplacements:[{fromResourceId,toResourceId}]` 显式更换素材，旧词时间证据随源音频变化失效。素材及配音同时绑定 ID 和原始 SHA，锁文件、Script 引用和实际源码路径必须一致。需要清空测量证据时提交 `timingEvidenceRef:null`，省略字段则沿用父版本。
 

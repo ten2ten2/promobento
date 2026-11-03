@@ -27,7 +27,7 @@
 
 反向更新事实也要同步全部绑定文字及其预期原文；有绑定时必须提供当前`baseRevision`，并检查事实记录版本。合并后的完整工程参数须通过类型、可见文字、范围、时序及文件字节上限校验，不能只检查这次传入的字符串。全部绑定事实在更新前后都须存在，包括只提供依据的事实；缺失时拒绝，不能过滤后保留悬空引用。删除仍被引用的事实须先改源码解除绑定。事实、参数、绑定与新revision须在同一数据库事务写入。
 
-`facts_result` 返回 `revisionId`（可能为 null）、`currentRevisionId` 和 `unconfirmedFactIds`。非空 revisionId 必须等于当前 revision，未确认 ID 必须与同一响应的事实集合完全一致；幂等重放返回原结果，不拿旧响应与后续草稿比较。
+`facts_result` 返回新建的 `revisionId`（未创建时为 null）、`currentRevisionId` 和 `unconfirmedFactIds`。非空 `revisionId` 必须等于同一响应的 `currentRevisionId`；`unconfirmedFactIds` 必须与该响应中确认字段为 null 的事实 ID 集合完全一致，不能漏报、多报或仅比较数量。校验以同一响应快照为准；幂等重放返回原结果，不拿旧响应与后续草稿比较。
 
 `qualityEligibility` 是服务端计算的 `unchecked/checking/blocked/review_required/ready`，不写入不可变原生工程。草稿保存成功不等于可以冻结。项目响应同时给出试用状态、整片/AI 改稿/成片余额，以及 `activeRunIds`、`pendingCandidateRevisionIds`、`activePreviewIds`、`activeMediaJobIds` 和 `activeReleaseIds`，刷新后按这些引用恢复任务。`jobs.get` 只查询素材处理；创作、预览与交付由各自持久 ID 查询，交付使用 `exports.get`，并返回实际候选或产物引用。
 
