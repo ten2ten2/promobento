@@ -2,6 +2,7 @@ import {WorkflowEntrypoint,type WorkflowEvent,type WorkflowStep} from 'cloudflar
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest} from '@promobento/contracts/digest';
 import {modelCallCostMicros} from '@promobento/contracts/models';
+import {NATIVE_SOURCE_LIMITS} from '@promobento/contracts/native-project';
 import {validate as validDirections} from '@promobento/contracts/validators/direction';
 import {validate as validInsight} from '@promobento/contracts/validators/asset-insight';
 import {validate as validAnalysis} from '@promobento/contracts/validators/director-analysis';
@@ -60,6 +61,7 @@ const fileExtension=(mediaType:string)=>({'image/png':'png','image/jpeg':'jpg','
 /** Internal evaluation frame-pack evidence resolves to the retained original video before native authoring. */
 async function materialInputs(env:PipelineEnv,op:Operation,context:Json){
  const files:Json[]=[],materials:Json[]=[],productionResources:Json[]=[],referenceSources:Json[]=[];
+ let productionBytes=0;
  const resources=[...context.resources,...(context.audioSources??[])];
  const referenceIds=new Set((context.references??[]).map((ref:Json)=>ref.resourceId));
  await rights(env,op,resources);
@@ -85,13 +87,24 @@ async function materialInputs(env:PipelineEnv,op:Operation,context:Json){
     ||!['video/mp4','video/webm','video/quicktime'].includes(mediaType))throw Error('REFERENCE_SOURCE_INVALID');
    referenceSources.push({resourceId:asset.resourceId,manifest:asset,source,framePacks:evidence.framePacks});continue;
   }
-  if(!files.some(file=>file.path===path))files.push({path,key:source.key,sha256:source.sha256,byteLength:source.byteLength,mediaType});
+  // The media ingest cap is higher than the native project envelope. Reject
+  // unusable production media before any paid director/model work begins.
+  if(source.byteLength>NATIVE_SOURCE_LIMITS.fileBytes)throw Error('NATIVE_MEDIA_SOURCE_TOO_LARGE');
+  if(!files.some(file=>file.path===path)){
+   productionBytes+=source.byteLength;
+   files.push({path,key:source.key,sha256:source.sha256,byteLength:source.byteLength,mediaType});
+  }
   productionResources.push(asset);
   const visual=['image','svg','video'].includes(kind),view=visual?{...preview,mediaType:preview.mediaType??'image/png'}:null;
   if(visual&&!['image/png','image/jpeg','image/webp'].includes(view!.mediaType))throw Error('DIRECTOR_MEDIA_OBSERVATION_REQUIRED');
   materials.push({resourceId:asset.resourceId,path,sha256:source.sha256,kind,mediaType,width:asset.width??null,height:asset.height??null,
    durationSeconds:asset.durationSeconds??null,observationScope:kind==='video'?'poster_only':'whole_image',...(view?{preview:view}:{})});
  }
+ // New productions carry all admitted sources, up to 1 MiB of authored text,
+ // and 4.3 MiB of pinned huashu runtime files copied into the render sandbox.
+ // Leave a 6 MiB reserve; patches may retire old sources before persistence.
+ if(!context.baseRevision&&!context.baseRevisions&&productionBytes>NATIVE_SOURCE_LIMITS.bytes-(6<<20))
+  throw Error('NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE');
  const scope=(asset:Json)=>({resourceId:asset.resourceId,sha256:asset.sha256,kind:asset.kind??'audio'});
  return {files,materials,referenceSources,resources:productionResources.map(asset=>{
    const source=materials.find(item=>item.resourceId===asset.resourceId)!;
