@@ -89,17 +89,22 @@ function visibleHtmlText(content) {
   return normalizedCopy(htmlEntities(separated.replace(/<[^>]*>/g, '')));
 }
 
-/** Native composition variables are display copy only when wired to a text element. */
-function nativeVariableText(content, executableJs) {
+/** Count literal and variable copy only from mounted CLIP cues or native text bindings. */
+function nativeDisplayText(content, executableJs) {
   const clean = content.replace(/<!--[\s\S]*?-->/g, '');
   const visible = clean.replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
   const root = /<html\b((?:[^>"']|"[^"]*"|'[^']*')*)>/i.exec(clean)?.[1];
   const encoded = root && /(?:^|\s)data-composition-variables\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(root);
-  if (!encoded) return [];
-  let variables;
-  try {variables = JSON.parse(htmlEntities(encoded[1] ?? encoded[2]));}
-  catch {return [];}
-  if (!Array.isArray(variables)) return [];
+  let variables = [];
+  if (encoded) {
+    try {variables = JSON.parse(htmlEntities(encoded[1] ?? encoded[2]));}
+    catch { /* An invalid variable declaration cannot authorize rendered text. */ }
+  }
+  if (!Array.isArray(variables)) variables = [];
+  const defaults = new Map(variables.filter(variable => variable && typeof variable.id === 'string'
+    && ['string', 'number', 'boolean', 'enum'].includes(variable.type)
+    && ['string', 'number', 'boolean'].includes(typeof variable.default))
+    .map(variable => [variable.id, String(variable.default)]));
   const bound = new Set([...visible.matchAll(/\bdata-var-text\s*=\s*(?:"([^"]*)"|'([^']*)')/gi)]
     .map(match => htmlEntities(match[1] ?? match[2])));
   // data-om-var only labels a script-built element. It is not a text binding
@@ -107,21 +112,37 @@ function nativeVariableText(content, executableJs) {
   if (/\b(?:OM\.vars|__hyperframes\.getVariables)\s*\(\s*\)/.test(executableJs))
     for (const match of visible.matchAll(/\bdata-om-var\s*=\s*(?:"([^"]*)"|'([^']*)')/gi))
       bound.add(htmlEntities(match[1] ?? match[2]));
-  // huashu CLIP templates render their application/json cue spec through
-  // CLIP.mount. A {{variable}} in that mounted spec is visible copy; the
-  // same placeholder in unrelated or unmounted metadata is not.
+  const text = [...bound].flatMap(id => defaults.has(id) ? [defaults.get(id)] : []);
+  // The CLIP runtime renders display fields from the mounted cue spec,
+  // including literal text with no data-composition-variables declaration.
+  // Unmounted JSON and unrelated metadata are not evidence of visible copy.
   if (/\bCLIP\.mount\s*\(/.test(executableJs)) {
     for (const [, attributes, spec] of clean.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
       if (!/\btype\s*=\s*(?:"application\/json"|'application\/json')/i.test(attributes)
         || !/\bid\s*=\s*(?:"clip-spec"|'clip-spec')/i.test(attributes)) continue;
-      for (const variable of variables)
-        if (typeof variable?.id === 'string' && spec.includes('{{' + variable.id + '}}')) bound.add(variable.id);
+      let mounted;
+      try {mounted = JSON.parse(spec);} catch {continue;}
+      const displayFields = new Set(['title','subtitle','eyebrow','text','sub','word','label','name',
+        'badge','source','unit','prefix','suffix','center','flow','chart','key','value','s','tokensFor']);
+      const visit = value => {
+        if (!value || typeof value !== 'object') return;
+        for (const [key, entry] of Object.entries(value)) {
+          if (typeof entry === 'string' && displayFields.has(key)) {
+            // Do not accept unresolved template markers as copy. Interpolated
+            // values must come from actual declared composition variables.
+            const resolved = entry.replace(/\{\{([\w-]+)(?:\|json)?\}\}/g,
+              (marker, id) => defaults.get(id) ?? marker);
+            if (!/\{\{[^}]*\}\}/.test(resolved)) text.push(resolved);
+          } else if (entry && typeof entry === 'object') visit(entry);
+        }
+      };
+      if (mounted && typeof mounted === 'object') {
+        visit(mounted.data);
+        visit(mounted.cues);
+      }
     }
   }
-  return variables.filter(variable => variable && typeof variable.id === 'string' && bound.has(variable.id)
-    && ['string', 'number', 'boolean', 'enum'].includes(variable.type)
-    && ['string', 'number', 'boolean'].includes(typeof variable.default))
-    .map(variable => normalizedCopy(String(variable.default)));
+  return text.map(value => normalizedCopy(value));
 }
 
 /** Native HTML/JS must actually contain display copy, rather than only an inert JSON plan. */
@@ -154,7 +175,7 @@ export function assertScriptProjection(files, script) {
         return ({n:'\n',r:'\r',t:'\t',b:'\b',f:'\f',v:'\v',0:'\0'}[escaped] ?? escaped);
       }));
   const nativeText = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
-    .flatMap(file => nativeVariableText(file.content, executableJs));
+    .flatMap(file => nativeDisplayText(file.content, executableJs));
   for (const segment of script.segments) {
     if (['title', 'caption', 'cta'].includes(segment.role)
       && !html.some(value => value.includes(normalizedCopy(segment.displayText)))
@@ -290,6 +311,7 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
   const source = new Map(admitted.map(item => [item.resourceId, item]));
   const uses = structuredClone(selection.uses), moments = structuredClone(script?.moments ?? []);
   const segments = structuredClone(script?.segments ?? []), affectedMoments = new Map();
+  const replacedSources = new Set();
   for (const item of replacements) {
     const next = source.get(item.toResourceId);
     if (!next) fail('MATERIAL_REPLACEMENT_INVALID');
@@ -307,6 +329,7 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
       ...uses.filter(use => use.resourceId === item.fromResourceId).map(use => use.sha256),
       ...scriptAudioLocks.filter(lock => lock.resourceId === item.fromResourceId).map(lock => lock.sha256),
     ].filter(sha => sha !== next.sha256));
+    for (const sha of replacedSha) replacedSources.add(sha);
     let changed = false;
     for (const use of uses) {
       const promoted = use.resourceId === item.fromResourceId;
@@ -349,15 +372,24 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     if (!changed) fail('MATERIAL_REPLACEMENT_INVALID');
   }
   // A newly selected recording may speak the same words at different times.
-  // Invalidate the clocks of affected Moments and their Segments, but retain
-  // measurements of untouched Moments that still use the original bytes.
+  // Invalidate clocks of directly affected Moments and their Segments. Also
+  // retire clocks on otherwise-unrelated captions/titles when the source bytes
+  // no longer exist in any selected or Script-only audio lock. Merely keeping
+  // historical rights or an alternative does not keep the source runnable.
+  const replacedIds = new Map(replacements.map(item => [item.fromResourceId, source.get(item.toResourceId)]));
+  const retainedSources = new Set([...uses.map(use => use.sha256),
+    ...scriptAudioLocks.map(lock => replacedIds.get(lock.resourceId)?.sha256 ?? lock.sha256)]);
+  const retired = new Set([...replacedSources].filter(sha => !retainedSources.has(sha)));
   for (const moment of moments) {
     const affected = affectedMoments.get(moment.id);
-    if (affected?.has(moment.timing?.sourceSha256)) moment.timing = {kind: 'authored'};
+    if (retired.has(moment.timing?.sourceSha256) || affected?.has(moment.timing?.sourceSha256))
+      moment.timing = {kind: 'authored'};
     if (!affected?.size) continue;
     for (const segment of segments.filter(segment => moment.segmentIds.includes(segment.id)))
       if (affected.has(segment.timing?.sourceSha256)) segment.timing = {kind: 'authored'};
   }
+  for (const segment of segments)
+    if (retired.has(segment.timing?.sourceSha256)) segment.timing = {kind: 'authored'};
   if (!unique(uses.map(use => canonical([use.beatId, use.resourceId])))) fail('MATERIAL_REPLACEMENT_INVALID');
   const updated = {...selection, uses, selectionHash: digest(uses)};
   return {selection: updated, script: script ? {...script, segments, moments} : null};
