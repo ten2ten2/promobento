@@ -4,6 +4,15 @@ import {digest} from '@promobento/contracts/digest';
 const fail = code => { throw Error(code); };
 const same = (a, b) => canonical(a) === canonical(b);
 const unique = values => new Set(values).size === values.length;
+/** One executable resource ID cannot refer to two different media versions. */
+function assertActiveLockVersions(selection, scriptAudioLocks = []) {
+  const versions = new Map();
+  for (const lock of [...(selection?.uses ?? []), ...scriptAudioLocks]) {
+    const prior = versions.get(lock.resourceId);
+    if (prior !== undefined && prior !== lock.sha256) fail('MATERIAL_LOCK_VERSION_CONFLICT');
+    versions.set(lock.resourceId, lock.sha256);
+  }
+}
 const inWindow = (item, total) => Number.isSafeInteger(item.startFrame) && Number.isSafeInteger(item.endFrame)
   && item.startFrame >= 0 && item.endFrame <= total && item.endFrame > item.startFrame;
 
@@ -233,6 +242,7 @@ export function assertMaterialSelection(plan, treatment, materials) {
 export function assertLockedMaterialSelection(selection, resources) {
   if (!selection || selection.kind !== 'locked_materials' || !Array.isArray(selection.uses)
     || selection.schemaVersion !== '3.0.0' || selection.selectionHash !== digest(selection.uses)) fail('MATERIAL_LOCK_IDENTITY_INVALID');
+  assertActiveLockVersions(selection);
   // Revisions may retain both an old and a new SHA for the same resource ID.
   // Lock identity is the ID/SHA pair, never whichever entry a Map kept last.
   const sources = new Set(resources.map(item => canonical([item.resourceId, item.sourceSha256 ?? item.sha256])));
@@ -279,12 +289,20 @@ export function projectMaterialSources(project, selection = null, script = null)
 
 /** Visual media must be selected; Script-referenced licensed audio can also be played. */
 export function assertMaterialProjection(files, selection, resources, script = null, scriptAudioLocks = []) {
-  if (!selection && !scriptAudioLocks.length) return;
+  const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
+  if (!selection && !scriptAudioLocks.length && !scriptIds.size) return;
   if (selection) assertLockedMaterialSelection(selection, resources);
+  assertActiveLockVersions(selection, scriptAudioLocks);
   const admitted = new Map(resources.map(item =>
     [canonical([item.resourceId, item.sourceSha256 ?? item.sha256]), item.sourcePath ?? null]));
   const lockedPaths = new Set((selection?.uses ?? []).map(use => admitted.get(canonical([use.resourceId, use.sha256]))));
-  const scriptIds = new Set((script?.moments ?? []).flatMap(moment => moment.resourceIds));
+  const selectedIds = new Set((selection?.uses ?? []).map(use => use.resourceId));
+  // Script Moments describe target-film sources, not unlicensed creative
+  // suggestions. Every referenced visual must be selected, while unselected
+  // recordings require their own exact-version Script-only audio lock.
+  for (const id of scriptIds)
+    if (!selectedIds.has(id) && !scriptAudioLocks.some(lock => lock.resourceId === id))
+      fail('MATERIAL_LOCK_PROJECT_MISMATCH');
   for (const lock of scriptAudioLocks) {
     if (!scriptIds.has(lock.resourceId) || !resources.some(item => item.kind === 'audio'
       && item.resourceId === lock.resourceId && (item.sourceSha256 ?? item.sha256) === lock.sha256))
@@ -392,6 +410,12 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     if (retired.has(segment.timing?.sourceSha256)) segment.timing = {kind: 'authored'};
   if (!unique(uses.map(use => canonical([use.beatId, use.resourceId])))) fail('MATERIAL_REPLACEMENT_INVALID');
   const updated = {...selection, uses, selectionHash: digest(uses)};
+  // The replaced Script-only locks must agree with the new Treatment uses,
+  // before any author/model call can produce an unrevisable native project.
+  assertActiveLockVersions(updated, scriptAudioLocks.map(lock => {
+    const next = replacedIds.get(lock.resourceId);
+    return next ? {resourceId: next.resourceId, sha256: next.sha256} : lock;
+  }));
   return {selection: updated, script: script ? {...script, segments, moments} : null};
 }
 

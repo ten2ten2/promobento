@@ -215,6 +215,14 @@ test('explicit source replacement updates Script and lock hashes and rejects mis
     updated.selection,[...rights,voice],{moments:[{resourceIds:[]}]}),/MATERIAL_LOCK_PROJECT_MISMATCH/);
   assert.throws(()=>assertMaterialProjection([{path:'index.html',content:`<img src="${oldPath}">`}],
     updated.selection,[...rights,voice],voiced,voiceLocks),/MATERIAL_LOCK_PROJECT_MISMATCH/,'Script audio cannot authorize a substituted image');
+  const unselectedImage={resourceId:'unselected-visual',sha256:hash('9'),kind:'image',
+    sourceSha256:hash('9'),sourcePath:'assets/'+hash('9').slice(0,24)+'.png'};
+  assert.throws(()=>assertMaterialProjection([{path:'index.html',content:'<div>Source omitted</div>'}],
+    updated.selection,[...rights,unselectedImage],{moments:[{resourceIds:['unselected-visual']}]},[]),
+  /MATERIAL_LOCK_PROJECT_MISMATCH/,'a Script Moment must not silently refer to an unselected visual');
+  assert.throws(()=>assertMaterialProjection([{path:'index.html',content:'<div>Source omitted</div>'}],
+    null,[voice],{moments:[{resourceIds:['voice']}]},[]),
+  /MATERIAL_LOCK_PROJECT_MISMATCH/,'Script-only audio is unusable until its exact version is locked');
   const retired={resources:rights,files:[{path:newPath,sha256:next.sha256},
     {path:rights[2].sourcePath,sha256:materials[1].sha256}]};
   assert.deepEqual(projectMaterialSources(retired,updated.selection,updated.script).map(item=>item.resourceId),
@@ -278,6 +286,22 @@ test('explicit source replacement updates Script and lock hashes and rejects mis
   assert.deepEqual(changedVoice.script.moments[0].resourceIds,['product','new-voice']);
   assert.equal(changedVoice.selection.selectionHash,prior.selectionHash,
     'a Script-only audio change does not mutate Treatment material locks');
+  const selectedAudio={resourceId:'selected-voice',sha256:hash('a'),kind:'audio'};
+  const existingOther={resourceId:'other-voice',sha256:hash('b'),kind:'audio'};
+  const newOther={resourceId:'other-voice',sha256:hash('c'),kind:'audio'};
+  const activeUses=[{beatId:'spoken-beat',resourceId:selectedAudio.resourceId,sha256:selectedAudio.sha256,
+    role:'voice',alternatives:[],reason:'Selected narration',locked:true}];
+  const activeSelection={schemaVersion:'3.0.0',kind:'locked_materials',uses:activeUses,selectionHash:digest(activeUses)};
+  const twoVoices={moments:[{id:'narration',resourceIds:[selectedAudio.resourceId],segmentIds:[],timing:{kind:'authored'}},
+    {id:'background',resourceIds:[existingOther.resourceId],segmentIds:[],timing:{kind:'authored'}}],segments:[]};
+  assert.throws(()=>replaceLockedMaterials(activeSelection,twoVoices,
+    [{fromResourceId:selectedAudio.resourceId,toResourceId:newOther.resourceId}],
+    [newOther],[selectedAudio,existingOther],[{resourceId:existingOther.resourceId,sha256:existingOther.sha256}]),
+  /MATERIAL_LOCK_VERSION_CONFLICT/,'a selected B-v2 cannot coexist with a Script-only B-v1 lock');
+  const conflictingUses=[...activeUses,{...activeUses[0],beatId:'another-beat',sha256:hash('d')}];
+  assert.throws(()=>assertLockedMaterialSelection({...activeSelection,uses:conflictingUses,
+    selectionHash:digest(conflictingUses)},[selectedAudio,{...selectedAudio,sha256:hash('d')}]),
+  /MATERIAL_LOCK_VERSION_CONFLICT/,'separate beats cannot select two SHA versions of the same ID');
 });
 
 test('a Script-only recording locks one runnable ID/SHA and cannot authorize another version of the same ID',()=>{

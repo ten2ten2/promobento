@@ -62,7 +62,7 @@ const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1H
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
  jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
- unlinkedMeasuredCaption=false}={}){
+ unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -130,6 +130,8 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      value.moments[0].segmentIds.push('timed-caption');
     }
    }
+   if(scriptOnlyOtherAudio)value.moments.push({id:'other-audio',kind:'demonstration',startFrame:60,endFrame:90,
+     segmentIds:[],resourceIds:['res_voice_other'],timing:{kind:'authored'}});
    }
    else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
     beatId:beat.id,role:'product_demo',selectedResourceId:assetId,alternativeResourceIds:useAlternative&&assetId==='res_product'?['res_product_new']:[],reason:'This licensed source is needed by the beat.',locked:true})))};
@@ -140,9 +142,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      const shape=payload.composition,product=payload.materials.find(item=>item.resourceId==='res_product')??payload.materials[0];
      const unselected=payload.materials.find(item=>item.resourceId==='res_product_new');
      const voice=payload.materials.find(item=>item.resourceId==='res_voice');
+     const otherVoice=payload.materials.find(item=>item.resourceId==='res_voice_other');
      const wrongHardest=invalidHardestOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct');
      const image=jsonMaterial?'<img data-om-id="product">':`<img data-om-id="product" src="${wrongHardest&&unselected?unselected.path:product.path}">`;
-     const audio=(selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'';
+     const audio=((selectVoice||measuredSpeech||authoredSpeech)&&voice?`<audio src="${voice.path}"></audio>`:'')+
+       (scriptOnlyOtherAudio&&otherVoice?`<audio src="${otherVoice.path}"></audio>`:'');
      const source=`<!doctype html><html><head><script src="vendor/gsap.min.js"></script><script src="vendor/om.js"></script></head><body><div id="film" data-composition-id="film" data-width="${shape.width}" data-height="${shape.height}" data-duration="15" data-fps="30"><h1 data-om-id="title">PROMO_ORIGINAL</h1>${image}${audio}<i>HARD_STAGE</i></div><script>window.__timelines={film:gsap.timeline({paused:true}).to({},{duration:15})};${jsonMaterial?"fetch('src/assets.json').then(r=>r.json()).then(v=>document.querySelector('img').src=v.productPath);":''}</script></body></html>`;
      const html=source.replace('<i>HARD_STAGE</i>','<i>HARD_STAGE</i><p>PROMO_PROMISE</p><p>Try PromoBento</p>');
      input={files:[{path:'index.html',content:invalidRecomposeOnce&&callId.includes('-recompose-')&&!callId.endsWith('-correct')
@@ -536,6 +540,24 @@ test('Script-only audio replacement retires both linked speech and unrelated mea
  assert.equal(changed.scriptImpact.changed,true);
 });
 
+test('conflicting selected and Script-only audio versions are rejected before paid author work',async t=>{
+ const f=await fixture(t,{authoredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true});
+ const a={...await f.put('evals/fixture/selected-a.wav',Buffer.from('recording A'),'audio/wav'),
+   resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const b1={...await f.put('evals/fixture/other-v1.wav',Buffer.from('recording B v1'),'audio/wav'),
+   resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const parent=await f.create('two-voice-parent',{aspects:['landscape'],audioSources:[a,b1]});
+ const b2={...await f.put('evals/fixture/other-v2.wav',Buffer.from('recording B v2'),'audio/wav'),
+   resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const previousCalls=f.calls.length;
+ await assert.rejects(f.create('two-voice-conflict',{aspects:['landscape'],resources:[],audioSources:[b2],
+   baseRevision:parent.projects[0].revisionId,
+   materialReplacements:[{fromResourceId:'res_voice',toResourceId:'res_voice_other'}],comments:[]},[f.asset,a,b1]),
+ /MATERIAL_LOCK_VERSION_CONFLICT/);
+ assert.equal(f.calls.length,previousCalls,'a conflicting revision must not start paid model work');
+ assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('two-voice-conflict').status,'failed');
+});
+
 test('an explicit same-ID new-SHA audio replacement is legal, updates executable bytes and retires measured timing',async t=>{
  const f=await fixture(t,{measuredSpeech:true,explicitSameIdAudio:true});
  const voice={...await f.put('evals/fixture/same-id-a.wav',Buffer.from('version A'),'audio/wav'),
@@ -694,7 +716,7 @@ test('native media size limits reject sources before director models or renders 
  const source=(id,bytes)=>{
   const sha256=String(id).repeat(64);
   const asset={...f.asset,resourceId:'large-'+id,key:'evals/fixture/large-'+id+'.png',sha256,
-   byteLength:bytes,kind:'image'};
+   byteLength:bytes,kind:'image',preview:f.asset};
   fake.set(asset.key,{size:bytes,customMetadata:{sha256}});
   return asset;
  };
@@ -705,6 +727,17 @@ test('native media size limits reject sources before director models or renders 
   source('d',35<<20),source('e',35<<20)],aspects:['landscape']}),/NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
  assert.equal(f.calls.length,0,'aggregate size rejection must precede paid calls');
  assert.equal(f.jobs.length,0);
+ // 122 MiB used to pass the 6 MiB reserve but fails after the upstream
+ // 30-second stereo PCM soundtrack adds another 5,760,044 bytes.
+ await assert.rejects(f.create('soundtrack-no-space',{resources:[source('b',40<<20),source('c',40<<20),
+  source('d',40<<20),source('e',2<<20)],aspects:['landscape']}),/NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'a sound-induced overflow must fail before any paid director model');
+ const nearLimit=[f.asset,source('b',40<<20),source('c',40<<20),source('d',38<<20)];
+ await assert.rejects(f.create('long-soundtrack-boundary',{resources:nearLimit,aspects:['landscape'],durationSeconds:30}),
+  /NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'30 seconds need twice the 15-second WAV reserve');
+ const short=await f.create('short-soundtrack-boundary',{resources:nearLimit,aspects:['landscape'],durationSeconds:15});
+ assert.equal(short.kind,'native_candidate','the same 118 MiB inputs fit with a 15-second soundtrack reserve');
 });
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
  const files=[{path:'index.html',content:'<h1>One</h1><p>One</p>'}],original=structuredClone(files);

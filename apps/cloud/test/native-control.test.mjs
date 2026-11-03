@@ -316,6 +316,28 @@ test('immutable revisions validate bytes and scope parents to the same workspace
   await assert.rejects(saveNativeProject(env, op, input), /SOURCE_IDENTITY_MISMATCH/);
 });
 
+test('direct native saves reserve runtime files and duration-dependent synthesized audio before paid rendering',async t=>{
+  const {env,op,input}=await fixture(t);
+  // A direct /native/projects caller bypasses the Director's intake budget.
+  // Large inputs are modeled by HEAD metadata so this test allocates no large buffers.
+  const additions=[40,40,38].map((size,index)=>({path:`assets/source-${index}.mp4`,
+    key:`evals/native/source-${index}.mp4`,sha256:String(index+1).repeat(64),byteLength:size<<20,mediaType:'video/mp4'}));
+  const originals=new Map(additions.map(file=>[file.key,file]));
+  const head=env.MEDIA.head.bind(env.MEDIA);
+  env.MEDIA.head=async key=>originals.has(key)
+    ?{size:originals.get(key).byteLength,customMetadata:{sha256:originals.get(key).sha256}}
+    :head(key);
+  const files=[...input.files,...additions];
+  await assert.rejects(saveNativeProject(env,op,{...input,composition:{...input.composition,durationSeconds:30},files}),
+    /NATIVE_PROJECT_TOO_LARGE/,'30 seconds of PCM audio would exceed the 128 MiB renderer snapshot');
+  const saved=await saveNativeProject(env,op,{...input,files});
+  assert.equal(saved.project.composition.durationSeconds,15,'the same sources fit with the shorter soundtrack');
+  const many=[...input.files,...Array.from({length:474},(_,index)=>({path:`src/f${index}.js`,
+    key:`evals/native/f${index}.js`,sha256:'a'.repeat(64),byteLength:0,mediaType:'text/javascript'}))];
+  await assert.rejects(saveNativeProject(env,op,{...input,files:many}),/NATIVE_PROJECT_TOO_LARGE/,
+    'room for the 37 pinned builtin files and generated sound must also be reserved');
+});
+
 test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{
   const {db,env,op,input}=await fixture(t);
   const blob=await immutableJson(env,`operations/${op.id}/timing-real.json`,[

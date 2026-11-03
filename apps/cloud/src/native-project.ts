@@ -5,7 +5,7 @@ import {validate as validNativeProject} from '@promobento/contracts/validators/n
 import {getJson, immutableJson, operation} from './store.ts';
 import {flushOutbox} from './outbox.ts';
 import {validId, type PipelineEnv, type Operation, type Json} from './pipeline-types.ts';
-import {nativeRenderPolicy} from './native-policy.ts';
+import {assertNativeSnapshotHeadroom, nativeRenderPolicy} from './native-policy.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
@@ -31,6 +31,7 @@ export async function loadNativeProject(env: PipelineEnv, op: Operation, revisio
 /** Check every immutable input before allocating paid compute. No source is evaluated in Workers. */
 export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
   assertCloudNativeProject(project);
+  assertNativeSnapshotHeadroom(project as Parameters<typeof assertNativeSnapshotHeadroom>[0]);
   if (project.timingEvidenceRef) await checkedNativeBytes(env, project.timingEvidenceRef, 6 << 20);
   for (const file of project.files) {
     const head = await env.MEDIA.head(file.key);
