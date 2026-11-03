@@ -5,6 +5,12 @@
   "brandSlug": "promobento",
   "appUrl": "https://promobento.com",
   "stagingUrl": "https://staging.promobento.com",
+  "previewOrigins": {
+    "policy": "separate_registrable_domain",
+    "production": null,
+    "staging": null,
+    "status": "domain_not_selected"
+  },
   "headline": "Turn your product or course into a promo video.",
   "tagline": "Promo videos, packed like a bento.",
   "description": "Use your real assets. Direct the motion, refine any frame, and export for your channels.",

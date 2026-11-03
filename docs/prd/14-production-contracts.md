@@ -148,6 +148,8 @@ Direction 的 palette 与可编辑颜色都使用小写六位十六进制；输�
 
 原生编辑允许明确的原文件替换或变量更新，必须携带 baseRevision／原生 baseToken；冲突保留原稿与修改建议，不能悄悄覆盖新的版本。时间批注固定保存时的版本、帧和可选 elementId。当前已实现内部改稿编排及不可变版本，客户实时播放器、点选和并发草稿 UI 尚未实现。
 
+预览站点使用独立注册域（[04 §3](04-architecture-and-data.md#元数据与安全)）。宿主页向 Core 申请短期能力令牌，令牌绑定 workspace、project、revision、target、用途与期限；Preview Worker 只经 `PreviewGateway` 验证令牌并流式提供已核准 manifest 内的文件，响应带 CSP sandbox，不设置任何 Cookie。审阅链接的 review token 与能力令牌分开：review token 按分享设置到期、可撤销，只由 Core 的审阅入口验证；每次打开时 Core 再为所选版本签发短期能力令牌，Preview 只接受后者。本地回放取得 `verified_local_runtime` 前，宿主页只展示已审核的可信截图、片段或视频。
+
 客户低清全片预览在独立 origin 的 sandbox iframe 中运行获准的原生版本，固定逻辑画幅、真实帧数、字体和音轨；须在捕获时直接降低像素密度，不能先渲 1080p 再缩小冒充低清算力节省。水印与下载控制按 02，权益、事实和输出审核仍须完整校验。最终目标帧与媒体 Q1/Q2 按检查要求使用正式分辨率，低清不代替高风险完整检查。
 
 ## 6 AI操作、费用与成功次数
