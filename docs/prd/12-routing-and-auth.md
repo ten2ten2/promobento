@@ -1,6 +1,6 @@
 # URI、登录与账号
 
-本章定义路由、登录和账号安全。数值来自[auth.json](../../config/auth.json)，路径、方法和最低权限来自[routes.json](../../config/routes.json)，界面见[02](02-ux-and-ui.md)，网站偏好见[10](10-i18n-and-themes.md)。本文中 `flow` 指一次验证流程，`proof` 指验证成功后短时有效、只能按用途消费的证明，`identity` 指绑定到内部账号的登录方式。实际集成进度见[实施状态](../implementation-status.md)。
+路由来自[routes.json](../../config/routes.json)，验证期限与策略来自[auth.json](../../config/auth.json)。`flow` 是一次登录/验证流程，`proof` 是短时、限用途的验证凭据，`identity` 是账号绑定的登录方式。界面规则见 02/10；实际进度见[实施状态](../implementation-status.md)。
 
 ## 1 身份、页面与工作区
 
@@ -12,9 +12,9 @@ P0 提供 Google 与邮箱验证码登录，登录和注册共用入口。不提
 
 /terms、/privacy、/refund-policy 的完整正文来自[内容目录](../../content/pages/README.md)。注册路由不等于正文已发布；仅在内容通过发布条件后公开提供，草稿、未完成变量和编辑提示不能进入正式页面。文章全文由 SSR/构建产物输出，仍遵守 10 的主题与缓存隔离。
 
-GET /login 创建/恢复服务端 flow 和 host-only Cookie，输出绑定 CSRF，不建账号、不发码。已绑定账号的 flow 只在原有效会话恢复，不能覆盖/泄漏另一账号；不匹配取消或重新开始。匿名 GET /api/auth/session 只返回 authenticated=false，不创建 flow。无有效 challenge/proof 的 verify/link HTML 302 回登录并用安全 flash code 提示，对应 API 409；邮箱和证明不进 URL。
+GET /login 创建或恢复带 CSRF 的验证 flow，不自动发码或建账号。已绑定账号的 flow 仅在原有效会话中恢复；会话不匹配则取消或重启，不覆盖或泄漏另一账号。匿名 GET /api/auth/session 只返回未登录，不创建 flow；验证/关联页缺少有效证明时跳回登录，API 返回 409。邮箱和证明不进入 URL。
 
-新账号原子创建一个默认 workspace/Owner membership。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表/Brand/Members/Orders 使用 workspaceId query；省略时服务端选仍有权限的最近或默认工作区，并返回规范化链接。失效选择不能静默写另一个工作区。详情从真实项目/订单推导工作区，不信浏览器“当前工作区”。已无工作区的登录用户看到空态及 Account/Help，不因列表访问再创建默认工作区。
+新账号原子创建默认工作区与 Owner 身份。接受邀请可切换合法成员工作区，不引入多客户购买产品。列表页允许 `workspaceId`，省略时选仍有权限的工作区；显式选择已失效时拒绝，不能静默写入其他工作区。项目/订单详情从数据库核实归属，不信浏览器当前选择。没有工作区时显示空态，不重复创建。
 
 试用资格使用稳定的内部 user_id，领取、成员共享、复制和退款规则统一见[05](05-waffo-billing.md#11-一次试用及空草稿)。认证、关联登录方式或创建工作区不会另送额度。独立账号不凭邮箱相似性强行合并，也不因此保证赠送试用；仍须通过领取和反滥用校验。设备/IP 限流不能代替账号资格检查。
 

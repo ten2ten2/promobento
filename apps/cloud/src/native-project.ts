@@ -6,6 +6,7 @@ import {getJson, immutableJson, operation} from './store.ts';
 import {flushOutbox} from './outbox.ts';
 import {validId, type PipelineEnv, type Operation, type Json} from './pipeline-types.ts';
 import {assertNativeSnapshotHeadroom, nativeRenderPolicy} from './native-policy.ts';
+import {matchesStoredUpload} from './upload-stream.ts';
 
 export const NATIVE_COMMIT = NATIVE_RUNTIME_COMMIT;
 export type SavedNativeProject = {revisionId: string; manifestKey: string; project: Json};
@@ -35,7 +36,11 @@ export async function verifyNativeInputs(env: PipelineEnv, project: Json) {
   if (project.timingEvidenceRef) await checkedNativeBytes(env, project.timingEvidenceRef, 6 << 20);
   for (const file of project.files) {
     const head = await env.MEDIA.head(file.key);
-    if (!head || head.size !== file.byteLength || head.customMetadata?.sha256 !== file.sha256) throw Error('SOURCE_IDENTITY_MISMATCH');
+    // Manifests declare a MIME essence; stored headers may include parameters or
+    // case differences. Immutable PUT retries instead require the exact header.
+    if (!matchesStoredUpload(head, file.byteLength, file.sha256)
+      || head?.httpMetadata?.contentType?.split(';', 1)[0]?.trim().toLowerCase() !== file.mediaType.toLowerCase())
+      throw Error('SOURCE_IDENTITY_MISMATCH');
   }
 }
 

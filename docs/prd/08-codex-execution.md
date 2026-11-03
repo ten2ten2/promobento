@@ -1,6 +1,6 @@
 # 实施顺序与交付
 
-先读 [AGENTS](../../AGENTS.md)、[PRD 索引](README.md)和[实际进度](../implementation-status.md)，从尚未完成的阶段继续。本章规定实施顺序、工具链和交付要求。
+本章记录实施顺序、常用命令和验收条件。当前完成度见[实施状态](../implementation-status.md)，协作约定见[AGENTS](../../AGENTS.md)。
 
 ## 1 接手与当前命令
 
@@ -30,9 +30,9 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 | `build:validators` | 将当前原生工程与辅助 Schema 预编译为 ESM；Workers 不在请求内编译 Ajv |
 | `test:native` | 原生清单与路径边界、导演编排、源码版本、媒介证据、物理停止恢复及实际／未知模型账本的最小离线集 |
 
-云部署／集成目前使用 [Actions 工作流](../../apps/cloud/README.md)，评测使用 [research/evals 的 Node 入口](../../research/evals/README.md)。`build:containers`、`cloud:dev`、`cloud:deploy`、`test:cloud`、`eval`、`upstream:diff` 尚不是已登记的 mise 命令；有真实实现时再加入，不建空脚本。
+云部署使用 [Actions 工作流](../../apps/cloud/README.md)，素材评测从 [research/evals](../../research/evals/README.md) 运行。只使用 `package.json` / mise 中实际登记的命令。
 
-检查范围是 Git 跟踪文件和未被忽略的新文件。渲染产物放 `artifacts/`；不能让生成的报告进入文档遍历，也不把媒体文件读成文本。新增 package/app 时同步其依赖和 lockfile；浏览器与媒体测试使用 `*.render.test.*`，外部集成测试随模块加入独立命令和 CI。新增根级 package script 同步登记 mise task，仓库检查自动核对，不创建空脚本占位。
+仓库检查覆盖 Git 跟踪文件和未忽略的新文件，产物放 `artifacts/`。新增 app、package 或脚本时同步依赖、lockfile、mise 任务及相应测试；浏览器媒体测试使用 `*.render.test.*`。
 
 ## 2 里程碑与退出关口
 
@@ -49,15 +49,13 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 | M3 团队与运营 | 邀请／审阅／冲突／清理，成本／归因／质量面板与用途页 | **G2**：M1–M3真实集成通过，费用可对账 |
 | M4 上线与有限试运营 | 性能／安全／平台上传、正式收款退款、域名发信／政策／回滚 | 06／12发布条件通过；达到下述G3才扩大获客 |
 
-**S1 交付范围：** 将参考理解、正式 Script/语义事件、素材候选/锁定与依赖复用接入现有原生创作、预览、改稿和整片流程；结合动态 QA、作品视听与云端性能实测完成验收。实际已完成的部分只在[实施状态](../implementation-status.md)更新。
-
 **G1 云端检查点：** 使用固定预发布镜像，验证真实 Broker/R2/D1、隔离 Chromium、字体与媒体解码、2D/WebGL 整片、编码与声音、取消、物理停止、恢复、租约和费用。按 [06 的 1/4/16/64 并发及资源矩阵](06-testing-and-release.md#真实高并发内存和经济性关口)记录吞吐、p95/p99、内存峰值、OOM、排队、公平性、每份合格片的总成本和失败恢复。关键观测缺失、未解释的 OOM 或账务/隔离不一致均不得通过；容量与预算要先用实测值标定。
 
-**完整管线关口**：完整原生模板和真实素材四画幅创作、参考分析、正式 Script、命名事件、素材候选/锁定/依赖复用、预览、改稿与声音；固定镜像和 staging 的创建→选择方向→成片→改稿→目标准备与账本；完整动态 QA、隔离攻击、目标用户视听以及既定成本／性能目标。自动生成图片/视频和自动字词对齐需按 P1 自己的门槛验收，不能用它们替换基础真实素材能力。离线 mock 或单个编码样例不能替代。
+**完整管线关口：** 在固定镜像和 staging 中用真实素材完成导演→成片→改稿→全目标准备，并通过动态 QA、隔离、预算、用户视听和性能检查；离线 mock 或单个编码样例不能替代。自动生成图片/视频及逐词对齐属于独立的 P1 验收，不能替换基础真实素材能力。
 
 开放免费云任务前另验身份／素材权限、一次试用领取、费用预留／预算／限流和暂停恢复；未知价格或限额保持关闭。Chromium完整沙箱是自写执行前提，实际降级必须先取得负责人书面决定，不能静默用无沙箱模式。
 
-**费用基准：** 成本目标取 `agent-policy.unitCostTargets`，完整成本核算和优化顺序见[07](07-growth-and-experiments.md)。超标先优化并复测，调整商品须另获批准。
+**费用基准：** 以 `agent-policy.unitCostTargets` 为准，核算方法见[07](07-growth-and-experiments.md)；超标先优化并复测，调整商品须另获批准。
 
 **G3：** 两类用户各至少3个独立、非赠送的付费交付。用户样本观察满30天后，扣除实际成本和剩余付费权益的预计成本，贡献达到事前目标，试用损失不超预算，作品质量和可靠性达标。试运营前确定负责人、样本窗口与止损条件。未达到时停止扩大新增成本，保留查询、退款、既有下载和已收款任务恢复。G1/G2 不要求尚不存在的市场数据。
 
@@ -95,13 +93,13 @@ mise 管理工具与任务，pnpm 管理依赖。精确版本在 `.mise.toml`、
 | Cloudflare 容器 | 06 的复杂片、媒体、沙箱与回收，镜像可重复获取；镜像只经 GitHub Actions 构建推送 |
 | 客户浏览器 | 支持范围内的 UI、hydration、字体、本地预览和帧协议 |
 
-CI 的 [checks](../../.github/workflows/checks.yml) 包含 `contracts` 与 `browser`，可手动只选必要一项；contracts 验证原生编排、边界和账本，browser 实际构建并离线运行 huashu，不访问模型或部署云端。独立 [staging 部署](../../.github/workflows/cloud-deploy.yml) 仅显式手动部署或只读检查，不自动开始影片或付费模型评测。最终发布仍核对实际 SHA 的必要检查。
+CI 的 [checks](../../.github/workflows/checks.yml) 包含 `contracts` 与 `browser`；后者在固定镜像中运行原生媒体测试。独立 [staging 工作流](../../.github/workflows/cloud-deploy.yml) 需要显式手动启动，不会自动发起付费模型评测。发布以最终 SHA 的检查为准。
 
 长期验收证据按06移到受控存储。Agent无法读取CI时，由有权限的执行方交回精确commit SHA、run ID/attempt、各job结果，以及关联的报告、样片和环境文件；核对环境/镜像/浏览器摘要和实际覆盖，不能仅凭“已通过”的文字结论。拿不到结果就保留受影响的项未验证，不改lock绕过环境校验。确定性样例可重新生成，模型作品或试听材料不能只留命令/hash；受跟踪文档不链接仅本地存在的产物。
 
 首次生产冻结和后续修复按[14](14-production-contracts.md)登记发布版本；媒体许可见[09](09-sources-and-licensing.md)，真实验收证据按[06](06-testing-and-release.md)保存。
 
-官方入口：[mise](https://mise.jdx.dev/configuration.html)、[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)、[compatibility date](https://developers.cloudflare.com/workers/configuration/compatibility-dates/)、[Containers](https://developers.cloudflare.com/containers/get-started/)、[浏览器截图差异](https://playwright.dev/docs/test-snapshots)。实施日重新核对。
+工具来源：[mise](https://mise.jdx.dev/configuration.html)、[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)、[Containers](https://developers.cloudflare.com/containers/get-started/)、[Playwright](https://playwright.dev/docs/test-snapshots)。
 
 ## 4 环境与交付
 

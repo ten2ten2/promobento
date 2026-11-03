@@ -6,12 +6,13 @@ const between = (value, min, max) => finite(value) && value >= min && value <= m
 
 /** Parse trusted FFmpeg reports without accepting self-reported model or page metrics. */
 export function parseQualitySignals(videoLog, audioLog = null, durationSeconds = 30) {
-  const intervals = (text, expression) => [...text.matchAll(expression)].map(match => ({
-    startSeconds: number(match[1]), endSeconds: number(match[2]), durationSeconds: number(match[3])
-  })).filter(item => between(item.startSeconds, 0, durationSeconds)
+  const validInterval = item => between(item.startSeconds, 0, durationSeconds)
     && between(item.endSeconds, item.startSeconds, durationSeconds + .05)
     && finite(item.durationSeconds) && item.durationSeconds >= 0
-    && Math.abs(item.endSeconds - item.startSeconds - item.durationSeconds) < .1).slice(0, 80);
+    && Math.abs(item.endSeconds - item.startSeconds - item.durationSeconds) < .1;
+  const intervals = (text, expression) => [...text.matchAll(expression)].map(match => ({
+    startSeconds: number(match[1]), endSeconds: number(match[2]), durationSeconds: number(match[3])
+  })).filter(validInterval).slice(0, 80);
   const black = intervals(videoLog, /black_start:\s*([\d.]+)\s+black_end:\s*([\d.]+)\s+black_duration:\s*([\d.]+)/g);
   // FFmpeg logs freeze_start, freeze_duration, freeze_end as separate events, in
   // that order. A freeze still active at EOF has no freeze_end at all.
@@ -33,7 +34,24 @@ export function parseQualitySignals(videoLog, audioLog = null, durationSeconds =
     }
   }
   if (started !== null) addFreeze(durationSeconds, durationSeconds - started);
-  const silence = audioLog === null ? [] : intervals(audioLog, /silence_start:\s*([\d.]+)[\s\S]*?silence_end:\s*([\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)/g);
+  const silence = [];
+  if (audioLog !== null) {
+    let silenceStart = null;
+    // Pair the nearest preceding start with its end. A lost end followed by
+    // another start must not consume the later valid segment.
+    for (const match of audioLog.matchAll(/silence_start:\s*([\d.]+)|silence_end:\s*([\d.]+)\s*\|\s*silence_duration:\s*([\d.]+)/g)) {
+      if (match[1] !== undefined) silenceStart = number(match[1]);
+      else if (silenceStart !== null) {
+        const interval = {startSeconds: silenceStart, endSeconds: number(match[2]), durationSeconds: number(match[3])};
+        if (validInterval(interval) && silence.length < 80) silence.push(interval);
+        silenceStart = null;
+      }
+    }
+    if (silenceStart !== null) {
+      const interval = {startSeconds: silenceStart, endSeconds: durationSeconds, durationSeconds: durationSeconds - silenceStart};
+      if (validInterval(interval) && silence.length < 80) silence.push(interval);
+    }
+  }
   const match = audioLog?.match(/\{\s*"input_i"\s*:\s*"([^"]+)"\s*,\s*"input_tp"\s*:\s*"([^"]+)"/);
   const integratedLufs = match ? number(match[1]) : null, truePeakDbtp = match ? number(match[2]) : null;
   return {black, freeze, silence, integratedLufs: finite(integratedLufs) ? integratedLufs : null,

@@ -55,6 +55,18 @@ test('freeze detector pairs distinct events and closes a final still frame at EO
   assert.deepEqual(parseQualitySignals('freeze_start: 1\nfreeze_duration: 90\nfreeze_end: 2',null,15).freeze,[]);
 });
 
+test('silence intervals do not bridge lost event pairs and count an open tail at EOF',()=>{
+  const log=['silence_start: 1','silence_start: 2','silence_end: 5 | silence_duration: 3',
+    'silence_end: 6 | silence_duration: 1','silence_start: 8'].join('\n');
+  assert.deepEqual(parseQualitySignals('',log,10).silence,[
+    {startSeconds:2,endSeconds:5,durationSeconds:3},
+    {startSeconds:8,endSeconds:10,durationSeconds:2}
+  ]);
+  assert.deepEqual(assessQualitySignals(parseQualitySignals('',log,10),false).map(item=>item.kind),
+    ['silent_segment','silent_segment']);
+  assert.deepEqual(parseQualitySignals('','silence_start: 1\nsilence_end: 4 | silence_duration: 2',5).silence,[]);
+});
+
 test('the 4x3 MP4 review samples use 12 exact and evenly spaced delivery frames',()=>{
   for(const duration of [15,30]){
     const frames=motionReviewFrames(duration);

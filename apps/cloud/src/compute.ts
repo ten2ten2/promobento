@@ -40,8 +40,9 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
       const hash = request.headers.get('x-content-sha256');
       if (declared === null || !Number.isSafeInteger(length) || length < 0 || length > 50 << 20) return new Response(null, {status: 413});
       if (!hash || !/^[a-f0-9]{64}$/.test(hash)) return new Response(null, {status: 400});
+      const mediaType = request.headers.get('content-type') ?? 'application/octet-stream';
       const previous = await this.env.MEDIA.head(key);
-      if (previous && !matchesStoredUpload(previous, length, hash)) return new Response(null, {status: 409});
+      if (previous && !matchesStoredUpload(previous, length, hash, mediaType)) return new Response(null, {status: 409});
       try {
         if (previous) await verifyUploadStream(request.body, length, hash);
         else {
@@ -50,14 +51,14 @@ export class Broker extends WorkerEntrypoint<PipelineEnv, BrokerProps> {
           const created = await putBoundedUpload(this.env.MEDIA, key, request.body, length, {
             onlyIf: new Headers({'If-None-Match': '*'}), sha256: hash,
             customMetadata: {sha256: hash, operationId: op.id, attemptId: scope.attemptId},
-            httpMetadata: {contentType: request.headers.get('content-type') ?? 'application/octet-stream'},
+            httpMetadata: {contentType: mediaType},
           });
           // A lost conditional race may not consume the incoming stream. Require a fresh retry.
           if (!created) return new Response(null, {status: 409});
         }
       } catch { return new Response(null, {status: 422}); }
       const actual = await this.env.MEDIA.head(key);
-      if (!matchesStoredUpload(actual, length, hash)) return new Response(null, {status: 409});
+      if (!matchesStoredUpload(actual, length, hash, mediaType)) return new Response(null, {status: 409});
       // A cancellation may leave a staged object. Only generation-fenced workflow commits publish it.
       await operation(this.env, scope.operationId, scope.generation);
       return new Response(null, {status: 201});

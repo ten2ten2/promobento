@@ -18,7 +18,9 @@ export function modelConfigErrors(providers, authorization, policy, {requireVeri
   for (const [ref, model] of Object.entries(providers.models)) {
     const provider = providers.providers[ref.split('/')[0]];
     if (!provider) { errors.push(`Model ${ref} names an unknown provider`); continue; }
-    if (provider.currency !== 'USD' && !(provider.usdRate > 0)) errors.push(`Provider of ${ref} needs usdRate for ${provider.currency}`);
+    if (provider.currency !== 'USD' && (!Number.isSafeInteger(Math.round(provider.usdRate * 1e6))
+      || Math.round(provider.usdRate * 1e6) < 1))
+      errors.push(`Provider of ${ref} needs a representable usdRate for ${provider.currency}`);
     if ((requireVerified || policy?.enabled) && !model.capabilities.verified && Object.values(providers.steps).includes(ref)) errors.push(`Bound model ${ref} is not verified`);
   }
   const authorized = new Set(authorization.models);
@@ -99,17 +101,27 @@ export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0}
   // prices are micros per million tokens: units / 1e6 = micros in the provider currency
   let micros = ceilDiv(units, 1000000n);
   if (provider.currency !== 'USD') {
-    const rate = BigInt(Math.round(provider.usdRate * 1e6));
+    const scaledRate = Math.round(provider.usdRate * 1e6);
+    if (!Number.isSafeInteger(scaledRate) || scaledRate < 1) throw Error('MODEL_RATE_INVALID');
+    const rate = BigInt(scaledRate);
     micros = ceilDiv(micros * 1000000n, rate);
   }
+  if (micros > BigInt(Number.MAX_SAFE_INTEGER)) throw Error('MODEL_COST_OVERFLOW');
   return {usdMicros: Number(micros), catalogVersion: providers.catalogVersion, currency: provider.currency, estimated};
 }
 
-/** Preserve the original currency/rate/prices with a reported-usage quote; unknown usage stays null. */
+/** Preserve the original currency/rate/prices; unknown or unrepresentable reported costs stay null. */
 export function modelUsageQuote(ref,usage,providers){
- const cost=modelCallCostMicros(ref,usage,providers);if(cost.estimated)return null;
- const name=ref.split('/')[0],provider=providers.providers[name];
- const original=modelCallCostMicros(ref,usage,{...providers,providers:{...providers.providers,[name]:{...provider,currency:'USD'}}});
- return{usdMicros:cost.usdMicros,currencyMicros:original.usdMicros,currency:provider.currency,usdRate:provider.currency==='USD'?1:provider.usdRate,
-  catalogVersion:providers.catalogVersion,prices:{...providers.models[ref].prices}};
+ try{
+  const cost=modelCallCostMicros(ref,usage,providers);if(cost.estimated)return null;
+  const name=ref.split('/')[0],provider=providers.providers[name];
+  const original=modelCallCostMicros(ref,usage,{...providers,providers:{...providers.providers,[name]:{...provider,currency:'USD'}}});
+  return{usdMicros:cost.usdMicros,currencyMicros:original.usdMicros,currency:provider.currency,usdRate:provider.currency==='USD'?1:provider.usdRate,
+   catalogVersion:providers.catalogVersion,prices:{...providers.models[ref].prices}};
+ }catch(error){
+  // Reported usage arrives after dispatch: preserve its receipt and reservation
+  // if either currency overflows. Pre-dispatch estimates still fail closed.
+  if(error instanceof Error&&error.message==='MODEL_COST_OVERFLOW')return null;
+  throw error;
+ }
 }

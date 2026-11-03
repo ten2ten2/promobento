@@ -38,10 +38,12 @@ function main(){
  }
  for(const key of ['brandName','appUrl','supportEmail','legalEntityName'])expect(publicContext.brand?.[key]===brand[key],'Public brand differs: '+key);
  const protocol='3.0.0',prd='v3.1';
- for(const path of ['README.md','AGENTS.md','docs/implementation-status.md','docs/prd/README.md','docs/prd/01-product-prd.md','docs/prd/03-platform-presets.md','docs/prd/13-agent-native-production.md','docs/prd/14-production-contracts.md']){
-  const intro=text(path).split('\n').slice(0,8).join('\n');
-  const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(intro);
-  expect(prdVersions.length>0&&prdVersions.every(v=>v===prd)&&protocolVersions.length>0&&protocolVersions.every(v=>v===protocol),'PRD/protocol entry mismatch: '+path);
+ const indexVersions=specificationVersions(text('docs/prd/README.md').split('\n').slice(0,8).join('\n'));
+ expect(same(indexVersions.prd,[prd])&&same(indexVersions.protocol,[protocol]),'PRD index must declare the current versions once');
+ // Keep one version heading in the PRD index; other documents may reference it but must not disagree.
+ for(const path of ['README.md','AGENTS.md','docs/implementation-status.md',...indexed.map(p=>'docs/prd/'+p)]){
+  const {prd:prdVersions,protocol:protocolVersions}=specificationVersions(text(path));
+  expect(prdVersions.every(v=>v===prd)&&protocolVersions.every(v=>v===protocol),'Conflicting PRD/protocol version in '+path);
  }
  for(const path of ['config/agent-policy.json','config/routes.json'])
   expect(json(path).schemaVersion===protocol,'Protocol envelope mismatch: '+path);

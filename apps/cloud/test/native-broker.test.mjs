@@ -41,7 +41,7 @@ function fixture() {
       const bytes = Buffer.concat(chunks, length), hash = sha256Bytes(bytes);
       if (hash !== options.sha256) throw Error('R2_CHECKSUM_MISMATCH');
       if (objects.has(key)) return null;
-      const object = {size: bytes.length, customMetadata: options.customMetadata,
+      const object = {size: bytes.length, customMetadata: options.customMetadata, httpMetadata: options.httpMetadata,
         checksums: {sha256: Buffer.from(hash, 'hex')},
         body: new ReadableStream({start(controller) {controller.enqueue(bytes); controller.close();}})};
       objects.set(key, object);
@@ -55,10 +55,10 @@ function fixture() {
     return enabled ? {id: scope.operationId, status: 'active', generation: scope.generation} : null;
   }};}}};
   const key = scope.prefix + '/film.mp4';
-  const request = (data, length = data.length, sha256 = sha256Bytes(data)) => new Request('http://broker.internal/w/' + key, {
+  const request = (data, length = data.length, sha256 = sha256Bytes(data), mediaType = 'video/mp4') => new Request('http://broker.internal/w/' + key, {
     method: 'PUT', duplex: 'half', headers: {
       authorization: 'Bearer ' + scope.token, 'content-length': String(length),
-      'x-content-sha256': sha256, 'content-type': 'video/mp4',
+      'x-content-sha256': sha256, 'content-type': mediaType,
     }, body: new ReadableStream({start(controller) {
       for (let offset = 0; offset < data.length; offset += 4096) controller.enqueue(data.subarray(offset, offset + 4096));
       controller.close();
@@ -79,6 +79,8 @@ test('broker writes only checked streaming bytes with R2-enforced SHA-256 and im
   assert.equal(objects.get(key).customMetadata.sha256, hash);
   assert.equal((await broker.fetch(request(data))).status, 201, 'an identical key may be safely acknowledged');
   assert.equal(observed.puts, 1, 'duplicate ACK must not rewrite R2');
+  assert.equal((await broker.fetch(request(data, data.length, hash, 'application/octet-stream'))).status, 409,
+    'identical bytes cannot change the immutable content type');
   const changed = Buffer.from(data); changed[0] ^= 0xff;
   assert.equal((await broker.fetch(request(changed, changed.length, hash))).status, 422,
     'a matching header cannot ACK different incoming bytes');

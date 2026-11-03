@@ -65,6 +65,37 @@ test('missing usage reserves the worst input/cache-write price and output at its
   assert.equal(cost.usdMicros, Math.ceil((1000 * 5.2 + 4000 * 13) / 6.6863));
 });
 
+test('cost calculations refuse unrepresentable currency rates and unsafe integer estimates', () => {
+  const config = providers(), ref = 'modelswitch/deepseek-v4.1-flash-1017';
+  for (const rate of [0.0000001, 1e12]) {
+    config.providers.modelswitch.usdRate = rate;
+    assert.ok(modelConfigErrors(config, authorization(), policy).some(error => error.includes('representable usdRate')));
+    assert.throws(() => modelCallCostMicros(ref, {prompt_tokens: 1, completion_tokens: 0}, config), /MODEL_RATE_INVALID/);
+    assert.throws(() => modelUsageQuote(ref, {prompt_tokens: 1, completion_tokens: 0}, config), /MODEL_RATE_INVALID/);
+  }
+  const huge = structuredClone(config);
+  huge.providers.modelswitch.usdRate = 1;
+  huge.models[ref].prices.input = 10000000;
+  assert.throws(() => modelCallCostMicros(ref, {prompt_tokens: Number.MAX_SAFE_INTEGER}, huge), /MODEL_COST_OVERFLOW/);
+});
+
+test('reported usage overflow in USD or the original currency remains an unknown quote', () => {
+  const config = providers(), usage = {prompt_tokens: 9e15, completion_tokens: 9e15};
+  const ref = 'modelswitch/deepseek-v4.1-flash-1017';
+  assert.equal(Number.isSafeInteger(modelCallCostMicros(ref, usage, config).usdMicros), true, 'USD fits while the original CNY amount overflows');
+  const inOriginalCurrency = structuredClone(config); inOriginalCurrency.providers.modelswitch.currency = 'USD';
+  assert.throws(() => modelCallCostMicros(ref, usage, inOriginalCurrency), /MODEL_COST_OVERFLOW/);
+  for (const model of ['modelswitch/claude-opus-5-5', 'modelswitch/claude-sonnet-5-5']) {
+    assert.throws(() => modelCallCostMicros(model, usage, config), /MODEL_COST_OVERFLOW/);
+  }
+  for (const model of Object.keys(config.models)) {
+    const anthropic = model.startsWith('anthropic/');
+    assert.equal(modelUsageQuote(model, anthropic ? {input_tokens: 9e15, output_tokens: 9e15} : usage, config), null);
+    assert.equal(modelUsageQuote(model, anthropic ? {input_tokens: 1e17, output_tokens: 1e17} : {prompt_tokens: 1e17, completion_tokens: 1e17}, config), null);
+  }
+  assert.throws(() => modelUsageQuote('modelswitch/unknown-model', usage, config), /MODEL_UNKNOWN/);
+});
+
 test('gateway cache writes with an unknown TTL retain unknown usage instead of an input-price settlement', () => {
   const config = providers(), ref = 'modelswitch/claude-opus-5-5';
   const report = read('docs/evidence/2026-10-23-model-probe/run4.json');
