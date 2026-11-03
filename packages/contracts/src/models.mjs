@@ -43,39 +43,58 @@ const breakdown = value => value === undefined || (value !== null && typeof valu
 
 /**
  * Cost of one call in USD micros. usage uses the provider's field names; missing fields fall back to
- * the worst case (all input uncached, output at maxOutputTokens) so unknown usage is never cheaper.
+ * the worst case (all input at the highest input/cache-write price, output at maxOutputTokens).
+ * An ambiguous cache-write price or inconsistent breakdown is never a settled quote.
  */
 export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0} = {}) {
   const model = providers.models[ref], provider = providers.providers[ref.split('/')[0]];
   if (!model || !provider) throw Error('MODEL_UNKNOWN: ' + ref);
   const p = model.prices, n = value => BigInt(tokenCount(value) ? value : 0);
+  const unspecifiedWritePrice = p.cacheWrite ?? (p.cacheWrite5m !== undefined && p.cacheWrite5m === p.cacheWrite1h ? p.cacheWrite5m : null);
   let units;
   if (provider.kind === 'anthropic') {
     const cache = usage?.cache_creation;
-    const write5m = cache?.ephemeral_5m_input_tokens ?? usage?.cache_creation_input_tokens;
-    const write1h = usage?.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+    const aggregate = usage?.cache_creation_input_tokens;
+    const hasTtlBreakdown = cache?.ephemeral_5m_input_tokens !== undefined || cache?.ephemeral_1h_input_tokens !== undefined;
+    const write1h = cache?.ephemeral_1h_input_tokens ?? (aggregate !== undefined && cache?.ephemeral_5m_input_tokens !== undefined
+      ? aggregate - cache.ephemeral_5m_input_tokens : 0);
+    const write5m = cache?.ephemeral_5m_input_tokens ?? (aggregate !== undefined ? aggregate - write1h : 0);
     const known = tokenCount(usage?.input_tokens) && tokenCount(usage?.output_tokens)
       && breakdown(cache) && optionalToken(cache, 'ephemeral_5m_input_tokens')
       && optionalToken(cache, 'ephemeral_1h_input_tokens')
-      && optionalToken(usage, 'cache_creation_input_tokens') && optionalToken(usage, 'cache_read_input_tokens');
+      && optionalToken(usage, 'cache_creation_input_tokens') && optionalToken(usage, 'cache_read_input_tokens')
+      && tokenCount(write5m) && tokenCount(write1h) && Number.isSafeInteger(write5m + write1h)
+      && (aggregate === undefined || aggregate === write5m + write1h)
+      && (!aggregate || hasTtlBreakdown || unspecifiedWritePrice !== null);
     units = known
-      ? n(usage.input_tokens) * BigInt(p.input) + n(write5m) * BigInt(p.cacheWrite5m ?? p.input) + n(write1h) * BigInt(p.cacheWrite1h ?? p.input)
+      ? n(usage.input_tokens) * BigInt(p.input)
+        + n(write5m) * BigInt(hasTtlBreakdown ? p.cacheWrite5m ?? p.cacheWrite ?? p.input : unspecifiedWritePrice ?? p.input)
+        + n(write1h) * BigInt(p.cacheWrite1h ?? p.cacheWrite ?? p.input)
         + n(usage.cache_read_input_tokens) * BigInt(p.cacheRead ?? p.input) + n(usage.output_tokens) * BigInt(p.output)
       : null;
   } else {
     const details = usage?.prompt_tokens_details;
+    const cached = details?.cached_tokens ?? 0, created = details?.cache_creation_tokens ?? 0;
+    // Compatible gateways may report cache writes without a TTL. Only a single,
+    // unambiguous catalog price can settle those tokens; otherwise keep the reservation.
+    const writePrice = unspecifiedWritePrice;
     const known = tokenCount(usage?.prompt_tokens) && tokenCount(usage?.completion_tokens)
-      && breakdown(details) && optionalToken(details, 'cached_tokens')
-      && (details?.cached_tokens ?? 0) <= usage.prompt_tokens;
-    const cached = Math.min(usage?.prompt_tokens_details?.cached_tokens ?? 0, usage?.prompt_tokens ?? 0);
+      && breakdown(details) && optionalToken(details, 'cached_tokens') && optionalToken(details, 'cache_creation_tokens')
+      && tokenCount(cached + created) && cached + created <= usage.prompt_tokens && (!created || writePrice !== null);
     units = known
-      ? n(usage.prompt_tokens - cached) * BigInt(p.input) + n(cached) * BigInt(p.cacheRead ?? p.input) + n(usage.completion_tokens) * BigInt(p.output)
+      ? n(usage.prompt_tokens - cached - created) * BigInt(p.input) + n(cached) * BigInt(p.cacheRead ?? p.input)
+        + n(created) * BigInt(writePrice ?? p.input) + n(usage.completion_tokens) * BigInt(p.output)
       : null;
   }
   const estimated = units === null;
   if (estimated) {
-    const input = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
-    units = n(input) * BigInt(p.input) + n(maxOutputTokens) * BigInt(p.output);
+    const max = (left, right) => left > right ? left : right;
+    const input = provider.kind === 'anthropic'
+      ? n(usage?.input_tokens) + max(n(usage?.cache_creation_input_tokens), n(usage?.cache_creation?.ephemeral_5m_input_tokens) + n(usage?.cache_creation?.ephemeral_1h_input_tokens)) + n(usage?.cache_read_input_tokens)
+      : max(n(usage?.prompt_tokens), n(usage?.prompt_tokens_details?.cached_tokens) + n(usage?.prompt_tokens_details?.cache_creation_tokens));
+    const output = max(n(maxOutputTokens), n(provider.kind === 'anthropic' ? usage?.output_tokens : usage?.completion_tokens));
+    const inputPrice = Math.max(p.input, p.cacheRead ?? 0, p.cacheWrite ?? 0, p.cacheWrite5m ?? 0, p.cacheWrite1h ?? 0);
+    units = input * BigInt(inputPrice) + output * BigInt(p.output);
   }
   // prices are micros per million tokens: units / 1e6 = micros in the provider currency
   let micros = ceilDiv(units, 1000000n);

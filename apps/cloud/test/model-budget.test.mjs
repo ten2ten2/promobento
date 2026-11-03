@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
+import {modelCallCostMicros} from '../../../packages/contracts/src/models.mjs';
 import {assertScriptProjection} from '../../../packages/methods/production-documents.mjs';
 import providers from '../../../config/model-providers.json' with {type:'json'};
 import {sqliteD1} from './fixtures/sqlite.mjs';
@@ -112,6 +113,23 @@ test('persisted raw model response completes a failed ledger write without anoth
  assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,receipt.quote.usdMicros);
  const cached=await modelStep(env,'model-operation',0,'facts','recovery-call',request,check);assert.equal(cached.cached,true);assert.equal(requests,1);
 });
+for(const fence of ['expired','key-removed'])test(`durable model receipts finish bookkeeping after provider access is ${fence}`,async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch,realNow=Date.now;let requests=0,failLocalWrite=true;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:20}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;Date.now=realNow;});
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{if(sql.startsWith('INSERT OR IGNORE INTO cost_settlements')&&failLocalWrite){failLocalWrite=false;throw Error('LOCAL_LEDGER_UNAVAILABLE');}return prepare(sql);};
+ const request={system:'Offline durable response recovery.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','access-fenced-receipt',request,check),/LOCAL_LEDGER_UNAVAILABLE/);
+ if(fence==='expired')Date.now=()=>Date.parse('2027-01-01T00:00:00+08:00');else delete env.MODEL_COMPAT_API_KEY;
+ const recovered=await modelStep(env,'model-operation',0,'facts','access-fenced-receipt',request,check);
+ assert.equal(recovered.cached,true);assert.equal(requests,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,1);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','new-fenced-call',{...request,messages:[{role:'user',text:'A new paid request.'}]},check),
+  fence==='expired'?/MODEL_NOT_AUTHORIZED/:/MODEL_SECRET_MISSING/);
+ assert.equal(requests,1,'bookkeeping recovery never re-enables new provider calls');
+});
 test('a completed truncated response is metered and retained, never cached or resent as a correction',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"partial":'},finish_reason:'length'}]})+'\n\ndata: '+canonical({choices:[],usage:{prompt_tokens:100,completion_tokens:64}})+'\n\ndata: [DONE]\n\n');};
@@ -207,6 +225,32 @@ test('a deadline expiring during local admission settles both unused model reser
  assert.equal(shared.db.prepare('SELECT actual_micros FROM model_budget_settlements').get().actual_micros,0);
  assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
  assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+});
+for(const cleanupUnavailable of [false,true])test(`committed local admission with a lost response releases known-unsent cost${cleanupUnavailable?' after cleanup recovery':''}`,async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0,loseAck=true,loseCleanup=cleanupUnavailable;
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  if(sql.startsWith('SELECT operation_id,request_hash,kind,catalog_version')&&loseCleanup){loseCleanup=false;throw Error('LOCAL_CLEANUP_UNAVAILABLE');}
+  const statement=prepare(sql);
+  if(!sql.startsWith('INSERT OR IGNORE INTO cost_reservations'))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async run(){
+   const result=await bound.run();if(loseAck){loseAck=false;throw Error('LOCAL_ADMISSION_ACK_LOST');}return result;
+  }};}};
+ };
+ const request={system:'Offline lost admission acknowledgement.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true);
+ await assert.rejects(modelStep(env,'model-operation',0,'facts','lost-admission-ack',request,check),/LOCAL_ADMISSION_ACK_LOST|LOCAL_CLEANUP_UNAVAILABLE/);
+ assert.equal(requests,0);assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+ if(cleanupUnavailable){
+  assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+  await assert.rejects(modelStep(env,'model-operation',0,'facts','lost-admission-ack',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ }
+ assert.equal(local.db.prepare('SELECT actual_micros FROM cost_settlements').get().actual_micros,0);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('after-unsent','workspace','project',0,'calibration','active','after-unsent',10000000,Date.now(),null,null);
+ await modelStep(env,'after-unsent',0,'facts','after-unsent-call',request,check);
+ assert.equal(requests,1,'proven unsent local cost cannot permanently block a later authorized request');
 });
 test('an expired dispatch-marker response cannot start a late paid model request',async t=>{
  const{env,local,shared}=await fixture(t),realNow=Date.now,originalFetch=globalThis.fetch;
@@ -361,6 +405,82 @@ test('concurrent identical native author requests are admitted at most once',asy
  const results=await Promise.allSettled([modelStep(env,'model-operation',0,'author','parallel-a',request,()=>{}),modelStep(env,'new-operation',0,'author','parallel-b',request,()=>{})]);
  assert.equal(requests,1);assert.equal(results.filter(result=>result.status==='rejected').length,2);
  assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+});
+test('a matching request that settles during concurrent admission cannot be purchased twice',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;let requests=0,releaseAdmission;
+ const firstFinished=new Promise(resolve=>{releaseAdmission=resolve;});
+ globalThis.fetch=async()=>{requests++;return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');};
+ t.after(()=>{releaseAdmission();globalThis.fetch=originalFetch;});
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('concurrent-operation','workspace','project',0,'calibration','active','concurrent',10000000,Date.now(),null,null);
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('SELECT operation_id,request_hash,kind,stage,reserved_micros'))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async first(){
+   if(args[0]==='concurrent-call')await firstFinished;
+   return bound.first();
+  }};}};
+ };
+ const request={system:'Offline concurrent admission.',messages:[{role:'user',text:'Return one paid observation.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true);
+ const first=modelStep(env,'model-operation',0,'facts','first-call',request,check).finally(releaseAdmission);
+ const second=modelStep(env,'concurrent-operation',0,'facts','concurrent-call',request,check);
+ const outcomes=await Promise.allSettled([first,second]);
+ assert.equal(outcomes[0].status,'fulfilled');
+ assert.equal(outcomes[1].status,'rejected');assert.equal(outcomes[1].reason.message,'MODEL_CALL_RECONCILIATION_REQUIRED');
+ assert.equal(requests,1,'settlement between preflight and atomic admission cannot authorize another paid dispatch');
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_settlements WHERE actual_micros=0').get().n,1);
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,0);
+ assert.equal((await modelStep(env,'concurrent-operation',0,'facts','concurrent-call',request,check)).cached,true);
+ assert.equal(requests,1,'retry recovers the now-complete response without another paid request');
+});
+test('gateway cache writes reserve their worst price and retain unknown-TTL usage without settling',async t=>{
+ const{env,local,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0,reserved=0;
+ globalThis.fetch=async()=>{
+  requests++;reserved=(await budget.modelBudgetStatus(env)).pending[0].reserved_micros;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],
+   usage:{prompt_tokens:108543,completion_tokens:100,prompt_tokens_details:{cached_tokens:0,cache_creation_tokens:105256}}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline cache-write metering.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:128};
+ const result=await modelStep(env,'model-operation',0,'treatment','cache-write-ttl-unknown',request,value=>assert.equal(value.ok,true));
+ assert.equal(result.value.ok,true);assert.equal(requests,1);
+ const minimum=modelCallCostMicros(providers.steps.treatment,{prompt_tokens:131072},providers,{maxOutputTokens:128});
+ assert.equal(minimum.estimated,true);assert.ok(reserved>=minimum.usdMicros);
+ const receipt=parseCanonicalJson([...objects].find(([key])=>key.includes('/model-calls/')&&key.endsWith('.json'))[1].bytes);
+ assert.equal(receipt.quote,null,'a gateway cache-write counter without TTL cannot establish a settled charge');
+ assert.equal((await budget.modelBudgetStatus(env)).pending.length,1);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM model_responses').get().n,0);
+});
+test('a pending matching call cannot disappear between the completed and pending preflight queries',async t=>{
+ const{env,local}=await fixture(t),originalFetch=globalThis.fetch;let requests=0,releaseProvider,markStarted,finishFirst;
+ const held=new Promise(resolve=>{releaseProvider=resolve;}),started=new Promise(resolve=>{markStarted=resolve;}),
+  firstFinished=new Promise(resolve=>{finishFirst=resolve;});
+ globalThis.fetch=async()=>{
+  requests++;markStarted();await held;
+  return new Response('data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage:{prompt_tokens:100,completion_tokens:10}})+'\n\ndata: [DONE]\n\n');
+ };
+ t.after(()=>{releaseProvider();globalThis.fetch=originalFetch;});
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('late-operation','workspace','project',0,'calibration','active','late',10000000,Date.now(),null,null);
+ const request={system:'Offline preflight settlement race.',messages:[{role:'user',text:'Return one observation.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true);
+ const first=modelStep(env,'model-operation',0,'facts','pending-first',request,check).finally(finishFirst);
+ await started;
+ const prepare=env.DB.prepare.bind(env.DB);
+ env.DB.prepare=sql=>{
+  const statement=prepare(sql);
+  if(!sql.startsWith('SELECT r.id,r.operation_id,s.actual_micros'))return statement;
+  return{bind(...args){const bound=statement.bind(...args);return{async all(){
+   const rows=await bound.all();releaseProvider();await firstFinished;return rows;
+  }};}};
+ };
+ const second=await modelStep(env,'late-operation',0,'facts','late-call',request,check).then(()=>null,error=>error);
+ releaseProvider();await first;
+ assert.equal(second?.message,'MODEL_CALL_RECONCILIATION_REQUIRED');
+ assert.equal(requests,1,'a preflight snapshot must not lose a matching reservation that settles while queries run');
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,1);
 });
 test('gateway Opus reserves the observed hidden-input risk before dispatch without raising the treatment stage cap',async t=>{
  const{env}=await fixture(t),originalFetch=globalThis.fetch;let reserved=0;

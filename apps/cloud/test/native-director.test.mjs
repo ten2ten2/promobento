@@ -62,7 +62,8 @@ const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1H
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
  jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
- unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false}={}){
+ unlinkedMeasuredCaption=false,scriptOnlyOtherAudio=false,invalidScriptVisualOnce=false,audioReplacementIds=null,
+ authorBoundaryOnce=null}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -153,6 +154,16 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
      input={files:[{path:'index.html',content:invalidRecomposeOnce&&callId.includes('-recompose-')&&!callId.endsWith('-correct')
       ?html.replace('PROMO_PROMISE','OMITTED_PROMISE'):html},
       ...(jsonMaterial?[{path:'src/assets.json',content:JSON.stringify({productPath:product.path})}]:[])],reviewFrames:[90,240],note:'A native fixture, with original source APIs.'};
+     if(authorBoundaryOnce&&callId.includes('-hardest-')&&!callId.endsWith('-correct')){
+      if(authorBoundaryOnce==='files')for(let i=0;i<23;i++)input.files.push({path:`src/filler-${i}.css`,content:'/* author */'});
+      else{
+       let remaining=1048576-Buffer.byteLength(html);
+       for(let i=0;remaining>0;i++){
+        const bytes=Math.min(240000,remaining);remaining-=bytes;
+        input.files.push({path:`src/filler-${i}.css`,content:' '.repeat(bytes)});
+       }
+      }
+     }
     }else if(tool==='apply_project_patch'){
      const previouslyRevised=payload.sourceFiles.find(file=>file.path==='index.html')?.content.includes('PROMO_REVISED');
      const target=payload.comments?(previouslyRevised?'PROMO_REVISED':'PROMO_ORIGINAL'):payload.review?'COMPLETE_STAGE':'HARD_STAGE';
@@ -167,6 +178,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
       &&material.path!==oldVoicePath);
      if(nextVoice&&oldVoicePath&&payload.comments){const oldPath=oldVoicePath;
       input.edits.push({command:'replace',path:'index.html',oldText:oldPath,newText:nextVoice.path});}
+     if(audioReplacementIds&&payload.comments){
+      const next=payload.materials.find(item=>item.resourceId===audioReplacementIds[1]);
+      const old=saved.get(payload.baseRevision).project.resources.find(item=>item.resourceId===audioReplacementIds[0]);
+      if(next&&old)input.edits.push({command:'replace',path:'index.html',oldText:old.sourcePath,newText:next.path});
+     }
      const revisedCopy=payload.script?.segments?.find(segment=>segment.id==='title')?.displayText;
      if(revisedCopy&&revisedCopy!=='PROMO_PROMISE')input.edits.push({command:'replace',path:'index.html',oldText:'PROMO_PROMISE',newText:revisedCopy});
      const revisedCta=payload.script?.segments?.find(segment=>segment.id==='cta')?.displayText;
@@ -559,6 +575,24 @@ test('conflicting selected and Script-only audio versions are rejected before pa
  assert.equal(f.db.prepare('SELECT status FROM pipeline_operations WHERE id=?').get('two-voice-conflict').status,'failed');
 });
 
+for(const [from,to] of [['res_voice','res_voice_other'],['res_voice_other','res_voice']])
+test(`merging ${from} into ${to} normalizes audio locks and remains editable`,async t=>{
+ const f=await fixture(t,{authoredSpeech:true,selectVoice:true,scriptOnlyOtherAudio:true,audioReplacementIds:[from,to]});
+ const a={...await f.put('evals/fixture/merge-a.wav',Buffer.from('selected recording'),'audio/wav'),
+  resourceId:'res_voice',kind:'audio',durationSeconds:3};
+ const b={...await f.put('evals/fixture/merge-b.wav',Buffer.from('Script-only recording'),'audio/wav'),
+  resourceId:'res_voice_other',kind:'audio',durationSeconds:3};
+ const parent=await f.create('merge-parent',{aspects:['landscape'],audioSources:[a,b]});
+ const child=await f.create('merge-child',{aspects:['landscape'],resources:[],audioSources:[to===a.resourceId?a:b],
+  baseRevision:parent.projects[0].revisionId,materialReplacements:[{fromResourceId:from,toResourceId:to}],comments:[]},[f.asset,a,b]);
+ const project=f.saved.get(child.projects[0].revisionId).project;
+ assert.deepEqual(parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script-audio-locks.json'))),[],
+  'the surviving source is selected by Treatment and needs no separate Script-only lock');
+ const next=await f.create('merge-geometry',{aspects:['landscape'],resources:[],baseRevision:child.projects[0].revisionId,
+  comments:[{text:'Shift the headline.',frame:30}]},[f.asset,a,b]);
+ assert.equal(next.kind,'native_candidate');
+});
+
 test('an explicit same-ID new-SHA audio replacement is legal, updates executable bytes and retires measured timing',async t=>{
  const f=await fixture(t,{measuredSpeech:true,explicitSameIdAudio:true});
  const voice={...await f.put('evals/fixture/same-id-a.wav',Buffer.from('version A'),'audio/wav'),
@@ -646,6 +680,16 @@ test('an incomplete recompose is corrected before it can count as a valid model 
  const project=f.saved.get(result.projects[1].revisionId).project;
  const file=project.files.find(item=>item.path==='index.html');
  assert.match(new TextDecoder().decode(await f.bytes(f.env,file)),/PROMO_PROMISE/);
+});
+
+for(const authorBoundaryOnce of ['files','bytes'])
+test(`author ${authorBoundaryOnce} capacity includes generated production documents before success caching`,async t=>{
+ const f=await fixture(t,{authorBoundaryOnce});
+ const result=await f.create('author-capacity',{aspects:['landscape']});
+ assert.equal(result.kind,'native_candidate');
+ const attempts=f.calls.filter(call=>call.callId.includes('-hardest-landscape'));
+ assert.equal(attempts.length,2,'an overflowing final source set must enter the model correction loop');
+ assert.match(attempts[1].callId,/-correct$/);
 });
 
 test('hardest-shot source mismatch enters correction before a successful model cache response',async t=>{

@@ -91,6 +91,15 @@ export async function undoUnsentModelDispatch(env:PipelineEnv,id:string){
  const result=await ledger(env).prepare('UPDATE model_budget_reservations SET dispatched_at=NULL WHERE id=? AND dispatched_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM model_budget_settlements WHERE reservation_id=?)')
   .bind(id,id).run();if(result.meta.changes!==1)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
 }
+/** A committed shared zero settlement can repair a lost local admission/cleanup acknowledgement. */
+export async function modelUnsentReceipt(env:PipelineEnv,id:string,operationId:string,requestHash:string):Promise<Json|null>{
+ const row=await ledger(env).prepare(`SELECT r.origin,r.operation_id,r.request_hash,r.dispatched_at,s.actual_micros,s.receipt_json
+  FROM model_budget_reservations r JOIN model_budget_settlements s ON s.reservation_id=r.id WHERE r.id=?`).bind(id).first<Json>();
+ if(!row||row.dispatched_at!==null||row.actual_micros!==0)return null;
+ if(row.origin!==env.PIPELINE_ENVIRONMENT||row.operation_id!==operationId||row.request_hash!==requestHash)throw Error('MODEL_RECEIPT_CONFLICT');
+ const receipt=parseCanonicalJson(row.receipt_json) as Json;
+ return receipt.kind==='not_dispatched'?receipt:null;
+}
 export async function settleModelBudget(env:PipelineEnv,id:string,actual:number,receipt:Json,{notDispatched=false}={}){
  if(!Number.isSafeInteger(actual)||actual<0||notDispatched&&actual!==0)throw Error('COST_SETTLEMENT_INVALID');
  const DB=ledger(env),text=canonical(receipt);

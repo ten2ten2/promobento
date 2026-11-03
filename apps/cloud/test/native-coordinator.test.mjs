@@ -34,6 +34,22 @@ test('SSE progress drops stalled readers instead of retaining unbounded queued e
   assert.equal(memory.get('progress').stage,29,'the latest state remains available for reconnect');
 });
 
+test('concurrent SSE opens cannot exceed the listener cap while snapshot reads are in flight',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run('sse-concurrent','workspace','project',0,'evaluation','active','request',1000,Date.now(),null,null);
+  const operation=Object.create(OperationDO.prototype);
+  operation.env={DB};operation.listeners=new Map();
+  let snapshots=0,release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  operation.ctx={storage:{async get(){if(++snapshots===101)release();await gate;}}};
+  const responses=await Promise.all(Array.from({length:101},()=>operation.watch('sse-concurrent')));
+  t.after(async()=>Promise.all(responses.filter(response=>response.body).map(response=>response.body.cancel())));
+  assert.equal(responses.filter(response=>response.status===200).length,100);
+  assert.equal(responses.filter(response=>response.status===429).length,1);
+  assert.equal(operation.listeners.size,100);
+});
+
 test('SSE reconnects after terminal outcomes and reflects the durable operation state',async t=>{
   const {db,DB}=sqliteD1();t.after(()=>db.close());
   db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')

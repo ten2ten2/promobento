@@ -4,7 +4,7 @@
 
 ## 原生评测输入
 
-方法 2.0.1 以完整 huashu-motion HTML/JS 工程制作三方向预览、Treatment、各画幅原生影片及改稿，使用[内部 API](../../apps/cloud/README.md#内部-api)，不是已上线的 Studio。输入 `contextKey` 指向私有 JSON，包含确认事实、素材、授权、语言、CTA、15/30 秒、平台预设和固定 renderer release。
+方法 2.1.0 以完整 huashu-motion HTML/JS 工程制作三方向预览、Treatment、Script、各画幅原生影片及改稿，使用[内部 API](../../apps/cloud/README.md#内部-api)，不是已上线的 Studio。输入 `contextKey` 指向私有 JSON，包含确认事实、素材、授权、语言、CTA、15/30 秒、平台预设和固定 renderer release。
 
 改稿以 `baseRevisions: {landscape: "<revisionId>", ...}`、`comments: [{text,frame?,elementId?}]` 指定；单画幅也接受 `baseRevision`。父版本必须属于同一 workspace/project，不能覆盖已付费或已生成的历史版本。共享模型账本保留未知费用预留；此前临时授权过期，当前不提供自动付费 runner。
 
@@ -57,4 +57,4 @@ bash research/evals/hypit/media.sh <带FFmpeg的已固定镜像> \
   --start 0 --end 12 --every 1 --columns 4 --cell 360 --to /out/overview.jpg --json
 ```
 
-[recover-case.mjs](recover-case.mjs)用于检查或清理**已终止**的操作；作品、费用和质量原始证据见[导演评测](../../docs/evidence/2026-10-24-s1-director/README.md)。
+[recover-case.mjs](recover-case.mjs)用于检查或清理**已终止**的操作；即使临时密钥写入后 CLI 未收到确认，也会尝试撤销并记录结果。作品、费用和质量原始证据见[导演评测](../../docs/evidence/2026-10-24-s1-director/README.md)。

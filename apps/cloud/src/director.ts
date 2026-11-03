@@ -247,6 +247,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
          material.resources,script,scriptAudioLocks);
        }
        if(tool==='write_project'&&input.files.some((file:SourceFile)=>['script.json','material-selection.json','script-audio-locks.json'].includes(file.path)))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
+       if(tool==='write_project')productionDocuments(input.files,false);
        if(tool==='write_treatment')assertTreatment(input,context.durationSeconds,material.materials.map(asset=>asset.resourceId));
        if(tool==='submit_review'){
         if((input.verdict==='pass')!==(input.issues.length===0)||input.issues.some((issue:Json)=>issue.frames.some((frame:number)=>frame>=context.durationSeconds*30)))throw Error('DIRECTOR_REVIEW_INVALID');
@@ -255,27 +256,30 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
       }catch(error){outputError(error instanceof Error?error.message:'NATIVE_TOOL_INVALID',result);}
      },methodLanguage,stageGuard);return value.toolCalls[0].input;
    };
+   const productionDocuments=(files:SourceFile[],preserveTreatment:boolean):SourceFile[]=>{
+    const documents=files.filter(file=>file.path!=='BRIEF.md');
+    if(script) {
+     const at=documents.findIndex(file=>file.path==='script.json');if(at>=0)documents.splice(at,1);
+     documents.push({path:'script.json',content:canonical(script)+'\n'});
+    }
+    if(lockedSelection) {
+     const at=documents.findIndex(file=>file.path==='material-selection.json');if(at>=0)documents.splice(at,1);
+     documents.push({path:'material-selection.json',content:canonical(lockedSelection)+'\n'});
+    }
+    if(script){
+     const at=documents.findIndex(file=>file.path==='script-audio-locks.json');if(at>=0)documents.splice(at,1);
+     documents.push({path:'script-audio-locks.json',content:canonical(scriptAudioLocks)+'\n'});
+    }
+    documents.push({path:'BRIEF.md',content:'# Brief\n\n'+canonical(brief)+'\n'});
+    if(!preserveTreatment){const prior=documents.findIndex(file=>file.path==='TREATMENT.md');if(prior>=0)documents.splice(prior,1);documents.push({path:'TREATMENT.md',content:'# Treatment\n\n'+(treatment?.treatment??'Direction exploration; selection pending.')+'\n'});}
+    return assertSourceFiles(documents);
+   };
    const persist=async(name:string,aspect:string,files:SourceFile[],base?:SavedNativeProject,stageGuard:StageGuard=()=>{}):Promise<SavedNativeProject>=>{
     stageGuard();
     assertSourceFiles(files);const shape=(platform.aspectLayouts as Json)[aspect];
     return parseCanonicalJson(await step.do<string>('save-'+name,noRetry,async()=>{
      stageGuard();await guard();const authored=[];
-     const documents=files.filter(file=>file.path!=='BRIEF.md');
-     if(script) {
-      const at=documents.findIndex(file=>file.path==='script.json');if(at>=0)documents.splice(at,1);
-      documents.push({path:'script.json',content:canonical(script)+'\n'});
-     }
-     if(lockedSelection) {
-      const at=documents.findIndex(file=>file.path==='material-selection.json');if(at>=0)documents.splice(at,1);
-      documents.push({path:'material-selection.json',content:canonical(lockedSelection)+'\n'});
-     }
-     if(script){
-      const at=documents.findIndex(file=>file.path==='script-audio-locks.json');if(at>=0)documents.splice(at,1);
-      documents.push({path:'script-audio-locks.json',content:canonical(scriptAudioLocks)+'\n'});
-     }
-     documents.push({path:'BRIEF.md',content:'# Brief\n\n'+canonical(brief)+'\n'});
-     if(!base){const prior=documents.findIndex(file=>file.path==='TREATMENT.md');if(prior>=0)documents.splice(prior,1);documents.push({path:'TREATMENT.md',content:'# Treatment\n\n'+(treatment?.treatment??'Direction exploration; selection pending.')+'\n'});}
-     assertSourceFiles(documents);
+     const documents=productionDocuments(files,Boolean(base));
      if(script&&!name.startsWith('hardest-')&&!name.startsWith('direction-'))assertScriptProjection(documents,script);
      for(const file of documents){const key=`operations/${op.id}/sources/${digest(file)}.${file.path.split('.').at(-1)}`;
       const blob=await immutableBytes(this.env,key,new TextEncoder().encode(file.content),nativeTextType(file.path));authored.push({path:file.path,key:blob.key,sha256:blob.sha256,byteLength:blob.byteLength,mediaType:blob.mediaType});}
@@ -348,6 +352,7 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     candidateResources.push(...saved.project.resources);
     const files=await sourceFiles(saved),verifyPatch=(candidate:Json)=>{
      const proposed=applyProjectPatch(files,saved.revisionId,candidate);
+     productionDocuments(proposed,true);
      if(script&&!name.startsWith('hardest-'))assertScriptProjection(proposed,script);
      if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(proposed,lockedSelection,
       [...saved.project.resources,...material.resources],script,scriptAudioLocks);
@@ -514,7 +519,16 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
      for(const lock of scriptAudioLocks){const prior=uniqueLocks.get(lock.resourceId);
       if(prior&&prior!==lock.sha256)throw Error('SCRIPT_AUDIO_SOURCE_AMBIGUOUS');
       uniqueLocks.set(lock.resourceId,lock.sha256);}
-     scriptAudioLocks=[...uniqueLocks].map(([resourceId,sha256])=>({resourceId,sha256}));
+     // A replacement can merge a Script-only source into a selected source,
+     // or promote its target into the Treatment. Keep just one authority for
+     // that identity so the next revision reconstructs the same dependency set.
+     const selected=new Map<string,string>(lockedSelection!.uses.map((use:Json)=>[use.resourceId,use.sha256]));
+     for(const [resourceId,sha256] of uniqueLocks){
+      const selectedSha=selected.get(resourceId);
+      if(selectedSha&&selectedSha!==sha256)throw Error('MATERIAL_LOCK_VERSION_CONFLICT');
+     }
+     scriptAudioLocks=[...uniqueLocks].filter(([resourceId])=>!selected.has(resourceId))
+      .map(([resourceId,sha256])=>({resourceId,sha256}));
     }
     if(script){
      assertNativeScript(script,{durationSeconds:context.durationSeconds,videoLanguage:context.videoLanguage,

@@ -126,6 +126,9 @@ const server = http.createServer(async (request, response) => {
     if (input.mode === 'preview') frameTimes(input.project.composition, input.frames);
     if (typeof input.brokerToken !== 'string' || !input.brokerToken || input.brokerToken.length > 16384) throw Error('BROKER_TOKEN_REQUIRED');
     const task = {taskId: input.taskId, renderId: input.renderId, mode: input.mode, project: input.project, ...(input.frames == null ? {} : {frames: input.frames})};
+    // Body reads can overlap. Claim the one-task container without another await
+    // between checking its state and publishing the accepted task.
+    if (current) return send(409, {error: 'CONTAINER_ALREADY_USED'});
     current = {abort: new AbortController(), result: null};
     void execute(task, input.brokerToken, current);
     return send(202, {status: 'running', taskId: input.taskId});

@@ -85,7 +85,8 @@ export async function getJson(env: PipelineEnv, key: string,
 }
 /** Local operation/stage admission, including unresolved costs. MODEL_LEDGER owns the cross-environment model grant. */
 export async function reserve(env: PipelineEnv, op: Operation, id: string, kind: 'model' | 'compute', stage: string,
-  max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER, preventPendingReplay = false) {
+  max: number, request: unknown, catalogVersion: string, globalLimit: number, stageLimit = max, maxCalls = Number.MAX_SAFE_INTEGER, preventPendingReplay = false,
+  observedRequestReservations: number | null = null) {
   if (!Number.isSafeInteger(max) || max < 0) throw Error('COST_RESERVATION_INVALID');
   const hash = digest(request);
   const sameReservation = (row: {operation_id: string;request_hash: string;kind: string;stage: string;reserved_micros: number;catalog_version: string}) =>
@@ -107,11 +108,14 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
     AND (SELECT COUNT(*) FROM cost_reservations WHERE operation_id=? AND kind=? AND stage=?) < ?
     AND (?=0 OR NOT EXISTS(SELECT 1 FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
-      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL))`)
+      AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL))
+    AND (? IS NULL OR (SELECT COUNT(*) FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+      WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=? AND p.workspace_id=? AND p.project_id=? AND p.purpose=?)=?)`)
     .bind(id, op.id, hash, kind, stage, max, catalogVersion, Date.now(), op.id, op.generation,
       kind, id, op.id, op.generation,
       op.id, max, op.max_micros, kind, max, globalLimit, op.id, kind, stage, max, stageLimit, op.id, kind, stage, maxCalls,
-      preventPendingReplay?1:0,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).run();
+      preventPendingReplay?1:0,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose,
+      observedRequestReservations,hash,catalogVersion,op.workspace_id,op.project_id,op.purpose,observedRequestReservations).run();
   if (result.meta.changes !== 1) {
     // Two identical reservations can both miss the preflight read. Only the
     // exact same cost identity can turn the losing INSERT into a safe replay.
@@ -122,6 +126,12 @@ export async function reserve(env: PipelineEnv, op: Operation, id: string, kind:
       LEFT JOIN cost_settlements s ON s.reservation_id=r.id WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=?
       AND p.workspace_id=? AND p.project_id=? AND p.purpose=? AND s.reservation_id IS NULL LIMIT 1`)
       .bind(hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).first())throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    if(observedRequestReservations!==null){
+      const observed=await env.DB.prepare(`SELECT COUNT(*) AS count FROM cost_reservations r JOIN pipeline_operations p ON p.id=r.operation_id
+        WHERE r.kind='model' AND r.request_hash=? AND r.catalog_version=? AND p.workspace_id=? AND p.project_id=? AND p.purpose=?`)
+        .bind(hash,catalogVersion,op.workspace_id,op.project_id,op.purpose).first<{count:number}>();
+      if(observed?.count!==observedRequestReservations)throw Error('MODEL_CALL_RECONCILIATION_REQUIRED');
+    }
     throw Error('COST_BUDGET_EXHAUSTED');
   }
 }

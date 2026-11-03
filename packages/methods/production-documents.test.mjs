@@ -26,6 +26,53 @@ const selection = () => ({schemaVersion:'3.0.0',kind:'material_selection',uses:[
 ]});
 const treatment = {beats:[{id:'hero',assetIds:['product','music'],startFrame:0,endFrame:450}]};
 
+test('Script projection accepts authored SVG text and rejects commented-out scripts',()=>{
+  const doc={segments:[{role:'title',displayText:'One clear promise'}]};
+  const entry={path:'index.html',content:'<img src="src/title.svg">'};
+  assert.doesNotThrow(()=>assertScriptProjection([entry,{path:'src/title.svg',content:
+    '<svg xmlns="http://www.w3.org/2000/svg"><text>One clear <tspan>promise</tspan></text></svg>'}],doc));
+  for(const content of [
+    '<!-- <script>title.textContent="One clear promise";</script> -->',
+    '<!-- <script type="module">title.textContent="One clear promise";</script> -->'
+  ])assert.throws(()=>assertScriptProjection([{path:'index.html',content}],doc),/SCRIPT_SOURCE_PROJECTION_MISSING/);
+  for(const element of ['title','desc','metadata'])assert.throws(()=>assertScriptProjection([entry,
+    {path:'src/title.svg',content:`<svg><${element}>One clear promise</${element}></svg>`}],doc),
+  /SCRIPT_SOURCE_PROJECTION_MISSING/,'SVG accessibility metadata does not render the title');
+  assert.throws(()=>assertScriptProjection([{path:'index.html',content:
+    '<html><head><title>One clear promise</title></head><body></body></html>'}],doc),
+  /SCRIPT_SOURCE_PROJECTION_MISSING/,'the browser tab title is not part of the film');
+  for(const newline of ['\n','\r\n','\r','\u2028','\u2029'])assert.doesNotThrow(()=>assertScriptProjection([
+    {path:'index.html',content:'<script src="index.js"></script>'},
+    {path:'index.js',content:'title.textContent="One clear \\'+newline+'promise";'}],doc),
+  'a JavaScript line continuation contributes no display characters');
+});
+
+test('source replacement keeps a target candidate version consistent across unrelated beats',()=>{
+  const a={resourceId:'a',sha256:hash('a')},b1={resourceId:'b',sha256:hash('b')};
+  const b2={resourceId:'b',sha256:hash('c')},b3={resourceId:'b',sha256:hash('d')};
+  const c={resourceId:'c',sha256:hash('e')};
+  const uses=[{beatId:'first',...a,alternatives:[],locked:true},
+    {beatId:'second',...c,alternatives:[b1],locked:true}];
+  const original={schemaVersion:'3.0.0',kind:'locked_materials',uses,selectionHash:digest(uses)};
+  const promoted=replaceLockedMaterials(original,null,[{fromResourceId:'a',toResourceId:'b'}],[b2],[a,b1,c]);
+  assert.equal(promoted.selection.uses[0].sha256,b2.sha256);
+  assert.deepEqual(promoted.selection.uses[1].alternatives,[b2]);
+  assert.deepEqual(original.uses[1].alternatives,[b1],'the immutable parent keeps its original candidate');
+  const upgraded=replaceLockedMaterials(promoted.selection,null,[{fromResourceId:'b',toResourceId:'b'}],
+    [b3],[a,b1,b2,c]);
+  assert.equal(upgraded.selection.uses[0].sha256,b3.sha256);
+  assert.deepEqual(upgraded.selection.uses[1].alternatives,[b3]);
+  const historical=structuredClone(promoted.selection);
+  historical.uses[1].alternatives=[b1];historical.selectionHash=digest(historical.uses);
+  assert.doesNotThrow(()=>replaceLockedMaterials(historical,null,[{fromResourceId:'b',toResourceId:'b'}],
+    [b3],[a,b1,b2,c]),'an older accepted candidate can still replace its unambiguous active version');
+  for(const replacements of [
+    [{fromResourceId:'a',toResourceId:'b'},{fromResourceId:'b',toResourceId:'c'}],
+    [{fromResourceId:'b',toResourceId:'c'},{fromResourceId:'a',toResourceId:'b'}]
+  ])assert.throws(()=>replaceLockedMaterials(original,null,replacements,[b2,c],[a,b1,c]),
+    /MATERIAL_REPLACEMENT_INVALID/,'a batch cannot silently turn simultaneous choices into a replacement chain');
+});
+
 test('the authoritative Script validates copy, facts, target frames, and editable source projection',()=>{
   const doc=script();
   assert.equal(validScript(doc),true);

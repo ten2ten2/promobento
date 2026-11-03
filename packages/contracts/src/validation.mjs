@@ -76,22 +76,27 @@ export function createSchemaValidator(schema) {
     } finally { if (object) parents.delete(value); }
   };
   return function validateSchema(value, rule = schema, at = '$') {
+    const validationRule = rule;
     if (rule === schema && dispatch.size) {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) return [at + ': EXPECTED_PROTOCOL_OBJECT'];
-      const key = ['kind', 'command', 'event'].find(name => Object.hasOwn(value, name));
+      const key = value && typeof value === 'object' && !Array.isArray(value)
+        ? ['kind', 'command', 'event'].find(name => Object.hasOwn(value, name)) : undefined;
       if (key) {
         const prop = Object.getOwnPropertyDescriptor(value, key);
         if (!Object.hasOwn(prop, 'value')) return [at + ': NOT_JSON'];
-        if (typeof prop.value !== 'string') return [at + '/' + key + ': UNKNOWN_DISCRIMINATOR'];
-        const candidates = dispatch.get(key + ':' + prop.value);
-        if (!candidates) return [at + '/' + key + ': UNKNOWN_DISCRIMINATOR'];
-        if (candidates.size === 1) rule = [...candidates][0];
-      } else if (untagged.length === 1) rule = untagged[0];
-      else return [at + ': DISCRIMINATOR_REQUIRED'];
+        const candidates = typeof prop.value === 'string' ? dispatch.get(key + ':' + prop.value) : undefined;
+        const exclusive = !untagged.length && schema.oneOf.every(entry => {
+          const branch = resolve(entry);
+          return branch.required?.includes(key) && typeof branch.properties?.[key]?.const === 'string';
+        });
+        if (candidates?.size === 1 && exclusive) rule = [...candidates][0];
+      }
     }
     const oversized = sizeError(value, rule, at);
     if (oversized) return [oversized];
     try { canonical(value); } catch (error) { return [at + ': ' + error.message]; }
+    // Dispatch only narrows the size preflight. Root requirements and oneOf exclusivity
+    // still belong to the complete Schema, including optional or untagged alternatives.
+    rule = validationRule;
     let validate = validators.get(rule);
     if (!validate) {
       validate = ajv.compile(typeof rule === 'boolean' ? rule : {

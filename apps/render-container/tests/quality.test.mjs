@@ -89,8 +89,17 @@ test('a blocked loudness result stores a SHA-bound private diagnostic and never 
   const stored=JSON.parse(saved[1].body.toString());
   assert.equal(stored.film.sha256,sha256);
   assert.equal(stored.dynamicQuality.findings[0].kind,'audio_loudness_out_of_range');
+  const decodeFailure={...evidence,dynamicQuality:{kind:'encoded_dynamic_qa',source:'film.mp4',
+   coverage:'incomplete_decode',status:'blocked',signals:parseQualitySignals('',null,15),
+   findings:[{kind:'decode_scan_failed',severity:'block',code:'MEDIA_DECODE_CORRUPT'}],
+   diagnostic:'invalid NAL unit size'}};
+  const decoded=await persistQualityFailure({base,task,evidence:decodeFailure,broker});
+  assert.equal(decoded.film.sha256,sha256);
+  const decodeReport=JSON.parse(saved[3].body.toString());
+  assert.equal(decodeReport.dynamicQuality.coverage,'incomplete_decode');
+  assert.equal(decodeReport.dynamicQuality.diagnostic,'invalid NAL unit size');
   await assert.rejects(persistQualityFailure({base,task,evidence:{...evidence,film:{...evidence.film,sha256:'b'.repeat(64)}},broker}),
    /NATIVE_QA_EVIDENCE_INVALID/);
-  assert.equal(saved.length,2,'no upload is permitted after an identity mismatch');
+  assert.equal(saved.length,4,'no upload is permitted after an identity mismatch');
  }finally{rmSync(base,{recursive:true,force:true});}
 });

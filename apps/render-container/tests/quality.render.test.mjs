@@ -22,7 +22,10 @@ test('dynamic QA decodes the delivered MP4 and builds an actual 12-frame image',
     assert.equal(review.frames.length,12);
     assert.deepEqual([...readFileSync(review.sheet).subarray(0,3)],[0xff,0xd8,0xff]);
     const invalid=join(dir,'invalid.mp4');writeFileSync(invalid,'this is not an MP4');
-    await assert.rejects(analyzeEncodedQuality(invalid,composition,false),/MEDIA_PROCESS_FAILED/);
+    const failed=await analyzeEncodedQuality(invalid,composition,false);
+    assert.equal(failed.status,'blocked');
+    assert.equal(failed.coverage,'incomplete_decode');
+    assert.deepEqual(failed.findings,[{kind:'decode_scan_failed',severity:'block',code:'MEDIA_PROCESS_FAILED'}]);
   }finally{rmSync(dir,{force:true,recursive:true});}
 });
 
@@ -75,6 +78,12 @@ test('corrupt H.264 packets are rejected even when FFmpeg ordinarily exits succe
     const ordinary=await run('ffmpeg',['-hide_banner','-loglevel','error','-i',corrupt,
       '-map','0:v:0','-an','-f','null','-'],{timeoutMs:120_000});
     assert.match(ordinary.stderr,/NAL unit|error|invalid/i);
-    await assert.rejects(analyzeEncodedQuality(corrupt,composition,false),/MEDIA_DECODE_CORRUPT/);
+    const quality=await analyzeEncodedQuality(corrupt,composition,false);
+    assert.equal(quality.status,'blocked');
+    assert.equal(quality.coverage,'incomplete_decode');
+    assert.equal(quality.findings[0].kind,'decode_scan_failed');
+    assert.match(quality.findings[0].code,/MEDIA_DECODE_CORRUPT|MEDIA_PROCESS_FAILED/);
+    assert.match(quality.diagnostic,/NAL unit|error|invalid/i);
+    assert.equal(quality.signals.integratedLufs,null);
   }finally{rmSync(dir,{force:true,recursive:true});}
 });

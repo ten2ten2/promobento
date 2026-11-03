@@ -12,4 +12,8 @@
 
 ## 128 次请求的历史开账
 
-[history.mjs](../../../research/model-probe/history.mjs)由四份报告生成[opening-spend.json](opening-spend.json)：**128 次请求，114 次可估价 255,521 usd_micros，14 次 quote:null**；对应冻结[价格快照](pricing-catalog.json)。这不是历史总账确认；未取得全账户对账记录时 `openingMicros:null`、`openingConfirmed:false`，缺 usage 不能记 0。共享账本保留原始身份，临时费用放行已过期；最新余额及再次授权前提见[有效授权与费用](../../implementation-status.md#有效授权与费用)。
+[opening-spend.json](opening-spend.json)保留当时由四份报告生成的原始快照：**128 次请求，114 次估价合计 255,521 usd_micros，14 次 quote:null**；对应冻结[价格快照](pricing-catalog.json)。[history.mjs](../../../research/model-probe/history.mjs)逐条复核原报告的身份、状态和 usage 后返回该快照的原估价，保持已登记开账哈希不变；原件被改写或与报告不符时失败。
+
+现行计费规则复核时，run4 的 `claude-opus-5-5/stream` 含未指定 TTL 的缓存写入量，不能选择 5 分钟或 1 小时价格，因此该笔旧估价 **42,224** 现应列为未知；按现行规则复算为 **113 次可估价 213,297 usd_micros、15 次未知**。这项诊断不改写原快照或授权，不能按两份估价之差减少费用或预留，必须交由实际账单对账。
+
+以上均不是历史总账确认；未取得全账户对账记录时 `openingMicros:null`、`openingConfirmed:false`，缺 usage 不能记 0。共享账本保留原始身份，临时费用放行已过期；最新余额及再次授权前提见[有效授权与费用](../../implementation-status.md#有效授权与费用)。

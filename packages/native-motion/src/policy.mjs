@@ -4,7 +4,7 @@ import {closeSync, lstatSync, openSync, readSync, readFileSync, realpathSync} fr
 import {extname, isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-export const CLOUD_PATCH_VERSION = '1.0.1';
+export const CLOUD_PATCH_VERSION = '1.0.2';
 export const PROJECT_ORIGIN = 'http://native.project.invalid';
 const MAX_FILE_BYTES = 40 << 20;
 const MIME = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.avif':'image/avif','.gif':'image/gif','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf','.otf':'font/otf','.mp4':'video/mp4','.mov':'video/quicktime','.webm':'video/webm','.wav':'audio/wav','.mp3':'audio/mpeg','.m4a':'audio/mp4','.ogg':'audio/ogg','.flac':'audio/flac','.gltf':'model/gltf+json','.glb':'model/gltf-binary'};

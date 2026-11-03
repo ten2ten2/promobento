@@ -451,8 +451,10 @@ export class OperationDO extends DurableObject<PipelineEnv> {
     const current = await this.env.DB.prepare('SELECT status,generation FROM pipeline_operations WHERE id=?')
       .bind(operationId).first<{status:string;generation:number}>();
     if (!current) throw Error('OPERATION_NOT_FOUND');
-    if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
     const cached = await this.ctx.storage.get<Json>('progress') ?? {operationId, status: 'active'};
+    // Storage reads yield to other watch requests. Enforce the cap only after
+    // the last await, immediately before synchronously registering a reader.
+    if (this.listeners.size >= 100) return new Response(null,{status:429,headers:{'retry-after':'1'}});
     const initial = ['succeeded','failed','cancelled'].includes(current.status)
       ? {...cached, operationId, generation:current.generation, status:current.status} : cached;
     if (['succeeded','failed','cancelled'].includes(current.status)) this.terminalProgress = initial;

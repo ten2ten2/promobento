@@ -180,9 +180,24 @@ export default {
         if (previous && previous.request_key !== input.contextKey) throw Error('IDEMPOTENCY_CONFLICT');
         const method = previous ? null : await immutableJson(env, 'operations/' + op.id + '/directing-method-' + directingMethodRef(directingMethodPack).contentHash + '.json', directingMethodPack);
         await env.DB.batch([
-          env.DB.prepare('INSERT OR IGNORE INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine) VALUES(?,?,?,\'huashu\')').bind(op.id, input.contextKey, method?.key ?? null),
-          env.DB.prepare('INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json) VALUES(?,?,?,?)').bind('creative-' + op.id, op.id, 'creative', canonical({operationId: op.id, engine: 'huashu'})),
+          env.DB.prepare(`INSERT OR IGNORE INTO pipeline_contexts(operation_id,request_key,directing_method_key,engine)
+            SELECT ?,?,?,'huashu' WHERE EXISTS(SELECT 1 FROM pipeline_operations
+              WHERE id=? AND generation=? AND status IN ('active','awaiting_user'))`)
+            .bind(op.id, input.contextKey, method?.key ?? null, op.id, op.generation),
+          env.DB.prepare(`INSERT OR IGNORE INTO pipeline_outbox(id,operation_id,kind,payload_json)
+            SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM pipeline_contexts c JOIN pipeline_operations o ON o.id=c.operation_id
+              WHERE c.operation_id=? AND c.request_key=? AND c.engine='huashu'
+                AND o.generation=? AND o.status IN ('active','awaiting_user'))`)
+            .bind('creative-' + op.id, op.id, 'creative', canonical({operationId: op.id, engine: 'huashu'}),
+              op.id, input.contextKey, op.generation),
         ]);
+        // Two first requests can both miss the preflight read. Only the
+        // persisted winner's context may be acknowledged or dispatched.
+        const stored = await env.DB.prepare('SELECT request_key,engine FROM pipeline_contexts WHERE operation_id=?').bind(op.id).first<Json>();
+        if (stored && stored.engine !== 'huashu') throw Error('LEGACY_WORKFLOW_REQUIRES_RECONCILIATION');
+        if (stored && stored.request_key !== input.contextKey) throw Error('IDEMPOTENCY_CONFLICT');
+        await operation(env, op.id, op.generation);
+        if (!stored) throw Error('OPERATION_FENCED');
         ctx.waitUntil(flushOutbox(env));
         return privateJson({operationId: op.id}, {status: 202});
       }

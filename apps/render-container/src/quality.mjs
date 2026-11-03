@@ -61,23 +61,33 @@ export function assessQualitySignals(signals, hasAudio) {
 // H.264 recovery. A claimed full-file scan must reject these diagnostics.
 const corruptDecode = /(?:invalid NAL unit size|error splitting the input into NAL units|error submitting packet to decoder|error while decoding (?:stream|MB)|invalid data found when processing input|corrupt decoded frame|decode_slice_header error|invalid frame size|packet corrupt)/i;
 function assertDecodedWithoutErrors(log) {
-  if (corruptDecode.test(log)) throw Error('MEDIA_DECODE_CORRUPT');
+  if (corruptDecode.test(log)) throw Object.assign(Error('MEDIA_DECODE_CORRUPT'), {diagnostic: log.slice(-16000)});
 }
 
 /** Full-file decode is measurable evidence, not a claim that anyone watched or liked the film. */
 export async function analyzeEncodedQuality(path, composition, hasAudio) {
-  const movie = await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
-    '-map', '0:v:0', '-vf', 'blackdetect=d=0.4:pix_th=0.10:pic_th=0.98,freezedetect=n=-45dB:d=0.6',
-    '-an', '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10});
-  const soundtrack = hasAudio ? await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
-    '-map', '0:a:0', '-vn', '-af', 'silencedetect=noise=-40dB:d=0.6,loudnorm=I=-14:TP=-1:LRA=11:print_format=json',
-    '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10}) : null;
-  if (movie.stderrTruncated || soundtrack?.stderrTruncated) throw Error('MEDIA_PROCESS_LOG_TRUNCATED');
-  assertDecodedWithoutErrors(movie.stderr);
-  if (soundtrack) assertDecodedWithoutErrors(soundtrack.stderr);
-  const signals = parseQualitySignals(movie.stderr, soundtrack?.stderr ?? null, composition.durationSeconds);
-  const findings = assessQualitySignals(signals, hasAudio);
-  return {kind: 'encoded_dynamic_qa',source: 'film.mp4',coverage: hasAudio ? 'full_video_and_audio_decode' : 'full_video_decode_no_audio',
-    status: findings.some(item => item.severity === 'block') ? 'blocked' : findings.length ? 'review_required' : 'clear',
-    signals,findings,ownerNormalSpeedReview:'pending'};
+  try {
+    const movie = await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
+      '-map', '0:v:0', '-vf', 'blackdetect=d=0.4:pix_th=0.10:pic_th=0.98,freezedetect=n=-45dB:d=0.6',
+      '-an', '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10});
+    const soundtrack = hasAudio ? await run('ffmpeg', ['-hide_banner', '-nostats', '-loglevel', 'info', '-xerror', '-err_detect', 'explode', '-i', path,
+      '-map', '0:a:0', '-vn', '-af', 'silencedetect=noise=-40dB:d=0.6,loudnorm=I=-14:TP=-1:LRA=11:print_format=json',
+      '-f', 'null', '-'], {timeoutMs: 180_000, stderrMaxBytes: 256 << 10}) : null;
+    if (movie.stderrTruncated || soundtrack?.stderrTruncated) throw Error('MEDIA_PROCESS_LOG_TRUNCATED');
+    assertDecodedWithoutErrors(movie.stderr);
+    if (soundtrack) assertDecodedWithoutErrors(soundtrack.stderr);
+    const signals = parseQualitySignals(movie.stderr, soundtrack?.stderr ?? null, composition.durationSeconds);
+    const findings = assessQualitySignals(signals, hasAudio);
+    return {kind: 'encoded_dynamic_qa',source: 'film.mp4',coverage: hasAudio ? 'full_video_and_audio_decode' : 'full_video_decode_no_audio',
+      status: findings.some(item => item.severity === 'block') ? 'blocked' : findings.length ? 'review_required' : 'clear',
+      signals,findings,ownerNormalSpeedReview:'pending'};
+  } catch (error) {
+    // Decode errors, timeouts and truncated logs also need a private QA receipt.
+    // No completed scan or measurement is claimed when the tool cannot finish.
+    const code = /^[A-Z][A-Z0-9_]{2,80}$/.test(error?.message || '') ? error.message : 'MEDIA_QUALITY_SCAN_FAILED';
+    return {kind: 'encoded_dynamic_qa', source: 'film.mp4', coverage: 'incomplete_decode', status: 'blocked',
+      signals: parseQualitySignals('', null, composition.durationSeconds),
+      findings: [{kind: 'decode_scan_failed', severity: 'block', code}], ownerNormalSpeedReview: 'pending',
+      ...(typeof error?.diagnostic === 'string' ? {diagnostic: error.diagnostic.slice(-16000)} : {})};
+  }
 }

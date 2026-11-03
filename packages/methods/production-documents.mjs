@@ -93,7 +93,7 @@ const htmlEntities = text => text.replace(/&(?:amp|lt|gt|quot|apos|nbsp|#(?:x[\d
 /** The text of adjacent inline elements is one visible phrase, unlike comments, attributes, and scripts. */
 function visibleHtmlText(content) {
   const withoutInert = content.replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+    .replace(/<(head|title|desc|metadata|script|style|template|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
   const separated = withoutInert.replace(/<\/?(?:address|article|aside|blockquote|br|div|footer|form|h[1-6]|header|hr|li|main|nav|ol|p|section|table|td|th|tr|ul)\b[^>]*>/gi, ' ');
   return normalizedCopy(htmlEntities(separated.replace(/<[^>]*>/g, '')));
 }
@@ -156,13 +156,14 @@ function nativeDisplayText(content, executableJs) {
 
 /** Native HTML/JS must actually contain display copy, rather than only an inert JSON plan. */
 export function assertScriptProjection(files, script) {
-  const html = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
-    .map(file => visibleHtmlText(file.content));
+  const markup = files.filter(file => file.path === 'index.html' || /^src\/.*\.(?:html|svg)$/.test(file.path));
+  const html = markup.map(file => visibleHtmlText(file.content));
   // Inspect string literals without evaluating author JavaScript inside the Worker.
   // Escaped quotes, backslashes, hex and Unicode escapes are normal representations
   // of displayed copy (JSON.stringify is a common way to author them).
   const inlineJs = files.filter(file => file.path === 'index.html' || /^src\/.*\.html$/.test(file.path))
-    .flatMap(file => [...file.content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
+    .flatMap(file => [...file.content.replace(/<!--[\s\S]*?-->/g, '')
+      .matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)]
       .filter(([,attrs]) => {
         if (/(?:^|\s)src\s*=/i.test(attrs)) return false;
         const declared = /(?:^|\s)type\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
@@ -175,7 +176,8 @@ export function assertScriptProjection(files, script) {
   const token = /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`/g;
   const executableJs = js.replace(token, ' ');
   const jsStrings = [...js.matchAll(token)].map(([literal]) => literal).filter(literal => !literal.startsWith('/'))
-    .map(literal => literal.slice(1, -1).replace(/\\(?:u\{([0-9a-f]{1,6})\}|u([0-9a-f]{4})|x([0-9a-f]{2})|([\s\S]))/gi,
+    .map(literal => literal.slice(1, -1).replace(/\\(?:\r\n|[\n\r\u2028\u2029])/g, '')
+      .replace(/\\(?:u\{([0-9a-f]{1,6})\}|u([0-9a-f]{4})|x([0-9a-f]{2})|([\s\S]))/gi,
       (match, codepoint, unicode, hex, escaped) => {
         if (codepoint || unicode || hex) {
           const number = parseInt(codepoint ?? unicode ?? hex, 16);
@@ -361,13 +363,15 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
     const next = source.get(item.toResourceId);
     if (!next) fail('MATERIAL_REPLACEMENT_INVALID');
     // A user may explicitly replace A with B under the same resource ID.
-    // The ID alone is ambiguous unless exactly one old SHA is locked.
+    // The active recording takes precedence over historical alternatives.
+    // With no active use, an alternative-only replacement still needs one SHA.
     if (item.fromResourceId === item.toResourceId) {
-      const oldSha = new Set([
-        ...uses.flatMap(use => [use.resourceId === item.fromResourceId ? use.sha256 : null,
-          ...use.alternatives.filter(alt => alt.resourceId === item.fromResourceId).map(alt => alt.sha256)]),
+      const active = [
+        ...uses.filter(use => use.resourceId === item.fromResourceId).map(use => use.sha256),
         ...scriptAudioLocks.filter(lock => lock.resourceId === item.fromResourceId).map(lock => lock.sha256),
-      ].filter(Boolean));
+      ];
+      const oldSha = new Set(active.length ? active : uses.flatMap(use =>
+        use.alternatives.filter(alt => alt.resourceId === item.fromResourceId).map(alt => alt.sha256)));
       if (oldSha.size !== 1 || oldSha.has(next.sha256)) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     const replacedSha = new Set([
@@ -415,6 +419,11 @@ export function replaceLockedMaterials(selection, script, replacements, admitted
       if (!unique(moment.resourceIds)) fail('MATERIAL_REPLACEMENT_INVALID');
     }
     if (!changed) fail('MATERIAL_REPLACEMENT_INVALID');
+    // The new target may also be an alternative in a different beat. Keep
+    // that logical candidate on the explicitly admitted version, so a later
+    // same-ID replacement does not see stale, conflicting candidate SHAs.
+    for (const use of uses) for (const alternative of use.alternatives)
+      if (alternative.resourceId === next.resourceId) alternative.sha256 = next.sha256;
   }
   // A newly selected recording may speak the same words at different times.
   // Invalidate clocks of directly affected Moments and their Segments. Also

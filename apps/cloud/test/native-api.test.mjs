@@ -357,3 +357,62 @@ test('real internal HTTP and Queue routes persist one direction event and ACK on
   assert.equal((await request('operations/'+creation.id+'/cancel',{})).status,200);
   await Promise.all(background);
 });
+
+test('concurrent first creative requests acknowledge only the durably stored context',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const id='creative-concurrent-operation',background=[],sent=[];
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+  let reads=0,release;
+  const firstReads=new Promise(resolve=>{release=resolve;});
+  const racingDB={...DB,prepare(sql){
+    const statement=DB.prepare(sql);
+    if(sql==='SELECT request_key,engine FROM pipeline_contexts WHERE operation_id=?'){
+      const first=statement.first.bind(statement);
+      statement.first=async()=>{
+        const value=await first();
+        if(++reads<=2){if(reads===2)release();await firstReads;}
+        return value;
+      };
+    }
+    return statement;
+  }};
+  const env={DB:racingDB,MEDIA:memoryMedia().MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only',
+    OUTBOX:{async send(item){sent.push(item);}}};
+  const request=contextKey=>worker.fetch(new Request('https://worker.example/internal/s1/creative',{
+    method:'POST',headers:{authorization:'Bearer fixture-only'},body:canonical({operationId:id,contextKey}),
+  }),env,{waitUntil(promise){background.push(promise);}});
+  const keys=['evals/fixture/context-one.json','evals/fixture/context-two.json'];
+  const responses=await Promise.all(keys.map(request));
+  assert.deepEqual(responses.map(response=>response.status).sort(),[202,409]);
+  const winner=responses.findIndex(response=>response.status===202);
+  assert.equal(db.prepare('SELECT request_key FROM pipeline_contexts WHERE operation_id=?').get(id).request_key,keys[winner]);
+  assert.deepEqual(await responses[1-winner].json(),{code:'IDEMPOTENCY_CONFLICT'});
+  await Promise.all(background);
+  assert.equal(sent.length,1);
+  assert.equal((await request(keys[winner])).status,202,'the identical request remains idempotent');
+  await Promise.all(background);
+  assert.equal(sent.length,1,'the existing dispatch is not replaced');
+});
+
+test('a cancellation during creative setup cannot persist a late context or dispatch',async t=>{
+  const {db,DB}=sqliteD1();t.after(()=>db.close());
+  const id='creative-cancelled-operation';
+  db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(id,'workspace','project',0,'evaluation','active','request',100000,Date.now(),null,null);
+  const {MEDIA}=memoryMedia(),put=MEDIA.put.bind(MEDIA);
+  MEDIA.put=async(...args)=>{
+    const result=await put(...args);
+    db.prepare("UPDATE pipeline_operations SET status='cancelled',generation=generation+1 WHERE id=?").run(id);
+    return result;
+  };
+  const response=await worker.fetch(new Request('https://worker.example/internal/s1/creative',{
+    method:'POST',headers:{authorization:'Bearer fixture-only'},
+    body:canonical({operationId:id,contextKey:'evals/fixture/context.json'}),
+  }),{DB,MEDIA,S1_ENABLED:'internal_eval',EVAL_API_KEY:'fixture-only'},
+    {waitUntil(){assert.fail('fenced creative request must not dispatch');}});
+  assert.equal(response.status,422);
+  assert.deepEqual(await response.json(),{code:'OPERATION_FENCED'});
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_contexts').get().n,0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_outbox').get().n,0);
+});

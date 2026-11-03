@@ -15,7 +15,7 @@ const wrangler=(args,options={})=>execFileSync('pnpm',['--filter','@promobento/c
  {env:{...process.env,WRANGLER_LOG_PATH:'/tmp/promobento-s1-recovery-cli.log'},encoding:'utf8',timeout:60000,...options});
 if(parseCanonicalJson(wrangler(['secret','list','--env','staging'])).some(secret=>secret.name==='EVAL_API_KEY'))throw Error('ANOTHER_INTERNAL_SESSION_ACTIVE');
 const key=randomBytes(32).toString('hex'),base='https://promobento-staging.woffordvivian.workers.dev/internal/s1/';
-const save=()=>writePrivateFile(file,canonical(report)+'\n');let bound=false;
+const save=()=>writePrivateFile(file,canonical(report)+'\n');let secretAttempted=false;
 async function json(path,method='GET'){
  const until=Date.now()+30000;
  for(;;){
@@ -26,7 +26,10 @@ async function json(path,method='GET'){
  }
 }
 try{
- wrangler(['secret','put','EVAL_API_KEY','--env','staging'],{input:key});bound=true;report.internalKeyRevoked=false;save();
+ // A timeout can occur after Cloudflare accepted the secret. Always attempt
+ // revocation once the write is dispatched, even when the CLI never confirms it.
+ secretAttempted=true;report.internalKeyRevoked=false;save();
+ wrangler(['secret','put','EVAL_API_KEY','--env','staging'],{input:key});
  const state=await json('operations/'+report.operationId);
  if(!['failed','cancelled'].includes(state.status))throw Error('OPERATION_NOT_TERMINAL');
  report.cleanup=await json('operations/'+report.operationId+'/reconcile','POST');save();
@@ -40,5 +43,5 @@ try{
  report.cleanupStatus='confirmed';save();
  console.log(canonical({operationId:report.operationId,status:state.status,cost:report.cost,capacity:report.capacity,scope:'terminal_cleanup_only_no_model_or_render_calls'}));
 }catch(error){report.cleanupStatus='unconfirmed';report.cleanupRecoveryError=String(error.stack??error);save();throw error;}
-finally{if(bound){try{wrangler(['secret','delete','EVAL_API_KEY','--env','staging']);report.internalKeyRevoked=true;save();}
+finally{if(secretAttempted){try{wrangler(['secret','delete','EVAL_API_KEY','--env','staging']);report.internalKeyRevoked=true;save();}
  catch(error){report.internalKeyRevoked=false;report.keyRevocationError=String(error.stack??error);save();throw error;}}}

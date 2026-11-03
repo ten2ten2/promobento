@@ -81,3 +81,16 @@ test('size preflight stops recursive input cycles without expanding repeated bra
   const leaf={children:[]};
   assert.deepEqual(validate({children:[leaf,leaf]}),[],'A shared acyclic object is still valid JSON data');
 });
+
+test('tagged preflight cannot bypass root constraints or reject valid untagged alternatives', () => {
+  const tagged = {$schema: schema.$schema, $id: 'https://promobento.test/root-tagged', type: 'object',
+    properties: {requiredAtRoot: {type: 'boolean'}}, required: ['requiredAtRoot'],
+    oneOf: [{type: 'object', properties: {kind: {const: 'message'}}}]};
+  const validate = createSchemaValidator(tagged);
+  assert.ok(validate({kind: 'message'}).length, 'the selected branch does not replace root required fields');
+  assert.deepEqual(validate({requiredAtRoot: true}), [], 'a tag not declared required remains optional');
+  const alternatives = {$schema: schema.$schema, $id: 'https://promobento.test/untagged-alternative',
+    oneOf: [{type: 'object', properties: {kind: {const: 'message'}}, required: ['kind']},
+      {type: 'object', properties: {kind: {type: 'number'}}, required: ['kind']}]};
+  assert.deepEqual(createSchemaValidator(alternatives)({kind: 1}), []);
+});

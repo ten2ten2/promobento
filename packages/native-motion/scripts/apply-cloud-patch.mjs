@@ -78,6 +78,10 @@ const patches = [
       [
         "  const voiceFile = voiceTag ? join(project.root, attrs(voiceTag[0]).src || 'assets/voice.wav') : null;",
         "  const voiceFile = voiceTag ? safeMediaFile(attrs(voiceTag[0]).src || 'assets/voice.wav', project.root) : null;"
+      ],
+      [
+        "const k = Object.keys(window.__timelines || {}); const tl = k.length && window.__timelines[k[0]]; if (tl) { o.id = k[0];",
+        "const id = window.__omEngine.info().id; const tl = window.__timelines?.[id]; if (tl) { o.id = id;"
       ]
     ]
   },
