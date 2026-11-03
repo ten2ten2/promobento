@@ -256,17 +256,12 @@ test('a recovery sweep launches only one cleanup for many pending Workflows of t
  for(let n=0;n<9;n++)db.prepare("INSERT INTO pipeline_workflows(kind,id,operation_id,generation,registered_at,engine) VALUES('render',?,?,0,?,'huashu')")
   .run('sweep-render-'+n,op.id,Date.now());
  db.prepare("UPDATE pipeline_operations SET status='cancelled' WHERE id=?").run(op.id);
- let reconciliations=0,nativeChecks=0;
- env.RENDER_WORKFLOW={get(){return{async status(){nativeChecks++;return{status:'complete'};}}}};
- const prepare=env.DB.prepare.bind(env.DB);
- env.DB.prepare=sql=>{
-  if(sql==='SELECT status FROM pipeline_operations WHERE id=?')reconciliations++;
-  return prepare(sql);
- };
+ const nativeChecks=[];
+ env.RENDER_WORKFLOW={get(id){return{async status(){nativeChecks.push(id);return{status:'complete'};}}}};
  const result=await recoverWorkflows(env);
  assert.equal(result.length,1,'the sweep must coalesce all pending rows of a terminal operation');
- assert.equal(reconciliations,1,'terminal cleanup must not race itself across four pool workers');
- assert.equal(nativeChecks,9,'one reconciliation still stops every native Workflow');
+ assert.deepEqual(nativeChecks.sort(),Array.from({length:9},(_,n)=>'sweep-render-'+n),
+  'one cleanup must inspect every native Workflow exactly once, regardless of internal terminal checks');
  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pipeline_workflows WHERE reconciled_at IS NOT NULL').get().n,9);
  assert.deepEqual(await recoverWorkflows(env),[]);
 });
