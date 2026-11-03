@@ -1,5 +1,17 @@
 [
   {
+    "schema": "api-error",
+    "value": {
+      "code": "NOT_FOUND",
+      "messageKey": "apiErrors.notFound",
+      "params": {},
+      "message": "The requested resource was not found.",
+      "fieldErrors": {},
+      "retryable": false,
+      "requestId": "fixture-request"
+    }
+  },
+  {
     "schema": "native-script",
     "value": {
       "schemaVersion": "3.0.0",

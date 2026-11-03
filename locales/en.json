@@ -297,5 +297,82 @@
     "jobs": "Jobs",
     "refunds": "Refunds",
     "environment": "Environment"
+  },
+  "apiErrors": {
+    "notFound": "The requested resource was not found.",
+    "methodNotAllowed": "This request method is not supported.",
+    "internalError": "The request could not be completed.",
+    "serviceUnavailable": "The service is temporarily unavailable. Please try again."
+  },
+  "webShell": {
+    "navigation": {
+      "skipToContent": "Skip to content",
+      "mainLabel": "Main navigation",
+      "footerLabel": "Footer navigation",
+      "homeLabel": "{{brand}} home",
+      "home": "Home",
+      "formats": "Formats",
+      "help": "Help"
+    },
+    "home": {
+      "eyebrow": "For software and course teams",
+      "availability": "PromoBento is in development. Video creation and purchases are not available yet.",
+      "exploreFormats": "Explore video formats",
+      "about": "About PromoBento",
+      "illustrationLabel": "Three stages: your assets, your story, your promo video",
+      "assets": "Your assets",
+      "story": "Your story",
+      "promo": "Your promo",
+      "duration": "{{short}} / {{long}} seconds",
+      "processEyebrow": "From real material to a clear story",
+      "processTitle": "Made around what you are launching.",
+      "assetsStep": "01 / Start with the real thing",
+      "assetsTitle": "Bring your product to the screen.",
+      "assetsBody": "Use product screenshots, recordings, course visuals and the facts your audience needs.",
+      "directionStep": "02 / Choose the direction",
+      "directionTitle": "Keep a hand in the creative work.",
+      "directionBody": "Review the idea, refine the story and make changes before choosing the final version.",
+      "formatStep": "03 / Fit the destination",
+      "formatTitle": "A considered layout for each channel.",
+      "formatBody": "Choose from portrait, landscape, square and feed layouts for a 15 or 30 second video."
+    },
+    "formats": {
+      "metaTitle": "Video formats — PromoBento",
+      "metaDescription": "Planned video lengths, layouts and platform presets for PromoBento.",
+      "eyebrow": "Video formats",
+      "title": "One story. Room for every channel.",
+      "intro": "PromoBento is being built for {{short}} and {{long}} second promo videos, with a separate composition for each layout.",
+      "availability": "These are the planned export formats. Video creation and export are not available yet.",
+      "landscape": "Landscape",
+      "portrait": "Portrait",
+      "feed": "Feed",
+      "square": "Square",
+      "note": "Platform presets help prepare the right shape. Each platform still applies its own upload and content requirements."
+    },
+    "help": {
+      "metaTitle": "Help — PromoBento",
+      "metaDescription": "What PromoBento is being built for and how to get in touch.",
+      "eyebrow": "Help",
+      "title": "A few things to know.",
+      "productTitle": "What is PromoBento?",
+      "productBody": "PromoBento is being built to help software and course teams turn their own materials into short promotional videos. You choose the direction and review the work.",
+      "availabilityTitle": "Can I create or buy a video now?",
+      "availabilityBody": "Not yet. This website introduces the product while development continues. Accounts, uploads, creation and purchases will be available in a later release.",
+      "formatsTitle": "Which formats are planned?",
+      "formatsBody": "15 or 30 second videos in portrait, landscape, square and feed layouts.",
+      "formatsLink": "See the video formats.",
+      "contactTitle": "How can I get in touch?",
+      "email": "Email"
+    },
+    "errors": {
+      "notFoundTitle": "Page not found",
+      "notFoundMetaTitle": "Page not found — PromoBento",
+      "notFoundBody": "The page may have moved, or it is not available yet.",
+      "retry": "Please try again",
+      "unavailableTitle": "We could not load this page.",
+      "unavailableBody": "Refresh the page or return home.",
+      "returnHome": "Return home",
+      "missingMessage": "Something went wrong. Please try again."
+    }
   }
 }

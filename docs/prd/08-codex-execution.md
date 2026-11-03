@@ -23,10 +23,13 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 | `install` | pnpm 冻结安装 |
 | `check:repo` | 预编译验证器，检查文档链接/锚点、版本、配置、路由与契约一致性 |
 | `check:contracts` | 检查原生运行时、平台预设、模型目录及授权配置 |
-| `test` | 先构建验证器，再运行 scripts、packages、apps、tests 中的 `*.test.{mjs,js,cjs,ts,mts,cts}`，排除 `*.render.test.*`；不支持的测试后缀报错。原生 TS 执行不代替类型检查 |
-| `typecheck` | 先构建契约验证器，再检查 `apps/cloud` 的 TypeScript，包含共享契约导入用例 |
+| `test` | 先构建验证器与 Web，再运行单元测试和本地多 Worker/D1 集成测试，排除 `*.render.test.*`；原生 TS 执行不代替类型检查 |
+| `typecheck` | 先构建契约验证器，再检查 Core、Web 和 Preview 的 TypeScript，包含共享契约导入用例 |
 | `test:browser` | CI 固定镜像内运行完整 huashu 的四画幅真实取帧、原生变量编辑和 15/30 秒有声整片导出；见[原生运行时](../../packages/native-motion/README.md) |
 | `test:cloud-local` | 以 SQLite／R2 和模型／容器响应夹具验证原生方向等待、创作／改稿、整片提交、取消与恢复；不产生模型费用，不代替真实云验 |
+| `test:saas-local` | 构建 Web，使用真实本地 workerd/D1 验证断言批写、T0–T7、命名服务绑定与流式网关；不部署、不调用模型 |
+| `build:web` | 构建 React Router SSR Worker、页面和静态资源 |
+| `test:web-browser` | 已完成 `build:web` 后，使用固定 Chromium 验证 hydration、页面导航、CSP 和窄屏；CI 的 browser job 提供浏览器 |
 | `build:validators` | 将当前原生工程与辅助 Schema 预编译为 ESM；Workers 不在请求内编译 Ajv |
 | `test:native` | 原生清单与路径边界、导演编排、源码版本、媒介证据、物理停止恢复及实际／未知模型账本的最小离线集 |
 
@@ -77,7 +80,7 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 
 ## 3 代码责任与可复现工具链
 
-应用按 [apps/cloud](../../apps/cloud/README.md)（Worker/Workflows/DO、broker、版本与账本）和 [apps/render-container](../../apps/render-container/README.md)（隔离预览/整片、媒体归一与实际工程归档）分工；[packages/native-motion](../../packages/native-motion/README.md)直接调用完整上游，`packages/contracts`统一清单、身份与校验，`packages/methods`管理原生导演和上游方法。素材/声音辅助工具负责真实来源处理。客户实现新增 `apps/web`（SSR、页面与 API 网关，无数据绑定和密钥）与 `apps/preview`（独立预览域），客户业务模块放在 `apps/cloud/src/` 下按领域分目录，现有 S1 文件不做零散搬迁；拓扑与写入归属见 [04 §1](04-architecture-and-data.md#部署拓扑与写入归属)。其余客户素材/播放器模块随实现加入，不建空入口。
+应用按 [apps/cloud](../../apps/cloud/README.md)（Worker/Workflows/DO、broker、版本与账本）和 [apps/render-container](../../apps/render-container/README.md)（隔离预览/整片、媒体归一与实际工程归档）分工；[packages/native-motion](../../packages/native-motion/README.md)直接调用完整上游，`packages/contracts`统一清单、身份与校验，`packages/methods`管理原生导演和上游方法。[apps/web](../../apps/web/README.md) 提供 SSR、页面与 API 网关，无数据绑定和密钥；[apps/preview](../../apps/preview/README.md) 是独立预览域的服务边界。客户业务模块放在 `apps/cloud/src/` 下按领域分目录，现有 S1 文件不做零散搬迁；拓扑与写入归属见 [04 §1](04-architecture-and-data.md#部署拓扑与写入归属)。客户素材/播放器模块随相应阶段实现。
 
 客户实现按依赖顺序拆分：文档定稿 → 带断言批写（含可复跑的额度竞争、冻结、重放与重复付款并发用例）、多 Worker 测试台、Web 骨架与网关、Preview 空壳 → 身份与会话 → 项目（含删除墓碑与删除后禁止新建作业）、试用、权益账本与费用信封 → 上传、素材权利与归一化 → 引擎适配层、审核端口与候选状态机 → Studio 与预览 → 改稿、QA、目标准备与快照 → Waffo、交付与退款 → 团队、审阅、后台与清理。每步提交针对性的单元、契约与安全测试；数据库步骤按 §4 在真实 D1 验证并发。
 

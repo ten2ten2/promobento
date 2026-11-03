@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promobento.com/contracts/api-error/3.0.0",
+  "title": "Public API infrastructure error",
+  "type": "object",
+  "required": ["code", "messageKey", "params", "message", "fieldErrors", "retryable", "requestId"],
+  "additionalProperties": false,
+  "properties": {
+    "code": {"enum": ["NOT_FOUND", "METHOD_NOT_ALLOWED", "INTERNAL_ERROR", "SERVICE_UNAVAILABLE"]},
+    "messageKey": {"enum": ["apiErrors.notFound", "apiErrors.methodNotAllowed", "apiErrors.internalError", "apiErrors.serviceUnavailable"]},
+    "params": {"type": "object", "additionalProperties": false},
+    "message": {"type": "string", "minLength": 1, "maxLength": 256},
+    "fieldErrors": {"type": "object", "additionalProperties": false},
+    "retryable": {"type": "boolean"},
+    "requestId": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"}
+  }
+}

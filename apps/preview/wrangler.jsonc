@@ -1,0 +1,25 @@
+{
+  "name": "promobento-preview",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "services": [
+    { "binding": "PREVIEW_GATEWAY", "service": "promobento", "entrypoint": "PreviewGateway" }
+  ],
+  "env": {
+    "staging": {
+      "name": "promobento-preview-staging",
+      "services": [
+        { "binding": "PREVIEW_GATEWAY", "service": "promobento-staging", "entrypoint": "PreviewGateway" }
+      ]
+    },
+    "production": {
+      "name": "promobento-preview-prod",
+      "services": [
+        { "binding": "PREVIEW_GATEWAY", "service": "promobento-prod", "entrypoint": "PreviewGateway" }
+      ]
+    }
+  }
+}

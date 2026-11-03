@@ -23,7 +23,7 @@ run = "pnpm run build:validators && node scripts/check-current-config.mjs"
 [tasks."test"]
 description = "Run Node unit tests in scripts, packages, apps and tests"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && node scripts/run-tests.mjs"
+run = "pnpm run build:validators && pnpm run build:web && node scripts/run-tests.mjs"
 
 [tasks."test:browser"]
 description = "Render real native 15/30 second films and previews inside the isolated CI image"
@@ -41,11 +41,26 @@ dir = "{{config_root}}"
 run = "node packages/contracts/scripts/build-validators.mjs"
 
 [tasks."typecheck"]
-description = "Build validators and type-check the native cloud control plane"
+description = "Build validators and type-check Core, Web and Preview"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck"
+run = "pnpm run build:validators && pnpm --filter @promobento/cloud typecheck && pnpm --filter @promobento/web typecheck && pnpm --filter @promobento/preview typecheck"
 
 [tasks."test:native"]
 description = "Check native project boundaries, director orchestration, recovery and model accounting"
 dir = "{{config_root}}"
 run = "pnpm run build:validators && node --test packages/contracts/test/canonical.test.mjs packages/contracts/test/validation.test.mjs packages/contracts/test/native-project.test.mjs packages/native-motion/test/*.test.mjs apps/render-container/tests/io.test.mjs apps/render-container/tests/media-precheck.test.mjs apps/cloud/test/director-stages.test.mjs apps/cloud/test/native-*.test.mjs apps/cloud/test/model-secret.test.mjs apps/cloud/test/recovery-indexes.test.mjs apps/cloud/test/model-budget.test.mjs packages/models/test/adapters.test.mjs packages/contracts/test/models.test.mjs packages/contracts/test/v3-schemas.test.mjs packages/contracts/test/video-frames.test.mjs packages/contracts/test/png.test.mjs packages/methods/*.test.mjs"
+
+[tasks."build:web"]
+description = "Build the public React Router SSR Worker and static assets"
+dir = "{{config_root}}"
+run = "pnpm --filter @promobento/web build"
+
+[tasks."test:saas-local"]
+description = "Verify SaaS D1 transactions and Web/Core/Preview bindings in local workerd"
+dir = "{{config_root}}"
+run = "pnpm run build:validators && pnpm run build:web && node --test packages/contracts/test/http-routes.test.mjs apps/cloud/test/api-dispatch.test.mjs apps/cloud/test/guarded-batch.test.mjs apps/cloud/test/multi-worker.test.mjs apps/web/test/*.test.mjs scripts/check-saas-foundation.test.mjs"
+
+[tasks."test:web-browser"]
+description = "Verify Web hydration and navigation with the pinned Chromium after build:web"
+dir = "{{config_root}}"
+run = "node --test apps/web/test/ssr.render.test.mjs"

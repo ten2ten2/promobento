@@ -1,0 +1,9 @@
+# Local defaults. The SaaS foundation tests need no provider credentials.
+S1_ENABLED=off
+PIPELINE_ENVIRONMENT=local
+
+# Only set these for separately authorized internal evaluation. Do not copy
+# production keys here or put any credentials in Web / Preview variables.
+# EVAL_API_KEY=
+# MODEL_COMPAT_API_KEY=
+# ANTHROPIC_API_KEY=

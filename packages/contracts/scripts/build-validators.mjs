@@ -5,15 +5,18 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import standaloneCode from 'ajv/dist/standalone/index.js';
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseCanonicalJson} from '../src/canonical.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const apiDirectory = join(root, 'contracts/api');
+const apiSchemas = existsSync(apiDirectory) ? readdirSync(apiDirectory).filter(name => name.endsWith('.schema.json'))
+  .sort().map(name => 'api/' + name.slice(0, -'.schema.json'.length)) : [];
 export const VALIDATOR_SCHEMAS = Object.freeze(['native-project', 'direction', 'asset-insight',
   'director-analysis', 'reference-analysis', 'native-script', 'material-selection',
-  'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'model-spend']);
+  'video-frame-manifest', 'agent-tools', 'model-config', 'unit-economics', 'model-spend', 'api-error', ...apiSchemas]);
 
 /** Standalone ESM for one Schema, with Ajv's runtime require() calls turned into imports. */
 function standaloneModule(schema) {
@@ -38,8 +41,9 @@ export function buildValidators(outDir = join(root, 'packages/contracts/generate
   for (const name of VALIDATOR_SCHEMAS) {
     const schema = parseCanonicalJson(readFileSync(join(root, 'contracts', `${name}.schema.json`)));
     const file = join(outDir, `${name}.mjs`);
+    mkdirSync(dirname(file), {recursive: true});
     writeFileSync(file, standaloneModule(schema));
-    writeFileSync(join(outDir, `${name}.d.mts`), "import type {StandaloneValidator} from '../standalone-validator.mjs';\nexport const validate: StandaloneValidator;\n");
+    writeFileSync(join(outDir, `${name}.d.mts`), `import type {StandaloneValidator} from '${'../'.repeat(name.split('/').length)}standalone-validator.mjs';\nexport const validate: StandaloneValidator;\n`);
     written.push(file);
   }
   return written;

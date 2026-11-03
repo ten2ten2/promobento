@@ -1,0 +1,5 @@
+{
+  "api": [],
+  "pages": ["public.home", "public.formats", "public.help"],
+  "resources": ["seo.robots", "seo.sitemap"]
+}

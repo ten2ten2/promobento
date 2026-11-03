@@ -27,6 +27,7 @@
 - 视频规格：[platform-presets.json](../../config/platform-presets.json)；上传限制：[input-capabilities.json](../../config/input-capabilities.json)。
 - 费用、试用和购买：[agent-policy.json](../../config/agent-policy.json)；模型与授权：[model-providers.json](../../config/model-providers.json)、[model-authorization.json](../../config/model-authorization.json)。
 - 客户路由与登录规划：[routes.json](../../config/routes.json)、[auth.json](../../config/auth.json)。这些是设计配置，**尚非已上线 API**。
+- 已实现路由：[implemented-routes.json](../../config/implemented-routes.json)，由仓库检查与 Core 处理函数、API Schema、Web 页面/资源注册共同核对；规划路由不会自动开放。
 - 品牌、语言与界面：[brand.json](../../config/brand.json)、[localization.json](../../config/localization.json)、[UI tokens](../../config/ui-tokens.json)、[theme tokens](../../config/theme-tokens.json)、[en.json](../../locales/en.json)。政策正文仍为[草稿](../../content/pages/README.md)。
 - Schema 和哈希：[共享契约](../../packages/contracts/README.md)、[NativeProject](../../contracts/native-project.schema.json)；实际导演与模型字段以 `contracts/*.schema.json` 为准。
 - 现有服务：[控制面 API](../../apps/cloud/README.md#内部-api)、[原生引擎](../../packages/native-motion/README.md)、[渲染容器](../../apps/render-container/README.md)；CI 见 [checks.yml](../../.github/workflows/checks.yml)。

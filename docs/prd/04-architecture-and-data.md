@@ -173,7 +173,7 @@ D1 没有交互式事务；`batch()` 原子，但只在语句报错时回滚，�
 | 订单与支持 | checkout、Waffo 回调、订单查询、退款申请 | [05 交易](05-waffo-billing.md) |
 | 分享与展示 | 只读审阅链接、普通评论、独立案例展示授权和撤回 | [12 审阅权限](12-routing-and-auth.md)、本章第 6 节 |
 
-客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。每个已实现的 API 路由在 `contracts/api/` 有一份请求/响应 Schema，由 `packages/contracts` 预编译；Web 按 routeId 调用 `CoreApi`；仓库检查确认 routes、Core 处理函数、Schema 与 Web 页面路由一致。预览 iframe 与宿主页的消息协议 Schema 同样放在 `contracts/`。
+客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。[实现清单](../../config/implemented-routes.json) 区分规划与可分派路由。每个已实现的 API 在 `contracts/api/<routeId>.schema.json` 定义请求/响应，由 `packages/contracts` 预编译；Web 按 routeId 调用 `CoreApi`。仓库检查核对实现清单、Core 处理函数、Schema、Web 页面/资源和各环境绑定；未实现 API 不注册。预览 iframe 与宿主页的消息协议 Schema 同样放在 `contracts/`。
 
 项目复制只继承同工作区内获准的素材与源包引用。新项目没有试用或付费权益，原购买快照与 QA 授权也不转移；可查看和本地编辑，新增上传、云预览、QA 或创作前先购买 `project_pack` 的 `top_up_only` 权益。
 

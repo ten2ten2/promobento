@@ -1,0 +1,17 @@
+{
+  "name": "@promobento/preview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Independent-origin preview boundary. Capability and manifest delivery are not enabled yet.",
+  "scripts": {
+    "typecheck": "wrangler types --env-interface Env src/worker-configuration.d.ts && tsc --noEmit"
+  },
+  "dependencies": {
+    "@promobento/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "wrangler": "4.152.0"
+  }
+}
