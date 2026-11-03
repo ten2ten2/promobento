@@ -8,11 +8,11 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 
 - [NativeProject](../../packages/contracts/README.md)把原生文件的 key、SHA-256、大小、媒体类型与固定 runtime 绑定；先验真实 R2 字节，再保存不可变 revision。修改需显式 `baseRevision`，父版本必须属于同一 workspace/project；多画幅各有独立版本，不使用会覆盖其他画幅的全局 head。
 - `createNativeRender` 在同一 D1 事务记录渲染及 outbox。预览默认四张原生 PNG，也可指定 1–12 个互异合法时刻（`0 ≤ t ≤ durationSeconds - 1/30`）；整片输出 15/30 秒 H.264/AAC MP4。原生 CLI 可能刷新 vendor/音频和 HTML：报告同时保留输入清单、输入源码及实际渲染工程的身份。
-- 导演依次进行素材观察、可选的参考片证据分析、三方向原生预览、选择、Treatment、**权威 Script 与语义 Moments、素材候选锁定**、最难镜头、各画幅制作/改稿、成片与独立冷审、候选提交。Script 与锁定表由 Worker 验证后作为只读生产文件保留；改稿沿用未变更素材的原始 SHA 锁，视频帧包 Manifest 的授权 SHA 与原始视频文件 SHA 分别记录。逐词对齐证据仅为当前 revision 实际保留的声音/视频素材生成三字段 `timingEvidenceRef`，后续几何改稿继承有效证据；Script 实测旁白/对白必须匹配词区间及实际保留的源文件。替换音轨后不能沿用旧源的 measured 时钟。显式 Script 文本编辑保留稳定 ID，对实际修改转为 authored 时钟并使既有质量报告失效。独立素材与方向任务单操作最多两路并行（`agent-policy.director.stageConcurrency`），参考片观察最多一路；稳定的 Workflow step、callId 和 revision 保持幂等。一个并行任务失败，已派出的付费调用和渲染仍须收回回执，但不得追加新纠错或候选。
+- 导演流程为素材/参考观察 → 三方向预览或直接制作 → Treatment 与正式 Script → 选择并锁定素材 → 最难镜头 → 各画幅创作/改稿 → 成片与冷审。Worker 校验生产文档和素材锁；改稿复用未变资源。独立素材与方向阶段最多两路并行，参考片观察一路；失败后收集已派发的费用与渲染回执，不再追加付费步骤。
 - 同一素材/预览字节只做一次模型观察；来源、授权及父 revision 的素材在读取、渲染和最终候选提交时重新检查。导演方向预览也检查独立传入音频的授权。
-- 参考视频在请求的 `resources` 中使用既有 `webp-pack-v1` 帧包证据，并在 `references` 提供 `{resourceId,purpose,notes}`（最多三条）。源视频与帧包、帧时间、源 SHA 和可见画面逐项校验；帧间变化与声音不宣称已观察。参考片不会自动进入成片素材清单；如需实际使用该视频，需作为独立已授权制作素材提交。`scriptEdits` 可在基于版本的改稿中单独提交，字段为 `{segmentId,field,value}`；**素材替换**必须另行声明 `materialReplacements:[{fromResourceId,toResourceId}]` 并提交对应授权素材。两个 ID 可以相同，但必须确为新 SHA 且原 ID 只有一个明确锁定版本；Script-only 配音也按 ID/SHA 精确锁定，换音轨必须让旧 measured 时序失效。已登记的备选项可升为主选；锁定表、Script Moment 引用和 HTML/JS/CSS/SVG/JSON 原生素材路径必须一致，未选候选不代表可擅自替换。修订版无剩余测量证据时可用显式 `timingEvidenceRef:null` 清除父版本引用；仅省略该字段则沿用父版本。基础 Script 的 CTA/事实先对基础 Brief 验证，改稿后的 Script 再对新 Brief 验证。独立冷审的两张成片图／画幅费用在昂贵步骤之前预算预检。
+- 参考视频通过 `resources` 中的 `webp-pack-v1` 帧包和最多三条 `references:{resourceId,purpose,notes}` 传入；核对源视频、抽帧和 SHA，现阶段只观察实际取到的画面。参考片若要成为成片素材须另获授权。`scriptEdits:[{segmentId,field,value}]` 更新正式台词；`materialReplacements:[{fromResourceId,toResourceId}]` 显式更换素材，旧词时间证据随源音频变化失效。素材及配音同时绑定 ID 和原始 SHA，锁文件、Script 引用和实际源码路径必须一致。需要清空测量证据时提交 `timingEvidenceRef:null`，省略字段则沿用父版本。
 
-改稿先核对所有基础版本的目标尺寸与时长，再按不可修改的生产文档实际字节和最小可编辑入口预检容量；作者仍可删除旧源码来容纳文案增长或新增锁文件。完整作者输出的文件数、单文件和总字节限制在缓存前重新校验，空 `index.html` 直接进入纠错。实测旁白/对白还须匹配关联 Moment 当前锁定的资源 ID/SHA，不能借用历史同 ID 版本的时钟。
+改稿先核对全部目标的画幅、片长、当前素材锁和文件容量。作者可删减旧源码；返回后按实际源码和生产文档验算文件数与字节，空 `index.html` 进入纠错，超限结果不进入缓存。
 
 ## 准入、取消与恢复
 
@@ -21,14 +21,14 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 - 并发启动同一导演操作时，只确认事务实际保存的上下文；不同 `contextKey` 返回身份冲突。取消或失败已生效的操作不能在迟到请求中新增导演上下文或派发消息。
 - 初始排队最多 **15 分钟**；单次预览/导出执行最多 **3/10 分钟**；一次渲染含排队与重试最多 **30/45 分钟**。平台故障最多两个物理 attempt，重试前必须确认上一 attempt 已物理停止、结算计算并释放租约。期限与数量只是当前内部止损配置，不是客户 SLA。
 - 取消先递增 operation generation，再停 Workflow、Shard 和实际容器。Workflow 原生停机逐项写 `native_stop_confirmed_at`；计算/租约/渲染全部清理成功才写 `reconciled_at`。未知状态不等于停止；批量操作使用有限并行与远端超时，恢复扫描不会因单个失联任务停滞。只读 `GET operations/:id/recovery` 的物理探测最多四路、共三秒；逾时保持未知。
-- 模型调用使用本地与共享预算，发送前重查期限、授权和代际。`maxMicros` 限制单次调用，`maxTotalMicros` 限制同阶段所有并行／连续调用之和，另受 operation 总预算约束。兼容网关按最高输入／缓存写入价格预留；缺少缓存写入 TTL、SSE 最终标记或完整 usage 时保留预留和原始回执，不补零、不自动重发。同请求的历史数量与待结算状态在同一快照读取，再由本地准入原子核验，避免并发结算间隙重复付费。确知未发送的请求可按证据零结算；本地准入已提交但响应丢失时，按精确调用身份释放本地预留；终态清理中断也可从共享未派发回执恢复。共享准入确认丢失而未建立本地记录时，只在任务失败／取消后按作用域核对并原子确认从未派发，再释放该共享预留。已完成响应的结算中断时，终态恢复核验原始流 SHA、最终 usage、冻结报价及两本账的确切调用身份，再补齐真实费用，不重新计价或写成功缓存。本地无法确认已派发请求时继续保留费用预留。只有确实完成且有不可变供应商回执的结果才可复用；未派发的零结算不当作缓存结果。授权过期或移除供应商密钥后仍可完成已有回执的账本恢复与已结算缓存读取，新付费调用继续关闭。
+- 模型受单调用、阶段、operation 与跨环境共享费用上限约束。先原子预留最高可能费用；缺少最终 usage、缓存写入计价信息或终态 SSE 时保留未知预留，不自动重发。确认未派发的调用才可释放预留；已完成却未结算的调用按原始流 SHA、冻结价格和 callId 恢复，不重新调用或重算旧价。授权过期后仍可补账和读取已结算缓存，但不可发起新付费请求。细节见[模型适配](../../packages/models/README.md)。
 
 ## 隔离、结果与持久数据
 
 - 容器可信 controller 持有任务专用 Broker token；原生 Node/Chromium 使用不同 UID、无业务密钥、无公网。Broker 只读清单列出的 R2 对象，正常交付只写 `renders/<renderId>/attempts/<attemptId>/out/`；另仅允许同 attempt 的 `failed/film.mp4` 和 `failed/qa.json` 私有技术阻断诊断写入，绝不放入通过结果的 `outputs`。执行前、每次素材读和最终 D1 提交均核查授权撤销。
-- 入口 `PUT objects/evals/...` 要求准确 `Content-Length` 与 SHA-256；按流校验、用 `FixedLengthStream` 写 R2，核对对象字节身份。结果须具备完整 R2 文件、原生工程 hash、实际编码及错误检查；导出验证 30 fps、15/30 秒、450/900 帧、H.264/AAC 和最终 MP4 的解码审片帧、12 帧时间线拼图与全片 FFmpeg 技术检测。FFmpeg 严格解码并检查即使返回零退出码仍出现的 H.264 错误日志；黑屏、冻结、长静音为需要人工复核的信号；响度缺测或越限直接阻断并留存 SHA 绑定的私有失败影片与 QA 报告，负责人正常速度视听始终为 `pending`。
+- `PUT objects/evals/...` 按流校验准确长度与 SHA-256，重复写入还须匹配已存 Content-Type；R2 文件身份同时包含长度、摘要和媒体类型。导出验证 30 fps、450/900 帧、H.264/AAC、全片严格解码和黑屏/静止/静音及响度，生成四张审片帧和十二帧时间线图。技术阻断时保留私有失败影片及 QA 报告；负责人正常速度试听仍需单独完成。
 - 内部 JSON 响应禁止缓存；错误输入为 422、身份冲突为 409、暂时无法确认的远端控制为 503、非业务异常为 500，不暴露原始运行时信息。SSE 进度可在终态后重连，迟到旧代际事件不能覆盖 D1 终态。
-- 迁移 `0004`–`0007` 分别管理原生 revision、独立准入、Workflow 停机检查点及经查询计划验证的恢复索引。历史 D1/R2、真实素材、权利、费用和未知用量原样保留；旧执行协议不在新引擎重放。现有 `ShardDO` 绑定承载完整原生任务，更名需单独迁移，不能按名字删除。
+- 迁移 `0004`–`0007` 包含原生 revision、准入、Workflow 停机检查点和恢复索引。`ShardDO` 当前仍承载原生任务；变更绑定前须处理真实状态和数据。
 
 ## 内部 API
 
@@ -51,7 +51,7 @@ Worker 负责操作、不可变 NativeProject 版本、模型预算、渲染调�
 | `GET model-budget`；`POST model-budget/import`；`POST model-budget/confirm` | 共享费用状态及基于负责人证据的历史开账/确认 |
 | `POST releases`；`GET releases/:id` | 固定镜像摘要与原生 runtime 标识 |
 
-公开 `GET /healthz` 返回原生 runtime、commit 和内部 NativeProject schema `1.0.0`；**产品协议是独立的 3.0.0**。旧 `/studio`、`/frames` 等接口不存在。
+公开 `GET /healthz` 返回原生 runtime、commit 和内部 NativeProject schema `1.0.0`；产品协议另为 `3.0.0`。
 
 ## 验证
 

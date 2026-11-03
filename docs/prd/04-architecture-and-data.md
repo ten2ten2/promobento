@@ -1,6 +1,6 @@
 # 技术架构与数据契约
 
-业务API、鉴权、账务和模型凭据属于可信层；原生作品代码、评论、素材内容与沙箱输出都视为不可信数据。本章包含待实施的客户架构，实际内部能力见[实施状态](../implementation-status.md)。跨模块要求见[14](14-production-contracts.md)，认证和交易分别见[12](12-routing-and-auth.md)、[05](05-waffo-billing.md)。
+Worker 和可信服务负责鉴权、账务、模型凭据；作品代码与上传内容只在受限环境中处理。本章既有内部架构，也有待实现的客户服务。状态见[实施进度](../implementation-status.md)，详细版本/交易/登录规则见 14/05/12。
 
 ## 1 技术与职责
 
@@ -15,9 +15,9 @@
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
 
-不另引入数据库/部署厂商，也不部署第二套 Hypit Runtime、Scene DSL、SVML 编译器或独立视频时间线；Workers HTTP 只协调，不承担长时间 Chromium 或模型编排。创作、素材处理、预览和交付各自返回持久任务 ID，浏览器轮询不能成为交付依赖。参考理解和未来的生成图片/视频只是导演的可选素材任务，生成后的媒体以同一 R2/版本/预算体系管理；完整渲染依然调用 huashu 原生工程。
+当前统一使用 Cloudflare，不建第二套视频渲染引擎。Worker 协调任务，耗时计算在独立容器或持久编排中执行；各类操作返回可查询的任务 ID。未来新增素材生成仍复用 R2、版本及预算体系。
 
-客户控制流由可信API与持久operation连接导演、原生工程、隔离容器和产物审核，业务状态/回执写入D1/R2并通过outbox恢复；Waffo结算另由Billing DO仲裁。目标客户模块未全部实现，实际边界见[实施状态](../implementation-status.md)。
+客户业务 API 将导演、容器、审核和交付串成持久 operation；状态/回执由 D1/R2 保存，outbox 负责恢复，支付由独立 Billing DO 仲裁。客户模块仍待实现。
 
 ## 2 素材、源码和数据发送
 
@@ -55,7 +55,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 可选提示审核
 
-客户输入审核尚未接入；Waffo Prompt Sift 是可选提供方，只覆盖输入。`creative_generate`、`agent_patch`、`prepare_targets` 每次产生新内容前须审核实际生成上下文；纯编码、已审核内容的重放和自动保存不重复扫描。来源和启用前条件见[09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
+客户输入审核尚未接入。可选的 Waffo Prompt Sift 只审核输入；`creative_generate`、`agent_patch`、`prepare_targets` 的新内容需在调用前审核，纯编码与自动保存不用重复扫描。上线门槛见[09](09-sources-and-licensing.md#34-waffo-内容审核要求)。
 
 可信编排器组装本次任务、用户指令、事实及相关素材文字、转写、批注和实际参与生成的可编辑文本，保留原文与次序。无独立指令时不伪造，至少一项有实际内容；不发送整仓源码、二进制、支付资料、固定系统提示或凭据。结果绑定 operationId、generationId 和完整送审文本，输入或生成调用变化须重新审核。
 
@@ -65,7 +65,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 输出审核
 
-客户方向卡、Treatment和声音计划在展示前审核实际文字；只有获准展示时才可返回正文，审核中或扣留时不能夹带原文。候选、可信预览、导出和案例展示分别审核实际可见文字、画面与音频，不能用源码声明或少数封面代替动态内容。以下是待接入的客户审核要求，当前内部模型冷审不代替该服务。
+方向卡、Treatment 和声音计划在展示前审核文字；候选、预览、交付和案例展示还要检查实际画面与声音。以下是待接入的客户审核要求，内部冷审不能代替。
 
 可信服务保存 `outputSafetyResult`，绑定项目、operation/revision、用途、实际 `subjectHash`、`targetId`、策略、检查表示和 `coverageManifestHash`。覆盖清单固定实际文字摘要、源片范围、帧数、受检帧与连续音频区间；最低采样由登记的策略推导，不能靠调用方缩短采样数组放行。具体字段与边界见 [14](14-production-contracts.md#8-事实与qa授权)。媒体回执从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 取回，任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面检查文字与画面，视频/片段还检查覆盖实际输出时长的音频。
 
@@ -105,7 +105,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 元数据与安全
 
-对同一原生包的最多 512 个文件，预检按不可变清单摘要去重，使用有上限的并发读取 R2 元数据，避免逐个串行 HEAD 和反复验证；**完整性、资源引用及权限**在首次信任建立及产物提交时仍逐项核查。D1 热路径批量、索引和事务长度以真实查询计划/延迟调优；单库写入须有限并发，读副本只能承担允许陈旧的非交易读取，不能承担租约、扣次或付款仲裁。真实指标和负载关口见[06 §4](06-testing-and-release.md#4-支付性能与平台门槛)。
+原生包最多 512 个文件，按清单摘要去重并有界并发查询 R2 元数据；首次准入和最终提交仍逐项核验身份及权限。D1 热路径按实测查询计划优化，事务写入限并发，租约/扣次/付款不能依赖可能陈旧的读副本。性能门槛见[06](06-testing-and-release.md#4-支付性能与平台门槛)。
 
 原生代码仅在 Chromium 沙箱中执行，Node 控制器与 Worker 不求值作品或第三方包脚本；broker 只提供本任务的已授权输入与指定输出。独立 preview origin、受限 iframe/bridge、物理停止、generation 栅栏、无公网和跨任务残留都需真实云端负例验证。容量优化不得削弱权限、取消、付款收据和保留期；已收款履约保障见[05](05-waffo-billing.md)。
 

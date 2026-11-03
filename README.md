@@ -2,19 +2,16 @@
 
 **Turn your product or course into a promo video.**
 
-现行规格：**PRD v3.1 / 协议 3.0.0**。
+PromoBento 面向软件和课程团队，把真实素材做成 15 或 30 秒宣传片。AI 负责导演和制作；用户审片、改稿，按平台预设购买和导出。
 
-PromoBento 帮软件和课程团队把真实素材做成 15 或 30 秒的宣传片。AI 负责导演和制作，用户可以预览、批注、改稿，再按平台预设购买和导出。
-
-影片使用固定版本的完整 huashu-motion HTML/JS 引擎；参考分析、Brief/Treatment、素材选择和改稿方法借鉴 Hypit。每种画幅有独立的原生工程。
+影片由固定版本的 huashu-motion HTML/JS 引擎制作，结合 Hypit 的导演与素材方法。不同画幅分别构图。
 
 ## 项目文档
 
-- [产品规格](docs/prd/README.md)：产品、界面、架构、交易、导演、测试和交付要求。
-- [当前实施状态](docs/implementation-status.md)：已完成的代码、验证结果、待办和部署状况。
-- [协作与提交规则](AGENTS.md)：环境、开发和检查方式。
-- [云端控制面](apps/cloud/README.md)、[渲染容器](apps/render-container/README.md)、[原生适配器](packages/native-motion/README.md)：现有服务的接口与运行方式。
-- [内部评测](research/evals/README.md)、[素材来源](packages/methods/NOTICE.md)：评测工具和上游资料。
-- [品牌资源](public/brand/README.md)、[政策草稿](content/pages/README.md)：网站素材与待发布内容。
+- [PRD v3.1（协议 3.0.0）](docs/prd/README.md)：产品与实现要求。
+- [实施状态](docs/implementation-status.md)：代码完成度、验收缺口和下一步。
+- [开发说明](AGENTS.md)：环境、验证和提交约定。
+- [内部控制面](apps/cloud/README.md)、[渲染容器](apps/render-container/README.md)、[原生适配器](packages/native-motion/README.md)：现有服务。
+- [内部评测](research/evals/README.md)、[导演方法来源](packages/methods/NOTICE.md)、[品牌素材](public/brand/README.md)、[政策草稿](content/pages/README.md)。
 
-目前完成了 S0 和四阶段云端重构；S1 的真实云端、作品质量与性能验收尚未通过，客户 Studio、登录和收款也未上线。以[实施状态](docs/implementation-status.md)为准。
+当前提供内部原生创作和渲染代码，尚未通过 S1 的真实云端与作品验收。客户 Studio、登录、收款和正式交付尚未上线，详见[实施状态](docs/implementation-status.md)。

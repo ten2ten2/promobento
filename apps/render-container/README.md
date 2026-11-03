@@ -22,7 +22,7 @@
 
 音频仍归一到约 -14 LUFS、编码 AAC-LC 48 kHz 立体声；短音轨补静音、长音轨截断至视频时长。两条视频处理路径均再次检查画幅、30 fps、450/900 帧、15/30 秒、音轨和 50 MB 上限，并从**最终 MP4** 解码审片图。回执记录 `media.videoEncoding`（`stream_copy`/`transcoded`）、处理时间和复制拒绝原因。流复制的本地功能已有验证，云端 CPU/费用节省尚无实测结论。
 
-导出后独立执行全片视频和音频 FFmpeg 解码（`-xerror`、`-err_detect explode` 及解码错误日志兜底检查，避免 FFmpeg 返回 0 却跳过损坏 H.264 包），记录黑屏、静止、静音区间及响度/真峰值；响度缺测或超过 -14 LUFS ±0.5 与 -1 dBTP 上限是技术阻断，长黑屏/静止/静音标记为 `review_required`，不猜测导演意图。`motion-sheet.jpg` 均匀取最终视频的十二个不同时间点，辅助发现接缝和节奏问题；回执 `dynamicQuality.ownerNormalSpeedReview` 一律为 `pending`，不冒充真实的连贯观看、听感与人工批准。
+导出后用 FFmpeg 严格解码整部影片与音轨，并检查解码日志、黑屏、静止、静音区间及响度/真峰值；末尾未闭合的静音也纳入检测。响度缺测或超过 -14 LUFS ±0.5 与 -1 dBTP 上限会阻断交付，长黑屏/静止/静音要求复核。`motion-sheet.jpg` 均匀取最终视频十二帧辅助审片；回执 `dynamicQuality.ownerNormalSpeedReview` 保持 `pending`，由负责人实际观看后确认。
 
 ## 文件与沙箱
 
