@@ -249,7 +249,11 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
          material.resources,script,scriptAudioLocks);
        }
        if(tool==='write_project'&&input.files.some((file:SourceFile)=>['script.json','material-selection.json','script-audio-locks.json'].includes(file.path)))throw Error('NATIVE_PRODUCTION_DOCUMENT_READ_ONLY');
-       if(tool==='write_project')productionDocuments(input.files,false);
+       if(tool==='write_project'){
+        const documents=productionDocuments(input.files,false);
+        assertNativePatchHeadroom({composition:{durationSeconds:context.durationSeconds},files:[]},
+         material.files as MediaFile[],lockedSelection,scriptAudioLocks,documents);
+       }
        if(tool==='write_treatment')assertTreatment(input,context.durationSeconds,material.materials.map(asset=>asset.resourceId));
        if(tool==='submit_review'){
         if((input.verdict==='pass')!==(input.issues.length===0)||input.issues.some((issue:Json)=>issue.frames.some((frame:number)=>frame>=context.durationSeconds*30)))throw Error('DIRECTOR_REVIEW_INVALID');
@@ -345,7 +349,9 @@ export class OperationWorkflow extends WorkflowEntrypoint<PipelineEnv,{operation
     candidateResources.push(...saved.project.resources);
     const files=await sourceFiles(saved),verifyPatch=(candidate:Json)=>{
      const proposed=applyProjectPatch(files,saved.revisionId,candidate);
-     productionDocuments(proposed,true);
+     const documents=productionDocuments(proposed,true);
+     assertNativePatchHeadroom(saved.project as {composition:{durationSeconds:number};files:MediaFile[]},
+      material.files as MediaFile[],lockedSelection,scriptAudioLocks,documents);
      if(script&&!name.startsWith('hardest-'))assertScriptProjection(proposed,script);
      if(lockedSelection||scriptAudioLocks.length)assertMaterialProjection(proposed,lockedSelection,
       [...saved.project.resources,...material.resources],script,scriptAudioLocks);

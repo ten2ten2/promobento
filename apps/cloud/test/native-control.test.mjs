@@ -380,6 +380,39 @@ test('a paid native patch preflights the final active assets after explicit repl
   'a valid replacement excludes the retired asset and does not double-count it');
 });
 
+test('patch preflight keeps tight but editable native snapshots and validates actual authored growth',()=>{
+ const composition={durationSeconds:30};
+ const authorPaths=['index.html','BRIEF.md','TREATMENT.md','script.json','material-selection.json','script-audio-locks.json'];
+ const authors=authorPaths.map(path=>({path,sha256:'f'.repeat(64),byteLength:512,mediaType:'text/plain'}));
+ const media=Array.from({length:467},(_,i)=>({path:`assets/${i.toString(16).padStart(24,'0')}.png`,
+  sha256:i.toString(16).padStart(64,'0'),byteLength:8,mediaType:'image/png'}));
+ const project={composition,files:[...authors,...media]};
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(project));
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[],null,[]),
+  'optional author slots must not reject a legal 511-file patch');
+ const unchanged=authorPaths.map(path=>({path,content:'a'.repeat(512)}));
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(project,[],null,[],unchanged));
+ assert.throws(()=>assertNativePatchHeadroom(project,[],null,[],[
+  ...unchanged,{path:'src/new.js',content:'x'},{path:'src/another.js',content:'y'}]),/NATIVE_PROJECT_TOO_LARGE/,
+  'the actual response must still be limited before it can enter the model cache');
+ const missingLock={composition,files:[...authors.filter(file=>file.path!=='script-audio-locks.json'),
+  ...media,...Array.from({length:2},(_,i)=>({path:`assets/spare-${i}.png`,sha256:'e'.repeat(64),byteLength:1,mediaType:'image/png'}))]};
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(missingLock));
+ assert.throws(()=>assertNativePatchHeadroom(missingLock,[],null,[]),/NATIVE_PROJECT_TOO_LARGE/,
+  'a Script parent without a lock document must budget the lock document the service will generate');
+
+ const reserve=pinnedBuiltinFiles.reduce((sum,file)=>sum+file.byteLength,0)+nativeSoundtrackBytes(30)+(64<<10);
+ const mediaBudget=(128<<20)-reserve-2560;
+ const large=[39<<20,39<<20,39<<20,mediaBudget-(117<<20)].map((byteLength,i)=>({
+  path:`assets/${'abcd'[i].repeat(24)}.mp4`,sha256:'abcd'[i].repeat(64),byteLength,mediaType:'video/mp4'}));
+ const close={composition,files:[...authors,...large]};
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(close,[],null,[]),
+  'a potential 1 MiB author response is not an unavoidable 1 MiB cost');
+ assert.doesNotThrow(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(512)}]));
+ assert.throws(()=>assertNativePatchHeadroom(close,[],null,[],[{path:'index.html',content:'a'.repeat(4096)}]),
+  /NATIVE_PROJECT_TOO_LARGE/,'actual oversized source bytes must be rejected');
+});
+
 test('real immutable JSON and native project saving require a three-field measured evidence reference',async t=>{
   const {db,env,op,input}=await fixture(t);
   const blob=await immutableJson(env,`operations/${op.id}/timing-real.json`,[

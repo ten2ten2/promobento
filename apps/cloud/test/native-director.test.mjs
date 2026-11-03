@@ -6,6 +6,7 @@ import {build} from 'esbuild';
 import {canonical,parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
 import {assertNativeProject} from '@promobento/contracts/native-project';
+import {assertNativeSnapshotHeadroom} from '../src/native-policy.ts';
 import {sqliteD1} from './fixtures/sqlite.mjs';
 import {memoryMedia} from './fixtures/media.mjs';
 import {applyProjectPatch,reviewFrameTimes,normalizeTimingEvidence} from '../../../packages/methods/native-authoring.mjs';
@@ -407,6 +408,40 @@ test('native creation renders directions, waits for choice, authors independent 
  const final=f.saved.get(followup.projects[0].revisionId).project;
  assert.ok(final.files.some(file=>file.sha256===replacement.sha256),'later edits keep the current material');
  assert.ok(!final.files.some(file=>file.sha256===f.asset.sha256),'retired material cannot reappear in a later patch');
+});
+
+test('tight 511-file parent can be patched; oversized author output is corrected before caching',async t=>{
+ const f=await fixture(t),candidate=await f.create('tight-parent',{aspects:['landscape']});
+ const original=f.saved.get(candidate.projects[0].revisionId).project;
+ const retained=Array.from({length:473-original.files.length},(_,i)=>({
+  path:`assets/retained-${i.toString().padStart(4,'0')}.png`,key:`evals/fixture/retained-${i}.png`,
+  sha256:i.toString(16).padStart(64,'0'),byteLength:0,mediaType:'image/png'}));
+ const files=[...original.files,...retained];
+ assert.equal(files.length,473);
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom({composition:original.composition,files}));
+ const parent=await f.save(f.env,{id:'tight-import'},
+  {composition:original.composition,files,resources:original.resources});
+ const real=globalThis.__nativeDirectorFixture.modelStep;
+ globalThis.__nativeDirectorFixture.modelStep=async(...args)=>{
+  if(args[3]==='author'&&args[4].includes('-patch-landscape')&&!args[4].endsWith('-correct')){
+   const validate=args[6];
+   args[6]=value=>{
+    value.toolCalls[0].input.edits.push({command:'create',path:'src/overflow-a.js',content:'x'},
+     {command:'create',path:'src/overflow-b.js',content:'y'});
+    validate(value);
+   };
+  }
+  return real(...args);
+ };
+ const edited=await f.create('tight-child',{aspects:['landscape'],resources:[],baseRevision:parent.revisionId,
+  comments:[{text:'Shift the title by a few pixels.',frame:90}]},[f.asset]);
+ assert.equal(edited.kind,'native_candidate');
+ assert.ok(f.calls.some(call=>call.callId.includes('tight-child')&&call.callId.endsWith('-patch-landscape-correct')),
+  'the file-growth error must trigger the existing correction step');
+ const result=f.saved.get(edited.projects[0].revisionId).project;
+ assert.doesNotThrow(()=>assertNativeSnapshotHeadroom(result));
+ assert.ok(!result.files.some(file=>file.path==='src/overflow-a.js'),
+  'invalid output must never be persisted as an immutable candidate');
 });
 
 test('a patch cannot silently substitute a source without an explicit replacement lock',async t=>{

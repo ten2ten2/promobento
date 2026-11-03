@@ -52,13 +52,21 @@ export function assertNativeSnapshotHeadroom(project: {
     throw Error('NATIVE_PROJECT_TOO_LARGE');
 }
 
-/** Check every patch aspect before a paid author call. The real author may use
- * 24 text files totaling 1 MiB, so budget the full permitted source envelope. */
+/** Before authoring, reject only snapshots that cannot fit even with minimal
+ * source. Once the author responds, check its actual files before caching it. */
 export function assertNativePatchHeadroom(project:{composition:{durationSeconds:number};files:MediaFile[]},
- freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[]){
+ freshFiles:MediaFile[],selection:MediaSelection,audioLocks:{sha256:string}[],authored?:{path:string;content:string}[]){
  const assets=activeNativeMediaFiles(project.files,freshFiles,selection,audioLocks);
- const authorSlots=Array.from({length:24},(_,index)=>({path:`src/__author_slot_${index}.css`,byteLength:index===0?1<<20:0}));
- assertNativeSnapshotHeadroom({composition:project.composition,files:[...assets,...authorSlots]});
+ const inherited=new Set(project.files.map(file=>file.path));
+ const source=authored
+  ? authored.map(file=>({path:file.path,byteLength:new TextEncoder().encode(file.content).byteLength}))
+  : [...new Set(['index.html','BRIEF.md',
+     ...(inherited.has('script.json')?['script-audio-locks.json']:[]),
+     ...(selection?['material-selection.json']:[]),
+     ...project.files.filter(file=>
+     ['TREATMENT.md','script.json','material-selection.json','script-audio-locks.json'].includes(file.path))
+    .map(file=>file.path)])].map(path=>({path,byteLength:1}));
+ assertNativeSnapshotHeadroom({composition:project.composition,files:[...assets,...source]});
 }
 
 export const nativeRenderPolicy = {
