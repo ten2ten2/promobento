@@ -68,11 +68,24 @@ test('SSR hydrates under CSP, navigates on the client and fits light/desktop and
         await page.screenshot({ path: fileURLToPath(new URL(`${scenario.name}.png`, directory)), fullPage: true });
         await page.evaluate(() => { globalThis.navigationSentinel = 'same-document'; });
         await page.getByRole('link', { name: new RegExp(messages.webShell.home.exploreFormats) }).click();
-        await page.waitForURL(`${origin}/formats`);
+        await page.waitForURL(`${origin}/formats`, { timeout: 10_000 });
+        // History and an already-idle network can precede React's route commit.
+        // Wait for the destination document and its metadata, not only the URL.
+        await page.waitForFunction(({ heading, canonical, title }) => {
+          const element = document.querySelector('main h1');
+          return element?.textContent === heading && element.getBoundingClientRect().height > 0
+            && document.querySelector('link[rel="canonical"]')?.getAttribute('href') === canonical
+            && document.title === title;
+        }, {
+          heading: messages.webShell.formats.title,
+          canonical: 'https://promobento.com/formats',
+          title: messages.webShell.formats.metaTitle,
+        }, { timeout: 10_000 });
         await page.waitForLoadState('networkidle');
         assert.equal(await page.locator('h1').textContent(), messages.webShell.formats.title);
         assert.equal(await page.evaluate(() => globalThis.navigationSentinel), 'same-document', 'Navigation must use hydrated React Router');
         assert.equal(await page.locator('link[rel="canonical"]').getAttribute('href'), 'https://promobento.com/formats');
+        assert.equal(await page.title(), messages.webShell.formats.metaTitle);
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
         assert.deepEqual(await page.evaluate(() => globalThis.cspViolations), []);
         assert.deepEqual(errors, []);
