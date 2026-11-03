@@ -65,6 +65,20 @@ test('missing usage reserves the worst input/cache-write price and output at its
   assert.equal(cost.usdMicros, Math.ceil((1000 * 5.2 + 4000 * 13) / 6.6863));
 });
 
+test('model quotes refuse unrepresentable currency rates and unsafe integer amounts', () => {
+  const config = providers(), ref = 'modelswitch/deepseek-v4.1-flash-1017';
+  for (const rate of [0.0000001, 1e12]) {
+    config.providers.modelswitch.usdRate = rate;
+    assert.ok(modelConfigErrors(config, authorization(), policy).some(error => error.includes('representable usdRate')));
+    assert.throws(() => modelCallCostMicros(ref, {prompt_tokens: 1, completion_tokens: 0}, config), /MODEL_RATE_INVALID/);
+  }
+  const huge = structuredClone(config);
+  huge.providers.modelswitch.usdRate = 1;
+  huge.models[ref].prices.input = 10000000;
+  assert.throws(() => modelUsageQuote(ref, {prompt_tokens: Number.MAX_SAFE_INTEGER, completion_tokens: 0}, huge), /MODEL_COST_OVERFLOW/);
+  assert.throws(() => modelCallCostMicros(ref, {prompt_tokens: Number.MAX_SAFE_INTEGER}, huge), /MODEL_COST_OVERFLOW/);
+});
+
 test('gateway cache writes with an unknown TTL retain unknown usage instead of an input-price settlement', () => {
   const config = providers(), ref = 'modelswitch/claude-opus-5-5';
   const report = read('docs/evidence/2026-10-23-model-probe/run4.json');

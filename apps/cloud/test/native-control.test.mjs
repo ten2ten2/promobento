@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import {canonical, parseCanonicalJson} from '@promobento/contracts/canonical';
 import {digest,sha256Bytes} from '@promobento/contracts/digest';
-import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, NATIVE_COMMIT} from '../src/native-project.ts';
+import {saveNativeProject, loadNativeProject, createNativeRender, getNativeRender, checkedNativeBytes, verifyNativeInputs, NATIVE_COMMIT} from '../src/native-project.ts';
 import {immutableBytes,immutableJson,immutableStream,reserve,settle,rights} from '../src/store.ts';
 import {boundedUploadStream, putBoundedUpload} from '../src/upload-stream.ts';
 import {fixedLengthOf} from './fixtures/fixed-length.mjs';
@@ -322,7 +322,8 @@ test('direct native saves reserve runtime files and duration-dependent synthesiz
   const originals=new Map(additions.map(file=>[file.key,file]));
   const head=env.MEDIA.head.bind(env.MEDIA);
   env.MEDIA.head=async key=>originals.has(key)
-    ?{size:originals.get(key).byteLength,customMetadata:{sha256:originals.get(key).sha256}}
+    ?{size:originals.get(key).byteLength,customMetadata:{sha256:originals.get(key).sha256},
+      httpMetadata:{contentType:originals.get(key).mediaType}}
     :head(key);
   const files=[...input.files,...additions];
   await assert.rejects(saveNativeProject(env,op,{...input,composition:{...input.composition,durationSeconds:30},files}),
@@ -1730,6 +1731,8 @@ test('internal eval file ingress verifies SHA-256 in R2 and never trusts an inco
   assert.equal(blob.sha256,sha256);
   assert.equal(objects.get(key).bytes.length,bytes.length);
   await upload(bytes,bytes.length,sha256);
+  await assert.rejects(immutableStream({MEDIA},key,new ReadableStream({start(controller){controller.enqueue(bytes);controller.close();}}),
+    bytes.length,sha256,'application/octet-stream'),/IMMUTABLE_OBJECT_CONFLICT/);
   await assert.rejects(upload(new Uint8Array(bytes.length),bytes.length,sha256),/OBJECT_IDENTITY_MISMATCH/);
   await assert.rejects(upload(bytes,bytes.length,'1'.repeat(64)),/IMMUTABLE_OBJECT_CONFLICT/);
 });
@@ -1747,6 +1750,20 @@ test('conditional immutable uploads cannot falsely ACK the losing bytes of a con
   assert.match(rows.find(row=>row.status==='rejected').reason.message,/IMMUTABLE_OBJECT_CONFLICT/);
   const winning=rows.find(row=>row.status==='fulfilled').value;
   assert.equal(sha256Bytes(objects.get(key).bytes),winning.sha256);
+});
+
+test('immutable byte metadata and native project file types agree with R2', async t => {
+  const {env,op,input,saved,objects}=await fixture(t);
+  const file=input.files[0];
+  await assert.rejects(immutableBytes(env,file.key,Buffer.from('<!doctype html><html><body>Original fixture</body></html>'),
+    'application/octet-stream'),/IMMUTABLE_OBJECT_CONFLICT/);
+  const extra={...file,path:'styles.css',mediaType:'text/css'};
+  await assert.rejects(saveNativeProject(env,op,{...input,files:[file,extra]}),/SOURCE_IDENTITY_MISMATCH/);
+  await verifyNativeInputs(env,saved.project);
+  objects.get(file.key).checksums={sha256:Buffer.alloc(32)};
+  await assert.rejects(immutableBytes(env,file.key,Buffer.from('<!doctype html><html><body>Original fixture</body></html>'),
+    'text/html'),/IMMUTABLE_OBJECT_CONFLICT/);
+  await assert.rejects(verifyNativeInputs(env,saved.project),/SOURCE_IDENTITY_MISMATCH/);
 });
 
 test('concurrent operation creation preserves idempotency and rejects a conflicting body', async t => {

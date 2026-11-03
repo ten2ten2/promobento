@@ -44,10 +44,10 @@ export async function immutableJson(env: PipelineEnv, key: string, value: unknow
 export async function immutableBytes(env:PipelineEnv,key:string,bytes:Uint8Array,mediaType:string):Promise<BlobRef>{
   const hash = sha256Bytes(bytes);
   const existing = await env.MEDIA.head(key);
-  if (existing && existing.customMetadata?.sha256 !== hash) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  if (existing && !matchesStoredUpload(existing, bytes.length, hash, mediaType)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   if (!existing) await env.MEDIA.put(key, bytes, {onlyIf: new Headers({'If-None-Match': '*'}), httpMetadata: {contentType: mediaType}, customMetadata: {sha256: hash}});
   const actual = await env.MEDIA.head(key);
-  if (actual?.customMetadata?.sha256 !== hash || actual.size !== bytes.length) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  if (!matchesStoredUpload(actual, bytes.length, hash, mediaType)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   return {name: key.split('/').at(-1)!, key, sha256: hash, byteLength: bytes.length, mediaType};
 }
 /** Internal asset ingress: caller supplies the SHA-256 before transfer; R2 enforces it while streaming. */
@@ -56,7 +56,7 @@ export async function immutableStream(env: PipelineEnv, key: string, body: Reada
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw Error('OBJECT_SHA256_REQUIRED');
   if (!Number.isSafeInteger(length) || length < 0 || length > 50 << 20) throw Error('OBJECT_TOO_LARGE');
   const previous = await env.MEDIA.head(key);
-  if (previous && !matchesStoredUpload(previous, length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  if (previous && !matchesStoredUpload(previous, length, sha256, mediaType)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   if (previous) await verifyUploadStream(body, length, sha256);
   else {
     const created = await putBoundedUpload(env.MEDIA, key, body, length, {
@@ -65,7 +65,7 @@ export async function immutableStream(env: PipelineEnv, key: string, body: Reada
     });
     if (!created) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   }
-  if (!matchesStoredUpload(await env.MEDIA.head(key), length, sha256)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
+  if (!matchesStoredUpload(await env.MEDIA.head(key), length, sha256, mediaType)) throw Error('IMMUTABLE_OBJECT_CONFLICT');
   return {name: key.split('/').at(-1)!, key, sha256, byteLength: length, mediaType};
 }
 export async function getJson(env: PipelineEnv, key: string,

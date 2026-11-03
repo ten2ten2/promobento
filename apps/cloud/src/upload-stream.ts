@@ -51,8 +51,9 @@ export async function putBoundedUpload(bucket: R2Bucket, key: string, body: Read
 }
 
 /** Stored metadata is not a substitute for a differing R2 checksum. */
-export function matchesStoredUpload(object: R2Object | null, length: number, sha256: string) {
-  if (!object || object.size !== length || object.customMetadata?.sha256 !== sha256) return false;
+export function matchesStoredUpload(object: R2Object | null, length: number, sha256: string, mediaType?: string) {
+  if (!object || object.size !== length || object.customMetadata?.sha256 !== sha256
+    || mediaType !== undefined && object.httpMetadata?.contentType !== mediaType) return false;
   const checksum = object.checksums?.sha256;
   return !checksum || Array.from(new Uint8Array(checksum), byte => byte.toString(16).padStart(2, '0')).join('') === sha256;
 }

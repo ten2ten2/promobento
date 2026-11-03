@@ -18,7 +18,9 @@ export function modelConfigErrors(providers, authorization, policy, {requireVeri
   for (const [ref, model] of Object.entries(providers.models)) {
     const provider = providers.providers[ref.split('/')[0]];
     if (!provider) { errors.push(`Model ${ref} names an unknown provider`); continue; }
-    if (provider.currency !== 'USD' && !(provider.usdRate > 0)) errors.push(`Provider of ${ref} needs usdRate for ${provider.currency}`);
+    if (provider.currency !== 'USD' && (!Number.isSafeInteger(Math.round(provider.usdRate * 1e6))
+      || Math.round(provider.usdRate * 1e6) < 1))
+      errors.push(`Provider of ${ref} needs a representable usdRate for ${provider.currency}`);
     if ((requireVerified || policy?.enabled) && !model.capabilities.verified && Object.values(providers.steps).includes(ref)) errors.push(`Bound model ${ref} is not verified`);
   }
   const authorized = new Set(authorization.models);
@@ -99,9 +101,12 @@ export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0}
   // prices are micros per million tokens: units / 1e6 = micros in the provider currency
   let micros = ceilDiv(units, 1000000n);
   if (provider.currency !== 'USD') {
-    const rate = BigInt(Math.round(provider.usdRate * 1e6));
+    const scaledRate = Math.round(provider.usdRate * 1e6);
+    if (!Number.isSafeInteger(scaledRate) || scaledRate < 1) throw Error('MODEL_RATE_INVALID');
+    const rate = BigInt(scaledRate);
     micros = ceilDiv(micros * 1000000n, rate);
   }
+  if (micros > BigInt(Number.MAX_SAFE_INTEGER)) throw Error('MODEL_COST_OVERFLOW');
   return {usdMicros: Number(micros), catalogVersion: providers.catalogVersion, currency: provider.currency, estimated};
 }
 
