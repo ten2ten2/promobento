@@ -61,7 +61,8 @@ const {OperationWorkflow,directingMethodPack}=await import('data:text/javascript
 const png=Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII=','base64'));
 async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRenderEvents=false,
  transientRenderStatus=false,parallelDelay=false,measuredSpeech=false,authoredSpeech=false,useAlternative=false,
- jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false}={}){
+ jsonMaterial=false,selectVoice=false,invalidRecomposeOnce=false,invalidHardestOnce=false,explicitSameIdAudio=false,
+ unlinkedMeasuredCaption=false}={}){
  const {db,DB}=sqliteD1(),{MEDIA}=memoryMedia();t.after(()=>db.close());
  const calls=[],jobs=[],saved=new Map(),renders=new Map(),lostEvents=[],failedReads=[],renderReads=new Map(),eventWaits=new Map();
  const parallel={assets:{active:0,peak:0},directions:{active:0,peak:0}};
@@ -123,6 +124,11 @@ async function fixture(t,{missingEncoded=false,reviewAlwaysRevise=false,dropRend
       timing});
     value.moments.push({id:'spoken',kind:'demonstration',startFrame:30,endFrame:60,segmentIds:['voice'],
       resourceIds:['res_voice'],timing});
+    if(unlinkedMeasuredCaption){
+     value.segments.push({id:'timed-caption',role:'caption',displayText:'PROMO_PROMISE',speechText:null,factIds:[],
+       startFrame:30,endFrame:60,timing});
+     value.moments[0].segmentIds.push('timed-caption');
+    }
    }
    }
    else if(stage==='selection')value={schemaVersion:'3.0.0',kind:'material_selection',uses:payload.treatment.beats.flatMap(beat=>beat.assetIds.map(assetId=>({
@@ -507,8 +513,8 @@ test('a geometry patch cannot smuggle a different SHA under a Script-only audio 
  assert.equal(changed.scriptImpact,null);
 });
 
-test('Script-only audio can be explicitly replaced and its obsolete measured clock is retired',async t=>{
- const f=await fixture(t,{measuredSpeech:true});
+test('Script-only audio replacement retires both linked speech and unrelated measured captions',async t=>{
+ const f=await fixture(t,{measuredSpeech:true,unlinkedMeasuredCaption:true});
  const voice={...await f.put('evals/fixture/only-voice.wav',Buffer.from('old voice'),'audio/wav'),
   resourceId:'res_voice',kind:'audio',durationSeconds:3};
  const parent=await f.create('script-only-voice-parent',{aspects:['landscape'],audioSources:[voice],
@@ -525,6 +531,8 @@ test('Script-only audio can be explicitly replaced and its obsolete measured clo
  const script=parseCanonicalJson(await f.bytes(f.env,project.files.find(item=>item.path==='script.json')));
  assert.deepEqual(script.moments.find(item=>item.id==='spoken').resourceIds,['res_voice_new']);
  assert.equal(script.segments.find(item=>item.id==='voice').timing.kind,'authored');
+ assert.equal(script.segments.find(item=>item.id==='timed-caption').timing.kind,'authored',
+  'a caption on a visual Moment cannot keep a clock from retired voice bytes');
  assert.equal(changed.scriptImpact.changed,true);
 });
 
@@ -677,6 +685,25 @@ test('malformed Director context is rejected before any model or native render w
  for(const [index,context] of invalid.entries())
   await assert.rejects(f.create('invalid-context-'+index,context),/DIRECTOR_(?:INPUT|PATCH)_INVALID/);
  assert.equal(f.calls.length,0);
+ assert.equal(f.jobs.length,0);
+});
+test('native media size limits reject sources before director models or renders are charged',async t=>{
+ const f=await fixture(t),head=f.env.MEDIA.head.bind(f.env.MEDIA);
+ const fake=new Map();
+ f.env.MEDIA.head=async key=>fake.get(key)??head(key);
+ const source=(id,bytes)=>{
+  const sha256=String(id).repeat(64);
+  const asset={...f.asset,resourceId:'large-'+id,key:'evals/fixture/large-'+id+'.png',sha256,
+   byteLength:bytes,kind:'image'};
+  fake.set(asset.key,{size:bytes,customMetadata:{sha256}});
+  return asset;
+ };
+ await assert.rejects(f.create('one-large-source',{resources:[source('a',41<<20)],aspects:['landscape']}),
+  /NATIVE_MEDIA_SOURCE_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'a valid ingest size does not make an oversized native project legal');
+ await assert.rejects(f.create('source-total-too-large',{resources:[source('b',35<<20),source('c',35<<20),
+  source('d',35<<20),source('e',35<<20)],aspects:['landscape']}),/NATIVE_MEDIA_SOURCE_TOTAL_TOO_LARGE/);
+ assert.equal(f.calls.length,0,'aggregate size rejection must precede paid calls');
  assert.equal(f.jobs.length,0);
 });
 test('stale or ambiguous native patches are atomic, and sampled frames obey the exact delivery clock',()=>{
