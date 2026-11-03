@@ -37,6 +37,14 @@
     "./png": {
       "types": "./src/png.d.mts",
       "default": "./src/png.mjs"
+    },
+    "./http-routes": {
+      "types": "./src/http-routes.d.mts",
+      "default": "./src/http-routes.mjs"
+    },
+    "./api-errors": {
+      "types": "./src/api-errors.d.mts",
+      "default": "./src/api-errors.mjs"
     }
   },
   "dependencies": {

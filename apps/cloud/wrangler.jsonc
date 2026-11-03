@@ -21,10 +21,10 @@
           "migrations_dir": "migrations"
         },
         {
-          "binding":"MODEL_LEDGER",
-          "database_name":"promobento-model-ledger",
-          "database_id":"e8721ee3-f668-46ed-be97-ed622f1d5aad",
-          "migrations_dir":"model-ledger-migrations"
+          "binding": "MODEL_LEDGER",
+          "database_name": "promobento-model-ledger",
+          "database_id": "e8721ee3-f668-46ed-be97-ed622f1d5aad",
+          "migrations_dir": "model-ledger-migrations"
         }
       ],
       "r2_buckets": [
@@ -51,7 +51,7 @@
       },
       "vars": {
         "S1_ENABLED": "internal_eval",
-        "PIPELINE_ENVIRONMENT":"staging"
+        "PIPELINE_ENVIRONMENT": "staging"
       },
       "workers_dev": true,
       "containers": [
@@ -81,7 +81,11 @@
             "name": "OPERATIONS",
             "class_name": "OperationDO"
           }
-        ]
+        ],
+        "code_update_strategy": {
+          "mode": "deferred",
+          "max_delay": 900
+        }
       },
       "workflows": [
         {
@@ -106,10 +110,10 @@
           "migrations_dir": "migrations"
         },
         {
-          "binding":"MODEL_LEDGER",
-          "database_name":"promobento-model-ledger",
-          "database_id":"e8721ee3-f668-46ed-be97-ed622f1d5aad",
-          "migrations_dir":"model-ledger-migrations"
+          "binding": "MODEL_LEDGER",
+          "database_name": "promobento-model-ledger",
+          "database_id": "e8721ee3-f668-46ed-be97-ed622f1d5aad",
+          "migrations_dir": "model-ledger-migrations"
         }
       ],
       "r2_buckets": [
@@ -128,7 +132,7 @@
       },
       "vars": {
         "S1_ENABLED": "off",
-        "PIPELINE_ENVIRONMENT":"production"
+        "PIPELINE_ENVIRONMENT": "production"
       }
     }
   },
@@ -149,5 +153,6 @@
   },
   "limits": {
     "cpu_ms": 300000
-  }
+  },
+  "preview_urls": false
 }

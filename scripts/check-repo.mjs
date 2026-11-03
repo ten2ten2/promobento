@@ -5,6 +5,7 @@ import {dirname,join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
 import {parseCanonicalJson} from '../packages/contracts/src/canonical.mjs';
+import {checkSaasFoundation} from './check-saas-foundation.mjs';
 import {repositoryFiles,conflictErrors,checkDocumentation,platformBaseline,platformRuleErrors,indexedPrdFiles,specificationVersions} from './repo-documentation.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[],counts={documents:0,links:0,routes:0,apis:0,contrastPairs:0};
@@ -12,7 +13,7 @@ const expect=(ok,msg)=>{if(!ok)failures.push(msg);},text=p=>readFileSync(join(ro
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b),get=(o,k)=>k?.split('.').reduce((v,p)=>v?.[p],o);
 function flatten(o,p='',out={}){for(const [k,v]of Object.entries(o)){const key=p?p+'.'+k:k;if(typeof v==='string')out[key]=v;else if(v&&typeof v==='object'&&!Array.isArray(v))flatten(v,key,out);else failures.push('Invalid message '+key);}return out;}
 function lum(hex){if(!/^#[0-9a-f]{6}$/i.test(hex??''))throw Error('Invalid color '+hex);const x=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return x[0]*.2126+x[1]*.7152+x[2]*.0722;}
-function main(){
+async function main(){
  const indexed=indexedPrdFiles(text('docs/prd/README.md'));
  expect(indexed.length>0&&new Set(indexed).size===indexed.length,'PRD index must list each chapter once');
  const prds=['README.md',...indexed];for(const p of prds)expect(existsSync(join(root,'docs/prd',p)),'Missing PRD '+p);counts.documents=prds.length;
@@ -30,6 +31,7 @@ function main(){
   expect(line<0,'Retired v2 identifier in '+p+':'+(line+1));
  }
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
+ expect(same(messages.apiErrors,json('locales/api-errors.en.json')),'Core/Preview public error translations must match website messages');
  const publicContext=json('config/public-context.example.json'),agentPolicy=json('config/agent-policy.json');
  expect(typeof agentPolicy.policyVersion==='string'&&/^[a-z][a-z0-9._-]{0,63}$/.test(agentPolicy.policyVersion),'Agent policyVersion must be a non-empty controlled ID');
  for(const [publicKey,policyKey] of Object.entries({trialActiveDays:'retention.freeDays',paidActiveDays:'retention.paidDays',readOnlyGraceDays:'retention.graceDays',refundNoticeDays:'retention.refundNoticeDays',voluntaryRefundDays:'refund.voluntaryWindowDays',onlineMediaDeletionHours:'retention.onlineMediaDeletionHours'})){
@@ -110,6 +112,7 @@ function main(){
   expect(typeof pkg.scripts[key]==='string'&&pkg.scripts[key].trim()&&command===pkg.scripts[key],'Task mismatch '+key);
  }
  const configCheck=spawnSync(process.execPath,[join(root,'scripts/check-current-config.mjs')],{stdio:'inherit'});expect(configCheck.status===0,'Failed check-current-config.mjs');
+ failures.push(...await checkSaasFoundation(root));
 }
-try{main();}catch(e){failures.push(e.message);}
+try{await main();}catch(e){failures.push(e.message);}
 if(failures.length){console.error('Repository check failed:\n'+failures.map(x=>'- '+x).join('\n'));process.exitCode=1;}else{console.log('Current repository checks passed.');console.log(JSON.stringify({node:process.version,...counts},null,2));console.log('Scope: current documentation, product requirements and native configuration; not live services.');}

@@ -28,9 +28,9 @@ Worker 和可信服务负责鉴权、账务、模型凭据；作品代码与上�
 | `apps/preview` | 与 promobento.com 不同的独立注册域 | 只绑定 Core 的 `PreviewGateway`；无 D1/R2、无密钥 | 验证预览能力令牌，只流式提供已核准 manifest 内文件 |
 | `apps/render-container` | 无 | 任务 token | 隔离渲染；另增客户素材归一化模式 |
 
-调用关系只有 Web → Core、浏览器 iframe → Preview、Preview → Core、容器 → Broker。Web 每次调用原样交出不透明会话 token、Origin、CSRF、requestId 与客户端 IP，由 Core 解析 actor、校验权限并返回要设置的 Cookie；Core 不接受调用方给出的 userId、角色或工作区。`CoreApi` 只分派 routes 中 `kind=api` 的 routeId，未知返回 404；SSR 页面数据也通过这些 API 路由读取，不另设特权入口；不暴露内部评测、恢复或管理操作；后台由 Core 自行验证 Access JWT。Preview 只能调用 `PreviewGateway`。服务之间的流量不改变 §5 的认证与资源校验。
+调用关系只有 Web → Core、浏览器 iframe → Preview、Preview → Core、容器 → Broker。Web 原样传递不透明会话 token、Origin、CSRF、业务 `requestId`/`Idempotency-Key` 与客户端 IP；独立的 `x-request-id` 用作追踪关联 ID，缺失或非法时会生成新值，Core 的 `ApiContext.correlationId` 不得用于业务幂等。Core 解析 actor、校验权限并返回要设置的 Cookie；不接受调用方给出的 userId、角色或工作区。`CoreApi` 只分派 routes 中 `kind=api` 的 routeId，未知返回 404；SSR 页面数据也通过这些 API 路由读取，不另设特权入口；不暴露内部评测、恢复或管理操作；后台由 Core 自行验证 Access JWT。Preview 只能调用 `PreviewGateway`。服务之间的流量不改变 §5 的认证与资源校验。
 
-Core 更新期间，新旧 DO 代码与旧容器镜像可能短暂并存：DO 默认延迟换代码，`durable_object` 调度的运行实例沿用启动镜像。延迟更新只用于减少任务中断，正确性不依赖它：平台仍可能提前重启对象，因此运行状态必须持久化，任何时刻重启后都能凭租约、generation 和执行记录恢复或安全终止。Worker、DO 与容器控制器间的内部 RPC 按相邻两版互通设计，只做增量变更，旧方法至少保留一个延迟窗口；事故修复可显式立即更新。
+Core 更新期间，新旧 DO 代码与旧容器镜像可能短暂并存：staging 的 DO 更新延迟设为 900 秒（生产启用 DO 时也要设置），不小于当前导出 attempt 600 秒和容器启动 45 秒之和；`durable_object` 调度的运行实例沿用启动镜像。延迟更新只用于减少任务中断，正确性不依赖它：平台仍可能提前重启对象，因此运行状态必须持久化，任何时刻重启后都能凭租约、generation 和执行记录恢复或安全终止。Worker、DO 与容器控制器间的内部 RPC 按相邻两版互通设计，只做增量变更，旧方法至少保留一个延迟窗口；事故修复可显式立即更新。
 
 ## 2 素材、源码和数据发送
 
@@ -160,7 +160,7 @@ D1 没有交互式事务；`batch()` 原子，但只在语句报错时回滚，�
 
 客户URI与最低权限以[路由配置](../../config/routes.json)为规划来源；请求/响应契约随对应模块实现，使用封闭字段、明确分支和真实事务负例，不接受任意object代替。下表说明待实施的客户API责任；当前实际入口只有[内部云端API](../../apps/cloud/README.md#内部-api)，不能把内部评测令牌替代客户认证。
 
-普通业务写请求使用 requestId/Idempotency-Key，同时提供须一致；幂等范围包含 workspace/project/actor/route，请求摘要不一致返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入 422、限流 429；未知路径 404、方法 405+Allow。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId。
+普通业务写请求使用正文 `requestId`/`Idempotency-Key`，同时提供须一致，不能以追踪用的 `x-request-id` 代替；幂等身份包含 workspace/project/actor/route 和该路由的路径参数。相同身份改变请求正文返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入或状态不合法 422、版本/额度冲突 409、限流 429；未知路径 404、方法 405+Allow。前置条件失败的 404 对外统一使用 `RESOURCE_NOT_FOUND`，不可从响应区分不存在和已删除等内部状态。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId，其中错误 `requestId` 是关联 ID；提交结果无法确认时返回可用同一业务键重试的 503，不自动重发副作用。
 
 | 模块 | 实施重点 | 规则来源 |
 | --- | --- | --- |
@@ -173,7 +173,7 @@ D1 没有交互式事务；`batch()` 原子，但只在语句报错时回滚，�
 | 订单与支持 | checkout、Waffo 回调、订单查询、退款申请 | [05 交易](05-waffo-billing.md) |
 | 分享与展示 | 只读审阅链接、普通评论、独立案例展示授权和撤回 | [12 审阅权限](12-routing-and-auth.md)、本章第 6 节 |
 
-客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。每个已实现的 API 路由在 `contracts/api/` 有一份请求/响应 Schema，由 `packages/contracts` 预编译；Web 按 routeId 调用 `CoreApi`；仓库检查确认 routes、Core 处理函数、Schema 与 Web 页面路由一致。预览 iframe 与宿主页的消息协议 Schema 同样放在 `contracts/`。
+客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。[实现清单](../../config/implemented-routes.json) 区分规划与可分派路由。每个已实现的 API 在 `contracts/api/<routeId>.schema.json` 定义请求/响应，由 `packages/contracts` 预编译；Web 按 routeId 调用 `CoreApi`。仓库检查核对实现清单、Core 处理函数、Schema、Web 页面/资源和各环境绑定；未实现 API 不注册。预览 iframe 与宿主页的消息协议 Schema 同样放在 `contracts/`。
 
 项目复制只继承同工作区内获准的素材与源包引用。新项目没有试用或付费权益，原购买快照与 QA 授权也不转移；可查看和本地编辑，新增上传、云预览、QA 或创作前先购买 `project_pack` 的 `top_up_only` 权益。
 

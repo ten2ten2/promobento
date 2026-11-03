@@ -1,0 +1,29 @@
+{
+  "name": "promobento-web",
+  "main": "build/worker/index.js",
+  "compatibility_date": "2026-10-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "build/client",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "html_handling": "none",
+    "not_found_handling": "none"
+  },
+  "services": [{ "binding": "CORE_API", "service": "promobento", "entrypoint": "CoreApi" }],
+  "observability": { "enabled": true },
+  "env": {
+    "staging": {
+      "name": "promobento-web-staging",
+      "workers_dev": false,
+      "services": [{ "binding": "CORE_API", "service": "promobento-staging", "entrypoint": "CoreApi" }]
+    },
+    "production": {
+      "name": "promobento-web-prod",
+      "workers_dev": false,
+      "services": [{ "binding": "CORE_API", "service": "promobento-prod", "entrypoint": "CoreApi" }]
+    }
+  }
+}

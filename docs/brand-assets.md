@@ -1,6 +1,6 @@
 # PromoBento 品牌资源
 
-品牌配置见 [brand.json](../../config/brand.json)，英文营销文案见 [en.json](../../locales/en.json)，色彩/字体/控件以 [theme](../../config/theme-tokens.json) 和 [UI tokens](../../config/ui-tokens.json) 为准。网站还未接入这些素材的正式生产构建。
+品牌配置见 [brand.json](../config/brand.json)，英文营销文案见 [en.json](../locales/en.json)，色彩/字体/控件以 [theme](../config/theme-tokens.json) 和 [UI tokens](../config/ui-tokens.json) 为准。Web 已在正式构建中使用这些素材。
 
 ## 文案分工
 
@@ -11,7 +11,7 @@
 | 页脚、About、品牌资料、分享图的小字 | `marketing.tagline`：Promo videos, packed like a bento. |
 | SEO/OG 标题与说明 | 页面主题 + 品牌名；描述用产品说明，不用单独口号 |
 
-品牌配置的 `headline`、`tagline` 与英文消息保持相同。视觉与营销规则以 [02 UX](../../docs/prd/02-ux-and-ui.md) 为准。
+品牌配置的 `headline`、`tagline` 与英文消息保持相同。视觉与营销规则以 [02 UX](prd/02-ux-and-ui.md) 为准。
 
 ## 资源清单
 
@@ -26,7 +26,7 @@
 | `brand/mark-dark.svg`、`brand/mark-white.svg` | 深/浅背景的单色标志 |
 | `manifest.webmanifest` | 网站名称、入口和安装图标 |
 
-分享卡的 Schibsted Grotesk/Geist 字标已转为 SVG 路径，不需要在线字体。网站字体尚待自托管接入；影片字体来自固定 [huashu 原生环境](../../apps/render-container/README.md)，与网站主题独立。
+分享卡的 Schibsted Grotesk/Geist 字标已转为 SVG 路径，不需要在线字体。网站字体已自托管；影片字体来自固定 [huashu 原生环境](../apps/render-container/README.md)，与网站主题独立。
 
 ## 网站与产品接入
 

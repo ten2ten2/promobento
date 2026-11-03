@@ -18,6 +18,7 @@ import {validId, type PipelineEnv, type Json, type Operation} from './pipeline-t
 export {Broker, ShardDO, CoordinatorDO, OperationDO} from './compute.ts';
 export {OperationWorkflow} from './director.ts';
 export {RenderWorkflow} from './render-workflow.ts';
+export {CoreApi, PreviewGateway} from './customer-entrypoints.ts';
 
 function authorized(request: Request, env: PipelineEnv) {
   if (env.S1_ENABLED !== 'internal_eval' || !env.EVAL_API_KEY) return false;

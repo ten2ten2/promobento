@@ -12,7 +12,7 @@ const sha = 'a'.repeat(64);
 const vectors = read('packages/contracts/test/schema-vectors.json').map(({schema, file, value}) => ({schema, value: file ? read(file) : value}));
 
 test('the standalone build covers every contract Schema and every Schema has a positive vector', () => {
-  const names = readdirSync(new URL('../../../contracts/', import.meta.url))
+  const names = readdirSync(new URL('../../../contracts/', import.meta.url), {recursive: true})
     .filter(name => name.endsWith('.schema.json')).map(name => name.replace('.schema.json', '')).sort();
   assert.deepEqual([...VALIDATOR_SCHEMAS].sort(), names);
   assert.deepEqual([...new Set(vectors.map(vector => vector.schema))].sort(), names);

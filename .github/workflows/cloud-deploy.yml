@@ -1,4 +1,4 @@
-name: Deploy native staging
+name: Deploy staging infrastructure
 on:
   workflow_dispatch:
     inputs:
@@ -85,6 +85,9 @@ jobs:
         if: inputs.action == 'deploy' && inputs.renderer_digest == ''
       - name: Install pinned dependencies and precompile validators
         run: mise run install && mise run build:validators
+      - name: Build the Web SSR Worker and static assets
+        if: inputs.action == 'deploy'
+        run: mise run build:web
       - name: Apply additive staging migrations
         if: inputs.action == 'deploy'
         run: |
@@ -104,6 +107,21 @@ jobs:
             mise exec -- pnpm --filter @promobento/cloud exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/deploy.log
           fi
           printf '%s\n' "$GITHUB_SHA" > artifacts/staging/deployed-sha.txt
+      - name: Deploy the Preview and Web service boundaries
+        if: inputs.action == 'deploy'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- pnpm --filter @promobento/preview exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/preview-deploy.log
+          mise exec -- pnpm --filter @promobento/web exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/web-deploy.log
+      - name: Probe Access-protected SaaS staging routes when configured
+        if: inputs.action == 'deploy'
+        env:
+          STAGING_WEB_URL: ${{ vars.STAGING_WEB_URL }}
+          STAGING_PREVIEW_URL: ${{ vars.STAGING_PREVIEW_URL }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: mise exec -- node apps/cloud/scripts/probe-saas-staging.mjs
       - name: Bind a masked run-only internal key for readback
         if: inputs.action == 'deploy'
         shell: bash

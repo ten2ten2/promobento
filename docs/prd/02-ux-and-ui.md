@@ -17,7 +17,7 @@
 
 ## 2 视觉系统与基础组件
 
-[UI tokens](../../config/ui-tokens.json) 维护字体、尺寸、间距、圆角和动效；[主题 tokens](../../config/theme-tokens.json) 维护颜色与对比度。组件读取这些配置，不能在页面另存一套数值。图标、分享图、字标和品牌口号的用法见[品牌素材](../../public/brand/README.md)。演示素材与作者形象的使用边界见[09](09-sources-and-licensing.md)。字标取 `typography.styles.wordmark`，四周至少留 `spacing.3`。
+[UI tokens](../../config/ui-tokens.json) 维护字体、尺寸、间距、圆角和动效；[主题 tokens](../../config/theme-tokens.json) 维护颜色与对比度。组件读取这些配置，不能在页面另存一套数值。图标、分享图、字标和品牌口号的用法见[品牌素材](../brand-assets.md)。演示素材与作者形象的使用边界见[09](09-sources-and-licensing.md)。字标取 `typography.styles.wordmark`，四周至少留 `spacing.3`。
 
 | 用途 | 字体与样式 |
 | --- | --- |
@@ -66,7 +66,7 @@ Studio 内 display 字体最多用于项目名，其余使用正文或等宽字�
 
 ## 4 首页、登录与设置
 
-首页标题、说明和口号按[品牌素材](../../public/brand/README.md#文案分工)分工。软件与课程入口同级。CTA 旁说明样片试用、正式下载起价及项目包入口，金额和次数取服务端目录。样片标明来源和演示品牌，不使用虚构评价、客户标志或购买结果。搜索与 SSR 要求见 [07](07-growth-and-experiments.md)。
+首页标题、说明和口号按[品牌素材](../brand-assets.md#文案分工)分工。软件与课程入口同级。CTA 旁说明样片试用、正式下载起价及项目包入口，金额和次数取服务端目录。样片标明来源和演示品牌，不使用虚构评价、客户标志或购买结果。搜索与 SSR 要求见 [07](07-growth-and-experiments.md)。
 
 登录为单列，宽度取 `layout.formMaxWidth`，同时提供 Continue with Google 和邮箱验证码。邮箱使用 `autocomplete=email`，关闭自动首字母与拼写检查；不设置密码或找回密码页。验证码用一个文本输入框，设置 `inputmode=numeric` / `autocomplete=one-time-code`，支持整段粘贴和前导零；填满后仍由用户点击 Verify and continue。
 
