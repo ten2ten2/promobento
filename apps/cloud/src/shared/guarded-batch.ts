@@ -3,23 +3,48 @@ import {IdempotencyConflict, requestIdentity} from './idempotency.ts';
 import type {RequestIdentity, RequestScope} from './idempotency.ts';
 
 type SqlValue = string | number | null | ArrayBuffer | ArrayBufferView;
+type PreconditionStatus = 404 | 409 | 422;
+
+type Precondition = Readonly<{code: string; status: PreconditionStatus}>;
 
 export type GuardedStep =
-  | Readonly<{kind: 'assert'; condition: string; bindings: readonly SqlValue[]}>
-  | Readonly<{kind: 'write'; sql: string; bindings: readonly SqlValue[]; expectedChanges: number}>;
+  | Readonly<{kind: 'assert'; condition: string; bindings: readonly SqlValue[]} & Precondition>
+  | Readonly<{kind: 'write'; sql: string; bindings: readonly SqlValue[]; expectedChanges: number} & Precondition>;
+
+function precondition(code: string, status: PreconditionStatus): Precondition {
+  if (typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/u.test(code)
+    || ![404, 409, 422].includes(status)) throw new TypeError('INVALID_PRECONDITION');
+  return {code, status};
+}
 
 /** SQL text is trusted application code; bind all values from requests. NULL also fails. */
-export function assertSql(condition: string, bindings: readonly SqlValue[] = []): GuardedStep {
+export function assertSql(code: string, condition: string, bindings: readonly SqlValue[] = [],
+  status: PreconditionStatus = 409): GuardedStep {
   if (!condition.trim()) throw new TypeError('EMPTY_SQL_ASSERTION');
-  return {kind: 'assert', condition, bindings};
+  return {kind: 'assert', condition, bindings, ...precondition(code, status)};
 }
 
 /** The executor inserts an immediate changes() assertion; zero-row updates cannot silently commit. */
-export function writeSql(sql: string, bindings: readonly SqlValue[] = [], expectedChanges = 1): GuardedStep {
+export function writeSql(sql: string, bindings: readonly SqlValue[] = [],
+  options: Readonly<{expectedChanges?: number; code?: string; status?: PreconditionStatus}> = {}): GuardedStep {
+  const {expectedChanges = 1, code = 'WRITE_CONFLICT', status = 409} = options;
   if (!sql.trim() || !Number.isSafeInteger(expectedChanges) || expectedChanges < 0) {
     throw new TypeError('INVALID_GUARDED_WRITE');
   }
-  return {kind: 'write', sql, bindings, expectedChanges};
+  return {kind: 'write', sql, bindings, expectedChanges, ...precondition(code, status)};
+}
+
+export class GuardedBatchPreconditionFailed extends Error {
+  readonly code = 'GUARDED_BATCH_PRECONDITION_FAILED';
+  readonly retryable = false;
+  readonly reason: string;
+  readonly status: PreconditionStatus;
+  constructor(reason: string, status: PreconditionStatus, cause: unknown) {
+    super('GUARDED_BATCH_PRECONDITION_FAILED', {cause});
+    this.name = 'GuardedBatchPreconditionFailed';
+    this.reason = reason;
+    this.status = status;
+  }
 }
 
 export class GuardedBatchOutcomeUnknown extends Error {
@@ -61,10 +86,17 @@ function bindValue(value: SqlValue): SqlValue {
   throw new TypeError('INVALID_SQL_BINDING');
 }
 
-function assertion(session: D1DatabaseSession, condition: string, bindings: readonly SqlValue[]) {
-  return session.prepare(`INSERT INTO saas_batch_assertions (id, passed)
-    VALUES (1, CASE WHEN (${condition}) THEN 1 ELSE 0 END)
-    ON CONFLICT(id) DO UPDATE SET passed = excluded.passed`).bind(...bindings.map(bindValue));
+function assertion(session: D1DatabaseSession, code: string, condition: string, bindings: readonly SqlValue[]) {
+  return session.prepare(`INSERT INTO saas_batch_assert (code, passed)
+    VALUES (?, CASE WHEN (${condition}) THEN 1 ELSE 0 END)`).bind(code, ...bindings.map(bindValue));
+}
+
+function failedPrecondition(error: unknown, codes: ReadonlyMap<string, PreconditionStatus>) {
+  const message = error instanceof Error ? error.message : '';
+  const match = /PRECONDITION_FAILED:([A-Z][A-Z0-9_]{0,63})(?![A-Z0-9_])/u.exec(message);
+  const reason = match?.[1];
+  const status = reason ? codes.get(reason) : undefined;
+  return reason === undefined || status === undefined ? null : new GuardedBatchPreconditionFailed(reason, status, error);
 }
 
 async function readResult<T>(session: D1DatabaseSession, identity: RequestIdentity): Promise<{value: T} | null> {
@@ -101,6 +133,7 @@ export async function guardedBatch<T>(db: D1Database, options: BatchOptions<T>):
   if (!options.steps.length || statementCount > MAX_BATCH_STATEMENTS) throw new TypeError('INVALID_BATCH_SIZE');
 
   const session = db.withSession('first-primary');
+  const codes = new Map<string, PreconditionStatus>();
   // Insert first: concurrent identical requests fail their PK before any side effect.
   // Any later CHECK/unique/error rolls this row back together with the business data.
   const statements = [session.prepare(`INSERT INTO saas_request_results
@@ -109,11 +142,15 @@ export async function guardedBatch<T>(db: D1Database, options: BatchOptions<T>):
     identity.scope.projectId, identity.scope.actorId, identity.scope.routeId, identity.requestId,
     identity.requestHash, resultJson, Date.now())];
   for (const step of options.steps) {
-    if (step.kind === 'assert') statements.push(assertion(session, step.condition, step.bindings));
+    const condition = precondition(step.code, step.status);
+    const previousStatus = codes.get(condition.code);
+    if (previousStatus !== undefined && previousStatus !== condition.status) throw new TypeError('AMBIGUOUS_PRECONDITION');
+    codes.set(condition.code, condition.status);
+    if (step.kind === 'assert') statements.push(assertion(session, condition.code, step.condition, step.bindings));
     else {
       if (!Number.isSafeInteger(step.expectedChanges) || step.expectedChanges < 0) throw new TypeError('INVALID_GUARDED_WRITE');
       statements.push(session.prepare(step.sql).bind(...step.bindings.map(bindValue)));
-      statements.push(assertion(session, 'changes() = ?', [step.expectedChanges]));
+      statements.push(assertion(session, condition.code, 'changes() = ?', [step.expectedChanges]));
     }
   }
 
@@ -137,6 +174,8 @@ export async function guardedBatch<T>(db: D1Database, options: BatchOptions<T>):
       throw new GuardedBatchOutcomeUnknown(batchError, readError);
     }
     if (recovered) return {value: recovered.value, replayed: true};
+    const preconditionError = failedPrecondition(batchError, codes);
+    if (preconditionError) throw preconditionError;
     throw batchError;
   }
   // Snapshot before the await means callers cannot mutate the returned result in flight.

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createCoreApiHandler} from '../src/api-dispatch.ts';
 import {apiHandlers} from '../src/api-registry.ts';
+import {IdempotencyConflict} from '../src/shared/idempotency.ts';
+import {GuardedBatchOutcomeUnknown, GuardedBatchPreconditionFailed} from '../src/shared/guarded-batch.ts';
 
 test('Core registry cannot enable non-API routes or omit an implemented handler', () => {
   assert.throws(() => createCoreApiHandler({'public.home': () => new Response()}, new Set(['public.home'])), /registry/);
@@ -36,11 +38,48 @@ test('Core dispatches exact routes with raw request context and streams the resp
   assert.equal(seen.context.env, env);
   assert.equal(seen.context.ctx, ctx);
   assert.equal(seen.context.params.projectId, 'project_1');
-  assert.equal(seen.context.requestId, 'request-1');
+  assert.equal(seen.context.correlationId, 'request-1');
+  assert.equal(Object.hasOwn(seen.context, 'requestId'), false);
   assert.equal(Object.hasOwn(seen.context, 'actorId'), false);
   const method = await fetch(new Request(request, {method: 'DELETE'}), env, ctx);
   assert.equal(method.status, 405);
   assert.equal(method.headers.get('allow'), 'GET');
+});
+
+test('correlation IDs are never substituted for a missing business idempotency key', async () => {
+  let context;
+  const fetch = createCoreApiHandler({'projects.get': (_request, value) => {
+    context = value;
+    return Response.json({ok: true});
+  }}, new Set(['projects.get']));
+  const response = await fetch(new Request('https://app.example/api/projects/p1', {
+    headers: {'idempotency-key': 'explicit-key'},
+  }), {}, {});
+  assert.equal(response.status, 200);
+  assert.match(context.correlationId, /^[a-f0-9-]{36}$/u);
+  assert.equal(Object.hasOwn(context, 'requestId'), false);
+});
+
+test('Core maps typed guarded-write failures and preserves the retry contract', async () => {
+  for (const [error, code, status, retryable, reason] of [
+    [new IdempotencyConflict(), 'IDEMPOTENCY_CONFLICT', 409, false],
+    [new GuardedBatchOutcomeUnknown(Error('lost confirmation'), Error('read unavailable')), 'OUTCOME_UNKNOWN', 503, true],
+    [new GuardedBatchPreconditionFailed('RESOURCE_NOT_FOUND', 404, Error('private SQL')), 'PRECONDITION_FAILED', 404, false, 'RESOURCE_NOT_FOUND'],
+    [new GuardedBatchPreconditionFailed('VERSION_CONFLICT', 409, Error('private SQL')), 'PRECONDITION_FAILED', 409, false, 'VERSION_CONFLICT'],
+    [new GuardedBatchPreconditionFailed('INVALID_STATE', 422, Error('private SQL')), 'PRECONDITION_FAILED', 422, false, 'INVALID_STATE'],
+  ]) {
+    const fetch = createCoreApiHandler({'auth.session': () => {throw error;}}, new Set(['auth.session']));
+    const response = await fetch(new Request('https://app.example/api/auth/session', {
+      headers: {'x-request-id': 'trace-123'},
+    }), {}, {});
+    assert.equal(response.status, status);
+    const body = await response.json();
+    assert.equal(body.code, code);
+    assert.equal(body.retryable, retryable);
+    assert.deepEqual(body.params, reason ? {reason} : {});
+    assert.equal(body.requestId, 'trace-123');
+    assert.doesNotMatch(JSON.stringify(body), /private SQL|lost confirmation|read unavailable/u);
+  }
 });
 
 test('Core errors never disclose exceptions and HEAD never carries an error body', async () => {

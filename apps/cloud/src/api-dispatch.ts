@@ -1,13 +1,16 @@
-import {apiError, customerApiRoutes, implementedApiRouteIds, matchApiRoute, requestIdFor,
+import {apiError, correlationIdFor, customerApiRoutes, implementedApiRouteIds, matchApiRoute,
   type ApiRoute} from '@promobento/contracts/http-routes';
 import type {PipelineEnv} from './pipeline-types.ts';
+import {GuardedBatchOutcomeUnknown, GuardedBatchPreconditionFailed} from './shared/guarded-batch.ts';
+import {IdempotencyConflict} from './shared/idempotency.ts';
 
 export interface ApiContext {
   env: PipelineEnv;
   ctx: ExecutionContext;
   route: ApiRoute;
   params: Readonly<Record<string, string>>;
-  requestId: string;
+  /** x-request-id for tracing, NOT the business requestId/Idempotency-Key. */
+  correlationId: string;
 }
 export type ApiHandler = (request: Request, context: ApiContext) => Promise<Response> | Response;
 
@@ -20,24 +23,30 @@ export function createCoreApiHandler(handlers: Readonly<Record<string, ApiHandle
   // Snapshot the registry; a request cannot register a route through input data.
   const registered = Object.freeze({...handlers}), enabled = new Set(implementedIds);
   return async (request: Request, env: PipelineEnv, ctx: ExecutionContext): Promise<Response> => {
-    const requestId = requestIdFor(request);
+    const correlationId = correlationIdFor(request);
     try {
       const match = matchApiRoute(new URL(request.url).pathname, request.method, enabled);
       let response: Response;
-      if (match.kind === 'not-found') response = apiError('NOT_FOUND', 404, requestId);
+      if (match.kind === 'not-found') response = apiError('NOT_FOUND', 404, correlationId);
       else if (match.kind === 'method-not-allowed')
-        response = apiError('METHOD_NOT_ALLOWED', 405, requestId, {allow: match.allow.join(', ')});
+        response = apiError('METHOD_NOT_ALLOWED', 405, correlationId, {allow: match.allow.join(', ')});
       else response = await registered[match.route.id]!(request, {env, ctx, route: match.route,
-        params: match.params, requestId});
+        params: match.params, correlationId});
       const headers = new Headers(response.headers);
       headers.set('cache-control', 'private, no-store');
       headers.set('x-content-type-options', 'nosniff');
-      headers.set('x-request-id', requestId);
+      headers.set('x-request-id', correlationId);
       headers.set('x-robots-tag', 'noindex');
       return new Response(request.method === 'HEAD' ? null : response.body,
         {status: response.status, statusText: response.statusText, headers});
-    } catch {
-      const response = apiError('INTERNAL_ERROR', 500, requestId);
+    } catch (error) {
+      const response = error instanceof IdempotencyConflict
+        ? apiError('IDEMPOTENCY_CONFLICT', 409, correlationId)
+        : error instanceof GuardedBatchOutcomeUnknown
+          ? apiError('OUTCOME_UNKNOWN', 503, correlationId)
+          : error instanceof GuardedBatchPreconditionFailed
+            ? apiError('PRECONDITION_FAILED', error.status, correlationId, undefined, {reason: error.reason})
+            : apiError('INTERNAL_ERROR', 500, correlationId);
       return request.method === 'HEAD' ? new Response(null, response) : response;
     }
   };

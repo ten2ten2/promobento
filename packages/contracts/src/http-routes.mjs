@@ -1,6 +1,6 @@
 import routeConfig from '../../../config/routes.json' with {type: 'json'};
 import implemented from '../../../config/implemented-routes.json' with {type: 'json'};
-import messages from '../../../locales/en.json' with {type: 'json'};
+export {apiError} from './api-errors.mjs';
 
 // routes.json is the product plan. Only this explicit subset is reachable.
 export const customerApiRoutes = Object.freeze(routeConfig.routes
@@ -48,28 +48,8 @@ export function matchApiRoute(path, method, implementedIds = implementedApiRoute
     : {kind: 'method-not-allowed', allow: [...new Set(candidates.map(match => match.route.method))].sort()};
 }
 
-export function requestIdFor(request) {
+/** Trace correlation only. Never use the generated value as a business idempotency key. */
+export function correlationIdFor(request) {
   const value = request.headers.get('x-request-id');
   return value && /^[A-Za-z0-9._:-]{1,128}$/.test(value) ? value : crypto.randomUUID();
-}
-
-const errorDefinitions = Object.freeze({
-  NOT_FOUND: {key: 'notFound', retryable: false},
-  METHOD_NOT_ALLOWED: {key: 'methodNotAllowed', retryable: false},
-  INTERNAL_ERROR: {key: 'internalError', retryable: false},
-  SERVICE_UNAVAILABLE: {key: 'serviceUnavailable', retryable: true},
-});
-
-/** Only controlled public messages belong here; never pass provider exceptions. */
-export function apiError(code, status, requestId, headers) {
-  if (!Object.hasOwn(errorDefinitions, code)) throw new TypeError('Unknown public API error code');
-  const definition = errorDefinitions[code];
-  const responseHeaders = new Headers(headers);
-  responseHeaders.set('cache-control', 'private, no-store');
-  responseHeaders.set('x-content-type-options', 'nosniff');
-  responseHeaders.set('x-robots-tag', 'noindex');
-  responseHeaders.set('x-request-id', requestId);
-  return Response.json({code, messageKey: 'apiErrors.' + definition.key, params: {},
-    message: messages.apiErrors[definition.key], fieldErrors: {}, retryable: definition.retryable, requestId},
-  {status, headers: responseHeaders});
 }

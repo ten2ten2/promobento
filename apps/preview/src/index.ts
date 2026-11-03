@@ -1,4 +1,4 @@
-import {apiError} from '@promobento/contracts/http-routes';
+import {apiError} from '@promobento/contracts/api-errors';
 
 type PreviewEnv = { PREVIEW_GATEWAY: Pick<Fetcher, 'fetch'> };
 

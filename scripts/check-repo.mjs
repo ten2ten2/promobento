@@ -31,6 +31,7 @@ async function main(){
   expect(line<0,'Retired v2 identifier in '+p+':'+(line+1));
  }
  const brand=json('config/brand.json'),locale=json('config/localization.json'),themes=json('config/theme-tokens.json'),ui=json('config/ui-tokens.json'),platforms=json('config/platform-presets.json'),rs=json('config/routes.json'),auth=json('config/auth.json'),messages=json('locales/en.json'),pkg=json('package.json');
+ expect(same(messages.apiErrors,json('locales/api-errors.en.json')),'Core/Preview public error translations must match website messages');
  const publicContext=json('config/public-context.example.json'),agentPolicy=json('config/agent-policy.json');
  expect(typeof agentPolicy.policyVersion==='string'&&/^[a-z][a-z0-9._-]{0,63}$/.test(agentPolicy.policyVersion),'Agent policyVersion must be a non-empty controlled ID');
  for(const [publicKey,policyKey] of Object.entries({trialActiveDays:'retention.freeDays',paidActiveDays:'retention.paidDays',readOnlyGraceDays:'retention.graceDays',refundNoticeDays:'retention.refundNoticeDays',voluntaryRefundDays:'refund.voluntaryWindowDays',onlineMediaDeletionHours:'retention.onlineMediaDeletionHours'})){

@@ -1,7 +1,10 @@
-import routes from '../../../config/routes.json' with { type: 'json' };
-import { implementedPageRouteIds } from '@promobento/contracts/http-routes';
-
-export const publicPages = routes.routes.filter((route) => implementedPageRouteIds.has(route.id));
+// Deliberately small client-visible manifest. The repository check verifies
+// this against the planned routes and the executable React Router registry.
+export const publicPages = [
+  {id: 'public.home', path: '/', kind: 'page', auth: 'public'},
+  {id: 'public.formats', path: '/formats', kind: 'page', auth: 'public'},
+  {id: 'public.help', path: '/help', kind: 'page', auth: 'public'},
+] as const;
 
 export function publicPath(id: string): string {
   const route = publicPages.find((candidate) => candidate.id === id);

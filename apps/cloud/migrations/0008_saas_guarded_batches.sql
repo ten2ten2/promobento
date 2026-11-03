@@ -1,9 +1,13 @@
 -- Shared infrastructure only. Customer balances, projects and payments are
 -- added with their business modules; existing S1 records are untouched.
-CREATE TABLE saas_batch_assertions (
-  id INTEGER PRIMARY KEY CHECK (id = 1),
-  passed INTEGER NOT NULL CONSTRAINT saas_batch_precondition CHECK (passed = 1)
-);
+-- A VIEW/trigger assertion reports the failing business condition without
+-- writing a sentinel row for every successful precondition.
+CREATE VIEW saas_batch_assert (code, passed) AS SELECT NULL, NULL;
+CREATE TRIGGER saas_batch_assert_check INSTEAD OF INSERT ON saas_batch_assert
+WHEN NEW.passed IS NOT 1
+BEGIN
+  SELECT RAISE(ABORT, 'PRECONDITION_FAILED:' || NEW.code);
+END;
 
 CREATE TABLE saas_request_results (
   idempotency_key TEXT PRIMARY KEY NOT NULL

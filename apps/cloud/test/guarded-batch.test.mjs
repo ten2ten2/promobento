@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {after, before, test} from 'node:test';
 import {digest} from '../../../packages/contracts/src/digest.mjs';
-import {assertSql, guardedBatch, GuardedBatchOutcomeUnknown, writeSql} from '../src/shared/guarded-batch.ts';
+import {assertSql, guardedBatch, GuardedBatchOutcomeUnknown, GuardedBatchPreconditionFailed, writeSql} from '../src/shared/guarded-batch.ts';
 import {IdempotencyConflict, requestIdentity, resolveRequestId} from '../src/shared/idempotency.ts';
 import {createD1Harness, executeSql} from './fixtures/multi-worker.mjs';
 
@@ -24,10 +24,10 @@ before(async () => {
 });
 after(async () => {await harness?.dispose();});
 
-const scope = projectId => ({workspaceId: 'workspace-a', projectId, actorId: 'actor-a', routeId: 'test.submit'});
+const scope = projectId => ({workspaceId: 'workspace-a', projectId, actorId: 'actor-a', routeId: 'test.submit', routeParams: {}});
 const request = (projectId, requestId, overrides = {}) => ({
   scope: scope(projectId), requestId, requestHash: digest({projectId, action: 'submit'}),
-  result: {runId: requestId}, steps: [assertSql('1')], ...overrides,
+  result: {runId: requestId}, steps: [assertSql('ALWAYS_TRUE', '1')], ...overrides,
 });
 const reserve = (project, runId) => [
   writeSql('UPDATE test_credit SET available = available - 1 WHERE project = ? AND available >= 1', [project]),
@@ -86,20 +86,24 @@ test('T0: commit business data, outbox and canonical result in one real D1 batch
   const row = await db.prepare('SELECT result_json, request_hash FROM saas_request_results WHERE request_id = ?').bind('t0-run').first();
   assert.equal(row.result_json, '{"runId":"t0-run","z":1}');
   assert.equal(row.request_hash, options.requestHash);
-  assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM saas_batch_assertions').first()).n, 1);
+  assert.equal((await db.prepare("SELECT type FROM sqlite_master WHERE name = 'saas_batch_assert'").first()).type, 'view');
 });
 
-test('T1: false/NULL assertions and zero-row conditional writes roll back the whole batch', async () => {
-  for (const [suffix, failedStep] of [
-    ['false', assertSql('0')],
-    ['null', assertSql('NULL')],
-    ['zero-update', writeSql('UPDATE test_credit SET available = available - 1 WHERE project = ?', ['absent-project'])],
+test('T1: typed false/NULL assertions and zero-row conditional writes roll back the whole batch', async () => {
+  for (const [suffix, failedStep, reason, status] of [
+    ['false', assertSql('CREDITS_EXHAUSTED', '0'), 'CREDITS_EXHAUSTED', 409],
+    ['null', assertSql('RESOURCE_NOT_FOUND', 'NULL', [], 404), 'RESOURCE_NOT_FOUND', 404],
+    ['zero-update', writeSql('UPDATE test_credit SET available = available - 1 WHERE project = ?',
+      ['absent-project'], {code: 'STALE_VERSION'}), 'STALE_VERSION', 409],
+    ['invalid', assertSql('INVALID_STATE', '0', [], 422), 'INVALID_STATE', 422],
   ]) {
     const project = `t1-${suffix}`;
     await credit(project, 1);
     await assert.rejects(guardedBatch(db, request(project, project, {
       steps: [...reserve(project, project), failedStep],
-    })), /CHECK constraint failed/u);
+    })), error => error instanceof GuardedBatchPreconditionFailed && error.reason === reason
+      && error.status === status && error.retryable === false
+      && /PRECONDITION_FAILED:/u.test(String(error.cause)));
     assert.equal((await db.prepare('SELECT available FROM test_credit WHERE project = ?').bind(project).first()).available, 1);
     assert.equal(await count('test_runs', 'id', project), 0);
     assert.equal(await count('test_outbox', 'run_id', project), 0);
@@ -176,12 +180,12 @@ test('T4: changed body conflicts while workspace/project/actor/route scopes stay
   await assert.rejects(guardedBatch(db, {...original, requestHash: digest({changed: true})}), IdempotencyConflict);
   for (const changed of [
     {workspaceId: 'workspace-b'}, {projectId: 'project-b'}, {projectId: null},
-    {actorId: 'actor-b'}, {routeId: 'test.other'},
+    {actorId: 'actor-b'}, {routeId: 'test.other'}, {routeParams: {runId: 'run-b'}},
   ]) {
     const variant = {...original, scope: {...original.scope, ...changed}};
     assert.equal((await guardedBatch(db, variant)).replayed, false);
   }
-  assert.equal(await count('saas_request_results', 'request_id', 'same-id'), 6);
+  assert.equal(await count('saas_request_results', 'request_id', 'same-id'), 7);
 
   // Both initial reads miss; the losing PK conflict must still reject a changed
   // request hash when recovering the winner's row, rather than returning its data.
@@ -211,12 +215,18 @@ test('T4: changed body conflicts while workspace/project/actor/route scopes stay
   assert.throws(() => resolveRequestId(null, null), /IDEMPOTENCY_KEY_REQUIRED/u);
   assert.throws(() => resolveRequestId('line\nbreak', null), /INVALID_IDEMPOTENCY_ID/u);
   assert.throws(() => resolveRequestId('\ud800', null), /INVALID_UNICODE/u);
+  assert.throws(() => requestIdentity({...original.scope, routeParams: undefined}, 'id', original.requestHash),
+    /INVALID_ROUTE_PARAMS/u);
+  assert.throws(() => requestIdentity({...original.scope, routeParams: {'bad/name': 'id'}}, 'id', original.requestHash),
+    /INVALID_ROUTE_PARAMS/u);
+  assert.notEqual(requestIdentity({...original.scope, routeParams: {runId: 'a'}}, 'id', original.requestHash).key,
+    requestIdentity({...original.scope, routeParams: {runId: 'b'}}, 'id', original.requestHash).key);
 });
 
 test('T5: concurrent freezes at the same version allow one snapshot; deletion blocks a late freeze', async () => {
   await db.prepare('INSERT INTO test_projects (id, version) VALUES (?, ?)').bind('t5', 4).run();
   const freeze = (project, id) => request(project, id, {steps: [
-    assertSql('EXISTS (SELECT 1 FROM test_projects WHERE id = ? AND version = 4 AND deleted = 0)', [project]),
+    assertSql('VERSION_CONFLICT', 'EXISTS (SELECT 1 FROM test_projects WHERE id = ? AND version = 4 AND deleted = 0)', [project]),
     writeSql('UPDATE test_projects SET version = version + 1 WHERE id = ? AND version = 4 AND deleted = 0', [project]),
     writeSql('INSERT INTO test_snapshots (id, project, version) VALUES (?, ?, ?)', [id, project, 4]),
   ]});
@@ -226,7 +236,7 @@ test('T5: concurrent freezes at the same version allow one snapshot; deletion bl
   assert.equal((await db.prepare('SELECT version FROM test_projects WHERE id = ?').bind('t5').first()).version, 5);
 
   await db.prepare('INSERT INTO test_projects (id, version, deleted) VALUES (?, ?, ?)').bind('t5-deleted', 4, 1).run();
-  await assert.rejects(guardedBatch(db, freeze('t5-deleted', 't5-late')), /CHECK constraint failed/u);
+  await assert.rejects(guardedBatch(db, freeze('t5-deleted', 't5-late')), GuardedBatchPreconditionFailed);
   assert.equal(await count('test_snapshots', 'project', 't5-deleted'), 0);
   assert.equal(await count('saas_request_results', 'request_id', 't5-late'), 0);
 });
@@ -278,10 +288,12 @@ test('bounded results, safe counts and empty plans are rejected before a databas
   const unreachable = {withSession() {throw new Error('MUST_NOT_ACCESS_DB');}};
   await assert.rejects(guardedBatch(unreachable, request('validation', 'oversized', {result: 'a'.repeat(65537)})), /BATCH_RESULT_TOO_LARGE/u);
   await assert.rejects(guardedBatch(unreachable, request('validation', 'no-steps', {steps: []})), /INVALID_BATCH_SIZE/u);
-  await assert.rejects(guardedBatch(unreachable, request('validation', 'many-steps', {steps: Array.from({length: 100}, () => assertSql('1'))})), /INVALID_BATCH_SIZE/u);
-  assert.throws(() => writeSql('UPDATE anything SET value = 0', [], -1), /INVALID_GUARDED_WRITE/u);
-  assert.throws(() => writeSql('UPDATE anything SET value = 0', [], 1.5), /INVALID_GUARDED_WRITE/u);
-  assert.throws(() => assertSql(' '), /EMPTY_SQL_ASSERTION/u);
+  await assert.rejects(guardedBatch(unreachable, request('validation', 'many-steps', {steps: Array.from({length: 100}, () => assertSql('ONE', '1'))})), /INVALID_BATCH_SIZE/u);
+  assert.throws(() => writeSql('UPDATE anything SET value = 0', [], {expectedChanges: -1}), /INVALID_GUARDED_WRITE/u);
+  assert.throws(() => writeSql('UPDATE anything SET value = 0', [], {expectedChanges: 1.5}), /INVALID_GUARDED_WRITE/u);
+  assert.throws(() => assertSql('EMPTY', ' '), /EMPTY_SQL_ASSERTION/u);
+  assert.throws(() => assertSql('bad.reason', '1'), /INVALID_PRECONDITION/u);
+  assert.throws(() => writeSql('UPDATE anything SET value = 0', [], {status: 500}), /INVALID_PRECONDITION/u);
 });
 
 test('the submitted scope, result, SQL steps and binary bindings are snapshots across the preflight await', async () => {
@@ -297,7 +309,7 @@ test('the submitted scope, result, SQL steps and binary bindings are snapshots a
     options.scope.actorId = 'mutated-actor';
     options.result.id = 'snapshot-mutated';
     options.steps[0].sql = 'INVALID SQL';
-    options.steps.push(assertSql('0'));
+    options.steps.push(assertSql('ALWAYS_FALSE', '0'));
   }});
   const response = await guardedBatch(database, options);
   assert.deepEqual(response, {value: {id: 'snapshot-original'}, replayed: false});

@@ -301,6 +301,9 @@
   "apiErrors": {
     "notFound": "The requested resource was not found.",
     "methodNotAllowed": "This request method is not supported.",
+    "idempotencyConflict": "This request key was already used for different data.",
+    "preconditionFailed": "The operation cannot be completed in its current state.",
+    "outcomeUnknown": "The request result could not be confirmed. Retry with the same key.",
     "internalError": "The request could not be completed.",
     "serviceUnavailable": "The service is temporarily unavailable. Please try again."
   },

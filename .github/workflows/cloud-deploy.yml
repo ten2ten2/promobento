@@ -114,6 +114,14 @@ jobs:
           set -euo pipefail
           mise exec -- pnpm --filter @promobento/preview exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/preview-deploy.log
           mise exec -- pnpm --filter @promobento/web exec wrangler deploy --env staging 2>&1 | tee artifacts/staging/web-deploy.log
+      - name: Probe Access-protected SaaS staging routes when configured
+        if: inputs.action == 'deploy'
+        env:
+          STAGING_WEB_URL: ${{ vars.STAGING_WEB_URL }}
+          STAGING_PREVIEW_URL: ${{ vars.STAGING_PREVIEW_URL }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: mise exec -- node apps/cloud/scripts/probe-saas-staging.mjs
       - name: Bind a masked run-only internal key for readback
         if: inputs.action == 'deploy'
         shell: bash

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {apiError, customerApiRoutes, implementedApiRouteIds, matchApiRoute, requestIdFor} from '../src/http-routes.mjs';
+import {apiError, correlationIdFor, customerApiRoutes, implementedApiRouteIds, matchApiRoute} from '../src/http-routes.mjs';
 import {validate} from '../generated/api-error.mjs';
 
 test('planned API routes are closed until explicitly implemented; pages and internal paths cannot be enabled', () => {
@@ -35,21 +35,24 @@ test('encoded separators, invalid UTF-8, dot segments and path aliases cannot cr
 
 test('public errors use a closed schema and bounded correlation IDs, with no caller/provider details', async () => {
   const request = new Request('https://app.example/api/missing', {headers: {'x-request-id': 'req-123:span'}});
-  assert.equal(requestIdFor(request), 'req-123:span');
+  assert.equal(correlationIdFor(request), 'req-123:span');
   for (const value of ['bad id', '<script>', 'x'.repeat(129)]) {
-    const id = requestIdFor(new Request(request, {headers: {'x-request-id': value}}));
+    const id = correlationIdFor(new Request(request, {headers: {'x-request-id': value}}));
     assert.match(id, /^[a-f0-9-]{36}$/);
   }
-  for (const [code, status] of [['NOT_FOUND', 404], ['METHOD_NOT_ALLOWED', 405], ['INTERNAL_ERROR', 500], ['SERVICE_UNAVAILABLE', 503]]) {
-    const response = apiError(code, status, requestIdFor(request), status === 405 ? {allow: 'GET'} : undefined);
+  for (const [code, status] of [['NOT_FOUND', 404], ['METHOD_NOT_ALLOWED', 405], ['IDEMPOTENCY_CONFLICT', 409],
+    ['PRECONDITION_FAILED', 422], ['OUTCOME_UNKNOWN', 503], ['INTERNAL_ERROR', 500], ['SERVICE_UNAVAILABLE', 503]]) {
+    const response = apiError(code, status, correlationIdFor(request), status === 405 ? {allow: 'GET'} : undefined,
+      code === 'PRECONDITION_FAILED' ? {reason: 'INVALID_STATE'} : undefined);
     const body = await response.json();
     assert.equal(validate(body), true, JSON.stringify(validate.errors));
     assert.equal(response.status, status);
     assert.equal(response.headers.get('x-request-id'), body.requestId);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
-    assert.equal(body.retryable, code === 'SERVICE_UNAVAILABLE');
+    assert.equal(body.retryable, code === 'SERVICE_UNAVAILABLE' || code === 'OUTCOME_UNKNOWN');
     assert.deepEqual(body.fieldErrors, {});
   }
   assert.throws(() => apiError('private provider token', 500, 'req-123'), /Unknown public/);
   assert.throws(() => apiError('__proto__', 500, 'req-123'), /Unknown public/);
+  assert.throws(() => apiError('PRECONDITION_FAILED', 409, 'req-123', undefined, {reason: 'bad.reason'}), /Unsafe public/u);
 });

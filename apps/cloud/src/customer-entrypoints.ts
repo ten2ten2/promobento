@@ -1,5 +1,5 @@
 import {WorkerEntrypoint} from 'cloudflare:workers';
-import {apiError, requestIdFor} from '@promobento/contracts/http-routes';
+import {apiError, correlationIdFor} from '@promobento/contracts/http-routes';
 import {createCoreApiHandler} from './api-dispatch.ts';
 import {apiHandlers} from './api-registry.ts';
 import type {PipelineEnv} from './pipeline-types.ts';
@@ -16,10 +16,10 @@ export class CoreApi extends WorkerEntrypoint<PipelineEnv> {
 /** No preview is authorized until capabilities and manifest checks are built. */
 export class PreviewGateway extends WorkerEntrypoint<PipelineEnv> {
   fetch(request: Request): Response {
-    const requestId = requestIdFor(request);
+    const correlationId = correlationIdFor(request);
     const response = request.method === 'GET' || request.method === 'HEAD'
-      ? apiError('NOT_FOUND', 404, requestId)
-      : apiError('METHOD_NOT_ALLOWED', 405, requestId, {allow: 'GET, HEAD'});
+      ? apiError('NOT_FOUND', 404, correlationId)
+      : apiError('METHOD_NOT_ALLOWED', 405, correlationId, {allow: 'GET, HEAD'});
     return request.method === 'HEAD' ? new Response(null, response) : response;
   }
 }

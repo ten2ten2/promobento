@@ -122,5 +122,10 @@ test('public resources reflect implemented pages and assets cannot shadow privat
   assert.equal(assetCalls, 0);
   assert.equal(coreCalls, 0);
   assert.equal((await worker.fetch(new Request('https://promobento.test/icon.svg'), env)).status, 200);
-  assert.equal(assetCalls, 1);
+  assert.equal((await worker.fetch(new Request('https://promobento.test/brand/mark.svg'), env)).status, 200);
+  assert.equal(assetCalls, 2);
+  for (const path of ['/brand/README.md', '/brand/private.svg', '/brand/', '/assets/', '/brand/.env']) {
+    assert.equal((await worker.fetch(new Request('https://promobento.test' + path), env)).status, 404, path);
+  }
+  assert.equal(assetCalls, 2);
 });

@@ -27,7 +27,7 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 | `typecheck` | 先构建契约验证器，再检查 Core、Web 和 Preview 的 TypeScript，包含共享契约导入用例 |
 | `test:browser` | CI 固定镜像内运行完整 huashu 的四画幅真实取帧、原生变量编辑和 15/30 秒有声整片导出；见[原生运行时](../../packages/native-motion/README.md) |
 | `test:cloud-local` | 以 SQLite／R2 和模型／容器响应夹具验证原生方向等待、创作／改稿、整片提交、取消与恢复；不产生模型费用，不代替真实云验 |
-| `test:saas-local` | 构建 Web，使用真实本地 workerd/D1 验证断言批写、T0–T7、命名服务绑定与流式网关；不部署、不调用模型 |
+| `test:saas-local` | 构建 Web，使用真实本地 workerd/D1 验证断言批写、T0–T7、命名服务绑定与流式网关；不含 Chromium 测试，不部署、不调用模型 |
 | `build:web` | 构建 React Router SSR Worker、页面和静态资源 |
 | `test:web-browser` | 已完成 `build:web` 后，使用固定 Chromium 验证 hydration、页面导航、CSP 和窄屏；CI 的 browser job 提供浏览器 |
 | `build:validators` | 将当前原生工程与辅助 Schema 预编译为 ESM；Workers 不在请求内编译 Ajv |
@@ -54,7 +54,7 @@ setup 按 `.mise.toml` 安装固定 Node/pnpm，依赖使用 `pnpm install --fro
 
 **G1 云端检查点：** 使用固定预发布镜像，验证真实 Broker/R2/D1、隔离 Chromium、字体与媒体解码、2D/WebGL 整片、编码与声音、取消、物理停止、恢复、租约和费用。按 [06 的 1/4/16/64 并发及资源矩阵](06-testing-and-release.md#真实高并发内存和经济性关口)记录吞吐、p95/p99、内存峰值、OOM、排队、公平性、每份合格片的总成本和失败恢复。关键观测缺失、未解释的 OOM 或账务/隔离不一致均不得通过；容量与预算要先用实测值标定。
 
-**G1a 基础设施检查：** 不调用付费模型，随对应代码完成分三次进行，每次只验新增链路：Web/Core 骨架完成后，验证服务绑定与命名入口、staging D1 上的断言批写与并发、固定镜像夹具的渲染/取消/物理停止/恢复、Core 部署期间新旧版本并存下的在途任务，以及容器内存指标可得性；上传完成后，验证 50 MiB 文件经 Web→Core→R2、权益预留与素材处理；预览完成后，验证独立预览域、能力令牌和播放器隔离。能在本地 workerd 与浏览器复现的部分先在本地测，staging 只补真实域名、TLS、请求体上限与吞吐。G1a 不代替 G1 的作品质量、成本与 1/4/16/64 并发结论。
+**G1a 基础设施检查：** 不调用付费模型，随对应代码完成分三次进行，每次只验新增链路：Web/Core 骨架完成后，验证服务绑定与命名入口、staging D1 上的断言批写与并发、固定镜像夹具的渲染/取消/物理停止/恢复、Core 部署期间新旧版本并存下的在途任务，以及容器内存指标可得性；上传完成后，验证 50 MiB 文件经 Web→Core→R2、权益预留与素材处理；预览完成后，验证独立预览域、能力令牌和播放器隔离。Web/Preview 的 staging route 必须分别受 Cloudflare Access 保护，配置 GitHub staging 环境里的 Web/Preview URL 和可选 Access 服务令牌后，手动部署会探测 SSR、封闭 API 与 Preview 404；这不证明 Core 服务绑定或 D1 并发，还须单独用隔离测试 D1/入口跑 T0–T7，不得对生产客户表做测试写入。能在本地 workerd 与浏览器复现的部分先在本地测，staging 只补真实域名、TLS、请求体上限与吞吐。G1a 不代替 G1 的作品质量、成本与 1/4/16/64 并发结论。
 
 **完整管线关口：** 在固定镜像和 staging 中用真实素材完成导演→成片→改稿→全目标准备，并通过动态 QA、隔离、预算、用户视听和性能检查；离线 mock 或单个编码样例不能替代。自动生成图片/视频及逐词对齐属于独立的 P1 验收，不能替换基础真实素材能力。
 

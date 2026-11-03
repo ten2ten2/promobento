@@ -14,9 +14,11 @@ pnpm run build:validators
 
 ## 客户 HTTP 契约
 
-`@promobento/contracts/http-routes` 提供 Web/Core 共用的精确路由匹配、requestId 和受控错误响应。[routes.json](../../config/routes.json)保存产品计划，[implemented-routes.json](../../config/implemented-routes.json)指定实际开放的页面、资源和 API；当前 API 清单为空。未实现或未知路径返回 404，已实现路径的方法不符返回 405，不回退到内部评测服务。
+`@promobento/contracts/http-routes` 提供 Web/Core 共用的精确路由匹配、`correlationIdFor` 和受控错误响应；HTTP 错误里的 `requestId` 是追踪关联 ID，不是业务幂等键。[routes.json](../../config/routes.json)保存产品计划，[implemented-routes.json](../../config/implemented-routes.json)指定实际开放的页面、资源和 API；当前 API 清单为空。未实现或未知路径返回 404，已实现路径的方法不符返回 405，不回退到内部评测服务。
 
-[api-error](../../contracts/api-error.schema.json)固定基础错误的 `code`、`messageKey`、`params`、`message`、`fieldErrors`、`retryable` 和 `requestId`，错误正文不包含运行时异常或密钥。Web 和 Preview 的边界测试使用相同结构。
+[api-error](../../contracts/api-error.schema.json)固定基础错误的 `code`、`messageKey`、`params`、`message`、`fieldErrors`、`retryable` 和 `requestId`。幂等冲突是 409，无法确认提交是可用相同业务键重试的 503；受控 SQL 前提失败返回 404/409/422 并带 `params.reason`，不包含 SQL、运行时异常或密钥。Web 和 Preview 的边界测试使用相同结构。
+
+Preview 只导入轻量 `@promobento/contracts/api-errors`，不打包客户路由计划；错误英文文案来自 `locales/api-errors.en.json`，仓库检查确保与 `locales/en.json` 一致。
 
 新增客户 API 时，提交 `contracts/api/<routeId>.schema.json`，包含 `$defs.request` 和 `$defs.response`，并同时登记实现清单与 [Core handler](../../apps/cloud/src/api-registry.ts)。[一致性检查](../../scripts/check-saas-foundation.mjs)验证路径类型、可执行注册和 Schema 的对应关系；具体请求校验、认证、授权与业务事务由该 handler 实现。构建器会自动发现并预编译这些 Schema，不需要维护第二份文件清单。
 

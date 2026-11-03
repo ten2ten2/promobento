@@ -84,7 +84,7 @@
         ],
         "code_update_strategy": {
           "mode": "deferred",
-          "max_delay": 300
+          "max_delay": 900
         }
       },
       "workflows": [
@@ -154,12 +154,5 @@
   "limits": {
     "cpu_ms": 300000
   },
-  "preview_urls": false,
-  "durable_objects": {
-    "bindings": [],
-    "code_update_strategy": {
-      "mode": "deferred",
-      "max_delay": 300
-    }
-  }
+  "preview_urls": false
 }

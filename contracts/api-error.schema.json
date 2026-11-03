@@ -6,9 +6,9 @@
   "required": ["code", "messageKey", "params", "message", "fieldErrors", "retryable", "requestId"],
   "additionalProperties": false,
   "properties": {
-    "code": {"enum": ["NOT_FOUND", "METHOD_NOT_ALLOWED", "INTERNAL_ERROR", "SERVICE_UNAVAILABLE"]},
-    "messageKey": {"enum": ["apiErrors.notFound", "apiErrors.methodNotAllowed", "apiErrors.internalError", "apiErrors.serviceUnavailable"]},
-    "params": {"type": "object", "additionalProperties": false},
+    "code": {"enum": ["NOT_FOUND", "METHOD_NOT_ALLOWED", "IDEMPOTENCY_CONFLICT", "PRECONDITION_FAILED", "OUTCOME_UNKNOWN", "INTERNAL_ERROR", "SERVICE_UNAVAILABLE"]},
+    "messageKey": {"enum": ["apiErrors.notFound", "apiErrors.methodNotAllowed", "apiErrors.idempotencyConflict", "apiErrors.preconditionFailed", "apiErrors.outcomeUnknown", "apiErrors.internalError", "apiErrors.serviceUnavailable"]},
+    "params": {"type": "object", "properties": {"reason": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$"}}, "additionalProperties": false},
     "message": {"type": "string", "minLength": 1, "maxLength": 256},
     "fieldErrors": {"type": "object", "additionalProperties": false},
     "retryable": {"type": "boolean"},

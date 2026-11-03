@@ -7,6 +7,8 @@ export type RequestScope = Readonly<{
   projectId: string | null;
   actorId: string;
   routeId: string;
+  /** Exact parameters matched by Core (never raw client headers). */
+  routeParams: Readonly<Record<string, string>>;
 }>;
 
 export type RequestIdentity = Readonly<{
@@ -42,11 +44,20 @@ export function resolveRequestId(requestId: string | null | undefined,
 
 /** The body digest is deliberately not part of the key: a changed body must conflict. */
 export function requestIdentity(scope: RequestScope, requestId: string, requestHash: string): RequestIdentity {
+  if (!scope.routeParams || typeof scope.routeParams !== 'object' || Array.isArray(scope.routeParams)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(scope.routeParams))) {
+    throw new TypeError('INVALID_ROUTE_PARAMS');
+  }
+  const routeParams = Object.fromEntries(Object.entries(scope.routeParams).map(([key, value]) => {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/u.test(key)) throw new TypeError('INVALID_ROUTE_PARAMS');
+    return [key, identifier(value)];
+  }));
   const resolvedScope: RequestScope = Object.freeze({
     workspaceId: identifier(scope.workspaceId),
     projectId: scope.projectId === null ? null : identifier(scope.projectId),
     actorId: identifier(scope.actorId),
     routeId: identifier(scope.routeId),
+    routeParams: Object.freeze(routeParams),
   });
   identifier(requestId);
   if (typeof requestHash !== 'string' || !/^[a-f0-9]{64}$/u.test(requestHash)) {

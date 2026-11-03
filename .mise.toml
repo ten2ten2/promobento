@@ -58,7 +58,7 @@ run = "pnpm --filter @promobento/web build"
 [tasks."test:saas-local"]
 description = "Verify SaaS D1 transactions and Web/Core/Preview bindings in local workerd"
 dir = "{{config_root}}"
-run = "pnpm run build:validators && pnpm run build:web && node --test packages/contracts/test/http-routes.test.mjs apps/cloud/test/api-dispatch.test.mjs apps/cloud/test/guarded-batch.test.mjs apps/cloud/test/multi-worker.test.mjs apps/web/test/*.test.mjs scripts/check-saas-foundation.test.mjs"
+run = "pnpm run build:validators && pnpm run build:web && node --test packages/contracts/test/http-routes.test.mjs apps/cloud/test/api-dispatch.test.mjs apps/cloud/test/guarded-batch.test.mjs apps/cloud/test/multi-worker.test.mjs apps/cloud/test/probe-saas-staging.test.mjs apps/web/test/gateway.test.mjs apps/web/test/i18n.test.mjs scripts/check-saas-foundation.test.mjs"
 
 [tasks."test:web-browser"]
 description = "Verify Web hydration and navigation with the pinned Chromium after build:web"
