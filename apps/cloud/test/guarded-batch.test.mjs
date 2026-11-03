@@ -111,6 +111,21 @@ test('T1: typed false/NULL assertions and zero-row conditional writes roll back 
   }
 });
 
+test('T1: a business CHECK failure stays a database error and rolls back earlier writes', async () => {
+  const project = 't1-business-check';
+  await credit(project, 0);
+  await assert.rejects(guardedBatch(db, request(project, project, {steps: [
+    writeSql('INSERT INTO test_runs (id, project) VALUES (?, ?)', [project, project]),
+    writeSql('INSERT INTO test_outbox (id, run_id) VALUES (?, ?)', [project, project]),
+    writeSql('UPDATE test_credit SET available = available - 1 WHERE project = ?', [project]),
+  ]})), error => !(error instanceof GuardedBatchPreconditionFailed)
+    && /CHECK constraint failed/u.test(String(error)));
+  assert.equal((await db.prepare('SELECT available FROM test_credit WHERE project = ?').bind(project).first()).available, 0);
+  assert.equal(await count('test_runs', 'id', project), 0);
+  assert.equal(await count('test_outbox', 'run_id', project), 0);
+  assert.equal(await count('saas_request_results', 'request_id', project), 0);
+});
+
 test('T2: concurrent distinct requests competing for the last credit produce exactly one run and outbox', async () => {
   await credit('t2', 1);
   const outcomes = await Promise.allSettled(Array.from({length: 12}, (_, index) => {

@@ -45,7 +45,8 @@ export function createCoreApiHandler(handlers: Readonly<Record<string, ApiHandle
         : error instanceof GuardedBatchOutcomeUnknown
           ? apiError('OUTCOME_UNKNOWN', 503, correlationId)
           : error instanceof GuardedBatchPreconditionFailed
-            ? apiError('PRECONDITION_FAILED', error.status, correlationId, undefined, {reason: error.reason})
+            ? apiError('PRECONDITION_FAILED', error.status, correlationId, undefined,
+              {reason: error.status === 404 ? 'RESOURCE_NOT_FOUND' : error.reason})
             : apiError('INTERNAL_ERROR', 500, correlationId);
       return request.method === 'HEAD' ? new Response(null, response) : response;
     }

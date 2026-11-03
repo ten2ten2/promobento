@@ -160,7 +160,7 @@ D1 没有交互式事务；`batch()` 原子，但只在语句报错时回滚，�
 
 客户URI与最低权限以[路由配置](../../config/routes.json)为规划来源；请求/响应契约随对应模块实现，使用封闭字段、明确分支和真实事务负例，不接受任意object代替。下表说明待实施的客户API责任；当前实际入口只有[内部云端API](../../apps/cloud/README.md#内部-api)，不能把内部评测令牌替代客户认证。
 
-普通业务写请求使用正文 `requestId`/`Idempotency-Key`，同时提供须一致，不能以追踪用的 `x-request-id` 代替；幂等身份包含 workspace/project/actor/route 和该路由的路径参数。相同身份改变请求正文返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入或状态不合法 422、版本/额度冲突 409、限流 429；未知路径 404、方法 405+Allow。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId，其中错误 `requestId` 是关联 ID；提交结果无法确认时返回可用同一业务键重试的 503，不自动重发副作用。
+普通业务写请求使用正文 `requestId`/`Idempotency-Key`，同时提供须一致，不能以追踪用的 `x-request-id` 代替；幂等身份包含 workspace/project/actor/route 和该路由的路径参数。相同身份改变请求正文返回 409。认证、外部回调的例外按 12/05，不把普通幂等缓存用于绕过 OTP 限次。Origin/CSRF、资源权限和生命周期在副作用前校验。无会话 401、已知角色不足 403、不可见资源 404、输入或状态不合法 422、版本/额度冲突 409、限流 429；未知路径 404、方法 405+Allow。前置条件失败的 404 对外统一使用 `RESOURCE_NOT_FOUND`，不可从响应区分不存在和已删除等内部状态。错误外壳为 code/messageKey/安全 params/message/fieldErrors/retryable/requestId，其中错误 `requestId` 是关联 ID；提交结果无法确认时返回可用同一业务键重试的 503，不自动重发副作用。
 
 | 模块 | 实施重点 | 规则来源 |
 | --- | --- | --- |

@@ -65,6 +65,8 @@ test('Core maps typed guarded-write failures and preserves the retry contract', 
     [new IdempotencyConflict(), 'IDEMPOTENCY_CONFLICT', 409, false],
     [new GuardedBatchOutcomeUnknown(Error('lost confirmation'), Error('read unavailable')), 'OUTCOME_UNKNOWN', 503, true],
     [new GuardedBatchPreconditionFailed('RESOURCE_NOT_FOUND', 404, Error('private SQL')), 'PRECONDITION_FAILED', 404, false, 'RESOURCE_NOT_FOUND'],
+    [new GuardedBatchPreconditionFailed('PROJECT_DELETED', 404, Error('private SQL')), 'PRECONDITION_FAILED', 404, false, 'RESOURCE_NOT_FOUND'],
+    [new GuardedBatchPreconditionFailed('PROJECT_NOT_FOUND', 404, Error('private SQL')), 'PRECONDITION_FAILED', 404, false, 'RESOURCE_NOT_FOUND'],
     [new GuardedBatchPreconditionFailed('VERSION_CONFLICT', 409, Error('private SQL')), 'PRECONDITION_FAILED', 409, false, 'VERSION_CONFLICT'],
     [new GuardedBatchPreconditionFailed('INVALID_STATE', 422, Error('private SQL')), 'PRECONDITION_FAILED', 422, false, 'INVALID_STATE'],
   ]) {
