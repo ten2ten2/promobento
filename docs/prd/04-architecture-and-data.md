@@ -17,13 +17,26 @@ Worker 和可信服务负责鉴权、账务、模型凭据；作品代码与上�
 
 当前统一使用 Cloudflare，不建第二套视频渲染引擎。Workers HTTP 只协调，不承担长时间 Chromium 或模型编排；耗时计算在独立容器或持久编排中执行。各类操作返回持久任务 ID，交付不依赖浏览器轮询。未来新增素材生成仍复用 R2、版本及预算体系。
 
-客户业务 API 将导演、容器、审核和交付串成持久 operation；状态/回执由 D1/R2 保存，outbox 负责恢复，支付由独立 Billing DO 仲裁。客户模块仍待实现。
+客户业务 API 将导演、容器、审核和交付串成持久 operation；状态/回执由 D1/R2 保存，outbox 负责恢复，权益、付款与交付由 D1 单批条件写仲裁（§4）。客户模块仍待实现。
+
+### 部署拓扑与写入归属
+
+| 组件 | 对外 | 绑定与密钥 | 职责 |
+| --- | --- | --- | --- |
+| `apps/web` | promobento.com / staging 的页面与 `/api/*` | Static Assets 与 Core 的 `CoreApi` 服务绑定；无 D1/R2、无密钥 | SSR、Cookie 收发、重定向；按 routes 把 API 转给 Core；上传与 Waffo webhook 原始字节以流透传 |
+| `apps/cloud`（Core） | 生产无公网入口；staging 仅保留受密钥保护的内部评测 API | D1、R2、Queues、DO、Workflows、Containers、MODEL_LEDGER、发信；Google、OTP、Waffo、模型与 Broker 密钥 | 身份、会话、工作区、业务、计费与引擎；**D1 唯一写入方** |
+| `apps/preview` | 与 promobento.com 不同的独立注册域 | 只绑定 Core 的 `PreviewGateway`；无 D1/R2、无密钥 | 验证预览能力令牌，只流式提供已核准 manifest 内文件 |
+| `apps/render-container` | 无 | 任务 token | 隔离渲染；另增客户素材归一化模式 |
+
+调用关系只有 Web → Core、浏览器 iframe → Preview、Preview → Core、容器 → Broker。Web 每次调用原样交出不透明会话 token、Origin、CSRF、requestId 与客户端 IP，由 Core 解析 actor、校验权限并返回要设置的 Cookie；Core 不接受调用方给出的 userId、角色或工作区。`CoreApi` 只分派 routes 中 `kind=api` 的 routeId，未知返回 404；SSR 页面数据也通过这些 API 路由读取，不另设特权入口；不暴露内部评测、恢复或管理操作；后台由 Core 自行验证 Access JWT。Preview 只能调用 `PreviewGateway`。服务之间的流量不改变 §5 的认证与资源校验。
+
+Core 更新期间，新旧 DO 代码与旧容器镜像可能短暂并存：DO 默认延迟换代码，`durable_object` 调度的运行实例沿用启动镜像。延迟更新只用于减少任务中断，正确性不依赖它：平台仍可能提前重启对象，因此运行状态必须持久化，任何时刻重启后都能凭租约、generation 和执行记录恢复或安全终止。Worker、DO 与容器控制器间的内部 RPC 按相邻两版互通设计，只做增量变更，旧方法至少保留一个延迟窗口；事故修复可显式立即更新。
 
 ## 2 素材、源码和数据发送
 
 准入来自 01 和 [输入配置](../../config/input-capabilities.json)。上传、解码、素材理解和方向生成前必须登录，且当前项目有已绑定试用或有效付费处理权益；无资助的新草稿不得先消耗这些云资源。检验魔数/解码而非扩展名，限制文件大小、像素、时长、线程和内存；图片方向/色彩规范化，音频规范化 48 kHz。录屏可以生成 H.264 预览代理，但必须先验证目标 Chromium 构建支持的解码器；不支持则用经过验证的预览抽帧，不能假设开源 Chromium 自带 H.264/AAC 解码。正式 Renderer 对实际使用的视频区间默认以 FFmpeg 按 PTS 确定性抽帧并复用受限缓存（含变帧率），不是无条件抽取所有上传帧；缺帧、PTS 不连续或资源越界明确失败。原始媒体与规范化 asset_version 都不可变。用户上传 HTML/SVG 与 Agent 在沙箱编写 HTML/SVG 严格区分。
 
-上传 intent 收取用途、文件名、媒体类型、预先计算的 SHA-256、字节数及 `rightsDeclaration`。声明列明告知版本、owned/licensed 依据、处理/预览/商用范围、人物权利与限制；服务端记录声明人和时间，绑定 workspace/project、来源 hash/长度、临时 key 和截止。文件名仅作显示，不生成存储路径。声明是保存的依据，不自动证明真实授权；首次处理前执行 09/14 的用途准入，免费预览同样适用。
+上传 intent 收取用途、文件名、媒体类型、预先计算的 SHA-256、字节数及 `rightsDeclaration`。声明列明告知版本、owned/licensed 依据、处理/预览/商用范围、人物权利与限制；服务端记录声明人和时间，绑定 workspace/project、来源 hash/长度、临时 key 和截止。文件名仅作显示，不生成存储路径。文件字节由浏览器 PUT 到同源上传路由，Web 以字节流经服务绑定交给 Core，不转为整段内存或普通 RPC 对象；Core 按 intent 记录的长度和 SHA-256 以定长流写入临时对象，R2 校验摘要，同 key 不覆盖。P0 不使用 R2 预签名直传，实测成为瓶颈再另行评估。声明是保存的依据，不自动证明真实授权；首次处理前执行 09/14 的用途准入，免费预览同样适用。
 
 complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、hash、魔数及对应用途的格式边界；不匹配返回 422，不创建可用版本或启动后续模型处理。重试复用原结果，正式素材及规范化版本不可变。`purpose=evidence` 另允许 PDF，按输入配置的 `evidence_documents` 独立数量、单文件和项目总量检查，不占视觉素材或音视频处理次数；仍须权限、权利声明和存储预算。图片及音视频证据继续使用对应的格式、处理预算和限制。全部证据只供事实/权利核查，不执行脚本、不进入可绘资源清单，也不满足创作必需的视觉素材。账号、项目和素材归属取数据库，不信客户端自报。
 
@@ -107,7 +120,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 原生包最多 512 个文件，按清单摘要去重并有界并发查询 R2 元数据；首次准入和最终提交仍逐项核验身份及权限。D1 热路径按实测查询计划优化，事务写入限并发，租约/扣次/付款不能依赖可能陈旧的读副本。性能门槛见[06](06-testing-and-release.md#4-支付性能与平台门槛)。
 
-原生代码仅在 Chromium 沙箱中执行，Node 控制器与 Worker 不求值作品或第三方包脚本；broker 只提供本任务的已授权输入与指定输出。独立 preview origin、受限 iframe/bridge、物理停止、generation 栅栏、无公网和跨任务残留都需真实云端负例验证。容量优化不得削弱权限、取消、付款收据和保留期；已收款履约保障见[05](05-waffo-billing.md)。
+原生代码仅在 Chromium 沙箱中执行，Node 控制器与 Worker 不求值作品或第三方包脚本；broker 只提供本任务的已授权输入与指定输出。客户预览使用与主站不同注册域的独立站点，不用 promobento.com 子域；同时使用 iframe sandbox、响应头 CSP sandbox 和短期能力 URL，staging 预览域不依赖 Access Cookie。预览域未配置的环境禁用原生交互预览。本地回放须先满足[14 §5](14-production-contracts.md#5-renderprotocol)的 `verified_local_runtime`，否则只提供已审核的可信媒体，容器容量按后者估算。独立 preview 站点、受限 iframe/bridge、物理停止、generation 栅栏、无公网和跨任务残留都需真实云端负例验证。容量优化不得削弱权限、取消、付款收据和保留期；已收款履约保障见[05](05-waffo-billing.md)。
 
 ## 4 实体与原子性
 
@@ -122,6 +135,16 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 交易：orders、checkout_disclosures/checkout_consent_receipts、active_checkout_slots、entitlement_grants、credit_reservations/credit_ledger、payment_inbox、refund_requests、export_snapshots/export_releases/export_artifacts、jobs/job_attempts、outbox、renderer_versions。creative_reservations/creative_ledger 与成片账本分开。按 05 的购买资格、项目初始槽/升级槽、依赖退款与重新购买条件建唯一约束；条件写和 outbox 同事务，不无条件读后减余额。消费与费用不能因退款改写，旧付款去重关系不能被新订单复用；保存范围和期限见第 6 节。
 
 货币使用整数最小单位，模型费用使用整数 USD micros；provider 单位由 adapter 明确转换。时间 UTC，UI 未知时区先标明 UTC，hydration 后可调整显示，但不改已确认的视频日期。素材、源码、事实、声音和 QA 构成引用图，清理必须先检查在途任务及有效购买。
+
+### D1 事务与幂等
+
+D1 没有交互式事务；`batch()` 原子，但只在语句报错时回滚，条件 UPDATE 影响 0 行不会让整批失败。所有业务事务因此使用**带断言的单批写**：每个前置条件写成 CHECK、唯一约束或断言语句，不满足即令整批报错回滚，不在批写返回后由代码检查影响行数补救。每个业务批写都写入一条以幂等键为主键的结果行；超时或报错时先按该键查询结果，查不到才重试，主键冲突视为可能已提交。P0 不设 Billing DO；只有实测出现约束无法表达的串行仲裁时再加，且仍以 D1 为唯一账本。
+
+### 客户操作与 S1 引擎
+
+客户层通过窄适配层驱动现有 S1 引擎，不另建执行路径。每个**有费用的客户操作**（14 §6 的各类操作、素材处理、导出与补平台）对应一个引擎 operation，客户记录保存其 ID，渲染是该 operation 的子任务；读取已有预览、重新下载和本地编辑不建 operation。提交时把当前有效的素材授权投影为该 operation 的引擎授权，撤权与业务撤权同批写入。引擎是 attempt、物理停止和费用回执的唯一来源；客户表是候选接受、扣次、订单与交付的唯一来源，两者经 outbox 事件衔接。S1 现有 `purpose` 约束需扩展为客户用途，迁移涉及含真实费用数据的被引用表，执行前备份并在 staging 副本演练。
+
+次数与金额分开记录，各有唯一职责：客户权益账本只记可消费的次数和购买权益，不记金额；环境 `DB` 的引擎费用记录是每次模型/计算调用、实际 attempt 与原始费用回执的权威，并执行 operation、阶段与用户/项目窗口上限；`MODEL_LEDGER` 只按授权执行跨环境总额的预留与结算（研究与生产授权分开登记）。`DB` 与 `MODEL_LEDGER` 不能原子提交，按调用 ID 的两阶段预留、幂等结算和定期对账恢复不一致，未结部分保留预留。提交在同一批写入幂等结果、次数预留、用户/项目窗口断言、客户记录、以信封为上限的引擎 operation 和 outbox；窗口直接按引擎费用计算，进行中的 operation 计其信封上限，结束的计实际费用及未结预留。引擎每次付费调用照 14 §6 预留、先存原始响应再结算，未知用量保留预留，不重发。完成时同一批写入候选状态、消费或释放次数与 outbox。审核及将来的 ASR 调用走同一预留/结算路径并记在原 operation 下。恢复按客户记录、operation 和调用 ID 查询，定时对账引擎已终止但客户记录未收尾、以及超期等待的操作。Waffo 收款按 05 §7 处理，不与成本混账。
 
 ### 成本计量与归因
 
@@ -150,7 +173,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 | 订单与支持 | checkout、Waffo 回调、订单查询、退款申请 | [05 交易](05-waffo-billing.md) |
 | 分享与展示 | 只读审阅链接、普通评论、独立案例展示授权和撤回 | [12 审阅权限](12-routing-and-auth.md)、本章第 6 节 |
 
-客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。
+客户方法、路径和最低角色只在routes登记；各服务实现时建立其实际请求/响应契约，不在文档另维护一份接口表。每个已实现的 API 路由在 `contracts/api/` 有一份请求/响应 Schema，由 `packages/contracts` 预编译；Web 按 routeId 调用 `CoreApi`；仓库检查确认 routes、Core 处理函数、Schema 与 Web 页面路由一致。预览 iframe 与宿主页的消息协议 Schema 同样放在 `contracts/`。
 
 项目复制只继承同工作区内获准的素材与源包引用。新项目没有试用或付费权益，原购买快照与 QA 授权也不转移；可查看和本地编辑，新增上传、云预览、QA 或创作前先购买 `project_pack` 的 `top_up_only` 权益。
 
@@ -162,7 +185,7 @@ S1 内部实现使用 `pipeline_*`、`cost_reservations`/`cost_settlements` 与 
 
 路径 ID 与 body ID 必须相等；所有引用重新查验当前租户、项目、成员和生命周期。读接口无业务副作用，均 `private, no-store`。Schema 只校验结构，不能替代以下服务端判断：
 
-- **付款与上传授权。** `checkoutResult` 只返回本地 orderId、订单/会话状态和受控 URL/截止，不透传提供方对象。只有 ready 会话有 HTTPS checkoutUrl；pending/closed 均为 null，pending 不另开付款会话。服务端核对实际会话、允许的提供方主机和有效截止，禁止凭 HTTPS 字符串放行任意地址。上传 URL 同样只授权该 intent 的临时对象、PUT、长度/类型及期限；complete 再检查当前权限与实际字节，处理预算和费用不因重试重置。
+- **付款与上传授权。** `checkoutResult` 只返回本地 orderId、订单/会话状态和受控 URL/截止，不透传提供方对象。只有 ready 会话有 HTTPS checkoutUrl；pending/closed 均为 null，pending 不另开付款会话。服务端核对实际会话、允许的提供方主机和有效截止，禁止凭 HTTPS 字符串放行任意地址。上传路由同样只接受该 intent 的临时对象、PUT、长度/类型及期限；complete 再检查当前权限与实际字节，处理预算和费用不因重试重置。
 - **事实编辑与确认。** `changes[].expectedVersion` 对应每项 `recordVersion`，0 仅创建从未使用的 factId；编辑或确认状态改变时递增记录版本。`version` 仅在正文改变时递增，用于防止陈旧确认，不进入计费身份。`textHash=digest(text)` 计算 JCS 字符串字节，包含 JSON 双引号；不是原文 UTF-8 的直接摘要。证据变化使受影响的当前确认和检查资格失效，不改变计费内容或旧快照证据。批内 factId 唯一，CAS 全部原子通过，移除不破坏旧快照。正文变化按 14 同步参数、绑定和新 revision，响应给出新建及当前版本引用；仅确认不改原生工程。确认同时匹配 factId/version/textHash/expectedRecordVersion，确认人和时间取有效会话及服务端，Agent 不能代确认。
 - **证据与转写。** 事实的 `evidence` 只提交 assetId/sourceHash；服务端核验该项目已完成的 evidence 上传，并生成绑定来源字节及当前文案 hash 的 evidenceRefs。14 的事实分类及来源要求仍适用，客户确认不自动证明真实性。转写绑定不可变 assetId/sourceHash，expectedVersion=0 为首次，其后匹配当前转写版本；各段按时间升序、不重叠、落在实测时长内，合计原文不超过 6000 Unicode 码点。商业声称关联当前已确认的 factId/version/textHash，并接受文本覆盖检查；空 facts 不能绕过声称检查。`transcriptHash=digest({assetId,sourceHash,segments})`，确认人/时间由服务端写入；来源或事实变化须重新确认受影响的转写。
 - **展示与退款。** 展示 grant 必须当前 Owner、有权许可、已交付且确属该项目的 release、告知版本及明确所选渠道；scope 仅为该成片的 product_showcase，不延伸到原始素材或训练。revoke 使用当前版本，不要求仍有创作额度或媒体处于可编辑期，立即停止新增使用并安排撤下受控展示；旧 grant 的重放不能恢复已撤回授权。普通支持的可选 project/order 必须可见且关联一致；refund 分支额外核验订单 Owner，按 05 进入退款申请及依赖核查，不接受客户端金额/权益，不把 requested 当作退款到账。
