@@ -35,7 +35,7 @@ P0 视频字体只从审核后的平台字库选择，保存确切文件及回�
 
 当前引擎固定完整[huashu-motion v0.3.1](https://github.com/alchaincyf/huashu-motion/tree/52467f99c602b76ba86d511d37acdfe93fa1e16e)（`52467f99c602b76ba86d511d37acdfe93fa1e16e`）。镜像保留 CLI、Studio、runtime、templates、fonts、examples 和 skills，构建校验[315 个上游文件](../../packages/native-motion/upstream.lock.json)，再应用云端 I/O 与隔离补丁。执行边界见[适配器](../../packages/native-motion/README.md)和[渲染容器](../../apps/render-container/README.md)。
 
-内部导演已接入 Brief/Treatment、参考片抽帧观察、Script、语义事件和素材候选复用；Studio 客户界面及完整视听验收尚未完成，见[实施状态](../implementation-status.md)。方法来源见[NOTICE](../../packages/methods/NOTICE.md)，制作要求见[13](13-agent-native-production.md)。**客户产品不得使用花叔本人肖像、头像、个人标识、肖像化角色或作者片尾。** [内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)只用于检查已有影片。
+内部导演已接入 Brief/Treatment、参考片抽帧观察、Script、语义事件和素材候选复用；Studio 客户界面及完整视听验收尚未完成，见[实施状态](../implementation-status.md)。方法来源见[NOTICE](../../packages/methods/NOTICE.md)，制作要求见[13](13-agent-native-production.md)。**客户产品不得使用花叔本人肖像、头像、个人标识、拟人角色或作者片尾。** [内部媒体工具](../../research/evals/README.md#查看已经生成的媒体)只用于检查已有影片。
 
 | 来源范围 | 用途 |
 | --- | --- |

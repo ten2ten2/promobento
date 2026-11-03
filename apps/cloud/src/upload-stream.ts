@@ -52,6 +52,8 @@ export async function putBoundedUpload(bucket: R2Bucket, key: string, body: Read
 
 /** Stored metadata is not a substitute for a differing R2 checksum. */
 export function matchesStoredUpload(object: R2Object | null, length: number, sha256: string, mediaType?: string) {
+  // A PUT retry must preserve the complete stored Content-Type, including its
+  // parameters. Native manifest admission separately compares the MIME essence.
   if (!object || object.size !== length || object.customMetadata?.sha256 !== sha256
     || mediaType !== undefined && object.httpMetadata?.contentType !== mediaType) return false;
   const checksum = object.checksums?.sha256;

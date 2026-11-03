@@ -4,7 +4,7 @@
 
 ## 技术与产品边界
 
-- 完整 huashu-motion HTML/JS 工程是**唯一影片引擎**；借鉴 Hypit 的导演、参考、素材和编辑方法。不引入第二套视频 DSL/渲染引擎，也不使用花叔本人形象。
+- 完整 huashu-motion HTML/JS 工程是**唯一影片引擎**；借鉴 Hypit 的导演、参考、素材和编辑方法。不引入第二套视频 DSL/渲染引擎；客户产品不得使用花叔本人形象、头像或拟人角色。
 - 保持软件及课程两类用户、15/30 秒、30 fps、平台预设、Google/邮箱、Cloudflare 与 Waffo。网站语言/主题不改变成片原文、视频计费或交付内容。购买创作额度与购买并导出是不同业务事务。
 - 创作代码只在任务独立、无公网的 Chromium 容器沙箱执行；Worker 不执行作品代码。权限、取消、版本、费用和交付按 PRD 04/05/14 实现；镜像仅通过 GitHub Actions 构建、发布。
 - JSON 严格解析、JCS、哈希及预编译 Ajv 统一来自 `packages/contracts`；原生传输使用 `contracts/native-project.schema.json`，不重建影片 DSL。素材许可与来源证据跟随真实资产。

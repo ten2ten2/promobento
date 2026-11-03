@@ -110,11 +110,18 @@ export function modelCallCostMicros(ref, usage, providers, {maxOutputTokens = 0}
   return {usdMicros: Number(micros), catalogVersion: providers.catalogVersion, currency: provider.currency, estimated};
 }
 
-/** Preserve the original currency/rate/prices with a reported-usage quote; unknown usage stays null. */
+/** Preserve the original currency/rate/prices; unknown or unrepresentable reported costs stay null. */
 export function modelUsageQuote(ref,usage,providers){
- const cost=modelCallCostMicros(ref,usage,providers);if(cost.estimated)return null;
- const name=ref.split('/')[0],provider=providers.providers[name];
- const original=modelCallCostMicros(ref,usage,{...providers,providers:{...providers.providers,[name]:{...provider,currency:'USD'}}});
- return{usdMicros:cost.usdMicros,currencyMicros:original.usdMicros,currency:provider.currency,usdRate:provider.currency==='USD'?1:provider.usdRate,
-  catalogVersion:providers.catalogVersion,prices:{...providers.models[ref].prices}};
+ try{
+  const cost=modelCallCostMicros(ref,usage,providers);if(cost.estimated)return null;
+  const name=ref.split('/')[0],provider=providers.providers[name];
+  const original=modelCallCostMicros(ref,usage,{...providers,providers:{...providers.providers,[name]:{...provider,currency:'USD'}}});
+  return{usdMicros:cost.usdMicros,currencyMicros:original.usdMicros,currency:provider.currency,usdRate:provider.currency==='USD'?1:provider.usdRate,
+   catalogVersion:providers.catalogVersion,prices:{...providers.models[ref].prices}};
+ }catch(error){
+  // Reported usage arrives after dispatch: preserve its receipt and reservation
+  // if either currency overflows. Pre-dispatch estimates still fail closed.
+  if(error instanceof Error&&error.message==='MODEL_COST_OVERFLOW')return null;
+  throw error;
+ }
 }

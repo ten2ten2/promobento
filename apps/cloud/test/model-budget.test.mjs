@@ -301,6 +301,41 @@ test('a completed response with invalid cached-token usage keeps its reservation
  await assert.rejects(modelStep(env,'other-operation',0,'facts','other-invalid-cache',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/);
  assert.equal(requests,1);
 });
+for(const [stage,currency] of [['facts','original currency'],['treatment','USD']])test(`a completed response with ${currency} overflow keeps its receipt and reservation without resending`,async t=>{
+ const{env,local,shared,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ const usage={prompt_tokens:9e15,completion_tokens:9e15};
+ const raw='data: '+canonical({choices:[{delta:{content:'{"ok":true}'},finish_reason:'stop'}],usage})+'\n\ndata: [DONE]\n\n';
+ globalThis.fetch=async()=>{requests++;return new Response(raw);};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline cost overflow fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:64};
+ const check=value=>assert.equal(value.ok,true),callId='overflow-call';
+ const first=await modelStep(env,'model-operation',0,stage,callId,request,check);
+ assert.deepEqual(first,{value:{ok:true},cached:false},'a complete usable result still reaches finish');
+ const receipt=parseCanonicalJson(objects.get(`operations/model-operation/model-calls/${digest({callId})}.json`).bytes);
+ assert.equal(receipt.kind,'metered_model_response');assert.equal(receipt.quote,null);
+ assert.equal(receipt.result.failure,undefined);assert.deepEqual(receipt.result.usage,usage);
+ assert.equal(new TextDecoder().decode(objects.get(receipt.rawStreamRef.key).bytes),raw);
+ const before=await budget.modelBudgetStatus(env);assert.equal(before.pending.length,1);
+ assert.ok(before.pending[0].dispatched_at!==null);assert.ok(before.pending[0].reserved_micros>0);
+ assert.equal(local.db.prepare('SELECT reserved_micros FROM cost_reservations WHERE id=?').get(callId).reserved_micros,before.pending[0].reserved_micros);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_settlements').get().n,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_settlements').get().n,0);
+ assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM model_responses').get().n,0);
+ const replay=await modelStep(env,'model-operation',0,stage,callId,request,check);
+ assert.equal(replay.cached,true);assert.equal(requests,1);
+ local.db.prepare('INSERT INTO pipeline_operations VALUES(?,?,?,?,?,?,?,?,?,?,?)').run('other-operation','workspace','project',0,'calibration','active','another-request',10000000,Date.now(),null,null);
+ await assert.rejects(modelStep(env,'other-operation',0,stage,'other-overflow-call',request,check),/MODEL_CALL_RECONCILIATION_REQUIRED/);
+ local.db.prepare("UPDATE pipeline_operations SET status='failed' WHERE id='model-operation'").run();
+ assert.equal(await budget.reconcileModelCosts(env,'model-operation'),0,'terminal recovery must not release a dispatched call with unknown cost');
+ assert.deepEqual((await budget.modelBudgetStatus(env)).pending,before.pending);assert.equal(requests,1);
+});
+test('an overflowing pre-dispatch estimate never reserves funds or sends a paid request',async t=>{
+ const{env,local,shared}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
+ globalThis.fetch=async()=>{requests++;throw Error('UNEXPECTED_PAID_REQUEST');};t.after(()=>{globalThis.fetch=originalFetch;});
+ const request={system:'Offline cost overflow fixture.',messages:[{role:'user',text:'Return JSON.'}],maxOutputTokens:Number.MAX_SAFE_INTEGER};
+ await assert.rejects(modelStep(env,'model-operation',0,'treatment','overflow-preflight',request,()=>assert.fail('no response')),/MODEL_COST_OVERFLOW/);
+ assert.equal(requests,0);assert.equal(local.db.prepare('SELECT COUNT(*) AS n FROM cost_reservations').get().n,0);
+ assert.equal(shared.db.prepare('SELECT COUNT(*) AS n FROM model_budget_reservations').get().n,0);
+});
 test('an empty completed stream retains private raw events and an unknown reservation without resending',async t=>{
  const{env,objects}=await fixture(t),originalFetch=globalThis.fetch;let requests=0;
  const raw='data: '+canonical({choices:[{delta:{reasoning_content:'fixture'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n';

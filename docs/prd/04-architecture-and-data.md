@@ -15,7 +15,7 @@ Worker 和可信服务负责鉴权、账务、模型凭据；作品代码与上�
 | 外部业务 | Google OIDC、Cloudflare Email Sending、Waffo；密钥留可信 Worker |
 | 工具/观测 | mise、pnpm、精确锁文件，脱敏 Logs/Analytics，Access + 应用 admin |
 
-当前统一使用 Cloudflare，不建第二套视频渲染引擎。Worker 协调任务，耗时计算在独立容器或持久编排中执行；各类操作返回可查询的任务 ID。未来新增素材生成仍复用 R2、版本及预算体系。
+当前统一使用 Cloudflare，不建第二套视频渲染引擎。Workers HTTP 只协调，不承担长时间 Chromium 或模型编排；耗时计算在独立容器或持久编排中执行。各类操作返回持久任务 ID，交付不依赖浏览器轮询。未来新增素材生成仍复用 R2、版本及预算体系。
 
 客户业务 API 将导演、容器、审核和交付串成持久 operation；状态/回执由 D1/R2 保存，outbox 负责恢复，支付由独立 Billing DO 仲裁。客户模块仍待实现。
 
@@ -65,7 +65,7 @@ complete 只收 `requestId/uploadId`，服务端比对 intent 与实收字节、
 
 ### 输出审核
 
-方向卡、Treatment 和声音计划在展示前审核文字；候选、预览、交付和案例展示还要检查实际画面与声音。以下是待接入的客户审核要求，内部冷审不能代替。
+方向卡、Treatment 和声音计划在展示前审核文字；仅获准展示时返回正文，审核中或扣留时不得夹带原文。候选、预览、交付和案例展示还要检查实际画面与声音，不能用源码声明或少数封面代替动态内容。以下是待接入的客户审核要求，内部冷审不能代替。
 
 可信服务保存 `outputSafetyResult`，绑定项目、operation/revision、用途、实际 `subjectHash`、`targetId`、策略、检查表示和 `coverageManifestHash`。覆盖清单固定实际文字摘要、源片范围、帧数、受检帧与连续音频区间；最低采样由登记的策略推导，不能靠调用方缩短采样数组放行。具体字段与边界见 [14](14-production-contracts.md#8-事实与qa授权)。媒体回执从可信 `outputSafetyResults` 按 artifact.id、screenshotAssetId 或 clipAssetId 取回，任务由同键 `outputOperationIds` 绑定，未登记时只能匹配 null。截图/封面检查文字与画面，视频/片段还检查覆盖实际输出时长的音频。
 
